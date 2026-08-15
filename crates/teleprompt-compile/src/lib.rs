@@ -105,6 +105,7 @@ pub fn compile(
     let mut diags = Vec::new();
     let mut beats: Vec<Beat> = Vec::new();
     let mut narration_details: Vec<NarrationDetail> = Vec::new();
+    let mut cache_warnings: Vec<String> = Vec::new();
 
     // The narration waiting to be joined with the first span of the next
     // action block. `id` and `config` travel alongside it because they
@@ -179,14 +180,21 @@ pub fn compile(
                 // and reading the WAV back on every warm hit only to drop it
                 // would put the whole cache's audio through `plan` on every
                 // run.
-                let cached = match voice_ctx.cache.lookup_meta(&cache_key) {
+                let read = match voice_ctx.cache.lookup_meta(&cache_key) {
                     Ok(c) => c,
                     Err(e) => {
                         diags.push(Diagnostic::error(format!("segment `{id}`: {e}")));
                         continue;
                     }
                 };
-                let (duration_ms, duration_source, word_timings) = match cached {
+                // An unreadable entry is a miss, not an error — the cache is
+                // derived and self-healing. It is still worth saying out
+                // loud, because otherwise a segment silently reverts from
+                // `measured` to `estimated` with no explanation.
+                if let Some(w) = read.warning() {
+                    cache_warnings.push(format!("segment `{id}`: {w}"));
+                }
+                let (duration_ms, duration_source, word_timings) = match read.hit() {
                     Some(hit) => (hit.duration_ms, DurationSource::Measured, hit.word_timings),
                     None => (
                         voice_ctx.estimator.estimate_ms(&req),
@@ -440,7 +448,12 @@ pub fn compile(
         return Err(d);
     }
 
-    let (timeline, warnings) = schedule(&beats, &program.script_name, &program.locale, version);
+    let (timeline, scheduling_warnings) =
+        schedule(&beats, &program.script_name, &program.locale, version);
+    // Cache warnings first: they explain why the numbers the scheduler then
+    // warns about are what they are.
+    let mut warnings = cache_warnings;
+    warnings.extend(scheduling_warnings);
     Ok(CompileOutput {
         timeline,
         warnings,

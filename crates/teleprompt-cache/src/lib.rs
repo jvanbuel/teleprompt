@@ -28,12 +28,46 @@ pub enum CacheError {
         #[source]
         source: std::io::Error,
     },
-    #[error("cache entry {path} is corrupt: {source}")]
-    Corrupt {
-        path: String,
-        #[source]
-        source: serde_json::Error,
-    },
+}
+
+/// What a cache read found.
+///
+/// A corrupt sidecar is deliberately **not** an error. The cache is
+/// content-addressed and entirely derived: every entry can be reproduced
+/// from the key that names it, so an unreadable one is missing information,
+/// not wrong information. Reporting it as an error made a gitignored,
+/// regenerable artifact fail `check` — a validation command — with the blame
+/// attributed to the script, and offered the author no way out.
+///
+/// [`Unusable`](Self::Unusable) is separated from [`Miss`](Self::Miss) only
+/// so the caller can say *why* a segment it expected to be warm is about to
+/// be synthesized again. Both re-synthesize, and the entry heals.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CacheRead<T> {
+    Hit(T),
+    Miss,
+    Unusable { path: String, reason: String },
+}
+
+impl<T> CacheRead<T> {
+    /// The entry, when there was a usable one. A corrupt entry is not one.
+    pub fn hit(self) -> Option<T> {
+        match self {
+            Self::Hit(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// Why a segment that should have been warm is about to be re-rendered.
+    /// `None` for an ordinary miss, which needs no explanation.
+    pub fn warning(&self) -> Option<String> {
+        match self {
+            Self::Unusable { path, reason } => Some(format!(
+                "cache entry {path} could not be read ({reason}); re-synthesizing it"
+            )),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,17 +172,17 @@ impl VoiceCache {
         self.dir().join(format!("{key}.json"))
     }
 
-    pub fn lookup(&self, key: &CacheKey) -> Result<Option<CachedAudio>, CacheError> {
+    pub fn lookup(&self, key: &CacheKey) -> Result<CacheRead<CachedAudio>, CacheError> {
         let json = self.json_path(key);
         let raw = match std::fs::read_to_string(&json) {
             Ok(r) => r,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(CacheRead::Miss),
             Err(e) => return Err(read_err(&json, e)),
         };
-        let side: Sidecar = serde_json::from_str(&raw).map_err(|source| CacheError::Corrupt {
-            path: json.display().to_string(),
-            source,
-        })?;
+        let side: Sidecar = match serde_json::from_str(&raw) {
+            Ok(s) => s,
+            Err(e) => return Ok(unusable(&json, &e)),
+        };
 
         // A sidecar with no audio beside it is a half-written entry — from an
         // interrupted `dub`, say. Treat it as absent and let the caller
@@ -156,11 +190,11 @@ impl VoiceCache {
         let wav_path = self.wav_path(key);
         let wav = match std::fs::read(&wav_path) {
             Ok(w) => w,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(CacheRead::Miss),
             Err(e) => return Err(read_err(&wav_path, e)),
         };
 
-        Ok(Some(CachedAudio {
+        Ok(CacheRead::Hit(CachedAudio {
             duration_ms: side.duration_ms,
             sample_rate: side.sample_rate,
             channels: side.channels,
@@ -173,26 +207,26 @@ impl VoiceCache {
     /// that it exists, so a half-written entry (sidecar with no audio
     /// beside it) still reads as `Ok(None)` rather than a hit with no
     /// bytes.
-    pub fn lookup_meta(&self, key: &CacheKey) -> Result<Option<CachedMeta>, CacheError> {
+    pub fn lookup_meta(&self, key: &CacheKey) -> Result<CacheRead<CachedMeta>, CacheError> {
         let json = self.json_path(key);
         let raw = match std::fs::read_to_string(&json) {
             Ok(r) => r,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(CacheRead::Miss),
             Err(e) => return Err(read_err(&json, e)),
         };
-        let side: Sidecar = serde_json::from_str(&raw).map_err(|source| CacheError::Corrupt {
-            path: json.display().to_string(),
-            source,
-        })?;
+        let side: Sidecar = match serde_json::from_str(&raw) {
+            Ok(s) => s,
+            Err(e) => return Ok(unusable(&json, &e)),
+        };
 
         let wav_path = self.wav_path(key);
         match std::fs::metadata(&wav_path) {
             Ok(_) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(CacheRead::Miss),
             Err(e) => return Err(read_err(&wav_path, e)),
         }
 
-        Ok(Some(CachedMeta {
+        Ok(CacheRead::Hit(CachedMeta {
             duration_ms: side.duration_ms,
             sample_rate: side.sample_rate,
             channels: side.channels,
@@ -266,6 +300,13 @@ impl VoiceCache {
             entries: count,
             bytes,
         })
+    }
+}
+
+fn unusable<T>(path: &Path, source: &serde_json::Error) -> CacheRead<T> {
+    CacheRead::Unusable {
+        path: path.display().to_string(),
+        reason: source.to_string(),
     }
 }
 

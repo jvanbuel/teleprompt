@@ -33,7 +33,7 @@ fn tempdir(tag: &str) -> std::path::PathBuf {
 fn a_miss_is_none_not_an_error() {
     let c = VoiceCache::new(tempdir("miss"));
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
-    assert!(c.lookup(&k).unwrap().is_none());
+    assert!(c.lookup(&k).unwrap().hit().is_none());
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn store_then_lookup_round_trips() {
     assert_eq!(stored.channels, 1);
     assert_eq!(&stored.wav[0..4], b"RIFF");
 
-    let got = c.lookup(&k).unwrap().expect("hit");
+    let got = c.lookup(&k).unwrap().hit().expect("hit");
     assert_eq!(got.duration_ms, 1000);
     assert_eq!(got.sample_rate, 24_000);
     assert_eq!(got.channels, 1);
@@ -63,7 +63,7 @@ fn lookup_meta_round_trips_without_the_wav() {
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
     c.store(&k, &pcm(1000), None).unwrap();
 
-    let got = c.lookup_meta(&k).unwrap().expect("hit");
+    let got = c.lookup_meta(&k).unwrap().hit().expect("hit");
     assert_eq!(
         got,
         CachedMeta {
@@ -94,7 +94,7 @@ fn word_timings_survive_the_round_trip() {
 
     c.store(&k, &pcm(900), Some(&timings)).unwrap();
     assert_eq!(
-        c.lookup(&k).unwrap().unwrap().word_timings.unwrap(),
+        c.lookup(&k).unwrap().hit().unwrap().word_timings.unwrap(),
         timings
     );
 }
@@ -188,15 +188,47 @@ fn no_voice_is_distinguishable_from_a_voice_literally_named_dash() {
     assert_ne!(none.to_string(), dash.to_string());
 }
 
+/// I4. A corrupt sidecar used to be an error, which made a gitignored,
+/// entirely derived artifact fail `check` — a validation command — with the
+/// blame attributed to the script and no recovery offered. The cache is
+/// content-addressed: an unreadable entry is missing information, never
+/// wrong information, so the only correct reading is a miss. The warning is
+/// what keeps that from being silent, since a segment would otherwise revert
+/// from `measured` to `estimated` for no visible reason.
 #[test]
-fn a_corrupt_sidecar_is_an_error_not_a_panic() {
+fn a_corrupt_sidecar_reads_as_a_miss_and_names_itself() {
     let root = tempdir("corrupt");
     let c = VoiceCache::new(&root);
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
     c.store(&k, &pcm(1000), None).unwrap();
 
     std::fs::write(root.join(format!("voice/{k}.json")), "{ not json").unwrap();
-    assert!(c.lookup(&k).is_err());
+
+    for (what, read) in [
+        ("lookup", c.lookup(&k).unwrap().warning()),
+        ("lookup_meta", c.lookup_meta(&k).unwrap().warning()),
+    ] {
+        let w = read.unwrap_or_else(|| panic!("{what} must warn about a corrupt entry"));
+        assert!(w.contains(&k.to_string()), "{what}: {w}");
+    }
+
+    assert!(
+        c.lookup(&k).unwrap().hit().is_none(),
+        "a corrupt entry must re-synthesize, not error"
+    );
+    assert!(c.lookup_meta(&k).unwrap().hit().is_none());
+}
+
+/// An ordinary miss has nothing to explain, so it must not manufacture a
+/// warning — a `plan` on a cold project would otherwise print one per
+/// segment.
+#[test]
+fn an_ordinary_miss_carries_no_warning() {
+    let root = tempdir("quietmiss");
+    let c = VoiceCache::new(&root);
+    let k = key("null", "0.1.0", &req("never stored", None, 1.0, "en"));
+    assert_eq!(c.lookup(&k).unwrap().warning(), None);
+    assert_eq!(c.lookup_meta(&k).unwrap().warning(), None);
 }
 
 /// A sidecar with no audio beside it is a half-written entry, not a hit.
@@ -209,7 +241,7 @@ fn a_sidecar_without_its_wav_is_a_miss() {
 
     std::fs::remove_file(root.join(format!("voice/{k}.wav"))).unwrap();
     assert!(
-        c.lookup(&k).unwrap().is_none(),
+        c.lookup(&k).unwrap().hit().is_none(),
         "treat as absent and re-synthesize"
     );
 }
@@ -226,7 +258,7 @@ fn lookup_meta_of_a_sidecar_without_its_wav_is_a_miss() {
 
     std::fs::remove_file(root.join(format!("voice/{k}.wav"))).unwrap();
     assert!(
-        c.lookup_meta(&k).unwrap().is_none(),
+        c.lookup_meta(&k).unwrap().hit().is_none(),
         "treat as absent and re-synthesize"
     );
 }

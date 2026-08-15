@@ -219,12 +219,21 @@ pub async fn run_dub_with(
     // per segment would need a wider manifest, not a different pick here.
     let mut audio_format: Option<(u32, u16)> = None;
 
+    // Cache entries `dub` had to re-render because they were unreadable.
+    // Collected here rather than taken from either compile's warnings: the
+    // recompile below runs against a cache this loop has already healed, so
+    // by then there is nothing left to notice.
+    let mut cache_warnings: Vec<String> = Vec::new();
+
     for detail in &compiled.narration {
-        let hit = cache
+        let read = cache
             .lookup(&detail.cache_key)
             .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+        if let Some(w) = read.warning() {
+            cache_warnings.push(format!("segment `{}`: {w}", detail.segment_id));
+        }
 
-        let (wav_bytes, rendered_ms) = match hit {
+        let (wav_bytes, rendered_ms) = match read.hit() {
             Some(cached) => {
                 audio_format.get_or_insert((cached.sample_rate, cached.channels));
                 (cached.wav, cached.duration_ms)
@@ -321,6 +330,11 @@ pub async fn run_dub_with(
 
     let downgrades = downgrades_in(&built);
 
+    // The re-render notices come first: they explain why anything below them
+    // is being recomputed at all.
+    let mut warnings = cache_warnings;
+    warnings.extend(compiled.warnings.iter().cloned());
+
     if check_only {
         let committed =
             read_committed(&manifest_path(out_root, locale)).map_err(DubError::Runtime)?;
@@ -340,7 +354,7 @@ pub async fn run_dub_with(
         return Ok(DubOutput {
             manifest: built,
             written: Vec::new(),
-            warnings: compiled.warnings,
+            warnings: warnings.clone(),
             drift: Some(drift),
             downgrades,
         });
@@ -369,7 +383,7 @@ pub async fn run_dub_with(
     Ok(DubOutput {
         manifest: built,
         written,
-        warnings: compiled.warnings,
+        warnings,
         drift: None,
         downgrades,
     })
