@@ -1,0 +1,55 @@
+---
+source: crates/teleprompt-compile/tests/manifest.rs
+assertion_line: 178
+expression: m
+---
+{
+  "manifest_version": 1,
+  "script": "tour.md",
+  "locale": "en",
+  "generated_by": "teleprompt 0.1.0",
+  "duration_ms": 8700,
+  "audio": {
+    "format": "wav",
+    "sample_rate": 48000,
+    "channels": 1
+  },
+  "chapters": [
+    {
+      "id": "quick-start",
+      "title": "Quick start",
+      "start_ms": 150
+    },
+    {
+      "id": "provenance",
+      "title": "Provenance",
+      "start_ms": 5400
+    }
+  ],
+  "segments": [
+    {
+      "id": "quick-start-1",
+      "text": "Every video in this repository is built from a script you can read.",
+      "start_ms": 150,
+      "duration_ms": 5550,
+      "audio": "audio/quick-start-1.wav",
+      "voice_source": "synthetic",
+      "voice_source_actual": "synthetic",
+      "downgrade_reason": null,
+      "source_hash": "0fbee1f07d14ecc98c3ef11c61679dbd7e8323d8f88c8c77158f8bf7976f065c",
+      "audio_hash": "9f8f803337d3b2925128830166e91e61f42fb3c2966254b0b8eed48708fc160f"
+    },
+    {
+      "id": "provenance-1",
+      "text": "And every timeline is committed alongside it.",
+      "start_ms": 5400,
+      "duration_ms": 3150,
+      "audio": "audio/provenance-1.wav",
+      "voice_source": "synthetic",
+      "voice_source_actual": "synthetic",
+      "downgrade_reason": null,
+      "source_hash": "2d0ca2b775c10771ab089230b4050525327384f999c98be24c75d31da4479b7f",
+      "audio_hash": "f0ee5979c451c17747f6a8ebe986dd1679c0b230ce8d58708a52cba00a160259"
+    }
+  ]
+}
