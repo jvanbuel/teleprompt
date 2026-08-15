@@ -200,9 +200,17 @@ pub async fn run_dub_with(
     let cache = VoiceCache::new(cache_root(project));
 
     // Audio is rendered into memory before anything is written to disk, so
-    // a synthesis failure cannot leave a half-populated output directory
-    // behind.
-    let mut audio: Vec<(String, Vec<u8>)> = Vec::new();
+    // a synthesis failure cannot leave a half-populated *output directory*
+    // behind. The cache is a different matter: `cache.store` runs inside
+    // this loop, so a failure after the first segment leaves those entries
+    // on disk. That is deliberate and harmless — the cache is
+    // content-addressed and gitignored, and keeping what was already
+    // synthesized is the point of it.
+    //
+    // Each segment's rendered length rides along with its bytes: the length
+    // guard cannot run here, because the number the manifest publishes is
+    // not known until the recompile below.
+    let mut audio: Vec<(String, Vec<u8>, u64)> = Vec::new();
 
     // Read off the audio actually produced rather than assumed from any one
     // backend. First segment wins, so the value is a function of document
@@ -247,18 +255,7 @@ pub async fn run_dub_with(
             }
         };
 
-        // The guard rail for the above. The manifest publishes the
-        // *timeline's* duration for this segment, so that is what the file
-        // has to be — read it from the timeline rather than re-deriving it,
-        // or the check would only ever compare a value against itself.
-        // Checked before anything is written: an output directory that
-        // disagrees with its own manifest is worse than no output at all.
-        if let Some(published_ms) = published_duration_ms(&compiled.timeline, &detail.segment_id) {
-            length_mismatch(&detail.segment_id, rendered_ms, published_ms)
-                .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
-        }
-
-        audio.push((detail.segment_id.clone(), wav_bytes));
+        audio.push((detail.segment_id.clone(), wav_bytes, rendered_ms));
     }
 
     // Every segment is warm now — the loop above either found it already
@@ -272,6 +269,26 @@ pub async fn run_dub_with(
     // synthesis, since by this point every lookup is a hit.
     let (compiled, _) =
         compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
+
+    // The guard rail, now that the number the manifest publishes exists.
+    //
+    // It used to run inside the loop above, against the *first* compile's
+    // timeline — which on a cold cache holds estimates, not measurements.
+    // With `null` that was invisible, because `NullVoice::synthesize` and
+    // `WpmEstimator::estimate_ms` call the same function; against any
+    // backend whose render differs from the word-count estimate it made the
+    // first `dub` of every new segment fail, quoting a duration the manifest
+    // would never have published, and the identical second run succeed off
+    // the now-warm cache.
+    //
+    // Checked before anything is written to `--out`: an output directory
+    // that disagrees with its own manifest is worse than no output at all.
+    for (segment_id, _, rendered_ms) in &audio {
+        if let Some(published_ms) = published_duration_ms(&compiled.timeline, segment_id) {
+            length_mismatch(segment_id, *rendered_ms, published_ms)
+                .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
+        }
+    }
 
     let (sample_rate, channels) = audio_format.unwrap_or((NO_AUDIO_SAMPLE_RATE, 1));
     let mut built = manifest::build(
@@ -296,7 +313,7 @@ pub async fn run_dub_with(
     //
     // Done before the `--check` branch, not only on the write path, so a
     // comparison is always like-for-like.
-    for (segment_id, bytes) in &audio {
+    for (segment_id, bytes, _) in &audio {
         if let Some(seg) = built.segments.iter_mut().find(|s| s.id == *segment_id) {
             seg.audio_hash = Hash::of(bytes);
         }
@@ -335,7 +352,7 @@ pub async fn run_dub_with(
         .map_err(|e| DubError::Runtime(format!("cannot create {}: {e}", audio_dir.display())))?;
 
     let mut written = Vec::new();
-    for (segment_id, bytes) in &audio {
+    for (segment_id, bytes, _) in &audio {
         let path = dir.join(manifest::audio_path(segment_id, "wav"));
         std::fs::write(&path, bytes)
             .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;

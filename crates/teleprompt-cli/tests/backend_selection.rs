@@ -62,10 +62,50 @@ impl VoiceBackend for ToneVoice {
     }
 }
 
+/// A backend that renders *longer* than the word-count estimate predicts —
+/// 120 wpm against `WpmEstimator`'s 150 — which is the normal condition for
+/// any real backend and the one `null` uniquely does not exhibit.
+struct DrawlVoice;
+
+const DRAWL_WPM: f64 = 120.0;
+
+#[async_trait]
+impl VoiceBackend for DrawlVoice {
+    fn id(&self) -> &str {
+        "drawl"
+    }
+
+    fn capabilities(&self) -> VoiceCapabilities {
+        VoiceCapabilities {
+            languages: LanguageSupport::Any,
+            cloning: false,
+            cross_lingual: false,
+            word_timings: false,
+            ssml: false,
+            speed_control: true,
+            version: "drawl-1".to_string(),
+        }
+    }
+
+    async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
+        let ms = teleprompt_voice_null::estimator::estimate_ms(&req.text, DRAWL_WPM, req.speed);
+        let frames = (ms * TONE_SAMPLE_RATE as u64 / 1000) as usize;
+        Ok(Synthesized {
+            pcm: Pcm {
+                sample_rate: TONE_SAMPLE_RATE,
+                channels: 1,
+                samples: vec![7; frames],
+            },
+            word_timings: None,
+        })
+    }
+}
+
 fn registry_with_tone() -> VoiceRegistry {
     let mut r = VoiceRegistry::default();
     r.register(Arc::new(NullVoice::default()));
     r.register(Arc::new(ToneVoice));
+    r.register(Arc::new(DrawlVoice));
     r
 }
 
@@ -183,4 +223,73 @@ fn an_unregistered_backend_is_still_rejected() {
         panic!("the default registry does not ship `tone`, so this must fail");
     };
     assert!(errors.join("\n").contains("tone"), "{errors:?}");
+}
+
+const DRAWL_SCRIPT: &str = "\
+---
+voice:
+  backend: drawl
+---
+
+# Quick start
+
+Every video in this repository is built from a script you can read.
+";
+
+/// I1. The WAV-length guard ran inside the render loop, against the
+/// *pre-render* compile's timeline — which on a cold cache holds estimates.
+/// The value the manifest actually publishes comes from the recompile that
+/// follows the loop.
+///
+/// With `null` the two always agreed, because `NullVoice::synthesize` and
+/// `WpmEstimator::estimate_ms` call the same function. For any backend whose
+/// render differs from the word-count estimate the first `dub` of every new
+/// segment failed, quoting a duration the manifest would never have
+/// published, and the identical second run succeeded off the now-warm cache.
+#[tokio::test]
+async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run() {
+    let (project, script) = project_with("drawl", DRAWL_SCRIPT);
+    let out_root = project.root.join("public/narration");
+
+    let result = teleprompt_cli::cmd::dub::run_dub_with(
+        &registry_with_tone(),
+        &project,
+        &script,
+        "en",
+        &out_root,
+        false,
+    )
+    .await
+    .unwrap_or_else(|e| match e {
+        teleprompt_cli::cmd::dub::DubError::Validation(v) => panic!("validation: {v:?}"),
+        teleprompt_cli::cmd::dub::DubError::Runtime(r) => {
+            panic!("the first dub of a cold segment must not fail: {r}")
+        }
+    });
+
+    let seg = &result.manifest.segments[0];
+    let wav = std::fs::read(out_root.join("en").join(&seg.audio)).unwrap();
+    let rendered_ms = samples(&wav).len() as u64 * 1000 / TONE_SAMPLE_RATE as u64;
+
+    // The disagreement is real, so this is not passing because the fixture
+    // happens to render at exactly the estimated length.
+    let estimated_ms = WpmEstimator::default().estimate_ms(&SynthRequest {
+        text: seg.text.clone(),
+        locale: "en".to_string(),
+        voice: None,
+        speed: 1.0,
+    });
+    assert_ne!(
+        rendered_ms, estimated_ms,
+        "the fixture must exercise a backend that disagrees with the estimate"
+    );
+
+    assert_eq!(
+        seg.duration_ms, rendered_ms,
+        "the manifest must publish the length of the file beside it"
+    );
+    assert_eq!(
+        seg.duration_source, "measured",
+        "the recompile ran against the warm cache, so this is a measurement"
+    );
 }
