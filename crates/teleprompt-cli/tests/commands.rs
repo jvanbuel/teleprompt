@@ -288,3 +288,54 @@ fn a_segment_level_backend_that_matches_the_resolved_backend_is_fine() {
     let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=null}\n");
     assert!(run_check(&p, &s, "en").is_ok());
 }
+
+/// Fix round 1: a chapter-level `voice.backend` override with no segment
+/// attribute must still be rejected (Delivery A supports one backend per
+/// compile, full stop), but `Item::Narration`'s config is already merged
+/// and cannot say which layer produced the value. The diagnostic must
+/// therefore describe the effect ("resolves to") rather than accuse the
+/// segment of writing an attribute it never wrote, and the help text must
+/// mention that chapter-level overrides are unsupported too.
+#[test]
+fn a_chapter_level_backend_override_is_reported_without_claiming_the_segment_set_it() {
+    let (p, s) = project_with(
+        "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\nOne two three. {#a}\n",
+    );
+    let errors = run_check(&p, &s, "en").expect_err("a chapter-level backend override must fail");
+    let joined = errors.join("\n");
+    assert!(
+        !joined.contains("sets"),
+        "must not claim the segment wrote an attribute it did not: {joined}"
+    );
+    assert!(
+        joined.contains("resolves to voice backend `elsewhere`"),
+        "must describe the effect, not a guessed cause: {joined}"
+    );
+    assert!(
+        joined.contains("chapter"),
+        "help must mention chapter-level overrides are unsupported too: {joined}"
+    );
+}
+
+/// Fix round 1: a chapter-wide override affecting several segments must
+/// produce exactly one diagnostic naming all of them, not one per segment.
+#[test]
+fn a_chapter_level_backend_override_across_several_segments_is_one_diagnostic() {
+    let (p, s) = project_with(
+        "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\n\
+         One. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n",
+    );
+    let errors = run_check(&p, &s, "en").expect_err("a chapter-level backend override must fail");
+    assert_eq!(
+        errors.len(),
+        1,
+        "one diagnostic per offending value, not one per segment: {errors:?}"
+    );
+    let joined = errors.join("\n");
+    for id in ["a", "b", "c"] {
+        assert!(
+            joined.contains(&format!("`{id}`")),
+            "must name segment `{id}`: {joined}"
+        );
+    }
+}

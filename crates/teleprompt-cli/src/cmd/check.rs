@@ -61,36 +61,64 @@ pub fn compile_script(
         .map_err(|e| vec![e])?;
 
     // Delivery A supports exactly one backend per compile: `VoiceContext`
-    // carries a single `backend_id` for the whole program. A segment that
-    // writes its own `voice.backend=` and disagrees with the program's
-    // resolved backend cannot be honoured — silently ignoring it would let
-    // an author believe an override took effect when it did not, and
-    // worse, two segments differing only by backend would land on the same
-    // cache key and one would be served the other's audio. So it is
-    // rejected here rather than either of those.
-    let mismatches: Vec<Diagnostic> = program
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Narration {
-                id, config, span, ..
-            } if config.voice.backend != program.config.voice.backend => Some(
+    // carries a single `backend_id` for the whole program. A narration item
+    // can resolve to a different backend than the program's overall
+    // resolved backend two ways: a segment attribute set it, or a
+    // chapter's front matter did. `Item::Narration` does not retain which
+    // layer supplied the value — `config` is already the fully merged
+    // result — so the diagnostic describes the *effect* ("this segment
+    // resolves to a backend other than the one in use") rather than
+    // guessing which layer is at fault and telling the author to remove an
+    // attribute that, for a chapter-level override, was never written.
+    //
+    // Grouped by the offending value and reported once per group, naming
+    // every affected segment, so a chapter of twelve paragraphs under one
+    // stray `voice: { backend: ... }` produces one error, not twelve.
+    let mut offenders: std::collections::BTreeMap<
+        String,
+        Vec<(String, teleprompt_core::SourceSpan)>,
+    > = std::collections::BTreeMap::new();
+    for item in &program.items {
+        if let Item::Narration {
+            id, config, span, ..
+        } = item
+        {
+            if config.voice.backend != program.config.voice.backend {
+                offenders
+                    .entry(config.voice.backend.clone())
+                    .or_default()
+                    .push((id.clone(), *span));
+            }
+        }
+    }
+    if !offenders.is_empty() {
+        let diags: Vec<Diagnostic> = offenders
+            .into_iter()
+            .map(|(backend, segments)| {
+                let span = segments[0].1;
+                let names = segments
+                    .iter()
+                    .map(|(id, _)| format!("`{id}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let (noun, verb) = if segments.len() == 1 {
+                    ("segment", "resolves")
+                } else {
+                    ("segments", "resolve")
+                };
                 Diagnostic::error(format!(
-                    "segment `{id}` sets voice.backend=`{}`, but this compile resolved to \
-                     backend `{}`; per-segment voice backends are not supported yet",
-                    config.voice.backend, program.config.voice.backend
+                    "{noun} {names} {verb} to voice backend `{backend}`, but this compile uses \
+                     `{}`",
+                    program.config.voice.backend
                 ))
-                .at(*span)
+                .at(span)
                 .with_help(
-                    "remove the segment-level voice.backend= override, or change the \
-                     project/script default instead",
-                ),
-            ),
-            _ => None,
-        })
-        .collect();
-    if !mismatches.is_empty() {
-        return Err(render(&Diagnostics(mismatches), &display));
+                    "per-segment and per-chapter voice backends are not supported yet; set \
+                     voice.backend at the project or script front-matter level instead",
+                )
+            })
+            .collect();
+        return Err(render(&Diagnostics(diags), &display));
     }
 
     // `script_dir`, not `script.parent()`: a bare `demo.md` has
