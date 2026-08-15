@@ -296,10 +296,26 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
             if let (Some(on), Some(nn)) = (&o.narration, &n.narration) {
                 let offset_moved = on.start_ms.saturating_sub(o.start_ms)
                     != nn.start_ms.saturating_sub(n.start_ms);
+                // Hoisted so the guard and the reason arm below cannot drift
+                // apart. It has to be *this* condition and not a bare
+                // `duration_source` inequality: the reverse transition
+                // (measured -> estimated, i.e. a cleared cache) would then
+                // enter the block and fall through to "padding changed",
+                // which is a lie. A cleared cache is not a change to the
+                // program, so it stays clean.
+                let now_measured =
+                    on.duration_source != nn.duration_source && nn.duration_source == "measured";
                 if on.source_hash != nn.source_hash
                     || on.audio_hash != nn.audio_hash
                     || on.duration_ms != nn.duration_ms
                     || offset_moved
+                    // A segment whose audio was synthesized since the last
+                    // run reports as changed even when the measured length
+                    // lands exactly on the estimate — which, with `null`, it
+                    // always does. Without this the estimate-to-measurement
+                    // transition is invisible to `teleprompt diff`, while
+                    // `manifest_diff` reports it.
+                    || now_measured
                 {
                     let reason = if on.source_hash != nn.source_hash {
                         "text edited"
@@ -309,9 +325,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                     // duration checks because those would otherwise absorb
                     // this and report a cause that sends the reader to the
                     // wrong place.
-                    } else if on.duration_source != nn.duration_source
-                        && nn.duration_source == "measured"
-                    {
+                    } else if now_measured {
                         "now measured"
                     } else if on.audio_hash != nn.audio_hash || on.duration_ms != nn.duration_ms {
                         "audio changed"

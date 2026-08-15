@@ -292,6 +292,15 @@ pub async fn run_dub_with(
     //
     // Checked before anything is written to `--out`: an output directory
     // that disagrees with its own manifest is worse than no output at all.
+    //
+    // Be aware that as the code stands this cannot fire: the recompile above
+    // reads back the very `duration_ms` that `cache.store` just wrote, so the
+    // two numbers are the same value by construction. That is the point —
+    // the invariant it asserts is currently upheld structurally, and the
+    // guard is here to catch the day it stops being. The failure it would
+    // catch is a key or metadata drift that makes the recompile resolve a
+    // *different* entry than the one this run stored, which is silent and
+    // unrecoverable at every layer above.
     for (segment_id, _, rendered_ms) in &audio {
         if let Some(published_ms) = published_duration_ms(&compiled.timeline, segment_id) {
             length_mismatch(segment_id, *rendered_ms, published_ms)
