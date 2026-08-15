@@ -85,3 +85,40 @@ fn explicit_id_colliding_with_a_derived_id_is_an_error() {
         .iter()
         .any(|d| d.is_error() && d.message.contains("duplicate segment id `a-1`")));
 }
+
+#[test]
+fn adjacent_action_blocks_after_one_segment_get_distinct_derived_ids() {
+    let src = "# A\n\nOne.\n\n```teleprompt scene=mock\nwait 100ms\n```\n\n```teleprompt scene=mock\nwait 200ms\n```\n";
+    assert_eq!(ids(src), ["a-1", "a-1-a", "a-1-a2"]);
+}
+
+#[test]
+fn action_block_counter_resets_after_a_new_segment() {
+    let src = "# A\n\nOne.\n\n```teleprompt scene=mock\nwait 100ms\n```\n\nTwo.\n\n```teleprompt scene=mock\nwait 200ms\n```\n";
+    assert_eq!(ids(src), ["a-1", "a-1-a", "a-2", "a-2-a"]);
+}
+
+#[test]
+fn block_id_colliding_with_an_explicit_segment_id_is_an_error() {
+    let src = "# A\n\nOne.\n\n```teleprompt scene=mock\nwait 100ms\n```\n\nTwo. {#a-1-a}\n";
+    let mut s = parse_script(src).unwrap();
+    let diags = assign_ids(&mut s);
+    assert!(diags
+        .iter()
+        .any(|d| d.is_error() && d.message.contains("duplicate segment id `a-1-a`")));
+}
+
+#[test]
+fn empty_explicit_id_is_an_error() {
+    let src = "# A\n\nOne. {#}\n";
+    let mut s = parse_script(src).unwrap();
+    let diags = assign_ids(&mut s);
+    assert!(diags
+        .iter()
+        .any(|d| d.is_error() && d.message.contains("segment id cannot be empty")));
+    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected segment")
+    };
+    assert_eq!(seg.id.as_deref(), Some("a-1"));
+    assert_eq!(seg.id_origin, IdOrigin::Derived);
+}
