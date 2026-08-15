@@ -170,3 +170,36 @@ fn pcm_duration_is_computed_per_frame_not_per_sample() {
     };
     assert_eq!(stereo.duration_ms(), 1000);
 }
+
+/// The invariant the whole workspace leans on without saying so: `null`'s
+/// audio is *exactly* what the default estimator predicts, so a warm cache
+/// and a cold one produce the same numbers and several tests elsewhere read
+/// as healthy. It used to be maintained by two unrelated `150.0` literals in
+/// two files.
+///
+/// Asserted against rendered audio rather than by comparing the constants,
+/// which would be a tautology: the claim is about the length of the samples
+/// that come out, and the rate is only one of the two ways it could break —
+/// the frame arithmetic in `synthesize` is the other.
+#[tokio::test]
+async fn null_renders_exactly_the_default_estimate() {
+    let sentence = "Every video in this repository is built from a script you can read, \
+                    and the timeline is committed beside it; nothing here is a guess.";
+
+    for speed in [0.5, 1.0, 2.0] {
+        let mut r = req(sentence);
+        r.speed = speed;
+        let rendered = NullVoice::default()
+            .synthesize(&r)
+            .await
+            .unwrap()
+            .pcm
+            .duration_ms();
+        let estimated = WpmEstimator::default().estimate_ms(&r);
+        assert!(estimated > 0, "the fixture must be non-trivial");
+        assert_eq!(
+            rendered, estimated,
+            "at speed {speed}, null's audio must be exactly the default estimate"
+        );
+    }
+}

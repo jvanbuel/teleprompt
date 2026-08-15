@@ -1,6 +1,14 @@
 use teleprompt_voice::estimator::DurationEstimator;
 use teleprompt_voice::SynthRequest;
 
+/// The rate both `WpmEstimator` and `NullVoice` default to.
+///
+/// One constant, not two literals, because the whole reason `null` is useful
+/// as a reference backend is that its audio is *exactly* the default
+/// estimate: several tests read as healthy only because the two agree, and
+/// nothing but this shared definition stops them from drifting apart.
+pub const DEFAULT_WPM: f64 = 150.0;
+
 const COMMA_MS: u64 = 150;
 const CLAUSE_MS: u64 = 250;
 const SENTENCE_MS: u64 = 350;
@@ -13,7 +21,7 @@ pub struct WpmEstimator {
 
 impl Default for WpmEstimator {
     fn default() -> Self {
-        Self { wpm: 150.0 }
+        Self { wpm: DEFAULT_WPM }
     }
 }
 

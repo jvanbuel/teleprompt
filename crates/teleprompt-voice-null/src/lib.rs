@@ -8,5 +8,5 @@
 pub mod estimator;
 mod null;
 
-pub use estimator::WpmEstimator;
+pub use estimator::{WpmEstimator, DEFAULT_WPM};
 pub use null::{NullVoice, NULL_SAMPLE_RATE};
