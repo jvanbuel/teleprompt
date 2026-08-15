@@ -20,6 +20,7 @@ use teleprompt_schedule::{
 use teleprompt_voice::{resolve_source, SynthRequest, VoiceBackend, VoiceSource, WordTiming};
 
 pub mod manifest;
+pub mod manifest_diff;
 
 /// How an included file is spelled in a diagnostic: the way an author would
 /// find it from where they invoked teleprompt, with a `./` prefix trimmed so
