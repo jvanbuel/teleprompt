@@ -40,6 +40,30 @@ fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<S
     .map_err(|d| d.0.iter().map(|x| x.message.clone()).collect())
 }
 
+/// Like `run`, but keeps the whole rendered diagnostic — file, line, column —
+/// rather than just the message, as the CLI prints it.
+fn run_rendered(dir: &Path, script_name: &str, src: &str) -> Result<(), Vec<String>> {
+    let mut s = parse_script(src).unwrap();
+    assign_ids(&mut s);
+    let p = resolve(
+        &s,
+        script_name,
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .unwrap();
+    compile(
+        &p,
+        &SceneRegistry::with_builtins(),
+        &NullVoice::default(),
+        dir,
+        "0.1.0",
+    )
+    .map(|_| ())
+    .map_err(|d| d.0.iter().map(|x| x.render(script_name)).collect())
+}
+
 #[test]
 fn an_included_file_supplies_the_block_body() {
     let dir = workspace();
@@ -87,4 +111,67 @@ fn an_include_escaping_the_project_root_is_refused() {
     )
     .unwrap_err();
     assert!(e[0].contains("outside the project"));
+}
+
+/// Final review, item 4. `BlockSource` used to carry only the fence's span,
+/// and the mock adapter offset body line `i` by `span.line + i + 1`. Right
+/// for an inline body; meaningless for an included one — an error on line 3
+/// of `steps.mock` came out as `scripts/h1.md:15:1` in a thirteen-line
+/// script. Ruling F12 removed a fabricated `line: 0` from this exact path;
+/// `include=` reintroduced a fabricated line by another route.
+#[test]
+fn a_bad_directive_in_an_included_file_names_that_file_and_its_own_line() {
+    let dir = workspace();
+    std::fs::write(
+        dir.join("steps.mock"),
+        "wait 100ms\nmark\nbogus directive here\n",
+    )
+    .unwrap();
+
+    let errs = run_rendered(
+        &dir,
+        "scripts/h1.md",
+        // The fence sits well down the script, so a fence-relative offset
+        // would produce a visibly different (and out-of-range) line.
+        "# Include\n\nHello there world. {#hi}\n\n\n\n\n\n```teleprompt scene=mock include=steps.mock\n```\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(errs.len(), 1, "{errs:?}");
+    assert!(
+        errs[0].contains("unknown mock directive `bogus`"),
+        "{}",
+        errs[0]
+    );
+    assert!(
+        errs[0].contains("steps.mock:3:1"),
+        "the included file's own path and line, not the script's: {}",
+        errs[0]
+    );
+    assert!(
+        !errs[0].contains("h1.md"),
+        "the script is not where this line lives: {}",
+        errs[0]
+    );
+}
+
+/// The other half: an inline body's diagnostics still point at the script,
+/// with the fence offset applied exactly as before.
+#[test]
+fn an_inline_body_still_reports_the_scripts_own_path_and_offset_line() {
+    let dir = workspace();
+    let errs = run_rendered(
+        &dir,
+        "scripts/h1.md",
+        "# Inline\n\nHello there world. {#hi}\n\n```teleprompt scene=mock\nwait 100ms\nbogus directive here\n```\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(errs.len(), 1, "{errs:?}");
+    // The fence opens on script line 5; body line 1 (0-based) is line 7.
+    assert!(
+        errs[0].contains("scripts/h1.md:7:1"),
+        "inline bodies keep today's behaviour: {}",
+        errs[0]
+    );
 }

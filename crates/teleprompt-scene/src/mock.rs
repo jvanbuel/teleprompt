@@ -1,5 +1,5 @@
 use teleprompt_core::attrs::parse_duration_ms;
-use teleprompt_core::{Diagnostic, Hash, SourceSpan};
+use teleprompt_core::{Diagnostic, Hash};
 
 use crate::contract::{BlockSource, Measured, SceneCompiler, Span, Validated};
 
@@ -17,31 +17,28 @@ impl SceneCompiler for MockScene {
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-            let span = SourceSpan {
-                line: src.span.line + i + 1,
-                column: 1,
-                len: line.len(),
-            };
+            // Every diagnostic about a body line goes through `locate`, which
+            // knows whether that line is in the script or in an `include`d
+            // file. Doing the offset arithmetic here is what made included
+            // bodies report a nonexistent line in the wrong file.
+            let at = |d: Diagnostic| src.origin.locate(d, i, line.len());
             let mut parts = line.split_whitespace();
             match parts.next() {
                 Some("mark") => {}
                 Some("wait") => match parts.next() {
                     Some(v) => {
                         if let Err(msg) = parse_duration_ms(v) {
-                            diags.push(Diagnostic::error(msg).at(span));
+                            diags.push(at(Diagnostic::error(msg)));
                         }
                     }
-                    None => diags.push(
-                        Diagnostic::error("`wait` needs a duration")
-                            .at(span)
-                            .with_help("e.g. `wait 500ms`"),
-                    ),
+                    None => diags
+                        .push(at(Diagnostic::error("`wait` needs a duration")
+                            .with_help("e.g. `wait 500ms`"))),
                 },
-                Some(other) => diags.push(
-                    Diagnostic::error(format!("unknown mock directive `{other}`"))
-                        .at(span)
-                        .with_help("mock understands `wait <duration>` and `mark`"),
-                ),
+                Some(other) => diags.push(at(Diagnostic::error(format!(
+                    "unknown mock directive `{other}`"
+                ))
+                .with_help("mock understands `wait <duration>` and `mark`"))),
                 None => {}
             }
         }

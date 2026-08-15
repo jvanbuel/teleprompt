@@ -13,11 +13,19 @@ use std::path::{Component, Path};
 use teleprompt_core::config::default_adapter;
 use teleprompt_core::program::{Item, Program};
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
-use teleprompt_scene::{BlockSource, Measured, SceneRegistry};
+use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry};
 use teleprompt_schedule::{
     schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, Timeline,
 };
 use teleprompt_voice::{resolve_source, SynthRequest, VoiceBackend, VoiceSource};
+
+/// How an included file is spelled in a diagnostic: the way an author would
+/// find it from where they invoked teleprompt, with a `./` prefix trimmed so
+/// a script in the current directory yields `steps.mock`, not `./steps.mock`.
+fn display_path(path: &Path) -> String {
+    let s = path.display().to_string();
+    s.strip_prefix("./").unwrap_or(&s).to_string()
+}
 
 #[derive(Debug)]
 pub struct CompileOutput {
@@ -151,7 +159,7 @@ pub fn compile(
                 // absolute path outright) is what actually stops traversal;
                 // canonicalising first would follow symlinks out of the
                 // project and let a malicious symlink pass the check.
-                let body = match include {
+                let (body, origin) = match include {
                     Some(rel) => {
                         let p = Path::new(rel);
                         if p.is_absolute()
@@ -168,17 +176,38 @@ pub fn compile(
                             )));
                             continue;
                         }
-                        match std::fs::read_to_string(base_dir.join(rel)) {
-                            Ok(s) => s,
+                        let path = base_dir.join(rel);
+                        match std::fs::read_to_string(&path) {
+                            Ok(s) => (
+                                s,
+                                // Diagnostics about this body name the
+                                // included file, spelled the way an author
+                                // would find it from where they invoked
+                                // teleprompt — `scripts/steps.mock`, not the
+                                // script's own path with an invented line.
+                                BodyOrigin::Included {
+                                    path: display_path(&path),
+                                },
+                            ),
                             Err(e) => {
+                                // Name the attribute as the author wrote it
+                                // *and* where it resolved to, when those
+                                // differ — the first is what they search for,
+                                // the second is what actually went missing.
+                                let resolved = display_path(&path);
+                                let at = if resolved == *rel {
+                                    String::new()
+                                } else {
+                                    format!(" ({resolved})")
+                                };
                                 diags.push(Diagnostic::error(format!(
-                                    "cannot read included file `{rel}`: {e}"
+                                    "cannot read included file `{rel}`{at}: {e}"
                                 )));
                                 continue;
                             }
                         }
                     }
-                    None => body.clone(),
+                    None => (body.clone(), BodyOrigin::Inline { fence: *span }),
                 };
 
                 let Some(parsed_policy) = Policy::parse(policy, align) else {
@@ -207,13 +236,14 @@ pub fn compile(
                     continue;
                 };
 
-                // Controller ruling F12 (second half): pass the action
-                // item's real span so adapter diagnostics point at the true
-                // source line, not a fabricated `line: 0`.
+                // Controller ruling F12 (second half): pass the body's real
+                // origin so adapter diagnostics point at the true file and
+                // line, not a fabricated `line: 0` and not the script's own
+                // path when the body came from somewhere else.
                 let src = BlockSource {
                     scene: scene.clone(),
                     body: body.clone(),
-                    span: *span,
+                    origin: origin.clone(),
                 };
                 let validated = match adapter.validate(&src) {
                     Ok(v) => v,

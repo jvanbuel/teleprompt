@@ -16,6 +16,13 @@ pub struct Diagnostic {
     pub severity: Severity,
     pub message: String,
     pub span: Option<SourceSpan>,
+    /// The file this diagnostic is about, when that is *not* the script the
+    /// caller is rendering. `None` — the common case — means the script.
+    /// Set for content the script pulls in from elsewhere, such as an action
+    /// block body loaded with `include=`: pointing a line number from a
+    /// separate file at the script's own path names a line that may not even
+    /// exist there.
+    pub file: Option<String>,
     pub help: Option<String>,
 }
 
@@ -25,6 +32,7 @@ impl Diagnostic {
             severity: Severity::Error,
             message: message.into(),
             span: None,
+            file: None,
             help: None,
         }
     }
@@ -34,12 +42,19 @@ impl Diagnostic {
             severity: Severity::Warning,
             message: message.into(),
             span: None,
+            file: None,
             help: None,
         }
     }
 
     pub fn at(mut self, span: SourceSpan) -> Self {
         self.span = Some(span);
+        self
+    }
+
+    /// Point this diagnostic at a file other than the script being rendered.
+    pub fn in_file(mut self, file: impl Into<String>) -> Self {
+        self.file = Some(file.into());
         self
     }
 
@@ -54,6 +69,7 @@ impl Diagnostic {
 
     pub fn render(&self, file: &str) -> String {
         let label = if self.is_error() { "error" } else { "warning" };
+        let file = self.file.as_deref().unwrap_or(file);
         let loc = match self.span {
             Some(s) => format!("{file}:{}:{}", s.line, s.column),
             None => file.to_string(),
