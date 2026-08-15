@@ -39,7 +39,21 @@ fn display_path(path: &Path) -> String {
 pub struct NarrationDetail {
     pub segment_id: String,
     pub text: String,
+    /// The chapter's slug, for publication. Two chapters with the same
+    /// title share one, so this is display identity, not a join key.
     pub chapter: String,
+    /// The chapter's position in `CompileOutput::chapters`. This is the
+    /// join key: joining on the slug silently merged two identically-titled
+    /// chapters into one marker and lost the second one's real start.
+    pub chapter_index: usize,
+    /// The exact request the duration in the timeline was measured from.
+    ///
+    /// Carried rather than reconstructed because a caller that needs audio
+    /// (`dub`) must render from the *same* request `compile` measured. When
+    /// `dub` built its own `SynthRequest` it dropped `voice` and `speed`, so
+    /// a script with `voice: { speed: 2.0 }` published a 3250 ms duration
+    /// alongside a 6500 ms file. One source, one request, no drift.
+    pub synth_request: SynthRequest,
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
@@ -103,6 +117,7 @@ pub fn compile(
                 text,
                 source_hash,
                 chapter,
+                chapter_index,
                 config,
                 ..
             } => {
@@ -151,6 +166,8 @@ pub fn compile(
                     segment_id: id.clone(),
                     text: text.clone(),
                     chapter: chapter.clone(),
+                    chapter_index: *chapter_index,
+                    synth_request: req,
                     word_timings: synth.word_timings.clone(),
                 });
 

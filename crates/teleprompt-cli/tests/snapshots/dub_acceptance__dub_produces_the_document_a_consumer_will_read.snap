@@ -29,7 +29,8 @@ expression: manifest
   "segments": [
     {
       "audio": "audio/welcome.wav",
-      "audio_hash": "bac4d5975c9cf350c45c411a003e588ea353a444bea2333c1edc8276b134cf23",
+      "audio_hash": "dbe7246bceb14adccedcb048514bbf7e9bf995adaeeeec339731ff8de2aef025",
+      "chapter": "introduction",
       "downgrade_reason": null,
       "duration_ms": 12200,
       "id": "welcome",
@@ -41,7 +42,8 @@ expression: manifest
     },
     {
       "audio": "audio/provenance.wav",
-      "audio_hash": "590a54107dac4bf0f7a4092dcfd298d0504fc1675f86a83e9110a65a1e2aa31a",
+      "audio_hash": "24dcf3e4b498be4635d6f953e27438ec72be0fd8a3ec09f8d88705c7e49ad9b1",
+      "chapter": "introduction",
       "downgrade_reason": null,
       "duration_ms": 8750,
       "id": "provenance",
@@ -53,7 +55,8 @@ expression: manifest
     },
     {
       "audio": "audio/deploy.wav",
-      "audio_hash": "020f6e70ec93c5183f6402d2755ed3d97ba88f492503ee3814a76c88fe10d30c",
+      "audio_hash": "df3c78b1e4c583118fd965a1dd1554d9c450e27e4e4f831218f076b01c0cce66",
+      "chapter": "deploying",
       "downgrade_reason": null,
       "duration_ms": 4900,
       "id": "deploy",
@@ -65,7 +68,8 @@ expression: manifest
     },
     {
       "audio": "audio/rollback.wav",
-      "audio_hash": "272aa8a3dca3dfc10c9ee722b6039177e5ff89c619130bec560d22059abfce74",
+      "audio_hash": "5792270852a847043c21ed9f704aec5f3fcad6df026897cd5864cb201bfca5da",
+      "chapter": "deploying",
       "downgrade_reason": null,
       "duration_ms": 6900,
       "id": "rollback",

@@ -52,6 +52,16 @@ pub struct ChapterEntry {
 pub struct SegmentEntry {
     pub id: String,
     pub text: String,
+    /// Slug of the chapter this segment was spoken in. Always serialized,
+    /// including when that chapter has no entry in `chapters` — a chapter
+    /// is only omitted there when nothing in it is spoken, which cannot be
+    /// true of a chapter that owns a segment, but a consumer must not have
+    /// to reason about that to answer "which chapter is this?".
+    ///
+    /// Published because the alternative is reconstruction from timestamps
+    /// against a `chapters` list that deliberately omits silent chapters,
+    /// which is lossy.
+    pub chapter: String,
     pub start_ms: u64,
     pub duration_ms: u64,
     pub audio: String,
@@ -61,6 +71,15 @@ pub struct SegmentEntry {
     /// a consumer should not have to tell "absent" from "no downgrade".
     pub downgrade_reason: Option<String>,
     pub source_hash: Hash,
+    /// Hash of the **encoded audio file** named by `audio`, so a consumer
+    /// can cache renders and skip re-encoding.
+    ///
+    /// [`build`] cannot fill this in: it runs before anything is encoded,
+    /// and the only hash it has in hand is the `Timeline`'s, which is the
+    /// backend's *synthesis cache key* — a different thing that embeds the
+    /// teleprompt version and so changes on every release. `build` seeds
+    /// the field with that key and `teleprompt dub` overwrites it with
+    /// `Hash::of(&wav_bytes)` after encoding. See [`build`]'s note.
     pub audio_hash: Hash,
     /// Omitted entirely when the backend has no word timings, so absence is
     /// unambiguous and never confused with an empty list.
@@ -87,6 +106,15 @@ pub fn audio_path(segment_id: &str, format: &str) -> String {
 /// timeline narration entry with no matching detail is dropped: both are
 /// impossible for output from a single `compile` call, and neither is worth
 /// a fallible signature that every caller would then `unwrap`.
+///
+/// **`audio_hash` is seeded, not final.** Nothing here has encoded any
+/// audio, so each segment's `audio_hash` is set to the `Timeline`'s value,
+/// which is the voice backend's synthesis cache key. `teleprompt dub`
+/// replaces it with the hash of the bytes it actually wrote. The
+/// alternative — taking a `&[(String, Hash)]` of byte hashes here — was
+/// rejected because it would force every non-rendering caller (`build`'s
+/// own tests, and any future consumer that wants the manifest shape
+/// without paying for synthesis) to invent hashes for audio it never made.
 pub fn build(
     timeline: &Timeline,
     chapters: &[ChapterInfo],
@@ -102,6 +130,7 @@ pub fn build(
             Some(SegmentEntry {
                 id: n.segment.clone(),
                 text: detail.text.clone(),
+                chapter: detail.chapter.clone(),
                 start_ms: n.start_ms,
                 duration_ms: n.duration_ms,
                 audio: audio_path(&n.segment, &audio.format),
@@ -126,12 +155,22 @@ pub fn build(
     // A chapter's start is its first spoken segment's start. A chapter with
     // nothing spoken in it has no defensible time and is omitted rather
     // than given a guessed one.
+    //
+    // The join is **positional**, not by slug. Slugs derive from titles
+    // (`teleprompt_core::ast::slugify`), cannot be pinned, and are never
+    // deduplicated, so two `# Setup` chapters share the slug `setup`.
+    // Joining on it made `min()` run across both chapters' segments: the
+    // two markers came out with the same `start_ms` and the second
+    // chapter's real start was lost. `ChapterEntry.id` stays the slug —
+    // that is what a consumer wants to see — but the join behind it is the
+    // index.
     let chapter_entries = chapters
         .iter()
-        .filter_map(|c| {
+        .enumerate()
+        .filter_map(|(index, c)| {
             let start_ms = details
                 .iter()
-                .filter(|d| d.chapter == c.slug)
+                .filter(|d| d.chapter_index == index)
                 .filter_map(|d| segments.iter().find(|s| s.id == d.segment_id))
                 .map(|s| s.start_ms)
                 .min()?;

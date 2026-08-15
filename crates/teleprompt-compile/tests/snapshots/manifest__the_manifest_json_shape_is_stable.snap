@@ -1,6 +1,6 @@
 ---
 source: crates/teleprompt-compile/tests/manifest.rs
-assertion_line: 178
+assertion_line: 350
 expression: m
 ---
 {
@@ -30,6 +30,7 @@ expression: m
     {
       "id": "quick-start-1",
       "text": "Every video in this repository is built from a script you can read.",
+      "chapter": "quick-start",
       "start_ms": 150,
       "duration_ms": 5550,
       "audio": "audio/quick-start-1.wav",
@@ -42,6 +43,7 @@ expression: m
     {
       "id": "provenance-1",
       "text": "And every timeline is committed alongside it.",
+      "chapter": "provenance",
       "start_ms": 5400,
       "duration_ms": 3150,
       "audio": "audio/provenance-1.wav",

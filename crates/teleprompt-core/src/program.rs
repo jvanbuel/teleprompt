@@ -33,7 +33,15 @@ pub enum Item {
         source_hash: Hash,
         /// Slug of the chapter this paragraph belongs to. Never empty:
         /// content before the first heading is rejected at parse time.
+        ///
+        /// Human-facing identity only. Slugs derive from titles, cannot be
+        /// pinned, and are never deduplicated, so two `# Setup` chapters
+        /// share one slug — join on `chapter_index` instead.
         chapter: String,
+        /// Position of that chapter in [`Program::chapters`]. The join key
+        /// for anything that has to tell two identically-titled chapters
+        /// apart.
+        chapter_index: usize,
         config: Config,
         /// Source location of the paragraph this narration came from
         /// (controller ruling F12), so downstream diagnostics can point at
@@ -86,7 +94,7 @@ pub fn resolve(
     let mut items = Vec::new();
     let mut chapters = Vec::new();
 
-    for chapter in &script.chapters {
+    for (chapter_index, chapter) in script.chapters.iter().enumerate() {
         chapters.push(ChapterInfo {
             slug: chapter.slug.clone(),
             title: chapter.title.clone(),
@@ -120,6 +128,7 @@ pub fn resolve(
                         id: seg.id.clone().unwrap_or_default(),
                         source_hash: Hash::of(text.as_bytes()),
                         chapter: chapter.slug.clone(),
+                        chapter_index,
                         text,
                         config,
                         span: seg.span,

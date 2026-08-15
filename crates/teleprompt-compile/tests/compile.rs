@@ -7,7 +7,7 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_core::Diagnostics;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::NullVoice;
+use teleprompt_voice::{NullVoice, VoiceBackend};
 
 fn program(src: &str) -> Program {
     let mut s = parse_script(src).unwrap();
@@ -487,5 +487,71 @@ The second paragraph here.
         timeline_ids, detail_ids,
         "the join key must be total in both directions, or the manifest \
          will silently drop or invent segments"
+    );
+}
+
+/// The request `compile` measured the duration from is the request it hands
+/// out, so a caller that renders audio cannot render something else. `dub`
+/// used to rebuild a `SynthRequest` itself, dropping `voice` and `speed`,
+/// and published a duration from the resolved config beside a file rendered
+/// at the defaults.
+#[test]
+fn the_narration_detail_carries_the_resolved_synth_request() {
+    let src = "\
+---
+voice:
+  voice: narrator
+  speed: 2.0
+---
+
+# A
+
+One two three four five six.
+";
+    let out = compile_str(src).expect("compiles");
+    let detail = &out.narration[0];
+
+    assert_eq!(detail.synth_request.text, detail.text);
+    assert_eq!(detail.synth_request.locale, "en");
+    assert_eq!(detail.synth_request.voice.as_deref(), Some("narrator"));
+    assert_eq!(
+        detail.synth_request.speed, 2.0,
+        "the resolved config's speed, not the default"
+    );
+
+    // And it is the same request the published duration was measured from.
+    let measured = NullVoice::default()
+        .synthesize(&detail.synth_request)
+        .unwrap();
+    let published = out.timeline.entries[0]
+        .narration
+        .as_ref()
+        .unwrap()
+        .duration_ms;
+    assert_eq!(measured.duration_ms, published);
+}
+
+#[test]
+fn the_narration_detail_carries_the_chapter_index_as_well_as_the_slug() {
+    let src = "\
+# Setup
+
+First. {#one}
+
+# Setup
+
+Second. {#two}
+";
+    let out = compile_str(src).expect("compiles");
+    let by_index: Vec<(usize, &str)> = out
+        .narration
+        .iter()
+        .map(|d| (d.chapter_index, d.chapter.as_str()))
+        .collect();
+    assert_eq!(
+        by_index,
+        vec![(0, "setup"), (1, "setup")],
+        "the slug cannot tell two identically-titled chapters apart; the \
+         index must"
     );
 }

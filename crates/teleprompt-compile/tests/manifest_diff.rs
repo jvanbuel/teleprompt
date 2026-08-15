@@ -8,6 +8,7 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
     SegmentEntry {
         id: id.to_string(),
         text: text.to_string(),
+        chapter: "intro".to_string(),
         start_ms,
         duration_ms,
         audio: format!("audio/{id}.wav"),

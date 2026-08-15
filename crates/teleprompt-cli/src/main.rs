@@ -64,6 +64,9 @@ enum Command {
         /// Compare against the manifest on disk and write nothing; exit 3 on drift
         #[arg(long)]
         check: bool,
+        /// Treat a voice-tier downgrade as fatal; exit 4
+        #[arg(long)]
+        strict_voice: bool,
     },
 }
 
@@ -210,6 +213,7 @@ fn main() -> ExitCode {
             locale,
             out,
             check,
+            strict_voice,
         } => match Project::for_script(&script) {
             Err(e) => {
                 eprintln!("error: {e}");
@@ -233,9 +237,27 @@ fn main() -> ExitCode {
                         }
                         (None, Format::Human) => print!("{}", dub::render_dub(&result)),
                     }
-                    match &result.drift {
-                        Some(d) if !d.is_empty() => Outcome::Drift,
-                        _ => Outcome::Ok,
+                    // A downgrade is reported either way — an author should
+                    // hear that their `recorded` script was machine-read
+                    // whether or not they asked for it to be fatal.
+                    if !result.downgrades.is_empty() {
+                        eprintln!(
+                            "voice downgraded on {} segment(s):",
+                            result.downgrades.len()
+                        );
+                        eprint!("{}", dub::render_downgrades(&result.downgrades));
+                    }
+
+                    // Checked ahead of drift: a downgrade means the audio is
+                    // not what the script asked for, which is true whether or
+                    // not the committed manifest happens to agree with it.
+                    if strict_voice && !result.downgrades.is_empty() {
+                        Outcome::VoiceDowngrade
+                    } else {
+                        match &result.drift {
+                            Some(d) if !d.is_empty() => Outcome::Drift,
+                            _ => Outcome::Ok,
+                        }
                     }
                 }
                 Err(dub::DubError::Validation(errors)) => {

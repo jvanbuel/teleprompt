@@ -176,6 +176,102 @@ fn chapters_carry_the_start_of_their_first_spoken_segment() {
     assert_eq!(m.chapters[1].start_ms, m.segments[1].start_ms);
 }
 
+/// Chapter slugs derive from titles, cannot be pinned, and are never
+/// deduplicated, so two `# Setup` chapters share the slug `setup`. Joining
+/// details to chapters by that slug made `min()` run over both chapters'
+/// segments: the two markers came out with the same `start_ms` and the
+/// second chapter's real start was lost. The join has to be positional.
+#[test]
+fn two_chapters_with_the_same_title_keep_their_own_starts() {
+    // Explicit ids, because two identically-titled chapters would otherwise
+    // derive the same segment id and `assign_ids` would reject the script
+    // before this join is ever reached. Pinning the ids is exactly what an
+    // author hitting that error is told to do, so this is the shape the bug
+    // actually reaches production in.
+    let m = manifest_for(
+        "\
+# Setup
+
+First chapter speaks here. {#setup-first}
+
+# Setup
+
+Second chapter speaks somewhere else entirely. {#setup-second}
+",
+    );
+
+    assert_eq!(m.chapters.len(), 2, "two headings, two markers");
+    assert_eq!(m.chapters[0].id, "setup");
+    assert_eq!(m.chapters[1].id, "setup");
+    assert_eq!(m.segments.len(), 2);
+
+    assert_eq!(m.chapters[0].start_ms, m.segments[0].start_ms);
+    assert_eq!(
+        m.chapters[1].start_ms, m.segments[1].start_ms,
+        "the second chapter's marker must be its own first segment's start, \
+         not the earlier chapter's"
+    );
+    assert_ne!(
+        m.chapters[0].start_ms, m.chapters[1].start_ms,
+        "two markers at the same instant would make the second chapter \
+         unreachable from a navigation UI"
+    );
+}
+
+#[test]
+fn every_segment_names_the_chapter_it_was_spoken_in() {
+    let m = manifest_for(TWO_CHAPTERS);
+    assert_eq!(m.segments[0].chapter, "quick-start");
+    assert_eq!(m.segments[1].chapter, "provenance");
+
+    let json = serde_json::to_value(&m).unwrap();
+    assert_eq!(
+        json["segments"][0]["chapter"], "quick-start",
+        "always serialized: reconstructing this from timestamps against a \
+         `chapters` list that omits silent chapters is lossy"
+    );
+}
+
+/// Pins current behaviour, deliberately. The scheduler subtracts a beat's
+/// transition window from that beat before advancing its cursor, and for a
+/// narration-only beat there is no action span to absorb it, so the window
+/// eats into speech and consecutive segments overlap. See spec §5.2, which
+/// tells consumers to treat each segment's own `duration_ms` as
+/// authoritative for exactly this reason.
+///
+/// If the scheduler is ever changed so narration-only beats no longer
+/// overlap, this test must fail loudly rather than the overlap silently
+/// vanishing while §5.2 and the §7 consumer example still describe it.
+#[test]
+fn consecutive_narration_only_segments_overlap() {
+    let m = manifest_for(
+        "\
+# Quick start
+
+One.
+
+Two.
+
+Three.
+",
+    );
+    assert_eq!(m.segments.len(), 3);
+
+    for pair in m.segments.windows(2) {
+        let (a, b) = (&pair[0], &pair[1]);
+        assert!(
+            a.start_ms + a.duration_ms > b.start_ms,
+            "`{}` ends at {} but `{}` starts at {}: spec §5.2 documents this \
+             overlap; if the scheduler changed, update §5.2, README, and the \
+             §7 consumer example with it",
+            a.id,
+            a.start_ms + a.duration_ms,
+            b.id,
+            b.start_ms,
+        );
+    }
+}
+
 #[test]
 fn a_chapter_with_no_narration_is_omitted() {
     let m = manifest_for(
