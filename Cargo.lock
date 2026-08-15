@@ -485,6 +485,7 @@ dependencies = [
 name = "teleprompt-cli"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "clap",
  "insta",
  "serde",

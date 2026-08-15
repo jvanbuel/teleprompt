@@ -41,9 +41,15 @@ pub fn doctor_report(registry: &SceneRegistry) -> DoctorReport {
             "M0 builds no video, so ffmpeg is not required yet.".to_string(),
             "M0 ships no external runtime, so Node and Playwright are not required yet."
                 .to_string(),
-            "dub writes 16-bit PCM WAV at 48 kHz; the null backend renders silence \
-             of the estimated duration."
+            // No sample rate is claimed here. `VoiceCapabilities` does not
+            // carry one, so the only honest source is the audio a backend
+            // actually produces — which `dub` reads per run and publishes in
+            // the manifest's `audio` block. A fixed "48 kHz" here was the
+            // null backend's rate quietly asserted on every backend's behalf.
+            "dub writes 16-bit PCM WAV; each manifest's `audio` block records the rate and \
+             channel count the backend produced."
                 .to_string(),
+            "the null backend renders silence of the estimated duration.".to_string(),
         ],
     }
 }

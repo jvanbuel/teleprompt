@@ -4,11 +4,17 @@ use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_core::Hash;
-use teleprompt_voice::VoiceBackend;
-use teleprompt_voice_null::{NullVoice, NULL_SAMPLE_RATE};
+use teleprompt_voice::VoiceRegistry;
 
-use crate::cmd::check::{cache_root, compile_script};
+use crate::cmd::check::{cache_root, compile_script_with};
 use crate::project::Project;
+
+/// The `AudioInfo` sample rate for a locale that rendered no audio at all.
+///
+/// Every populated manifest takes its rate from the audio actually
+/// produced; this is only what the field says when `segments` is empty and
+/// there is nothing to describe. It is not a claim about any backend.
+const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
 
 /// A segment the fallback ladder could not deliver at the tier the script
 /// asked for. Computed here rather than in `main.rs` so the policy question
@@ -159,15 +165,34 @@ pub async fn run_dub(
     out_root: &Path,
     check_only: bool,
 ) -> Result<DubOutput, DubError> {
-    let compiled = compile_script(project, script, locale).map_err(DubError::Validation)?;
+    run_dub_with(
+        &crate::voice::registry(),
+        project,
+        script,
+        locale,
+        out_root,
+        check_only,
+    )
+    .await
+}
 
-    // This backend is separate from the estimator `compile_script` uses
-    // internally — a deliberate duplication until a real backend exists.
-    // `synthesize` is only needed here, so `compile_script`'s signature
-    // (and `run_check`/`run_plan`/`run_diff`, which depend on it) stays
-    // untouched; when a real backend lands, both call sites will select it
-    // together.
-    let voice = NullVoice::default();
+/// [`run_dub`] against a caller-supplied registry. See
+/// [`crate::cmd::check::compile_script_with`] for why the seam exists.
+pub async fn run_dub_with(
+    registry: &VoiceRegistry,
+    project: &Project,
+    script: &Path,
+    locale: &str,
+    out_root: &Path,
+    check_only: bool,
+) -> Result<DubOutput, DubError> {
+    // The backend the script's config resolved to, not one chosen here.
+    // `detail.cache_key` was computed from this backend's `id()` and
+    // `capabilities().version`, so synthesizing with any other one writes
+    // the wrong audio into the content-addressed cache under this one's key
+    // — permanently, and reported as `measured` by every later `plan`.
+    let (compiled, backend) =
+        compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
 
     // The same cache `compile_script` just read from, rooted the same way.
     // `compile` only ever looks a key up; `dub` is the one that fills a
@@ -178,8 +203,13 @@ pub async fn run_dub(
     // a synthesis failure cannot leave a half-populated output directory
     // behind.
     let mut audio: Vec<(String, Vec<u8>)> = Vec::new();
-    let mut sample_rate = NULL_SAMPLE_RATE;
-    let mut channels = 1u16;
+
+    // Read off the audio actually produced rather than assumed from any one
+    // backend. First segment wins, so the value is a function of document
+    // order rather than of completion order — the manifest has one
+    // `AudioInfo` for the whole locale, so a backend that varied its rate
+    // per segment would need a wider manifest, not a different pick here.
+    let mut audio_format: Option<(u32, u16)> = None;
 
     for detail in &compiled.narration {
         let hit = cache
@@ -188,8 +218,7 @@ pub async fn run_dub(
 
         let (wav_bytes, rendered_ms) = match hit {
             Some(cached) => {
-                sample_rate = cached.sample_rate;
-                channels = cached.channels;
+                audio_format.get_or_insert((cached.sample_rate, cached.channels));
                 (cached.wav, cached.duration_ms)
             }
             None => {
@@ -198,9 +227,12 @@ pub async fn run_dub(
                 // with `voice: { speed: 2.0 }` published a duration from
                 // the resolved config and a file rendered at the default.
                 // One source of truth.
-                let synthesized = voice.synthesize(&detail.synth_request).await.map_err(|e| {
-                    DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
-                })?;
+                let synthesized = backend
+                    .synthesize(&detail.synth_request)
+                    .await
+                    .map_err(|e| {
+                        DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
+                    })?;
                 let stored = cache
                     .store(
                         &detail.cache_key,
@@ -210,8 +242,7 @@ pub async fn run_dub(
                     .map_err(|e| {
                         DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
                     })?;
-                sample_rate = stored.sample_rate;
-                channels = stored.channels;
+                audio_format.get_or_insert((stored.sample_rate, stored.channels));
                 (stored.wav, stored.duration_ms)
             }
         };
@@ -239,8 +270,10 @@ pub async fn run_dub(
     // runs on an unedited script see an equally warm cache and produce
     // byte-identical manifests — and it costs one extra compile and no
     // synthesis, since by this point every lookup is a hit.
-    let compiled = compile_script(project, script, locale).map_err(DubError::Validation)?;
+    let (compiled, _) =
+        compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
 
+    let (sample_rate, channels) = audio_format.unwrap_or((NO_AUDIO_SAMPLE_RATE, 1));
     let mut built = manifest::build(
         &compiled.timeline,
         &compiled.chapters,

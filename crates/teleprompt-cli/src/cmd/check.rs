@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use serde::Serialize;
 use teleprompt_cache::VoiceCache;
@@ -9,6 +10,7 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Item};
 use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_scene::SceneRegistry;
+use teleprompt_voice::{VoiceBackend, VoiceRegistry};
 use teleprompt_voice_null::WpmEstimator;
 
 use crate::project::Project;
@@ -23,11 +25,38 @@ pub fn cache_root(project: &Project) -> PathBuf {
 
 /// Shared front half of every command: read, parse, identify, resolve, compile.
 /// Has no side effects — it never writes to disk.
+///
+/// Returns the resolved backend alongside the compilation because the two
+/// must be the same one: `cache_key` is computed from `backend.id()` and
+/// `capabilities().version`, so a caller that synthesizes with a *different*
+/// backend writes that backend's audio into the cache under this one's key.
+/// `dub` is the only caller that reads it.
+///
+/// It is returned separately rather than being a field on `CompileOutput`
+/// because `CompileOutput` is what `check`, `plan`, and `diff` receive: a
+/// backend hanging off it would put `synthesize` one `.` away from the inner
+/// loop, which is the thing `VoiceContext` exists to make impossible.
 pub fn compile_script(
     project: &Project,
     script: &Path,
     locale: &str,
-) -> Result<CompileOutput, Vec<String>> {
+) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
+    compile_script_with(&crate::voice::registry(), project, script, locale)
+}
+
+/// [`compile_script`] against a caller-supplied registry.
+///
+/// The seam exists so a test can register a backend this build does not
+/// ship and watch the whole path — key, synthesis, cache, manifest — follow
+/// it. That is the claim spec §4.1 makes ("adding a backend is one line and
+/// one new crate"), and it is not a claim a workspace with exactly one
+/// backend registered can otherwise check.
+pub fn compile_script_with(
+    registry: &VoiceRegistry,
+    project: &Project,
+    script: &Path,
+    locale: &str,
+) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
     let name = script
         .file_name()
         .map(|s| s.to_string_lossy().to_string())
@@ -57,8 +86,8 @@ pub fn compile_script(
     // can override `voice.backend`, and this is what actually produces the
     // segment's audio, so `cache_key` and `backend_version` both need to
     // come from it rather than from the raw string.
-    let backend = crate::voice::resolve(&crate::voice::registry(), &program.config.voice.backend)
-        .map_err(|e| vec![e])?;
+    let backend =
+        crate::voice::resolve(registry, &program.config.voice.backend).map_err(|e| vec![e])?;
 
     // Delivery A supports exactly one backend per compile: `VoiceContext`
     // carries a single `backend_id` for the whole program. A narration item
@@ -135,14 +164,16 @@ pub fn compile_script(
         estimator: &estimator,
     };
 
-    compile(
+    let out = compile(
         &program,
         &SceneRegistry::with_builtins(),
         &ctx,
         base_dir,
         env!("CARGO_PKG_VERSION"),
     )
-    .map_err(|d| render(&d, &display))
+    .map_err(|d| render(&d, &display))?;
+
+    Ok((out, backend))
 }
 
 /// Returns warnings on success, rendered errors on failure. `check` is
@@ -153,7 +184,7 @@ pub fn run_check(
     script: &Path,
     locale: &str,
 ) -> Result<Vec<String>, Vec<String>> {
-    compile_script(project, script, locale).map(|out| out.warnings)
+    compile_script(project, script, locale).map(|(out, _)| out.warnings)
 }
 
 fn render(d: &teleprompt_core::Diagnostics, file: &str) -> Vec<String> {
