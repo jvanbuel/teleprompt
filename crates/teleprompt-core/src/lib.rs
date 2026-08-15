@@ -5,6 +5,7 @@ pub mod error;
 pub mod hash;
 pub mod ident;
 pub mod parse;
+pub mod program;
 
 pub use error::{Diagnostic, Diagnostics, Severity, SourceSpan};
 pub use hash::Hash;
