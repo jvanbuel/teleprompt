@@ -1,6 +1,6 @@
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
-use crate::ast::{slugify, ActionBlock, Chapter, Directive, Node, Script, Segment};
+use crate::ast::{slugify, ActionBlock, Chapter, Directive, IdOrigin, Node, Script, Segment};
 use crate::{Diagnostic, Diagnostics, SourceSpan};
 
 const FENCE_TAG: &str = "teleprompt";
@@ -136,8 +136,14 @@ fn paragraph_node(raw: &str, span: SourceSpan) -> Option<Node> {
         return Some(node);
     }
     let (text, raw_attrs) = split_attr_suffix(raw);
+    let id = raw_attrs
+        .split_whitespace()
+        .next()
+        .and_then(|t| t.strip_prefix('#'))
+        .map(str::to_string);
     Some(Node::Segment(Segment {
-        id: None,
+        id,
+        id_origin: IdOrigin::Derived,
         text: text.trim().to_string(),
         raw_attrs,
         span,

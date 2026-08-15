@@ -23,9 +23,16 @@ pub enum Node {
 #[derive(Debug, Clone)]
 pub struct Segment {
     pub id: Option<String>,
+    pub id_origin: IdOrigin,
     pub text: String,
     pub raw_attrs: String,
     pub span: SourceSpan,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdOrigin {
+    Explicit,
+    Derived,
 }
 
 #[derive(Debug, Clone)]
