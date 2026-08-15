@@ -26,8 +26,26 @@ impl Policy {
         match policy {
             "hold" => Some(Policy::Hold),
             "concurrent" => Some(Policy::Concurrent(align)),
-            "stretch" => Some(Policy::Stretch),
-            "trim" => Some(Policy::Trim),
+            "stretch-action" => Some(Policy::Stretch),
+            "trim-action" => Some(Policy::Trim),
+            _ => None,
+        }
+    }
+
+    /// The current spelling of a policy that used to be called something else.
+    ///
+    /// `stretch` and `trim` named an operation without naming its object, so
+    /// both read as though the *speech* were being adjusted — the first
+    /// question anyone asked of this design was whether teleprompt
+    /// time-stretches a voice. It does not: these policies only ever change
+    /// how long the action takes. The old spellings are rejected rather than
+    /// aliased, so the corpus converges on one name, but an author who writes
+    /// an old one is told what to write instead of getting a bare "unknown
+    /// policy".
+    pub fn renamed_hint(policy: &str) -> Option<&'static str> {
+        match policy {
+            "stretch" => Some("stretch-action"),
+            "trim" => Some("trim-action"),
             _ => None,
         }
     }
@@ -36,8 +54,8 @@ impl Policy {
         match self {
             Policy::Hold => "hold",
             Policy::Concurrent(_) => "concurrent",
-            Policy::Stretch => "stretch",
-            Policy::Trim => "trim",
+            Policy::Stretch => "stretch-action",
+            Policy::Trim => "trim-action",
         }
     }
 }

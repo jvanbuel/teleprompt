@@ -261,12 +261,26 @@ pub fn compile(
                 };
 
                 let Some(parsed_policy) = Policy::parse(policy, align) else {
-                    diags.push(
-                        Diagnostic::error(format!("unknown policy `{policy}` or align `{align}`"))
-                            .with_help(
-                                "policy is hold|concurrent|stretch|trim; align is start|end|center",
-                            ),
-                    );
+                    // A policy renamed since the author last wrote a script
+                    // gets the new spelling rather than the generic list —
+                    // "unknown policy `trim`" is a puzzle when `trim-action`
+                    // is sitting right there.
+                    let d = match Policy::renamed_hint(policy) {
+                        Some(current) => Diagnostic::error(format!(
+                            "policy `{policy}` was renamed to `{current}`"
+                        ))
+                        .with_help(format!(
+                            "write `policy={current}`; it adjusts the action, never the narration"
+                        )),
+                        None => Diagnostic::error(format!(
+                            "unknown policy `{policy}` or align `{align}`"
+                        ))
+                        .with_help(
+                            "policy is hold|concurrent|stretch-action|trim-action; \
+                             align is start|end|center",
+                        ),
+                    };
+                    diags.push(d);
                     continue;
                 };
 

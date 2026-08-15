@@ -39,6 +39,12 @@ fn beat(id: &str, n: Option<u64>, a: Option<u64>, policy: Policy, cfg: Config) -
     }
 }
 
+/// A hold beat carrying only narration, with the default transition config —
+/// the shape a script of plain paragraphs produces.
+fn narration_beat(id: &str, ms: u64) -> Beat {
+    beat(id, Some(ms), None, Policy::Hold, Config::default())
+}
+
 fn no_transition() -> Config {
     let mut c = Config::default();
     c.transition.duration = TransitionDuration::Fixed(0);
@@ -113,8 +119,17 @@ fn auto_transition_is_half_the_slack_clamped_to_the_maximum() {
         ),
         beat("b2", Some(1000), None, Policy::Hold, cfg),
     ];
+    let mut beats = beats;
+    // A generous tail so the quiet window (§6.3) is wider than `max_ms` and
+    // the maximum is genuinely what binds. With the default 150ms tail the
+    // window is 300ms and the cap would bind instead — which is the subject
+    // of `the_auto_transition_fills_the_quiet_window_exactly`, not this test.
+    beats[0].narration.as_mut().unwrap().tail_ms = 1000;
+
     let t = schedule(&beats, "s.md", "en", "0.1.0").0;
-    // slack = 5300 padded narration - 200 action = 5100; half is 2550, clamped to 600
+    // slack = 6150 padded narration - 200 action = 5950; half is 2975,
+    // clamped to max_ms 600. Quiet window is 1000 tail + 150 next lead_in,
+    // so the cap does not bind.
     assert_eq!(t.entries[0].transition.duration_ms, 600);
 }
 
@@ -190,4 +205,75 @@ fn the_timeline_json_shape_is_stable() {
     let beats = vec![beat("welcome", Some(1000), Some(500), Policy::Hold, cfg)];
     let t = schedule(&beats, "script.md", "nl", "0.1.0").0;
     insta::assert_json_snapshot!(t);
+}
+
+/// Spec §6.3, the quiet window. A script of plain paragraphs has no action to
+/// subtract, so `slack` is the whole narration and an uncapped `auto`
+/// transition runs to `max_ms` — 600 ms against 300 ms of padding, overlapping
+/// 300 ms of the outgoing sentence with the incoming one.
+///
+/// The cap is what makes spec §3's claim true that such a script's narration
+/// follows one segment after another. Asserted on the timeline, because that
+/// is what both the manifest and the renderer read.
+#[test]
+fn narration_only_beats_never_talk_over_each_other() {
+    let beats = vec![
+        narration_beat("one", 6900),
+        narration_beat("two", 5300),
+        narration_beat("three", 4900),
+    ];
+    let (timeline, _) = schedule(&beats, "tour.md", "en", "0.1.0");
+
+    let speech: Vec<(u64, u64)> = timeline
+        .entries
+        .iter()
+        .filter_map(|e| e.narration.as_ref())
+        .map(|n| (n.start_ms, n.start_ms + n.duration_ms))
+        .collect();
+    assert_eq!(speech.len(), 3);
+
+    for pair in speech.windows(2) {
+        let (_, ends) = pair[0];
+        let (next_starts, _) = pair[1];
+        assert!(
+            ends <= next_starts,
+            "segment ending at {ends}ms overlaps the next, which starts at \
+             {next_starts}ms — {}ms of two voices at once",
+            ends - next_starts
+        );
+    }
+}
+
+/// The same window, from the other side: the transition must still be as long
+/// as the silence allows, so a cap does not become "always cut".
+#[test]
+fn the_auto_transition_fills_the_quiet_window_exactly() {
+    let beats = vec![narration_beat("one", 6900), narration_beat("two", 5300)];
+    let (timeline, _) = schedule(&beats, "tour.md", "en", "0.1.0");
+
+    // tail 150 leaving the first beat + lead_in 150 entering the second.
+    assert_eq!(timeline.entries[0].transition.duration_ms, 300);
+}
+
+/// A fixed duration is the author asking by name, so it is honoured — but a
+/// fixed transition wider than the quiet window produces two voices at once,
+/// which they should hear about.
+#[test]
+fn a_fixed_transition_wider_than_the_quiet_window_warns() {
+    let mut beats = vec![narration_beat("one", 6900), narration_beat("two", 5300)];
+    for b in &mut beats {
+        b.config.transition.duration = TransitionDuration::Fixed(2000);
+    }
+    let (timeline, warnings) = schedule(&beats, "tour.md", "en", "0.1.0");
+
+    assert_eq!(
+        timeline.entries[0].transition.duration_ms, 2000,
+        "honoured as written"
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("one") && w.contains("overlap")),
+        "{warnings:?}"
+    );
 }

@@ -41,14 +41,53 @@ pub fn schedule(
 
         let slack = narration_ms.saturating_sub(l.action_duration_ms);
         let is_last = i + 1 == beats.len();
+
+        // Spec §6.3, the quiet window: a transition overlaps the beat it
+        // leaves, so it may only consume time when nobody is speaking. That is
+        // this beat's trailing silence — from where its narration ends to
+        // where the beat ends, normally `tail` — plus the next beat's
+        // `lead_in`.
+        //
+        // Without this, a script of plain paragraphs derives `slack` from the
+        // whole narration, because there is no action to subtract, and every
+        // transition runs to `max_ms` and eats real speech.
+        let speech_end_ms = beat
+            .narration
+            .as_ref()
+            .map(|n| l.narration_start_ms + n.lead_in_ms + n.duration_ms)
+            .unwrap_or(0);
+        let next_lead_in_ms = beats
+            .get(i + 1)
+            .and_then(|b| b.narration.as_ref())
+            .map(|n| n.lead_in_ms)
+            .unwrap_or(0);
+        let quiet_window_ms = l.beat_duration_ms.saturating_sub(speech_end_ms) + next_lead_in_ms;
+
         let transition_ms = if is_last {
             0
         } else {
             match beat.config.transition.duration {
-                TransitionDuration::Fixed(ms) => ms,
-                TransitionDuration::Auto => {
-                    (slack / 2).clamp(beat.config.transition.min_ms, beat.config.transition.max_ms)
+                // Honoured as written: the author asked for this length by
+                // name. But a fixed transition wider than the quiet window
+                // does produce two voices at once, so say so.
+                TransitionDuration::Fixed(ms) => {
+                    if ms > quiet_window_ms {
+                        warnings.push(format!(
+                            "{}: fixed {kind} of {ms}ms exceeds the {quiet_window_ms}ms quiet \
+                             window; narration will overlap by {}ms",
+                            beat.id,
+                            ms - quiet_window_ms,
+                            kind = beat.config.transition.kind,
+                        ));
+                    }
+                    ms
                 }
+                // The cap deliberately overrides `min_ms`: a shorter
+                // transition than configured, or none at all, is better than
+                // one that talks over the narration.
+                TransitionDuration::Auto => (slack / 2)
+                    .clamp(beat.config.transition.min_ms, beat.config.transition.max_ms)
+                    .min(quiet_window_ms),
             }
         }
         // A transition can never consume more than the beat it leaves.

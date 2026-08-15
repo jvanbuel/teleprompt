@@ -243,7 +243,7 @@ fn every_segment_names_the_chapter_it_was_spoken_in() {
 /// overlap, this test must fail loudly rather than the overlap silently
 /// vanishing while §5.2 and the §7 consumer example still describe it.
 #[test]
-fn consecutive_narration_only_segments_overlap() {
+fn consecutive_narration_only_segments_abut_exactly() {
     let m = manifest_for(
         "\
 # Quick start
@@ -259,17 +259,48 @@ Three.
 
     for pair in m.segments.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
-        assert!(
-            a.start_ms + a.duration_ms > b.start_ms,
-            "`{}` ends at {} but `{}` starts at {}: spec §5.2 documents this \
-             overlap; if the scheduler changed, update §5.2, README, and the \
-             §7 consumer example with it",
-            a.id,
+        assert_eq!(
             a.start_ms + a.duration_ms,
-            b.id,
             b.start_ms,
+            "`{}` and `{}` must neither overlap nor leave a gap: the auto \
+             transition is capped at the quiet window (core spec §6.3), so a \
+             script of plain paragraphs reads as continuous speech",
+            a.id,
+            b.id,
         );
     }
+}
+
+/// The contract still permits overlap (§5.2) — an author who sets a fixed
+/// transition wider than the quiet window gets exactly what they asked for.
+/// Pinned here because §5.2 tells consumers to expect it, and a claim in a
+/// published contract with no test behind it decays.
+#[test]
+fn a_fixed_transition_can_still_make_segments_overlap() {
+    let m = manifest_for(
+        "\
+---
+output:
+  transition: { kind: crossfade, duration: 2s }
+---
+
+# Quick start
+
+One.
+
+Two.
+",
+    );
+    assert_eq!(m.segments.len(), 2);
+    let (a, b) = (&m.segments[0], &m.segments[1]);
+    assert!(
+        a.start_ms + a.duration_ms > b.start_ms,
+        "`{}` ends at {} and `{}` starts at {}",
+        a.id,
+        a.start_ms + a.duration_ms,
+        b.id,
+        b.start_ms,
+    );
 }
 
 #[test]

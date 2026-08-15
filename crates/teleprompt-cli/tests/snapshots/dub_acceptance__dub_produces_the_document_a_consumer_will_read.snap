@@ -17,11 +17,11 @@ expression: manifest
     },
     {
       "id": "deploying",
-      "start_ms": 21500,
+      "start_ms": 21950,
       "title": "Deploying"
     }
   ],
-  "duration_ms": 34350,
+  "duration_ms": 34800,
   "generated_by": "teleprompt 0.1.0",
   "locale": "en",
   "manifest_version": 1,
@@ -61,7 +61,7 @@ expression: manifest
       "duration_ms": 4900,
       "id": "deploy",
       "source_hash": "07ddd90d4a5f4916a13439a5f2c0ad63b600da4d033bd8aa227e944fd23db8dd",
-      "start_ms": 21500,
+      "start_ms": 21950,
       "text": "Deployment is one command, and it streams progress as it goes.",
       "voice_source": "synthetic",
       "voice_source_actual": "synthetic"
@@ -74,7 +74,7 @@ expression: manifest
       "duration_ms": 6900,
       "id": "rollback",
       "source_hash": "79bc51f2693074a0f8dd859de940da9df1568293ffeb82e76dc5a15da225de3b",
-      "start_ms": 27300,
+      "start_ms": 27750,
       "text": "If a deploy goes wrong, rolling back takes the same single command with one extra flag.",
       "voice_source": "synthetic",
       "voice_source_actual": "synthetic"

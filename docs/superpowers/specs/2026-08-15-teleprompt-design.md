@@ -110,7 +110,7 @@ await page.waitForURL('/new');
 
 Give it a name, and you are done. {#done voice.source=recorded}
 
-```teleprompt scene=browser policy=stretch
+```teleprompt scene=browser policy=stretch-action
 await tp.type('input[name=title]', 'My first project');
 await page.getByText('Create').click();
 ```
@@ -173,7 +173,8 @@ Segment keys: `voice.source`, `voice.backend`, `voice.voice`, `voice.speed`,
 that should keep source pronunciation).
 
 Action block keys: `scene`, `include`, `policy`, `align`, `id`, `max_speedup`
-(bounds `trim`), `max_stretch` and `min_stretch` (bound `stretch`).
+(bounds `trim-action`), `max_stretch` and `min_stretch` (bound
+`stretch-action`).
 
 Fence attributes are teleprompt's, parsed by teleprompt. Everything inside the
 fence belongs to the scene. That line is what keeps adapters independent: adding
@@ -442,15 +443,19 @@ to the backend in `SynthRequest`, so the voice is *generated* at that rate
 rather than resampled after the fact. The scheduler must never acquire the
 ability to write it in order to make a beat fit.
 
-The names `stretch` and `trim` name an operation without naming its object,
-which reads as if the speech were the thing being adjusted. See issue #1.
+The two policies that adjust something are named for what they adjust:
+`stretch-action` and `trim-action`. An earlier draft called them `stretch` and
+`trim`, which named an operation without naming its object and read as if the
+speech were being adjusted — the first question a reader asked of this document
+was whether teleprompt time-stretches speech. `check` recognises the old
+spellings and reports the new ones (issue #1).
 
 | policy | semantics |
 |---|---|
 | `hold` (default) | Narration plays over the visual state left by the previous beat. The action runs after narration completes. Predictable, and correct for most explanatory content. |
 | `concurrent` | Action and narration overlap. `align=start` (default) begins them together; `align=end` makes them finish together; `align=center` centres the shorter within the longer. Whichever ends first waits. |
-| `stretch` | The action's internal delays scale by a uniform factor so the block's duration exactly equals the narration's. Intended for typing, scrolling, and progress animations. Bounded by `max_stretch` (default 3.0) and `min_stretch` (default 0.33); exceeding either is a warning and the bound is applied. |
-| `trim` | An action longer than its narration is time-compressed in post until it fits, bounded by `max_speedup` (default 2.0). Beyond the bound, the action's tail is cut at the last completed step and a warning is emitted. The narration sets the length and is itself untouched — an action shorter than its narration is left alone. |
+| `stretch-action` | The action's internal delays scale by a uniform factor so the block's duration exactly equals the narration's. Intended for typing, scrolling, and progress animations. Bounded by `max_stretch` (default 3.0) and `min_stretch` (default 0.33); exceeding either is a warning and the bound is applied. |
+| `trim-action` | An action longer than its narration is time-compressed in post until it fits, bounded by `max_speedup` (default 2.0). Beyond the bound, the action's tail is cut at the last completed step and a warning is emitted. The narration sets the length and is itself untouched — an action shorter than its narration is left alone. |
 
 ### 6.3 Slack and automatic transitions
 
@@ -458,10 +463,30 @@ The slack of a beat is the difference between its narration duration and its
 action duration. This is the mechanism by which text length informs the visuals.
 
 With `transition.duration: auto`, the transition into the next beat is
-`clamp(slack * 0.5, min_ms, max_ms)` — generous pauses get a visible crossfade,
-tight ones get a hard cut. Authors who want fixed pacing set an explicit
-duration; the automatic mode exists so that the default behaviour of editing
-prose is that the video's rhythm follows the writing.
+`clamp(slack * 0.5, min_ms, max_ms)`, then **capped at the quiet window** —
+generous pauses get a visible crossfade, tight ones get a hard cut. Authors who
+want fixed pacing set an explicit duration; the automatic mode exists so that
+the default behaviour of editing prose is that the video's rhythm follows the
+writing.
+
+**The quiet window.** A transition overlaps the beat it leaves, so an
+uncapped one eats into whatever is still playing there. The quiet window is the
+time around the boundary when nobody is speaking: this beat's trailing silence
+(from where its narration ends to where the beat ends, normally `tail`) plus
+the next beat's `lead_in`. An `auto` transition never exceeds it.
+
+Without the cap, a script of plain paragraphs and no action blocks derives
+`slack` from the *entire* narration — there is no action to subtract — so every
+transition runs to `max_ms` and consumes real speech. With defaults that is a
+600 ms crossfade against a 300 ms quiet window, overlapping 300 ms of the
+outgoing sentence with the incoming one. The cap is what makes §3's claim true
+that such a script's narration follows one segment after another.
+
+The cap deliberately overrides `min_ms`: a transition shorter than the
+configured minimum, or none at all, is better than one that talks over the
+narration. A **fixed** duration is honoured as written, because the author
+asked for it by name — but exceeding the quiet window emits a warning naming
+the beat and the overlap, since the result is two voices at once.
 
 ### 6.4 Padding and directives
 

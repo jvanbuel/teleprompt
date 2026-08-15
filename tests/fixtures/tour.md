@@ -31,7 +31,7 @@ wait 600ms
 
 Deployment is one command, and it streams progress as it goes. {#deploy}
 
-```teleprompt scene=mock policy=stretch
+```teleprompt scene=mock policy=stretch-action
 wait 2200ms
 ```
 
@@ -40,6 +40,6 @@ wait 2200ms
 If a deploy goes wrong, rolling back takes the same single command with one
 extra flag. {#rollback}
 
-```teleprompt scene=mock policy=trim
+```teleprompt scene=mock policy=trim-action
 wait 3000ms
 ```

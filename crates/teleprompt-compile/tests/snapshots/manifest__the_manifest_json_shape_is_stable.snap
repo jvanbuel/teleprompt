@@ -1,6 +1,6 @@
 ---
 source: crates/teleprompt-compile/tests/manifest.rs
-assertion_line: 350
+assertion_line: 386
 expression: m
 ---
 {
@@ -8,7 +8,7 @@ expression: m
   "script": "tour.md",
   "locale": "en",
   "generated_by": "teleprompt 0.1.0",
-  "duration_ms": 8700,
+  "duration_ms": 9000,
   "audio": {
     "format": "wav",
     "sample_rate": 48000,
@@ -23,7 +23,7 @@ expression: m
     {
       "id": "provenance",
       "title": "Provenance",
-      "start_ms": 5400
+      "start_ms": 5700
     }
   ],
   "segments": [
@@ -44,7 +44,7 @@ expression: m
       "id": "provenance-1",
       "text": "And every timeline is committed alongside it.",
       "chapter": "provenance",
-      "start_ms": 5400,
+      "start_ms": 5700,
       "duration_ms": 3150,
       "audio": "audio/provenance-1.wav",
       "voice_source": "synthetic",

@@ -338,7 +338,12 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
     assert!(!d.is_empty(), "a re-timed timeline is not a clean diff");
     assert_eq!(d.transitions.len(), 1, "only b1 has an outgoing transition");
     assert_eq!(d.transitions[0].beat, "b1");
-    assert_eq!(d.transitions[0].before_ms, 600);
+    // 300, not the configured 600: core spec §6.3 caps an `auto` transition
+    // at the quiet window, which here is this beat's 150ms tail plus the
+    // next beat's 150ms lead_in. What this test guards is unaffected —
+    // retuning `max_ms` still moves every gap and the total while no beat's
+    // own hash or duration changes, which is what `diff` used to miss.
+    assert_eq!(d.transitions[0].before_ms, 300);
     assert_eq!(d.transitions[0].after_ms, 0);
     assert!(d.changed.is_empty(), "no beat's own content changed");
 
