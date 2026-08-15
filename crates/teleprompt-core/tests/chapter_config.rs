@@ -1,0 +1,78 @@
+use teleprompt_core::config::PartialConfig;
+use teleprompt_core::ident::assign_ids;
+use teleprompt_core::parse::parse_script;
+use teleprompt_core::program::{resolve, Item};
+
+const SRC: &str = r#"---
+timing:
+  lead_in_ms: 100
+---
+
+# Fast
+
+One.
+
+# Slow
+
+```yaml teleprompt
+timing:
+  lead_in_ms: 900
+```
+
+Two.
+"#;
+
+fn items() -> Vec<Item> {
+    let mut s = parse_script(SRC).unwrap();
+    assign_ids(&mut s);
+    resolve(
+        &s,
+        "d.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .unwrap()
+    .items
+}
+
+#[test]
+fn chapter_front_matter_overrides_script_front_matter() {
+    let it = items();
+    let Item::Narration { config: fast, .. } = &it[0] else {
+        panic!()
+    };
+    let Item::Narration { config: slow, .. } = &it[1] else {
+        panic!()
+    };
+    assert_eq!(fast.timing.lead_in_ms, 100);
+    assert_eq!(slow.timing.lead_in_ms, 900);
+}
+
+#[test]
+fn a_chapter_config_block_is_not_narration() {
+    assert_eq!(items().len(), 2, "the yaml block must not become a segment");
+}
+
+#[test]
+fn chapter_front_matter_is_optional() {
+    let mut s = parse_script("# A\n\nOne.\n").unwrap();
+    assign_ids(&mut s);
+    assert!(s.chapters[0].front_matter.is_empty());
+}
+
+#[test]
+fn malformed_chapter_front_matter_is_a_diagnostic() {
+    let src = "# A\n\n```yaml teleprompt\ntiming: [nope\n```\n\nOne.\n";
+    let mut s = parse_script(src).unwrap();
+    assign_ids(&mut s);
+    let e = resolve(
+        &s,
+        "d.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .unwrap_err();
+    assert!(e.0[0].message.contains("chapter `a` front matter"));
+}

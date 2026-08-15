@@ -8,6 +8,8 @@
 //! `teleprompt-voice`, and `teleprompt-schedule` meet, so that they never
 //! have to depend on one another.
 
+use std::path::{Component, Path};
+
 use teleprompt_core::config::default_adapter;
 use teleprompt_core::program::{Item, Program};
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
@@ -33,6 +35,7 @@ pub fn compile(
     program: &Program,
     registry: &SceneRegistry,
     voice: &dyn VoiceBackend,
+    base_dir: &Path,
     version: &str,
 ) -> Result<CompileOutput, Diagnostics> {
     let mut diags = Vec::new();
@@ -127,11 +130,51 @@ pub fn compile(
                 block_id,
                 scene,
                 body,
+                include,
                 config,
                 policy,
                 align,
                 span,
             } => {
+                // Controller ruling F5: an `include=` path is inspected
+                // *before* anything is joined to `base_dir`. `Path::join`
+                // followed by `starts_with` never rejects `..` — `..` is
+                // just another component, so the joined path's prefix is
+                // always `base_dir`'s components regardless of how many
+                // `..` follow. Checking the raw components (and rejecting an
+                // absolute path outright) is what actually stops traversal;
+                // canonicalising first would follow symlinks out of the
+                // project and let a malicious symlink pass the check.
+                let body = match include {
+                    Some(rel) => {
+                        let p = Path::new(rel);
+                        if p.is_absolute()
+                            || p.components().any(|c| matches!(c, Component::ParentDir))
+                        {
+                            diags.push(Diagnostic::error(format!(
+                                "included file `{rel}` resolves outside the project"
+                            )));
+                            continue;
+                        }
+                        if !body.trim().is_empty() {
+                            diags.push(Diagnostic::error(format!(
+                                "action block has both a body and an `include`: `{rel}`"
+                            )));
+                            continue;
+                        }
+                        match std::fs::read_to_string(base_dir.join(rel)) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                diags.push(Diagnostic::error(format!(
+                                    "cannot read included file `{rel}`: {e}"
+                                )));
+                                continue;
+                            }
+                        }
+                    }
+                    None => body.clone(),
+                };
+
                 let Some(parsed_policy) = Policy::parse(policy, align) else {
                     diags.push(
                         Diagnostic::error(format!("unknown policy `{policy}` or align `{align}`"))

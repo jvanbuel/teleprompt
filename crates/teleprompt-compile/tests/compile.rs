@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use teleprompt_compile::compile;
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
@@ -24,6 +26,7 @@ fn run(src: &str) -> teleprompt_compile::CompileOutput {
         &program(src),
         &SceneRegistry::with_builtins(),
         &NullVoice::default(),
+        Path::new("."),
         "0.1.0",
     )
     .unwrap()
@@ -150,6 +153,7 @@ fn an_unavailable_adapter_is_a_diagnostic_not_a_panic() {
         &p,
         &SceneRegistry::with_builtins(),
         &NullVoice::default(),
+        Path::new("."),
         "0.1.0",
     )
     .unwrap_err();
@@ -165,6 +169,7 @@ fn adapter_validation_errors_reach_the_caller() {
         &p,
         &SceneRegistry::with_builtins(),
         &NullVoice::default(),
+        Path::new("."),
         "0.1.0",
     )
     .unwrap_err();
@@ -179,6 +184,7 @@ fn an_invalid_policy_is_a_diagnostic() {
         &p,
         &SceneRegistry::with_builtins(),
         &NullVoice::default(),
+        Path::new("."),
         "0.1.0",
     )
     .unwrap_err();
@@ -223,6 +229,7 @@ fn adapter_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
         &p,
         &SceneRegistry::with_builtins(),
         &NullVoice::default(),
+        Path::new("."),
         "0.1.0",
     )
     .unwrap_err();
@@ -311,6 +318,7 @@ fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
         &p,
         &SceneRegistry::with_builtins(),
         &NullVoice::default(),
+        Path::new("."),
         "0.1.0",
     )
     .unwrap_err();

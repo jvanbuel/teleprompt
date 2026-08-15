@@ -43,10 +43,13 @@ pub fn compile_script(
     )
     .map_err(|d| render(&d, &display))?;
 
+    let base_dir = script.parent().unwrap_or_else(|| Path::new("."));
+
     compile(
         &program,
         &SceneRegistry::with_builtins(),
         &NullVoice::default(),
+        base_dir,
         env!("CARGO_PKG_VERSION"),
     )
     .map_err(|d| render(&d, &display))

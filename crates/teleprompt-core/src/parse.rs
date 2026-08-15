@@ -64,6 +64,7 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
                     slug: slugify(&title),
                     title,
                     nodes: Vec::new(),
+                    front_matter: String::new(),
                 });
                 state = State::Idle;
                 text.clear();
@@ -82,7 +83,10 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
             }
             Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => {
                 fence_info = info.to_string();
-                state = if fence_info.split_whitespace().next() == Some(FENCE_TAG) {
+                let words: Vec<&str> = fence_info.split_whitespace().collect();
+                state = if words.first() == Some(&"yaml") && words.get(1) == Some(&FENCE_TAG) {
+                    State::ChapterConfig
+                } else if words.first() == Some(&FENCE_TAG) {
                     State::ActionBlock
                 } else {
                     State::Idle
@@ -90,6 +94,26 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
                 text.clear();
             }
             Event::End(TagEnd::CodeBlock) => {
+                if matches!(state, State::ChapterConfig) {
+                    match chapters.last_mut() {
+                        Some(ch) if ch.nodes.is_empty() => ch.front_matter = text.clone(),
+                        Some(_) => diags.push(
+                            Diagnostic::error(
+                                "chapter configuration must come directly after the heading",
+                            )
+                            .at(span),
+                        ),
+                        None => diags.push(
+                            Diagnostic::error(
+                                "chapter configuration appears before the first heading",
+                            )
+                            .at(span),
+                        ),
+                    }
+                    state = State::Idle;
+                    text.clear();
+                    continue;
+                }
                 if matches!(state, State::ActionBlock) {
                     let info = fence_info
                         .strip_prefix(FENCE_TAG)
@@ -129,6 +153,7 @@ enum State {
     Heading,
     Paragraph,
     ActionBlock,
+    ChapterConfig,
 }
 
 fn paragraph_node(raw: &str, span: SourceSpan) -> Option<Node> {

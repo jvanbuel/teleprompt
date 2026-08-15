@@ -29,6 +29,10 @@ pub enum Item {
         block_id: String,
         scene: String,
         body: String,
+        /// The `include=` attribute's raw value, if present. Resolved
+        /// against the script's directory by `teleprompt-compile`, which is
+        /// where filesystem access is allowed (core stays pure).
+        include: Option<String>,
         config: Config,
         policy: String,
         align: String,
@@ -67,6 +71,17 @@ pub fn resolve(
     let mut items = Vec::new();
 
     for chapter in &script.chapters {
+        let chapter_cfg = match PartialConfig::from_yaml(&chapter.front_matter) {
+            Ok(c) => c,
+            Err(e) => {
+                diags.push(Diagnostic::error(format!(
+                    "chapter `{}` front matter: {e}",
+                    chapter.slug
+                )));
+                PartialConfig::default()
+            }
+        };
+
         for node in &chapter.nodes {
             match node {
                 Node::Segment(seg) => {
@@ -75,6 +90,7 @@ pub fn resolve(
                     let config = Config::merged(&[
                         project.clone(),
                         front.clone(),
+                        chapter_cfg.clone(),
                         PartialConfig::from_attrs(&attrs),
                         cli.clone(),
                     ]);
@@ -101,6 +117,7 @@ pub fn resolve(
                     let config = Config::merged(&[
                         project.clone(),
                         front.clone(),
+                        chapter_cfg.clone(),
                         PartialConfig::from_attrs(&attrs),
                         cli.clone(),
                     ]);
@@ -108,6 +125,7 @@ pub fn resolve(
                         block_id: block.id.clone().unwrap_or_default(),
                         scene,
                         body: block.body.clone(),
+                        include: attrs.get("include").map(str::to_string),
                         policy: attrs.get("policy").unwrap_or("hold").to_string(),
                         align: attrs.get("align").unwrap_or("start").to_string(),
                         config,

@@ -42,6 +42,7 @@ fn the_scaffolded_script_compiles() {
         &program,
         &SceneRegistry::with_builtins(),
         &NullVoice::default(),
+        &dir,
         "0.1.0",
     )
     .expect("scaffolded script must compile");
