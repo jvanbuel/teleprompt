@@ -1,6 +1,7 @@
 pub mod contract;
 pub mod null;
 pub mod source;
+pub mod wav;
 
 pub use contract::{
     LanguageSupport, Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
