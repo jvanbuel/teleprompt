@@ -1,15 +1,24 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_compile::{compile, CompileOutput};
+use teleprompt_cache::VoiceCache;
+use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice_null::NullVoice;
+use teleprompt_voice_null::WpmEstimator;
 
 use crate::project::Project;
+
+/// Where a project's synthesis cache lives. Shared between `compile_script`
+/// (which only ever reads it) and `dub` (which populates it), so the two
+/// can never drift onto different directories and silently stop agreeing
+/// about what is warm.
+pub fn cache_root(project: &Project) -> PathBuf {
+    project.root.join(".teleprompt").join("cache")
+}
 
 /// Shared front half of every command: read, parse, identify, resolve, compile.
 /// Has no side effects — it never writes to disk.
@@ -47,10 +56,25 @@ pub fn compile_script(
     // `Some("")` for a parent, which is not the current directory.
     let base_dir = crate::project::script_dir(script);
 
+    let cache = VoiceCache::new(cache_root(project));
+    let estimator = WpmEstimator::default();
+    let ctx = VoiceContext {
+        // The *resolved* backend, not the project-level default: a script's
+        // own front matter can override `voice.backend`, and the cache key
+        // must reflect what actually produces this segment's audio, not
+        // just what the project usually asks for.
+        backend_id: &program.config.voice.backend,
+        // Task 5 makes this the registry's reported backend version; every
+        // backend claims "0.1.0" until then.
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &estimator,
+    };
+
     compile(
         &program,
         &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
+        &ctx,
         base_dir,
         env!("CARGO_PKG_VERSION"),
     )

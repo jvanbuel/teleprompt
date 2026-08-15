@@ -10,6 +10,7 @@
 
 use std::path::{Component, Path};
 
+use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::default_adapter;
 use teleprompt_core::program::{ChapterInfo, Item, Program};
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
@@ -17,10 +18,23 @@ use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry};
 use teleprompt_schedule::{
     schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, Timeline,
 };
-use teleprompt_voice::{resolve_source, SynthRequest, VoiceBackend, VoiceSource, WordTiming};
+use teleprompt_voice::{resolve_source, DurationEstimator, SynthRequest, VoiceSource, WordTiming};
 
 pub mod manifest;
 pub mod manifest_diff;
+
+/// Everything `compile` needs about voice — and deliberately not a backend.
+///
+/// `compile` runs on the inner loop: `check`, `plan`, and `diff` call it on
+/// every run and must stay sub-second and offline. Passing a `VoiceBackend`
+/// here is what would make that impossible, so the type simply does not
+/// offer one. Audio is `dub`'s and `build`'s business.
+pub struct VoiceContext<'a> {
+    pub backend_id: &'a str,
+    pub backend_version: &'a str,
+    pub cache: &'a VoiceCache,
+    pub estimator: &'a dyn DurationEstimator,
+}
 
 /// How an included file is spelled in a diagnostic: the way an author would
 /// find it from where they invoked teleprompt, with a `./` prefix trimmed so
@@ -54,6 +68,9 @@ pub struct NarrationDetail {
     /// a script with `voice: { speed: 2.0 }` published a 3250 ms duration
     /// alongside a 6500 ms file. One source, one request, no drift.
     pub synth_request: SynthRequest,
+    /// The cache key `compile` looked up `synth_request` under. `dub` stores
+    /// its render under this same key, so the two never drift apart.
+    pub cache_key: CacheKey,
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
@@ -73,14 +90,15 @@ pub struct CompileOutput {
 
 /// Compiles `program` into a scheduled [`Timeline`].
 ///
-/// Pure given its inputs: the same program, registry, and voice backend
-/// always produce byte-identical timeline JSON, since every backend
-/// implementation this crate is compiled against (`NullVoice`, the mock
-/// scene adapter) is itself deterministic.
+/// Pure given its inputs: the same program, registry, and voice context
+/// always produce byte-identical timeline JSON. It never synthesizes —
+/// durations come from `voice_ctx.cache` on a hit and `voice_ctx.estimator`
+/// on a miss — which is what keeps this on the sub-second, offline path
+/// `check`, `plan`, and `diff` run on every edit.
 pub fn compile(
     program: &Program,
     registry: &SceneRegistry,
-    voice: &dyn VoiceBackend,
+    voice_ctx: &VoiceContext,
     base_dir: &Path,
     version: &str,
 ) -> Result<CompileOutput, Diagnostics> {
@@ -154,12 +172,27 @@ pub fn compile(
                     voice: config.voice.voice.clone(),
                     speed: config.voice.speed,
                 };
-                let synth = match voice.synthesize(&req) {
-                    Ok(s) => s,
+                let cache_key =
+                    teleprompt_cache::key(voice_ctx.backend_id, voice_ctx.backend_version, &req);
+
+                let cached = match voice_ctx.cache.lookup(&cache_key) {
+                    Ok(c) => c,
                     Err(e) => {
                         diags.push(Diagnostic::error(format!("segment `{id}`: {e}")));
                         continue;
                     }
+                };
+                let (duration_ms, duration_source, word_timings) = match &cached {
+                    Some(hit) => (
+                        hit.duration_ms,
+                        DurationSource::Measured,
+                        hit.word_timings.clone(),
+                    ),
+                    None => (
+                        voice_ctx.estimator.estimate_ms(&req),
+                        DurationSource::Estimated,
+                        None,
+                    ),
                 };
 
                 narration_details.push(NarrationDetail {
@@ -168,15 +201,21 @@ pub fn compile(
                     chapter: chapter.clone(),
                     chapter_index: *chapter_index,
                     synth_request: req,
-                    word_timings: synth.word_timings.clone(),
+                    cache_key: cache_key.clone(),
+                    word_timings,
                 });
 
                 pending = Some(NarrationInput {
                     segment_id: id.clone(),
                     source_hash: *source_hash,
-                    audio_hash: synth.audio_hash,
-                    duration_ms: synth.duration_ms,
-                    duration_source: DurationSource::Measured,
+                    // The cache key, not a synthesis result: this path never
+                    // synthesizes. It identifies the audio this segment
+                    // resolves to, so it moves exactly when the audio would.
+                    // The manifest's `audio_hash` is a different thing — a
+                    // hash of the bytes `dub` actually wrote.
+                    audio_hash: Hash::of(cache_key.to_string().as_bytes()),
+                    duration_ms,
+                    duration_source,
                     // Read off the *narration item's* own resolved config,
                     // which is the only place a segment-level `lead_in=` /
                     // `tail=` survives. The beat this narration ends up in

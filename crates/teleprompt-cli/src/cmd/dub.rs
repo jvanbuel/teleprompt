@@ -1,12 +1,13 @@
 use std::path::{Path, PathBuf};
 
+use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_core::Hash;
-use teleprompt_voice::{wav, VoiceBackend};
+use teleprompt_voice::VoiceBackend;
 use teleprompt_voice_null::{NullVoice, NULL_SAMPLE_RATE};
 
-use crate::cmd::check::compile_script;
+use crate::cmd::check::{cache_root, compile_script};
 use crate::project::Project;
 
 /// A segment the fallback ladder could not deliver at the tier the script
@@ -160,13 +161,21 @@ pub fn run_dub(
 ) -> Result<DubOutput, DubError> {
     let compiled = compile_script(project, script, locale).map_err(DubError::Validation)?;
 
-    // This backend is separate from the `NullVoice` `compile_script`
-    // constructs internally for duration estimation — a deliberate
-    // duplication until a real backend exists. `render_pcm` is only needed
-    // here, so `compile_script`'s signature (and `run_check`/`run_plan`/
-    // `run_diff`, which depend on it) stays untouched; when a real backend
-    // lands, both call sites will select it together.
+    // This backend is separate from the estimator `compile_script` uses
+    // internally — a deliberate duplication until a real backend exists.
+    // `render_pcm` is only needed here, so `compile_script`'s signature
+    // (and `run_check`/`run_plan`/`run_diff`, which depend on it) stays
+    // untouched; when a real backend lands, both call sites will select it
+    // together.
     let voice = NullVoice::default();
+
+    // The same cache `compile_script` just read from, rooted the same way.
+    // Transitional, like the rest of this function: `compile` only ever
+    // looks a key up, so *something* downstream has to be the one that
+    // fills a miss in, and today that is `dub`. Task 6 moves this behind
+    // the async `VoiceBackend` trait and this lookup-then-synthesize
+    // fallback goes away.
+    let cache = VoiceCache::new(cache_root(project));
 
     // Audio is rendered into memory before anything is written to disk, so
     // a synthesis failure cannot leave a half-populated output directory
@@ -176,23 +185,43 @@ pub fn run_dub(
     let mut channels = 1u16;
 
     for detail in &compiled.narration {
-        // The request `compile` measured, not one rebuilt here. Rebuilding
-        // it dropped `voice` and `speed`, so a script with
-        // `voice: { speed: 2.0 }` published a duration from the resolved
-        // config and a file rendered at the default. One source of truth.
-        let pcm = match voice.render_pcm(&detail.synth_request) {
-            Ok(Some(pcm)) => pcm,
-            Ok(None) => {
-                return Err(DubError::Runtime(format!(
-                    "backend `{}` produces no audio; `dub` needs a backend that can render",
-                    voice.id()
-                )))
+        let hit = cache
+            .lookup(&detail.cache_key)
+            .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+
+        let (wav_bytes, rendered_ms) = match hit {
+            Some(cached) => {
+                sample_rate = cached.sample_rate;
+                channels = cached.channels;
+                (cached.wav, cached.duration_ms)
             }
-            Err(e) => {
-                return Err(DubError::Runtime(format!(
-                    "segment `{}`: {e}",
-                    detail.segment_id
-                )))
+            None => {
+                // The request `compile` measured, not one rebuilt here.
+                // Rebuilding it dropped `voice` and `speed`, so a script
+                // with `voice: { speed: 2.0 }` published a duration from
+                // the resolved config and a file rendered at the default.
+                // One source of truth.
+                let pcm = match voice.render_pcm(&detail.synth_request) {
+                    Ok(Some(pcm)) => pcm,
+                    Ok(None) => {
+                        return Err(DubError::Runtime(format!(
+                            "backend `{}` produces no audio; `dub` needs a backend that can render",
+                            voice.id()
+                        )))
+                    }
+                    Err(e) => {
+                        return Err(DubError::Runtime(format!(
+                            "segment `{}`: {e}",
+                            detail.segment_id
+                        )))
+                    }
+                };
+                let stored = cache.store(&detail.cache_key, &pcm, None).map_err(|e| {
+                    DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
+                })?;
+                sample_rate = stored.sample_rate;
+                channels = stored.channels;
+                (stored.wav, stored.duration_ms)
             }
         };
 
@@ -203,13 +232,11 @@ pub fn run_dub(
         // Checked before anything is written: an output directory that
         // disagrees with its own manifest is worse than no output at all.
         if let Some(published_ms) = published_duration_ms(&compiled.timeline, &detail.segment_id) {
-            length_mismatch(&detail.segment_id, pcm.duration_ms(), published_ms)
+            length_mismatch(&detail.segment_id, rendered_ms, published_ms)
                 .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
         }
 
-        sample_rate = pcm.sample_rate;
-        channels = pcm.channels;
-        audio.push((detail.segment_id.clone(), wav::encode(&pcm)));
+        audio.push((detail.segment_id.clone(), wav_bytes));
     }
 
     let mut built = manifest::build(

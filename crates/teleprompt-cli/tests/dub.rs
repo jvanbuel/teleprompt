@@ -352,6 +352,16 @@ fn strict_voice_is_silent_when_every_segment_got_the_tier_it_asked_for() {
 #[test]
 fn dub_is_byte_stable_across_runs() {
     let root = project_with("stable", SCRIPT);
+
+    // Prime the project's synthesis cache first: the very first `dub`
+    // against a cold cache publishes `estimated` durations, and every run
+    // after that publishes `measured` once the segments are cached.
+    // Comparing across that boundary would be comparing two different (and
+    // both correct) manifests rather than testing run-to-run stability —
+    // the property this test actually cares about is that two runs against
+    // an *equally* warm cache agree byte for byte.
+    tp(&root, &["dub", "scripts/test.md", "--out", "warmup"]);
+
     tp(&root, &["dub", "scripts/test.md", "--out", "a"]);
     tp(&root, &["dub", "scripts/test.md", "--out", "b"]);
 
