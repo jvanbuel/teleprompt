@@ -18,6 +18,20 @@ pub struct VoiceCapabilities {
     /// `teleprompt_cache::key`'s `backend_version`, which is what makes a
     /// backend release turn over its cache entries instead of teleprompt's
     /// own version doing that job for every backend at once.
+    ///
+    /// **This is also the only handle a backend has on its own cache key.**
+    /// `teleprompt_cache::key` is built from `backend_id`, `backend_version`
+    /// and the `SynthRequest` — text, locale, voice, speed — and nothing
+    /// else. A backend whose output depends on configuration the request
+    /// does not carry (a model checkpoint, a `base_url`, a sample rate, a
+    /// vocoder setting) **must** fold that configuration into this string,
+    /// or two differently-configured instances share cache entries.
+    ///
+    /// The failure mode of getting this wrong is not a stale build: it is
+    /// serving one voice's audio under another voice's name, permanently,
+    /// with `plan` reporting it as `measured` and nothing above this layer
+    /// able to detect it. Version strings like
+    /// `format!("{model}-{revision}@{host}")` are the intended shape.
     pub version: String,
 }
 
@@ -71,8 +85,13 @@ impl Pcm {
 
 #[derive(Debug, thiserror::Error)]
 pub enum VoiceError {
+    /// `backend` is a `String`, not a `&'static str`: `id()` returns `&str`,
+    /// so a backend whose id is not a literal — one crate serving several
+    /// configured endpoints, which is the shape a network backend wants —
+    /// could not name itself in its own error. One allocation on an error
+    /// path is the whole cost.
     #[error("backend `{backend}` does not support {what}")]
-    Unsupported { backend: &'static str, what: String },
+    Unsupported { backend: String, what: String },
     #[error("{0}")]
     Other(String),
 }

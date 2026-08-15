@@ -1,4 +1,4 @@
-use async_trait::async_trait;
+use teleprompt_voice::async_trait;
 use teleprompt_voice::{
     LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
 };

@@ -2,7 +2,7 @@
 //! in `teleprompt-voice-null`. The registry only ever looks at `id()`, so
 //! everything else here is the smallest thing that satisfies the trait.
 
-use async_trait::async_trait;
+use teleprompt_voice::async_trait;
 use teleprompt_voice::{
     LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
 };

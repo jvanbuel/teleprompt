@@ -485,7 +485,6 @@ dependencies = [
 name = "teleprompt-cli"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "clap",
  "insta",
  "serde",
@@ -560,7 +559,6 @@ dependencies = [
 name = "teleprompt-voice-null"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "teleprompt-core",
  "teleprompt-voice",
  "tokio",

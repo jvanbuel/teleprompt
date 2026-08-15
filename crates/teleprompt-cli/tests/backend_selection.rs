@@ -10,8 +10,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use teleprompt_cli::project::Project;
+use teleprompt_voice::async_trait;
 use teleprompt_voice::{
     DurationEstimator, LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend,
     VoiceCapabilities, VoiceError, VoiceRegistry,
