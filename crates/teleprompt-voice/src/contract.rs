@@ -15,6 +15,11 @@ pub struct VoiceCapabilities {
     pub word_timings: bool,
     pub ssml: bool,
     pub speed_control: bool,
+    /// The backend's own version, not teleprompt's. Feeds
+    /// `teleprompt_cache::key`'s `backend_version`, which is what makes a
+    /// backend release turn over its cache entries instead of teleprompt's
+    /// own version doing that job for every backend at once.
+    pub version: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]

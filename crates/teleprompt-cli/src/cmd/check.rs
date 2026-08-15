@@ -6,7 +6,8 @@ use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::resolve;
+use teleprompt_core::program::{resolve, Item};
+use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_scene::SceneRegistry;
 use teleprompt_voice_null::WpmEstimator;
 
@@ -52,21 +53,56 @@ pub fn compile_script(
     )
     .map_err(|d| render(&d, &display))?;
 
+    // The *resolved* backend, not just a name: a script's own front matter
+    // can override `voice.backend`, and this is what actually produces the
+    // segment's audio, so `cache_key` and `backend_version` both need to
+    // come from it rather than from the raw string.
+    let backend = crate::voice::resolve(&crate::voice::registry(), &program.config.voice.backend)
+        .map_err(|e| vec![e])?;
+
+    // Delivery A supports exactly one backend per compile: `VoiceContext`
+    // carries a single `backend_id` for the whole program. A segment that
+    // writes its own `voice.backend=` and disagrees with the program's
+    // resolved backend cannot be honoured — silently ignoring it would let
+    // an author believe an override took effect when it did not, and
+    // worse, two segments differing only by backend would land on the same
+    // cache key and one would be served the other's audio. So it is
+    // rejected here rather than either of those.
+    let mismatches: Vec<Diagnostic> = program
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Narration {
+                id, config, span, ..
+            } if config.voice.backend != program.config.voice.backend => Some(
+                Diagnostic::error(format!(
+                    "segment `{id}` sets voice.backend=`{}`, but this compile resolved to \
+                     backend `{}`; per-segment voice backends are not supported yet",
+                    config.voice.backend, program.config.voice.backend
+                ))
+                .at(*span)
+                .with_help(
+                    "remove the segment-level voice.backend= override, or change the \
+                     project/script default instead",
+                ),
+            ),
+            _ => None,
+        })
+        .collect();
+    if !mismatches.is_empty() {
+        return Err(render(&Diagnostics(mismatches), &display));
+    }
+
     // `script_dir`, not `script.parent()`: a bare `demo.md` has
     // `Some("")` for a parent, which is not the current directory.
     let base_dir = crate::project::script_dir(script);
 
     let cache = VoiceCache::new(cache_root(project));
     let estimator = WpmEstimator::default();
+    let capabilities = backend.capabilities();
     let ctx = VoiceContext {
-        // The *resolved* backend, not the project-level default: a script's
-        // own front matter can override `voice.backend`, and the cache key
-        // must reflect what actually produces this segment's audio, not
-        // just what the project usually asks for.
-        backend_id: &program.config.voice.backend,
-        // Task 5 makes this the registry's reported backend version; every
-        // backend claims "0.1.0" until then.
-        backend_version: "0.1.0",
+        backend_id: backend.id(),
+        backend_version: &capabilities.version,
         cache: &cache,
         estimator: &estimator,
     };

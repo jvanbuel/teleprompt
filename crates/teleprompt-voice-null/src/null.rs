@@ -34,6 +34,7 @@ impl VoiceBackend for NullVoice {
             word_timings: false,
             ssml: false,
             speed_control: true,
+            version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }
 

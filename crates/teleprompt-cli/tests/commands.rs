@@ -236,3 +236,55 @@ fn an_unreachable_script_path_is_named_in_the_error() {
         "the error must name the path it could not reach: {stderr}"
     );
 }
+
+#[test]
+fn an_unknown_voice_backend_is_a_validation_error_naming_what_exists() {
+    let (p, s) =
+        project_with("---\nvoice: { backend: nope }\n---\n\n# Intro\n\nOne two three. {#a}\n");
+    let errors = run_check(&p, &s, "en").expect_err("unknown backend must fail check");
+    let joined = errors.join("\n");
+    assert!(joined.contains("nope"), "{joined}");
+    assert!(
+        joined.contains("null"),
+        "must name what is available: {joined}"
+    );
+}
+
+#[test]
+fn the_default_backend_is_null_so_existing_scripts_keep_working() {
+    let (p, s) = project_with("# Intro\n\nOne two three. {#a}\n");
+    assert!(run_check(&p, &s, "en").is_ok());
+}
+
+/// The extra requirement beyond the brief: a segment-level `voice.backend=`
+/// that disagrees with the program's resolved backend must fail `check`
+/// rather than being silently ignored — `VoiceContext` carries exactly one
+/// backend per compile, so an ignored override would let two segments that
+/// differ only by backend collide on one cache key and one would be served
+/// the other's audio.
+#[test]
+fn a_segment_level_backend_override_that_disagrees_with_the_resolved_backend_is_rejected() {
+    let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=nope}\n");
+    let errors = run_check(&p, &s, "en").expect_err("a disagreeing per-segment backend must fail");
+    let joined = errors.join("\n");
+    assert!(
+        joined.contains("segment `a`"),
+        "must name the segment: {joined}"
+    );
+    assert!(
+        joined.contains("nope") && joined.contains("null"),
+        "must name both the segment's requested backend and the resolved one: {joined}"
+    );
+    assert!(
+        joined.contains("not supported yet"),
+        "must say per-segment backends are not supported yet: {joined}"
+    );
+}
+
+/// A segment-level `voice.backend=` that agrees with the resolved backend
+/// is not an override at all and must not be rejected.
+#[test]
+fn a_segment_level_backend_that_matches_the_resolved_backend_is_fine() {
+    let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=null}\n");
+    assert!(run_check(&p, &s, "en").is_ok());
+}
