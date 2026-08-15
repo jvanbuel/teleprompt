@@ -997,6 +997,14 @@ rendering.
 **Library** — `teleprompt-core` as a published crate, for embedding the compiler
 in other tooling.
 
+**Narration manifest (`dub`)** — the interface for pipelines that render
+themselves. `teleprompt dub` writes narration audio and a versioned JSON
+manifest describing what is said, when, and by which voice tier, so a tool
+teleprompt does not control — Remotion, After Effects, a web player — can
+consume the dubbing while owning its own picture. The drift gate still applies,
+so prose edits fail CI there as they do here. Specified in
+`2026-08-15-teleprompt-narration-manifest-design.md`.
+
 ## 14. Testing
 
 - **Scheduler**: the bulk of the test suite. Table-driven cases over synthetic
@@ -1060,7 +1068,9 @@ answer faster. At the end of M0, the core question — does editing prose produc
 a legible, useful diff of the video's pacing? — is answerable.
 
 **M1 — first real video.** `media` adapter, ffmpeg composition, `kokoro`, cache,
-subtitles, `build`, `--watch`. A narrated video from a committed script.
+subtitles, `build`, `--watch`. A narrated video from a committed script. Also
+`dub` and the narration manifest, which need a real voice backend and nothing
+else — see `2026-08-15-teleprompt-narration-manifest-design.md`.
 
 **M2 — Playwright adapter.** Node sidecar and protocol, the `tp` helper, mark
 splitting, measurement pass, Playwright video capture, determinism controls. The
