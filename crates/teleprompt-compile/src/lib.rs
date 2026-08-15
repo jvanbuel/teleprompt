@@ -175,19 +175,19 @@ pub fn compile(
                 let cache_key =
                     teleprompt_cache::key(voice_ctx.backend_id, voice_ctx.backend_version, &req);
 
-                let cached = match voice_ctx.cache.lookup(&cache_key) {
+                // Metadata only: `compile` never touches the audio itself,
+                // and reading the WAV back on every warm hit only to drop it
+                // would put the whole cache's audio through `plan` on every
+                // run.
+                let cached = match voice_ctx.cache.lookup_meta(&cache_key) {
                     Ok(c) => c,
                     Err(e) => {
                         diags.push(Diagnostic::error(format!("segment `{id}`: {e}")));
                         continue;
                     }
                 };
-                let (duration_ms, duration_source, word_timings) = match &cached {
-                    Some(hit) => (
-                        hit.duration_ms,
-                        DurationSource::Measured,
-                        hit.word_timings.clone(),
-                    ),
+                let (duration_ms, duration_source, word_timings) = match cached {
+                    Some(hit) => (hit.duration_ms, DurationSource::Measured, hit.word_timings),
                     None => (
                         voice_ctx.estimator.estimate_ms(&req),
                         DurationSource::Estimated,

@@ -667,3 +667,36 @@ fn the_cache_key_covers_the_resolved_voice_config() {
         "a different speed is different audio and must not share a cache entry"
     );
 }
+
+/// Pins the reasoning behind `compile_script` reading `backend_id` off the
+/// *resolved* config (`program.config.voice.backend`) rather than the
+/// project's unresolved default: the cache key has to cover whichever
+/// backend actually produces a segment's audio, or two backends could
+/// collide on one cache entry.
+#[test]
+fn the_cache_key_covers_the_backend_id() {
+    let cache = VoiceCache::new(cache_dir("backendkey"));
+    let est = WpmEstimator::default();
+    let null_ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+    let other_ctx = VoiceContext {
+        backend_id: "other",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+
+    let null = compile_with(ONE, &null_ctx).unwrap();
+    let other = compile_with(ONE, &other_ctx).unwrap();
+
+    assert_ne!(
+        null.narration[0].cache_key.to_string(),
+        other.narration[0].cache_key.to_string(),
+        "the same text under two different backends is different audio and must \
+         not share a cache entry"
+    );
+}

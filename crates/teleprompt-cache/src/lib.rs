@@ -98,6 +98,19 @@ pub struct CachedAudio {
     pub wav: Vec<u8>,
 }
 
+/// Duration and word timings without the audio bytes.
+///
+/// `compile` runs on the inner loop and needs only these; reading the WAV
+/// back to discard it would put the whole cache's audio through `plan` on
+/// every run.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CachedMeta {
+    pub duration_ms: u64,
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub word_timings: Option<Vec<WordTiming>>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CacheStats {
     pub entries: usize,
@@ -153,6 +166,37 @@ impl VoiceCache {
             channels: side.channels,
             word_timings: side.word_timings,
             wav,
+        }))
+    }
+
+    /// Like [`lookup`](Self::lookup), but never reads the WAV — only checks
+    /// that it exists, so a half-written entry (sidecar with no audio
+    /// beside it) still reads as `Ok(None)` rather than a hit with no
+    /// bytes.
+    pub fn lookup_meta(&self, key: &CacheKey) -> Result<Option<CachedMeta>, CacheError> {
+        let json = self.json_path(key);
+        let raw = match std::fs::read_to_string(&json) {
+            Ok(r) => r,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(read_err(&json, e)),
+        };
+        let side: Sidecar = serde_json::from_str(&raw).map_err(|source| CacheError::Corrupt {
+            path: json.display().to_string(),
+            source,
+        })?;
+
+        let wav_path = self.wav_path(key);
+        match std::fs::metadata(&wav_path) {
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(read_err(&wav_path, e)),
+        }
+
+        Ok(Some(CachedMeta {
+            duration_ms: side.duration_ms,
+            sample_rate: side.sample_rate,
+            channels: side.channels,
+            word_timings: side.word_timings,
         }))
     }
 

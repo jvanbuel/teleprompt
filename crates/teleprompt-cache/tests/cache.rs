@@ -1,4 +1,4 @@
-use teleprompt_cache::{key, VoiceCache};
+use teleprompt_cache::{key, CachedMeta, VoiceCache};
 use teleprompt_voice::{Pcm, SynthRequest, WordTiming};
 
 fn req(text: &str, voice: Option<&str>, speed: f64, locale: &str) -> SynthRequest {
@@ -53,6 +53,26 @@ fn store_then_lookup_round_trips() {
     assert_eq!(got.channels, 1);
     assert_eq!(got.wav, stored.wav);
     assert!(got.word_timings.is_none());
+}
+
+/// `compile` runs on the inner loop and never needs the WAV; `lookup_meta`
+/// is how it avoids reading audio back only to drop it.
+#[test]
+fn lookup_meta_round_trips_without_the_wav() {
+    let c = VoiceCache::new(tempdir("meta-round"));
+    let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
+    c.store(&k, &pcm(1000), None).unwrap();
+
+    let got = c.lookup_meta(&k).unwrap().expect("hit");
+    assert_eq!(
+        got,
+        CachedMeta {
+            duration_ms: 1000,
+            sample_rate: 24_000,
+            channels: 1,
+            word_timings: None,
+        }
+    );
 }
 
 #[test]
@@ -190,6 +210,23 @@ fn a_sidecar_without_its_wav_is_a_miss() {
     std::fs::remove_file(root.join(format!("voice/{k}.wav"))).unwrap();
     assert!(
         c.lookup(&k).unwrap().is_none(),
+        "treat as absent and re-synthesize"
+    );
+}
+
+/// Mirrors `a_sidecar_without_its_wav_is_a_miss`: `lookup_meta` must not
+/// report a hit off the sidecar alone, even though it never reads the WAV
+/// it's checking for.
+#[test]
+fn lookup_meta_of_a_sidecar_without_its_wav_is_a_miss() {
+    let root = tempdir("meta-halfwritten");
+    let c = VoiceCache::new(&root);
+    let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
+    c.store(&k, &pcm(1000), None).unwrap();
+
+    std::fs::remove_file(root.join(format!("voice/{k}.wav"))).unwrap();
+    assert!(
+        c.lookup_meta(&k).unwrap().is_none(),
         "treat as absent and re-synthesize"
     );
 }

@@ -239,6 +239,17 @@ pub fn run_dub(
         audio.push((detail.segment_id.clone(), wav_bytes));
     }
 
+    // Every segment is warm now — the loop above either found it already
+    // cached or just stored it. Recompile against that warm cache rather
+    // than building the manifest from `compiled` above: that first compile
+    // ran before anything was rendered, so on a cold project it published
+    // `estimated` durations even though real audio was about to exist a few
+    // lines later. Recompiling here is what makes `dub` idempotent — two
+    // runs on an unedited script see an equally warm cache and produce
+    // byte-identical manifests — and it costs one extra compile and no
+    // synthesis, since by this point every lookup is a hit.
+    let compiled = compile_script(project, script, locale).map_err(DubError::Validation)?;
+
     let mut built = manifest::build(
         &compiled.timeline,
         &compiled.chapters,
