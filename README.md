@@ -54,10 +54,11 @@ All commands accept `--format json`.
 
 ### Estimated versus measured durations
 
-`plan`, `check`, and `diff` never synthesize. They read durations from the
-cache, and fall back to a word-count estimate for anything not yet rendered —
+`plan`, `check`, and `diff` never synthesize, never read audio, and never
+await. They read durations from the cache — metadata only, never the WAV
+bytes — and fall back to a word-count estimate for anything not yet rendered,
 so the inner loop stays instant and offline no matter how slow the configured
-voice is.
+voice is. Only `dub` starts an async runtime.
 
 ```
 $ teleprompt plan scripts/tour.md --format json | grep duration_source

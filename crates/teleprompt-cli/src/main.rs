@@ -79,8 +79,30 @@ enum Command {
     },
 }
 
-#[tokio::main]
-async fn main() -> ExitCode {
+/// The async runtime, built for `dub` and nothing else.
+///
+/// Current-thread rather than multi-thread: `dub` awaits one synthesis at a
+/// time, so worker threads have nothing to do. Spec §7.2's bounded
+/// concurrent fan-out would want `new_multi_thread` back — which is why the
+/// `rt-multi-thread` feature is still declared rather than trimmed away.
+///
+/// A runtime that will not start is a runtime failure (exit 1), not a
+/// validation error, so it takes the same road as any other `dub` failure
+/// instead of panicking out through an exit code `exit_code_for` cannot
+/// issue.
+fn dub_runtime() -> Result<tokio::runtime::Runtime, dub::DubError> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| dub::DubError::Runtime(format!("cannot start the async runtime: {e}")))
+}
+
+/// Synchronous on purpose. `#[tokio::main]` started a multi-thread runtime
+/// — a worker thread per core — for every subcommand, including
+/// `check`/`plan`/`diff`/`doctor`/`new`, none of which ever await. `dub`
+/// builds its own runtime in its own arm, which is the only place async is
+/// reachable from.
+fn main() -> ExitCode {
     let cli = Cli::parse();
     let registry = SceneRegistry::with_builtins();
 
@@ -252,7 +274,9 @@ async fn main() -> ExitCode {
                 eprintln!("error: {e}");
                 Outcome::RuntimeFailure(e.to_string())
             }
-            Ok(project) => match dub::run_dub(&project, &script, &locale, &out, check).await {
+            Ok(project) => match dub_runtime()
+                .and_then(|rt| rt.block_on(dub::run_dub(&project, &script, &locale, &out, check)))
+            {
                 Ok(result) => {
                     for w in &result.warnings {
                         eprintln!("warning: {w}");

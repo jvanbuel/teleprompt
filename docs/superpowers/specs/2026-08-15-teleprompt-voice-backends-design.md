@@ -27,8 +27,8 @@ Then `teleprompt-voice-kokoro`, which is small once the above exists.
 ### Goals
 
 - A backend author implements one async function: text in, samples out.
-- The inner loop (§10: `plan`, `diff`) never calls a backend and never needs an
-  async runtime.
+- The inner loop (§10: `plan`, `diff`) never synthesizes, never reads audio, and
+  never awaits.
 - A timeline says which durations are measured and which are predicted.
 - Adding a backend touches no crate but its own — the property §7.6 already
   names as the goal for scene adapters.
@@ -297,13 +297,26 @@ deterministic regardless of completion order.
 
 ## 8. The async boundary
 
-`async-trait` on `VoiceBackend`, `tokio` (multi-thread, `rt` + `net` + `macros`)
-in the CLI.
+`async-trait` on `VoiceBackend`, `tokio` in the CLI — a **current-thread**
+runtime, built inside the `Dub` arm of `main`. `dub` awaits one synthesis at a
+time, so worker threads have nothing to do; §7.2's bounded fan-out is what would
+want the multi-thread flavour back, and the feature stays declared for it.
 
-The boundary sits so that **the inner loop never crosses it**. `compile()` takes
-a cache and an estimator, not a backend, and stays synchronous. `check`, `plan`,
-and `diff` never start a runtime. Only `dub` and `build` enter async, at their
-own entry points.
+The boundary sits so that **the inner loop never synthesizes, never reads audio,
+and never awaits**. That is the load-bearing statement, and it is structural
+rather than a matter of discipline: `compile()` takes a `VoiceContext` — a
+cache, an estimator, and two strings — which is transitively backend-free, so
+there is no expression on the `check`/`plan`/`diff` path that can reach
+`synthesize`. `compile` reads the cache through `lookup_meta`, which `stat`s the
+WAV rather than reading it, so no audio bytes cross the inner loop either.
+
+`main` is synchronous and the runtime is built inside the `Dub` arm alone, so
+`check`, `plan`, `diff`, `doctor`, and `new` also start no runtime. That is a
+consequence worth having — it was not true when this was first written, and a
+multi-thread runtime was being spun up per invocation for commands that never
+await — but it is the weaker claim: a runtime nothing awaits on costs a few
+threads, whereas a `synthesize` reachable from `plan` would cost the whole
+property. Only `dub` and `build` enter async, at their own entry points.
 
 That is the test of whether §3's split is in the right place: if the async
 boundary had to sit any lower, it would have infected `plan`.
