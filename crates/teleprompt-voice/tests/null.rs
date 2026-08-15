@@ -87,3 +87,38 @@ fn null_backend_declares_honest_capabilities() {
     assert!(!c.word_timings);
     assert!(c.speed_control);
 }
+
+#[test]
+fn punctuation_only_text_is_silent() {
+    let v = NullVoice::default();
+    assert_eq!(v.synthesize(&req("...")).unwrap().duration_ms, 0);
+    assert_eq!(v.synthesize(&req("-- !! --")).unwrap().duration_ms, 0);
+}
+
+#[test]
+fn wpm_affects_cache_key_and_hash() {
+    let slow = NullVoice { wpm: 150.0 };
+    let fast = NullVoice { wpm: 300.0 };
+    let same_as_slow = NullVoice { wpm: 150.0 };
+    let req_text = req("hello");
+
+    // Different wpm produces different cache keys and hashes
+    assert_ne!(slow.cache_key(&req_text), fast.cache_key(&req_text));
+    assert_ne!(
+        slow.synthesize(&req_text).unwrap().audio_hash,
+        fast.synthesize(&req_text).unwrap().audio_hash
+    );
+
+    // Same wpm reproduces the same cache key and hash
+    assert_eq!(slow.cache_key(&req_text), same_as_slow.cache_key(&req_text));
+    assert_eq!(
+        slow.synthesize(&req_text).unwrap().audio_hash,
+        same_as_slow.synthesize(&req_text).unwrap().audio_hash
+    );
+
+    // But duration should differ
+    assert_ne!(
+        slow.synthesize(&req_text).unwrap().duration_ms,
+        fast.synthesize(&req_text).unwrap().duration_ms
+    );
+}

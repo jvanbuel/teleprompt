@@ -19,7 +19,10 @@ const CLAUSE_MS: u64 = 250;
 const SENTENCE_MS: u64 = 350;
 
 pub fn estimate_ms(text: &str, wpm: f64, speed: f64) -> u64 {
-    let words = text.split_whitespace().count() as f64;
+    let words = text
+        .split_whitespace()
+        .filter(|w| w.chars().any(char::is_alphanumeric))
+        .count() as f64;
     if words == 0.0 {
         return 0;
     }
@@ -65,11 +68,12 @@ impl VoiceBackend for NullVoice {
 
     fn cache_key(&self, req: &SynthRequest) -> String {
         format!(
-            "null/{}/{}/{}/{}/{}",
+            "null/{}/{}/{}/{}/{}/{}",
             env!("CARGO_PKG_VERSION"),
             req.locale,
             req.voice.as_deref().unwrap_or("-"),
             req.speed,
+            self.wpm,
             Hash::of(req.text.as_bytes())
         )
     }
