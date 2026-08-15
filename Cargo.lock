@@ -334,6 +334,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-compile"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "teleprompt-core",
+ "teleprompt-scene",
+ "teleprompt-schedule",
+ "teleprompt-voice",
+]
+
+[[package]]
 name = "teleprompt-core"
 version = "0.1.0"
 dependencies = [
