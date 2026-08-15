@@ -2,8 +2,9 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use teleprompt_cli::cmd::{doctor, new};
-use teleprompt_cli::output::Format;
+use teleprompt_cli::cmd::doctor;
+use teleprompt_cli::cmd::new::{self, NewReport};
+use teleprompt_cli::output::{exit_code_for, Format, Outcome};
 use teleprompt_scene::SceneRegistry;
 
 #[derive(Parser)]
@@ -32,27 +33,19 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let registry = SceneRegistry::with_builtins();
 
-    match cli.command {
+    let outcome = match cli.command {
         Command::New { path } => match new::scaffold(&path) {
             Ok(files) => {
+                let report = NewReport { created: files };
                 match cli.format {
-                    Format::Json => println!(
-                        "{}",
-                        serde_json::json!({
-                            "created": files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>()
-                        })
-                    ),
-                    Format::Human => {
-                        for f in files {
-                            println!("created {}", f.display());
-                        }
-                    }
+                    Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
+                    Format::Human => print!("{}", report.render()),
                 }
-                ExitCode::SUCCESS
+                Outcome::Ok
             }
             Err(e) => {
                 eprintln!("error: {e}");
-                ExitCode::from(1)
+                Outcome::RuntimeFailure(e.to_string())
             }
         },
         Command::Doctor => {
@@ -61,7 +54,9 @@ fn main() -> ExitCode {
                 Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
                 Format::Human => print!("{}", report.render()),
             }
-            ExitCode::SUCCESS
+            Outcome::Ok
         }
-    }
+    };
+
+    ExitCode::from(exit_code_for(&outcome) as u8)
 }

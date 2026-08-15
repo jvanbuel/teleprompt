@@ -25,3 +25,20 @@ pub fn exit_code_for(outcome: &Outcome) -> i32 {
         Outcome::VoiceDowngrade => 4,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exit_code_for_matches_the_spec() {
+        assert_eq!(exit_code_for(&Outcome::Ok), 0);
+        assert_eq!(exit_code_for(&Outcome::RuntimeFailure("boom".into())), 1);
+        assert_eq!(
+            exit_code_for(&Outcome::ValidationError(vec!["bad".into()])),
+            2
+        );
+        assert_eq!(exit_code_for(&Outcome::Drift), 3);
+        assert_eq!(exit_code_for(&Outcome::VoiceDowngrade), 4);
+    }
+}

@@ -1,6 +1,8 @@
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+
 const PROJECT_TOML: &str = r#"# teleprompt project configuration
 [locales]
 source = "en"
@@ -64,4 +66,41 @@ pub fn scaffold(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
         written.push(path);
     }
     Ok(written)
+}
+
+/// The stable, typed shape of `new`'s output in both formats. Mirrors
+/// `DoctorReport`'s `Serialize` + `render()` pattern rather than building
+/// JSON inline in `main.rs`, so later commands have a live example to copy.
+#[derive(Debug, Serialize)]
+pub struct NewReport {
+    pub created: Vec<PathBuf>,
+}
+
+impl NewReport {
+    pub fn render(&self) -> String {
+        self.created
+            .iter()
+            .map(|p| format!("created {}\n", p.display()))
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_report_serializes_as_a_named_created_array() {
+        let report = NewReport {
+            created: vec![
+                PathBuf::from("teleprompt.toml"),
+                PathBuf::from(".gitignore"),
+            ],
+        };
+        let json = serde_json::to_value(&report).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"created": ["teleprompt.toml", ".gitignore"]})
+        );
+    }
 }
