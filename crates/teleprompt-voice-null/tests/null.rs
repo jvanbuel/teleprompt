@@ -1,5 +1,6 @@
+use teleprompt_voice::estimator::DurationEstimator;
 use teleprompt_voice::{Pcm, SynthRequest, VoiceBackend};
-use teleprompt_voice_null::{NullVoice, NULL_SAMPLE_RATE};
+use teleprompt_voice_null::{NullVoice, WpmEstimator, NULL_SAMPLE_RATE};
 
 fn req(text: &str) -> SynthRequest {
     SynthRequest {
@@ -10,158 +11,154 @@ fn req(text: &str) -> SynthRequest {
     }
 }
 
-#[test]
-fn duration_scales_with_word_count() {
+#[tokio::test]
+async fn duration_scales_with_word_count() {
     let v = NullVoice::default();
-    let short = v.synthesize(&req("one two three")).unwrap().duration_ms;
+    let short = v
+        .synthesize(&req("one two three"))
+        .await
+        .unwrap()
+        .pcm
+        .duration_ms();
     let long = v
         .synthesize(&req("one two three four five six"))
+        .await
         .unwrap()
-        .duration_ms;
+        .pcm
+        .duration_ms();
     assert!(long > short);
 }
 
-#[test]
-fn six_words_at_150_wpm_is_2400ms_plus_no_punctuation() {
+#[tokio::test]
+async fn six_words_at_150_wpm_is_2400ms_plus_no_punctuation() {
     let v = NullVoice { wpm: 150.0 };
     // 6 words / 150 wpm * 60_000 = 2400 ms
     assert_eq!(
         v.synthesize(&req("one two three four five six"))
+            .await
             .unwrap()
-            .duration_ms,
+            .pcm
+            .duration_ms(),
         2400
     );
 }
 
-#[test]
-fn punctuation_adds_pauses() {
+#[tokio::test]
+async fn punctuation_adds_pauses() {
     let v = NullVoice { wpm: 150.0 };
-    let plain = v.synthesize(&req("one two")).unwrap().duration_ms;
-    let stopped = v.synthesize(&req("one two.")).unwrap().duration_ms;
+    let plain = v
+        .synthesize(&req("one two"))
+        .await
+        .unwrap()
+        .pcm
+        .duration_ms();
+    let stopped = v
+        .synthesize(&req("one two."))
+        .await
+        .unwrap()
+        .pcm
+        .duration_ms();
     assert_eq!(stopped - plain, 350);
 
-    let comma = v.synthesize(&req("one, two")).unwrap().duration_ms;
+    let comma = v
+        .synthesize(&req("one, two"))
+        .await
+        .unwrap()
+        .pcm
+        .duration_ms();
     assert_eq!(comma - plain, 150);
 }
 
-#[test]
-fn speed_divides_the_duration() {
+#[tokio::test]
+async fn speed_divides_the_duration() {
     let v = NullVoice { wpm: 150.0 };
     let mut r = req("one two three four five six");
     r.speed = 2.0;
-    assert_eq!(v.synthesize(&r).unwrap().duration_ms, 1200);
+    assert_eq!(v.synthesize(&r).await.unwrap().pcm.duration_ms(), 1200);
 }
 
-#[test]
-fn synthesis_is_deterministic() {
+#[tokio::test]
+async fn synthesis_is_deterministic() {
     let v = NullVoice::default();
-    let a = v.synthesize(&req("Welcome to Acme.")).unwrap();
-    let b = v.synthesize(&req("Welcome to Acme.")).unwrap();
-    assert_eq!(a.duration_ms, b.duration_ms);
-    assert_eq!(a.audio_hash, b.audio_hash);
+    let a = v.synthesize(&req("Welcome to Acme.")).await.unwrap();
+    let b = v.synthesize(&req("Welcome to Acme.")).await.unwrap();
+    assert_eq!(a.pcm, b.pcm);
 }
 
-#[test]
-fn cache_key_varies_with_every_input_that_changes_the_output() {
-    let v = NullVoice::default();
-    let base = req("hello");
-    let mut other_locale = base.clone();
-    other_locale.locale = "nl".into();
-    let mut other_speed = base.clone();
-    other_speed.speed = 1.5;
-
-    assert_ne!(v.cache_key(&base), v.cache_key(&other_locale));
-    assert_ne!(v.cache_key(&base), v.cache_key(&other_speed));
-    assert_eq!(v.cache_key(&base), v.cache_key(&req("hello")));
-}
-
-#[test]
-fn empty_text_is_zero_duration() {
-    let v = NullVoice::default();
-    assert_eq!(v.synthesize(&req("   ")).unwrap().duration_ms, 0);
-}
-
-#[test]
-fn null_backend_declares_honest_capabilities() {
+#[tokio::test]
+async fn null_backend_declares_honest_capabilities() {
     let c = NullVoice::default().capabilities();
     assert!(!c.cloning);
     assert!(!c.word_timings);
     assert!(c.speed_control);
 }
 
-#[test]
-fn punctuation_only_text_is_silent() {
+#[tokio::test]
+async fn punctuation_only_text_is_silent() {
     let v = NullVoice::default();
-    assert_eq!(v.synthesize(&req("...")).unwrap().duration_ms, 0);
-    assert_eq!(v.synthesize(&req("-- !! --")).unwrap().duration_ms, 0);
+    assert_eq!(
+        v.synthesize(&req("...")).await.unwrap().pcm.duration_ms(),
+        0
+    );
+    assert_eq!(
+        v.synthesize(&req("-- !! --"))
+            .await
+            .unwrap()
+            .pcm
+            .duration_ms(),
+        0
+    );
 }
 
-#[test]
-fn wpm_affects_cache_key_and_hash() {
+#[tokio::test]
+async fn wpm_affects_duration() {
     let slow = NullVoice { wpm: 150.0 };
     let fast = NullVoice { wpm: 300.0 };
     let same_as_slow = NullVoice { wpm: 150.0 };
-    let req_text = req("hello");
+    let r = req("hello world");
 
-    // Different wpm produces different cache keys and hashes
-    assert_ne!(slow.cache_key(&req_text), fast.cache_key(&req_text));
     assert_ne!(
-        slow.synthesize(&req_text).unwrap().audio_hash,
-        fast.synthesize(&req_text).unwrap().audio_hash
+        slow.synthesize(&r).await.unwrap().pcm.duration_ms(),
+        fast.synthesize(&r).await.unwrap().pcm.duration_ms()
     );
-
-    // Same wpm reproduces the same cache key and hash
-    assert_eq!(slow.cache_key(&req_text), same_as_slow.cache_key(&req_text));
     assert_eq!(
-        slow.synthesize(&req_text).unwrap().audio_hash,
-        same_as_slow.synthesize(&req_text).unwrap().audio_hash
-    );
-
-    // But duration should differ
-    assert_ne!(
-        slow.synthesize(&req_text).unwrap().duration_ms,
-        fast.synthesize(&req_text).unwrap().duration_ms
+        slow.synthesize(&r).await.unwrap().pcm.duration_ms(),
+        same_as_slow.synthesize(&r).await.unwrap().pcm.duration_ms()
     );
 }
 
-#[test]
-fn null_renders_silence_matching_its_own_estimate() {
+#[tokio::test]
+async fn null_synthesizes_silence_matching_the_estimate() {
     let v = NullVoice::default();
     let r = req("Every video in this repository is built from a script you can read.");
 
-    let estimated = v.synthesize(&r).unwrap().duration_ms;
-    let pcm = v
-        .render_pcm(&r)
-        .unwrap()
-        .expect("null renders silence, not nothing");
+    let out = v.synthesize(&r).await.unwrap();
 
-    assert_eq!(pcm.sample_rate, NULL_SAMPLE_RATE);
-    assert_eq!(pcm.channels, 1);
-    assert!(
-        pcm.samples.iter().all(|s| *s == 0),
-        "null is silence, not noise"
-    );
+    assert_eq!(out.pcm.sample_rate, NULL_SAMPLE_RATE);
+    assert_eq!(out.pcm.channels, 1);
+    assert!(out.pcm.samples.iter().all(|s| *s == 0), "null is silence");
     assert_eq!(
-        pcm.duration_ms(),
-        estimated,
-        "audio length must equal the duration the manifest will claim"
+        out.pcm.duration_ms(),
+        WpmEstimator::default().estimate_ms(&r),
+        "the audio's length is the estimate — one number, not two"
     );
+    assert!(out.word_timings.is_none());
 }
 
-#[test]
-fn null_renders_nothing_for_empty_text() {
-    let v = NullVoice::default();
-    let pcm = v.render_pcm(&req("   ")).unwrap().unwrap();
-    assert_eq!(pcm.samples.len(), 0);
-    assert_eq!(pcm.duration_ms(), 0);
-}
-
-#[test]
-fn null_rejects_a_non_positive_speed_when_rendering_too() {
+#[tokio::test]
+async fn null_rejects_a_non_positive_speed() {
     let v = NullVoice::default();
     let mut r = req("hello");
     r.speed = 0.0;
-    assert!(v.render_pcm(&r).is_err());
+    assert!(v.synthesize(&r).await.is_err());
+}
+
+#[tokio::test]
+async fn empty_text_synthesizes_nothing() {
+    let v = NullVoice::default();
+    let out = v.synthesize(&req("   ")).await.unwrap();
+    assert_eq!(out.pcm.samples.len(), 0);
+    assert_eq!(out.pcm.duration_ms(), 0);
 }
 
 #[test]

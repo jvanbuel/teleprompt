@@ -152,7 +152,7 @@ fn length_mismatch(segment_id: &str, actual_ms: u64, published_ms: u64) -> Optio
     ))
 }
 
-pub fn run_dub(
+pub async fn run_dub(
     project: &Project,
     script: &Path,
     locale: &str,
@@ -163,18 +163,15 @@ pub fn run_dub(
 
     // This backend is separate from the estimator `compile_script` uses
     // internally — a deliberate duplication until a real backend exists.
-    // `render_pcm` is only needed here, so `compile_script`'s signature
+    // `synthesize` is only needed here, so `compile_script`'s signature
     // (and `run_check`/`run_plan`/`run_diff`, which depend on it) stays
     // untouched; when a real backend lands, both call sites will select it
     // together.
     let voice = NullVoice::default();
 
     // The same cache `compile_script` just read from, rooted the same way.
-    // Transitional, like the rest of this function: `compile` only ever
-    // looks a key up, so *something* downstream has to be the one that
-    // fills a miss in, and today that is `dub`. Task 6 moves this behind
-    // the async `VoiceBackend` trait and this lookup-then-synthesize
-    // fallback goes away.
+    // `compile` only ever looks a key up; `dub` is the one that fills a
+    // miss in, by calling the backend and storing what comes back.
     let cache = VoiceCache::new(cache_root(project));
 
     // Audio is rendered into memory before anything is written to disk, so
@@ -201,24 +198,18 @@ pub fn run_dub(
                 // with `voice: { speed: 2.0 }` published a duration from
                 // the resolved config and a file rendered at the default.
                 // One source of truth.
-                let pcm = match voice.render_pcm(&detail.synth_request) {
-                    Ok(Some(pcm)) => pcm,
-                    Ok(None) => {
-                        return Err(DubError::Runtime(format!(
-                            "backend `{}` produces no audio; `dub` needs a backend that can render",
-                            voice.id()
-                        )))
-                    }
-                    Err(e) => {
-                        return Err(DubError::Runtime(format!(
-                            "segment `{}`: {e}",
-                            detail.segment_id
-                        )))
-                    }
-                };
-                let stored = cache.store(&detail.cache_key, &pcm, None).map_err(|e| {
+                let synthesized = voice.synthesize(&detail.synth_request).await.map_err(|e| {
                     DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
                 })?;
+                let stored = cache
+                    .store(
+                        &detail.cache_key,
+                        &synthesized.pcm,
+                        synthesized.word_timings.as_deref(),
+                    )
+                    .map_err(|e| {
+                        DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
+                    })?;
                 sample_rate = stored.sample_rate;
                 channels = stored.channels;
                 (stored.wav, stored.duration_ms)

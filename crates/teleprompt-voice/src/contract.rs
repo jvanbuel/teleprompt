@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use teleprompt_core::Hash;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LanguageSupport {
@@ -37,10 +36,14 @@ pub struct WordTiming {
     pub end_ms: u64,
 }
 
+/// What a backend produces. Duration is deliberately absent: it is
+/// `pcm.duration_ms()`, so a backend cannot report a length its samples do
+/// not have. An earlier contract returned the two separately, and `dub`
+/// published a 3250 ms duration beside a 6500 ms file.
 #[derive(Debug, Clone)]
-pub struct SynthResult {
-    pub duration_ms: u64,
-    pub audio_hash: Hash,
+pub struct Synthesized {
+    pub pcm: Pcm,
+    /// Present only when `capabilities().word_timings` is true.
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
@@ -74,19 +77,14 @@ pub enum VoiceError {
     Other(String),
 }
 
+#[async_trait::async_trait]
 pub trait VoiceBackend: Send + Sync {
-    fn id(&self) -> &'static str;
+    fn id(&self) -> &str;
     fn capabilities(&self) -> VoiceCapabilities;
-    fn synthesize(&self, req: &SynthRequest) -> Result<SynthResult, VoiceError>;
 
-    /// Render this request to audio. Separate from [`VoiceBackend::synthesize`]
-    /// because the inner loop (`plan`, `diff`) needs durations thousands of
-    /// times and audio never; making one call do both would put a
-    /// multi-megabyte allocation on the hot path.
+    /// Turn text into audio. The only thing a backend does.
     ///
-    /// Returns `Ok(None)` from a backend that genuinely cannot produce audio.
-    /// `null` is not such a backend — it returns silence.
-    fn render_pcm(&self, req: &SynthRequest) -> Result<Option<Pcm>, VoiceError>;
-
-    fn cache_key(&self, req: &SynthRequest) -> String;
+    /// Caching and duration prediction are teleprompt's concerns and appear
+    /// nowhere in this contract.
+    async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError>;
 }

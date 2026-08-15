@@ -509,8 +509,8 @@ The second paragraph here.
 /// used to rebuild a `SynthRequest` itself, dropping `voice` and `speed`,
 /// and published a duration from the resolved config beside a file rendered
 /// at the defaults.
-#[test]
-fn the_narration_detail_carries_the_resolved_synth_request() {
+#[tokio::test]
+async fn the_narration_detail_carries_the_resolved_synth_request() {
     let src = "\
 ---
 voice:
@@ -536,13 +536,14 @@ One two three four five six.
     // And it is the same request the published duration was measured from.
     let measured = NullVoice::default()
         .synthesize(&detail.synth_request)
+        .await
         .unwrap();
     let published = out.timeline.entries[0]
         .narration
         .as_ref()
         .unwrap()
         .duration_ms;
-    assert_eq!(measured.duration_ms, published);
+    assert_eq!(measured.pcm.duration_ms(), published);
 }
 
 #[test]

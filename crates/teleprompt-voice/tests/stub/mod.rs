@@ -1,13 +1,10 @@
 //! A minimal `VoiceBackend` for exercising `VoiceRegistry` without pulling
 //! in `teleprompt-voice-null`. The registry only ever looks at `id()`, so
 //! everything else here is the smallest thing that satisfies the trait.
-//!
-//! Still synchronous, matching `VoiceBackend` as it stands at this task.
-//! Task 6 converts both the trait and this stub to async and names this
-//! file when it does.
 
+use async_trait::async_trait;
 use teleprompt_voice::{
-    LanguageSupport, Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
+    LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
 };
 
 pub struct StubVoice {
@@ -20,8 +17,9 @@ impl StubVoice {
     }
 }
 
+#[async_trait]
 impl VoiceBackend for StubVoice {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         self.id
     }
 
@@ -37,15 +35,7 @@ impl VoiceBackend for StubVoice {
         }
     }
 
-    fn synthesize(&self, _req: &SynthRequest) -> Result<SynthResult, VoiceError> {
+    async fn synthesize(&self, _req: &SynthRequest) -> Result<Synthesized, VoiceError> {
         Err(VoiceError::Other("stub backend cannot synthesize".into()))
-    }
-
-    fn render_pcm(&self, _req: &SynthRequest) -> Result<Option<Pcm>, VoiceError> {
-        Err(VoiceError::Other("stub backend cannot render".into()))
-    }
-
-    fn cache_key(&self, _req: &SynthRequest) -> String {
-        format!("stub/{}", self.id)
     }
 }

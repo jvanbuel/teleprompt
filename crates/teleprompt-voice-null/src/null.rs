@@ -1,7 +1,6 @@
-use teleprompt_core::Hash;
-
+use async_trait::async_trait;
 use teleprompt_voice::{
-    LanguageSupport, Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
+    LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
 };
 
 use crate::estimator::estimate_ms;
@@ -21,8 +20,9 @@ impl Default for NullVoice {
 /// a rounding away from the estimate it is supposed to match.
 pub const NULL_SAMPLE_RATE: u32 = 48_000;
 
+#[async_trait]
 impl VoiceBackend for NullVoice {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         "null"
     }
 
@@ -38,36 +38,19 @@ impl VoiceBackend for NullVoice {
         }
     }
 
-    fn synthesize(&self, req: &SynthRequest) -> Result<SynthResult, VoiceError> {
+    async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
         if req.speed <= 0.0 {
             return Err(VoiceError::Other("speed must be greater than zero".into()));
         }
-        Ok(SynthResult {
-            duration_ms: estimate_ms(&req.text, self.wpm, req.speed),
-            audio_hash: Hash::of(self.cache_key(req).as_bytes()),
+        let ms = estimate_ms(&req.text, self.wpm, req.speed);
+        let frames = (ms * NULL_SAMPLE_RATE as u64).div_ceil(1000) as usize;
+        Ok(Synthesized {
+            pcm: Pcm {
+                sample_rate: NULL_SAMPLE_RATE,
+                channels: 1,
+                samples: vec![0; frames],
+            },
             word_timings: None,
         })
-    }
-
-    fn render_pcm(&self, req: &SynthRequest) -> Result<Option<Pcm>, VoiceError> {
-        let ms = self.synthesize(req)?.duration_ms;
-        let frames = (ms * NULL_SAMPLE_RATE as u64).div_ceil(1000) as usize;
-        Ok(Some(Pcm {
-            sample_rate: NULL_SAMPLE_RATE,
-            channels: 1,
-            samples: vec![0; frames],
-        }))
-    }
-
-    fn cache_key(&self, req: &SynthRequest) -> String {
-        format!(
-            "null/{}/{}/{}/{}/{}/{}",
-            env!("CARGO_PKG_VERSION"),
-            req.locale,
-            req.voice.as_deref().unwrap_or("-"),
-            req.speed,
-            self.wpm,
-            Hash::of(req.text.as_bytes())
-        )
     }
 }

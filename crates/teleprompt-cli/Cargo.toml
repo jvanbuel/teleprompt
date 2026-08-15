@@ -24,6 +24,7 @@ teleprompt-voice-null = { path = "../teleprompt-voice-null" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

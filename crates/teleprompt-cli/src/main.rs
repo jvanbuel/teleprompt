@@ -79,7 +79,8 @@ enum Command {
     },
 }
 
-fn main() -> ExitCode {
+#[tokio::main]
+async fn main() -> ExitCode {
     let cli = Cli::parse();
     let registry = SceneRegistry::with_builtins();
 
@@ -228,7 +229,7 @@ fn main() -> ExitCode {
                 eprintln!("error: {e}");
                 Outcome::RuntimeFailure(e.to_string())
             }
-            Ok(project) => match dub::run_dub(&project, &script, &locale, &out, check) {
+            Ok(project) => match dub::run_dub(&project, &script, &locale, &out, check).await {
                 Ok(result) => {
                     for w in &result.warnings {
                         eprintln!("warning: {w}");
