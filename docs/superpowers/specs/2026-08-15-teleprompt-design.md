@@ -14,9 +14,13 @@ which shifts every transition after it. teleprompt makes that consequence
 visible and cheap: `plan` computes the new timeline without rendering a frame,
 `diff` explains what moved, and `build` re-renders only the parts that changed.
 
-The Playwright analogy is deliberate: a script is a program, execution is
-reproducible, and the artifact under version control is the script rather than
-the recording.
+The Playwright analogy is more than an analogy: browser scenes *are* Playwright
+scripts. A script is a program, execution is reproducible, and the artifact
+under version control is the script rather than the recording.
+
+Scripts need not be written from scratch. The expected origin is that an author
+records themselves doing the thing, and teleprompt derives the script from what
+it observed (§8) — after which the same feedback loop applies.
 
 ### Goals
 
@@ -27,11 +31,15 @@ the recording.
 - One script produces N locale variants, each with its own correct timing.
 - Every generated artifact is content-addressed, so edits cost the minimum
   possible recomputation.
+- Scenes reuse the language that already owns their domain rather than inventing
+  one.
 
 ### Non-goals (v1)
 
 - A timeline editor. teleprompt is a compiler; editing happens in the script.
+- A step language of teleprompt's own. Adapters wrap existing tools (§7).
 - Motion-graphics authoring. Transitions are chosen, not designed.
+- Translation itself. teleprompt maintains the ledger, not the prose.
 - Hosting, publishing, or analytics.
 - Real-time streaming. Output is a file.
 
@@ -42,11 +50,15 @@ the recording.
 | **Script** | The Markdown source file. The unit of compilation. |
 | **Chapter** | A Markdown heading and everything under it. Addressable build target. |
 | **Segment** | One narration paragraph. Carries a stable ID. The atom of voice and translation. |
-| **Action block** | A fenced ` ```teleprompt ` block. One or more visual steps for a scene. |
-| **Beat** | A segment plus the action block that follows it. The scheduling unit. |
+| **Action block** | A fenced block of adapter-native source. Executed by one adapter. |
+| **Scene** | A domain the video can show: `browser`, `terminal`, `media`. Names the *what*. |
+| **Adapter** | The implementation serving a scene — `playwright`, `vhs` — wrapping an existing tool behind the `Scene` contract. Names the *how*. |
+| **Mark** | A yield point inside an action block where the scheduler regains control. Beat boundary. |
+| **Beat** | A segment plus the action span that follows it. The scheduling unit. |
 | **Program** | A script resolved for one locale: config merged, translations applied. |
-| **Timeline** | Compiled schedule — absolute times for every clip and step. Committed. |
-| **Take** | One recording of a human reading one segment. |
+| **Timeline** | Compiled schedule — absolute times for every clip and span. Committed. |
+| **Take** | One human reading of one segment: a file, or a slice of a longer recording. |
+| **Trace** | Structured record of observed actions with timestamps, produced by recording a live session. |
 | **Voice source** | Which tier on the dubbing spectrum produced a segment's audio. |
 
 ## 3. Artifact format
@@ -54,7 +66,8 @@ the recording.
 ### 3.1 Shape
 
 Front matter configures. Prose paragraphs are segments. Fenced `teleprompt`
-blocks are action blocks. Headings are chapters.
+blocks are action blocks, written in whatever language their scene speaks (§7).
+Headings are chapters.
 
 ````markdown
 ---
@@ -83,23 +96,31 @@ output:
 
 Welcome to Acme. Let me show you how to get a project running. {#welcome}
 
-```teleprompt
-goto /
-wait_for text="Get started"
+```teleprompt scene=browser
+await page.goto('/');
+await page.getByText('Get started').waitFor();
 ```
 
 Click through here, and you land on the project wizard.
 
-```teleprompt policy=concurrent align=start
-click text="Get started"
-wait_for url="/new"
+```teleprompt scene=browser policy=concurrent align=start
+await page.getByText('Get started').click();
+await page.waitForURL('/new');
 ```
 
 Give it a name, and you are done. {#done voice.source=recorded}
 
-```teleprompt policy=stretch
-type into=input[name=title] text="My first project" cps=12
-click text="Create"
+```teleprompt scene=browser policy=stretch
+await tp.type('input[name=title]', 'My first project');
+await page.getByText('Create').click();
+```
+
+And here is the same thing from the command line. {#cli}
+
+```teleprompt scene=terminal
+Type "acme new my-project"
+Enter
+Sleep 2s
 ```
 ````
 
@@ -115,6 +136,14 @@ click text="Create"
   `<!-- teleprompt: pause 800ms -->`.
 - Inline text is normalised for speech: emphasis markers stripped, inline code
   spans read as their contents, links read as their text.
+- **An action block's body is opaque to the Markdown parser.** teleprompt reads
+  the fence attributes to learn which scene owns the block, then hands the body
+  to that scene's adapter for validation. teleprompt itself never interprets the
+  contents.
+- `include=<path>` on the fence replaces the body with the contents of an
+  external file, so a Playwright script can live in a real `.spec.ts` that
+  editors and Playwright's own tooling understand. A fence may have a body or an
+  `include`, not both.
 
 ### 3.3 Segment identity
 
@@ -143,8 +172,12 @@ Segment keys: `voice.source`, `voice.backend`, `voice.voice`, `voice.speed`,
 `lead_in`, `tail`, `lang` (override for a single segment, e.g. a product name
 that should keep source pronunciation).
 
-Action block keys: `policy`, `align`, `scene`, `id`, `max_speedup` (bounds
-`trim`), `max_stretch` and `min_stretch` (bound `stretch`).
+Action block keys: `scene`, `include`, `policy`, `align`, `id`, `max_speedup`
+(bounds `trim`), `max_stretch` and `min_stretch` (bound `stretch`).
+
+Fence attributes are teleprompt's, parsed by teleprompt. Everything inside the
+fence belongs to the scene. That line is what keeps adapters independent: adding
+a scene never changes the Markdown grammar.
 
 ### 3.5 Configuration resolution
 
@@ -227,6 +260,25 @@ always states which parts are not really the author yet.
 
 ### 4.2 Take staleness
 
+A take is a **slice of an audio file**, not necessarily a whole one:
+
+```rust
+pub struct Take {
+    pub file: PathBuf,
+    pub offset_ms: u64,
+    pub duration_ms: u64,
+    pub source_hash: Hash,      // segment text this take was read from
+    pub recorded_at: Timestamp,
+}
+```
+
+The slice is essential rather than cosmetic. Per-segment recording produces
+whole files, but the record-first flow (§8) produces one continuous take
+spanning an entire script, sliced into segments after transcription. Both must
+be the same type, or every consumer — cache key, staleness check, ffmpeg
+placement, take management — needs two code paths. A whole-file take is simply
+`offset_ms: 0` with the file's full duration.
+
 A take binds to the `source_hash` of the segment that produced it. Editing the
 paragraph invalidates the take.
 
@@ -299,10 +351,13 @@ differs.
 `teleprompt record` presents a prompter: the segment text, scrolling at a pace
 derived from the estimated duration (or, when recording a target locale, from
 the source-locale take being matched), with a pace indicator showing drift
-against that target. It records the microphone, stores the result as
-`takes/<segment-id>/<n>.wav` with a sidecar recording the `source_hash`, and
-offers immediate re-record. Multiple takes are kept; the newest valid take wins
-unless `takes/<segment-id>/pick` names one.
+against that target. It records the microphone, writes the audio under `takes/`,
+and registers a `Take` in `takes/index.toml` — the manifest binding segment IDs
+to file, offset, duration, and `source_hash`. Multiple takes per segment are
+kept; the newest valid one wins unless the manifest marks a pick.
+
+The manifest, not the directory layout, is the source of truth. That is what
+lets a single continuous recording serve many segments without copying audio.
 
 The take's *actual* duration is what enters the timeline. The loop is: plan with
 estimates, record, re-plan with truth.
@@ -313,9 +368,9 @@ estimates, record, re-plan with truth.
 parse ─► resolve ─► voice ─► schedule ─► capture ─► compose
 ```
 
-1. **Parse** — Markdown to AST. Assign segment IDs, validate attributes, parse
-   action steps against the target scene's grammar. Pure, no IO. This is where
-   `check` stops.
+1. **Parse** — Markdown to AST. Assign segment IDs, validate attributes, hand
+   each action block to its adapter for validation and mark-splitting. Pure
+   apart from the adapter's own validation. This is where `check` stops.
 2. **Resolve** — merge configuration, apply the locale overlay, resolve the
    voice source per segment. Produces a `Program`.
 3. **Voice** — for each segment, obtain an `AudioClip { path, duration,
@@ -331,6 +386,13 @@ Stages 1–4 are the *plan*; stages 5–6 are the *render*. `plan` runs 1–4 an
 stops, which is what makes the inner loop fast: with the `null` backend, a full
 re-plan of a long script is a sub-second, fully offline operation.
 
+**Measurement.** Adapters that cannot estimate a span statically (§7.2) need
+their spans timed once. The measuring pass sits between stages 4 and 5, runs
+only for spans with no cached measurement, and writes results to the cache keyed
+on span content hash. A first build therefore pays a dry-run; subsequent plans
+are as fast as the fully-static case. Measurement never blocks `plan`, which
+reports unmeasured spans as estimates and marks them as such in the timeline.
+
 ### 5.1 Caching
 
 One content-addressed store under `.teleprompt/cache/`, keyed by BLAKE3 of a
@@ -339,7 +401,8 @@ canonical description of the inputs:
 | artifact | key inputs |
 |---|---|
 | audio clip | segment text, locale, backend ID, voice, speed, backend version |
-| video segment | scene kind, resolved steps, viewport, scene config, slot duration |
+| span measurement | span source, scene kind, scene config, adapter version |
+| video segment | span source, scene kind, viewport, scene config, slot duration |
 | composed output | timeline hash, all member artifact hashes, output settings |
 
 Cache entries are immutable and safe to delete at any time; deleting one costs
@@ -414,11 +477,13 @@ an explicit silent beat. Both participate in slack.
         "downgrade_reason": "take stale"
       },
       "action": {
-        "block": "quickstart-1-a",
+        "span": "quickstart-1-a",
         "scene": "browser",
+        "adapter": "playwright@0.3",
         "start_ms": 5670,
         "duration_ms": 150,
-        "steps_hash": "77bd..."
+        "span_hash": "77bd...",
+        "duration_source": "measured"
       },
       "transition": { "kind": "crossfade", "duration_ms": 300 }
     }
@@ -454,96 +519,260 @@ Structured output via `--format json` for CI.
 
 ## 7. Scenes
 
+teleprompt does not define a language for describing visual steps. Each domain
+already has one that is better than anything designed here would be: Playwright
+for browsers, VHS for terminals, AppleScript for macOS UI. teleprompt defines a
+**contract**, and each scene is an **adapter** satisfying it over an existing
+tool.
+
+This is a deliberate reversal of an earlier draft, which specified a single
+teleprompt-owned step grammar. That design was rejected for three reasons: the
+grammar would have been three domain sub-grammars sharing a tokenizer, so the
+"one language" claim was illusory; matching Playwright's selector engine and
+auto-waiting is a large project whose output would be worse; and `playwright
+codegen` already implements most of the record-first flow in §8.
+
+### 7.1 Scenes and adapters
+
+Two layers, and the distinction matters because it is what keeps the artifact
+portable:
+
+- A **scene** names a domain — `browser`, `terminal`, `media`. This is what an
+  author writes in the fence, and what appears in the timeline.
+- An **adapter** implements a scene over a specific tool — `playwright`, `vhs`.
+  Which adapter serves a scene is configuration, not part of the script.
+
+```yaml
+scene:
+  browser:
+    adapter: playwright        # the default
+    base_url: "http://localhost:3000"
+```
+
+Only one adapter per scene ships initially, so the indirection buys nothing
+today. It is there because the alternative — writing `scene=playwright` in every
+fence — makes the choice of tool part of every script, and swapping it a
+find-and-replace across the corpus. The block body is adapter-native regardless;
+what the indirection protects is everything *around* the body.
+
+### 7.2 The contract
+
+Everything the compiler needs from a scene, and nothing more:
+
 ```rust
 #[async_trait]
 pub trait Scene: Send {
     fn kind(&self) -> &'static str;
 
-    /// Validate and lower raw step syntax. Called during parse — before any
-    /// process starts, network call is made, or credit is spent.
-    fn parse_steps(&self, raw: &[RawStep]) -> Result<Vec<Step>, ParseError>;
+    /// Static validation of block source. Runs during `check`, before any
+    /// process starts or credit is spent. Adapters delegate to whatever their
+    /// tool provides — a tape parser, `tsc`, a syntax check.
+    fn validate(&self, src: &BlockSource) -> Result<Validated, ParseError>;
 
-    /// Duration this block needs at natural pace, for scheduling. May be an
-    /// estimate; the scheduler records it as such.
-    fn estimate(&self, steps: &[Step]) -> SceneEstimate;
+    /// Split a block at its marks into spans. One span per beat.
+    fn spans(&self, src: &Validated) -> Result<Vec<Span>, ParseError>;
+
+    /// Duration a span needs at natural pace. Adapters that can compute this
+    /// statically do; those that cannot return `Measured::Unknown` and the
+    /// compiler measures once, then caches.
+    fn estimate(&self, span: &Span) -> Measured;
 
     async fn prepare(&mut self, cfg: &SceneConfig) -> Result<()>;
 
-    /// Execute against a slot. The Clock reports timeline position so the scene
-    /// can pace itself; the Recorder receives frames.
-    async fn execute(&mut self, steps: &[Step], slot: Slot, rec: &mut Recorder) -> Result<Captured>;
+    /// Execute one span into its scheduled slot. The scene may pace itself
+    /// against `slot`; frames go to `rec`.
+    async fn execute(&mut self, span: &Span, slot: Slot, rec: &mut Recorder)
+        -> Result<Captured>;
 
     async fn teardown(&mut self) -> Result<()>;
 }
 ```
 
-`parse_steps` running at parse time is the single most valuable property here.
-An unknown step, a malformed selector, or a missing required argument is caught
-by `check` in milliseconds, rather than after a browser has launched and a
-minute of TTS has been billed.
+Four obligations, and the design rests on all four:
 
-### 7.1 `media`
+**Marks** are how narration interleaves. A mark is a yield point where the
+adapter hands control back to the scheduler, which holds until the narration
+slot is satisfied. Without marks, a block is one opaque lump and none of the
+scheduling policies in §6.2 can apply to it. Every adapter must express them.
 
-Static images, video clips, colour cards, title cards. No automation. Ships
-first because it makes the whole pipeline demonstrable — a real narrated video
-end to end — before any browser is involved.
+**Duration** may be computed or measured. Adapters over declarative languages
+compute it statically. Adapters over imperative ones return `Unknown`; the
+compiler then runs a measuring pass on first build and caches per-span timings
+keyed on the span's content hash. Measured numbers are truer than estimates —
+the cost is a slower cold build, not a worse result.
+
+**Identity** is a content hash per span, so re-capture is selective. Marks buy
+granularity here too: editing one span re-captures one beat rather than the
+whole block.
+
+**Validation** delegates. Whatever the underlying tool already does — `tsc`, a
+tape parser — is what `check` reports, mapped into teleprompt's diagnostic
+format with the fence's line offset applied so errors point at the Markdown.
+
+### 7.3 `media`
+
+Images, clips, colour cards, title cards. The one scene with no existing tool
+worth adopting, so it has a handful of directives. Durations are explicit, so
+`estimate` is exact.
 
 ```
 image src=diagrams/arch.png fit=contain
-clip src=b-roll/office.mp4 from=00:12 to=00:19
+clip  src=b-roll/office.mp4 from=00:12 to=00:19
 title text="Part Two" subtitle="Configuration"
+mark
 ```
 
-### 7.2 `browser`
+Ships first: it makes the whole pipeline demonstrable end to end before any
+external runtime is involved.
 
-Chrome over CDP (`chromiumoxide`). Frames captured via `Page.startScreencast`,
-each carrying a CDP timestamp; the recorder writes a frame list with
-presentation times and ffmpeg resamples to the output frame rate.
+### 7.4 `browser` — Playwright adapter
 
-```
-goto /projects
-click text="New project"
-click selector="#submit"
-type into="input[name=title]" text="Demo" cps=12
-hover selector=".card:first-child"
-scroll to="#pricing" duration=1200ms
-wait_for text="Ready"
-wait_for url="/new"
-wait_for selector=".spinner" state=hidden
-wait 500ms
-highlight selector=".cta" style=box
-zoom to=".card" scale=1.6 duration=600ms
-eval "window.__demo.seed()"
+The block is a real Playwright script body. teleprompt runs a Node sidecar and
+speaks to it over stdio JSON-RPC; `page` is a standard Playwright `Page`, and
+`tp` is a small teleprompt helper.
+
+```ts
+await page.goto('/projects');
+await tp.mark();                                  // narration plays, visual holds
+await page.getByRole('button', { name: 'New' }).click();
+await tp.mark('concurrent');
+await tp.type('input[name=title]', 'Demo');       // paced to fill its slot
+await tp.highlight('.cta');
+await page.getByText('Ready').waitFor();
 ```
 
-Determinism is a design obligation, not a hope. Fixed viewport and device scale
-factor; animations disabled via `prefers-reduced-motion` and a CSS override
-injected at document start; a fixed clock and seeded randomness injected into
-the page where the page cooperates; fonts required to be locally available.
-`wait_for` is always preferred over `wait`, and `check` warns on bare `wait`
-calls longer than 1 s as a pacing smell.
+`tp.mark()` blocks until the scheduler releases it. Pacing-aware helpers
+(`tp.type`, `tp.scroll`, `tp.zoom`, `tp.highlight`) read the current slot to
+compute their own speed, which is how `stretch` reaches inside a script. Plain
+Playwright calls run at natural pace and are simply measured.
 
-**Known limitation.** Screencast frame delivery is not perfectly uniform under
-load. Capture is therefore treated as approximately-timed and resampled, with
-the timeline — not the wall clock — as the authority on when each step begins. A
-frame-accurate deterministic capture path (CDP `beginFrame` stepping) is
-recorded as a future option in §12, not a v1 commitment.
+`spans` splits on `tp.mark()` calls, found by parsing the block with a JS parser
+rather than by regex, so marks inside comments or strings do not confuse it.
+`validate` typechecks with `tsc` against teleprompt's ambient declarations for
+`tp`. `estimate` returns `Unknown`.
 
-### 7.3 `terminal`
+Capture uses Playwright's own video recording per span rather than raw CDP
+screencast, which removes the frame-timing risk the earlier draft carried.
 
-A PTY running a shell, rendered to frames by a headless terminal emulator.
-Typing is animated at a configurable characters-per-second so it reads as human.
+Determinism remains a design obligation: fixed viewport and device scale factor,
+animations suppressed via `prefers-reduced-motion` plus an injected CSS override,
+fonts required locally, and `check` warning on bare `waitForTimeout` calls over
+1 s as a pacing smell.
+
+### 7.5 `terminal` — VHS adapter
+
+The block is VHS tape syntax. teleprompt parses the tape and executes it against
+its own PTY rather than shelling out to `vhs`, because VHS renders a whole tape
+to one file and cannot resume — there would be no way to interleave narration.
+The language is reused; the runtime is not.
 
 ```
-run "cargo build --release" cps=18
-expect "Finished"
-send_keys "C-c"
-clear
+Set TypingSpeed 50ms
+Type "cargo build --release"
+Enter
+Sleep 2s
+Mark
+Type "./target/release/acme --help"
+Enter
 ```
 
-Later milestone; the browser scene proves the harder capture problem first.
+`Mark` is teleprompt's one addition to the grammar, and tapes without it remain
+valid VHS. Because tapes carry explicit `Sleep` and `Set TypingSpeed`, `estimate`
+is exact — no measuring pass — and `Set TypingSpeed` is the natural knob for
+`stretch`. Output directives (`Output`, `Set Shell`) that conflict with
+teleprompt's own capture are rejected by `validate` with an explanatory error.
 
-## 8. Rendering
+### 7.6 Later adapters
+
+**`macos`** — AppleScript or JXA. Imperative, unmeasurable, and genuinely flaky;
+it satisfies the contract as an opaque span with a declared duration and
+explicit marks. Not a v1 commitment.
+
+**`asciinema`** — cast files are a recorded format rather than an authored one,
+which makes them a natural import source (§8) more than a scene.
+
+Adding an adapter touches no other crate. That is the property the contract
+exists to protect.
+
+## 8. Record-first authoring
+
+The compilation pipeline assumes a script exists. Most scripts will not be
+written from a blank file. The expected origin is that the author *does the
+thing* while narrating, in one take, in flow — and then refines.
+
+teleprompt supports this by observing rather than by importing an opaque
+recording. Pixels cannot be re-driven; a structured trace can.
+
+### 8.1 Capture
+
+```
+teleprompt import --scene browser --url http://localhost:3000
+```
+
+Opens a real browser, records the microphone, and captures a **trace** of actual
+actions — clicks, navigations, typed input, scrolls — with timestamps. This is
+`playwright codegen` with an audio track, and it is deliberately built on
+codegen rather than reimplemented: selector generation is the hard part and
+Playwright already does it well. The terminal equivalent wraps a PTY and records
+a cast.
+
+The trace is written to `.teleprompt/traces/` and is an intermediate, not a
+committed artifact.
+
+### 8.2 Derivation
+
+From the trace plus the audio track:
+
+1. **Transcribe** with word timings (Whisper-class ASR, local by default).
+2. **Segment** at sentence boundaries, preferring natural pauses. Long pauses
+   become segment breaks; very short ones do not.
+3. **Interleave** actions and segments by timestamp into beats.
+4. **Infer policy** from observed timing — an action inside speech becomes
+   `concurrent`, one in a gap becomes `hold`, typing spread across a sentence
+   becomes `stretch`. This is arithmetic on timestamps, not inference in the
+   machine-learning sense.
+5. **Emit** the Markdown script: prose paragraphs with promoted explicit IDs
+   (§3.3), action blocks in the scene's own language with `tp.mark()` inserted
+   at the derived beat boundaries, and inferred policies on the fences.
+6. **Register takes** — the single continuous recording, sliced per segment,
+   written to `takes/index.toml` with `source_hash` bindings.
+
+Step 6 is why the take model must be a slice (§4.2). One recording serves the
+whole script, and no audio is copied or re-encoded.
+
+### 8.3 Why this composes
+
+The emitted script has its `recorded` tier already populated, so the very first
+`build` produces the author's real voice over their real demo. Refinement then
+runs through machinery that already exists:
+
+- Edit a paragraph → its take goes stale → the fallback ladder (§4.1) drops that
+  segment to `cloned`, still the author's voice, now saying the better sentence.
+  Untouched segments keep the genuine recording.
+- The enrollment corpus for that clone is the take just captured (§4.4).
+- `diff` reports what the edit did to the pacing before anything re-renders.
+- Re-capture re-drives the app from the trace-derived script. The original screen
+  recording is a reference and can be discarded.
+
+None of this was designed for import; the pieces compose because the artifact,
+not the recording, is the thing under version control.
+
+### 8.4 Limits
+
+**Import produces a first draft, not a shippable artifact.** Real takes contain
+filler, backtracking, mouse wandering, and dead air. The output is meant to be
+edited — by the author, or by an assistant working on the Markdown — and the
+tooling makes no claim otherwise.
+
+**Only replayable scenes can be imported.** Browser and terminal work because
+their actions can be re-driven. Arbitrary desktop capture cannot, and is out of
+scope.
+
+**Segmentation is a heuristic** and will sometimes split awkwardly. Since the
+output is Markdown, fixing it is editing a paragraph break — cheap, and the take
+slices re-derive from the corrected boundaries.
+
+## 9. Rendering
 
 ffmpeg, orchestrated from Rust. teleprompt builds the filter graph and invokes
 `ffmpeg` as a subprocess.
@@ -564,7 +793,7 @@ An optional HTML overlay pass — titles, captions, callouts rendered in a
 headless browser and composited on top — is a natural later extension and is
 deliberately excluded from v1.
 
-## 9. CLI
+## 10. CLI
 
 Rust, `clap` derive. The binary is a thin shell over `teleprompt-core`; every
 command is a function call into the library, and every command supports
@@ -596,6 +825,13 @@ teleprompt record                  prompter capture
   --chapter <slug>  --segment <id>
 teleprompt takes ls|pick|rm        manage recordings
 
+teleprompt import                  record a live session, derive a script
+  --scene browser|terminal
+  --url <url>            starting point for the browser scene
+  --out <path>           script to write
+  --no-audio             capture the trace only, narrate later
+teleprompt trace ls|show|replay    inspect captured traces
+
 teleprompt loc sync                reconcile translation sidecars
 teleprompt loc status              per-locale coverage and staleness
 teleprompt cache ls|clean
@@ -606,13 +842,13 @@ Two loops, by design. The inner loop is `plan`/`diff` — offline, sub-second wi
 the `null` backend, run constantly while writing. The outer loop is `build
 --watch` — real audio and real capture, run when the shape is settled.
 
-### 9.1 Exit codes
+### 10.1 Exit codes
 
 `0` success · `1` runtime failure · `2` validation error (`check` failed) · `3`
 drift (`diff` found changes under `--exit-code`, for CI) · `4` voice downgrade
 under `--strict-voice`.
 
-## 10. Repository layout
+## 11. Repository layout
 
 Committed:
 
@@ -620,8 +856,10 @@ Committed:
 teleprompt.toml
 scripts/quickstart.md
 scripts/quickstart.nl.md
+scripts/quickstart.spec.ts     # optional: an `include`d Playwright script
 timelines/quickstart.en.json
 timelines/quickstart.nl.json
+takes/index.toml               # manifest: segment → file, offset, hash
 voices/jan.toml
 ```
 
@@ -629,16 +867,19 @@ Ignored (`.gitignore` written by `new`):
 
 ```
 .teleprompt/cache/
+.teleprompt/traces/
 build/
-takes/            # large; opt in to git-lfs per project
+takes/*.wav       # large; opt in to git-lfs per project
 ```
 
 Script and timeline are committed; media is not. A reviewer can see from the
-diff alone what a prose change did to the pacing, without cloning binaries. Takes
-are excluded by default because they are large, with a documented git-lfs path
-for teams that want reproducible human narration.
+diff alone what a prose change did to the pacing, without cloning binaries. Take
+*audio* is excluded by default because it is large, with a documented git-lfs
+path for teams that want reproducible human narration — but `takes/index.toml`
+is always committed, so a checkout without the audio still knows which segments
+were recorded, by whom, and whether they have gone stale.
 
-## 11. Crate structure
+## 12. Crate structure
 
 A workspace. The split follows the purity boundary: everything that can be a
 pure function is, and lives where it can be tested without IO.
@@ -650,23 +891,34 @@ pure function is, and lives where it can be tested without IO.
 | `teleprompt-voice` | `VoiceBackend` trait, capabilities, resolution ladder, `null` |
 | `teleprompt-voice-kokoro` | local TTS backend |
 | `teleprompt-voice-elevenlabs` | API backend, cloning, enrollment |
-| `teleprompt-scene` | `Scene` trait, registry, `Slot`/`Clock`/`Recorder` |
-| `teleprompt-scene-media` | images, clips, title cards |
-| `teleprompt-scene-browser` | CDP driving and screencast capture |
-| `teleprompt-scene-terminal` | PTY driving and frame rendering |
+| `teleprompt-scene` | `Scene` contract, registry, `Slot`/`Clock`/`Recorder`, measurement cache |
+| `teleprompt-scene-media` | images, clips, title cards. Pure Rust. |
+| `teleprompt-scene-playwright` | Node sidecar, JSON-RPC protocol, mark splitting, `tp` helper |
+| `teleprompt-scene-vhs` | tape parser, PTY execution, terminal frame rendering |
+| `teleprompt-import` | trace capture, ASR, segmentation, policy inference, script emission |
 | `teleprompt-render` | ffmpeg graph construction, muxing, subtitles |
 | `teleprompt-cache` | content-addressed store |
 | `teleprompt-cli` | clap, output formatting, the `teleprompt` binary |
+
+Plus one non-Rust package: `npm/teleprompt-driver`, the Node sidecar and the
+`tp` helper library that browser action blocks import. It is the only JavaScript
+in the project, and its protocol with `teleprompt-scene-playwright` is versioned
+so the two can be upgraded independently.
+
+Adapter crates are named for the tool they wrap, not the domain they serve —
+`scene-playwright`, not `scene-browser`. A second browser adapter (or a
+replacement) is then an additive change rather than a rename.
 
 `core` and `schedule` have no async runtime, no network, and no filesystem
 dependency beyond reading the script. The most intricate logic in the project is
 consequently testable as plain functions over plain data.
 
-Backends and scenes are Cargo features, default-on for `media`, `null`, and
-`kokoro`. A user who only needs `null` and `media` can build a small binary with
-no browser dependency.
+Adapters and backends are Cargo features, default-on for `media`, `null`, and
+`kokoro` only. The `playwright` feature is opt-in because it pulls a Node
+runtime requirement; a user who only needs `media` and `null` builds a small
+binary with no external runtime at all, which is exactly what M0 targets.
 
-## 12. Interfaces
+## 13. Interfaces
 
 The CLI is v1. Every other interface is a client of the same library, and the
 constraint that makes them cheap is that the CLI holds no logic of its own.
@@ -695,7 +947,7 @@ rendering.
 **Library** — `teleprompt-core` as a published crate, for embedding the compiler
 in other tooling.
 
-## 13. Testing
+## 14. Testing
 
 - **Scheduler**: the bulk of the test suite. Table-driven cases over synthetic
   durations covering every policy, alignment, bound, and clamp. Pure functions,
@@ -709,16 +961,24 @@ in other tooling.
   generated argument vector rather than by rendering. A small number of real
   renders verify duration and stream layout via `ffprobe`, gated behind a
   feature so the default test run needs no ffmpeg.
-- **Scenes**: browser and terminal scenes are integration-tested against fixture
-  pages and scripted shells, gated behind a feature and excluded from the
-  default run.
+- **Mark splitting**: golden tests per adapter. For Playwright, marks inside
+  comments and string literals must *not* split — the case a regex would get
+  wrong, and the reason splitting uses a real JS parser.
+- **Adapters**: integration-tested against fixture pages and scripted shells,
+  gated behind their Cargo feature and excluded from the default run. A `mock`
+  adapter implementing the contract with scripted durations covers the
+  compiler's side of the contract with no external runtime.
 - **Cache**: property tests asserting the invariant that deleting any cache
   entry changes cost but never output.
+- **Import**: golden tests over recorded trace fixtures plus canned transcripts,
+  asserting the derived script — segmentation, inferred policies, take slices.
+  Deterministic, since the trace and transcript are inputs rather than captured.
 
-The `null` backend is what makes this tractable: the majority of the system is
-verifiable with no network, no browser, no ffmpeg, and no audio device.
+The `null` backend and the `mock` adapter are what make this tractable: the
+majority of the system is verifiable with no network, no browser, no Node, no
+ffmpeg, and no audio device.
 
-## 14. Error handling
+## 15. Error handling
 
 Errors are typed per crate (`thiserror`) and surfaced with source spans.
 A validation failure names the file, line, and column, quotes the offending
@@ -734,13 +994,14 @@ Long operations report progress per beat. An interrupted build leaves the cache
 consistent: entries are written to a temporary path and atomically renamed, so a
 partial write is never observed as a hit.
 
-## 15. Milestones
+## 16. Milestones
 
 Each produces something usable on its own.
 
 **M0 — the loop, without video.** Parser, segment identity, config resolution,
-`null` backend, scheduler with all four policies, `Timeline`, and the commands
-`new`, `check`, `doctor`, `plan`, `diff`. No rendering at all.
+`null` backend, the `Scene` contract with the `mock` adapter, scheduler with all
+four policies, `Timeline`, and the commands `new`, `check`, `doctor`, `plan`,
+`diff`. No rendering at all, and no external runtime — pure Rust.
 
 This deliberately ships no video, and that ordering is the most important
 decision in the plan. The timeline-and-diff machinery *is* the product; a
@@ -748,29 +1009,46 @@ renderer built on top of a loop that does not yet feel right only reaches a bad
 answer faster. At the end of M0, the core question — does editing prose produce
 a legible, useful diff of the video's pacing? — is answerable.
 
-**M1 — first real video.** `media` scene, ffmpeg composition, `kokoro`, cache,
+**M1 — first real video.** `media` adapter, ffmpeg composition, `kokoro`, cache,
 subtitles, `build`, `--watch`. A narrated video from a committed script.
 
-**M2 — browser.** CDP driving, screencast capture, determinism controls, the
-full step vocabulary. The Playwright analogy becomes literal.
+**M2 — Playwright adapter.** Node sidecar and protocol, the `tp` helper, mark
+splitting, measurement pass, Playwright video capture, determinism controls. The
+Playwright analogy becomes literal.
 
 **M3 — voice spectrum and locales.** ElevenLabs, cloning, `voice enroll`, the
 fallback ladder, `--strict-voice`, translation sidecars, `loc sync|status`,
 per-locale builds.
 
-**M4 — recording.** The prompter, take storage and hash binding, staleness
-reporting, `record --stale`, take management. The `recorded` tier lands, and the
-spectrum is complete.
+**M4 — recording.** The prompter, the take manifest and slice model, hash
+binding, staleness reporting, `record --stale`, take management. The `recorded`
+tier lands, and the spectrum is complete.
 
-**M5 — breadth.** Terminal scene, `serve`, HTML overlay pass.
+**M5 — record-first.** `import`: trace capture over Playwright codegen, ASR,
+segmentation, policy inference, script emission, take slicing. Depends on M2 for
+the trace and M4 for the manifest, which is why it lands here despite being the
+authoring path most creators will reach for first.
 
-## 16. Risks
+**M6 — breadth.** VHS adapter, `serve`, HTML overlay pass.
 
-**Browser capture determinism.** Screencast frame timing varies under load.
-Mitigated by treating capture as approximately-timed with the timeline as
-authority, and by aggressive animation suppression. If this proves inadequate in
-M2, the fallback is CDP `beginFrame` stepping — frame-accurate but substantially
-more complex and slower.
+## 17. Risks
+
+**Node runtime dependency.** The Playwright adapter needs Node and a Playwright
+install, which is a real cost for a Rust CLI. Mitigated by making it an opt-in
+Cargo feature: M0 and M1 need no external runtime, `doctor` diagnoses a missing
+or mismatched install precisely, and the contract means a future pure-Rust
+browser adapter is additive rather than a rewrite.
+
+**Coupling to Playwright's API surface.** Adopting a tool means inheriting its
+breaking changes, and the `tp` helper wraps internals that may shift. Mitigated
+by pinning a supported Playwright range, versioning the sidecar protocol
+independently of the crate, and keeping `tp` a thin layer over public API only.
+
+**Measurement staleness.** Cached span measurements can drift from reality when
+the application under test changes without the script changing — the app gets
+slower, and the timeline silently no longer matches. Mitigated by recording
+measured-versus-actual per capture and warning when they diverge beyond a
+threshold, plus `build --remeasure` to discard the measurement cache.
 
 **Kokoro operational surface.** A local model runtime is a real dependency with
 real failure modes. Mitigated by running it as a subprocess against a local
@@ -789,6 +1067,12 @@ locale independently — a locale is never forced to the source's timing — and
 `loc status` reporting per-locale duration deltas so an author can see which
 translations need tightening.
 
-**Scope.** The scene and voice extension points invite indefinite expansion.
-Mitigated by the milestone ordering: the extension points exist from M0, but only
-`media` and `null` are required to prove the architecture.
+**Import quality.** Derived scripts depend on ASR accuracy and on segmentation
+heuristics, and a poor first draft could cost more to fix than writing from
+scratch. Mitigated by treating the output as explicitly a draft (§8.4), by
+keeping segmentation a paragraph break the author can move, and by the take
+slices re-deriving from corrected boundaries rather than needing a re-record.
+
+**Scope.** The adapter and backend extension points invite indefinite expansion.
+Mitigated by the milestone ordering: the contract exists from M0, but only
+`mock`, `media`, and `null` are required to prove the architecture.
