@@ -271,3 +271,133 @@ Only this chapter speaks.
     );
     assert_eq!(program.chapters[1].slug, "silent");
 }
+
+/// C1. Moving duration prediction off the backend dropped the backend's own
+/// `speed <= 0.0` rejection from the offline path: `speed: 0` divided into
+/// `+inf`, saturated to `u64::MAX`, and overflowed the scheduler's padding
+/// add — a panic on `check`. `speed: -1` was quieter and worse: `check`
+/// accepted it and only `dub`'s synthesis refused it, so the validate-only
+/// command passed a script the real command would not run.
+///
+/// The value can arrive from any layer, so the check lives on the merged
+/// config — the one the estimator is actually handed.
+fn resolve_err(front: &str) -> Vec<String> {
+    let src = format!("---\n{front}\n---\n\n# A\n\nOne sentence. {{#a}}\n");
+    let mut s = parse_script(&src).expect("fixture parses");
+    assign_ids(&mut s);
+    resolve(
+        &s,
+        "d.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .expect_err("a bad voice.speed must not resolve")
+    .0
+    .iter()
+    .map(|d| d.message.clone())
+    .collect()
+}
+
+#[test]
+fn a_zero_voice_speed_is_a_validation_error() {
+    let msgs = resolve_err("voice: { speed: 0 }");
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("speed must be greater than zero")),
+        "{msgs:?}"
+    );
+}
+
+#[test]
+fn a_negative_voice_speed_is_a_validation_error() {
+    let msgs = resolve_err("voice: { speed: -1 }");
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("speed must be greater than zero")),
+        "{msgs:?}"
+    );
+}
+
+#[test]
+fn a_nan_voice_speed_is_a_validation_error() {
+    let msgs = resolve_err("voice: { speed: .nan }");
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("speed must be a finite number greater than zero")),
+        "{msgs:?}"
+    );
+}
+
+#[test]
+fn an_infinite_voice_speed_is_a_validation_error() {
+    let msgs = resolve_err("voice: { speed: .inf }");
+    assert!(
+        msgs.iter()
+            .any(|m| m.contains("speed must be a finite number greater than zero")),
+        "{msgs:?}"
+    );
+}
+
+/// A positive speed is not a problem, and the diagnostic must not fire on
+/// the default either — a validation that rejects every script is not a
+/// validation.
+#[test]
+fn ordinary_voice_speeds_resolve() {
+    for speed in ["0.5", "1.0", "2.0"] {
+        let src = format!("---\nvoice: {{ speed: {speed} }}\n---\n\n# A\n\nOne. {{#a}}\n");
+        let mut s = parse_script(&src).expect("fixture parses");
+        assign_ids(&mut s);
+        resolve(
+            &s,
+            "d.md",
+            "en",
+            &PartialConfig::default(),
+            &PartialConfig::default(),
+        )
+        .unwrap_or_else(|e| panic!("speed {speed} must resolve, got {:?}", e.0));
+    }
+}
+
+/// One bad value in front matter is one diagnostic, however many paragraphs
+/// resolve against it — and it points at a real segment rather than nowhere.
+#[test]
+fn one_bad_speed_reports_once_and_names_a_line() {
+    let src = "---\nvoice: { speed: 0 }\n---\n\n# A\n\nOne. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n";
+    let mut s = parse_script(src).expect("fixture parses");
+    assign_ids(&mut s);
+    let e = resolve(
+        &s,
+        "d.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .expect_err("speed 0 must not resolve");
+    assert_eq!(e.0.len(), 1, "{:?}", e.0);
+    assert!(e.0[0].span.is_some(), "diagnostic must point at a segment");
+}
+
+/// A segment attribute is one of the five layers the value can arrive from,
+/// and it is the last one before the CLI — so the merged check has to see it
+/// even when the script-level config is perfectly fine.
+#[test]
+fn a_segment_level_speed_override_is_validated_too() {
+    let src = "# A\n\nOne. {#a voice.speed=0}\n";
+    let mut s = parse_script(src).expect("fixture parses");
+    assign_ids(&mut s);
+    let e = resolve(
+        &s,
+        "d.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .expect_err("a segment-level speed 0 must not resolve");
+    assert!(
+        e.0.iter()
+            .any(|d| d.message.contains("speed must be greater than zero")),
+        "{:?}",
+        e.0
+    );
+}

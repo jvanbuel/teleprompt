@@ -94,6 +94,14 @@ pub fn resolve(
     let mut items = Vec::new();
     let mut chapters = Vec::new();
 
+    // Merged-config problems, keyed by message so one bad `voice.speed` in
+    // front matter produces one diagnostic rather than one per paragraph.
+    // The span is the first segment that resolved to the offending value —
+    // the merge has already flattened the layers, so which layer supplied it
+    // is not recoverable here, but the segment it reaches is.
+    let mut config_problems: std::collections::BTreeMap<String, SourceSpan> =
+        std::collections::BTreeMap::new();
+
     for (chapter_index, chapter) in script.chapters.iter().enumerate() {
         chapters.push(ChapterInfo {
             slug: chapter.slug.clone(),
@@ -123,6 +131,9 @@ pub fn resolve(
                         PartialConfig::from_attrs(&attrs),
                         cli.clone(),
                     ]);
+                    for problem in config.problems() {
+                        config_problems.entry(problem).or_insert(seg.span);
+                    }
                     let text = seg.text.clone();
                     items.push(Item::Narration {
                         id: seg.id.clone().unwrap_or_default(),
@@ -166,6 +177,26 @@ pub fn resolve(
                 Node::Directive(Directive::Pause(ms)) => items.push(Item::Pause { ms: *ms }),
             }
         }
+    }
+
+    // The script-level merge too, so a value nothing narrates against is
+    // still reported rather than sitting in the config unread. Only added
+    // when no segment already carries the same message, so the spanned
+    // version wins when both apply.
+    for problem in base.problems() {
+        if !config_problems.contains_key(&problem) {
+            diags.push(
+                Diagnostic::error(problem)
+                    .with_help("voice.speed scales narration duration; 1.0 is unmodified"),
+            );
+        }
+    }
+    for (problem, span) in config_problems {
+        diags.push(
+            Diagnostic::error(problem)
+                .at(span)
+                .with_help("voice.speed scales narration duration; 1.0 is unmodified"),
+        );
     }
 
     let d = Diagnostics(diags);

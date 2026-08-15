@@ -36,8 +36,17 @@ pub struct NarrationInput {
 
 impl NarrationInput {
     /// Total time this narration occupies in its beat: lead-in, clip, tail.
+    ///
+    /// Saturating, not because any validated input can reach `u64::MAX` —
+    /// `Config::problems` rejects the `voice.speed` that used to produce one
+    /// — but because the scheduler must not panic on an arithmetic edge for
+    /// *any* `u64` triple it is handed. A plain add panics in a debug build
+    /// and, worse, wraps silently in a release one: a saturated timeline is
+    /// visibly absurd, a wrapped one is quietly wrong.
     pub fn padded_duration_ms(&self) -> u64 {
-        self.lead_in_ms + self.duration_ms + self.tail_ms
+        self.lead_in_ms
+            .saturating_add(self.duration_ms)
+            .saturating_add(self.tail_ms)
     }
 }
 

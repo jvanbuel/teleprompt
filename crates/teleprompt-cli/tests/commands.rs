@@ -339,3 +339,62 @@ fn a_chapter_level_backend_override_across_several_segments_is_one_diagnostic() 
         );
     }
 }
+
+/// C1, through the real binary. The panic was the point: exit 101 is not a
+/// code `teleprompt_cli::output::exit_code_for` can issue, so the process
+/// bypassed the CLI's whole error contract. Driven through the binary rather
+/// than `run_check` because a panic in a library call would abort the test
+/// harness instead of being observed as an exit code.
+#[test]
+fn check_on_a_zero_voice_speed_exits_two_rather_than_panicking() {
+    let (p, _s) = project_with("---\nvoice: { speed: 0 }\n---\n\n# Intro\n\nOne two. {#a}\n");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .arg("check")
+        .arg(p.root.join("scripts/test.md"))
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "expected a validation error, got {:?}: {stderr}",
+        output.status.code()
+    );
+    assert!(
+        stderr.contains("speed must be greater than zero"),
+        "{stderr}"
+    );
+}
+
+/// The row that matters most in C1's table: before this, `check` exited 0 on
+/// a script `dub` exited 1 on. A validate-only command that passes what the
+/// real command refuses is the exact failure this delivery exists to
+/// prevent, so assert the two agree rather than asserting either alone.
+#[test]
+fn check_and_dub_agree_about_a_negative_voice_speed() {
+    let (p, _s) = project_with("---\nvoice: { speed: -1 }\n---\n\n# Intro\n\nOne two. {#a}\n");
+    let script = p.root.join("scripts/test.md");
+    let out_dir = p.root.join("out");
+
+    let check = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .arg("check")
+        .arg(&script)
+        .output()
+        .unwrap();
+    let dub = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["dub"])
+        .arg(&script)
+        .arg("--out")
+        .arg(&out_dir)
+        .output()
+        .unwrap();
+
+    assert_eq!(check.status.code(), Some(2), "check must reject");
+    assert_eq!(
+        dub.status.code(),
+        check.status.code(),
+        "dub must reject exactly what check does"
+    );
+}

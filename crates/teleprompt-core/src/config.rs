@@ -356,6 +356,36 @@ macro_rules! set {
 }
 
 impl Config {
+    /// Problems only the *merged* config can see, as messages ready to be
+    /// wrapped in a [`crate::Diagnostic`].
+    ///
+    /// `voice.speed` can arrive from `teleprompt.toml`, script or chapter
+    /// front matter, a segment attribute, or the CLI, and the layers
+    /// override one another — so no single layer knows what the estimator
+    /// will actually be handed. This runs on the merged result, which is the
+    /// value that reaches it.
+    ///
+    /// Both checks are load-bearing rather than tidiness. `speed: 0` made
+    /// `speech / speed` infinite, `as u64` saturated it to `u64::MAX`, and
+    /// the scheduler's padding add overflowed — a panic on `check`, which is
+    /// an exit code the CLI cannot issue. `speed: -1` was worse in a quieter
+    /// way: the offline paths accepted it and only synthesis rejected it, so
+    /// `check` passed a script `dub` refused.
+    pub fn problems(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        let speed = self.voice.speed;
+        if !speed.is_finite() {
+            out.push(format!(
+                "voice.speed must be a finite number greater than zero, but is `{speed}`"
+            ));
+        } else if speed <= 0.0 {
+            out.push(format!(
+                "voice.speed must be greater than zero, but is `{speed}`"
+            ));
+        }
+        out
+    }
+
     pub fn merged(layers: &[PartialConfig]) -> Self {
         let mut c = Config::default();
         for layer in layers {

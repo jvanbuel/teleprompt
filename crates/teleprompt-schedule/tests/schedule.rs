@@ -299,3 +299,16 @@ fn narration_entries_report_where_their_duration_came_from() {
         "a reader must be able to tell a measurement from a prediction"
     );
 }
+
+/// C1's second half. Validation now stops the `u64::MAX` duration that used
+/// to reach here, but the scheduler is handed `u64`s and must not panic on
+/// any triple of them — and a plain add does something worse than panic in a
+/// release build, where it wraps and produces a short, confident, wrong
+/// timeline.
+#[test]
+fn padded_duration_saturates_instead_of_overflowing() {
+    let mut n = narration("huge", u64::MAX);
+    n.lead_in_ms = u64::MAX;
+    n.tail_ms = u64::MAX;
+    assert_eq!(n.padded_duration_ms(), u64::MAX);
+}
