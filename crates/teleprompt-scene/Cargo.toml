@@ -1,0 +1,10 @@
+[package]
+name = "teleprompt-scene"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+teleprompt-core = { path = "../teleprompt-core" }
+serde.workspace = true
