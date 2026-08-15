@@ -130,6 +130,69 @@ fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
     );
 }
 
+/// Review round 1, finding 1: a reworded sentence of identical spoken
+/// length must not be invisible to `diff` — its committed `source_hash`
+/// disagrees with the script even though the clock didn't move, and a
+/// silent diff there would let `--exit-code` report clean over a stale
+/// baseline.
+#[test]
+fn a_text_edit_with_no_duration_change_is_still_reported() {
+    let a = timeline(vec![beat("b1", 1000, "one")]);
+    let b = timeline(vec![beat("b1", 1000, "one but reworded")]);
+    let d = diff(&a, &b);
+
+    assert_eq!(d.changed.len(), 1);
+    assert_eq!(d.changed[0].beat, "b1");
+    assert_eq!(d.changed[0].before_ms, 1000);
+    assert_eq!(d.changed[0].after_ms, 1000);
+    assert!(d.changed[0].reason.contains("text edited"));
+    assert!(!d.is_empty());
+
+    let rendered = d.render();
+    assert!(rendered.contains("b1"));
+    assert!(rendered.contains("text edited"));
+    assert!(
+        !rendered.contains("1.0s \u{2192} 1.0s"),
+        "an unchanged duration must not render as a no-op arrow: {rendered:?}"
+    );
+}
+
+fn mock_action(id: &str, ms: u64) -> ActionInput {
+    ActionInput {
+        span_id: id.into(),
+        scene: "mock".into(),
+        adapter: "mock".into(),
+        span_hash: Hash::of(id.as_bytes()),
+        duration_ms: ms,
+        duration_source: DurationSource::Exact,
+    }
+}
+
+/// Review round 1, finding 2: a beat's slot changed just as much by
+/// gaining or losing an action as by an existing action's span or timing
+/// changing.
+#[test]
+fn a_beat_that_gains_an_action_needs_recapture() {
+    let a = timeline(vec![beat("b1", 1000, "one")]);
+    let mut gained = beat("b1", 1000, "one");
+    gained.action = Some(mock_action("s1", 500));
+    let b = timeline(vec![gained]);
+
+    let d = diff(&a, &b);
+    assert_eq!(d.recapture, ["b1"]);
+}
+
+#[test]
+fn a_beat_that_loses_an_action_needs_recapture() {
+    let mut had_action = beat("b1", 1000, "one");
+    had_action.action = Some(mock_action("s1", 500));
+    let a = timeline(vec![had_action]);
+    let b = timeline(vec![beat("b1", 1000, "one")]);
+
+    let d = diff(&a, &b);
+    assert_eq!(d.recapture, ["b1"]);
+}
+
 #[test]
 fn rendered_output_names_the_script_change_and_the_shift() {
     let a = timeline(vec![

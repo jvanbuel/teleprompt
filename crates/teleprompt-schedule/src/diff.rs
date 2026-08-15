@@ -69,13 +69,27 @@ impl TimelineDiff {
         if !self.changed.is_empty() {
             out.push_str("\n\nchanged:");
             for c in &self.changed {
-                out.push_str(&format!(
-                    "\n  {:<16} {} \u{2192} {}  ({})",
-                    c.beat,
-                    secs(c.before_ms),
-                    secs(c.after_ms),
-                    c.reason
-                ));
+                // A text edit doesn't have to move the clock: two phrasings
+                // can land on the same spoken duration. Writing
+                // "4.2s → 4.2s" there reads like a rendering bug, so an
+                // unchanged duration gets its own phrasing that still says
+                // plainly that this beat changed.
+                if c.before_ms == c.after_ms {
+                    out.push_str(&format!(
+                        "\n  {:<16} {} (timing unchanged)  ({})",
+                        c.beat,
+                        secs(c.before_ms),
+                        c.reason
+                    ));
+                } else {
+                    out.push_str(&format!(
+                        "\n  {:<16} {} \u{2192} {}  ({})",
+                        c.beat,
+                        secs(c.before_ms),
+                        secs(c.after_ms),
+                        c.reason
+                    ));
+                }
             }
         }
 
@@ -140,13 +154,19 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
 
     for (id, n) in &new {
         if let Some(o) = old.get(id) {
-            // Narration duration is the thing that ripples through the
-            // whole timeline: a longer clip pushes every later beat's
-            // start_ms out. The two possible causes read very differently
-            // to the author, so the reason must say which one happened,
-            // not just that something changed.
+            // A narration change is reported whenever *any* of the three
+            // narration facts differ, not only when duration does: a
+            // reworded sentence of identical spoken length still leaves a
+            // committed `source_hash` that disagrees with the script, and
+            // a silent `diff` there is worse than a missing line — it lets
+            // `--exit-code` report clean while the committed timeline is
+            // stale. The two possible causes read very differently to the
+            // author, so the reason still says which one happened.
             if let (Some(on), Some(nn)) = (&o.narration, &n.narration) {
-                if on.duration_ms != nn.duration_ms {
+                if on.source_hash != nn.source_hash
+                    || on.audio_hash != nn.audio_hash
+                    || on.duration_ms != nn.duration_ms
+                {
                     let reason = if on.source_hash != nn.source_hash {
                         "text edited"
                     } else {
@@ -163,18 +183,34 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
 
             // A beat needs recapture when its steps changed (span_hash),
             // when its rendered action duration changed (e.g. a stretch/
-            // trim policy re-timed it), or when the beat's own local
-            // duration changed — which happens when narration got longer
-            // or shorter even though the action's steps are identical,
-            // because Hold/Concurrent/etc. reposition the action relative
-            // to narration within the beat. `duration_ms` here is each
-            // beat's own local duration, not the timeline total, so a beat
-            // whose *position* shifted only because an earlier, unrelated
-            // beat changed does NOT get flagged — only a beat whose own
-            // internal layout actually moved does.
-            if let (Some(oa), Some(na)) = (&o.action, &n.action) {
-                if oa.span_hash != na.span_hash
-                    || oa.duration_ms != na.duration_ms
+            // trim policy re-timed it), when the beat's own local duration
+            // changed — which happens when narration got longer or shorter
+            // even though the action's steps are identical, because Hold/
+            // Concurrent/etc. reposition the action relative to narration
+            // within the beat — or when an action was added or removed
+            // outright. `duration_ms` here is each beat's own local
+            // duration, not the timeline total, so a beat whose *position*
+            // shifted only because an earlier, unrelated beat changed does
+            // NOT get flagged — only a beat whose own internal layout
+            // actually moved does.
+            //
+            // The duration comparison runs whenever *either* side carries
+            // an action — it is not gated on both sides carrying one, so a
+            // beat that gains or loses its action is still caught by it as
+            // well as by the explicit presence check below. A beat with no
+            // action on either side has nothing to recapture, so it is
+            // skipped entirely rather than flagged on narration timing
+            // alone.
+            if o.action.is_some() || n.action.is_some() {
+                let action_appeared_or_vanished = o.action.is_some() != n.action.is_some();
+                let action_itself_changed = match (&o.action, &n.action) {
+                    (Some(oa), Some(na)) => {
+                        oa.span_hash != na.span_hash || oa.duration_ms != na.duration_ms
+                    }
+                    _ => false,
+                };
+                if action_appeared_or_vanished
+                    || action_itself_changed
                     || o.duration_ms != n.duration_ms
                 {
                     recapture.push((*id).to_string());

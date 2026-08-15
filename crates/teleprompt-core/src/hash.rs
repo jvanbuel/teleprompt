@@ -45,16 +45,14 @@ impl<'de> serde::Deserialize<'de> for Hash {
         if s.len() != 64 || !s.is_ascii() {
             return Err(serde::de::Error::custom("hash must be 64 hex characters"));
         }
-        let raw = s.as_bytes();
+        // `from_str_radix(_, 16)` accepts both cases, and `Hash`'s only
+        // `Serialize` impl always emits lowercase, so there is nothing to
+        // gain from rejecting uppercase input here — accept either case
+        // rather than pretend to be stricter than we are.
         let mut bytes = [0u8; 32];
         for (i, b) in bytes.iter_mut().enumerate() {
-            *b = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|_| {
-                serde::de::Error::custom(format!(
-                    "hash must be lowercase hex, found {:?} at byte {}",
-                    raw[i * 2] as char,
-                    i * 2
-                ))
-            })?;
+            *b = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16)
+                .map_err(|_| serde::de::Error::custom("hash must be 64 hex characters"))?;
         }
         Ok(Hash(bytes))
     }
@@ -63,6 +61,8 @@ impl<'de> serde::Deserialize<'de> for Hash {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::de::IntoDeserializer;
+    use serde::Deserialize;
 
     #[test]
     fn hash_is_deterministic() {
@@ -79,5 +79,53 @@ mod tests {
         let s = Hash::of(b"welcome").short();
         assert_eq!(s.len(), 6);
         assert!(s.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    /// Runs `Hash::deserialize` against a plain `&str`, the same shape a
+    /// JSON/YAML string field decodes to, without depending on any
+    /// particular serde data format crate.
+    fn parse(s: &str) -> Result<Hash, serde::de::value::Error> {
+        Hash::deserialize(s.into_deserializer())
+    }
+
+    #[test]
+    fn a_63_character_string_is_a_readable_error() {
+        let s = "a".repeat(63);
+        let err = parse(&s).unwrap_err();
+        assert!(err.to_string().contains("64 hex characters"));
+    }
+
+    #[test]
+    fn a_65_character_string_is_a_readable_error() {
+        let s = "a".repeat(65);
+        let err = parse(&s).unwrap_err();
+        assert!(err.to_string().contains("64 hex characters"));
+    }
+
+    #[test]
+    fn non_hex_ascii_is_a_readable_error() {
+        // 64 ASCII characters, none of them valid hex digits.
+        let s = "z".repeat(64);
+        let err = parse(&s).unwrap_err();
+        assert!(err.to_string().contains("64 hex characters"));
+    }
+
+    #[test]
+    fn a_64_byte_multi_byte_string_is_a_readable_error_not_a_panic() {
+        // 'é' (U+00E9) is 2 bytes in UTF-8, so 32 of them is 64 *bytes*
+        // but only 32 *characters*. Byte-index slicing at an odd offset
+        // into this string would land mid-character and panic; the
+        // `is_ascii()` guard must reject it before any slicing happens.
+        let s = "é".repeat(32);
+        assert_eq!(s.len(), 64, "test fixture must be exactly 64 bytes");
+        let err = parse(&s).unwrap_err();
+        assert!(err.to_string().contains("64 hex characters"));
+    }
+
+    #[test]
+    fn uppercase_hex_is_accepted_and_round_trips_to_the_same_hash() {
+        let original = Hash::of(b"welcome");
+        let uppercase = original.to_string().to_uppercase();
+        assert_eq!(parse(&uppercase).unwrap(), original);
     }
 }
