@@ -176,6 +176,7 @@ pub fn compile(
                     source_hash: *source_hash,
                     audio_hash: synth.audio_hash,
                     duration_ms: synth.duration_ms,
+                    duration_source: DurationSource::Measured,
                     // Read off the *narration item's* own resolved config,
                     // which is the only place a segment-level `lead_in=` /
                     // `tail=` survives. The beat this narration ends up in

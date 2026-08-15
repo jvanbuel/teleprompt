@@ -19,6 +19,7 @@ fn beat(id: &str, narration_ms: u64, source: &str) -> Beat {
             source_hash: Hash::of(source.as_bytes()),
             audio_hash: Hash::of(source.as_bytes()),
             duration_ms: narration_ms,
+            duration_source: DurationSource::Measured,
             lead_in_ms: Config::default().timing.lead_in_ms,
             tail_ms: Config::default().timing.tail_ms,
             voice_source: VoiceSource::Synthetic,

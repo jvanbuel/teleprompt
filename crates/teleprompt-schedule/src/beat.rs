@@ -10,6 +10,13 @@ pub struct NarrationInput {
     pub audio_hash: Hash,
     /// Clip duration excluding lead-in and tail padding.
     pub duration_ms: u64,
+    /// Whether `duration_ms` was measured from real audio or predicted.
+    ///
+    /// `plan` and `diff` never synthesize, so a segment not yet in the cache
+    /// carries an estimate. Publishing which is which is the difference
+    /// between a timeline a reader can trust and one that quietly conflates
+    /// a prediction with a measurement.
+    pub duration_source: DurationSource,
     /// Silence before the clip, and silence after it.
     ///
     /// These travel with the narration rather than being read off the

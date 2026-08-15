@@ -11,6 +11,7 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
         chapter: "intro".to_string(),
         start_ms,
         duration_ms,
+        duration_source: "measured".to_string(),
         audio: format!("audio/{id}.wav"),
         voice_source: "synthetic".to_string(),
         voice_source_actual: "synthetic".to_string(),

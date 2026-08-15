@@ -104,6 +104,12 @@ pub fn schedule(
                 audio_hash: n.audio_hash,
                 start_ms: cursor + l.narration_start_ms + n.lead_in_ms,
                 duration_ms: n.duration_ms,
+                duration_source: match n.duration_source {
+                    DurationSource::Exact => "exact",
+                    DurationSource::Estimated => "estimated",
+                    DurationSource::Measured => "measured",
+                }
+                .to_string(),
                 voice_source: n.voice_source.label().to_string(),
                 voice_source_actual: n.voice_source_actual.label().to_string(),
                 downgrade_reason: n.downgrade_reason.clone(),

@@ -10,6 +10,7 @@ fn narration(id: &str, ms: u64) -> NarrationInput {
         source_hash: Hash::of(id.as_bytes()),
         audio_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
+        duration_source: DurationSource::Measured,
         lead_in_ms: defaults.lead_in_ms,
         tail_ms: defaults.tail_ms,
         voice_source: VoiceSource::Synthetic,
@@ -275,5 +276,26 @@ fn a_fixed_transition_wider_than_the_quiet_window_warns() {
             .iter()
             .any(|w| w.contains("one") && w.contains("overlap")),
         "{warnings:?}"
+    );
+}
+
+#[test]
+fn narration_entries_report_where_their_duration_came_from() {
+    let mut beats = vec![narration_beat("one", 5000), narration_beat("two", 3000)];
+    beats[0].narration.as_mut().unwrap().duration_source = DurationSource::Measured;
+    beats[1].narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
+
+    let (t, _) = schedule(&beats, "s.md", "en", "0.1.0");
+    let sources: Vec<&str> = t
+        .entries
+        .iter()
+        .filter_map(|e| e.narration.as_ref())
+        .map(|n| n.duration_source.as_str())
+        .collect();
+
+    assert_eq!(
+        sources,
+        vec!["measured", "estimated"],
+        "a reader must be able to tell a measurement from a prediction"
     );
 }

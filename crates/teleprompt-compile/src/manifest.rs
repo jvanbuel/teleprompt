@@ -64,6 +64,11 @@ pub struct SegmentEntry {
     pub chapter: String,
     pub start_ms: u64,
     pub duration_ms: u64,
+    /// `measured` when this came from real audio, `estimated` when it is the
+    /// duration model's prediction. A consumer building a player can show the
+    /// difference; one committing the manifest should know a re-dub will move
+    /// every estimated segment.
+    pub duration_source: String,
     pub audio: String,
     pub voice_source: String,
     pub voice_source_actual: String,
@@ -143,6 +148,7 @@ pub fn build(
                 chapter: detail.chapter.clone(),
                 start_ms: n.start_ms,
                 duration_ms: n.duration_ms,
+                duration_source: n.duration_source.clone(),
                 audio: audio_path(&n.segment, &audio.format),
                 voice_source: n.voice_source.clone(),
                 voice_source_actual: n.voice_source_actual.clone(),

@@ -339,6 +339,7 @@ mod tests {
             chapter: "a".to_string(),
             start_ms: 0,
             duration_ms: 0,
+            duration_source: "measured".to_string(),
             audio: String::new(),
             voice_source: requested.to_string(),
             voice_source_actual: actual.to_string(),

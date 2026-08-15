@@ -197,6 +197,7 @@ meaningful: the manifest is the reviewable claim, the audio is its output.
       "chapter": "quickstart",
       "start_ms": 0,
       "duration_ms": 12200,
+      "duration_source": "measured",
       "audio": "audio/welcome.wav",
       "voice_source": "recorded",
       "voice_source_actual": "cloned",
@@ -228,6 +229,7 @@ abbreviated above for readability, as in §6.5.
 | `segments[].text` | The narration prose as parsed. This is what makes captions possible without re-parsing the script. |
 | `segments[].chapter` | Slug of the chapter this segment was spoken in, matching a `chapters[].id` when that chapter has one. Always present. Published rather than left to be reconstructed from timestamps, because `chapters` omits silent chapters and that reconstruction is therefore lossy. |
 | `segments[].start_ms`, `duration_ms` | Absolute placement on the narration timeline. `start_ms` already includes `lead_in` padding; `duration_ms` is the speech itself, excluding padding, so `start_ms + duration_ms` is exactly when the voice stops. **Authoritative for this segment's length — see §5.2.** |
+| `segments[].duration_source` | `measured` when `duration_ms` came from real synthesized audio, `estimated` when it is the duration model's prediction for a segment not yet in the cache. A consumer building a player can show the difference; one committing the manifest should know a re-dub will move every estimated segment. |
 | `segments[].audio` | Path relative to this manifest. |
 | `voice_source` / `voice_source_actual` / `downgrade_reason` | The dubbing spectrum (§4) as delivered. `voice_source` is what the script asked for; `voice_source_actual` is what the ladder produced. `downgrade_reason` is `null` when they agree. A consumer can surface "this segment is machine-read" in a preview UI. |
 | `source_hash` | Hash of the segment's prose. What `--check` compares. |
