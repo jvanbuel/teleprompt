@@ -7,7 +7,7 @@ use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::NullVoice;
+use teleprompt_voice_null::NullVoice;
 
 use crate::project::Project;
 

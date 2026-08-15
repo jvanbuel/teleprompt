@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_core::Hash;
-use teleprompt_voice::{wav, NullVoice, VoiceBackend, NULL_SAMPLE_RATE};
+use teleprompt_voice::{wav, VoiceBackend};
+use teleprompt_voice_null::{NullVoice, NULL_SAMPLE_RATE};
 
 use crate::cmd::check::compile_script;
 use crate::project::Project;

@@ -13,5 +13,6 @@ teleprompt-voice = { path = "../teleprompt-voice" }
 serde.workspace = true
 
 [dev-dependencies]
+teleprompt-voice-null = { path = "../teleprompt-voice-null" }
 insta.workspace = true
 serde_json.workspace = true

@@ -466,6 +466,7 @@ dependencies = [
  "teleprompt-scene",
  "teleprompt-schedule",
  "teleprompt-voice",
+ "teleprompt-voice-null",
 ]
 
 [[package]]
@@ -479,6 +480,7 @@ dependencies = [
  "teleprompt-scene",
  "teleprompt-schedule",
  "teleprompt-voice",
+ "teleprompt-voice-null",
 ]
 
 [[package]]
@@ -518,6 +520,14 @@ dependencies = [
  "serde",
  "teleprompt-core",
  "thiserror",
+]
+
+[[package]]
+name = "teleprompt-voice-null"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-core",
+ "teleprompt-voice",
 ]
 
 [[package]]

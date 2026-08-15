@@ -1,5 +1,5 @@
 pub mod contract;
-pub mod null;
+pub mod estimator;
 pub mod source;
 pub mod wav;
 
@@ -7,5 +7,5 @@ pub use contract::{
     LanguageSupport, Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
     WordTiming,
 };
-pub use null::{estimate_ms, NullVoice, NULL_SAMPLE_RATE};
+pub use estimator::DurationEstimator;
 pub use source::{resolve_source, Resolution, VoiceSource};

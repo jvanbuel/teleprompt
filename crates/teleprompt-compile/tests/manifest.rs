@@ -8,9 +8,9 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_scene::SceneRegistry;
 use teleprompt_voice::{
-    NullVoice, Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
-    WordTiming,
+    Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError, WordTiming,
 };
+use teleprompt_voice_null::NullVoice;
 
 /// A backend that reports word timings, so the manifest's `WordTiming.word`
 /// -> `WordEntry.text` rename has something to actually exercise. Delegates

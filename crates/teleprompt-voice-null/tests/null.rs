@@ -1,4 +1,5 @@
-use teleprompt_voice::{NullVoice, Pcm, SynthRequest, VoiceBackend, NULL_SAMPLE_RATE};
+use teleprompt_voice::{Pcm, SynthRequest, VoiceBackend};
+use teleprompt_voice_null::{NullVoice, NULL_SAMPLE_RATE};
 
 fn req(text: &str) -> SynthRequest {
     SynthRequest {
