@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
 use teleprompt_cli::project::Project;
@@ -134,4 +135,54 @@ fn tempdir() -> PathBuf {
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(&base).unwrap();
     base
+}
+
+/// Task 14 review round 1, finding 2: `plan` and `diff` must emit a typed,
+/// parseable JSON payload on failure too, not just on success — a CI
+/// consumer piping `--format json` at a failing command needs something it
+/// can parse. These drive the actual compiled binary rather than the
+/// library functions, since the bug was in `main.rs`'s wiring, not in
+/// `run_plan`/`run_diff` themselves.
+#[test]
+fn plan_format_json_emits_a_typed_error_payload_on_failure() {
+    let (p, _s) = project_with(BAD_ATTR);
+    let bad = p.root.join("scripts/test.md");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["--format", "json", "plan"])
+        .arg(&bad)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .expect("plan --format json on a failing script must print parseable JSON on stdout");
+    assert_eq!(json["ok"], false);
+    let errors = json["errors"].as_array().expect("errors must be an array");
+    assert!(errors[0]
+        .as_str()
+        .unwrap()
+        .contains("unknown attribute key `polcy`"));
+}
+
+#[test]
+fn diff_format_json_emits_a_typed_error_payload_on_failure() {
+    let (p, _s) = project_with(BAD_SCENE);
+    let bad = p.root.join("scripts/test.md");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["--format", "json", "diff"])
+        .arg(&bad)
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .expect("diff --format json on a failing script must print parseable JSON on stdout");
+    assert_eq!(json["ok"], false);
+    let errors = json["errors"].as_array().expect("errors must be an array");
+    assert!(errors[0]
+        .as_str()
+        .unwrap()
+        .contains("unknown mock directive"));
 }

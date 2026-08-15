@@ -1,7 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
 use teleprompt_schedule::{
-    diff, schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy,
+    diff, schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, TimelineDiff,
 };
 use teleprompt_voice::VoiceSource;
 
@@ -227,4 +227,38 @@ fn a_timeline_with_no_action_and_no_downgrade_reason_round_trips_through_json() 
     let json = serde_json::to_string_pretty(&original).expect("serialize");
     let restored: teleprompt_schedule::Timeline = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(restored, original);
+}
+
+/// Task 14 review round 1, finding 1: the header's three printed numbers
+/// must reconcile. Rounding `before_ms`, `after_ms`, and the raw
+/// `shift_ms` independently to one decimal is not guaranteed to agree,
+/// because tenths-of-a-second rounding is not linear: 1ms rounds to 0.0s,
+/// 50ms rounds to 0.1s (round-half-away-from-zero), but the exact 49ms
+/// difference between them also rounds to 0.0s on its own. A renderer that
+/// rounds all three independently would print "0.0s → 0.1s (+0.0s)",
+/// which visibly doesn't add up. The displayed shift must instead be
+/// derived from the two already-rounded endpoints.
+#[test]
+fn rendered_shift_reconciles_with_the_rounded_endpoints() {
+    let d = TimelineDiff {
+        before_ms: 1,
+        after_ms: 50,
+        shift_ms: 49,
+        changed: vec![],
+        added: vec!["b1".to_string()],
+        removed: vec![],
+        stale_takes: vec![],
+        recapture: vec![],
+    };
+
+    let rendered = d.render();
+    assert!(
+        rendered.contains("0.0s \u{2192} 0.1s (+0.1s)"),
+        "the printed shift must equal the printed after minus the printed before: {rendered:?}"
+    );
+
+    // The struct (and its JSON) must keep the exact millisecond shift —
+    // only the prose header is corrected, not the underlying data, so a
+    // future refactor can't "fix" this by rounding what's stored.
+    assert_eq!(d.shift_ms, 49);
 }

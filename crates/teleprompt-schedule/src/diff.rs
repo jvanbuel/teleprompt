@@ -59,11 +59,28 @@ impl TimelineDiff {
             return "no timeline changes".to_string();
         }
 
+        // The header's three numbers must reconcile: before + shift == after,
+        // as printed. Rounding `before_ms`, `after_ms`, and the raw
+        // millisecond `shift_ms` independently to one decimal is not
+        // guaranteed to agree, because rounding to tenths isn't linear —
+        // e.g. before_ms=1 rounds to 0.0s and after_ms=50 rounds to 0.1s,
+        // but the exact 49ms difference between them rounds to 0.0s on its
+        // own, which would print "0.0s → 0.1s (+0.0s)": a header that
+        // visibly doesn't add up. So the displayed shift is derived from
+        // the two already-rounded endpoints instead of from the raw delta:
+        // round both endpoints to tenths of a second first, then subtract
+        // those integers. `self.shift_ms` itself stays exact in the struct
+        // and in JSON for machine consumers; only this prose line is
+        // affected.
+        let before_tenths = round_to_tenths(self.before_ms);
+        let after_tenths = round_to_tenths(self.after_ms);
+        let shift_tenths = after_tenths - before_tenths;
+
         let mut out = format!(
             "timeline: {} \u{2192} {} ({})",
-            secs(self.before_ms),
-            secs(self.after_ms),
-            signed(self.shift_ms)
+            render_tenths(before_tenths),
+            render_tenths(after_tenths),
+            render_signed_tenths(shift_tenths)
         );
 
         if !self.changed.is_empty() {
@@ -132,9 +149,26 @@ fn secs(ms: u64) -> String {
     format!("{:.1}s", ms as f64 / 1000.0)
 }
 
-fn signed(ms: i64) -> String {
-    let sign = if ms >= 0 { "+" } else { "-" };
-    format!("{sign}{:.1}s", ms.unsigned_abs() as f64 / 1000.0)
+/// Rounds a millisecond count to the nearest tenth of a second, returned as
+/// an integer count of tenths (e.g. 8949 -> 89, 15499 -> 155). Kept as an
+/// integer rather than a float so two roundings can be subtracted exactly,
+/// with no risk of the subtraction itself reintroducing float rounding
+/// error.
+fn round_to_tenths(ms: u64) -> i64 {
+    ((ms as f64) / 100.0).round() as i64
+}
+
+/// Renders an already-rounded tenths-of-a-second count (see
+/// `round_to_tenths`) back out as `"12.3s"`.
+fn render_tenths(tenths: i64) -> String {
+    format!("{:.1}s", tenths as f64 / 10.0)
+}
+
+/// Renders an already-rounded, signed tenths-of-a-second count as
+/// `"+12.3s"` / `"-4.5s"`.
+fn render_signed_tenths(tenths: i64) -> String {
+    let sign = if tenths >= 0 { "+" } else { "-" };
+    format!("{sign}{:.1}s", tenths.unsigned_abs() as f64 / 10.0)
 }
 
 /// Compare two committed timelines. Beats are matched by id; anything not

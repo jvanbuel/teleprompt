@@ -7,7 +7,7 @@ use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
-use teleprompt_cli::output::{exit_code_for, Format, Outcome};
+use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
 use teleprompt_scene::SceneRegistry;
 
@@ -147,8 +147,16 @@ fn main() -> ExitCode {
                     Outcome::Ok
                 }
                 Err(errors) => {
-                    for e in &errors {
-                        eprintln!("{e}");
+                    match cli.format {
+                        Format::Json => {
+                            let report = ErrorReport::new(errors.clone());
+                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                        }
+                        Format::Human => {
+                            for e in &errors {
+                                eprintln!("{e}");
+                            }
+                        }
                     }
                     Outcome::ValidationError(errors)
                 }
@@ -176,8 +184,16 @@ fn main() -> ExitCode {
                     }
                 }
                 Err(errors) => {
-                    for e in &errors {
-                        eprintln!("{e}");
+                    match cli.format {
+                        Format::Json => {
+                            let report = ErrorReport::new(errors.clone());
+                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                        }
+                        Format::Human => {
+                            for e in &errors {
+                                eprintln!("{e}");
+                            }
+                        }
                     }
                     Outcome::ValidationError(errors)
                 }
