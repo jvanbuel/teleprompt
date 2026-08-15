@@ -247,6 +247,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-voice"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "teleprompt-core",
+ "thiserror",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
