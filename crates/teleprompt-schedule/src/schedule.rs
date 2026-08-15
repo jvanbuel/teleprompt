@@ -21,10 +21,16 @@ pub fn schedule(
     for (i, beat) in beats.iter().enumerate() {
         let timing = &beat.config.timing;
 
+        // Padding comes from the narration itself, not from `beat.config`:
+        // the beat's config is the action block's layer, and a segment's own
+        // `lead_in=`/`tail=` attributes would otherwise be discarded whenever
+        // an action block followed the paragraph. `timing` below is still the
+        // action block's, which is correct — `max_stretch`/`max_speedup`
+        // govern the action.
         let narration_ms = beat
             .narration
             .as_ref()
-            .map(|n| timing.lead_in_ms + n.duration_ms + timing.tail_ms)
+            .map(|n| n.padded_duration_ms())
             .unwrap_or(0);
         let action_ms = beat.action.as_ref().map(|a| a.duration_ms).unwrap_or(0);
 
@@ -57,7 +63,7 @@ pub fn schedule(
                 segment: n.segment_id.clone(),
                 source_hash: n.source_hash,
                 audio_hash: n.audio_hash,
-                start_ms: cursor + l.narration_start_ms + timing.lead_in_ms,
+                start_ms: cursor + l.narration_start_ms + n.lead_in_ms,
                 duration_ms: n.duration_ms,
                 voice_source: n.voice_source.label().to_string(),
                 voice_source_actual: n.voice_source_actual.label().to_string(),

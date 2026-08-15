@@ -324,3 +324,48 @@ fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
     .unwrap_err();
     assert!(e.0[0].message.contains("recordedd"));
 }
+
+// Final review, item 2: a `Beat` carries one `Config`, but its two halves
+// resolve from different layers — the narration's from the segment's own
+// attributes, the beat's from the following action block's. `compile` used
+// to set `config: config.clone()` (the action block's) and read the
+// narration's padding off that, so an identical segment produced different
+// narration timing depending on whether an action block happened to follow
+// it. Per spec §3.1 every segment is followed by an action block, so the
+// broken case was the normal one.
+const SEGMENT_WITH_LEAD_IN: &str = "One two three. {#a lead_in=1000ms}";
+
+fn lead_in_fixture(with_action: bool) -> String {
+    let mut s = format!(
+        "---\nscene: {{ mock: {{ adapter: mock }} }}\n---\n\n# A\n\n{SEGMENT_WITH_LEAD_IN}\n"
+    );
+    if with_action {
+        s.push_str("\n```teleprompt scene=mock\nwait 100ms\n```\n");
+    }
+    s
+}
+
+#[test]
+fn a_segments_lead_in_survives_pairing_with_a_following_action_block() {
+    let alone = run(&lead_in_fixture(false));
+    let paired = run(&lead_in_fixture(true));
+
+    let alone_n = alone.timeline.entries[0].narration.as_ref().unwrap();
+    let paired_n = paired.timeline.entries[0].narration.as_ref().unwrap();
+
+    assert_eq!(
+        alone_n.start_ms, 1000,
+        "the segment's own lead_in=1000ms places its narration"
+    );
+    assert_eq!(
+        paired_n.start_ms, alone_n.start_ms,
+        "the same segment must produce the same narration start whether or \
+         not an action block follows"
+    );
+
+    // The beat's own duration differs by exactly the action block's 100ms
+    // under `hold`, and by nothing else: the 850ms that used to vanish with
+    // the discarded lead-in is gone.
+    assert_eq!(alone.timeline.entries[0].duration_ms, 2700);
+    assert_eq!(paired.timeline.entries[0].duration_ms, 2800);
+}

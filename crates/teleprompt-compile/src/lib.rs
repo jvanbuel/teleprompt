@@ -118,6 +118,12 @@ pub fn compile(
                     source_hash: *source_hash,
                     audio_hash: synth.audio_hash,
                     duration_ms: synth.duration_ms,
+                    // Read off the *narration item's* own resolved config,
+                    // which is the only place a segment-level `lead_in=` /
+                    // `tail=` survives. The beat this narration ends up in
+                    // may carry the following action block's config instead.
+                    lead_in_ms: config.timing.lead_in_ms,
+                    tail_ms: config.timing.tail_ms,
                     voice_source: resolution.requested,
                     voice_source_actual: resolution.actual,
                     downgrade_reason: resolution.downgrade_reason,

@@ -4,11 +4,14 @@ use teleprompt_core::VoiceSource;
 use teleprompt_schedule::{schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
+    let defaults = Config::default().timing;
     NarrationInput {
         segment_id: id.into(),
         source_hash: Hash::of(id.as_bytes()),
         audio_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
+        lead_in_ms: defaults.lead_in_ms,
+        tail_ms: defaults.tail_ms,
         voice_source: VoiceSource::Synthetic,
         voice_source_actual: VoiceSource::Synthetic,
         downgrade_reason: None,
