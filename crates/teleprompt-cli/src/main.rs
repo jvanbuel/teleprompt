@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use teleprompt_cli::cmd::check::{self, CheckReport};
 use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
+use teleprompt_cli::cmd::dub;
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
@@ -51,6 +52,18 @@ enum Command {
         /// Exit 3 when the timeline has drifted
         #[arg(long)]
         exit_code: bool,
+    },
+    /// Synthesize narration and write audio plus a manifest
+    Dub {
+        script: PathBuf,
+        #[arg(long, default_value = "en")]
+        locale: String,
+        /// Output root; one self-contained directory is written per locale
+        #[arg(long)]
+        out: PathBuf,
+        /// Compare against the manifest on disk and write nothing; exit 3 on drift
+        #[arg(long)]
+        check: bool,
     },
 }
 
@@ -189,6 +202,59 @@ fn main() -> ExitCode {
                         }
                     }
                     Outcome::ValidationError(errors)
+                }
+            },
+        },
+        Command::Dub {
+            script,
+            locale,
+            out,
+            check,
+        } => match Project::for_script(&script) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => match dub::run_dub(&project, &script, &locale, &out, check) {
+                Ok(result) => {
+                    for w in &result.warnings {
+                        eprintln!("warning: {w}");
+                    }
+                    match (&result.drift, cli.format) {
+                        (Some(d), Format::Json) => {
+                            println!("{}", serde_json::to_string_pretty(d).unwrap())
+                        }
+                        (Some(d), Format::Human) => print!("{}", d.render()),
+                        (None, Format::Json) => {
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&result.manifest).unwrap()
+                            )
+                        }
+                        (None, Format::Human) => print!("{}", dub::render_dub(&result)),
+                    }
+                    match &result.drift {
+                        Some(d) if !d.is_empty() => Outcome::Drift,
+                        _ => Outcome::Ok,
+                    }
+                }
+                Err(dub::DubError::Validation(errors)) => {
+                    match cli.format {
+                        Format::Json => {
+                            let report = ErrorReport::new(errors.clone());
+                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                        }
+                        Format::Human => {
+                            for e in &errors {
+                                eprintln!("{e}");
+                            }
+                        }
+                    }
+                    Outcome::ValidationError(errors)
+                }
+                Err(dub::DubError::Runtime(e)) => {
+                    eprintln!("error: {e}");
+                    Outcome::RuntimeFailure(e)
                 }
             },
         },
