@@ -1,0 +1,139 @@
+//! Task 15: end-to-end acceptance for the M0 feedback loop.
+//!
+//! These tests drive the CLI's own command functions against a realistic,
+//! multi-chapter script (`tests/fixtures/tour.md`) rather than the small
+//! synthetic fixtures used elsewhere. Together they answer M0's defining
+//! question: does editing prose produce a legible, useful diff of the
+//! video's pacing?
+
+use std::path::PathBuf;
+
+use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
+use teleprompt_cli::project::Project;
+
+fn fixture(name: &str) -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures")
+        .join(name);
+    std::fs::read_to_string(path).expect("fixture must exist")
+}
+
+fn workspace() -> (Project, PathBuf) {
+    let dir = std::env::temp_dir().join(format!(
+        "teleprompt-e2e-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let script = dir.join("scripts/tour.md");
+    std::fs::write(&script, fixture("tour.md")).unwrap();
+    (Project::discover(&dir).unwrap(), script)
+}
+
+#[test]
+fn the_full_fixture_validates() {
+    let (p, s) = workspace();
+    let warnings = run_check(&p, &s, "en").expect("fixture must be valid");
+    assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+}
+
+#[test]
+fn every_policy_appears_in_the_compiled_timeline() {
+    let (p, s) = workspace();
+    let out = run_plan(&p, &s, "en").unwrap();
+    let policies: std::collections::BTreeSet<&str> = out
+        .timeline
+        .entries
+        .iter()
+        .map(|e| e.policy.as_str())
+        .collect();
+    for expected in ["hold", "concurrent", "stretch", "trim"] {
+        assert!(policies.contains(expected), "missing policy {expected}");
+    }
+}
+
+#[test]
+fn beats_never_overlap_and_never_gap() {
+    let (p, s) = workspace();
+    let out = run_plan(&p, &s, "en").unwrap();
+    for pair in out.timeline.entries.windows(2) {
+        let (a, b) = (&pair[0], &pair[1]);
+        let expected = a.start_ms + a.duration_ms - a.transition.duration_ms;
+        assert_eq!(
+            b.start_ms, expected,
+            "gap or overlap between {} and {}",
+            a.beat, b.beat
+        );
+    }
+}
+
+#[test]
+fn the_timeline_ends_where_the_last_beat_ends() {
+    let (p, s) = workspace();
+    let out = run_plan(&p, &s, "en").unwrap();
+    let last = out.timeline.entries.last().unwrap();
+    assert_eq!(out.timeline.duration_ms, last.start_ms + last.duration_ms);
+}
+
+#[test]
+fn planning_twice_gives_byte_identical_output() {
+    let (p, s) = workspace();
+    let a = serde_json::to_string(&run_plan(&p, &s, "en").unwrap().timeline).unwrap();
+    let b = serde_json::to_string(&run_plan(&p, &s, "en").unwrap().timeline).unwrap();
+    assert_eq!(a, b);
+}
+
+/// The M0 acceptance criterion.
+#[test]
+fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
+    let (p, s) = workspace();
+
+    let baseline = run_plan(&p, &s, "en").unwrap();
+    let dest = p.timeline_path("tour.md", "en");
+    std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+    std::fs::write(
+        &dest,
+        serde_json::to_string_pretty(&baseline.timeline).unwrap(),
+    )
+    .unwrap();
+
+    let edited = fixture("tour.md").replace(
+        "Deployment is one command, and it streams progress as it goes.",
+        "Deployment is one single command, and it streams its progress as it goes along, \
+         step by step, so you always know exactly where you are.",
+    );
+    std::fs::write(&s, edited).unwrap();
+
+    let d = run_diff(&p, &s, "en").unwrap();
+
+    assert_eq!(d.changed.len(), 1, "exactly one segment changed");
+    assert_eq!(d.changed[0].beat, "deploy");
+    assert!(d.changed[0].reason.contains("text edited"));
+    assert!(d.shift_ms > 0, "a longer paragraph lengthens the video");
+    assert!(
+        !d.recapture.is_empty(),
+        "the stretched beat needs re-capture"
+    );
+
+    let rendered = d.render();
+    assert!(rendered.contains("deploy"));
+    assert!(rendered.contains('→'));
+}
+
+#[test]
+fn an_unedited_script_diffs_clean_against_its_committed_timeline() {
+    let (p, s) = workspace();
+    let out = run_plan(&p, &s, "en").unwrap();
+    let dest = p.timeline_path("tour.md", "en");
+    std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+    std::fs::write(&dest, serde_json::to_string_pretty(&out.timeline).unwrap()).unwrap();
+
+    let d = run_diff(&p, &s, "en").unwrap();
+    assert!(
+        d.is_empty(),
+        "clean checkout must diff clean: {}",
+        d.render()
+    );
+}
