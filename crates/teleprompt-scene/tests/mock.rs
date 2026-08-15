@@ -1,8 +1,9 @@
 use teleprompt_core::SourceSpan;
 use teleprompt_scene::{BlockSource, Measured, MockScene, SceneCompiler, SceneRegistry};
 
+/// A fence opening on line 1. Body line `i` is therefore at absolute line `1 + i + 1`.
 const SPAN: SourceSpan = SourceSpan {
-    line: 0,
+    line: 1,
     column: 1,
     len: 0,
 };
@@ -29,7 +30,7 @@ fn unknown_directive_is_an_error_naming_the_line() {
         .unwrap_err();
     assert_eq!(e.len(), 1);
     assert!(e[0].message.contains("unknown mock directive `click`"));
-    assert_eq!(e[0].span.unwrap().line, 2);
+    assert_eq!(e[0].span.unwrap().line, 3);
 }
 
 #[test]
