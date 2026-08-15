@@ -53,14 +53,31 @@ impl fmt::Display for CacheKey {
 /// downstream consumer's next drift check with "audio changed" on every
 /// segment. A key turns over when the thing producing the audio changes.
 pub fn key(backend_id: &str, backend_version: &str, req: &SynthRequest) -> CacheKey {
-    let canonical = format!(
-        "{backend_id}/{backend_version}/{}/{}/{}/{}",
-        req.locale,
-        req.voice.as_deref().unwrap_or("-"),
-        req.speed,
-        Hash::of(req.text.as_bytes()),
-    );
+    // `-` for no voice, `+v` for `Some(v)`, tagged *before* length-prefixing
+    // so `None` and `Some("-")` cannot collapse to the same field.
+    let voice = match &req.voice {
+        Some(v) => format!("+{v}"),
+        None => "-".to_string(),
+    };
+    let canonical = [
+        field(backend_id),
+        field(backend_version),
+        field(&req.locale),
+        field(&voice),
+        field(&req.speed.to_string()),
+        field(&Hash::of(req.text.as_bytes()).to_string()),
+    ]
+    .concat();
     CacheKey(Hash::of(canonical.as_bytes()))
+}
+
+/// Length-prefixed so the canonical string is injective. Joining
+/// user-controlled fields with a separator is not: `locale = "en/US"` with
+/// `voice = "af_heart"` and `locale = "en"` with `voice = "US/af_heart"`
+/// produce the same string, and a cache collision here silently serves one
+/// voice's audio for another.
+fn field(s: &str) -> String {
+    format!("{}:{}", s.len(), s)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

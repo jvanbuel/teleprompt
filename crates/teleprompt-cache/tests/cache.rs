@@ -143,6 +143,32 @@ fn the_key_is_stable_across_calls() {
 }
 
 #[test]
+fn a_separator_inside_a_field_cannot_forge_another_field() {
+    let a = key(
+        "null",
+        "0.1.0",
+        &req("hello", Some("af_heart"), 1.0, "en/US"),
+    );
+    let b = key(
+        "null",
+        "0.1.0",
+        &req("hello", Some("US/af_heart"), 1.0, "en"),
+    );
+    assert_ne!(
+        a.to_string(),
+        b.to_string(),
+        "a `/` inside locale must not be able to impersonate the field boundary"
+    );
+}
+
+#[test]
+fn no_voice_is_distinguishable_from_a_voice_literally_named_dash() {
+    let none = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
+    let dash = key("null", "0.1.0", &req("hello", Some("-"), 1.0, "en"));
+    assert_ne!(none.to_string(), dash.to_string());
+}
+
+#[test]
 fn a_corrupt_sidecar_is_an_error_not_a_panic() {
     let root = tempdir("corrupt");
     let c = VoiceCache::new(&root);
