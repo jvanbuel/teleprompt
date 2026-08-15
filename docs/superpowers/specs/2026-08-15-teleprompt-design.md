@@ -559,6 +559,22 @@ what the indirection protects is everything *around* the body.
 
 Everything the compiler needs from a scene, and nothing more:
 
+> **As shipped in M0.** The trait is split at the async boundary. M0 ships the
+> compile-time half as `SceneCompiler: Send + Sync` — `kind`, `validate`,
+> `spans`, `estimate`, all synchronous and IO-free, which is what `check` and
+> `plan` need and all they need. `prepare`, `execute`, and `teardown` arrive in
+> M1 alongside rendering, as a separate async trait; M0 deliberately renders no
+> video, so an async runtime would have had no work to do. Two further
+> departures from the sketch below: `spans` takes the block id as a second
+> argument, because span ids are `{block_id}#{index}`; and both fallible
+> methods return `Vec<Diagnostic>` rather than a single `ParseError`, so one
+> `check` reports every bad line in a block instead of only the first.
+>
+> `BlockSource` also carries a `BodyOrigin` rather than a bare span: an
+> `include=`d body's lines belong to the included file and are numbered from 1
+> there, so diagnostics name that file rather than applying the fence's offset
+> to a line that does not exist in the script.
+
 ```rust
 #[async_trait]
 pub trait Scene: Send {
@@ -884,21 +900,36 @@ were recorded, by whom, and whether they have gone stale.
 A workspace. The split follows the purity boundary: everything that can be a
 pure function is, and lives where it can be tested without IO.
 
+Shipped in M0 — six crates:
+
 | crate | responsibility |
 |---|---|
-| `teleprompt-core` | AST, parser, segment identity, config resolution, error types |
+| `teleprompt-core` | AST, parser, segment identity, config resolution, `VoiceSource`, error types |
 | `teleprompt-schedule` | policies, `Timeline`, diffing. Pure. |
 | `teleprompt-voice` | `VoiceBackend` trait, capabilities, resolution ladder, `null` |
+| `teleprompt-scene` | `SceneCompiler` contract, registry, `mock` adapter |
+| `teleprompt-compile` | the seam: walks a `Program`, drives scene and voice, emits beats |
+| `teleprompt-cli` | clap, output formatting, the `teleprompt` binary |
+
+M1 and later:
+
+| crate | responsibility |
+|---|---|
 | `teleprompt-voice-kokoro` | local TTS backend |
 | `teleprompt-voice-elevenlabs` | API backend, cloning, enrollment |
-| `teleprompt-scene` | `Scene` contract, registry, `Slot`/`Clock`/`Recorder`, measurement cache |
 | `teleprompt-scene-media` | images, clips, title cards. Pure Rust. |
 | `teleprompt-scene-playwright` | Node sidecar, JSON-RPC protocol, mark splitting, `tp` helper |
 | `teleprompt-scene-vhs` | tape parser, PTY execution, terminal frame rendering |
 | `teleprompt-import` | trace capture, ASR, segmentation, policy inference, script emission |
 | `teleprompt-render` | ffmpeg graph construction, muxing, subtitles |
-| `teleprompt-cache` | content-addressed store |
-| `teleprompt-cli` | clap, output formatting, the `teleprompt` binary |
+| `teleprompt-cache` | content-addressed store, `Slot`/`Clock`/`Recorder` measurement cache |
+
+`teleprompt-compile` exists because `core`, `scene`, `voice`, and `schedule`
+must not depend on one another: without it, `schedule` would have to know about
+`scene`, or `core` about both. Anything that needs two of them belongs in the
+seam. `VoiceSource` lives in `core` rather than `voice` for the same reason —
+`schedule` names it on every narration input, and shared vocabulary belongs
+next to `Hash`, `Config`, and `SourceSpan`.
 
 Plus one non-Rust package: `npm/teleprompt-driver`, the Node sidecar and the
 `tp` helper library that browser action blocks import. It is the only JavaScript
@@ -911,7 +942,9 @@ replacement) is then an additive change rather than a rename.
 
 `core` and `schedule` have no async runtime, no network, and no filesystem
 dependency beyond reading the script. The most intricate logic in the project is
-consequently testable as plain functions over plain data.
+consequently testable as plain functions over plain data. As shipped, M0 is
+stricter still: `core` does not read the script either — the CLI does, and hands
+`core` a `&str`.
 
 Adapters and backends are Cargo features, default-on for `media`, `null`, and
 `kokoro` only. The `playwright` feature is opt-in because it pulls a Node
