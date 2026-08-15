@@ -168,3 +168,96 @@ fn an_inline_bodys_diagnostic_defers_to_the_callers_file() {
     assert_eq!(e[0].file, None);
     assert!(e[0].render("scripts/h1.md").contains("scripts/h1.md:3:1"));
 }
+
+// ---------------------------------------------------------------------------
+// Final review, item 6: `validate` and `estimate` disagreed about what
+// content is. `validate` split on whitespace; `estimate` used
+// `strip_prefix("wait ")`. The mock is M0's only source of action duration,
+// so a `check`-clean script could silently lose five seconds.
+// ---------------------------------------------------------------------------
+
+fn only_span(body: &str) -> teleprompt_scene::Span {
+    let m = MockScene;
+    let v = m.validate(&src(body)).expect("body must validate");
+    let spans = m.spans(&v, "b").unwrap();
+    assert_eq!(spans.len(), 1, "fixture is meant to be a single span");
+    spans.into_iter().next().unwrap()
+}
+
+/// `wait<TAB>5000ms` passed `check` and then contributed 0 ms.
+#[test]
+fn a_tab_between_wait_and_its_duration_is_counted() {
+    let m = MockScene;
+    assert_eq!(
+        m.estimate(&only_span("wait\t5000ms\n")),
+        Measured::Exact(5000),
+        "check accepts a tab, so the estimate has to as well"
+    );
+}
+
+/// `wait 5000ms and then some` passed `check` and then contributed 0 ms.
+/// Silently ignoring the tail is what let the two halves disagree, so the
+/// tail is now rejected outright.
+#[test]
+fn trailing_garbage_after_a_duration_is_rejected_by_validate() {
+    let m = MockScene;
+    let e = m.validate(&src("wait 5000ms and then some\n")).unwrap_err();
+    assert_eq!(e.len(), 1);
+    assert!(
+        e[0].message.contains("trailing `and`"),
+        "the diagnostic must name what it did not understand: {}",
+        e[0].message
+    );
+}
+
+#[test]
+fn trailing_garbage_after_mark_is_rejected_by_validate() {
+    let m = MockScene;
+    let e = m.validate(&src("mark now\n")).unwrap_err();
+    assert_eq!(e.len(), 1);
+    assert!(e[0].message.contains("`mark` takes no arguments"));
+}
+
+/// Ruling F13's wording said "whitespace-only" when it meant "no executable
+/// content", so a chunk of nothing but `#` comments between two `mark`s
+/// survived the filter and became a phantom zero-duration beat — exactly the
+/// shape F13 was written to eliminate.
+#[test]
+fn a_comment_only_chunk_between_marks_produces_no_span() {
+    let m = MockScene;
+    let v = m
+        .validate(&src(
+            "wait 100ms\nmark\n# just a comment\nmark\nwait 200ms\n",
+        ))
+        .unwrap();
+    let spans = m.spans(&v, "g").unwrap();
+    assert_eq!(
+        spans.len(),
+        2,
+        "the comment-only chunk is empty, not a zero-duration span: {:?}",
+        spans.iter().map(|s| &s.source).collect::<Vec<_>>()
+    );
+    assert_eq!(spans[0].index, 0);
+    assert_eq!(spans[1].index, 1, "indices stay contiguous");
+    assert_eq!(m.estimate(&spans[0]), Measured::Exact(100));
+    assert_eq!(m.estimate(&spans[1]), Measured::Exact(200));
+}
+
+/// The property the three fixes above are really about: anything `validate`
+/// accepts as a `wait`, `estimate` counts.
+#[test]
+fn everything_validate_accepts_as_a_wait_is_counted_by_estimate() {
+    for (body, expected) in [
+        ("wait 500ms\n", 500),
+        ("wait\t500ms\n", 500),
+        ("   wait    500ms   \n", 500),
+        ("wait 1s\n", 1000),
+        ("# comment\nwait 250ms\n\nwait 250ms\n", 500),
+    ] {
+        assert_eq!(
+            MockScene.estimate(&only_span(body)),
+            Measured::Exact(expected),
+            "body {body:?}"
+        );
+    }
+}
