@@ -74,8 +74,16 @@ pub fn compile(
                 // own beat; flush whatever was pending first.
                 flush(&mut beats, &mut pending, &mut pending_id, &pending_config);
 
-                let requested =
-                    VoiceSource::parse(&config.voice.source).unwrap_or(VoiceSource::Synthetic);
+                let Some(requested) = VoiceSource::parse(&config.voice.source) else {
+                    diags.push(
+                        Diagnostic::error(format!(
+                            "unknown voice source `{}`",
+                            config.voice.source
+                        ))
+                        .with_help("voice.source is recorded|cloned|synthetic"),
+                    );
+                    continue;
+                };
                 let resolution = match resolve_source(requested, &|tier| match tier {
                     VoiceSource::Recorded => Err("no takes recorded (M0 has no recorder)".into()),
                     VoiceSource::Cloned => Err("no voice profile enrolled".into()),
@@ -172,6 +180,16 @@ pub fn compile(
                         continue;
                     }
                 };
+
+                if spans.is_empty() {
+                    // Task 6's F13 filter can reduce an all-`mark` block to
+                    // zero surviving spans. Pairing stays scoped to the
+                    // *immediately* following action item, so a pending
+                    // narration must be flushed as its own beat here rather
+                    // than left to be picked up by a later action block.
+                    flush(&mut beats, &mut pending, &mut pending_id, &pending_config);
+                    continue;
+                }
 
                 for (i, span) in spans.iter().enumerate() {
                     let measured = adapter.estimate(span);

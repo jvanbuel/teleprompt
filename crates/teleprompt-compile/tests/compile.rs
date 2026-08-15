@@ -234,3 +234,85 @@ fn adapter_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
          `SourceSpan {{ line: 0, .. }}` would have produced"
     );
 }
+
+// Fix round 1, finding 1: Task 6's F13 filter can reduce an all-`mark`
+// action block to zero surviving spans. A narration must not reach across
+// that empty block to pair with a later one — pairing stays scoped to the
+// immediately following action item.
+#[test]
+fn a_narration_does_not_jump_an_empty_action_block_to_pair_with_a_later_one() {
+    let src = r#"---
+scene: { mock: { adapter: mock } }
+---
+
+# Intro
+
+One. {#a}
+
+```teleprompt scene=mock
+mark
+```
+
+```teleprompt scene=mock
+wait 400ms
+```
+"#;
+    let out = run(src);
+    assert_eq!(out.timeline.entries.len(), 2);
+    assert!(
+        out.timeline.entries[0].narration.is_some(),
+        "the narration becomes its own beat"
+    );
+    assert!(
+        out.timeline.entries[0].action.is_none(),
+        "the empty block produces no beat, so nothing attaches to the narration"
+    );
+    assert!(
+        out.timeline.entries[1].narration.is_none(),
+        "the narration must not jump the empty block to reach the second one"
+    );
+    assert_eq!(
+        out.timeline.entries[1].action.as_ref().unwrap().duration_ms,
+        400
+    );
+}
+
+// Regression pin: a narration followed by an all-`mark` block at the end of
+// the program must still flush as a narration-only beat (this already
+// worked before the fix above; pinned so it stays that way).
+#[test]
+fn a_narration_followed_by_an_empty_action_block_at_end_of_program_still_flushes() {
+    let src = r#"---
+scene: { mock: { adapter: mock } }
+---
+
+# Intro
+
+One. {#a}
+
+```teleprompt scene=mock
+mark
+```
+"#;
+    let out = run(src);
+    assert_eq!(out.timeline.entries.len(), 1);
+    assert!(out.timeline.entries[0].narration.is_some());
+    assert!(out.timeline.entries[0].action.is_none());
+}
+
+// Fix round 1, finding 2: an unrecognised `voice.source` must be a
+// diagnostic, not a silent coercion to `synthetic` (which would also skip
+// the ladder's rejection-reason machinery entirely).
+#[test]
+fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
+    let src = "# A\n\nOne. {#a voice.source=recordedd}\n";
+    let p = program(src);
+    let e = compile(
+        &p,
+        &SceneRegistry::with_builtins(),
+        &NullVoice::default(),
+        "0.1.0",
+    )
+    .unwrap_err();
+    assert!(e.0[0].message.contains("recordedd"));
+}
