@@ -77,7 +77,7 @@ teleprompt dub [script]            synthesize narration; write audio + manifest
   --out <dir>            output root (required)
   --locale <tag>         repeatable, or `all`; defaults to the script's locale
   --chapter <slug>       one chapter only
-  --format wav|mp3       audio encoding (default wav)
+  --format wav           audio encoding (only value in v1; see below)
   --check                do not write; exit 3 if the manifest on disk is stale
   --strict-voice         downgrades are fatal (exit 4)
 ```
@@ -99,6 +99,36 @@ names an adapter that is not installed, `dub` fails rather than guessing.
 Exit codes follow §10.1 unchanged: `0` success, `1` runtime failure, `2`
 validation error, `3` manifest drift under `--check`, `4` voice downgrade under
 `--strict-voice`.
+
+**WAV only in v1.** `wav` is 16-bit PCM, written by a small encoder in this
+repository, which keeps the output byte-stable and adds no dependency. MP3 or
+AAC would each pull in an encoder binding for a format every consumer can
+already transcode to, so `--format` exists to make the field non-breaking
+later rather than to offer a choice today.
+
+**Audio is produced by a second call, not by `synthesize`.** The
+`VoiceBackend` trait (§4.3) gains one method:
+
+```rust
+/// Render this request to interleaved 16-bit PCM. Backends that cannot
+/// produce audio return `Ok(None)`.
+fn render_pcm(&self, req: &SynthRequest) -> Result<Option<Pcm>, VoiceError>;
+
+pub struct Pcm {
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub samples: Vec<i16>,
+}
+```
+
+`synthesize` stays timing-only. The inner loop of §10 — `plan` and `diff`,
+which must remain sub-second — calls only `synthesize` and never allocates an
+audio buffer. Only `dub` and `build` call `render_pcm`.
+
+The `null` backend returns silence of exactly its estimated duration, as §4.3
+already describes it doing. That makes `dub` fully functional before any real
+synthesizer exists: a consumer gets correctly-timed silent narration, which is
+a usable preview and an exactly-testable artifact.
 
 ## 4. Output layout
 
@@ -371,18 +401,44 @@ adapter.
 
 No new crate.
 
-- `teleprompt-schedule` gains `manifest.rs`: the `NarrationManifest` types and
-  a projection from `Timeline`. It lives beside `timeline.rs` because it is
-  derived from it and must not be able to drift from it.
+- `teleprompt-compile` gains `manifest.rs`: the `NarrationManifest` types and
+  the projection that builds one.
+
+  An earlier draft put this in `teleprompt-schedule`, beside `timeline.rs`, on
+  the reasoning that the manifest is derived from the `Timeline` and should not
+  be able to drift from it. That reasoning was wrong about the inputs. A
+  manifest is a **join**, not a projection: timings come from the `Timeline`,
+  but `text`, `chapters`, and `words` are nowhere in it — narration text and
+  chapter titles live in the `Program`, and word timings live in the
+  `SynthResult` that the scheduler discards. `teleprompt-compile` is the one
+  crate holding all three, and §12 of the core design already names it the seam
+  where the others meet. Drift protection comes from the test in this section,
+  not from file adjacency.
+
+- `teleprompt-compile`'s `CompileOutput` gains `narration: Vec<NarrationDetail>`
+  carrying per-segment `text`, `chapter`, and `word_timings`, which `compile`
+  already has in hand and currently drops.
+- `teleprompt-core`'s `Program` gains chapter provenance: `Item::Narration`
+  gains a `chapter` slug and `Program` gains an ordered `chapters` list.
+  `resolve` flattens the chapter tree today and keeps nothing of it, so the
+  manifest's `chapters` field is otherwise unreachable.
+- `teleprompt-voice` gains `Pcm`, `VoiceBackend::render_pcm`, and a 16-bit PCM
+  WAV encoder.
 - `teleprompt-cli` gains `cmd/dub.rs`.
 
 Testing follows the M0 posture:
 
-- Projection from a fixture `Timeline` to a manifest is pure and hermetic, and
-  is snapshot-tested for byte stability.
-- The `null` backend (§4.3) gives a full `dub` run with no network, no model,
-  and no audio — enough to test layout, paths, drift detection, and exit codes
-  offline.
+- Building a manifest from a fixture `Timeline` plus fixture narration details
+  is pure and hermetic, and is snapshot-tested for byte stability.
+- A test asserts every manifest segment's `start_ms` and `duration_ms` equal
+  the corresponding `Timeline` narration entry's, so the join cannot drift from
+  the schedule it describes.
+- The `null` backend (§4.3) gives a full `dub` run with no network and no
+  model — silent WAVs of exactly the estimated durations — enough to test
+  layout, paths, audio bytes, drift detection, and exit codes offline.
+- The WAV encoder is tested against a hand-computed 44-byte header, so the
+  output is verified as a file format rather than only as a round trip through
+  its own reader.
 - A round-trip test deserialises a committed manifest and asserts an unknown
   `manifest_version` is refused rather than partially parsed.
 - The TypeScript in §7 is checked as documentation, not executed; teleprompt's
