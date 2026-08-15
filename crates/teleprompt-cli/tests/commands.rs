@@ -186,3 +186,53 @@ fn diff_format_json_emits_a_typed_error_payload_on_failure() {
         .unwrap()
         .contains("unknown mock directive"));
 }
+
+/// Final review, item 3. `Path::new("demo.md").parent()` is `Some("")`, not
+/// `None`, so the `unwrap_or(Path::new("."))` fallback never fired and
+/// `"".canonicalize()` gave a bare `No such file or directory (os error 2)`
+/// with no path in it. Every other test here, the README, and both manual
+/// transcripts happen to pass a path with a directory component.
+///
+/// Driven through the binary with `current_dir` set, because the defect is
+/// precisely about relative-path resolution against the process's working
+/// directory; calling the command functions with a `Path` would not
+/// reproduce it.
+#[test]
+fn every_script_command_works_on_a_bare_filename_from_the_scripts_directory() {
+    let (p, _s) = project_with(GOOD);
+    let scripts = p.root.join("scripts");
+
+    for (args, what) in [
+        (vec!["check"], "check"),
+        (vec!["plan"], "plan"),
+        (vec!["diff"], "diff"),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+            .args(&args)
+            .arg("test.md")
+            .current_dir(&scripts)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "`teleprompt {what} test.md` from the script's own directory failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+/// The other half of item 3: when the path really is unreachable, the
+/// diagnostic has to say which path. A bare ENOENT is unactionable.
+#[test]
+fn an_unreachable_script_path_is_named_in_the_error() {
+    let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["check", "/nonexistent-teleprompt-dir/script.md"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("/nonexistent-teleprompt-dir"),
+        "the error must name the path it could not reach: {stderr}"
+    );
+}

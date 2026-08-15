@@ -43,7 +43,9 @@ pub fn compile_script(
     )
     .map_err(|d| render(&d, &display))?;
 
-    let base_dir = script.parent().unwrap_or_else(|| Path::new("."));
+    // `script_dir`, not `script.parent()`: a bare `demo.md` has
+    // `Some("")` for a parent, which is not the current directory.
+    let base_dir = crate::project::script_dir(script);
 
     compile(
         &program,

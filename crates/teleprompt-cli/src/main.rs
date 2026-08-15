@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
@@ -54,13 +54,6 @@ enum Command {
     },
 }
 
-/// Finds the project a `script` belongs to. Shared by every command that
-/// takes a script path, so the "no teleprompt.toml found" message and its
-/// exit behaviour are defined once.
-fn discover(script: &Path) -> std::io::Result<Project> {
-    Project::discover(script.parent().unwrap_or(Path::new(".")))
-}
-
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let registry = SceneRegistry::with_builtins();
@@ -88,7 +81,7 @@ fn main() -> ExitCode {
             }
             Outcome::Ok
         }
-        Command::Check { script, locale } => match discover(&script) {
+        Command::Check { script, locale } => match Project::for_script(&script) {
             Err(e) => {
                 eprintln!("error: {e}");
                 Outcome::RuntimeFailure(e.to_string())
@@ -131,7 +124,7 @@ fn main() -> ExitCode {
                 }
             },
         },
-        Command::Plan { script, locale } => match discover(&script) {
+        Command::Plan { script, locale } => match Project::for_script(&script) {
             Err(e) => {
                 eprintln!("error: {e}");
                 Outcome::RuntimeFailure(e.to_string())
@@ -166,7 +159,7 @@ fn main() -> ExitCode {
             script,
             locale,
             exit_code,
-        } => match discover(&script) {
+        } => match Project::for_script(&script) {
             Err(e) => {
                 eprintln!("error: {e}");
                 Outcome::RuntimeFailure(e.to_string())
