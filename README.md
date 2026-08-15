@@ -47,6 +47,7 @@ cargo run -- diff demo/scripts/demo.md
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it |
 | `diff <script>` | compare against the committed timeline |
+| `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `doctor` | report the environment teleprompt can see |
 
 All commands accept `--format json`.
@@ -84,15 +85,20 @@ calculateMetadata={async ({props}) => {
 }}
 ```
 
-Convert **absolute offsets** to frames and take the difference for a
-segment's length — never round a duration on its own, or the rounding error
-accumulates and drifts audio out of sync by the end of a long video:
+A segment's length is its **own** `start_ms + duration_ms`, never the next
+segment's `start_ms`. Consecutive segments may overlap — the transition
+window is subtracted from the preceding beat — so inferring a length from
+the next start clips the tail of the speech:
 
 ```tsx
-const from = msToFrames(seg.start_ms, fps);
-const until = msToFrames(next ? next.start_ms : m.duration_ms, fps);
+const from  = msToFrames(seg.start_ms, fps);
+const until = msToFrames(seg.start_ms + seg.duration_ms, fps);
 // durationInFrames={until - from}
 ```
+
+Convert **absolute offsets** to frames and take the difference, as above —
+never round a duration on its own, or the rounding error accumulates and
+drifts audio out of sync by the end of a long video.
 
 ### Keeping it honest
 
