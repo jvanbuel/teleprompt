@@ -303,6 +303,16 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                 {
                     let reason = if on.source_hash != nn.source_hash {
                         "text edited"
+                    // Ordered after `text edited` deliberately: an author's
+                    // edit is the cause they can act on, and it explains the
+                    // duration change by itself. Ordered before the audio and
+                    // duration checks because those would otherwise absorb
+                    // this and report a cause that sends the reader to the
+                    // wrong place.
+                    } else if on.duration_source != nn.duration_source
+                        && nn.duration_source == "measured"
+                    {
+                        "now measured"
                     } else if on.audio_hash != nn.audio_hash || on.duration_ms != nn.duration_ms {
                         "audio changed"
                     } else {

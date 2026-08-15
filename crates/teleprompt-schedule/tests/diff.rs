@@ -450,3 +450,51 @@ fn a_lead_in_retune_that_does_not_change_beat_length_is_still_reported() {
     assert_eq!(d.changed.len(), 1);
     assert_eq!(d.changed[0].reason, "padding changed");
 }
+
+/// The estimated-to-measured transition is real drift — the video did change
+/// — but it is not an author's edit, and conflating the two would send a
+/// reader to re-read prose that nobody touched.
+#[test]
+fn an_estimate_becoming_a_measurement_is_named_as_such() {
+    let before = {
+        let mut b = beat("b1", 4000, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
+        timeline(vec![b])
+    };
+    let after = {
+        let mut b = beat("b1", 4300, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
+        timeline(vec![b])
+    };
+
+    let d = diff(&before, &after);
+    assert!(!d.is_empty());
+    let changed = d
+        .changed
+        .iter()
+        .find(|c| c.beat == "b1")
+        .expect("b1 changed");
+    assert_eq!(changed.reason, "now measured");
+
+    let rendered = d.render();
+    assert!(rendered.contains("now measured"), "{rendered}");
+}
+
+/// A text edit that also happens to cross the estimated/measured boundary is
+/// still a text edit — that is the cause the author can act on.
+#[test]
+fn a_text_edit_outranks_the_measurement_transition() {
+    let before = {
+        let mut b = beat("b1", 4000, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
+        timeline(vec![b])
+    };
+    let after = {
+        let mut b = beat("b1", 4300, "two");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
+        timeline(vec![b])
+    };
+
+    let d = diff(&before, &after);
+    assert_eq!(d.changed[0].reason, "text edited");
+}
