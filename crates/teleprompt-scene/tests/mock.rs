@@ -82,3 +82,45 @@ fn registry_resolves_builtin_adapters_and_rejects_unknown_ones() {
     assert_eq!(r.get("mock").map(|a| a.kind()), Some("mock"));
     assert!(r.get("playwright").is_none(), "not available in M0");
 }
+
+#[test]
+fn a_body_ending_with_mark_yields_one_span_not_two() {
+    let m = MockScene;
+    let v = m.validate(&src("wait 500ms\nmark\n")).unwrap();
+    let spans = m.spans(&v, "c").unwrap();
+    assert_eq!(spans.len(), 1, "trailing mark does not create empty span");
+    assert_eq!(spans[0].index, 0, "surviving span has contiguous index 0");
+}
+
+#[test]
+fn a_body_starting_with_mark_yields_one_span_not_two() {
+    let m = MockScene;
+    let v = m.validate(&src("mark\nwait 500ms\n")).unwrap();
+    let spans = m.spans(&v, "d").unwrap();
+    assert_eq!(spans.len(), 1, "leading mark does not create empty span");
+    assert_eq!(spans[0].index, 0, "surviving span has contiguous index 0");
+}
+
+#[test]
+fn consecutive_marks_yield_contiguous_spans() {
+    let m = MockScene;
+    let v = m
+        .validate(&src("wait 100ms\nmark\nmark\nwait 200ms\n"))
+        .unwrap();
+    let spans = m.spans(&v, "e").unwrap();
+    assert_eq!(
+        spans.len(),
+        2,
+        "two consecutive marks create two spans, not three"
+    );
+    assert_eq!(spans[0].index, 0, "first span has index 0");
+    assert_eq!(spans[1].index, 1, "second span has index 1 (contiguous)");
+}
+
+#[test]
+fn a_body_that_is_only_mark_yields_zero_spans() {
+    let m = MockScene;
+    let v = m.validate(&src("mark\n")).unwrap();
+    let spans = m.spans(&v, "f").unwrap();
+    assert_eq!(spans.len(), 0, "all-mark body yields no spans");
+}

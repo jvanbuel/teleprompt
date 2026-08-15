@@ -63,6 +63,7 @@ impl SceneCompiler for MockScene {
             .collect::<Vec<_>>()
             .split(|l| l.trim() == "mark")
             .map(|lines| lines.join("\n"))
+            .filter(|chunk| !chunk.trim().is_empty())
             .collect();
 
         Ok(chunks
