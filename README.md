@@ -52,6 +52,25 @@ cargo run -- diff demo/scripts/demo.md
 
 All commands accept `--format json`.
 
+### Estimated versus measured durations
+
+`plan`, `check`, and `diff` never synthesize. They read durations from the
+cache, and fall back to a word-count estimate for anything not yet rendered —
+so the inner loop stays instant and offline no matter how slow the configured
+voice is.
+
+```
+$ teleprompt plan scripts/tour.md --format json | grep duration_source
+  "duration_source": "estimated"
+```
+
+`teleprompt dub` does the real synthesis and fills the cache. Afterwards the
+same `plan` is still instant, and now says `measured`.
+
+A timeline committed from a cold cache will drift the first time you `dub`,
+which `diff` reports as `now measured` rather than as a content edit. `plan`
+warns when it emits estimates for exactly that reason.
+
 ## Dubbing a pipeline that renders itself
 
 `teleprompt dub` writes narration audio and a manifest, and renders no video.

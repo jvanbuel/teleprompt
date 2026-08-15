@@ -315,10 +315,14 @@ pub struct VoiceCapabilities {
 
 v1 backends:
 
-- **`null`** — synthesizes silence and *estimates* duration from a
-  words-per-minute model, punctuation-aware. No audio quality, but exact enough
-  timing to iterate on pacing at zero cost. Also makes the entire scheduler test
-  suite hermetic and offline. It is a first-class backend, not a test double.
+- **`null`** — the backend itself synthesizes silence of the estimated
+  length. The words-per-minute duration model behind that estimate,
+  punctuation-aware, lives in `teleprompt-voice-null` as `WpmEstimator`, the
+  default implementation of `DurationEstimator` — the same trait `plan`,
+  `check`, and `diff` call to predict a duration without synthesizing.
+  No audio quality, but exact enough timing to iterate on pacing at zero
+  cost. Also makes the entire scheduler test suite hermetic and offline. It
+  is a first-class backend, not a test double.
 - **`kokoro`** — local, open-weight, fast, no cloning. Invoked as a subprocess
   against a local server rather than linked in-process, so a model-runtime
   problem cannot take down the CLI.

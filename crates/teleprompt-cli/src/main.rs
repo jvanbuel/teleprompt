@@ -163,6 +163,29 @@ async fn main() -> ExitCode {
                         }
                         Format::Human => print!("{}", plan::render_plan(&out)),
                     }
+                    let estimated = out
+                        .timeline
+                        .entries
+                        .iter()
+                        .filter(|e| {
+                            e.narration
+                                .as_ref()
+                                .is_some_and(|n| n.duration_source == "estimated")
+                        })
+                        .count();
+                    if estimated > 0 {
+                        let total = out
+                            .timeline
+                            .entries
+                            .iter()
+                            .filter(|e| e.narration.is_some())
+                            .count();
+                        eprintln!(
+                            "warning: {estimated} of {total} narration durations are \
+                             estimated; run `teleprompt dub` to measure them before \
+                             committing this timeline"
+                        );
+                    }
                     Outcome::Ok
                 }
                 Err(errors) => {
