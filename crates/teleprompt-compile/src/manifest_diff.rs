@@ -14,7 +14,8 @@ pub struct ChangedSegment {
     pub id: String,
     pub before_ms: u64,
     pub after_ms: u64,
-    /// `text edited` | `audio changed` | `moved`. Different causes want
+    /// `text edited` | `audio changed` | `voice tier X → Y` |
+    /// `voice request changed` | `shifted`. Different causes want
     /// different fixes, so the report must not collapse them.
     pub reason: String,
 }
@@ -23,6 +24,14 @@ pub struct ChangedSegment {
 pub struct ManifestDiff {
     pub duration_before_ms: u64,
     pub duration_after_ms: u64,
+    /// `AudioInfo` (format, sample rate, channels) differs. A consumer's
+    /// player is configured from this once, uniformly, so a change here is
+    /// real drift even when every segment's own fields are untouched.
+    pub audio_changed: bool,
+    /// `chapters` differs. A title edit that slugifies identically — "Quick
+    /// start" → "Quick Start" — changes nothing in any `SegmentEntry`, so
+    /// this has to be its own flag or that edit is invisible to `diff`.
+    pub chapters_changed: bool,
     pub added: Vec<String>,
     pub removed: Vec<String>,
     pub changed: Vec<ChangedSegment>,
@@ -35,6 +44,8 @@ impl ManifestDiff {
             && self.removed.is_empty()
             && self.changed.is_empty()
             && !self.reordered
+            && !self.audio_changed
+            && !self.chapters_changed
             && self.duration_before_ms == self.duration_after_ms
     }
 
@@ -52,6 +63,13 @@ impl ManifestDiff {
             if delta >= 0 { "+" } else { "-" },
             secs(delta.unsigned_abs()),
         ));
+
+        if self.chapters_changed {
+            out.push_str("\nchapters changed (titles or markers)\n");
+        }
+        if self.audio_changed {
+            out.push_str("\naudio format changed (sample rate, channels, or format)\n");
+        }
 
         if !self.added.is_empty() {
             out.push_str("\nadded:\n");
@@ -81,7 +99,17 @@ impl ManifestDiff {
             out.push_str("\nreordered: segment order changed\n");
         }
 
-        let mut stale: Vec<&str> = self.changed.iter().map(|c| c.id.as_str()).collect();
+        // A segment that only `"shifted"` has byte-identical audio — it
+        // landed at a new `start_ms` because an earlier segment's length
+        // changed, not because anything about this segment did. Listing it
+        // here would ask for a re-render nothing needs and bury the one
+        // segment the author actually touched. See `reason_for` below.
+        let mut stale: Vec<&str> = self
+            .changed
+            .iter()
+            .filter(|c| c.reason != "shifted")
+            .map(|c| c.id.as_str())
+            .collect();
         stale.extend(self.added.iter().map(String::as_str));
         if !stale.is_empty() {
             out.push_str("\nneeds re-render:\n");
@@ -101,18 +129,33 @@ fn secs(ms: u64) -> String {
 /// Why a segment differs, in the order that makes the report most useful:
 /// a text edit is the author's own doing and explains everything
 /// downstream, so it is named even when the audio and position also moved.
+///
+/// `duration_ms` changing is reported as `"audio changed"`, not
+/// `"shifted"`: nothing moved when only this segment's own length changed.
+/// `"shifted"` is reserved for the case where `start_ms` is the *only*
+/// thing that differs — that segment's audio is byte-identical, it simply
+/// landed somewhere else because an earlier segment's length changed
+/// upstream of it. `teleprompt-schedule/src/diff.rs:288-291` makes the same
+/// call for the timeline's own narration diff, deliberately excluding a
+/// beat's absolute `start_ms` from what triggers a report there, for the
+/// same reason: flagging every downstream beat would bury the one the
+/// author actually edited. The manifest must not contradict its sibling.
 fn reason_for(before: &SegmentEntry, after: &SegmentEntry) -> Option<String> {
     if before.source_hash != after.source_hash {
         Some("text edited".to_string())
-    } else if before.audio_hash != after.audio_hash {
+    } else if before.audio_hash != after.audio_hash || before.duration_ms != after.duration_ms {
         Some("audio changed".to_string())
-    } else if before.start_ms != after.start_ms || before.duration_ms != after.duration_ms {
-        Some("moved".to_string())
     } else if before.voice_source_actual != after.voice_source_actual {
         Some(format!(
             "voice tier {} → {}",
             before.voice_source_actual, after.voice_source_actual
         ))
+    } else if before.voice_source != after.voice_source
+        || before.downgrade_reason != after.downgrade_reason
+    {
+        Some("voice request changed".to_string())
+    } else if before.start_ms != after.start_ms {
+        Some("shifted".to_string())
     } else {
         None
     }
@@ -165,6 +208,8 @@ pub fn diff(before: &NarrationManifest, after: &NarrationManifest) -> ManifestDi
     ManifestDiff {
         duration_before_ms: before.duration_ms,
         duration_after_ms: after.duration_ms,
+        audio_changed: before.audio != after.audio,
+        chapters_changed: before.chapters != after.chapters,
         added,
         removed,
         changed,
