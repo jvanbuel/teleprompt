@@ -34,6 +34,32 @@ impl serde::Serialize for Hash {
     }
 }
 
+impl<'de> serde::Deserialize<'de> for Hash {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        // Guard on `is_ascii()` before any byte-index slicing: a non-ASCII
+        // string can be 64 *bytes* long without being 64 *characters* long,
+        // and slicing at a non-char-boundary byte offset panics rather than
+        // returning a `Result`. A corrupted committed timeline must produce
+        // a readable deserialize error, not a panic.
+        if s.len() != 64 || !s.is_ascii() {
+            return Err(serde::de::Error::custom("hash must be 64 hex characters"));
+        }
+        let raw = s.as_bytes();
+        let mut bytes = [0u8; 32];
+        for (i, b) in bytes.iter_mut().enumerate() {
+            *b = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|_| {
+                serde::de::Error::custom(format!(
+                    "hash must be lowercase hex, found {:?} at byte {}",
+                    raw[i * 2] as char,
+                    i * 2
+                ))
+            })?;
+        }
+        Ok(Hash(bytes))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

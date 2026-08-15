@@ -1,7 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use teleprompt_core::Hash;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Timeline {
     pub version: u32,
     pub script: String,
@@ -11,7 +11,7 @@ pub struct Timeline {
     pub entries: Vec<Entry>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
     pub beat: String,
     pub start_ms: u64,
@@ -24,7 +24,7 @@ pub struct Entry {
     pub transition: TransitionEntry,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NarrationEntry {
     pub segment: String,
     pub source_hash: Hash,
@@ -37,7 +37,7 @@ pub struct NarrationEntry {
     pub downgrade_reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionEntry {
     pub span: String,
     pub scene: String,
@@ -48,7 +48,7 @@ pub struct ActionEntry {
     pub duration_source: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransitionEntry {
     pub kind: String,
     pub duration_ms: u64,
