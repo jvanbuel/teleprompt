@@ -559,7 +559,6 @@ dependencies = [
 name = "teleprompt-voice-null"
 version = "0.1.0"
 dependencies = [
- "teleprompt-core",
  "teleprompt-voice",
  "tokio",
 ]

@@ -137,12 +137,15 @@ fn narration_and_the_following_action_form_one_beat() {
     assert!(e.action.is_some());
 }
 
+/// On a cold cache the duration is the estimator's prediction — no backend
+/// is involved, and `compile` has no way to reach one.
 #[test]
-fn narration_duration_comes_from_the_voice_backend() {
+fn a_cold_narration_duration_comes_from_the_estimator() {
     let out = run(ONE_BEAT);
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
     // 6 words at 150 wpm = 2400ms, plus 350ms for the full stop
     assert_eq!(n.duration_ms, 2750);
+    assert_eq!(n.duration_source, "estimated");
 }
 
 #[test]
@@ -600,7 +603,7 @@ fn a_cold_cache_yields_estimated_durations() {
     // 6 words at 150 wpm = 2400ms speech, plus 350ms for `ONE`'s trailing
     // full stop — the same shared `estimate_ms` model `NullVoice` and
     // `WpmEstimator` both call, and the same total
-    // `narration_duration_comes_from_the_voice_backend` pins for this exact
+    // `a_cold_narration_duration_comes_from_the_estimator` pins for this exact
     // sentence.
     assert_eq!(
         n.duration_ms, 2750,

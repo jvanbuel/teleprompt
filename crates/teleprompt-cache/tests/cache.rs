@@ -285,3 +285,29 @@ fn stats_count_entries_and_bytes() {
     assert_eq!(s.entries, 2);
     assert!(s.bytes > 0);
 }
+
+/// `stats` counted `.wav` files, so a WAV whose sidecar was lost — an
+/// interrupted `dub`, a half-deleted cache — showed up in `doctor` as an
+/// entry. `lookup` keys off the sidecar and reads that same pair as a miss,
+/// so the count was reporting something the cache would not serve.
+#[test]
+fn an_orphaned_wav_is_not_counted_as_an_entry() {
+    let root = tempdir("orphan");
+    let c = VoiceCache::new(&root);
+    let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
+    c.store(&k, &pcm(1000), None).unwrap();
+    assert_eq!(c.stats().unwrap().entries, 1);
+
+    std::fs::remove_file(root.join(format!("voice/{k}.json"))).unwrap();
+
+    let s = c.stats().unwrap();
+    assert_eq!(
+        s.entries, 0,
+        "an entry `lookup` reads as a miss is not an entry"
+    );
+    assert!(
+        s.bytes > 0,
+        "the bytes are still on disk, and a reader wondering where the space \
+         went is owed that"
+    );
+}

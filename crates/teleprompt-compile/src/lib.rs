@@ -1,8 +1,13 @@
 //! Walks a resolved [`Program`] and assembles it into a scheduled
 //! [`Timeline`]: asks the scene registry to validate and split action
-//! blocks, asks the voice backend for narration durations, pairs narration
-//! with the action span that follows it into beats, and hands the beats to
-//! the scheduler.
+//! blocks, takes each narration's duration from the synthesis cache when
+//! the segment is already rendered and from a [`DurationEstimator`] when it
+//! is not, pairs narration with the action span that follows it into beats,
+//! and hands the beats to the scheduler.
+//!
+//! It never asks a voice backend for anything. It cannot: [`VoiceContext`]
+//! offers no way to reach one, which is what keeps `check`, `plan`, and
+//! `diff` synchronous and offline.
 //!
 //! This crate is the seam where `teleprompt-core`, `teleprompt-scene`,
 //! `teleprompt-voice`, and `teleprompt-schedule` meet, so that they never

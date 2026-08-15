@@ -163,11 +163,13 @@ Every video in this repository is built from a script you can read.
     );
 }
 
-/// I4. The published `audio_hash` must describe the file on disk. It used
-/// to be the backend's synthesis cache key, which embeds
-/// `CARGO_PKG_VERSION` — so every teleprompt release changed every hash and
-/// `--check` reported "audio changed" on every segment of every consumer's
-/// next pull request.
+/// I4. The manifest's `audio_hash` must describe the file on disk, per spec
+/// §5.1 — that is what lets a consumer skip re-encoding a byte-identical
+/// render. It is a different quantity from the timeline's `audio_hash`,
+/// which identifies *which* audio a segment resolves to and correctly does
+/// not move when `dub` re-renders the same bytes. `manifest::build` can only
+/// seed this field with the timeline's value, so the overwrite in `dub` is
+/// what makes the published field mean what it says.
 #[test]
 fn audio_hash_is_the_hash_of_the_bytes_on_disk() {
     let root = project_with("audiohash", SCRIPT);

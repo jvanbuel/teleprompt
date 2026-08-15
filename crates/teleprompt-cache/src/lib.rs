@@ -292,7 +292,12 @@ impl VoiceCache {
                 Err(_) => continue,
             };
             bytes += meta.len();
-            if path.extension().is_some_and(|e| e == "wav") {
+            // Sidecars, not WAVs, because `lookup` keys off the sidecar: an
+            // orphaned `.wav` whose sidecar was lost reads as a miss, so
+            // counting it made `doctor` report an entry that does not
+            // exist. Its bytes are still counted — they are really on disk,
+            // and a reader wondering where the space went is owed that.
+            if path.extension().is_some_and(|e| e == "json") {
                 count += 1;
             }
         }

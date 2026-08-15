@@ -131,6 +131,12 @@ request that edits prose without re-dubbing fails CI. Commit
 `narration.json`; `audio/` is reproducible and can be gitignored, at the cost
 of needing a voice backend wherever you render.
 
+`--check` writes nothing to `--out`, but it does synthesize anything not
+already cached and populate `.teleprompt/cache` with it — it has to, or it
+would be comparing against numbers it had not measured. So it needs a
+writable checkout on a cold cache, and a first `--check` in CI costs a full
+render.
+
 teleprompt ships no Remotion code and takes no Remotion dependency. Remotion's
 own licence — free for individuals and organisations up to three employees —
 is between you and Remotion.

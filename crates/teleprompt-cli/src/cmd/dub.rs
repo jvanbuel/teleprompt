@@ -311,14 +311,20 @@ pub async fn run_dub_with(
         },
     );
 
-    // `manifest::build` seeds `audio_hash` with the timeline's value, which
-    // is the backend's synthesis *cache key* — it embeds the teleprompt
-    // version, so every release changed every segment's hash and `--check`
-    // reported "audio changed" on every segment of every consumer's next
-    // pull request. Spec §5.1 documents this field as hashing the rendered
-    // bytes, so publish the rendered bytes' hash. The `Timeline`'s own
-    // `audio_hash` is left alone: a synthesis cache key is the right thing
-    // there.
+    // The two `audio_hash`es answer different questions, so the seeded value
+    // has to be overwritten here rather than left alone.
+    //
+    // The timeline's is `Hash::of(cache_key)`: the *identity* of the audio a
+    // segment resolves to. It moves when the segment would resolve to
+    // different audio and stays put when `dub` re-renders the same audio,
+    // which is exactly what a pacing drift check wants.
+    //
+    // The manifest's is `Hash::of(&wav_bytes)`: a description of the file
+    // sitting beside it, which is what spec §5.1 documents and what lets a
+    // consumer skip re-encoding a byte-identical render. `manifest::build`
+    // runs before anything is encoded and can only seed the field with the
+    // timeline's value, so `dub` — the one place that has the bytes —
+    // publishes their hash.
     //
     // Done before the `--check` branch, not only on the write path, so a
     // comparison is always like-for-like.

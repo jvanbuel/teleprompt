@@ -1,12 +1,27 @@
+use std::path::{Path, PathBuf};
+
 use serde::Serialize;
 use teleprompt_compile::manifest::MANIFEST_VERSION;
 use teleprompt_scene::SceneRegistry;
 
-/// Where `doctor` looks for the synthesis cache when reporting on it. Not
-/// `crate::cmd::check::cache_root`: `doctor` has no `Project` to read a
-/// root from (it runs without a script), so it reports on the same
-/// project-relative default every project gets from `new::scaffold`.
-const CACHE_ROOT: &str = ".teleprompt/cache";
+use crate::project::Project;
+
+/// The cache `doctor` reports on, and the path it prints for it.
+///
+/// Rooted at the project when there is one, exactly as `check` and `dub`
+/// root theirs. A CWD-relative `.teleprompt/cache` made `doctor` report
+/// `0 entries` from any subdirectory of a project with a full cache —
+/// worse than saying nothing, because it looks like an answer.
+///
+/// `doctor` still runs outside a project (it is the command you reach for
+/// when nothing else works), so the fallback is the same relative default
+/// `new::scaffold` creates. The printed path says which one was used.
+fn cache_root() -> PathBuf {
+    match Project::discover(Path::new(".")) {
+        Ok(project) => project.root.join(".teleprompt").join("cache"),
+        Err(_) => PathBuf::from(".teleprompt/cache"),
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct DoctorReport {
@@ -14,13 +29,17 @@ pub struct DoctorReport {
     pub adapters: Vec<String>,
     pub voice_backends: Vec<String>,
     pub manifest_version: u32,
+    /// The cache directory these counts describe, so a reader can tell a
+    /// project's cache from the empty relative default.
+    pub cache_root: String,
     pub cache_entries: usize,
     pub cache_bytes: u64,
     pub notes: Vec<String>,
 }
 
 pub fn doctor_report(registry: &SceneRegistry) -> DoctorReport {
-    let cache = teleprompt_cache::VoiceCache::new(CACHE_ROOT);
+    let root = cache_root();
+    let cache = teleprompt_cache::VoiceCache::new(&root);
     let stats = cache.stats().unwrap_or(teleprompt_cache::CacheStats {
         entries: 0,
         bytes: 0,
@@ -35,6 +54,7 @@ pub fn doctor_report(registry: &SceneRegistry) -> DoctorReport {
             .map(|s| s.to_string())
             .collect(),
         manifest_version: MANIFEST_VERSION,
+        cache_root: root.display().to_string(),
         cache_entries: stats.entries,
         cache_bytes: stats.bytes,
         notes: vec![
@@ -70,8 +90,8 @@ impl DoctorReport {
             self.manifest_version
         ));
         out.push_str(&format!(
-            "  cache            {CACHE_ROOT}/voice — {} entries, {} bytes\n",
-            self.cache_entries, self.cache_bytes
+            "  cache            {}/voice — {} entries, {} bytes\n",
+            self.cache_root, self.cache_entries, self.cache_bytes
         ));
         for n in &self.notes {
             out.push_str(&format!("  note             {n}\n"));

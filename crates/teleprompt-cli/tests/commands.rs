@@ -398,3 +398,38 @@ fn check_and_dub_agree_about_a_negative_voice_speed() {
         "dub must reject exactly what check does"
     );
 }
+
+/// `doctor`'s cache root was CWD-relative, so from any subdirectory of a
+/// project with a full cache it reported `0 entries` — worse than reporting
+/// nothing, because it looks like an answer. `check` and `dub` root theirs
+/// at the project; so does this now, and the report says which root it used.
+#[test]
+fn doctor_reports_the_projects_cache_from_a_subdirectory() {
+    let (p, _s) = project_with(GOOD);
+    let dubbed = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["dub", "scripts/test.md", "--out", "out"])
+        .current_dir(&p.root)
+        .output()
+        .unwrap();
+    assert!(
+        dubbed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&dubbed.stderr)
+    );
+
+    let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["--format", "json", "doctor"])
+        .current_dir(p.root.join("scripts"))
+        .output()
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+
+    assert!(
+        json["cache_entries"].as_u64().unwrap() > 0,
+        "doctor must see the project's cache from inside it: {json}"
+    );
+    assert!(
+        json["cache_root"].as_str().unwrap().contains(".teleprompt"),
+        "the report must say which root it counted: {json}"
+    );
+}

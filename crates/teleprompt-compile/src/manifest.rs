@@ -79,12 +79,14 @@ pub struct SegmentEntry {
     /// Hash of the **encoded audio file** named by `audio`, so a consumer
     /// can cache renders and skip re-encoding.
     ///
-    /// [`build`] cannot fill this in: it runs before anything is encoded,
-    /// and the only hash it has in hand is the `Timeline`'s, which is the
-    /// backend's *synthesis cache key* — a different thing that embeds the
-    /// teleprompt version and so changes on every release. `build` seeds
-    /// the field with that key and `teleprompt dub` overwrites it with
-    /// `Hash::of(&wav_bytes)` after encoding. See [`build`]'s note.
+    /// [`build`] cannot fill this in: it runs before anything is encoded.
+    /// The only hash it has in hand is the `Timeline`'s `audio_hash`, which
+    /// is a deliberately *different* quantity — the identity of the audio a
+    /// segment resolves to, derived from its synthesis cache key, which is
+    /// why it does not move when `dub` re-renders byte-identical audio.
+    /// This field describes the file: the bytes, and nothing else. `build`
+    /// seeds it with the timeline's value and `teleprompt dub` overwrites
+    /// it with `Hash::of(&wav_bytes)` after encoding. See [`build`]'s note.
     ///
     /// **Repeated values are not a bug.** This hashes content, so audio
     /// that is byte-identical hashes identically — which is the whole
@@ -123,8 +125,9 @@ pub fn audio_path(segment_id: &str, format: &str) -> String {
 /// a fallible signature that every caller would then `unwrap`.
 ///
 /// **`audio_hash` is seeded, not final.** Nothing here has encoded any
-/// audio, so each segment's `audio_hash` is set to the `Timeline`'s value,
-/// which is the voice backend's synthesis cache key. `teleprompt dub`
+/// audio, so each segment's `audio_hash` is set to the `Timeline`'s value —
+/// which answers a different question: *which* audio this segment resolves
+/// to, rather than what the file on disk contains. `teleprompt dub`
 /// replaces it with the hash of the bytes it actually wrote. The
 /// alternative — taking a `&[(String, Hash)]` of byte hashes here — was
 /// rejected because it would force every non-rendering caller (`build`'s
