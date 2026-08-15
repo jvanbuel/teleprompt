@@ -155,9 +155,15 @@ fn unterminated_front_matter_is_an_error() {
     let src = "---\nteleprompt: 1\n\n# C\n\nText.\n";
     let err = parse_script(src).unwrap_err();
     assert!(
-        err.0[0].message.contains("unterminated"),
+        err.0[0].message.contains("no closing `---` line was found"),
         "message was: {}",
         err.0[0].message
+    );
+    let help = err.0[0].help.as_deref().unwrap_or("");
+    assert!(
+        help.contains("horizontal rule"),
+        "help should also name the horizontal-rule reading so an author who \
+         meant a divider knows what to do; help was: {help}"
     );
 }
 

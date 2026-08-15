@@ -35,14 +35,18 @@ fn split_front_matter(src: &str) -> Result<(String, &str, usize), Diagnostic> {
             Ok((fm, after, lines))
         }
         None => Err(Diagnostic::error(
-            "unterminated front matter: found an opening `---` with no closing `---` line",
+            "the document opens with `---`, so it is read as front matter, but no closing `---` line was found",
         )
         .at(SourceSpan {
             line: 1,
             column: 1,
             len: 3,
         })
-        .with_help("add a closing `---` line after the front matter block")),
+        .with_help(
+            "add a closing `---` line after the front matter block; a `---` on the first \
+             line is always read as a front-matter opener, so a horizontal rule there needs \
+             to move or be removed",
+        )),
     }
 }
 
