@@ -1,7 +1,7 @@
 use teleprompt_core::Hash;
 
 use crate::contract::{
-    LanguageSupport, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
+    LanguageSupport, Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
 };
 
 pub struct NullVoice {
@@ -17,6 +17,11 @@ impl Default for NullVoice {
 const COMMA_MS: u64 = 150;
 const CLAUSE_MS: u64 = 250;
 const SENTENCE_MS: u64 = 350;
+
+/// 48 kHz because it divides a millisecond exactly (48 samples), so a
+/// duration in ms is always a whole number of frames and silence is never
+/// a rounding away from the estimate it is supposed to match.
+pub const NULL_SAMPLE_RATE: u32 = 48_000;
 
 pub fn estimate_ms(text: &str, wpm: f64, speed: f64) -> u64 {
     let words = text
@@ -64,6 +69,16 @@ impl VoiceBackend for NullVoice {
             audio_hash: Hash::of(self.cache_key(req).as_bytes()),
             word_timings: None,
         })
+    }
+
+    fn render_pcm(&self, req: &SynthRequest) -> Result<Option<Pcm>, VoiceError> {
+        let ms = self.synthesize(req)?.duration_ms;
+        let frames = (ms * NULL_SAMPLE_RATE as u64).div_ceil(1000) as usize;
+        Ok(Some(Pcm {
+            sample_rate: NULL_SAMPLE_RATE,
+            channels: 1,
+            samples: vec![0; frames],
+        }))
     }
 
     fn cache_key(&self, req: &SynthRequest) -> String {

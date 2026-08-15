@@ -1,4 +1,4 @@
-use teleprompt_voice::{NullVoice, SynthRequest, VoiceBackend};
+use teleprompt_voice::{NullVoice, Pcm, SynthRequest, VoiceBackend, NULL_SAMPLE_RATE};
 
 fn req(text: &str) -> SynthRequest {
     SynthRequest {
@@ -121,4 +121,54 @@ fn wpm_affects_cache_key_and_hash() {
         slow.synthesize(&req_text).unwrap().duration_ms,
         fast.synthesize(&req_text).unwrap().duration_ms
     );
+}
+
+#[test]
+fn null_renders_silence_matching_its_own_estimate() {
+    let v = NullVoice::default();
+    let r = req("Every video in this repository is built from a script you can read.");
+
+    let estimated = v.synthesize(&r).unwrap().duration_ms;
+    let pcm = v
+        .render_pcm(&r)
+        .unwrap()
+        .expect("null renders silence, not nothing");
+
+    assert_eq!(pcm.sample_rate, NULL_SAMPLE_RATE);
+    assert_eq!(pcm.channels, 1);
+    assert!(
+        pcm.samples.iter().all(|s| *s == 0),
+        "null is silence, not noise"
+    );
+    assert_eq!(
+        pcm.duration_ms(),
+        estimated,
+        "audio length must equal the duration the manifest will claim"
+    );
+}
+
+#[test]
+fn null_renders_nothing_for_empty_text() {
+    let v = NullVoice::default();
+    let pcm = v.render_pcm(&req("   ")).unwrap().unwrap();
+    assert_eq!(pcm.samples.len(), 0);
+    assert_eq!(pcm.duration_ms(), 0);
+}
+
+#[test]
+fn null_rejects_a_non_positive_speed_when_rendering_too() {
+    let v = NullVoice::default();
+    let mut r = req("hello");
+    r.speed = 0.0;
+    assert!(v.render_pcm(&r).is_err());
+}
+
+#[test]
+fn pcm_duration_is_computed_per_frame_not_per_sample() {
+    let stereo = Pcm {
+        sample_rate: 48_000,
+        channels: 2,
+        samples: vec![0; 96_000], // 48_000 frames = 1000 ms
+    };
+    assert_eq!(stereo.duration_ms(), 1000);
 }
