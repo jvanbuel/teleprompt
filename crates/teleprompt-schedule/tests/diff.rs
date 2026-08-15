@@ -249,6 +249,8 @@ fn rendered_shift_reconciles_with_the_rounded_endpoints() {
         changed: vec![],
         added: vec!["b1".to_string()],
         removed: vec![],
+        reordered: vec![],
+        transitions: vec![],
         stale_takes: vec![],
         recapture: vec![],
     };
@@ -263,4 +265,182 @@ fn rendered_shift_reconciles_with_the_rounded_endpoints() {
     // only the prose header is corrected, not the underlying data, so a
     // future refactor can't "fix" this by rounding what's stored.
     assert_eq!(d.shift_ms, 49);
+}
+
+// ---------------------------------------------------------------------------
+// Final review, item 1: `diff` was blind to whole classes of drift.
+//
+// Every test above this line builds its beats with
+// `TransitionDuration::Fixed(0)` and none of them reorders beats, which is
+// why 195 green tests said nothing about any of the following.
+// ---------------------------------------------------------------------------
+
+/// Guard: the fix must not make an unchanged timeline look changed. This is
+/// the property every one of the checks below is traded against, so it is
+/// asserted on the exact rendered string, not on `is_empty()` alone.
+#[test]
+fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
+    let build = || {
+        let mut auto = Config::default();
+        auto.transition.duration = TransitionDuration::Auto;
+        let mut b1 = beat("b1", 4000, "one");
+        b1.config = auto.clone();
+        b1.action = Some(ActionInput {
+            span_id: "s1".into(),
+            scene: "mock".into(),
+            adapter: "mock".into(),
+            span_hash: Hash::of(b"s1"),
+            duration_ms: 500,
+            duration_source: DurationSource::Exact,
+        });
+        let mut b2 = beat("b2", 2000, "two");
+        b2.config = auto;
+        timeline(vec![b1, b2])
+    };
+    let d = diff(&build(), &build());
+    assert!(d.is_empty());
+    assert_eq!(d.render(), "no timeline changes");
+}
+
+/// Vector one, reproduced against the real binary as
+/// `output.transition.max_ms: 600 -> 0`: every gap between beats changes,
+/// the total moves, and yet not one per-beat hash or duration differs.
+/// Before the fix this printed `no timeline changes` and exited 0.
+#[test]
+fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
+    let build = |max_ms: u64| {
+        let mut c = Config::default();
+        c.transition.duration = TransitionDuration::Auto;
+        c.transition.max_ms = max_ms;
+        let mut b1 = beat("b1", 4000, "one");
+        b1.config = c.clone();
+        b1.action = Some(ActionInput {
+            span_id: "s1".into(),
+            scene: "mock".into(),
+            adapter: "mock".into(),
+            span_hash: Hash::of(b"s1"),
+            duration_ms: 500,
+            duration_source: DurationSource::Exact,
+        });
+        b1.policy = Policy::Concurrent(teleprompt_schedule::Align::Start);
+        let mut b2 = beat("b2", 2000, "two");
+        b2.config = c;
+        timeline(vec![b1, b2])
+    };
+    let before = build(600);
+    let after = build(0);
+    assert_ne!(
+        before.duration_ms, after.duration_ms,
+        "the fixture must actually move the total, or it proves nothing"
+    );
+
+    let d = diff(&before, &after);
+    assert!(!d.is_empty(), "a re-timed timeline is not a clean diff");
+    assert_eq!(d.transitions.len(), 1, "only b1 has an outgoing transition");
+    assert_eq!(d.transitions[0].beat, "b1");
+    assert_eq!(d.transitions[0].before_ms, 600);
+    assert_eq!(d.transitions[0].after_ms, 0);
+    assert!(d.changed.is_empty(), "no beat's own content changed");
+
+    let rendered = d.render();
+    assert!(rendered.contains("transitions:"), "{rendered}");
+    assert!(rendered.contains("b1"), "{rendered}");
+}
+
+/// Vector two: two paragraphs that both carry an explicit `{#id}` swap
+/// places. Nothing is added, nothing is removed, no beat's content changes —
+/// only the order the video plays them in. Before the fix this printed
+/// `no timeline changes`.
+#[test]
+fn swapping_two_beats_is_reported_as_reordering_not_as_add_remove() {
+    let before = timeline(vec![beat("alpha", 1000, "one"), beat("beta", 2000, "two")]);
+    let after = timeline(vec![beat("beta", 2000, "two"), beat("alpha", 1000, "one")]);
+
+    let d = diff(&before, &after);
+    assert!(!d.is_empty(), "a reordered timeline is not a clean diff");
+    assert!(d.added.is_empty(), "a reordered beat was not added");
+    assert!(d.removed.is_empty(), "a reordered beat was not removed");
+    assert_eq!(
+        d.reordered.len(),
+        1,
+        "a two-beat swap names one moved beat, not both: {:?}",
+        d.reordered
+    );
+    assert_ne!(
+        d.reordered[0].before_index, d.reordered[0].after_index,
+        "a reported beat must actually have moved"
+    );
+
+    let rendered = d.render();
+    assert!(rendered.contains("reordered:"), "{rendered}");
+    assert!(rendered.contains("position"), "{rendered}");
+}
+
+/// Adding a beat in the middle shifts every later beat's index, but nothing
+/// was reordered — the surviving beats still play in the same relative
+/// order. Reporting them would turn every insertion into a wall of noise.
+#[test]
+fn inserting_a_beat_shifts_indices_without_reporting_a_reorder() {
+    let before = timeline(vec![beat("b1", 1000, "one"), beat("b3", 1000, "three")]);
+    let after = timeline(vec![
+        beat("b1", 1000, "one"),
+        beat("b2", 1000, "two"),
+        beat("b3", 1000, "three"),
+    ]);
+
+    let d = diff(&before, &after);
+    assert_eq!(d.added, ["b2"]);
+    assert!(
+        d.reordered.is_empty(),
+        "an insertion is not a reorder: {:?}",
+        d.reordered
+    );
+}
+
+/// A total-duration change with no other observable cause must still fail
+/// `--exit-code`. `before_ms`/`after_ms`/`shift_ms` are independent facts,
+/// not summaries of `changed`.
+#[test]
+fn a_bare_total_duration_change_is_not_an_empty_diff() {
+    let d = TimelineDiff {
+        before_ms: 7150,
+        after_ms: 8350,
+        shift_ms: 1200,
+        changed: vec![],
+        added: vec![],
+        removed: vec![],
+        reordered: vec![],
+        transitions: vec![],
+        stale_takes: vec![],
+        recapture: vec![],
+    };
+    assert!(!d.is_empty());
+    assert!(d.render().contains("7.2s \u{2192} 8.4s"), "{}", d.render());
+}
+
+/// The narration's placement *within its own beat* is a local fact: a
+/// segment-level `lead_in=` retune that leaves the beat's overall length
+/// alone still moves the audio, and `diff` must say so.
+#[test]
+fn a_lead_in_retune_that_does_not_change_beat_length_is_still_reported() {
+    let build = |lead_in: u64| {
+        let mut b = beat("b1", 1000, "one");
+        {
+            let n = b.narration.as_mut().unwrap();
+            n.lead_in_ms = lead_in;
+            n.tail_ms = 300 - lead_in;
+        }
+        timeline(vec![b])
+    };
+    let before = build(150);
+    let after = build(50);
+    assert_eq!(
+        before.duration_ms, after.duration_ms,
+        "the fixture must keep the total fixed, or it proves nothing"
+    );
+
+    let d = diff(&before, &after);
+    assert!(!d.is_empty());
+    assert_eq!(d.changed.len(), 1);
+    assert_eq!(d.changed[0].reason, "padding changed");
 }

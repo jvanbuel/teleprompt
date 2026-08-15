@@ -24,6 +24,28 @@ pub struct StaleTake {
     pub falls_back_to: String,
 }
 
+/// A beat that exists on both sides but has moved in the entry sequence.
+/// Reordering is reported apart from `added`/`removed` because a reordered
+/// beat is neither: nothing was written or deleted, the video just plays its
+/// parts in a different order. Indices are 0-based positions in the full
+/// entry list; `render` prints them 1-based.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ReorderedBeat {
+    pub beat: String,
+    pub before_index: usize,
+    pub after_index: usize,
+}
+
+/// A beat whose outgoing transition changed kind, length, or both.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ChangedTransition {
+    pub beat: String,
+    pub before_kind: String,
+    pub after_kind: String,
+    pub before_ms: u64,
+    pub after_ms: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct TimelineDiff {
     pub before_ms: u64,
@@ -32,20 +54,32 @@ pub struct TimelineDiff {
     pub changed: Vec<ChangedBeat>,
     pub added: Vec<String>,
     pub removed: Vec<String>,
+    pub reordered: Vec<ReorderedBeat>,
+    pub transitions: Vec<ChangedTransition>,
     pub stale_takes: Vec<StaleTake>,
     pub recapture: Vec<String>,
 }
 
 impl TimelineDiff {
-    /// True when nothing an author needs to look at changed. Note this
-    /// deliberately ignores `shift_ms`/`before_ms`/`after_ms`: those are
-    /// derived summaries of `changed`, not independent facts, so a zero
-    /// shift with no changed beats and no added/removed/stale/recapture
-    /// entries is the only way to get here.
+    /// True when nothing an author needs to look at changed.
+    ///
+    /// Every field participates, `shift_ms` included. An earlier version of
+    /// this method skipped the three duration fields on the grounds that they
+    /// were "derived summaries of `changed`, not independent facts". They are
+    /// not: the total is `last.start_ms + last.duration_ms`, and plenty of
+    /// edits move it without touching any per-beat fact this diff inspects —
+    /// retuning `output.transition.max_ms`, for one, changes every gap
+    /// between beats while leaving each beat's own hashes and durations
+    /// alone. Treating the total as derived is exactly what let
+    /// `diff --exit-code` report clean over a genuinely stale committed
+    /// timeline, which is the one thing spec §13 asks it to catch.
     pub fn is_empty(&self) -> bool {
-        self.changed.is_empty()
+        self.shift_ms == 0
+            && self.changed.is_empty()
             && self.added.is_empty()
             && self.removed.is_empty()
+            && self.reordered.is_empty()
+            && self.transitions.is_empty()
             && self.stale_takes.is_empty()
             && self.recapture.is_empty()
     }
@@ -124,6 +158,45 @@ impl TimelineDiff {
             }
         }
 
+        if !self.reordered.is_empty() {
+            out.push_str("\n\nreordered:");
+            for r in &self.reordered {
+                out.push_str(&format!(
+                    "\n  {:<16} position {} \u{2192} {}",
+                    r.beat,
+                    r.before_index + 1,
+                    r.after_index + 1
+                ));
+            }
+        }
+
+        if !self.transitions.is_empty() {
+            out.push_str("\n\ntransitions:");
+            for t in &self.transitions {
+                // Only name the kind twice when it actually changed; a
+                // max_ms retune touches every beat's transition, and
+                // repeating "crossfade → crossfade" on each line is noise.
+                if t.before_kind == t.after_kind {
+                    out.push_str(&format!(
+                        "\n  {:<16} {} {} \u{2192} {}",
+                        t.beat,
+                        t.before_kind,
+                        secs(t.before_ms),
+                        secs(t.after_ms)
+                    ));
+                } else {
+                    out.push_str(&format!(
+                        "\n  {:<16} {} {} \u{2192} {} {}",
+                        t.beat,
+                        t.before_kind,
+                        secs(t.before_ms),
+                        t.after_kind,
+                        secs(t.after_ms)
+                    ));
+                }
+            }
+        }
+
         if !self.stale_takes.is_empty() {
             out.push_str("\n\nstale takes (build will fall back unless re-recorded):");
             for s in &self.stale_takes {
@@ -185,9 +258,24 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
     let mut changed = Vec::new();
     let mut recapture = Vec::new();
     let mut stale_takes = Vec::new();
+    let mut transitions = Vec::new();
 
     for (id, n) in &new {
         if let Some(o) = old.get(id) {
+            // A beat's outgoing transition is part of the committed timeline
+            // and is not implied by any other field: retuning
+            // `output.transition.max_ms` re-times every gap while leaving
+            // each beat's hashes and own duration untouched.
+            if o.transition != n.transition {
+                transitions.push(ChangedTransition {
+                    beat: (*id).to_string(),
+                    before_kind: o.transition.kind.clone(),
+                    after_kind: n.transition.kind.clone(),
+                    before_ms: o.transition.duration_ms,
+                    after_ms: n.transition.duration_ms,
+                });
+            }
+
             // A narration change is reported whenever *any* of the three
             // narration facts differ, not only when duration does: a
             // reworded sentence of identical spoken length still leaves a
@@ -196,15 +284,29 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
             // `--exit-code` report clean while the committed timeline is
             // stale. The two possible causes read very differently to the
             // author, so the reason still says which one happened.
+            //
+            // The narration's placement *within its own beat* counts too.
+            // Its absolute `start_ms` deliberately does not: that shifts
+            // whenever any earlier beat changes length, and flagging every
+            // downstream beat would bury the one the author actually edited.
+            // The offset from the beat's own start is local — it moves only
+            // when this beat's padding or alignment moved — so it catches a
+            // segment-level `lead_in=` retune that happens not to change the
+            // beat's overall length, without any cascade.
             if let (Some(on), Some(nn)) = (&o.narration, &n.narration) {
+                let offset_moved = on.start_ms.saturating_sub(o.start_ms)
+                    != nn.start_ms.saturating_sub(n.start_ms);
                 if on.source_hash != nn.source_hash
                     || on.audio_hash != nn.audio_hash
                     || on.duration_ms != nn.duration_ms
+                    || offset_moved
                 {
                     let reason = if on.source_hash != nn.source_hash {
                         "text edited"
-                    } else {
+                    } else if on.audio_hash != nn.audio_hash || on.duration_ms != nn.duration_ms {
                         "audio changed"
+                    } else {
+                        "padding changed"
                     };
                     changed.push(ChangedBeat {
                         beat: (*id).to_string(),
@@ -239,7 +341,15 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                 let action_appeared_or_vanished = o.action.is_some() != n.action.is_some();
                 let action_itself_changed = match (&o.action, &n.action) {
                     (Some(oa), Some(na)) => {
-                        oa.span_hash != na.span_hash || oa.duration_ms != na.duration_ms
+                        oa.span_hash != na.span_hash
+                            || oa.duration_ms != na.duration_ms
+                            // Same local-offset reasoning as narration above:
+                            // where in its beat the action sits is a fact of
+                            // this beat alone, so comparing it costs no
+                            // cascade noise and catches an alignment change
+                            // that leaves the beat's length intact.
+                            || oa.start_ms.saturating_sub(o.start_ms)
+                                != na.start_ms.saturating_sub(n.start_ms)
                     }
                     _ => false,
                 };
@@ -283,7 +393,104 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
         changed,
         added,
         removed,
+        reordered: reordered(before, after),
+        transitions,
         stale_takes,
         recapture,
     }
+}
+
+/// Beats that survive the edit but play in a different order.
+///
+/// Only beats present on both sides take part: an added or removed beat
+/// necessarily shifts everything after it, and reporting those shifts as
+/// "reordered" would double-count a change already named under
+/// `added`/`removed`. What is left is compared as two sequences, and the
+/// beats reported are those *outside* a longest common subsequence of the
+/// two — the smallest set whose removal makes the orders agree. Swapping two
+/// paragraphs therefore names one beat, and moving a chapter's opening beat
+/// to the end names that beat rather than every beat it passed.
+fn reordered(before: &Timeline, after: &Timeline) -> Vec<ReorderedBeat> {
+    let in_after: std::collections::BTreeSet<&str> =
+        after.entries.iter().map(|e| e.beat.as_str()).collect();
+    let in_before: std::collections::BTreeSet<&str> =
+        before.entries.iter().map(|e| e.beat.as_str()).collect();
+
+    // Position in the *full* entry list, so the rendered positions match what
+    // an author counts in `teleprompt plan`.
+    let old_pos: BTreeMap<&str, usize> = before
+        .entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (e.beat.as_str(), i))
+        .collect();
+    let new_pos: BTreeMap<&str, usize> = after
+        .entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (e.beat.as_str(), i))
+        .collect();
+
+    let a: Vec<&str> = before
+        .entries
+        .iter()
+        .map(|e| e.beat.as_str())
+        .filter(|id| in_after.contains(id))
+        .collect();
+    let b: Vec<&str> = after
+        .entries
+        .iter()
+        .map(|e| e.beat.as_str())
+        .filter(|id| in_before.contains(id))
+        .collect();
+
+    if a == b {
+        return Vec::new();
+    }
+
+    let kept = longest_common_subsequence(&a, &b);
+    b.iter()
+        .filter(|id| !kept.contains(*id))
+        .map(|id| ReorderedBeat {
+            beat: (*id).to_string(),
+            before_index: old_pos[id],
+            after_index: new_pos[id],
+        })
+        .collect()
+}
+
+/// Standard O(n·m) LCS over two id sequences, returned as a set. Beat ids are
+/// unique within a timeline, so membership is all the caller needs. Ties in
+/// the DP resolve toward `a`, which only decides *which* of two mutually
+/// swapped beats is named as having moved — deterministically either way.
+fn longest_common_subsequence<'a>(
+    a: &[&'a str],
+    b: &[&'a str],
+) -> std::collections::BTreeSet<&'a str> {
+    let (n, m) = (a.len(), b.len());
+    let mut table = vec![vec![0usize; m + 1]; n + 1];
+    for i in (0..n).rev() {
+        for j in (0..m).rev() {
+            table[i][j] = if a[i] == b[j] {
+                table[i + 1][j + 1] + 1
+            } else {
+                table[i + 1][j].max(table[i][j + 1])
+            };
+        }
+    }
+
+    let mut kept = std::collections::BTreeSet::new();
+    let (mut i, mut j) = (0, 0);
+    while i < n && j < m {
+        if a[i] == b[j] {
+            kept.insert(a[i]);
+            i += 1;
+            j += 1;
+        } else if table[i + 1][j] >= table[i][j + 1] {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    kept
 }
