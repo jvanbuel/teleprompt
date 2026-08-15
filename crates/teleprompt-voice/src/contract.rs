@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use teleprompt_core::Hash;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +25,7 @@ pub struct SynthRequest {
     pub speed: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WordTiming {
     pub word: String,
     pub start_ms: u64,

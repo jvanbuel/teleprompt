@@ -454,6 +454,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-cache"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "teleprompt-core",
+ "teleprompt-voice",
+ "thiserror",
+]
+
+[[package]]
 name = "teleprompt-cli"
 version = "0.1.0"
 dependencies = [
