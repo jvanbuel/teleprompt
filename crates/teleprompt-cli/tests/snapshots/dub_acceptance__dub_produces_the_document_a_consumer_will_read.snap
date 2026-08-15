@@ -1,0 +1,79 @@
+---
+source: crates/teleprompt-cli/tests/dub_acceptance.rs
+assertion_line: 52
+expression: manifest
+---
+{
+  "audio": {
+    "channels": 1,
+    "format": "wav",
+    "sample_rate": 48000
+  },
+  "chapters": [
+    {
+      "id": "introduction",
+      "start_ms": 150,
+      "title": "Introduction"
+    },
+    {
+      "id": "deploying",
+      "start_ms": 21500,
+      "title": "Deploying"
+    }
+  ],
+  "duration_ms": 34350,
+  "generated_by": "teleprompt 0.1.0",
+  "locale": "en",
+  "manifest_version": 1,
+  "script": "test.md",
+  "segments": [
+    {
+      "audio": "audio/welcome.wav",
+      "audio_hash": "bac4d5975c9cf350c45c411a003e588ea353a444bea2333c1edc8276b134cf23",
+      "downgrade_reason": null,
+      "duration_ms": 12200,
+      "id": "welcome",
+      "source_hash": "876ebe63cc761f4d46d15c4b4aae02bbfca440fea592b67e207978dc25c7f9c7",
+      "start_ms": 150,
+      "text": "Welcome to Acme. In the next two minutes I will show you how to get a project running, deploy it, and roll it back when something goes wrong.",
+      "voice_source": "synthetic",
+      "voice_source_actual": "synthetic"
+    },
+    {
+      "audio": "audio/provenance.wav",
+      "audio_hash": "590a54107dac4bf0f7a4092dcfd298d0504fc1675f86a83e9110a65a1e2aa31a",
+      "downgrade_reason": null,
+      "duration_ms": 8750,
+      "id": "provenance",
+      "source_hash": "4b380a79f5acfff997d3b61abf110c87862f8d41315cba07e67647d7ccb903a7",
+      "start_ms": 12450,
+      "text": "Everything you see here is generated from a single Markdown file that lives in version control alongside the code it documents.",
+      "voice_source": "synthetic",
+      "voice_source_actual": "synthetic"
+    },
+    {
+      "audio": "audio/deploy.wav",
+      "audio_hash": "020f6e70ec93c5183f6402d2755ed3d97ba88f492503ee3814a76c88fe10d30c",
+      "downgrade_reason": null,
+      "duration_ms": 4900,
+      "id": "deploy",
+      "source_hash": "07ddd90d4a5f4916a13439a5f2c0ad63b600da4d033bd8aa227e944fd23db8dd",
+      "start_ms": 21500,
+      "text": "Deployment is one command, and it streams progress as it goes.",
+      "voice_source": "synthetic",
+      "voice_source_actual": "synthetic"
+    },
+    {
+      "audio": "audio/rollback.wav",
+      "audio_hash": "272aa8a3dca3dfc10c9ee722b6039177e5ff89c619130bec560d22059abfce74",
+      "downgrade_reason": null,
+      "duration_ms": 6900,
+      "id": "rollback",
+      "source_hash": "79bc51f2693074a0f8dd859de940da9df1568293ffeb82e76dc5a15da225de3b",
+      "start_ms": 27300,
+      "text": "If a deploy goes wrong, rolling back takes the same single command with one extra flag.",
+      "voice_source": "synthetic",
+      "voice_source_actual": "synthetic"
+    }
+  ]
+}
