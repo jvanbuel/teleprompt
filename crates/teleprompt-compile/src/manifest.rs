@@ -80,6 +80,16 @@ pub struct SegmentEntry {
     /// teleprompt version and so changes on every release. `build` seeds
     /// the field with that key and `teleprompt dub` overwrites it with
     /// `Hash::of(&wav_bytes)` after encoding. See [`build`]'s note.
+    ///
+    /// **Repeated values are not a bug.** This hashes content, so audio
+    /// that is byte-identical hashes identically — which is the whole
+    /// point, since that is exactly when a consumer may reuse a cached
+    /// render. It is conspicuous with the `null` backend in particular:
+    /// `null` emits pure silence, so every segment of the same duration
+    /// produces the same bytes and therefore the same hash, and a manifest
+    /// full of repeated hashes is the correct output. Real speech differs
+    /// per segment and the repetition disappears. Segment identity for
+    /// drift purposes comes from `source_hash`, which does not collide.
     pub audio_hash: Hash,
     /// Omitted entirely when the backend has no word timings, so absence is
     /// unambiguous and never confused with an empty list.

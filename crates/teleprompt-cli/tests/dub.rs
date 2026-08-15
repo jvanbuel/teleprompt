@@ -242,6 +242,37 @@ fn an_id_that_escapes_the_output_directory_is_rejected_before_anything_is_writte
     assert_eq!(code(&tp(&root, &["check", "scripts/test.md"])), 2);
 }
 
+/// The other side of I1: the hazard is traversal and control characters,
+/// not non-ASCII letters. teleprompt is localization-first, so a heading in
+/// a language it exists to dub must produce a working segment, a working
+/// file, and a working manifest path — end to end, not just past
+/// `assign_ids`.
+#[test]
+fn a_non_ascii_heading_dubs_to_a_real_file() {
+    let root = project_with("unicode", "# Café\n\nUn café, s'il vous plaît.\n");
+    let out = tp(
+        &root,
+        &["dub", "scripts/test.md", "--out", "public/narration"],
+    );
+    assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
+
+    let m = read_manifest(&root);
+    let seg = &m["segments"][0];
+    assert_eq!(seg["id"], "café-1");
+    assert_eq!(seg["audio"], "audio/café-1.wav");
+    assert_eq!(seg["chapter"], "café");
+
+    let wav = root
+        .join("public/narration/en")
+        .join(seg["audio"].as_str().unwrap());
+    assert!(wav.exists(), "{}", wav.display());
+    assert_eq!(&std::fs::read(&wav).unwrap()[0..4], b"RIFF");
+    assert_eq!(wav_ms(&root, &m, seg), seg["duration_ms"].as_u64().unwrap());
+
+    // Still exactly one path segment below `audio/`.
+    assert!(wav.starts_with(root.join("public/narration/en/audio")));
+}
+
 const RECORDED: &str = "\
 ---
 voice:

@@ -54,6 +54,15 @@ enum Command {
         exit_code: bool,
     },
     /// Synthesize narration and write audio plus a manifest
+    ///
+    /// Placing a segment: convert its own absolute offsets to frames and
+    /// subtract — round(start_ms * fps / 1000) and round((start_ms +
+    /// duration_ms) * fps / 1000). Never round duration_ms on its own
+    /// (rounding error accumulates and drifts audio out of sync by the end
+    /// of a long video), and never take the next segment's start_ms as this
+    /// one's end: consecutive segments may overlap, so that clips the tail
+    /// of the speech. A segment's own duration_ms is authoritative for its
+    /// length.
     Dub {
         script: PathBuf,
         #[arg(long, default_value = "en")]

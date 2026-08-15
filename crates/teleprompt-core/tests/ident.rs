@@ -192,21 +192,55 @@ fn the_allowed_set_is_actually_allowed() {
     );
 }
 
-/// The rule covers derived ids too, not just explicit ones: a derived id
-/// becomes exactly the same file name, and the diagnostic tells the author
-/// to pin one by hand.
+/// End to end for the relaxed rule: a non-ASCII heading must survive the
+/// whole of `check`, not merely `assign_ids`, and must produce the audio
+/// path a consumer will resolve.
 #[test]
-fn a_derived_id_from_a_non_ascii_heading_is_an_error() {
-    let diags = diags_for("# Café\n\nOne.\n");
+fn a_non_ascii_id_is_a_usable_audio_path() {
+    let id = &ids("# Café\n\nOne.\n")[0];
+    let path = format!("audio/{id}.wav");
+    assert_eq!(path, "audio/café-1.wav");
     assert!(
-        diags
-            .iter()
-            .any(|d| d.is_error() && d.message.contains("café-1")),
-        "{diags:?}"
+        !path.contains("..") && !path[6..].contains('/'),
+        "still one path segment, still inside `audio/`: {path}"
     );
-    assert!(diags
-        .iter()
-        .any(|d| d.help.as_deref().unwrap_or_default().contains("{#id}")));
+}
+
+/// Not a tab or a newline: those are whitespace, and the parser takes an
+/// id only up to the first whitespace, so they never arrive here as part
+/// of one. DEL and the C0 controls do arrive, and they are the half of the
+/// hazard that is about the filesystem rather than about traversal.
+#[test]
+fn a_control_character_in_an_id_is_an_error() {
+    for src in [
+        "# A\n\nOne. {#del\u{7f}here}\n",
+        "# A\n\nOne. {#bell\u{7}}\n",
+    ] {
+        let diags = diags_for(src);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.is_error() && d.message.contains("control character")),
+            "{src:?} should be rejected, got {diags:?}"
+        );
+    }
+}
+
+/// The rule covers derived ids too, not just explicit ones: a derived id
+/// becomes exactly the same file name. But the hazard is path traversal
+/// and control characters, **not** non-ASCII letters — teleprompt is a
+/// localization-first tool, and a heading in the languages it exists to
+/// dub must not be an error. `café-1.wav` is a perfectly good file name.
+#[test]
+fn a_non_ascii_heading_yields_a_usable_derived_id() {
+    assert_eq!(ids("# Café\n\nOne.\n"), ["café-1"]);
+    assert_eq!(ids("# Развёртывание\n\nOne.\n"), ["развёртывание-1"]);
+    assert_eq!(ids("# 配置\n\nOne.\n"), ["配置-1"]);
+}
+
+#[test]
+fn a_non_ascii_explicit_id_is_accepted() {
+    assert_eq!(ids("# A\n\nOne. {#präsentation}\n"), ["präsentation"]);
 }
 
 #[test]

@@ -44,13 +44,33 @@ impl BlockId {
 /// would change the join key an author pinned by hand, and break every
 /// consumer that already referenced it.
 ///
-/// The permitted set is the intersection of what a file name and a URL
-/// path segment both tolerate without escaping: ASCII alphanumerics, `-`,
-/// `_`, and `.`.
-const ID_HELP: &str = "ids become file names and URL path segments: use ASCII \
-                       letters, digits, `-`, `_`, and `.`, and do not start with \
-                       `.`; a derived id comes from the chapter heading, so pin \
-                       one with `{#id}` when the heading cannot supply it";
+/// # What the hazard actually is
+///
+/// Path traversal and filesystem control characters — **not** non-ASCII
+/// letters. `café-1.wav` is a valid file name on every modern filesystem
+/// and a valid URL path segment once percent-encoded, so it is permitted.
+///
+/// An earlier revision of this check required ASCII, which made `# Café`
+/// or `# Развёртывание` a hard error. That is wrong for this project
+/// specifically: teleprompt's design is localization-first — per-locale
+/// scripts, translation sidecars, per-locale builds — so a rule that
+/// refuses a heading in the languages teleprompt exists to dub is broken
+/// for its own audience. Transliterating instead was considered and
+/// rejected: it needs a table teleprompt would have to own and maintain,
+/// and it still collapses on Cyrillic or CJK, so it reaches an
+/// English-only identifier scheme by a longer route.
+///
+/// So the permitted set is [`char::is_alphanumeric`], which is
+/// Unicode-aware, plus `-`, `_`, and `.`. Everything rejected below is
+/// rejected because it is a path, not because of what alphabet it is in.
+/// Control characters are covered by the allow-list already — none of them
+/// are alphanumeric — but they get their own branch so the diagnostic can
+/// say what is wrong instead of trying to print the character.
+const ID_HELP: &str = "ids become file names and URL path segments: use letters \
+                       (in any script), digits, `-`, `_`, and `.`, and do not \
+                       start with `.`; a derived id comes from the chapter \
+                       heading, so pin one with `{#id}` when the heading cannot \
+                       supply it";
 
 fn id_error(id: &str) -> Option<String> {
     if id == "." || id == ".." {
@@ -62,9 +82,12 @@ fn id_error(id: &str) -> Option<String> {
     if id.contains('/') || id.contains('\\') {
         return Some(format!("segment id `{id}` contains a path separator"));
     }
+    if id.chars().any(char::is_control) {
+        return Some(format!("segment id `{id}` contains a control character"));
+    }
     if let Some(c) = id
         .chars()
-        .find(|c| !(c.is_ascii_alphanumeric() || *c == '-' || *c == '_' || *c == '.'))
+        .find(|c| !(c.is_alphanumeric() || *c == '-' || *c == '_' || *c == '.'))
     {
         return Some(format!("segment id `{id}` contains `{c}`"));
     }
