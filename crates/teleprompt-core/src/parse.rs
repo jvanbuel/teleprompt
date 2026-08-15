@@ -6,7 +6,10 @@ use crate::{Diagnostic, Diagnostics, SourceSpan};
 const FENCE_TAG: &str = "teleprompt";
 
 pub fn parse_script(src: &str) -> Result<Script, Diagnostics> {
-    let (front_matter, body, body_offset) = split_front_matter(src);
+    let (front_matter, body, body_offset) = match split_front_matter(src) {
+        Ok(v) => v,
+        Err(d) => return Err(Diagnostics(vec![d])),
+    };
     let mut diags = Vec::new();
     let chapters = parse_body(body, body_offset, &mut diags);
 
@@ -20,18 +23,26 @@ pub fn parse_script(src: &str) -> Result<Script, Diagnostics> {
     })
 }
 
-fn split_front_matter(src: &str) -> (String, &str, usize) {
+fn split_front_matter(src: &str) -> Result<(String, &str, usize), Diagnostic> {
     let Some(rest) = src.strip_prefix("---\n") else {
-        return (String::new(), src, 0);
+        return Ok((String::new(), src, 0));
     };
     match rest.find("\n---\n") {
         Some(end) => {
             let fm = rest[..end].to_string();
             let after = &rest[end + 5..];
             let lines = 1 + rest[..end + 5].lines().count();
-            (fm, after, lines)
+            Ok((fm, after, lines))
         }
-        None => (String::new(), src, 0),
+        None => Err(Diagnostic::error(
+            "unterminated front matter: found an opening `---` with no closing `---` line",
+        )
+        .at(SourceSpan {
+            line: 1,
+            column: 1,
+            len: 3,
+        })
+        .with_help("add a closing `---` line after the front matter block")),
     }
 }
 
@@ -41,6 +52,7 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
     let parser = Parser::new_ext(body, opts).into_offset_iter();
 
     let mut chapters: Vec<Chapter> = Vec::new();
+    let mut chapter_configured: Vec<bool> = Vec::new();
     let mut state = State::Idle;
     let mut text = String::new();
     let mut fence_info = String::new();
@@ -66,6 +78,7 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
                     nodes: Vec::new(),
                     front_matter: String::new(),
                 });
+                chapter_configured.push(false);
                 state = State::Idle;
                 text.clear();
             }
@@ -76,7 +89,8 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
             Event::End(TagEnd::Paragraph) => {
                 let raw = text.trim().to_string();
                 if !raw.is_empty() {
-                    push_node(&mut chapters, paragraph_node(&raw, span), span, diags);
+                    let node = paragraph_node(&raw, span, diags);
+                    push_node(&mut chapters, node, span, diags);
                 }
                 state = State::Idle;
                 text.clear();
@@ -95,8 +109,21 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
             }
             Event::End(TagEnd::CodeBlock) => {
                 if matches!(state, State::ChapterConfig) {
+                    let already_configured = chapter_configured.last().copied().unwrap_or(false);
                     match chapters.last_mut() {
-                        Some(ch) if ch.nodes.is_empty() => ch.front_matter = text.clone(),
+                        Some(ch) if already_configured => diags.push(
+                            Diagnostic::error(format!(
+                                "chapter `{}` already has front matter; a second `yaml teleprompt` block is not allowed",
+                                ch.slug
+                            ))
+                            .at(span),
+                        ),
+                        Some(ch) if ch.nodes.is_empty() => {
+                            ch.front_matter = text.clone();
+                            if let Some(flag) = chapter_configured.last_mut() {
+                                *flag = true;
+                            }
+                        }
                         Some(_) => diags.push(
                             Diagnostic::error(
                                 "chapter configuration must come directly after the heading",
@@ -136,11 +163,19 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
                     text.push_str(&t);
                 }
             }
-            Event::Html(h) | Event::InlineHtml(h) => {
-                if let Some(node) = directive_from_html(&h) {
-                    push_node(&mut chapters, Some(node), span, diags);
+            Event::SoftBreak | Event::HardBreak => {
+                if !matches!(state, State::Idle)
+                    && !text.is_empty()
+                    && !text.ends_with(char::is_whitespace)
+                {
+                    text.push(' ');
                 }
             }
+            Event::Html(h) | Event::InlineHtml(h) => match directive_from_html(&h) {
+                Ok(Some(node)) => push_node(&mut chapters, Some(node), span, diags),
+                Ok(None) => {}
+                Err(message) => diags.push(Diagnostic::error(message).at(span)),
+            },
             _ => {}
         }
     }
@@ -156,9 +191,14 @@ enum State {
     ChapterConfig,
 }
 
-fn paragraph_node(raw: &str, span: SourceSpan) -> Option<Node> {
-    if let Some(node) = directive_from_html(raw) {
-        return Some(node);
+fn paragraph_node(raw: &str, span: SourceSpan, diags: &mut Vec<Diagnostic>) -> Option<Node> {
+    match directive_from_html(raw) {
+        Ok(Some(node)) => return Some(node),
+        Ok(None) => {}
+        Err(message) => {
+            diags.push(Diagnostic::error(message).at(span));
+            return None;
+        }
     }
     let (text, raw_attrs) = split_attr_suffix(raw);
     let id = raw_attrs
@@ -190,21 +230,44 @@ fn split_attr_suffix(raw: &str) -> (&str, String) {
     }
 }
 
-fn directive_from_html(html: &str) -> Option<Node> {
-    let inner = html
+/// Parses an HTML comment as a `teleprompt:` directive.
+///
+/// `Ok(None)` means the comment is not a teleprompt directive at all (an
+/// ordinary HTML comment, legitimately authored, stays silent). Once a
+/// comment carries the `teleprompt:` prefix the author's intent is
+/// unambiguous, so any failure past that point is `Err` naming the problem
+/// rather than a silently dropped directive.
+fn directive_from_html(html: &str) -> Result<Option<Node>, String> {
+    let Some(inner) = html
         .trim()
-        .strip_prefix("<!--")?
-        .strip_suffix("-->")?
-        .trim();
-    let rest = inner.strip_prefix("teleprompt:")?.trim();
-    let ms = rest
-        .strip_prefix("pause")?
-        .trim()
-        .strip_suffix("ms")?
-        .trim();
-    ms.parse()
-        .ok()
-        .map(|n| Node::Directive(Directive::Pause(n)))
+        .strip_prefix("<!--")
+        .and_then(|s| s.strip_suffix("-->"))
+    else {
+        return Ok(None);
+    };
+    let inner = inner.trim();
+    let Some(rest) = inner.strip_prefix("teleprompt:") else {
+        return Ok(None);
+    };
+    let rest = rest.trim();
+
+    let Some(arg) = rest.strip_prefix("pause") else {
+        let name = rest.split_whitespace().next().unwrap_or(rest);
+        return Err(format!(
+            "unknown teleprompt directive `{name}`; expected `pause <N>ms`"
+        ));
+    };
+    let arg = arg.trim();
+    let bad_value = || {
+        format!("invalid pause value `{arg}` in teleprompt directive; expected e.g. `pause 500ms`")
+    };
+    let Some(digits) = arg.strip_suffix("ms") else {
+        return Err(bad_value());
+    };
+    match digits.trim().parse::<u64>() {
+        Ok(n) => Ok(Some(Node::Directive(Directive::Pause(n)))),
+        Err(_) => Err(bad_value()),
+    }
 }
 
 fn push_node(

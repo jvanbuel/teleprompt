@@ -62,6 +62,30 @@ fn chapter_front_matter_is_optional() {
 }
 
 #[test]
+fn chapter_config_after_other_content_is_a_diagnostic() {
+    let src = "# A\n\nOne.\n\n```yaml teleprompt\ntiming:\n  lead_in_ms: 900\n```\n";
+    let err = parse_script(src).unwrap_err();
+    assert!(
+        err.0[0]
+            .message
+            .contains("must come directly after the heading"),
+        "message was: {}",
+        err.0[0].message
+    );
+}
+
+#[test]
+fn chapter_config_before_any_heading_is_a_diagnostic() {
+    let src = "```yaml teleprompt\ntiming:\n  lead_in_ms: 900\n```\n\n# A\n\nOne.\n";
+    let err = parse_script(src).unwrap_err();
+    assert!(
+        err.0[0].message.contains("before the first heading"),
+        "message was: {}",
+        err.0[0].message
+    );
+}
+
+#[test]
 fn malformed_chapter_front_matter_is_a_diagnostic() {
     let src = "# A\n\n```yaml teleprompt\ntiming: [nope\n```\n\nOne.\n";
     let mut s = parse_script(src).unwrap();

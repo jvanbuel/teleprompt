@@ -105,3 +105,114 @@ fn content_before_any_heading_is_an_error() {
     let err = parse_script(src).unwrap_err();
     assert!(err.0[0].message.contains("before the first heading"));
 }
+
+#[test]
+fn a_soft_wrapped_paragraph_joins_lines_with_a_single_space() {
+    let src = "# C\n\nrolling back takes the same single command with one\nextra flag.\n";
+    let s = parse_script(src).unwrap();
+    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected segment")
+    };
+    assert_eq!(
+        seg.text,
+        "rolling back takes the same single command with one extra flag."
+    );
+}
+
+#[test]
+fn a_paragraph_wrapped_across_three_lines_has_no_doubled_spaces() {
+    let src = "# C\n\none\ntwo\nthree\n";
+    let s = parse_script(src).unwrap();
+    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected segment")
+    };
+    assert_eq!(seg.text, "one two three");
+    assert!(!seg.text.contains("  "));
+}
+
+#[test]
+fn a_hard_break_via_trailing_spaces_is_a_single_space() {
+    let src = "# C\n\none  \ntwo\n";
+    let s = parse_script(src).unwrap();
+    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected segment")
+    };
+    assert_eq!(seg.text, "one two");
+}
+
+#[test]
+fn a_hard_break_via_backslash_is_a_single_space() {
+    let src = "# C\n\none\\\ntwo\n";
+    let s = parse_script(src).unwrap();
+    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected segment")
+    };
+    assert_eq!(seg.text, "one two");
+}
+
+#[test]
+fn unterminated_front_matter_is_an_error() {
+    let src = "---\nteleprompt: 1\n\n# C\n\nText.\n";
+    let err = parse_script(src).unwrap_err();
+    assert!(
+        err.0[0].message.contains("unterminated"),
+        "message was: {}",
+        err.0[0].message
+    );
+}
+
+#[test]
+fn a_malformed_pause_value_is_an_error_mentioning_the_bad_value() {
+    let src = "# C\n\n<!-- teleprompt: pause 80oms -->\n";
+    let err = parse_script(src).unwrap_err();
+    assert!(
+        err.0[0].message.contains("80oms"),
+        "message was: {}",
+        err.0[0].message
+    );
+}
+
+#[test]
+fn an_unknown_teleprompt_directive_is_an_error_naming_it() {
+    let src = "# C\n\n<!-- teleprompt: frobnicate -->\n";
+    let err = parse_script(src).unwrap_err();
+    assert!(
+        err.0[0].message.contains("frobnicate"),
+        "message was: {}",
+        err.0[0].message
+    );
+}
+
+#[test]
+fn an_ordinary_html_comment_is_silently_ignored() {
+    let src = "# C\n\n<!-- just a note -->\n\nText.\n";
+    let s = parse_script(src).unwrap();
+    assert_eq!(s.chapters[0].nodes.len(), 1);
+}
+
+#[test]
+fn two_chapter_config_blocks_back_to_back_is_an_error_naming_the_chapter() {
+    let src = "# Deploying\n\n```yaml teleprompt\ntiming:\n  lead_in_ms: 100\n```\n\n\
+               ```yaml teleprompt\ntiming:\n  lead_in_ms: 200\n```\n\nText.\n";
+    let err = parse_script(src).unwrap_err();
+    assert!(
+        err.0[0].message.contains("deploying"),
+        "message was: {}",
+        err.0[0].message
+    );
+}
+
+#[test]
+fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
+    let wrapped = "# C\n\nrolling back takes the same single command with one\nextra flag.\n";
+    let one_line = "# C\n\nrolling back takes the same single command with one extra flag.\n";
+    let a = parse_script(wrapped).unwrap();
+    let b = parse_script(one_line).unwrap();
+    let Node::Segment(sa) = &a.chapters[0].nodes[0] else {
+        panic!("expected segment")
+    };
+    let Node::Segment(sb) = &b.chapters[0].nodes[0] else {
+        panic!("expected segment")
+    };
+    assert_eq!(sa.text, sb.text);
+}

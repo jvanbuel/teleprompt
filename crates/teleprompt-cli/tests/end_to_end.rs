@@ -122,6 +122,51 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     assert!(rendered.contains('→'));
 }
 
+/// Exact-duration assertion (Task 17, item 6). Guards against silent
+/// regressions in text fidelity: before Task 17, `rollback`'s soft-wrapped
+/// paragraph had its two lines concatenated with no separator ("one" and
+/// "extra" fused into "oneextra"), which undercounted its words by one and
+/// made every duration derived from wrapped prose too short. Hand-derived
+/// from the null backend's documented model (see
+/// `teleprompt_voice::null::estimate_ms`) rather than copied from program
+/// output.
+///
+/// `rollback`'s beat uses `policy=trim`, whose layout sets the beat's
+/// `duration_ms` to exactly the (padded) narration length regardless of the
+/// action's duration (`teleprompt_schedule::policy::layout`, `Policy::Trim`
+/// arm) — so this is also an exact assertion on the beat, not just the
+/// narration slot.
+///
+/// Segment text (after soft-break-as-space joins the two source lines and
+/// the `{#rollback}` attribute suffix is stripped):
+///   "If a deploy goes wrong, rolling back takes the same single command
+///    with one extra flag."
+///
+/// Word count (16, every token has an alphanumeric char):
+///   If a deploy goes wrong, rolling back takes the same single command
+///   with one extra flag.  -> 16 words
+///
+/// Speech time at 150 wpm: 16 / 150 * 60_000 = 6_400 ms
+/// Punctuation pauses: 1 comma (150) + 1 sentence-ending period (350) = 500 ms
+/// Speed is 1.0 (default, unset by the fixture), so no division.
+/// Narration duration_ms = 6_400 + 500 = 6_900 ms
+/// Padded with 150 ms lead-in + 150 ms tail = 7_200 ms
+#[test]
+fn rollback_segment_has_the_hand_derived_exact_duration() {
+    let (p, s) = workspace();
+    let out = run_plan(&p, &s, "en").unwrap();
+    let entry = out
+        .timeline
+        .entry("rollback")
+        .expect("tour fixture has a `rollback` beat");
+    let narration = entry.narration.as_ref().expect("rollback beat narrates");
+    assert_eq!(narration.duration_ms, 6_900, "unpadded narration length");
+    assert_eq!(
+        entry.duration_ms, 7_200,
+        "trim policy sets beat duration_ms to the padded narration length"
+    );
+}
+
 #[test]
 fn an_unedited_script_diffs_clean_against_its_committed_timeline() {
     let (p, s) = workspace();
