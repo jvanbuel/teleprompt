@@ -7,7 +7,61 @@ use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::NullVoice;
+use teleprompt_voice::{
+    NullVoice, Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
+    WordTiming,
+};
+
+/// A backend that reports word timings, so the manifest's `WordTiming.word`
+/// -> `WordEntry.text` rename has something to actually exercise. Delegates
+/// duration and hashing to [`NullVoice`] and only replaces `word_timings`,
+/// so it stays as deterministic as the backend it wraps.
+#[derive(Default)]
+struct WordyVoice {
+    inner: NullVoice,
+}
+
+impl VoiceBackend for WordyVoice {
+    fn id(&self) -> &'static str {
+        "wordy"
+    }
+
+    fn capabilities(&self) -> VoiceCapabilities {
+        // Honest about what this stub does differently from the backend it
+        // wraps: everything else is `NullVoice`'s capabilities, but this one
+        // actually produces word timings.
+        VoiceCapabilities {
+            word_timings: true,
+            ..self.inner.capabilities()
+        }
+    }
+
+    fn synthesize(&self, req: &SynthRequest) -> Result<SynthResult, VoiceError> {
+        let mut result = self.inner.synthesize(req)?;
+        result.word_timings = Some(vec![
+            WordTiming {
+                word: "Every".to_string(),
+                start_ms: 0,
+                end_ms: 300,
+            },
+            WordTiming {
+                word: "video".to_string(),
+                start_ms: 300,
+                end_ms: 600,
+            },
+        ]);
+        Ok(result)
+    }
+
+    fn render_pcm(&self, req: &SynthRequest) -> Result<Option<Pcm>, VoiceError> {
+        // Unused on the manifest-building path; delegate rather than fake it.
+        self.inner.render_pcm(req)
+    }
+
+    fn cache_key(&self, req: &SynthRequest) -> String {
+        self.inner.cache_key(req)
+    }
+}
 
 fn program_for(src: &str) -> Program {
     let mut parsed = parse_script(src).expect("fixture parses");
@@ -49,12 +103,14 @@ fn compiled_and_manifest(src: &str) -> (CompileOutput, manifest::NarrationManife
     (out, m)
 }
 
-fn manifest_for(src: &str) -> manifest::NarrationManifest {
+/// Like `manifest_for`, but takes the voice backend as a parameter so a test
+/// can substitute a stub (e.g. `WordyVoice`) instead of `NullVoice`.
+fn manifest_for_with(src: &str, voice: &dyn VoiceBackend) -> manifest::NarrationManifest {
     let program = program_for(src);
     let out = compile(
         &program,
         &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
+        voice,
         Path::new("."),
         "0.1.0",
     )
@@ -69,6 +125,10 @@ fn manifest_for(src: &str) -> manifest::NarrationManifest {
             channels: 1,
         },
     )
+}
+
+fn manifest_for(src: &str) -> manifest::NarrationManifest {
+    manifest_for_with(src, &NullVoice::default())
 }
 
 const TWO_CHAPTERS: &str = "\
@@ -174,6 +234,22 @@ fn downgrade_reason_is_present_as_null_but_words_are_omitted() {
     assert!(
         seg.get("words").is_none(),
         "absent means the backend has no word timings; an empty array would be a lie"
+    );
+}
+
+#[test]
+fn words_from_the_backend_serialize_under_the_key_text_not_word() {
+    let m = manifest_for_with(TWO_CHAPTERS, &WordyVoice::default());
+    let json = serde_json::to_value(&m).unwrap();
+
+    assert_eq!(
+        json["segments"][0]["words"],
+        serde_json::json!([
+            { "text": "Every", "start_ms": 0, "end_ms": 300 },
+            { "text": "video", "start_ms": 300, "end_ms": 600 },
+        ]),
+        "WordTiming's field is `word`; WordEntry's is `text` — the join in \
+         `build()` must perform that rename, not just carry the value through"
     );
 }
 
