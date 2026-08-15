@@ -701,3 +701,87 @@ fn the_cache_key_covers_the_backend_id() {
          not share a cache entry"
     );
 }
+
+/// Every `narration.duration_source` in a serialized timeline replaced by
+/// one fixed token.
+///
+/// Comparing the serialized form rather than field by field is deliberate:
+/// a field added to `NarrationEntry` or `TimelineEntry` tomorrow is compared
+/// automatically, whereas a hand-written comparison would silently stop
+/// covering it. Only the narration's `duration_source` is normalized — an
+/// *action*'s must still match, or a cache hit quietly changing one would
+/// slip through.
+fn timeline_modulo_duration_source(t: &teleprompt_schedule::Timeline) -> serde_json::Value {
+    let mut v = serde_json::to_value(t).expect("a timeline always serializes");
+    for entry in v["entries"].as_array_mut().expect("entries is an array") {
+        if let Some(source) = entry.pointer_mut("/narration/duration_source") {
+            *source = serde_json::Value::String("<normalized>".to_string());
+        }
+    }
+    v
+}
+
+/// Spec §11: *a cache hit and a cache miss produce identical timelines apart
+/// from `duration_source`*.
+///
+/// `a_warm_cache_yields_measured_durations` deliberately caches audio of a
+/// different length, which proves the duration is read from the cache but
+/// says nothing about this identity claim. Here the cached audio is exactly
+/// what the backend would have rendered — the null backend's own output for
+/// the very request `compile` measured — so everything except the one field
+/// must survive the round trip untouched.
+#[tokio::test]
+async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() {
+    let cache = VoiceCache::new(cache_dir("roundtrip"));
+    let est = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+
+    let cold = compile_with(ONE, &ctx).expect("compiles");
+    assert_eq!(
+        cold.timeline.entries[0]
+            .narration
+            .as_ref()
+            .unwrap()
+            .duration_source,
+        "estimated"
+    );
+
+    // The audio the backend really would have produced for the request
+    // `compile` measured, stored under the key `compile` looked up.
+    let detail = &cold.narration[0];
+    let rendered = NullVoice::default()
+        .synthesize(&detail.synth_request)
+        .await
+        .expect("null synthesizes");
+    cache
+        .store(&detail.cache_key, &rendered.pcm, None)
+        .expect("stores");
+
+    let warm = compile_with(ONE, &ctx).expect("compiles");
+    assert_eq!(
+        warm.timeline.entries[0]
+            .narration
+            .as_ref()
+            .unwrap()
+            .duration_source,
+        "measured"
+    );
+
+    // The field really did differ, so the normalization below is hiding a
+    // real difference rather than papering over an identical pair.
+    assert_ne!(
+        serde_json::to_value(&cold.timeline).unwrap(),
+        serde_json::to_value(&warm.timeline).unwrap()
+    );
+
+    assert_eq!(
+        timeline_modulo_duration_source(&cold.timeline),
+        timeline_modulo_duration_source(&warm.timeline),
+        "a cache hit must change which numbers are measurements, and nothing else"
+    );
+}
