@@ -10,6 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-15-teleprompt-narration-manifest-design.md` (referred to below as *the manifest spec*). It in turn depends on `docs/superpowers/specs/2026-08-15-teleprompt-design.md` (*the core design*); unqualified `§` references point at the core design, matching the manifest spec's own convention.
 
+> **Amended before execution.** A pre-flight scan against the repository found
+> six defects in this plan's first draft: a `parse` entry point that does not
+> exist (the real one is `parse_script`, and it must be followed by
+> `assign_ids`), chapters with no route from `Program` to the CLI, a
+> `compile_script` extraction that duplicates one already in `cmd::check`, and
+> Task 7/8 tests written against a `TempProject`/`run` harness that was never
+> built. All are corrected above. The rulings are recorded in
+> `.superpowers/sdd/2026-08-15-teleprompt-narration-manifest/progress.md`.
+
 ## Global Constraints
 
 - MSRV is **1.75**. CI runs `cargo check` on 1.75; nothing may require a later feature. `u64::div_ceil` (1.73) is available; `Option::is_some_and` (1.70) is available.
@@ -62,19 +71,19 @@ The existing `synthesize` returns timing only. `plan` and `diff` call it constan
 
 - [ ] **Step 1: Write the failing test**
 
+`crates/teleprompt-voice/tests/null.rs` already exists and already defines
+`fn req(text: &str) -> SynthRequest` at line 3 and
+`use teleprompt_voice::{NullVoice, SynthRequest, VoiceBackend};` at line 1.
+**Append only the `#[test]` functions below and extend that existing `use`
+line** with `Pcm` and `NULL_SAMPLE_RATE` — redefining `req` or the import is
+a compile error.
+
 Append to `crates/teleprompt-voice/tests/null.rs`:
 
 ```rust
-use teleprompt_voice::{NullVoice, Pcm, SynthRequest, VoiceBackend, NULL_SAMPLE_RATE};
-
-fn req(text: &str) -> SynthRequest {
-    SynthRequest {
-        text: text.to_string(),
-        locale: "en".to_string(),
-        voice: None,
-        speed: 1.0,
-    }
-}
+// The existing line 1 becomes:
+//   use teleprompt_voice::{NullVoice, Pcm, SynthRequest, VoiceBackend, NULL_SAMPLE_RATE};
+// `req` is already defined in this file — do not redefine it.
 
 #[test]
 fn null_renders_silence_matching_its_own_estimate() {
@@ -398,7 +407,37 @@ git commit -m "feat(voice): 16-bit PCM WAV encoder"
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `crates/teleprompt-core/tests/program.rs`:
+**Shared fixture helper.** T3, T4, and T5 all need a resolved `Program`.
+Define this once per test file — it is the exact front half of
+`cmd::check::compile_script` (`check.rs:30-44`). `assign_ids` is not
+optional: skip it and every segment id is the empty string, so every
+downstream join is on `""`.
+
+```rust
+use teleprompt_core::config::PartialConfig;
+use teleprompt_core::ident::assign_ids;
+use teleprompt_core::parse::parse_script;
+use teleprompt_core::program::{resolve, Item, Program};
+
+fn program_for(src: &str) -> Program {
+    let mut parsed = parse_script(src).expect("fixture parses");
+    let diags = assign_ids(&mut parsed);
+    assert!(
+        !diags.iter().any(|d| d.is_error()),
+        "fixture must yield unambiguous segment ids"
+    );
+    resolve(
+        &parsed,
+        "tour.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .expect("fixture resolves")
+}
+```
+
+With that in place, append to `crates/teleprompt-core/tests/program.rs`:
 
 ```rust
 #[test]
@@ -412,15 +451,7 @@ The first paragraph.
 
 The second paragraph.
 ";
-    let script = teleprompt_core::parse::parse(src, &mut Vec::new());
-    let program = teleprompt_core::program::resolve(
-        &script,
-        "tour.md",
-        "en",
-        &PartialConfig::default(),
-        &PartialConfig::default(),
-    )
-    .unwrap();
+    let program = program_for(src);
 
     let chapters: Vec<(&str, &str)> = program
         .chapters
@@ -444,15 +475,7 @@ The first paragraph.
 
 The second paragraph.
 ";
-    let script = teleprompt_core::parse::parse(src, &mut Vec::new());
-    let program = teleprompt_core::program::resolve(
-        &script,
-        "tour.md",
-        "en",
-        &PartialConfig::default(),
-        &PartialConfig::default(),
-    )
-    .unwrap();
+    let program = program_for(src);
 
     let owners: Vec<&str> = program
         .items
@@ -474,15 +497,7 @@ Only this chapter speaks.
 
 # Silent
 ";
-    let script = teleprompt_core::parse::parse(src, &mut Vec::new());
-    let program = teleprompt_core::program::resolve(
-        &script,
-        "tour.md",
-        "en",
-        &PartialConfig::default(),
-        &PartialConfig::default(),
-    )
-    .unwrap();
+    let program = program_for(src);
 
     assert_eq!(program.chapters.len(), 2, "resolve reports the script's shape, not just the spoken parts");
     assert_eq!(program.chapters[1].slug, "silent");
@@ -610,6 +625,7 @@ git commit -m "feat(core): carry chapter provenance through resolve"
 - Produces:
   - `pub struct NarrationDetail { pub segment_id: String, pub text: String, pub chapter: String, pub word_timings: Option<Vec<WordTiming>> }`
   - `CompileOutput.narration: Vec<NarrationDetail>` — one entry per narration item that synthesized successfully, in document order.
+  - `CompileOutput.chapters: Vec<ChapterInfo>` — cloned from `Program.chapters`, document order, every chapter.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -646,6 +662,27 @@ And every timeline is committed.
 }
 
 #[test]
+fn compile_carries_the_scripts_chapters() {
+    let out = compile_str("\
+# Quick start
+
+The first paragraph.
+
+# Provenance
+
+The second paragraph.
+").expect("compiles");
+
+    let slugs: Vec<&str> = out.chapters.iter().map(|c| c.slug.as_str()).collect();
+    assert_eq!(
+        slugs,
+        vec!["quick-start", "provenance"],
+        "the CLI reaches compilation only through `compile_script`, which \
+         returns this struct — chapters unreachable here are unreachable to `dub`"
+    );
+}
+
+#[test]
 fn narration_details_line_up_with_timeline_narration_entries() {
     let src = "\
 # Quick start
@@ -672,19 +709,11 @@ The second paragraph here.
 }
 ```
 
-If `compile_str` does not already exist in that file, add it beside the other helpers:
+Define `program_for` in this file exactly as Task 3's brief gives it, then add `compile_str` beside the other helpers:
 
 ```rust
 fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
-    let script = teleprompt_core::parse::parse(src, &mut Vec::new());
-    let program = teleprompt_core::program::resolve(
-        &script,
-        "tour.md",
-        "en",
-        &PartialConfig::default(),
-        &PartialConfig::default(),
-    )
-    .unwrap();
+    let program = program_for(src);
     compile(
         &program,
         &SceneRegistry::with_builtins(),
@@ -728,6 +757,12 @@ pub struct CompileOutput {
     pub warnings: Vec<String>,
     /// One entry per narration item that synthesized, in document order.
     pub narration: Vec<NarrationDetail>,
+    /// The script's chapters, in document order. Carried here because
+    /// `compile` drops the `Program` and `cmd::check::compile_script` —
+    /// the CLI's only route into compilation — returns just this struct.
+    /// Without it the manifest's chapter markers are unreachable from the
+    /// command that has to write them.
+    pub chapters: Vec<ChapterInfo>,
 }
 ```
 
@@ -773,6 +808,7 @@ Return it:
         timeline,
         warnings,
         narration: narration_details,
+        chapters: program.chapters.clone(),
     })
 ```
 
@@ -829,15 +865,7 @@ use teleprompt_scene::SceneRegistry;
 use teleprompt_voice::NullVoice;
 
 fn manifest_for(src: &str) -> manifest::NarrationManifest {
-    let script = teleprompt_core::parse::parse(src, &mut Vec::new());
-    let program = teleprompt_core::program::resolve(
-        &script,
-        "tour.md",
-        "en",
-        &PartialConfig::default(),
-        &PartialConfig::default(),
-    )
-    .unwrap();
+    let program = program_for(src);
     let out = compile(
         &program,
         &SceneRegistry::with_builtins(),
@@ -870,29 +898,7 @@ And every timeline is committed alongside it.
 
 #[test]
 fn segment_timings_equal_the_timeline_they_came_from() {
-    let script = teleprompt_core::parse::parse(TWO_CHAPTERS, &mut Vec::new());
-    let program = teleprompt_core::program::resolve(
-        &script,
-        "tour.md",
-        "en",
-        &PartialConfig::default(),
-        &PartialConfig::default(),
-    )
-    .unwrap();
-    let out = compile(
-        &program,
-        &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
-        Path::new("."),
-        "0.1.0",
-    )
-    .unwrap();
-    let m = manifest::build(
-        &out.timeline,
-        &program.chapters,
-        &out.narration,
-        AudioInfo { format: "wav".into(), sample_rate: 48_000, channels: 1 },
-    );
+    let (out, m) = compiled_and_manifest(TWO_CHAPTERS);
 
     let from_timeline: Vec<(String, u64, u64)> = out
         .timeline
@@ -994,17 +1000,6 @@ fn serialization_is_byte_stable() {
     assert_eq!(a, b);
 }
 
-#[test]
-fn an_unknown_manifest_version_fails_to_deserialize_as_v1() {
-    let mut json = serde_json::to_value(&manifest_for(TWO_CHAPTERS)).unwrap();
-    json["manifest_version"] = serde_json::json!(999);
-    let parsed: manifest::NarrationManifest = serde_json::from_value(json).unwrap();
-    assert_ne!(
-        parsed.manifest_version, MANIFEST_VERSION,
-        "deserialization keeps the number; refusing it is the caller's job \
-         and Task 7 asserts the caller does"
-    );
-}
 ```
 
 Add `insta.workspace = true` to `teleprompt-compile`'s `[dev-dependencies]`.
@@ -1588,12 +1583,18 @@ Read `crates/teleprompt-cli/src/cmd/plan.rs` first: `run_plan` is the closest ex
 
 - [ ] **Step 1: Write the failing test**
 
-Create `crates/teleprompt-cli/tests/dub.rs`. Follow the existing `crates/teleprompt-cli/tests/commands.rs` for how it builds a temporary project and invokes the binary; reuse those helpers rather than writing new ones.
+Create `crates/teleprompt-cli/tests/dub.rs`. It follows the idiom already in
+`crates/teleprompt-cli/tests/commands.rs`: `project_with` scaffolds a real
+project in a temp directory, and binary-level behaviour (exit codes, stdout)
+is asserted by running `env!("CARGO_BIN_EXE_teleprompt")`. Copy the two
+helpers below rather than importing them — `commands.rs` keeps its helpers
+private and this plan does not restructure it.
 
 ```rust
-// Uses the same temp-project helpers as tests/commands.rs.
-mod common;
-use common::{run, TempProject};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+use teleprompt_cli::project::Project;
 
 const SCRIPT: &str = "\
 # Quick start
@@ -1605,49 +1606,79 @@ Every video in this repository is built from a script you can read.
 And every timeline is committed alongside it.
 ";
 
+fn tempdir(tag: &str) -> PathBuf {
+    let base = std::env::temp_dir().join(format!(
+        "teleprompt-dub-{tag}-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&base).unwrap();
+    base
+}
+
+/// Scaffold a project and drop `script` at `scripts/test.md`, mirroring
+/// `commands.rs::project_with`. Returns the project root.
+fn project_with(tag: &str, script: &str) -> PathBuf {
+    let dir = tempdir(tag);
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    std::fs::write(dir.join("scripts/test.md"), script).unwrap();
+    Project::discover(&dir).unwrap();
+    dir
+}
+
+fn tp(root: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .current_dir(root)
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+fn code(out: &Output) -> i32 {
+    out.status.code().expect("process exited normally")
+}
+
+fn stdout(out: &Output) -> String {
+    String::from_utf8_lossy(&out.stdout).to_string()
+}
+
+fn read_manifest(root: &Path) -> serde_json::Value {
+    let raw = std::fs::read_to_string(root.join("public/narration/en/narration.json")).unwrap();
+    serde_json::from_str(&raw).unwrap()
+}
+
 #[test]
 fn dub_writes_a_manifest_and_one_wav_per_segment() {
-    let p = TempProject::new();
-    p.write("scripts/tour.md", SCRIPT);
+    let root = project_with("write", SCRIPT);
+    let out = tp(&root, &["dub", "scripts/test.md", "--out", "public/narration"]);
+    assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
 
-    let out = run(&p, &["dub", "scripts/tour.md", "--out", "public/narration"]);
-    assert_eq!(out.code, 0, "{}", out.stderr);
-
-    let manifest_path = p.path("public/narration/en/narration.json");
-    assert!(manifest_path.exists(), "manifest written under its locale");
-
-    let m: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    let m = read_manifest(&root);
     assert_eq!(m["manifest_version"], 1);
     assert_eq!(m["locale"], "en");
     assert_eq!(m["segments"].as_array().unwrap().len(), 2);
 
     for seg in m["segments"].as_array().unwrap() {
         let rel = seg["audio"].as_str().unwrap();
-        let wav = p.path(&format!("public/narration/en/{rel}"));
+        let wav = root.join("public/narration/en").join(rel);
         assert!(wav.exists(), "missing {rel}");
-        let bytes = std::fs::read(&wav).unwrap();
-        assert_eq!(&bytes[0..4], b"RIFF");
+        assert_eq!(&std::fs::read(&wav).unwrap()[0..4], b"RIFF");
     }
 }
 
 #[test]
 fn the_wav_length_matches_the_duration_the_manifest_claims() {
-    let p = TempProject::new();
-    p.write("scripts/tour.md", SCRIPT);
-    run(&p, &["dub", "scripts/tour.md", "--out", "public/narration"]);
+    let root = project_with("length", SCRIPT);
+    tp(&root, &["dub", "scripts/test.md", "--out", "public/narration"]);
 
-    let m: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(p.path("public/narration/en/narration.json")).unwrap(),
-    )
-    .unwrap();
+    let m = read_manifest(&root);
     let seg = &m["segments"][0];
     let claimed_ms = seg["duration_ms"].as_u64().unwrap();
 
-    let bytes = std::fs::read(p.path(&format!(
-        "public/narration/en/{}",
-        seg["audio"].as_str().unwrap()
-    )))
+    let bytes = std::fs::read(
+        root.join("public/narration/en").join(seg["audio"].as_str().unwrap()),
+    )
     .unwrap();
     let data_len = u32::from_le_bytes(bytes[40..44].try_into().unwrap()) as u64;
     let actual_ms = data_len / 2 * 1000 / 48_000;
@@ -1660,87 +1691,92 @@ fn the_wav_length_matches_the_duration_the_manifest_claims() {
 
 #[test]
 fn dub_is_byte_stable_across_runs() {
-    let p = TempProject::new();
-    p.write("scripts/tour.md", SCRIPT);
+    let root = project_with("stable", SCRIPT);
+    tp(&root, &["dub", "scripts/test.md", "--out", "a"]);
+    tp(&root, &["dub", "scripts/test.md", "--out", "b"]);
 
-    run(&p, &["dub", "scripts/tour.md", "--out", "a"]);
-    run(&p, &["dub", "scripts/tour.md", "--out", "b"]);
-
-    let a = std::fs::read(p.path("a/en/narration.json")).unwrap();
-    let b = std::fs::read(p.path("b/en/narration.json")).unwrap();
+    let a = std::fs::read(root.join("a/en/narration.json")).unwrap();
+    let b = std::fs::read(root.join("b/en/narration.json")).unwrap();
     assert_eq!(a, b, "a committed manifest must not churn between runs");
 }
 
 #[test]
 fn check_passes_on_a_fresh_manifest_and_writes_nothing() {
-    let p = TempProject::new();
-    p.write("scripts/tour.md", SCRIPT);
-    run(&p, &["dub", "scripts/tour.md", "--out", "public/narration"]);
+    let root = project_with("checkclean", SCRIPT);
+    tp(&root, &["dub", "scripts/test.md", "--out", "public/narration"]);
 
-    let before = std::fs::read(p.path("public/narration/en/narration.json")).unwrap();
-    let out = run(&p, &["dub", "scripts/tour.md", "--out", "public/narration", "--check"]);
-    let after = std::fs::read(p.path("public/narration/en/narration.json")).unwrap();
+    let before = std::fs::read(root.join("public/narration/en/narration.json")).unwrap();
+    let out = tp(&root, &["dub", "scripts/test.md", "--out", "public/narration", "--check"]);
+    let after = std::fs::read(root.join("public/narration/en/narration.json")).unwrap();
 
-    assert_eq!(out.code, 0, "{}", out.stdout);
+    assert_eq!(code(&out), 0, "{}", stdout(&out));
     assert_eq!(before, after, "--check must not write");
 }
 
 #[test]
 fn check_exits_3_when_the_prose_moved_on() {
-    let p = TempProject::new();
-    p.write("scripts/tour.md", SCRIPT);
-    run(&p, &["dub", "scripts/tour.md", "--out", "public/narration"]);
+    let root = project_with("drift", SCRIPT);
+    tp(&root, &["dub", "scripts/test.md", "--out", "public/narration"]);
 
-    p.write(
-        "scripts/tour.md",
-        &SCRIPT.replace(
+    std::fs::write(
+        root.join("scripts/test.md"),
+        SCRIPT.replace(
             "And every timeline is committed alongside it.",
             "And every timeline is committed alongside it, which is what makes \
              the whole review story work at all.",
         ),
-    );
+    )
+    .unwrap();
 
-    let out = run(&p, &["dub", "scripts/tour.md", "--out", "public/narration", "--check"]);
-    assert_eq!(out.code, 3, "stale manifest must fail CI");
-    assert!(out.stdout.contains("text edited"), "{}", out.stdout);
+    let out = tp(&root, &["dub", "scripts/test.md", "--out", "public/narration", "--check"]);
+    assert_eq!(code(&out), 3, "stale manifest must fail CI");
+    assert!(stdout(&out).contains("text edited"), "{}", stdout(&out));
 }
 
 #[test]
 fn check_exits_3_when_no_manifest_has_been_written_at_all() {
-    let p = TempProject::new();
-    p.write("scripts/tour.md", SCRIPT);
-
-    let out = run(&p, &["dub", "scripts/tour.md", "--out", "public/narration", "--check"]);
-    assert_eq!(out.code, 3, "a missing manifest is maximal drift, not a crash");
+    let root = project_with("nomanifest", SCRIPT);
+    let out = tp(&root, &["dub", "scripts/test.md", "--out", "public/narration", "--check"]);
+    assert_eq!(code(&out), 3, "a missing manifest is maximal drift, not a crash");
 }
 
 #[test]
 fn a_manifest_from_a_future_version_is_refused_rather_than_misread() {
-    let p = TempProject::new();
-    p.write("scripts/tour.md", SCRIPT);
-    run(&p, &["dub", "scripts/tour.md", "--out", "public/narration"]);
+    let root = project_with("future", SCRIPT);
+    tp(&root, &["dub", "scripts/test.md", "--out", "public/narration"]);
 
-    let path = p.path("public/narration/en/narration.json");
+    let path = root.join("public/narration/en/narration.json");
     let raw = std::fs::read_to_string(&path).unwrap();
-    std::fs::write(&path, raw.replace("\"manifest_version\": 1", "\"manifest_version\": 999")).unwrap();
+    std::fs::write(
+        &path,
+        raw.replace("\"manifest_version\": 1", "\"manifest_version\": 999"),
+    )
+    .unwrap();
 
-    let out = run(&p, &["dub", "scripts/tour.md", "--out", "public/narration", "--check"]);
-    assert_eq!(out.code, 1, "an unreadable manifest is a runtime failure, not drift");
-    assert!(out.stderr.contains("manifest_version"), "{}", out.stderr);
+    let out = tp(&root, &["dub", "scripts/test.md", "--out", "public/narration", "--check"]);
+    assert_eq!(code(&out), 1, "an unreadable manifest is a runtime failure, not drift");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("manifest_version"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]
 fn a_broken_script_fails_validation_before_writing_anything() {
-    let p = TempProject::new();
-    p.write("scripts/bad.md", "# Intro\n\n```teleprompt polcy=hold\nwait 1s\n```\n");
+    let root = project_with("broken", "# Intro\n\nOne. {#a polcy=hold}\n");
+    let out = tp(&root, &["dub", "scripts/test.md", "--out", "public/narration"]);
 
-    let out = run(&p, &["dub", "scripts/bad.md", "--out", "public/narration"]);
-    assert_eq!(out.code, 2);
-    assert!(!p.path("public/narration/en").exists(), "no partial output");
+    assert_eq!(code(&out), 2);
+    assert!(
+        !root.join("public/narration/en").exists(),
+        "no partial output"
+    );
 }
 ```
 
-If `tests/commands.rs` keeps its helpers inline rather than in a `common` module, extract them to `crates/teleprompt-cli/tests/common/mod.rs` as the first step of this task and have both files use it. Do not duplicate them.
+`teleprompt-cli` already has `serde_json` as a dependency, so the test file
+needs no manifest change.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -1918,7 +1954,19 @@ pub fn render_dub(out: &DubOutput) -> String {
 }
 ```
 
-`run_dub` calls `crate::cmd::plan::compile_script`. If `plan.rs` does not already expose a reusable function returning the compile output plus the program's chapters, extract one there now and have `run_plan` call it too — `dub` must not duplicate project resolution, config loading, or scene-registry construction. The extracted function's return type needs `timeline`, `warnings`, `narration`, and `chapters`; add `chapters: Vec<ChapterInfo>` to it, cloned from the resolved `Program`.
+`run_dub` calls `crate::cmd::check::compile_script`, which already exists
+with signature `(project, script, locale) -> Result<CompileOutput, Vec<String>>`
+and already constructs the `NullVoice` and the `SceneRegistry` internally.
+**Do not extract a new one and do not change its signature** — Task 4 put
+`chapters` on `CompileOutput`, so everything `dub` needs already comes back
+from the existing call, and `run_check`, `run_plan`, and `run_diff` stay
+untouched.
+
+That means `run_dub` does not construct its own backend for compilation. It
+does need one for `render_pcm`, and `NullVoice::default()` is the only
+backend that exists; when a real backend lands, both call sites select it
+together. Note the duplication in the report so the reviewer sees it was
+deliberate.
 
 - [ ] **Step 4: Register the module and the subcommand**
 
@@ -2018,8 +2066,9 @@ git commit -m "feat(cli): teleprompt dub"
 The manifest is a published contract, so the acceptance test asserts the exact document a consumer will receive, and the README carries the consumer-side code that the spec's §7 describes.
 
 **Files:**
-- Modify: `crates/teleprompt-cli/tests/end_to_end.rs`
+- Create: `crates/teleprompt-cli/tests/dub_acceptance.rs`
 - Modify: `crates/teleprompt-cli/src/cmd/doctor.rs`
+- Modify: `crates/teleprompt-cli/Cargo.toml` (add `insta` as a dev-dependency if absent)
 - Modify: `README.md`
 - Test: the acceptance test below, plus a snapshot
 
@@ -2028,47 +2077,61 @@ The manifest is a published contract, so the acceptance test asserts the exact d
 
 - [ ] **Step 1: Write the failing acceptance test**
 
-Append to `crates/teleprompt-cli/tests/end_to_end.rs`, using that file's existing fixture (`tests/fixtures/tour.md`) and helpers:
+Create `crates/teleprompt-cli/tests/dub_acceptance.rs` rather than appending
+to `end_to_end.rs`: these tests need the `tp` / `project_with` helpers from
+Task 7's `dub.rs`, and `end_to_end.rs` has its own fixture conventions.
+Copy the same four helpers (`tempdir`, `project_with`, `tp`, `code`) that
+Task 7's brief gives.
 
 ```rust
+// helpers: same tempdir / project_with / tp / code as tests/dub.rs
+
+const TOUR: &str = include_str!("../../../tests/fixtures/tour.md");
+
 #[test]
 fn dub_produces_the_document_a_consumer_will_read() {
-    let p = TempProject::new();
-    p.write("scripts/tour.md", include_str!("../../../tests/fixtures/tour.md"));
+    let root = project_with("acceptance", TOUR);
+    let out = tp(&root, &["dub", "scripts/test.md", "--out", "public/narration"]);
+    assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
 
-    let out = run(&p, &["dub", "scripts/tour.md", "--out", "public/narration"]);
-    assert_eq!(out.code, 0, "{}", out.stderr);
-
-    let raw = std::fs::read_to_string(p.path("public/narration/en/narration.json")).unwrap();
+    let raw = std::fs::read_to_string(root.join("public/narration/en/narration.json")).unwrap();
     let manifest: serde_json::Value = serde_json::from_str(&raw).unwrap();
     insta::assert_json_snapshot!(manifest);
 }
 
 #[test]
 fn the_committed_manifest_gates_ci_the_way_the_timeline_does() {
-    let p = TempProject::new();
-    let script = include_str!("../../../tests/fixtures/tour.md");
-    p.write("scripts/tour.md", script);
-    run(&p, &["dub", "scripts/tour.md", "--out", "public/narration"]);
+    let root = project_with("gate", TOUR);
+    tp(&root, &["dub", "scripts/test.md", "--out", "public/narration"]);
 
     assert_eq!(
-        run(&p, &["dub", "scripts/tour.md", "--out", "public/narration", "--check"]).code,
+        code(&tp(&root, &["dub", "scripts/test.md", "--out", "public/narration", "--check"])),
         0,
         "clean tree passes"
     );
 
-    p.write("scripts/tour.md", &format!("{script}\nOne more sentence, added late.\n"));
+    std::fs::write(
+        root.join("scripts/test.md"),
+        format!("{TOUR}\nOne more sentence, added late.\n"),
+    )
+    .unwrap();
+
     assert_eq!(
-        run(&p, &["dub", "scripts/tour.md", "--out", "public/narration", "--check"]).code,
+        code(&tp(&root, &["dub", "scripts/test.md", "--out", "public/narration", "--check"])),
         3,
         "an edit that was never re-dubbed must fail the build"
     );
 }
 ```
 
+`tests/fixtures/tour.md` sits at the repository root, so from
+`crates/teleprompt-cli/tests/` the `include_str!` path is three levels up.
+Add `insta.workspace = true` to `teleprompt-cli`'s `[dev-dependencies]` if
+it is not already there.
+
 - [ ] **Step 2: Run to verify it fails, then accept the snapshot**
 
-Run: `cargo test -p teleprompt-cli --test end_to_end`
+Run: `cargo test -p teleprompt-cli --test dub_acceptance`
 Expected: FAIL on the pending snapshot.
 
 Run: `cargo insta accept`
