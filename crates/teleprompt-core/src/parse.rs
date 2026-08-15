@@ -60,6 +60,9 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
     let mut state = State::Idle;
     let mut text = String::new();
     let mut fence_info = String::new();
+    // Byte offset in `text` just past the most recent inline code span of the
+    // paragraph being accumulated. See `split_attr_suffix`.
+    let mut code_span_end: Option<usize> = None;
 
     for (event, range) in parser {
         let line = line_offset + body[..range.start].lines().count() + 1;
@@ -89,15 +92,21 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
             Event::Start(Tag::Paragraph) => {
                 state = State::Paragraph;
                 text.clear();
+                code_span_end = None;
             }
             Event::End(TagEnd::Paragraph) => {
+                // Does the paragraph's last inline code span run all the way
+                // to its end? If so, a trailing `}` belongs to that code
+                // span, not to an attribute suffix.
+                let ends_in_code = code_span_end == Some(text.trim_end().len());
                 let raw = text.trim().to_string();
                 if !raw.is_empty() {
-                    let node = paragraph_node(&raw, span, diags);
+                    let node = paragraph_node(&raw, ends_in_code, span, diags);
                     push_node(&mut chapters, node, span, diags);
                 }
                 state = State::Idle;
                 text.clear();
+                code_span_end = None;
             }
             Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => {
                 fence_info = info.to_string();
@@ -162,9 +171,22 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
                 state = State::Idle;
                 text.clear();
             }
-            Event::Text(t) | Event::Code(t) => {
+            Event::Text(t) => {
                 if !matches!(state, State::Idle) {
                     text.push_str(&t);
+                }
+            }
+            // An inline code span contributes its text like any other run —
+            // its content is spoken, so it has to reach `text` — but where it
+            // ended is remembered, because that is the one thing that
+            // distinguishes `` `{ fps: 30 }` `` from a `{key=value}` suffix
+            // once the backticks are gone.
+            Event::Code(t) => {
+                if !matches!(state, State::Idle) {
+                    text.push_str(&t);
+                    if matches!(state, State::Paragraph) {
+                        code_span_end = Some(text.len());
+                    }
                 }
             }
             Event::SoftBreak | Event::HardBreak => {
@@ -195,7 +217,12 @@ enum State {
     ChapterConfig,
 }
 
-fn paragraph_node(raw: &str, span: SourceSpan, diags: &mut Vec<Diagnostic>) -> Option<Node> {
+fn paragraph_node(
+    raw: &str,
+    ends_in_code: bool,
+    span: SourceSpan,
+    diags: &mut Vec<Diagnostic>,
+) -> Option<Node> {
     match directive_from_html(raw) {
         Ok(Some(node)) => return Some(node),
         Ok(None) => {}
@@ -204,7 +231,7 @@ fn paragraph_node(raw: &str, span: SourceSpan, diags: &mut Vec<Diagnostic>) -> O
             return None;
         }
     }
-    let (text, raw_attrs) = split_attr_suffix(raw);
+    let (text, raw_attrs) = split_attr_suffix(raw, ends_in_code);
     let id = raw_attrs
         .split_whitespace()
         .next()
@@ -220,7 +247,28 @@ fn paragraph_node(raw: &str, span: SourceSpan, diags: &mut Vec<Diagnostic>) -> O
 }
 
 /// Splits a trailing `{...}` attribute suffix off a paragraph.
-fn split_attr_suffix(raw: &str) -> (&str, String) {
+///
+/// `raw` is the paragraph's *normalised* text: backticks are already gone by
+/// the time it gets here, so `` The config block looks like `{ fps: 30 }` ``
+/// and `Give it a name. {#done}` are indistinguishable by inspection — the
+/// first used to be split, producing "expected `key=value`, found `fps:`"
+/// over a perfectly valid sentence. teleprompt's own scripts are
+/// documentation full of config snippets, so that rejects real prose.
+///
+/// `ends_in_code` is the missing bit: the parser records where the
+/// paragraph's last `Event::Code` ended, and passes true when that is the
+/// paragraph's end. This was chosen over pattern-matching the suffix against
+/// `{#id ...}` / `{key=value ...}` shapes because it answers the actual
+/// question — *is this brace syntax or content?* — rather than guessing from
+/// what is inside it. A shape test would also quietly reclassify a genuinely
+/// malformed suffix like `{polcy hold}` as prose, and this project's rule is
+/// that malformed input is an error, never a silent ignore. With the code
+/// span tracked, that suffix is still parsed as attributes and still
+/// reported.
+fn split_attr_suffix(raw: &str, ends_in_code: bool) -> (&str, String) {
+    if ends_in_code {
+        return (raw, String::new());
+    }
     let trimmed = raw.trim_end();
     if !trimmed.ends_with('}') {
         return (raw, String::new());

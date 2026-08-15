@@ -222,3 +222,76 @@ fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
     };
     assert_eq!(sa.text, sb.text);
 }
+
+// ---------------------------------------------------------------------------
+// Final review, item 5: `split_attr_suffix` ran `ends_with('}')` + `rfind('{')`
+// over the *normalised* paragraph text, after backticks were stripped, so it
+// could not tell an inline code span from an attribute block. teleprompt's
+// own scripts are documentation full of config snippets, so this rejected
+// valid prose:
+//
+//   $ cat scripts/j1.md   # The config block looks like `{ fps: 30 }`
+//   error: expected `key=value`, found `fps:`
+// ---------------------------------------------------------------------------
+
+fn only_segment(src: &str) -> teleprompt_core::ast::Segment {
+    let s = parse_script(src).expect("script must parse");
+    match &s.chapters[0].nodes[0] {
+        Node::Segment(seg) => seg.clone(),
+        other => panic!("expected a segment, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_paragraph_ending_in_an_inline_code_span_with_braces_is_narration() {
+    let seg = only_segment("# B\n\nThe config block looks like `{ fps: 30 }`\n");
+    assert_eq!(
+        seg.text, "The config block looks like { fps: 30 }",
+        "the code span's text must survive intact into the narration"
+    );
+    assert_eq!(seg.raw_attrs, "", "no attribute suffix was written here");
+}
+
+#[test]
+fn a_real_id_suffix_still_parses() {
+    let seg = only_segment("# B\n\nGive it a name and you are done. {#done}\n");
+    assert_eq!(seg.text, "Give it a name and you are done.");
+    assert_eq!(seg.raw_attrs, "#done");
+}
+
+#[test]
+fn a_real_key_value_suffix_still_parses() {
+    let seg = only_segment("# B\n\nGive it a name. {#done voice.source=recorded}\n");
+    assert_eq!(seg.text, "Give it a name.");
+    assert_eq!(seg.raw_attrs, "#done voice.source=recorded");
+}
+
+/// A code span that is *not* at the paragraph's end must not suppress a real
+/// suffix that follows it.
+#[test]
+fn a_code_span_before_a_real_suffix_does_not_suppress_it() {
+    let seg = only_segment("# B\n\nThe block looks like `{ fps: 30 }` in practice. {#mixed}\n");
+    assert_eq!(seg.text, "The block looks like { fps: 30 } in practice.");
+    assert_eq!(seg.raw_attrs, "#mixed");
+}
+
+/// The reason this fix tracks the code span rather than pattern-matching the
+/// suffix's shape: a genuinely malformed attribute block must stay an error.
+/// A shape test would reclassify this as prose and silently drop it.
+#[test]
+fn a_malformed_attribute_suffix_is_still_reported_not_silently_prose() {
+    let e = parse_script("# B\n\nGive it a name. {polcy hold}\n");
+    match e {
+        Ok(s) => {
+            let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
+                panic!("expected segment")
+            };
+            assert_eq!(
+                seg.raw_attrs, "polcy hold",
+                "a bare trailing brace block is still read as attributes, so \
+                 `parse_attrs` can report it"
+            );
+        }
+        Err(d) => panic!("parse itself must not fail here: {:?}", d.0),
+    }
+}
