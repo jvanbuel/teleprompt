@@ -11,13 +11,16 @@
 use std::path::{Component, Path};
 
 use teleprompt_core::config::default_adapter;
-use teleprompt_core::program::{Item, Program};
+use teleprompt_core::program::{ChapterInfo, Item, Program};
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry};
 use teleprompt_schedule::{
     schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, Timeline,
 };
-use teleprompt_voice::{resolve_source, SynthRequest, VoiceBackend, VoiceSource};
+use teleprompt_voice::{resolve_source, SynthRequest, VoiceBackend, VoiceSource, WordTiming};
+
+pub mod manifest;
+pub mod manifest_diff;
 
 /// How an included file is spelled in a diagnostic: the way an author would
 /// find it from where they invoked teleprompt, with a `./` prefix trimmed so
@@ -27,10 +30,45 @@ fn display_path(path: &Path) -> String {
     s.strip_prefix("./").unwrap_or(&s).to_string()
 }
 
+/// What the `Timeline` deliberately does not carry. The timeline is a
+/// review surface — a reader scanning a pacing diff does not want the
+/// prose inlined in it, and word timings would dwarf everything else. The
+/// narration manifest needs all of it, so `compile` keeps it here rather
+/// than making a second pass to recover what it already had.
+#[derive(Debug, Clone)]
+pub struct NarrationDetail {
+    pub segment_id: String,
+    pub text: String,
+    /// The chapter's slug, for publication. Two chapters with the same
+    /// title share one, so this is display identity, not a join key.
+    pub chapter: String,
+    /// The chapter's position in `CompileOutput::chapters`. This is the
+    /// join key: joining on the slug silently merged two identically-titled
+    /// chapters into one marker and lost the second one's real start.
+    pub chapter_index: usize,
+    /// The exact request the duration in the timeline was measured from.
+    ///
+    /// Carried rather than reconstructed because a caller that needs audio
+    /// (`dub`) must render from the *same* request `compile` measured. When
+    /// `dub` built its own `SynthRequest` it dropped `voice` and `speed`, so
+    /// a script with `voice: { speed: 2.0 }` published a 3250 ms duration
+    /// alongside a 6500 ms file. One source, one request, no drift.
+    pub synth_request: SynthRequest,
+    pub word_timings: Option<Vec<WordTiming>>,
+}
+
 #[derive(Debug)]
 pub struct CompileOutput {
     pub timeline: Timeline,
     pub warnings: Vec<String>,
+    /// One entry per narration item that synthesized, in document order.
+    pub narration: Vec<NarrationDetail>,
+    /// The script's chapters, in document order. Carried here because
+    /// `compile` drops the `Program` and `cmd::check::compile_script` —
+    /// the CLI's only route into compilation — returns just this struct.
+    /// Without it the manifest's chapter markers are unreachable from the
+    /// command that has to write them.
+    pub chapters: Vec<ChapterInfo>,
 }
 
 /// Compiles `program` into a scheduled [`Timeline`].
@@ -48,6 +86,7 @@ pub fn compile(
 ) -> Result<CompileOutput, Diagnostics> {
     let mut diags = Vec::new();
     let mut beats: Vec<Beat> = Vec::new();
+    let mut narration_details: Vec<NarrationDetail> = Vec::new();
 
     // The narration waiting to be joined with the first span of the next
     // action block. `id` and `config` travel alongside it because they
@@ -77,6 +116,8 @@ pub fn compile(
                 id,
                 text,
                 source_hash,
+                chapter,
+                chapter_index,
                 config,
                 ..
             } => {
@@ -120,6 +161,15 @@ pub fn compile(
                         continue;
                     }
                 };
+
+                narration_details.push(NarrationDetail {
+                    segment_id: id.clone(),
+                    text: text.clone(),
+                    chapter: chapter.clone(),
+                    chapter_index: *chapter_index,
+                    synth_request: req,
+                    word_timings: synth.word_timings.clone(),
+                });
 
                 pending = Some(NarrationInput {
                     segment_id: id.clone(),
@@ -337,5 +387,10 @@ pub fn compile(
     }
 
     let (timeline, warnings) = schedule(&beats, &program.script_name, &program.locale, version);
-    Ok(CompileOutput { timeline, warnings })
+    Ok(CompileOutput {
+        timeline,
+        warnings,
+        narration: narration_details,
+        chapters: program.chapters.clone(),
+    })
 }

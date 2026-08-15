@@ -47,9 +47,73 @@ cargo run -- diff demo/scripts/demo.md
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it |
 | `diff <script>` | compare against the committed timeline |
+| `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `doctor` | report the environment teleprompt can see |
 
 All commands accept `--format json`.
+
+## Dubbing a pipeline that renders itself
+
+`teleprompt dub` writes narration audio and a manifest, and renders no video.
+A tool teleprompt does not control — Remotion, After Effects, a web player —
+reads the manifest and owns its own picture.
+
+```bash
+teleprompt dub scripts/tour.md --out public/narration
+```
+
+```
+public/narration/en/narration.json
+public/narration/en/audio/welcome.wav
+```
+
+The manifest gives every segment an id, its prose, an absolute `start_ms` and
+`duration_ms`, the audio path, and which voice tier actually produced it.
+Deriving your composition's length from `duration_ms` is what keeps
+teleprompt's central property working on the other side of the boundary:
+narration length still drives pacing.
+
+### Consuming it from Remotion
+
+```tsx
+const msToFrames = (ms: number, fps: number) => Math.round((ms * fps) / 1000);
+
+calculateMetadata={async ({props}) => {
+  const m = await (await fetch(staticFile(props.manifestPath))).json();
+  if (m.manifest_version !== 1) throw new Error(`unsupported manifest ${m.manifest_version}`);
+  return {durationInFrames: msToFrames(m.duration_ms, 30), props: {...props, manifest: m}};
+}}
+```
+
+A segment's length is its **own** `start_ms + duration_ms`, never the next
+segment's `start_ms`. Consecutive segments may overlap — the transition
+window is subtracted from the preceding beat — so inferring a length from
+the next start clips the tail of the speech:
+
+```tsx
+const from  = msToFrames(seg.start_ms, fps);
+const until = msToFrames(seg.start_ms + seg.duration_ms, fps);
+// durationInFrames={until - from}
+```
+
+Convert **absolute offsets** to frames and take the difference, as above —
+never round a duration on its own, or the rounding error accumulates and
+drifts audio out of sync by the end of a long video.
+
+### Keeping it honest
+
+```bash
+teleprompt dub scripts/tour.md --out public/narration --check
+```
+
+Exits `3` when the committed manifest no longer matches the script, so a pull
+request that edits prose without re-dubbing fails CI. Commit
+`narration.json`; `audio/` is reproducible and can be gitignored, at the cost
+of needing a voice backend wherever you render.
+
+teleprompt ships no Remotion code and takes no Remotion dependency. Remotion's
+own licence — free for individuals and organisations up to three employees —
+is between you and Remotion.
 
 ## Building and testing
 

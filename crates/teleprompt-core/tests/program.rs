@@ -1,6 +1,7 @@
 use teleprompt_core::config::PartialConfig;
+use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Item};
+use teleprompt_core::program::{resolve, Item, Program};
 use teleprompt_core::Hash;
 
 const SRC: &str = r#"---
@@ -34,6 +35,23 @@ fn program() -> teleprompt_core::program::Program {
         &PartialConfig::default(),
     )
     .unwrap()
+}
+
+fn program_for(src: &str) -> Program {
+    let mut parsed = parse_script(src).expect("fixture parses");
+    let diags = assign_ids(&mut parsed);
+    assert!(
+        !diags.iter().any(|d| d.is_error()),
+        "fixture must yield unambiguous segment ids"
+    );
+    resolve(
+        &parsed,
+        "tour.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .expect("fixture resolves")
 }
 
 #[test]
@@ -185,4 +203,71 @@ fn item_spans_match_their_source_node_not_a_fabricated_line() {
     assert_eq!(narration_span.line, 3, "paragraph sits on line 3");
     assert_eq!(action_span.line, 5, "fence opens on line 5");
     assert_ne!(narration_span.line, action_span.line);
+}
+
+#[test]
+fn resolve_records_chapters_in_document_order() {
+    let src = "\
+# Quick start
+
+The first paragraph.
+
+# Provenance
+
+The second paragraph.
+";
+    let program = program_for(src);
+
+    let chapters: Vec<(&str, &str)> = program
+        .chapters
+        .iter()
+        .map(|c| (c.slug.as_str(), c.title.as_str()))
+        .collect();
+    assert_eq!(
+        chapters,
+        vec![("quick-start", "Quick start"), ("provenance", "Provenance")]
+    );
+}
+
+#[test]
+fn every_narration_names_its_owning_chapter() {
+    let src = "\
+# Quick start
+
+The first paragraph.
+
+# Provenance
+
+The second paragraph.
+";
+    let program = program_for(src);
+
+    let owners: Vec<&str> = program
+        .items
+        .iter()
+        .filter_map(|i| match i {
+            Item::Narration { chapter, .. } => Some(chapter.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(owners, vec!["quick-start", "provenance"]);
+}
+
+#[test]
+fn a_chapter_with_no_narration_is_still_recorded() {
+    let src = "\
+# Intro
+
+Only this chapter speaks.
+
+# Silent
+";
+    let program = program_for(src);
+
+    assert_eq!(
+        program.chapters.len(),
+        2,
+        "resolve reports the script's shape, not just the spoken parts"
+    );
+    assert_eq!(program.chapters[1].slug, "silent");
 }

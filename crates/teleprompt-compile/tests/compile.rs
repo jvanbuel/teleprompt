@@ -1,12 +1,13 @@
 use std::path::Path;
 
-use teleprompt_compile::compile;
+use teleprompt_compile::{compile, CompileOutput};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
+use teleprompt_core::Diagnostics;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::NullVoice;
+use teleprompt_voice::{NullVoice, VoiceBackend};
 
 fn program(src: &str) -> Program {
     let mut s = parse_script(src).unwrap();
@@ -30,6 +31,34 @@ fn run(src: &str) -> teleprompt_compile::CompileOutput {
         "0.1.0",
     )
     .unwrap()
+}
+
+fn program_for(src: &str) -> Program {
+    let mut parsed = parse_script(src).expect("fixture parses");
+    let diags = assign_ids(&mut parsed);
+    assert!(
+        !diags.iter().any(|d| d.is_error()),
+        "fixture must yield unambiguous segment ids"
+    );
+    resolve(
+        &parsed,
+        "tour.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .expect("fixture resolves")
+}
+
+fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
+    let program = program_for(src);
+    compile(
+        &program,
+        &SceneRegistry::with_builtins(),
+        &NullVoice::default(),
+        Path::new("."),
+        "0.1.0",
+    )
 }
 
 // Controller ruling F2 (addendum): `transition` lives inside `output:`, per
@@ -368,4 +397,161 @@ fn a_segments_lead_in_survives_pairing_with_a_following_action_block() {
     // the discarded lead-in is gone.
     assert_eq!(alone.timeline.entries[0].duration_ms, 2700);
     assert_eq!(paired.timeline.entries[0].duration_ms, 2800);
+}
+
+#[test]
+fn compile_retains_the_text_and_chapter_the_timeline_drops() {
+    let src = "\
+# Quick start
+
+Every video here is built from a script.
+
+# Provenance
+
+And every timeline is committed.
+";
+    let out = compile_str(src).expect("compiles");
+
+    let ids: Vec<&str> = out
+        .narration
+        .iter()
+        .map(|n| n.segment_id.as_str())
+        .collect();
+    assert_eq!(
+        ids.len(),
+        2,
+        "one detail per narration item, in document order"
+    );
+
+    assert_eq!(
+        out.narration[0].text,
+        "Every video here is built from a script."
+    );
+    assert_eq!(out.narration[0].chapter, "quick-start");
+    assert_eq!(out.narration[1].chapter, "provenance");
+
+    assert!(
+        out.narration[0].word_timings.is_none(),
+        "the null backend advertises word_timings: false"
+    );
+}
+
+#[test]
+fn compile_carries_the_scripts_chapters() {
+    let out = compile_str(
+        "\
+# Quick start
+
+The first paragraph.
+
+# Provenance
+
+The second paragraph.
+",
+    )
+    .expect("compiles");
+
+    let slugs: Vec<&str> = out.chapters.iter().map(|c| c.slug.as_str()).collect();
+    assert_eq!(
+        slugs,
+        vec!["quick-start", "provenance"],
+        "the CLI reaches compilation only through `compile_script`, which \
+         returns this struct — chapters unreachable here are unreachable to `dub`"
+    );
+}
+
+#[test]
+fn narration_details_line_up_with_timeline_narration_entries() {
+    let src = "\
+# Quick start
+
+The first paragraph here.
+
+The second paragraph here.
+";
+    let out = compile_str(src).expect("compiles");
+
+    let timeline_ids: Vec<&str> = out
+        .timeline
+        .entries
+        .iter()
+        .filter_map(|e| e.narration.as_ref().map(|n| n.segment.as_str()))
+        .collect();
+    let detail_ids: Vec<&str> = out
+        .narration
+        .iter()
+        .map(|n| n.segment_id.as_str())
+        .collect();
+
+    assert_eq!(
+        timeline_ids, detail_ids,
+        "the join key must be total in both directions, or the manifest \
+         will silently drop or invent segments"
+    );
+}
+
+/// The request `compile` measured the duration from is the request it hands
+/// out, so a caller that renders audio cannot render something else. `dub`
+/// used to rebuild a `SynthRequest` itself, dropping `voice` and `speed`,
+/// and published a duration from the resolved config beside a file rendered
+/// at the defaults.
+#[test]
+fn the_narration_detail_carries_the_resolved_synth_request() {
+    let src = "\
+---
+voice:
+  voice: narrator
+  speed: 2.0
+---
+
+# A
+
+One two three four five six.
+";
+    let out = compile_str(src).expect("compiles");
+    let detail = &out.narration[0];
+
+    assert_eq!(detail.synth_request.text, detail.text);
+    assert_eq!(detail.synth_request.locale, "en");
+    assert_eq!(detail.synth_request.voice.as_deref(), Some("narrator"));
+    assert_eq!(
+        detail.synth_request.speed, 2.0,
+        "the resolved config's speed, not the default"
+    );
+
+    // And it is the same request the published duration was measured from.
+    let measured = NullVoice::default()
+        .synthesize(&detail.synth_request)
+        .unwrap();
+    let published = out.timeline.entries[0]
+        .narration
+        .as_ref()
+        .unwrap()
+        .duration_ms;
+    assert_eq!(measured.duration_ms, published);
+}
+
+#[test]
+fn the_narration_detail_carries_the_chapter_index_as_well_as_the_slug() {
+    let src = "\
+# Setup
+
+First. {#one}
+
+# Setup
+
+Second. {#two}
+";
+    let out = compile_str(src).expect("compiles");
+    let by_index: Vec<(usize, &str)> = out
+        .narration
+        .iter()
+        .map(|d| (d.chapter_index, d.chapter.as_str()))
+        .collect();
+    assert_eq!(
+        by_index,
+        vec![(0, "setup"), (1, "setup")],
+        "the slug cannot tell two identically-titled chapters apart; the \
+         index must"
+    );
 }

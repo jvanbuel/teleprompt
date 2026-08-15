@@ -194,6 +194,7 @@ meaningful: the manifest is the reviewable claim, the audio is its output.
     {
       "id": "welcome",
       "text": "Every video in this repository is built from a script you can read.",
+      "chapter": "quickstart",
       "start_ms": 0,
       "duration_ms": 12200,
       "audio": "audio/welcome.wav",
@@ -225,14 +226,51 @@ abbreviated above for readability, as in §6.5.
 | `chapters` | Derived from headings (§3.1). Present for consumers building chapter markers or navigation; empty array when the script has no headings. |
 | `segments[].id` | The segment id from §3.3. Stable across edits that do not rename it, and the join key for everything else. |
 | `segments[].text` | The narration prose as parsed. This is what makes captions possible without re-parsing the script. |
-| `segments[].start_ms`, `duration_ms` | Absolute placement on the narration timeline. `start_ms` already includes `lead_in` padding; `duration_ms` is the speech itself, excluding padding, so `start_ms + duration_ms` is exactly when the voice stops. |
+| `segments[].chapter` | Slug of the chapter this segment was spoken in, matching a `chapters[].id` when that chapter has one. Always present. Published rather than left to be reconstructed from timestamps, because `chapters` omits silent chapters and that reconstruction is therefore lossy. |
+| `segments[].start_ms`, `duration_ms` | Absolute placement on the narration timeline. `start_ms` already includes `lead_in` padding; `duration_ms` is the speech itself, excluding padding, so `start_ms + duration_ms` is exactly when the voice stops. **Authoritative for this segment's length — see §5.2.** |
 | `segments[].audio` | Path relative to this manifest. |
 | `voice_source` / `voice_source_actual` / `downgrade_reason` | The dubbing spectrum (§4) as delivered. `voice_source` is what the script asked for; `voice_source_actual` is what the ladder produced. `downgrade_reason` is `null` when they agree. A consumer can surface "this segment is machine-read" in a preview UI. |
 | `source_hash` | Hash of the segment's prose. What `--check` compares. |
-| `audio_hash` | Hash of the rendered audio bytes. Lets a consumer cache renders and skip re-encoding when only unrelated segments changed. |
+| `audio_hash` | Hash of the encoded audio file named by `segments[].audio` — the bytes on disk, nothing else. Lets a consumer cache renders and skip re-encoding when only unrelated segments changed. Deliberately *not* the voice backend's synthesis cache key: that key embeds the teleprompt version, so publishing it would change every segment's hash on every teleprompt release and report "audio changed" on every segment of every consumer's next pull request. Two segments may legitimately share a hash — that means their audio is byte-identical, which is precisely when a cached render is reusable. With the `null` backend (silence) every segment of equal duration shares one; real speech does not. |
 | `segments[].words` | Optional, present only when the backend advertises `word_timings` (§4.3). Omitted entirely otherwise — never present as an empty array, so its absence is unambiguous. |
 
-### 5.2 Determinism
+### 5.2 Consecutive segments may overlap
+
+**A segment's own `duration_ms` is authoritative for its length. Never infer
+a length from the next segment's `start_ms`.**
+
+`segments[i].start_ms + segments[i].duration_ms` can be greater than
+`segments[i + 1].start_ms`. This is not a bug in the manifest and a consumer
+must not treat it as one.
+
+It happens because the scheduler subtracts a beat's transition window from
+that beat before advancing its cursor: the next beat begins while the
+current one is still finishing, which is exactly what a crossfade is for.
+For a beat carrying only narration there is no action span to absorb the
+window, so the overlap eats into speech. Three plain paragraphs at default
+config, no action blocks, currently produce:
+
+```
+one    start 150   duration 750   ends 900
+two    start 675   duration 750   ends 1425
+three  start 1200  duration 750   ends 1950
+```
+
+`one` is still speaking 225 ms after `two` starts.
+
+The practical consequence for a consumer is one line of code. Place each
+segment's audio at its `start_ms` and give it its `duration_ms`; let the
+placements overlap. A consumer that instead computes
+`next.start_ms - seg.start_ms` truncates the tail of every segment but the
+last — the §7 example was written that way and was wrong. Overlapping audio
+mixes; clipped audio loses words.
+
+Whether narration-only beats *should* overlap at all is a video-output
+question about the scheduler, not about this contract, and is deliberately
+left open. The contract's job is to say plainly that they can, so that
+consumers written today keep working either way.
+
+### 5.3 Determinism
 
 The manifest is byte-stable for the same script, config, and backend: field
 order is fixed by the struct, no timestamps are emitted, and floats do not
@@ -240,7 +278,7 @@ appear. `generated_by` carries the teleprompt version and therefore changes
 across releases, which is the same behaviour the `Timeline` already has and is
 visible in review rather than silent.
 
-### 5.3 `--check` and drift
+### 5.4 `--check` and drift
 
 `teleprompt dub --check` recomputes the manifest, compares it to the one on
 disk, and exits `3` on any difference, printing a report in the shape of §6.6:
@@ -317,12 +355,12 @@ import { Audio } from '@remotion/media';
 
 const Tour = ({ manifest }) => (
   <AbsoluteFill>
-    {manifest.segments.map((seg, i) => {
+    {manifest.segments.map((seg) => {
+      // Each segment's own start and end, as absolute offsets. Not
+      // `next.start_ms` — segments may overlap (§5.2), and deriving a
+      // length from the next start clips the tail of the speech.
       const from = msToFrames(seg.start_ms, 30);
-      const next = manifest.segments[i + 1];
-      const until = next
-        ? msToFrames(next.start_ms, 30)
-        : msToFrames(manifest.duration_ms, 30);
+      const until = msToFrames(seg.start_ms + seg.duration_ms, 30);
       return (
         <Sequence key={seg.id} from={from} durationInFrames={until - from}>
           <Audio src={staticFile(`narration/en/${seg.audio}`)} />
@@ -343,12 +381,19 @@ const Tour = ({ manifest }) => (
 const msToFrames = (ms: number, fps: number) => Math.round((ms * fps) / 1000);
 ```
 
-A segment's length is the difference between two rounded absolute starts, as
+A segment's length is the difference between two rounded absolute offsets, as
 above — never the rounding of a duration. Rounding durations independently lets
 error accumulate across a long video and drifts audio out of sync with picture
 by the end. This is the single most likely mistake a consumer will make, which
 is why the example computes `until - from` rather than rounding
 `seg.duration_ms`.
+
+The two offsets are this segment's **own** start and end —
+`seg.start_ms` and `seg.start_ms + seg.duration_ms` — added in milliseconds
+and rounded separately. They are not `seg.start_ms` and `next.start_ms`:
+consecutive segments may overlap (§5.2), so the next segment's start is not
+this one's end, and using it truncates the tail of every segment but the
+last. Both rules apply at once, and neither substitutes for the other.
 
 teleprompt cannot enforce this; the manifest is milliseconds and frame rate is
 the consumer's business. It is documented here and in the `dub` command's help
@@ -416,8 +461,12 @@ No new crate.
   not from file adjacency.
 
 - `teleprompt-compile`'s `CompileOutput` gains `narration: Vec<NarrationDetail>`
-  carrying per-segment `text`, `chapter`, and `word_timings`, which `compile`
-  already has in hand and currently drops.
+  carrying per-segment `text`, `chapter` (slug and index), `synth_request`, and
+  `word_timings`, all of which `compile` already has in hand and currently
+  drops. The `SynthRequest` is carried rather than rebuilt by the caller so
+  that the audio `dub` renders and the duration the manifest publishes come
+  from one object; the chapter *index* is carried because slugs derive from
+  titles and two identically-titled chapters share one.
 - `teleprompt-core`'s `Program` gains chapter provenance: `Item::Narration`
   gains a `chapter` slug and `Program` gains an ordered `chapters` list.
   `resolve` flattens the chapter tree today and keeps nothing of it, so the
