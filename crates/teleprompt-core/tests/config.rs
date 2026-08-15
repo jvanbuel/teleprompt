@@ -86,3 +86,29 @@ fn real_front_matter_with_schema_version_and_output_block_deserializes() {
     assert_eq!(c.transition.max_ms, 600);
     assert_eq!(c.locales.source, "en");
 }
+
+#[test]
+fn malformed_transition_duration_is_a_reported_error_not_a_silent_auto() {
+    let err =
+        PartialConfig::from_yaml("output:\n  transition:\n    duration: 25oms\n").unwrap_err();
+    let message = err.to_string();
+    assert!(
+        message.contains("25oms"),
+        "error should name the offending value, got: {message}"
+    );
+}
+
+#[test]
+fn transition_duration_auto_is_case_insensitive() {
+    let upper = PartialConfig::from_yaml("output:\n  transition:\n    duration: AUTO\n").unwrap();
+    assert_eq!(
+        Config::merged(&[upper]).transition.duration,
+        TransitionDuration::Auto
+    );
+
+    let mixed = PartialConfig::from_yaml("output:\n  transition:\n    duration: Auto\n").unwrap();
+    assert_eq!(
+        Config::merged(&[mixed]).transition.duration,
+        TransitionDuration::Auto
+    );
+}

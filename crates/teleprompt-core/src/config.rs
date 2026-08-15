@@ -42,6 +42,30 @@ pub enum TransitionDuration {
     Fixed(u64),
 }
 
+/// Accepts `auto` (case-insensitively) or any string `parse_duration_ms`
+/// understands (e.g. `250ms`, `1s`). Anything else is a deserialize error
+/// naming the offending value, so a typo in front matter is reported rather
+/// than silently treated as `auto`.
+impl<'de> Deserialize<'de> for TransitionDuration {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if s.eq_ignore_ascii_case("auto") {
+            return Ok(TransitionDuration::Auto);
+        }
+        parse_duration_ms(&s)
+            .map(TransitionDuration::Fixed)
+            .map_err(|_| {
+                serde::de::Error::custom(format!(
+                    "`{s}` is not a valid transition duration \
+                     (expected `auto` or a duration like `250ms`)"
+                ))
+            })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransitionConfig {
     pub kind: String,
@@ -155,7 +179,7 @@ pub struct PartialOutput {
 #[serde(deny_unknown_fields)]
 pub struct PartialTransition {
     pub kind: Option<String>,
-    pub duration: Option<String>,
+    pub duration: Option<TransitionDuration>,
     pub min_ms: Option<u64>,
     pub max_ms: Option<u64>,
 }
@@ -257,16 +281,7 @@ impl Config {
                 set!(c.transition.kind, t.kind.clone());
                 set!(c.transition.min_ms, t.min_ms);
                 set!(c.transition.max_ms, t.max_ms);
-                if let Some(d) = &t.duration {
-                    c.transition.duration = if d == "auto" {
-                        TransitionDuration::Auto
-                    } else {
-                        match parse_duration_ms(d) {
-                            Ok(ms) => TransitionDuration::Fixed(ms),
-                            Err(_) => TransitionDuration::Auto,
-                        }
-                    };
-                }
+                set!(c.transition.duration, t.duration.clone());
             }
             if let Some(scenes) = &layer.scene {
                 for (name, ps) in scenes {
