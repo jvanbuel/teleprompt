@@ -76,6 +76,12 @@ fn stretch_beyond_the_maximum_is_clamped_and_warns() {
     assert_eq!(l.action_duration_ms, 1500, "500 * 3.0");
     assert_eq!(l.beat_duration_ms, 5000, "narration still governs");
     assert!(l.warnings[0].contains("max_stretch"));
+    assert!(
+        l.warnings[0].contains("action"),
+        "the warning must name what is being stretched, or it reads as if the \
+         speech were resampled: {}",
+        l.warnings[0]
+    );
 }
 
 #[test]
@@ -85,6 +91,12 @@ fn stretch_below_the_minimum_is_clamped_and_warns() {
     assert_eq!(l.action_duration_ms, 3300, "10000 * 0.33");
     assert_eq!(l.beat_duration_ms, 3300, "the clamped action now governs");
     assert!(l.warnings[0].contains("min_stretch"));
+    assert!(
+        l.warnings[0].contains("action"),
+        "the warning must name what is being stretched, or it reads as if the \
+         speech were resampled: {}",
+        l.warnings[0]
+    );
 }
 
 #[test]
@@ -135,4 +147,49 @@ fn policy_parses_from_attribute_strings() {
     assert_eq!(Policy::parse("trim", "start"), Some(Policy::Trim));
     assert_eq!(Policy::parse("nonsense", "start"), None);
     assert_eq!(Policy::parse("concurrent", "sideways"), None);
+}
+
+/// The property the policy names fight: no policy modifies the narration.
+///
+/// `Layout` has no narration-duration field at all — narration is an input to
+/// `layout` and never an output — so the only way a policy could shorten
+/// speech is by leaving it no room in the beat. Every policy, at every ratio,
+/// must give the narration its full length inside the beat. `stretch` and
+/// `trim` adjust the *action*; the audio is played as the voice produced it.
+#[test]
+fn no_policy_ever_denies_the_narration_its_full_length() {
+    let policies = [
+        Policy::Hold,
+        Policy::Concurrent(Align::Start),
+        Policy::Concurrent(Align::End),
+        Policy::Concurrent(Align::Center),
+        Policy::Stretch,
+        Policy::Trim,
+    ];
+    // Ratios spanning both clamp directions: action far shorter than
+    // narration, comparable, and far longer.
+    let cases = [
+        (5000u64, 0u64),
+        (5000, 500),
+        (5000, 5000),
+        (5000, 20_000),
+        (1000, 10_000),
+    ];
+
+    for policy in policies {
+        for (narration_ms, action_ms) in cases {
+            let l = layout(policy, narration_ms, action_ms, &timing());
+            assert!(
+                l.narration_start_ms + narration_ms <= l.beat_duration_ms,
+                "{} with narration {}ms / action {}ms starts narration at {}ms \
+                 in a {}ms beat, cutting {}ms of speech",
+                policy.label(),
+                narration_ms,
+                action_ms,
+                l.narration_start_ms,
+                l.beat_duration_ms,
+                (l.narration_start_ms + narration_ms).saturating_sub(l.beat_duration_ms),
+            );
+        }
+    }
 }

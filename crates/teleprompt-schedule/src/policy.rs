@@ -85,13 +85,13 @@ pub fn layout(policy: Policy, narration_ms: u64, action_ms: u64, timing: &Timing
                 let wanted = narration_ms as f64 / action_ms as f64;
                 let factor = if wanted > timing.max_stretch {
                     warnings.push(format!(
-                        "stretch factor {wanted:.2} exceeds max_stretch {:.2}; clamped",
+                        "action needs {wanted:.2}x stretch to fill narration, above max_stretch {:.2}; clamped",
                         timing.max_stretch
                     ));
                     timing.max_stretch
                 } else if wanted < timing.min_stretch {
                     warnings.push(format!(
-                        "stretch factor {wanted:.2} is below min_stretch {:.2}; clamped",
+                        "action needs {wanted:.2}x stretch to fit narration, below min_stretch {:.2}; clamped",
                         timing.min_stretch
                     ));
                     timing.min_stretch

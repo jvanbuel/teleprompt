@@ -428,12 +428,29 @@ action block with no segment is silent business.
 
 ### 6.2 Policies
 
+**No policy ever alters the narration.** Every policy below takes the
+narration's duration as a fixed target and adjusts only the action — the
+typing speed, the scroll rate, the progress animation, the machine-generated
+motion that has no natural tempo of its own. Speech is always played at the
+length the voice backend produced it, and the scheduler has no capability to
+resample, compress, or truncate it. When the pacing is wrong, the remedy is
+editing the prose and re-running the loop, not stretching the waveform.
+
+`voice.speed` is the one speech-rate control in the system, and it sits
+outside this table on purpose: it is an author-set synthesis parameter passed
+to the backend in `SynthRequest`, so the voice is *generated* at that rate
+rather than resampled after the fact. The scheduler must never acquire the
+ability to write it in order to make a beat fit.
+
+The names `stretch` and `trim` name an operation without naming its object,
+which reads as if the speech were the thing being adjusted. See issue #1.
+
 | policy | semantics |
 |---|---|
 | `hold` (default) | Narration plays over the visual state left by the previous beat. The action runs after narration completes. Predictable, and correct for most explanatory content. |
 | `concurrent` | Action and narration overlap. `align=start` (default) begins them together; `align=end` makes them finish together; `align=center` centres the shorter within the longer. Whichever ends first waits. |
 | `stretch` | The action's internal delays scale by a uniform factor so the block's duration exactly equals the narration's. Intended for typing, scrolling, and progress animations. Bounded by `max_stretch` (default 3.0) and `min_stretch` (default 0.33); exceeding either is a warning and the bound is applied. |
-| `trim` | Narration is authoritative. An over-long action is time-compressed in post, bounded by `max_speedup` (default 2.0). Beyond the bound, the tail is cut at the last completed step and a warning is emitted. |
+| `trim` | An action longer than its narration is time-compressed in post until it fits, bounded by `max_speedup` (default 2.0). Beyond the bound, the action's tail is cut at the last completed step and a warning is emitted. The narration sets the length and is itself untouched — an action shorter than its narration is left alone. |
 
 ### 6.3 Slack and automatic transitions
 
