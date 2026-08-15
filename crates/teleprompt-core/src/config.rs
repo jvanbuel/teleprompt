@@ -11,6 +11,12 @@ pub struct Config {
     pub timing: TimingConfig,
     pub transition: TransitionConfig,
     pub scenes: BTreeMap<String, SceneConfig>,
+    /// `scene.default:` from front matter (spec §3.1). Resolved through the
+    /// layer merge like everything else, but not yet consulted: M0 still
+    /// requires every action block to name its own `scene=`, and relaxing
+    /// that is M1's job. Kept here rather than discarded so the value an
+    /// author wrote survives the merge instead of being silently lost.
+    pub default_scene: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,10 +80,16 @@ pub struct TransitionConfig {
     pub max_ms: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A resolved scene's adapter and its adapter-native settings.
+///
+/// `settings` holds `serde_yaml::Value`, not `String`: spec §3.1 configures
+/// `browser.viewport: [1920, 1080]`, and flattening structured YAML into a
+/// string map either rejects it (which is what happened) or lossily stringifies
+/// it. Adapters read whatever shape their own tool wants.
+#[derive(Debug, Clone, PartialEq)]
 pub struct SceneConfig {
     pub adapter: String,
-    pub settings: BTreeMap<String, String>,
+    pub settings: BTreeMap<String, serde_yaml::Value>,
 }
 
 impl Default for Config {
@@ -107,6 +119,7 @@ impl Default for Config {
                 max_ms: 600,
             },
             scenes: BTreeMap::new(),
+            default_scene: None,
         }
     }
 }
@@ -136,7 +149,7 @@ pub struct PartialConfig {
     pub voice: Option<PartialVoice>,
     pub timing: Option<PartialTiming>,
     pub output: Option<PartialOutput>,
-    pub scene: Option<BTreeMap<String, PartialScene>>,
+    pub scene: Option<PartialScenes>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -153,6 +166,32 @@ pub struct PartialVoice {
     pub backend: Option<String>,
     pub voice: Option<String>,
     pub speed: Option<f64>,
+    /// Per-tier backend configuration, exactly as spec §3.1 writes it:
+    ///
+    /// ```yaml
+    /// voice:
+    ///   source: synthetic
+    ///   synthetic: { backend: kokoro, model: af_heart, speed: 1.0 }
+    ///   cloned:    { backend: elevenlabs, profile: jan }
+    ///   recorded:  { takes_dir: takes }
+    /// ```
+    ///
+    /// Declared so the spec's canonical front matter deserializes. Like
+    /// `output.resolution` and `output.fps`, these are parsed and otherwise
+    /// unused: M0 ships only the `null` backend, and the real ones arrive in
+    /// M3.
+    pub synthetic: Option<PartialVoiceTier>,
+    pub cloned: Option<PartialVoiceTier>,
+    pub recorded: Option<PartialVoiceTier>,
+}
+
+/// One tier's backend settings. `backend` is named because every tier has
+/// one; everything else is backend-native and kept as raw YAML.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct PartialVoiceTier {
+    pub backend: Option<String>,
+    #[serde(flatten)]
+    pub settings: BTreeMap<String, serde_yaml::Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -184,11 +223,73 @@ pub struct PartialTransition {
     pub max_ms: Option<u64>,
 }
 
+/// The `scene:` block, which spec §3.1 writes in two shapes at once:
+///
+/// ```yaml
+/// scene:
+///   default: browser            # names a scene
+///   browser:                    # configures one
+///     base_url: "http://localhost:3000"
+///     viewport: [1920, 1080]
+/// ```
+///
+/// `default` is a reserved key holding a scene *name*; every other key is a
+/// scene *configuration*. A plain `BTreeMap<String, PartialScene>` rejected
+/// `default: browser` with "invalid type: string, expected struct
+/// PartialScene".
+///
+/// The obvious repair — an untagged enum of "name or settings" — would also
+/// make `scene: { browser: playwright }` deserialize, to nothing, turning a
+/// typo into a silent no-op. Reading the key first keeps that an error, which
+/// is the house rule: unknown or malformed input is reported, never ignored.
+#[derive(Debug, Clone, Default)]
+pub struct PartialScenes {
+    pub default: Option<String>,
+    pub scenes: BTreeMap<String, PartialScene>,
+}
+
+impl<'de> Deserialize<'de> for PartialScenes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct MapVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for MapVisitor {
+            type Value = PartialScenes;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a `scene` block: `default: <name>` and/or per-scene settings")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<PartialScenes, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut out = PartialScenes::default();
+                while let Some(key) = map.next_key::<String>()? {
+                    if key == "default" {
+                        out.default = Some(map.next_value::<String>()?);
+                    } else {
+                        out.scenes.insert(key, map.next_value::<PartialScene>()?);
+                    }
+                }
+                Ok(out)
+            }
+        }
+
+        deserializer.deserialize_map(MapVisitor)
+    }
+}
+
+/// Settings are `serde_yaml::Value`, not `String`, so structured values such
+/// as `viewport: [1920, 1080]` survive instead of being rejected as
+/// "invalid type: sequence, expected a string".
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct PartialScene {
     pub adapter: Option<String>,
     #[serde(flatten)]
-    pub settings: BTreeMap<String, String>,
+    pub settings: BTreeMap<String, serde_yaml::Value>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -284,7 +385,8 @@ impl Config {
                 set!(c.transition.duration, t.duration.clone());
             }
             if let Some(scenes) = &layer.scene {
-                for (name, ps) in scenes {
+                set!(c.default_scene, scenes.default.clone().map(Some));
+                for (name, ps) in &scenes.scenes {
                     let entry = c.scenes.entry(name.clone()).or_insert_with(|| SceneConfig {
                         adapter: default_adapter(name).to_string(),
                         settings: BTreeMap::new(),

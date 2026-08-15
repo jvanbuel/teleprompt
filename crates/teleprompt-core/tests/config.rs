@@ -79,8 +79,14 @@ fn transition_duration_accepts_auto_or_a_number() {
     );
 }
 
+/// Renamed from `real_front_matter_with_schema_version_and_output_block_\
+/// deserializes`: it was named for the general property while using front
+/// matter edited down to what already worked. What it actually checks is
+/// that `teleprompt:` and the `output:` block reach `Config` — a narrower
+/// and still worthwhile claim. The general claim is carried by
+/// `the_specs_own_section_3_1_front_matter_deserializes_verbatim` below.
 #[test]
-fn real_front_matter_with_schema_version_and_output_block_deserializes() {
+fn the_schema_version_and_output_block_reach_the_merged_config() {
     let yaml = "teleprompt: 1\nlocales:\n  source: en\noutput:\n  resolution: [1920, 1080]\n  fps: 30\n  transition: { duration: auto, max_ms: 600 }\nscene:\n  mock: { adapter: mock }\n";
     let c = Config::merged(&[PartialConfig::from_yaml(yaml).unwrap()]);
     assert_eq!(c.transition.max_ms, 600);
@@ -111,4 +117,115 @@ fn transition_duration_auto_is_case_insensitive() {
         Config::merged(&[mixed]).transition.duration,
         TransitionDuration::Auto
     );
+}
+
+/// Final review, item 8. Three constructs in the design spec's own canonical
+/// example were rejected by the compiler an M1 implementer would be building
+/// against:
+///
+/// ```text
+/// voice.synthetic                       -> unknown field `synthetic`
+/// scene.default: browser                -> invalid type: string, expected struct PartialScene
+/// scene.browser.viewport: [1920, 1080]  -> invalid type: sequence, expected a string
+/// ```
+///
+/// The block below is spec §3.1's front matter pasted **verbatim**,
+/// comments and alignment included. It is deliberately not pruned: pruning
+/// it is what let the gap survive review the first time.
+const SPEC_3_1_FRONT_MATTER: &str = r#"teleprompt: 1
+locales:
+  source: en
+  targets: [nl, fr]
+voice:
+  source: synthetic                                  # synthetic | cloned | recorded
+  synthetic: { backend: kokoro, model: af_heart, speed: 1.0 }
+  cloned:    { backend: elevenlabs, profile: jan }   # see voices/jan.toml
+  recorded:  { takes_dir: takes }
+scene:
+  default: browser
+  browser:
+    base_url: "http://localhost:3000"
+    viewport: [1920, 1080]
+    device_scale_factor: 2
+output:
+  resolution: [1920, 1080]
+  fps: 30
+  transition: { kind: crossfade, duration: auto, max_ms: 600 }
+"#;
+
+#[test]
+fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
+    let partial = PartialConfig::from_yaml(SPEC_3_1_FRONT_MATTER)
+        .expect("the spec's canonical front matter must deserialize");
+    let c = Config::merged(&[partial]);
+
+    assert_eq!(c.locales.source, "en");
+    assert_eq!(c.locales.targets, ["nl", "fr"]);
+    assert_eq!(c.voice.source, "synthetic");
+    assert_eq!(c.transition.kind, "crossfade");
+    assert_eq!(c.transition.duration, TransitionDuration::Auto);
+    assert_eq!(c.transition.max_ms, 600);
+
+    assert_eq!(c.default_scene.as_deref(), Some("browser"));
+    let browser = c.scenes.get("browser").expect("browser scene configured");
+    assert_eq!(
+        browser.adapter, "playwright",
+        "an unconfigured adapter still falls back by scene name"
+    );
+    assert_eq!(
+        browser.settings.get("viewport"),
+        Some(&serde_yaml::from_str::<serde_yaml::Value>("[1920, 1080]").unwrap()),
+        "structured settings survive instead of being stringified or rejected"
+    );
+    assert_eq!(
+        browser.settings.get("base_url").and_then(|v| v.as_str()),
+        Some("http://localhost:3000")
+    );
+}
+
+/// The per-tier voice blocks are parsed rather than merged — like
+/// `output.resolution` and `output.fps`, they are declared so the spec's
+/// front matter deserializes and are unused until their backends land in M3.
+/// Asserted here so the deferral is recorded rather than assumed.
+#[test]
+fn the_per_tier_voice_blocks_are_parsed_and_kept() {
+    let p = PartialConfig::from_yaml(SPEC_3_1_FRONT_MATTER).unwrap();
+    let voice = p.voice.expect("voice block present");
+    assert_eq!(
+        voice.synthetic.as_ref().unwrap().backend.as_deref(),
+        Some("kokoro")
+    );
+    assert_eq!(
+        voice.synthetic.as_ref().unwrap().settings.get("model"),
+        Some(&serde_yaml::Value::from("af_heart"))
+    );
+    assert_eq!(
+        voice.cloned.as_ref().unwrap().backend.as_deref(),
+        Some("elevenlabs")
+    );
+    assert_eq!(
+        voice.recorded.as_ref().unwrap().settings.get("takes_dir"),
+        Some(&serde_yaml::Value::from("takes"))
+    );
+}
+
+/// Accepting what the spec documents must not mean accepting anything.
+/// `scene: { browser: playwright }` is not a shape this grammar has a meaning
+/// for, and an untagged "name or settings" enum would have deserialized it to
+/// nothing at all.
+#[test]
+fn a_bare_string_under_a_scene_key_is_still_an_error() {
+    let err = PartialConfig::from_yaml("scene:\n  browser: playwright\n").unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("invalid type: string"),
+        "a scene key must hold settings, not a name: {msg}"
+    );
+}
+
+/// And `deny_unknown_fields` still holds at the top level.
+#[test]
+fn an_unknown_top_level_key_is_still_an_error() {
+    let err = PartialConfig::from_yaml("teleprompt: 1\nvioce:\n  source: synthetic\n").unwrap_err();
+    assert!(err.to_string().contains("vioce"), "{err}");
 }
