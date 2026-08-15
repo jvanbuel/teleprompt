@@ -1,36 +1,11 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VoiceSource {
-    Recorded,
-    Cloned,
-    Synthetic,
-}
+//! The fallback ladder over [`VoiceSource`].
+//!
+//! `VoiceSource` itself lives in `teleprompt-core` (see
+//! `teleprompt_core::voice`) because `teleprompt-schedule` names it too and
+//! must not depend on this crate. It is re-exported from here so backend code
+//! that already imports the ladder keeps a single import.
 
-impl VoiceSource {
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "recorded" => Some(Self::Recorded),
-            "cloned" => Some(Self::Cloned),
-            "synthetic" => Some(Self::Synthetic),
-            _ => None,
-        }
-    }
-
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Recorded => "recorded",
-            Self::Cloned => "cloned",
-            Self::Synthetic => "synthetic",
-        }
-    }
-
-    pub fn next_lower(&self) -> Option<Self> {
-        match self {
-            Self::Recorded => Some(Self::Cloned),
-            Self::Cloned => Some(Self::Synthetic),
-            Self::Synthetic => None,
-        }
-    }
-}
+pub use teleprompt_core::voice::VoiceSource;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Resolution {

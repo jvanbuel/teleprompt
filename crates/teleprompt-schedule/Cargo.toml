@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 teleprompt-core = { path = "../teleprompt-core" }
-teleprompt-voice = { path = "../teleprompt-voice" }
 serde.workspace = true
 serde_json.workspace = true
 

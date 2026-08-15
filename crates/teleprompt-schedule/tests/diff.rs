@@ -1,9 +1,9 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
+use teleprompt_core::VoiceSource;
 use teleprompt_schedule::{
     diff, schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, TimelineDiff,
 };
-use teleprompt_voice::VoiceSource;
 
 fn cfg() -> Config {
     let mut c = Config::default();

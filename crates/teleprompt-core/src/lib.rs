@@ -6,6 +6,8 @@ pub mod hash;
 pub mod ident;
 pub mod parse;
 pub mod program;
+pub mod voice;
 
 pub use error::{Diagnostic, Diagnostics, Severity, SourceSpan};
 pub use hash::Hash;
+pub use voice::VoiceSource;

@@ -1,7 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
+use teleprompt_core::VoiceSource;
 use teleprompt_schedule::{schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy};
-use teleprompt_voice::VoiceSource;
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
     NarrationInput {

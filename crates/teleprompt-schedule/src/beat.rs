@@ -1,6 +1,5 @@
 use teleprompt_core::config::Config;
-use teleprompt_core::Hash;
-use teleprompt_voice::VoiceSource;
+use teleprompt_core::{Hash, VoiceSource};
 
 use crate::policy::Policy;
 

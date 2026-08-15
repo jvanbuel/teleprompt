@@ -506,7 +506,6 @@ dependencies = [
  "serde",
  "serde_json",
  "teleprompt-core",
- "teleprompt-voice",
 ]
 
 [[package]]
