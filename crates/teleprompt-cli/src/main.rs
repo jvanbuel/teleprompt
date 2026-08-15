@@ -1,10 +1,14 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+use teleprompt_cli::cmd::check::{self, CheckReport};
+use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
 use teleprompt_cli::cmd::new::{self, NewReport};
+use teleprompt_cli::cmd::plan;
 use teleprompt_cli::output::{exit_code_for, Format, Outcome};
+use teleprompt_cli::project::Project;
 use teleprompt_scene::SceneRegistry;
 
 #[derive(Parser)]
@@ -27,6 +31,34 @@ enum Command {
     New { path: PathBuf },
     /// Report the environment teleprompt can see
     Doctor,
+    /// Parse and validate; no side effects, no cost
+    Check {
+        script: PathBuf,
+        #[arg(long, default_value = "en")]
+        locale: String,
+    },
+    /// Compile the timeline and print it
+    Plan {
+        script: PathBuf,
+        #[arg(long, default_value = "en")]
+        locale: String,
+    },
+    /// Compare against the committed timeline
+    Diff {
+        script: PathBuf,
+        #[arg(long, default_value = "en")]
+        locale: String,
+        /// Exit 3 when the timeline has drifted
+        #[arg(long)]
+        exit_code: bool,
+    },
+}
+
+/// Finds the project a `script` belongs to. Shared by every command that
+/// takes a script path, so the "no teleprompt.toml found" message and its
+/// exit behaviour are defined once.
+fn discover(script: &Path) -> std::io::Result<Project> {
+    Project::discover(script.parent().unwrap_or(Path::new(".")))
 }
 
 fn main() -> ExitCode {
@@ -56,6 +88,101 @@ fn main() -> ExitCode {
             }
             Outcome::Ok
         }
+        Command::Check { script, locale } => match discover(&script) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => match check::run_check(&project, &script, &locale) {
+                Ok(warnings) => {
+                    for w in &warnings {
+                        eprintln!("warning: {w}");
+                    }
+                    let report = CheckReport {
+                        ok: true,
+                        warnings,
+                        errors: Vec::new(),
+                    };
+                    match cli.format {
+                        Format::Json => {
+                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                        }
+                        Format::Human => println!("ok"),
+                    }
+                    Outcome::Ok
+                }
+                Err(errors) => {
+                    match cli.format {
+                        Format::Json => {
+                            let report = CheckReport {
+                                ok: false,
+                                warnings: Vec::new(),
+                                errors: errors.clone(),
+                            };
+                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                        }
+                        Format::Human => {
+                            for e in &errors {
+                                eprintln!("{e}");
+                            }
+                        }
+                    }
+                    Outcome::ValidationError(errors)
+                }
+            },
+        },
+        Command::Plan { script, locale } => match discover(&script) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => match plan::run_plan(&project, &script, &locale) {
+                Ok(out) => {
+                    match cli.format {
+                        Format::Json => {
+                            println!("{}", serde_json::to_string_pretty(&out.timeline).unwrap())
+                        }
+                        Format::Human => print!("{}", plan::render_plan(&out)),
+                    }
+                    Outcome::Ok
+                }
+                Err(errors) => {
+                    for e in &errors {
+                        eprintln!("{e}");
+                    }
+                    Outcome::ValidationError(errors)
+                }
+            },
+        },
+        Command::Diff {
+            script,
+            locale,
+            exit_code,
+        } => match discover(&script) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => match diff_cmd::run_diff(&project, &script, &locale) {
+                Ok(d) => {
+                    match cli.format {
+                        Format::Json => println!("{}", serde_json::to_string_pretty(&d).unwrap()),
+                        Format::Human => println!("{}", d.render()),
+                    }
+                    if exit_code && !d.is_empty() {
+                        Outcome::Drift
+                    } else {
+                        Outcome::Ok
+                    }
+                }
+                Err(errors) => {
+                    for e in &errors {
+                        eprintln!("{e}");
+                    }
+                    Outcome::ValidationError(errors)
+                }
+            },
+        },
     };
 
     ExitCode::from(exit_code_for(&outcome) as u8)
