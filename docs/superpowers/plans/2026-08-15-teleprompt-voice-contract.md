@@ -233,7 +233,7 @@ impl DurationEstimator for WpmEstimator {
 }
 ```
 
-Have `null.rs` call `crate::estimator::estimate_ms`. Re-export it from the crate root as `pub use estimator::estimate_ms;` so the moved tests keep working.
+Have `null.rs` call `crate::estimator::estimate_ms`. Do **not** re-export it from the crate root: the moved tests never call it, and `WpmEstimator` is the public way to ask for an estimate.
 
 - [ ] **Step 5: Update the consumers' imports**
 
@@ -264,6 +264,7 @@ Standalone and pure. Nothing is wired to it in this task; it is tested alone.
 
 **Files:**
 - Create: `crates/teleprompt-cache/Cargo.toml`, `crates/teleprompt-cache/src/lib.rs`
+- Modify: `crates/teleprompt-voice/src/contract.rs` (serde derives on `WordTiming` — see Step 3)
 - Test: `crates/teleprompt-cache/tests/cache.rs`
 
 **Interfaces:**
@@ -660,7 +661,7 @@ fn write_err(path: &Path, source: std::io::Error) -> CacheError {
 }
 ```
 
-`WordTiming` needs `Serialize`/`Deserialize` and `Clone` for this. Add the derives in `crates/teleprompt-voice/src/contract.rs` if they are not already present.
+`WordTiming` currently derives `Debug, Clone, PartialEq, Eq` and nothing else — `crates/teleprompt-voice/src/contract.rs` imports no serde at all. Add `Serialize, Deserialize` to that one type (`serde` is already a dependency of `teleprompt-voice`). Leave every other type in that file alone: the cache is the only reason `WordTiming` needs to be serializable, and nothing else in the contract is being persisted.
 
 - [ ] **Step 4: Run the tests**
 
@@ -686,8 +687,10 @@ The timeline learns to say whether a narration duration was measured or predicte
 **Files:**
 - Modify: `crates/teleprompt-schedule/src/beat.rs`, `crates/teleprompt-schedule/src/timeline.rs`, `crates/teleprompt-schedule/src/schedule.rs`
 - Modify: `crates/teleprompt-compile/src/lib.rs`, `crates/teleprompt-compile/src/manifest.rs`
-- Test: `crates/teleprompt-schedule/tests/schedule.rs`
+- Test: `crates/teleprompt-schedule/tests/schedule.rs`, `crates/teleprompt-schedule/tests/diff.rs`
 - Snapshots: both `.snap` files change
+
+**Every literal `NarrationInput { .. }` needs the new field.** There are three outside the struct definition: `crates/teleprompt-compile/src/lib.rs`, `crates/teleprompt-schedule/tests/schedule.rs`, and `crates/teleprompt-schedule/tests/diff.rs` (its `beat()` helper, around line 17). Default both test helpers to `DurationSource::Measured`; the compile site is covered in Step 4.
 
 **Interfaces:**
 - Consumes: `DurationSource` from `crates/teleprompt-schedule/src/beat.rs` — it already exists with variants `Exact`, `Estimated`, `Measured`.
@@ -760,7 +763,9 @@ In `crates/teleprompt-schedule/src/schedule.rs`, populate it in the `NarrationEn
 
 - [ ] **Step 4: Set it at the one construction site, and publish it**
 
-In `crates/teleprompt-compile/src/lib.rs`, add `duration_source: DurationSource::Measured` to the `NarrationInput` the narration arm builds — `compile` still synthesizes, so that is honest for now. Import `DurationSource` from `teleprompt_schedule`.
+In `crates/teleprompt-compile/src/lib.rs`, add `duration_source: DurationSource::Measured` to the `NarrationInput` the narration arm builds — `compile` still synthesizes, so that is honest for now.
+
+Expect these same snapshots to change once more in Task 4, when `compile` starts reading a cold cache and the value becomes `estimated`. That is intended, not a mistake to correct here. The *durations* will not move: `NullVoice::synthesize` and `WpmEstimator::estimate_ms` call the same underlying function, so only `duration_source` differs between the two commits. Import `DurationSource` from `teleprompt_schedule`.
 
 In `crates/teleprompt-compile/src/manifest.rs`, add to `SegmentEntry` after `duration_ms`:
 
@@ -820,6 +825,7 @@ Append to `crates/teleprompt-compile/tests/compile.rs`:
 
 ```rust
 use teleprompt_cache::VoiceCache;
+use teleprompt_compile::VoiceContext;
 use teleprompt_voice::Pcm;
 use teleprompt_voice_null::WpmEstimator;
 
@@ -1067,7 +1073,7 @@ fn registering_the_same_id_twice_replaces_it() {
 }
 ```
 
-Create `crates/teleprompt-voice/tests/stub/mod.rs` with a minimal `StubVoice` implementing the current trait, returning an error from `synthesize` — the registry does not care what it synthesizes.
+Create `crates/teleprompt-voice/tests/stub/mod.rs` with a minimal `StubVoice` implementing the trait **as it stands at this task — still synchronous**, returning an error from `synthesize`; the registry does not care what it synthesizes. Task 6 converts it along with the trait, and names this file.
 
 Append to `crates/teleprompt-cli/tests/commands.rs`:
 
@@ -1200,6 +1206,8 @@ Only now, with `compile` off the backend, does making the trait async touch anyt
 - Modify: `crates/teleprompt-cli/src/cmd/dub.rs`, `crates/teleprompt-cli/src/main.rs`, `crates/teleprompt-cli/Cargo.toml`
 - Modify: root `Cargo.toml` (workspace deps)
 - Test: `crates/teleprompt-voice-null/tests/null.rs`, `crates/teleprompt-cli/tests/dub.rs`
+
+**Two test doubles also implement `VoiceBackend` and must be converted with it**, or the workspace will not compile: `crates/teleprompt-voice/tests/stub/mod.rs` (`StubVoice`, from Task 5) and `crates/teleprompt-compile/tests/manifest.rs` (`WordyVoice`, which exists to cover the word-timing path). Both become `#[async_trait::async_trait]` with `async fn synthesize` returning `Synthesized`. `WordyVoice` currently delegates to a `NullVoice` and overrides `word_timings`; keep that shape.
 
 **Interfaces:**
 - Produces:
