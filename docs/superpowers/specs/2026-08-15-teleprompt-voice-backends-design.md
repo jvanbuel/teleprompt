@@ -162,8 +162,18 @@ impl VoiceRegistry {
 backend is shared across tasks.
 
 The CLI wires the concrete set, the way it already does for scenes. Adding a
-backend is one line there and one new crate — nothing else in the workspace
-changes.
+backend is one crate and one registry line for the backend itself, plus — the
+first time a backend needs configuration, a capability beyond `synthesize`, or
+safety under concurrent synthesis — a small shared widening of
+`teleprompt-core`, `teleprompt-voice` and `teleprompt-cache` that Kokoro has
+already paid on later backends' behalf. The one cost that recurs per backend
+rather than once is the dependency tree a networked backend drags across the
+workspace's MSRV floor.
+
+The inner loop is where the original one-line claim held and still holds:
+`teleprompt-compile`, `teleprompt-schedule` and `teleprompt-scene` were
+untouched by the first real backend — zero lines — and a second one has no
+reason to reach them either.
 
 ### 4.2 Selection
 
