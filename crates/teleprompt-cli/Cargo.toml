@@ -20,10 +20,12 @@ teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
+teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
 teleprompt-voice-null = { path = "../teleprompt-voice-null" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]

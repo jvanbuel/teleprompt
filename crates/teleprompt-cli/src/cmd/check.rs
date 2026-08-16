@@ -41,7 +41,16 @@ pub fn compile_script(
     script: &Path,
     locale: &str,
 ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
-    compile_script_with(&crate::voice::registry(), project, script, locale)
+    // The project's own `backends:` settings, read before the script even
+    // exists on disk — `compile_script_with` needs a registry to resolve
+    // the script's chosen backend against, and that resolution happens
+    // before this function knows whether the script's own front matter
+    // carries a further `backends:` override. Front-matter-level backend
+    // settings therefore do not reach construction here; only the
+    // project's are real, not defaults.
+    let backends = project.config.backends.clone().unwrap_or_default();
+    let registry = crate::voice::registry_for(&backends).map_err(|e| vec![e])?;
+    compile_script_with(&registry, project, script, locale)
 }
 
 /// [`compile_script`] against a caller-supplied registry.

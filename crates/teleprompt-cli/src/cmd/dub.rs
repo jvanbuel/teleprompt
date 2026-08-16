@@ -165,15 +165,13 @@ pub async fn run_dub(
     out_root: &Path,
     check_only: bool,
 ) -> Result<DubOutput, DubError> {
-    run_dub_with(
-        &crate::voice::registry(),
-        project,
-        script,
-        locale,
-        out_root,
-        check_only,
-    )
-    .await
+    // See the matching comment on `compile_script`: this is the project's
+    // real `backends:` settings, not defaults — script front-matter-level
+    // overrides do not reach construction here, for the same reason.
+    let backends = project.config.backends.clone().unwrap_or_default();
+    let registry =
+        crate::voice::registry_for(&backends).map_err(|e| DubError::Validation(vec![e]))?;
+    run_dub_with(&registry, project, script, locale, out_root, check_only).await
 }
 
 /// [`run_dub`] against a caller-supplied registry. See

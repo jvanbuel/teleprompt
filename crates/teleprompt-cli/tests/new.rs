@@ -81,6 +81,7 @@ fn doctor_reports_available_adapters_and_backends() {
     let r = doctor_report(&SceneRegistry::with_builtins());
     assert!(r.adapters.contains(&"mock".to_string()));
     assert!(r.voice_backends.contains(&"null".to_string()));
+    assert!(r.voice_backends.contains(&"kokoro".to_string()));
 }
 
 #[test]
