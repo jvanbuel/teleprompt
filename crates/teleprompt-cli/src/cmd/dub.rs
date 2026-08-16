@@ -356,7 +356,15 @@ pub async fn run_dub_with(
     // bottleneck, and fanning out wider than it can serve makes the whole
     // run slower while making its failure modes worse. `null` has no
     // `concurrency` of its own — the downcast misses and `limit` falls back
-    // to 1, which is a serial loop in every observable way.
+    // to 1. At `limit = 1` the semaphore admits exactly one task at a time,
+    // and — because spawn order below is document order (see the sort on
+    // `groups`) — that one task is always the earliest-document-order group
+    // still waiting. On the CLI's current-thread runtime that chain (spawn
+    // order → poll order → acquire order → completion order) has no room
+    // for anything to reorder it, which is what makes `limit = 1` a serial
+    // loop in every observable way, including stderr: verified by running a
+    // six-segment `null` project's `dub` six times in a row and diffing the
+    // printed segment-id sequence, not merely asserted.
     let limit = backend
         .as_any()
         .downcast_ref::<KokoroVoice>()
@@ -365,10 +373,15 @@ pub async fn run_dub_with(
     let permits = Arc::new(tokio::sync::Semaphore::new(limit));
 
     // Progress is reported in *completion* order with a running count, not
-    // pretended into document order: under fan-out, which segment finishes
-    // second is a fact about the server, not about the script, and a
-    // counter that silently relabelled completions to look sequential would
-    // be lying about what just happened. It is still per segment, because a
+    // pretended into document order: under genuine concurrency (`limit >
+    // 1`), which segment finishes second is a fact about the server, not
+    // about the script, and a counter that silently relabelled completions
+    // to look sequential would be lying about what just happened. At
+    // `limit = 1` there is no concurrency for completion order to diverge
+    // from document order in the first place — see the note on `limit`
+    // above — so this order is document order there too, not a special
+    // case, just the one case where "completion order" and "document
+    // order" happen to coincide. Progress is still per segment, because a
     // cold multi-segment script is otherwise minutes of silence (spec §15).
     let total = compiled.narration.len();
     let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -387,9 +400,20 @@ pub async fn run_dub_with(
         groups.entry(detail.cache_key.clone()).or_default().push(i);
     }
 
+    // `HashMap` iteration order is an arbitrary, per-process-random
+    // permutation (`RandomState`), so spawning in `groups.into_values()`
+    // order — as an earlier version of this function did — made stderr
+    // output a different, non-reproducible ordering on every run, on every
+    // backend including `null`. Each group's indices are already ascending
+    // (pushed in the `for (i, ...)` loop above), so sorting the groups
+    // themselves by their first index restores document order as the spawn
+    // order, for free, with no dependency on `HashMap`'s iteration order.
+    let mut groups: Vec<Vec<usize>> = groups.into_values().collect();
+    groups.sort_by_key(|indices| indices[0]);
+
     let mut tasks: tokio::task::JoinSet<(Vec<usize>, Result<RenderedAudio, DubError>)> =
         tokio::task::JoinSet::new();
-    for indices in groups.into_values() {
+    for indices in groups {
         // Any member of the group is a valid representative: identical
         // cache keys imply identical `SynthRequest`s (same backend/version,
         // same locale/voice/speed, same text — that is exactly what the key

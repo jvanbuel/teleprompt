@@ -581,6 +581,60 @@ fn a_corrupt_cache_entry_is_re_rendered_by_dub() {
     }
 }
 
+/// The `null` backend has no `concurrency` of its own, so `limit = 1`: the
+/// semaphore admits one task at a time, and on the CLI's current-thread
+/// runtime that makes spawn order, poll order, acquire order, and
+/// completion order all the same chain. That chain must start in document
+/// order — segments are grouped by cache key before being spawned, and an
+/// earlier version of that grouping iterated a `HashMap`'s values, which is
+/// a fresh random permutation every process, so progress on the *default*
+/// backend printed a different, non-reproducible segment order on every
+/// run. Real subprocess invocations, parsing the actual `[n/total] <id>
+/// done` lines emitted on stderr — not a single pass, and not an assertion
+/// on the *set* of ids, both of which would pass just as happily against a
+/// random permutation.
+#[test]
+fn null_path_progress_is_document_order_on_every_run() {
+    let root = project_with(
+        "progressorder",
+        "# Segments\n\nOne.\n\nTwo.\n\nThree.\n\nFour.\n\nFive.\n\nSix.\n",
+    );
+    let expected: Vec<String> = (1..=6).map(|n| format!("segments-{n}")).collect();
+
+    for run in 0..20 {
+        let out = tp(
+            &root,
+            &["dub", "scripts/test.md", "--out", "public/narration"],
+        );
+        assert_eq!(
+            code(&out),
+            0,
+            "run {run}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let ids: Vec<String> = stderr
+            .lines()
+            .filter_map(|line| {
+                let rest = line.trim().strip_prefix('[')?;
+                let (_, after_bracket) = rest.split_once(']')?;
+                after_bracket
+                    .trim()
+                    .strip_suffix(" done")
+                    .map(str::to_string)
+            })
+            .collect();
+
+        assert_eq!(
+            ids, expected,
+            "run {run}: progress must print in document order on the serial \
+             (null, limit=1) path every time; a HashMap-ordered spawn would \
+             show a different permutation on some runs: {ids:?}"
+        );
+    }
+}
+
 // --- Spec §7: the voice list is checked once, before the first segment is
 // synthesized. The tests below call `run_dub` in-process rather than through
 // `tp` (the `teleprompt` binary), because the whole point is to observe
@@ -958,7 +1012,11 @@ async fn a_failure_in_one_segment_fails_the_run() {
         Ok(_) => panic!("a segment failure must fail the run"),
         Err(DubError::Runtime(r)) => {
             assert!(
-                r.contains("500"),
+                // Not a bare "500": the message also embeds the stub's
+                // ephemeral port, and a small fraction of ports contain the
+                // digits "500" too — that would make this assertion pass
+                // for the wrong reason on an unlucky port.
+                r.contains("returned 500"),
                 "the surfaced error must be the real \
                 failure, not a cancellation artifact of aborting the \
                 siblings: {r}"
