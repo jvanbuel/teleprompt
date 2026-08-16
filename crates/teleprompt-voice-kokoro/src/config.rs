@@ -58,6 +58,23 @@ impl KokoroConfig {
     /// name re-synthesizes the project once. That is the right trade —
     /// a spurious miss is slow and visible, whereas a spurious hit serves
     /// one voice's audio under another's name, permanently.
+    ///
+    /// The host is taken by splitting `base_url` on `"://"`, not by parsing
+    /// it as a URL — this is a key-construction shortcut, not a validation
+    /// of `base_url`. Anything the split doesn't understand rides along
+    /// into the string unexamined: a `base_url` with no `"://"` folds in
+    /// whole (`host` falls back to the full string), one with userinfo
+    /// (`http://user:pass@host:8880`) folds the credentials in along with
+    /// the host, and a trailing path or query string folds in too. None of
+    /// this threatens what this string exists for: every such variant is
+    /// *more* distinct as a string than a clean `host:port` would be, so it
+    /// can only turn a would-be cache hit into a miss, never the reverse —
+    /// and `teleprompt_cache::key` blake3-hashes this string before it
+    /// touches a path, so it is not written to disk or a log verbatim
+    /// either. What it does *not* do is confirm `base_url` is a well-formed
+    /// URL; that check, if any, belongs to whatever next parses `base_url`
+    /// to make requests with it (e.g. `reqwest`, which will reject a
+    /// malformed URL with its own error at request time).
     pub fn version_string(&self) -> String {
         let host = self.base_url.split("://").nth(1).unwrap_or(&self.base_url);
         format!("{}@{}", self.model, host)

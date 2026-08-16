@@ -74,3 +74,19 @@ fn settings_that_cannot_change_the_audio_stay_out_of_the_version() {
     let b = KokoroConfig::from_value(&yaml("timeout_ms: 1000\nconcurrency: 16")).unwrap();
     assert_eq!(a.version_string(), b.version_string());
 }
+
+// `version_string` takes the host by splitting on "://", not by parsing a
+// URL, so userinfo in `base_url` rides along unexamined. That is safe for
+// key correctness only because it cannot go the wrong way: pins the "no
+// collision" half of that claim, not merely today's exact string.
+#[test]
+fn a_userinfo_bearing_base_url_stays_distinct_rather_than_colliding() {
+    let plain = KokoroConfig::from_value(&yaml("base_url: \"http://host:8880\"")).unwrap();
+    let with_userinfo =
+        KokoroConfig::from_value(&yaml("base_url: \"http://user:pass@host:8880\"")).unwrap();
+    assert_ne!(
+        plain.version_string(),
+        with_userinfo.version_string(),
+        "a userinfo-bearing base_url must never collide with the plain-host version"
+    );
+}
