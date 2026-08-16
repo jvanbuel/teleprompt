@@ -65,6 +65,11 @@ to it. That was the question worth answering.
 - The `VoiceCatalog` refactor in §6 stands on its own merits and does not depend
   on any of the above. `Backends::kokoro(id)` remains an accessor that does not
   generalize; the next backend to need voice listing should do §6 regardless.
+  **This has since happened**: `2026-08-16-teleprompt-elevenlabs-design.md` §4.5
+  adopts §6 and extends it — `voices()` returns `Vec<Voice>` carrying a stable
+  id alongside the display name, because ElevenLabs voice names are neither
+  stable nor unique and the cache key needs the id. Read that version, not this
+  one.
 
 ## 1. Summary
 
