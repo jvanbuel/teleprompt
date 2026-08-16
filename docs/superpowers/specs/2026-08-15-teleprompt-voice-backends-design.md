@@ -269,16 +269,23 @@ timeline committed from a cold cache will drift on the next `dub`.
 Kokoro-FastAPI, an OpenAI-compatible server the user runs locally (Docker or
 pip). teleprompt speaks HTTP to it and owns no Python.
 
-```yaml
-voice:
-  backend: kokoro
-  voice: af_heart
-  speed: 1.0
-backends:
-  kokoro:
-    base_url: "http://localhost:8880"
-    timeout_ms: 30000
-    concurrency: 4
+This is `teleprompt.toml`, not front matter — the two look alike (both nest
+`backends.kokoro` under a `voice` sibling) but only the project file's copy
+is ever read; a script that repeats it in its own front matter gets a
+warning saying so, not a second effective copy. An earlier revision of this
+section wrote the same settings as YAML, which is indistinguishable from
+front matter on the page and misled exactly that paste.
+
+```toml
+[voice]
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 30000
+concurrency = 4
 ```
 
 **Backend settings live under a generic `backends:` map, not a top-level

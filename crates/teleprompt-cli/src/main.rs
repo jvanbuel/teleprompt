@@ -70,7 +70,10 @@ enum Command {
         /// Output root; one self-contained directory is written per locale
         #[arg(long)]
         out: PathBuf,
-        /// Compare against the manifest on disk and write nothing; exit 3 on drift
+        /// Compare against the manifest on disk; exit 3 on drift. Leaves
+        /// `--out` untouched, but still synthesizes whatever is not already
+        /// cached and writes it to the content-addressed cache — that is
+        /// what the comparison measures against
         #[arg(long)]
         check: bool,
         /// Treat a voice-tier downgrade as fatal; exit 4

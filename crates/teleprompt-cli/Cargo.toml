@@ -30,7 +30,10 @@ serde_yaml.workspace = true
 # the only command that fans out concurrently, and it is the only crate
 # that needs `Semaphore`/`JoinSet` — widening the workspace entry would hand
 # `sync` to every crate taking tokio as a dev-dependency for no reason.
-tokio = { workspace = true, features = ["sync"] }
+# `time` is for `tokio::time::timeout` around `doctor`'s probe: `doctor` is
+# the command reached for when something is broken, so it must not itself
+# wait out a hanging server's full synthesis `timeout_ms`.
+tokio = { workspace = true, features = ["sync", "time"] }
 
 [dev-dependencies]
 insta.workspace = true

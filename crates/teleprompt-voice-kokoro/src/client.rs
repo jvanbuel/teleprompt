@@ -77,12 +77,13 @@ impl Client {
 
     pub async fn voices(&self) -> Result<Vec<String>, VoiceError> {
         let url = format!("{}/v1/audio/voices", self.cfg.base_url);
-        let resp = self
-            .http
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| self.fail(&format!("cannot list voices: {e}")))?;
+        let resp = self.http.get(&url).send().await.map_err(|e| {
+            if e.is_timeout() {
+                self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
+            } else {
+                self.fail(&format!("cannot list voices: {e}"))
+            }
+        })?;
         if !resp.status().is_success() {
             return Err(self.fail(&format!(
                 "listing voices returned {}",

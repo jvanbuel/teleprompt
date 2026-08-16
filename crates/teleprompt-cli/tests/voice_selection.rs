@@ -223,6 +223,25 @@ fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
         msg.contains("no effect") || msg.contains("not applied"),
         "{msg}"
     );
+
+    // M1: this warning used to be pushed already rendered — carrying its
+    // own `warning: ` prefix and a trailing `\n  --> file` line — into a
+    // vec whose only consumers (`main.rs`'s `eprintln!("warning: {w}")` and
+    // `--format json`'s `warnings` array) add that framing themselves. That
+    // doubled the prefix on stderr and, under `--format json`, put a
+    // multi-line, already-labelled string next to every other entry's bare
+    // sentence.
+    assert!(
+        !msg.starts_with("warning:"),
+        "the caller adds the `warning: ` prefix; a bare warning must not \
+         already carry one or printed output doubles it: {msg}"
+    );
+    assert!(
+        !msg.contains('\n'),
+        "warnings are one line each, like every other entry in this vec \
+         (cache, scheduling); an embedded `--> file` line breaks that \
+         shape and the JSON array's homogeneity: {msg}"
+    );
 }
 
 /// The negative case: a project whose `teleprompt.toml` already sets the

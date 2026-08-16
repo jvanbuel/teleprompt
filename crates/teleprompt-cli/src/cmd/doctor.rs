@@ -179,6 +179,16 @@ pub async fn doctor_report_with(
     }
 }
 
+/// M2. The server's own `timeout_ms` (30 000 by default) is sized for
+/// synthesis, which can legitimately take a while. Listing voices does not
+/// invoke a model — a healthy server answers in single-digit milliseconds
+/// — so a hanging probe is already a broken server, not a slow one. Five
+/// seconds is generous next to that (room for a cold start, a slow DNS
+/// lookup, a loaded-but-not-hung server under momentary pressure) while
+/// keeping `doctor` — the command reached for when something is broken —
+/// from ever waiting out the full synthesis timeout to say so.
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(5_000);
+
 /// One line about the *configured* backend's server, or `None` when it has
 /// nothing to probe — either `backend_id` names something this build has no
 /// concrete handle for, or what is configured there is not server-backed
@@ -193,9 +203,13 @@ pub async fn doctor_report_with(
 async fn probe_configured_backend(backends: &Backends, backend_id: &str) -> Option<VoiceProbe> {
     let kokoro = backends.kokoro(backend_id)?;
     let url = kokoro.base_url().to_string();
-    let detail = match kokoro.voices().await {
-        Ok(voices) => format!("{url} — reachable, {} voices", voices.len()),
-        Err(e) => format!("{url} — unreachable ({e})"),
+    let detail = match tokio::time::timeout(PROBE_TIMEOUT, kokoro.voices()).await {
+        Ok(Ok(voices)) => format!("{url} — reachable, {} voices", voices.len()),
+        Ok(Err(e)) => format!("{url} — unreachable ({e})"),
+        Err(_) => format!(
+            "{url} — unreachable (no response within {}ms)",
+            PROBE_TIMEOUT.as_millis()
+        ),
     };
     Some(VoiceProbe {
         backend: backend_id.to_string(),

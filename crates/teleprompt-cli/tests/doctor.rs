@@ -133,6 +133,71 @@ async fn a_kokoro_backend_project_against_a_dead_port_is_a_warning_not_a_failure
     assert!(report.ok, "unreachable is a warning, not an error");
 }
 
+/// Accepts a connection, reads the request, then holds the socket open
+/// without answering — a server that is up but stuck, the case a dead port
+/// (connection refused, instant) does not exercise.
+struct HangingKokoroStub {
+    base_url: String,
+}
+
+async fn kokoro_stub_that_hangs() -> HangingKokoroStub {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            tokio::spawn(async move {
+                let mut buf = [0u8; 4096];
+                let _ = socket.read(&mut buf).await;
+                // Hold the connection open with no response: reading blocks
+                // until the peer (reqwest, once the probe deadline drops its
+                // future) gives up.
+                let mut sink = [0u8; 1];
+                let _ = socket.read(&mut sink).await;
+            });
+        }
+    });
+    HangingKokoroStub {
+        base_url: format!("http://{addr}"),
+    }
+}
+
+/// M2: a hanging server used to make `doctor` wait out the full synthesis
+/// `timeout_ms` (30 000 by default) before saying anything, with no word
+/// that the failure was specifically a timeout. `timeout_ms` here is set
+/// far above the probe's own deadline, so only a probe that gives up on its
+/// own — not one that happens to be fast for some other reason — makes this
+/// test finish quickly.
+#[tokio::test]
+async fn a_hanging_kokoro_server_does_not_make_doctor_wait_out_the_synthesis_timeout() {
+    let stub = kokoro_stub_that_hangs().await;
+    let mut backends = kokoro_backends(&stub.base_url);
+    backends.insert(
+        "kokoro".to_string(),
+        serde_yaml::from_str(&format!(
+            "base_url: \"{}\"\ntimeout_ms: 30000",
+            stub.base_url
+        ))
+        .unwrap(),
+    );
+    let project = project_with_backend("kokoro", backends);
+
+    let start = std::time::Instant::now();
+    let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
+    let elapsed = start.elapsed();
+
+    let probe = report.voice_probe.expect("probe ran");
+    assert!(probe.detail.contains("unreachable"), "{}", probe.detail);
+    assert!(
+        elapsed < std::time::Duration::from_secs(15),
+        "the probe must give up on its own short deadline rather than wait \
+         out the 30s synthesis timeout: took {elapsed:?}"
+    );
+    assert!(report.ok, "unreachable is a warning, not an error");
+}
+
 /// The probe line names the backend it probed. `render` used to print the
 /// literal `voice kokoro` for whatever backend was configured — invisible
 /// today, and the moment a second server-backed backend exists it labels one

@@ -172,12 +172,16 @@ server is the bottleneck, so unbounded fan-out only makes it slower.
 `model` (default `"kokoro"`) is sent as the request's `model` field, for
 servers hosting more than one checkpoint.
 
-**Kokoro only has to be running for `dub`.** `check`, `plan`, and `diff`
-read durations out of the cache — a real measurement once a segment has been
-synthesized, a word-count estimate otherwise — and never make a network
-call. That is why the whole inner loop (edit prose, `plan`, `diff`, repeat)
-works on a laptop with no Kokoro, no Docker, and nothing else installed; only
-`dub` (and `dub --check`) ever starts an async runtime or opens a socket.
+**Kokoro only has to be running for `dub` to succeed.** `check`, `plan`, and
+`diff` read durations out of the cache — a real measurement once a segment
+has been synthesized, a word-count estimate otherwise — and never make a
+network call, never start an async runtime, and never open a socket. That is
+why the whole inner loop (edit prose, `plan`, `diff`, repeat) works on a
+laptop with no Kokoro, no Docker, and nothing else installed. `dub` (and
+`dub --check`) is the one command that fails without a reachable server.
+`doctor` also starts a runtime and opens a socket — it probes whichever
+backend the project has configured — but a down server there is a warning,
+not a failure; see below.
 
 **`base_url` and `model` are part of the cache key.** Pointing `dub` at a
 different server or a different model changes what produced the audio, so

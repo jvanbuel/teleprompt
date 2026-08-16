@@ -4,8 +4,13 @@ use stub::{spawn, Reply};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
 
 fn backend(base_url: &str) -> KokoroVoice {
+    backend_with_timeout(base_url, KokoroConfig::default().timeout_ms)
+}
+
+fn backend_with_timeout(base_url: &str, timeout_ms: u64) -> KokoroVoice {
     KokoroVoice::new(KokoroConfig {
         base_url: base_url.to_string(),
+        timeout_ms,
         ..KokoroConfig::default()
     })
     .unwrap()
@@ -73,6 +78,29 @@ async fn an_unreachable_server_names_the_url() {
     // Port 1 on loopback: nothing listens, connection refused immediately.
     let err = backend("http://127.0.0.1:1").voices().await.unwrap_err();
     assert!(err.to_string().contains("127.0.0.1:1"), "{err}");
+}
+
+/// M2. `speech()` already distinguishes a timeout from every other
+/// transport failure (`a_timeout_names_the_url_and_the_limit` in
+/// `synth.rs`); `voices()` used to map every `send()` error, timeout
+/// included, to the same "cannot list voices: {e}" — and reqwest's
+/// `Display` drops the source chain, so a hang read identically to a
+/// refused connection. `doctor`'s probe is the caller that most needs the
+/// distinction, since it is the command reached for when something is
+/// broken.
+#[tokio::test]
+async fn a_timeout_names_the_limit_not_a_generic_transport_error() {
+    let s = spawn(Reply::Hang).await;
+    let err = backend_with_timeout(&s.base_url, 150)
+        .voices()
+        .await
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("150"), "{msg}");
+    assert!(
+        !msg.contains("cannot list voices"),
+        "a timeout has its own message, distinct from the generic transport-error one: {msg}"
+    );
 }
 
 #[tokio::test]

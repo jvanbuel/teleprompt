@@ -225,8 +225,15 @@ pub fn compile_script_with(
     )
     .map_err(|d| render(&d, &display))?;
 
+    // The bare message, not `render()`'s output: every other entry in
+    // `out.warnings` (cache, scheduling) is a plain sentence with no
+    // severity prefix and no `--> file` line, because both callers of this
+    // vec (`main.rs`'s `eprintln!("warning: {w}")` and `--format json`'s
+    // `warnings` array) add their own framing on top. Pushing a
+    // pre-rendered `"warning: ...\n  --> ..."` string here doubled the
+    // prefix on stderr and made the JSON array mix two shapes.
     out.warnings
-        .extend(render(&Diagnostics(backend_override_diags), &display));
+        .extend(backend_override_diags.into_iter().map(|d| d.message));
 
     Ok((out, backend))
 }
