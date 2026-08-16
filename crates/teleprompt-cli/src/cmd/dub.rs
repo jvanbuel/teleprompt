@@ -5,6 +5,7 @@ use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_core::Hash;
 use teleprompt_voice::VoiceRegistry;
+use teleprompt_voice_kokoro::KokoroVoice;
 
 use crate::cmd::check::{cache_root, compile_script_with};
 use crate::project::Project;
@@ -191,6 +192,44 @@ pub async fn run_dub_with(
     // — permanently, and reported as `measured` by every later `plan`.
     let (compiled, backend) =
         compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
+
+    // Spec §7: the voice list is checked once here, not at `check` time.
+    // `check` must stay offline and synchronous, and a gate that only works
+    // when a server happens to be running is worse than no gate — the same
+    // script would pass on one machine and fail on another.
+    //
+    // Downcasting rather than widening the trait: "list your voices" is not
+    // something every backend can do, and adding an
+    // `Option<Vec<String>>`-returning method to a single-method contract to
+    // serve one implementation is exactly the speculative surface the
+    // contract was sharpened to remove.
+    if let Some(kokoro) = backend.as_any().downcast_ref::<KokoroVoice>() {
+        let wanted = compiled
+            .narration
+            .iter()
+            .filter_map(|d| d.synth_request.voice.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        if !wanted.is_empty() {
+            let available = kokoro
+                .voices()
+                .await
+                .map_err(|e| DubError::Validation(vec![e.to_string()]))?;
+            let mut problems = Vec::new();
+            for v in &wanted {
+                if !available.contains(v) {
+                    problems.push(format!(
+                        "voice `{v}` is not available on the kokoro server at {} \
+                         (available: {})",
+                        kokoro.base_url(),
+                        available.join(", ")
+                    ));
+                }
+            }
+            if !problems.is_empty() {
+                return Err(DubError::Validation(problems));
+            }
+        }
+    }
 
     // The same cache `compile_script` just read from, rooted the same way.
     // `compile` only ever looks a key up; `dub` is the one that fills a

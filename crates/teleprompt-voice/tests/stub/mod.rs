@@ -38,4 +38,8 @@ impl VoiceBackend for StubVoice {
     async fn synthesize(&self, _req: &SynthRequest) -> Result<Synthesized, VoiceError> {
         Err(VoiceError::Other("stub backend cannot synthesize".into()))
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }

@@ -41,6 +41,10 @@ impl VoiceBackend for ConfiguredVoice {
             what: "word timings".to_string(),
         })
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 fn backend(endpoint: &str) -> ConfiguredVoice {

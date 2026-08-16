@@ -1,6 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
+
+use teleprompt_cli::cmd::dub::{run_dub, DubError};
 use teleprompt_cli::project::Project;
 
 const SCRIPT: &str = "\
@@ -573,4 +579,151 @@ fn a_corrupt_cache_entry_is_re_rendered_by_dub() {
     for seg in after["segments"].as_array().unwrap() {
         assert_eq!(seg["duration_source"], "measured");
     }
+}
+
+// --- Spec §7: the voice list is checked once, before the first segment is
+// synthesized. The tests below call `run_dub` in-process rather than through
+// `tp` (the `teleprompt` binary), because the whole point is to observe
+// network traffic (or its absence) mid-command — a subprocess only ever
+// hands back an exit code and captured output.
+
+/// A discovered project plus the two paths `run_dub`/`run_dub_with` want
+/// directly, for tests that call them in-process.
+struct TestProject {
+    project: Project,
+    script: PathBuf,
+    out: PathBuf,
+}
+
+/// Scaffold a project whose `teleprompt.toml` is replaced by `config_toml`
+/// (verbatim TOML — the project's own `backends:` settings are what
+/// `run_dub` builds its registry from, before the script is ever read; see
+/// `compile_script`'s doc comment), and drop `script` at `scripts/test.md`.
+fn project_with_config_and_script(config_toml: &str, script: &str) -> TestProject {
+    let dir = tempdir("inprocess");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    if !config_toml.is_empty() {
+        std::fs::write(dir.join("teleprompt.toml"), config_toml).unwrap();
+    }
+    std::fs::write(dir.join("scripts/test.md"), script).unwrap();
+    let project = Project::discover(&dir).unwrap();
+    TestProject {
+        script: dir.join("scripts/test.md"),
+        out: dir.join("public/narration"),
+        project,
+    }
+}
+
+/// [`project_with_config_and_script`] with the project's scaffolded default
+/// config (`null` backend) left untouched.
+fn project_with_script(script: &str) -> TestProject {
+    project_with_config_and_script("", script)
+}
+
+/// A minimal `/v1/audio/voices` responder, built the same way as
+/// `teleprompt-voice-kokoro`'s `tests/stub/mod.rs`. Copied rather than
+/// imported across the crate boundary — the ~20 lines a single-shape JSON
+/// GET responder needs are not worth a shared test-support crate for two
+/// call sites, and this one only ever needs the one reply shape `voices()`
+/// asks for, not that module's whole `Reply` enum.
+struct KokoroStub {
+    base_url: String,
+    requests: Arc<AtomicUsize>,
+}
+
+impl KokoroStub {
+    fn request_count(&self) -> usize {
+        self.requests.load(Ordering::SeqCst)
+    }
+}
+
+async fn kokoro_stub_listing(voices: &[&str]) -> KokoroStub {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let requests = Arc::new(AtomicUsize::new(0));
+    let seen = requests.clone();
+    let body = serde_json::json!({ "voices": voices }).to_string();
+
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            seen.fetch_add(1, Ordering::SeqCst);
+            let body = body.clone();
+            tokio::spawn(async move {
+                let mut buf = [0u8; 4096];
+                let _ = socket.read(&mut buf).await;
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: \
+                     application/json\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = socket.write_all(head.as_bytes()).await;
+                let _ = socket.write_all(body.as_bytes()).await;
+                let _ = socket.shutdown().await;
+            });
+        }
+    });
+
+    KokoroStub {
+        base_url: format!("http://{addr}"),
+        requests,
+    }
+}
+
+/// Regression guard, not new coverage: this already passed before the
+/// voice-list check landed, because `null` never had a network call to
+/// skip. It stays here to catch the day the guard added for kokoro becomes
+/// a probe every backend pays for — `null` has no server, so a probe here
+/// would either fail (nothing listening) or hang, and this test would
+/// notice either way.
+#[tokio::test]
+async fn dub_with_the_null_backend_makes_no_network_call() {
+    let p = project_with_script("# Intro\n\nHello there.\n");
+    run_dub(&p.project, &p.script, "en", &p.out, false)
+        .await
+        .unwrap_or_else(|e| match e {
+            DubError::Validation(v) => panic!("validation: {v:?}"),
+            DubError::Runtime(r) => panic!("runtime: {r}"),
+        });
+}
+
+/// Spec §7: an unknown voice fails on segment zero, not after the
+/// twentieth. The stub's request count is the proof — one request for the
+/// voice list, and nothing for synthesis.
+#[tokio::test]
+async fn an_unknown_kokoro_voice_fails_before_any_segment_is_synthesized() {
+    let stub = kokoro_stub_listing(&["af_heart", "af_bella"]).await;
+    let p = project_with_config_and_script(
+        &format!(
+            "[voice]\nbackend = \"kokoro\"\nvoice = \"nonexistent\"\n\n[backends.kokoro]\n\
+             base_url = \"{}\"\n",
+            stub.base_url
+        ),
+        "# Intro\n\nHello there.\n",
+    );
+
+    let result = run_dub(&p.project, &p.script, "en", &p.out, false).await;
+    let msgs = match result {
+        Ok(_) => panic!("an unknown voice must fail validation, not synthesize"),
+        Err(DubError::Validation(msgs)) => msgs,
+        Err(DubError::Runtime(r)) => {
+            panic!("must be a validation error, not a runtime failure: {r}")
+        }
+    };
+    let joined = msgs.join("\n");
+    assert!(joined.contains("nonexistent"), "{joined}");
+    assert!(
+        joined.contains("af_heart"),
+        "must list what is available: {joined}"
+    );
+
+    // Nothing was synthesized: the stub saw the voice-list request and
+    // nothing else.
+    assert_eq!(
+        stub.request_count(),
+        1,
+        "must fail before the first segment is rendered"
+    );
 }

@@ -71,4 +71,8 @@ impl VoiceBackend for KokoroVoice {
             word_timings: None,
         })
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
