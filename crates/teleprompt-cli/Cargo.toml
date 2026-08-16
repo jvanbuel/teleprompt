@@ -26,7 +26,11 @@ clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-tokio.workspace = true
+# `sync` beyond the workspace entry's `rt-multi-thread`/`macros`: `dub` is
+# the only command that fans out concurrently, and it is the only crate
+# that needs `Semaphore`/`JoinSet` — widening the workspace entry would hand
+# `sync` to every crate taking tokio as a dev-dependency for no reason.
+tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 insta.workspace = true

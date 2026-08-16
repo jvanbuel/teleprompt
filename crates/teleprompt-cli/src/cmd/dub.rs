@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
+use teleprompt_compile::NarrationDetail;
 use teleprompt_core::Hash;
-use teleprompt_voice::VoiceRegistry;
+use teleprompt_voice::{VoiceBackend, VoiceRegistry};
 use teleprompt_voice_kokoro::KokoroVoice;
 
 use crate::cmd::check::{cache_root, compile_script_with};
@@ -159,6 +161,91 @@ fn length_mismatch(segment_id: &str, actual_ms: u64, published_ms: u64) -> Optio
     ))
 }
 
+/// One segment's audio, plus everything about how it was obtained that the
+/// caller needs once every segment is in: the format it came out at (for
+/// [`AudioInfo`]) and whether the cache entry it came from had to be healed
+/// (for the author-facing warning). Kept as its own type — rather than
+/// [`render_one`] returning the bare `(String, Vec<u8>, u64)` tuple `dub`
+/// eventually wants — because under fan-out those two things can no longer
+/// be folded into shared `Option`/`Vec` accumulators as segments finish:
+/// several tasks finish at once, in no particular order, so each one has to
+/// carry its own answer back rather than mutate a value the loop used to
+/// own outright.
+struct Rendered {
+    segment_id: String,
+    wav_bytes: Vec<u8>,
+    rendered_ms: u64,
+    sample_rate: u32,
+    channels: u16,
+    /// Set when the cache read that preceded this render was a corrupt
+    /// sidecar rather than an ordinary miss — see `CacheRead::warning`.
+    cache_warning: Option<String>,
+}
+
+/// Resolves one segment's audio: a cache hit already decided it, or a miss
+/// decides it by calling `backend` and storing what comes back. Pulled out
+/// of `run_dub_with`'s render step so each segment's work is a self-contained
+/// unit a spawned task can own end to end.
+async fn render_one(
+    backend: &Arc<dyn VoiceBackend>,
+    cache: &VoiceCache,
+    detail: &NarrationDetail,
+) -> Result<Rendered, DubError> {
+    let read = cache
+        .lookup(&detail.cache_key)
+        .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+    let cache_warning = read.warning();
+
+    let (wav_bytes, rendered_ms, sample_rate, channels) = match read.hit() {
+        Some(cached) => (
+            cached.wav,
+            cached.duration_ms,
+            cached.sample_rate,
+            cached.channels,
+        ),
+        None => {
+            // The request `compile` measured, not one rebuilt here.
+            // Rebuilding it dropped `voice` and `speed`, so a script with
+            // `voice: { speed: 2.0 }` published a duration from the
+            // resolved config and a file rendered at the default. One
+            // source of truth.
+            let synthesized = backend
+                .synthesize(&detail.synth_request)
+                .await
+                .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+            // Concurrent `store` calls are safe here: two tasks never share
+            // a key (each segment appears once in `compiled.narration`), so
+            // every pair of concurrent calls touches disjoint `<key>.wav`
+            // and `<key>.json` paths. The one thing they do share is the
+            // cache directory, and `create_dir_all` racing itself across
+            // threads is fine — each call either creates it or observes it
+            // already exists.
+            let stored = cache
+                .store(
+                    &detail.cache_key,
+                    &synthesized.pcm,
+                    synthesized.word_timings.as_deref(),
+                )
+                .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+            (
+                stored.wav,
+                stored.duration_ms,
+                stored.sample_rate,
+                stored.channels,
+            )
+        }
+    };
+
+    Ok(Rendered {
+        segment_id: detail.segment_id.clone(),
+        wav_bytes,
+        rendered_ms,
+        sample_rate,
+        channels,
+        cache_warning,
+    })
+}
+
 pub async fn run_dub(
     project: &Project,
     script: &Path,
@@ -241,25 +328,100 @@ pub async fn run_dub_with(
 
     // The same cache `compile_script` just read from, rooted the same way.
     // `compile` only ever looks a key up; `dub` is the one that fills a
-    // miss in, by calling the backend and storing what comes back.
-    let cache = VoiceCache::new(cache_root(project));
+    // miss in, by calling the backend and storing what comes back. `Arc`
+    // rather than a borrow: the fan-out below hands a clone into every
+    // spawned task, and `tokio::task::spawn` requires its future to be
+    // `'static`, which a borrow of this local cannot be. `VoiceCache` is
+    // just a `PathBuf` underneath, so the wrapping costs nothing.
+    let cache = Arc::new(VoiceCache::new(cache_root(project)));
 
-    // Audio is rendered into memory before anything is written to disk, so
-    // a synthesis failure cannot leave a half-populated *output directory*
-    // behind. The cache is a different matter: `cache.store` runs inside
-    // this loop, so a failure after the first segment leaves those entries
-    // on disk. That is deliberate and harmless — the cache is
-    // content-addressed and gitignored, and keeping what was already
-    // synthesized is the point of it.
-    //
+    // Bounded rather than unbounded: a local model server is the
+    // bottleneck, and fanning out wider than it can serve makes the whole
+    // run slower while making its failure modes worse. `null` has no
+    // `concurrency` of its own — the downcast misses and `limit` falls back
+    // to 1, which is a serial loop in every observable way.
+    let limit = backend
+        .as_any()
+        .downcast_ref::<KokoroVoice>()
+        .map(|k| k.concurrency())
+        .unwrap_or(1);
+    let permits = Arc::new(tokio::sync::Semaphore::new(limit));
+
+    // Progress is reported in *completion* order with a running count, not
+    // pretended into document order: under fan-out, which segment finishes
+    // second is a fact about the server, not about the script, and a
+    // counter that silently relabelled completions to look sequential would
+    // be lying about what just happened. It is still per segment, because a
+    // cold multi-segment script is otherwise minutes of silence (spec §15).
+    let total = compiled.narration.len();
+    let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+    let mut tasks: tokio::task::JoinSet<(usize, Result<Rendered, DubError>)> =
+        tokio::task::JoinSet::new();
+    for (i, detail) in compiled.narration.iter().enumerate() {
+        let backend = backend.clone();
+        let cache = cache.clone();
+        let permits = permits.clone();
+        let completed = completed.clone();
+        let detail = detail.clone();
+        tasks.spawn(async move {
+            let _permit = permits
+                .acquire_owned()
+                .await
+                .expect("semaphore is never closed");
+            let r = render_one(&backend, &cache, &detail).await;
+            if r.is_ok() {
+                let n = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                eprintln!("  [{n}/{total}] {} done", detail.segment_id);
+            }
+            (i, r)
+        });
+    }
+
+    // `JoinSet` hands results back in completion order, not document order,
+    // so each one is filed at the index its task carried rather than
+    // appended. Spec §7.1: one segment's failure fails the run. The first
+    // error to land aborts every task still in flight instead of waiting
+    // for the rest to finish or fail too — a half-dubbed output directory
+    // is worse than none, and there is no reason to keep hammering the
+    // server once the run is already going to fail. Cache entries other
+    // tasks already stored before the abort are left in place: the cache is
+    // content-addressed and gitignored, so keeping what was already
+    // synthesized is only useful, never wrong.
+    let mut slots: Vec<Option<Rendered>> = (0..total).map(|_| None).collect();
+    let mut failure: Option<DubError> = None;
+    while let Some(joined) = tasks.join_next().await {
+        let (i, r) = joined.expect("a render task panicked");
+        match r {
+            Ok(v) => slots[i] = Some(v),
+            Err(e) => {
+                failure = Some(e);
+                break;
+            }
+        }
+    }
+    if let Some(e) = failure {
+        tasks.abort_all();
+        return Err(e);
+    }
+
+    // Every slot was filled: the loop above only exits early (skipping some
+    // indices) by taking the `failure` branch above, which already
+    // returned.
+    let rendered: Vec<Rendered> = slots
+        .into_iter()
+        .map(|r| r.expect("every index rendered when there was no failure"))
+        .collect();
+
     // Each segment's rendered length rides along with its bytes: the length
     // guard cannot run here, because the number the manifest publishes is
     // not known until the recompile below.
-    let mut audio: Vec<(String, Vec<u8>, u64)> = Vec::new();
+    let mut audio: Vec<(String, Vec<u8>, u64)> = Vec::with_capacity(rendered.len());
 
     // Read off the audio actually produced rather than assumed from any one
-    // backend. First segment wins, so the value is a function of document
-    // order rather than of completion order — the manifest has one
+    // backend. First *document-order* segment wins — `rendered` is already
+    // sorted by index above, so this is a function of the script, not of
+    // whichever request happened to answer first. The manifest has one
     // `AudioInfo` for the whole locale, so a backend that varied its rate
     // per segment would need a wider manifest, not a different pick here.
     let mut audio_format: Option<(u32, u16)> = None;
@@ -270,46 +432,12 @@ pub async fn run_dub_with(
     // by then there is nothing left to notice.
     let mut cache_warnings: Vec<String> = Vec::new();
 
-    for detail in &compiled.narration {
-        let read = cache
-            .lookup(&detail.cache_key)
-            .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
-        if let Some(w) = read.warning() {
-            cache_warnings.push(format!("segment `{}`: {w}", detail.segment_id));
+    for r in rendered {
+        if let Some(w) = &r.cache_warning {
+            cache_warnings.push(format!("segment `{}`: {w}", r.segment_id));
         }
-
-        let (wav_bytes, rendered_ms) = match read.hit() {
-            Some(cached) => {
-                audio_format.get_or_insert((cached.sample_rate, cached.channels));
-                (cached.wav, cached.duration_ms)
-            }
-            None => {
-                // The request `compile` measured, not one rebuilt here.
-                // Rebuilding it dropped `voice` and `speed`, so a script
-                // with `voice: { speed: 2.0 }` published a duration from
-                // the resolved config and a file rendered at the default.
-                // One source of truth.
-                let synthesized = backend
-                    .synthesize(&detail.synth_request)
-                    .await
-                    .map_err(|e| {
-                        DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
-                    })?;
-                let stored = cache
-                    .store(
-                        &detail.cache_key,
-                        &synthesized.pcm,
-                        synthesized.word_timings.as_deref(),
-                    )
-                    .map_err(|e| {
-                        DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
-                    })?;
-                audio_format.get_or_insert((stored.sample_rate, stored.channels));
-                (stored.wav, stored.duration_ms)
-            }
-        };
-
-        audio.push((detail.segment_id.clone(), wav_bytes, rendered_ms));
+        audio_format.get_or_insert((r.sample_rate, r.channels));
+        audio.push((r.segment_id, r.wav_bytes, r.rendered_ms));
     }
 
     // Every segment is warm now — the loop above either found it already

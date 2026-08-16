@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use teleprompt_cli::cmd::dub::{run_dub, DubError};
+use teleprompt_cli::cmd::dub::{manifest_path, run_dub, DubError};
 use teleprompt_cli::project::Project;
 
 const SCRIPT: &str = "\
@@ -759,4 +759,186 @@ async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() 
             assert!(r.contains("127.0.0.1:1"), "must name the url: {r}");
         }
     }
+}
+
+// --- Bounded concurrent synthesis (spec §7.2 / §15). `dub` fans segments
+// out to the backend rather than rendering them one at a time; the tests
+// below exercise that against a stub that answers both `/v1/audio/voices`
+// (the one-shot check above) and `/v1/audio/speech` (actual synthesis).
+
+/// A stub that serves both endpoints `dub` calls against a kokoro backend,
+/// and records the peak number of `/v1/audio/speech` requests it had open
+/// at once. That peak is the only way to tell fan-out from a serial loop
+/// from outside the process: both produce a correct manifest, so a test
+/// that only checks the manifest's contents would pass against a serial
+/// implementation too and prove nothing about concurrency.
+struct KokoroSynthStub {
+    base_url: String,
+    peak_inflight: Arc<AtomicUsize>,
+}
+
+/// PCM bytes for `text`: one i16 sample per character (at least one), so
+/// different segment texts produce distinguishably different response
+/// lengths without a hardcoded lookup table.
+fn speech_bytes_for(text: &str) -> Vec<u8> {
+    (0..text.chars().count().max(1))
+        .flat_map(|i| ((i % 1000) as i16).to_le_bytes())
+        .collect()
+}
+
+/// Spawns the stub. `fail_on`, when set, makes exactly the `/v1/audio/speech`
+/// request whose `input` equals it fail with a 500 — everything else,
+/// including the voice list, succeeds. Every successful synthesis is held
+/// open for a short fixed delay before answering: a stub that replies
+/// instantly would read "peak 1 in flight" whether callers dispatched three
+/// requests at once or one after another, which would make the concurrency
+/// assertion below pass vacuously.
+async fn kokoro_synth_stub(fail_on: Option<&'static str>) -> KokoroSynthStub {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let inflight = Arc::new(AtomicUsize::new(0));
+    let peak = Arc::new(AtomicUsize::new(0));
+    let peak_for_stub = peak.clone();
+    let voices_body = serde_json::json!({ "voices": ["af_heart"] }).to_string();
+
+    tokio::spawn(async move {
+        let peak = peak_for_stub;
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            let inflight = inflight.clone();
+            let peak = peak.clone();
+            let voices_body = voices_body.clone();
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 65536];
+                let n = socket.read(&mut buf).await.unwrap_or(0);
+                let raw = String::from_utf8_lossy(&buf[..n]).to_string();
+
+                if raw.starts_with("GET /v1/audio/voices") {
+                    write_ok(&mut socket, "application/json", voices_body.as_bytes()).await;
+                    return;
+                }
+
+                let body_str = raw.split("\r\n\r\n").nth(1).unwrap_or("");
+                let body: serde_json::Value =
+                    serde_json::from_str(body_str).unwrap_or(serde_json::Value::Null);
+                let text = body["input"].as_str().unwrap_or("").to_string();
+
+                if fail_on == Some(text.as_str()) {
+                    write_status(&mut socket, 500, "boom").await;
+                    return;
+                }
+
+                let now = inflight.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(now, Ordering::SeqCst);
+                tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+                inflight.fetch_sub(1, Ordering::SeqCst);
+
+                let pcm = speech_bytes_for(&text);
+                write_ok(&mut socket, "application/octet-stream", &pcm).await;
+            });
+        }
+    });
+
+    KokoroSynthStub {
+        base_url: format!("http://{addr}"),
+        peak_inflight: peak,
+    }
+}
+
+async fn write_ok(socket: &mut tokio::net::TcpStream, content_type: &str, body: &[u8]) {
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {content_type}\r\nConnection: \
+         close\r\n\r\n",
+        body.len()
+    );
+    let _ = socket.write_all(head.as_bytes()).await;
+    let _ = socket.write_all(body).await;
+    let _ = socket.shutdown().await;
+}
+
+async fn write_status(socket: &mut tokio::net::TcpStream, code: u16, body: &str) {
+    let head = format!(
+        "HTTP/1.1 {code} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    let _ = socket.write_all(head.as_bytes()).await;
+    let _ = socket.write_all(body.as_bytes()).await;
+    let _ = socket.shutdown().await;
+}
+
+/// Three segments against a stub that answers each with a distinguishable
+/// length. The manifest must list them in document order regardless of
+/// which reply lands first — and the stub's recorded peak in-flight count
+/// is the proof that they were actually dispatched concurrently, not that
+/// a serial loop happened to produce the right order anyway.
+#[tokio::test]
+async fn segments_are_synthesized_concurrently_but_collected_in_document_order() {
+    let stub = kokoro_synth_stub(None).await;
+    let p = project_with_config_and_script(
+        &format!(
+            "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
+             base_url = \"{}\"\nconcurrency = 3\n",
+            stub.base_url
+        ),
+        "# Segments\n\nFirst segment here.\n\nSecond segment here.\n\nThird segment here.\n",
+    );
+
+    run_dub(&p.project, &p.script, "en", &p.out, false)
+        .await
+        .unwrap_or_else(|e| match e {
+            DubError::Validation(v) => panic!("validation: {v:?}"),
+            DubError::Runtime(r) => panic!("runtime: {r}"),
+        });
+
+    assert!(
+        stub.peak_inflight.load(Ordering::SeqCst) > 1,
+        "three segments under concurrency 3 must overlap in flight; a serial \
+         render loop would never show more than one request in flight at once"
+    );
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(manifest_path(&p.out, "en")).unwrap())
+            .unwrap();
+    let ids: Vec<&str> = manifest["segments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["id"].as_str().unwrap())
+        .collect();
+
+    assert_eq!(ids.len(), 3);
+    let sorted = {
+        let mut c = ids.clone();
+        c.sort();
+        c
+    };
+    assert_eq!(ids, sorted, "segments must be in document order: {ids:?}");
+}
+
+/// Spec §7.1: one segment's failure fails the run. With fan-out it would be
+/// easy to collect every task's result and carry on regardless — a
+/// half-dubbed output directory is worse than none.
+#[tokio::test]
+async fn a_failure_in_one_segment_fails_the_run() {
+    let stub = kokoro_synth_stub(Some("Two.")).await;
+    let p = project_with_config_and_script(
+        &format!(
+            "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
+             base_url = \"{}\"\n",
+            stub.base_url
+        ),
+        "# Failure\n\nOne.\n\nTwo.\n\nThree.\n",
+    );
+    let result = run_dub(&p.project, &p.script, "en", &p.out, false).await;
+    match result {
+        Ok(_) => panic!("a segment failure must fail the run"),
+        Err(DubError::Runtime(_)) => {}
+        Err(DubError::Validation(v)) => panic!(
+            "a synthesis failure is a runtime error, not a validation one: {}",
+            v.join("; ")
+        ),
+    }
+    assert!(!manifest_path(&p.out, "en").exists(), "no partial output");
 }
