@@ -6,6 +6,9 @@
 //! `teleprompt-core`. That is the standing proof that the contract admits a
 //! backend nothing in it was designed around.
 
+mod backend;
+mod client;
 mod config;
 
+pub use backend::KokoroVoice;
 pub use config::{KokoroConfig, KOKORO_SAMPLE_RATE};
