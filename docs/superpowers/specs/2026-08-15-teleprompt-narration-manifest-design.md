@@ -197,6 +197,7 @@ meaningful: the manifest is the reviewable claim, the audio is its output.
       "chapter": "quickstart",
       "start_ms": 0,
       "duration_ms": 12200,
+      "duration_source": "measured",
       "audio": "audio/welcome.wav",
       "voice_source": "recorded",
       "voice_source_actual": "cloned",
@@ -228,47 +229,43 @@ abbreviated above for readability, as in §6.5.
 | `segments[].text` | The narration prose as parsed. This is what makes captions possible without re-parsing the script. |
 | `segments[].chapter` | Slug of the chapter this segment was spoken in, matching a `chapters[].id` when that chapter has one. Always present. Published rather than left to be reconstructed from timestamps, because `chapters` omits silent chapters and that reconstruction is therefore lossy. |
 | `segments[].start_ms`, `duration_ms` | Absolute placement on the narration timeline. `start_ms` already includes `lead_in` padding; `duration_ms` is the speech itself, excluding padding, so `start_ms + duration_ms` is exactly when the voice stops. **Authoritative for this segment's length — see §5.2.** |
+| `segments[].duration_source` | `measured` when `duration_ms` came from real synthesized audio, `estimated` when it is the duration model's prediction for a segment not yet in the cache. A consumer building a player can show the difference; one committing the manifest should know a re-dub will move every estimated segment. |
 | `segments[].audio` | Path relative to this manifest. |
 | `voice_source` / `voice_source_actual` / `downgrade_reason` | The dubbing spectrum (§4) as delivered. `voice_source` is what the script asked for; `voice_source_actual` is what the ladder produced. `downgrade_reason` is `null` when they agree. A consumer can surface "this segment is machine-read" in a preview UI. |
 | `source_hash` | Hash of the segment's prose. What `--check` compares. |
 | `audio_hash` | Hash of the encoded audio file named by `segments[].audio` — the bytes on disk, nothing else. Lets a consumer cache renders and skip re-encoding when only unrelated segments changed. Deliberately *not* the voice backend's synthesis cache key: that key embeds the teleprompt version, so publishing it would change every segment's hash on every teleprompt release and report "audio changed" on every segment of every consumer's next pull request. Two segments may legitimately share a hash — that means their audio is byte-identical, which is precisely when a cached render is reusable. With the `null` backend (silence) every segment of equal duration shares one; real speech does not. |
 | `segments[].words` | Optional, present only when the backend advertises `word_timings` (§4.3). Omitted entirely otherwise — never present as an empty array, so its absence is unambiguous. |
 
-### 5.2 Consecutive segments may overlap
+### 5.2 A segment's own `duration_ms` is authoritative
 
-**A segment's own `duration_ms` is authoritative for its length. Never infer
-a length from the next segment's `start_ms`.**
+**Never infer a segment's length from the next segment's `start_ms`.** Place
+each segment's audio at its `start_ms` and give it its own `duration_ms`.
 
-`segments[i].start_ms + segments[i].duration_ms` can be greater than
-`segments[i + 1].start_ms`. This is not a bug in the manifest and a consumer
-must not treat it as one.
+For a script of plain paragraphs the two agree: core spec §6.3 caps an `auto`
+transition at the quiet window, so `segments[i].start_ms + duration_ms` equals
+`segments[i + 1].start_ms` exactly and the narration reads as continuous
+speech.
 
-It happens because the scheduler subtracts a beat's transition window from
-that beat before advancing its cursor: the next beat begins while the
-current one is still finishing, which is exactly what a crossfade is for.
-For a beat carrying only narration there is no action span to absorb the
-window, so the overlap eats into speech. Three plain paragraphs at default
-config, no action blocks, currently produce:
+They stop agreeing as soon as anything else is going on, and in both
+directions:
 
-```
-one    start 150   duration 750   ends 900
-two    start 675   duration 750   ends 1425
-three  start 1200  duration 750   ends 1950
-```
+- A **gap** opens wherever an action block, a `pause` directive, or a
+  `concurrent` beat puts time between two spoken segments. Most real scripts
+  have these.
+- An **overlap** appears when an author sets a *fixed* transition wider than
+  the quiet window. That is honoured as written — they asked for a crossfade of
+  that length by name — and the scheduler warns that narration will overlap.
 
-`one` is still speaking 225 ms after `two` starts.
+So `next.start_ms - seg.start_ms` is wrong in the common case (it stretches a
+segment across a gap it should not fill) and wrong in the rare one (it clips a
+deliberate overlap). An earlier draft of the §7 example computed lengths that
+way; it was wrong, and this rule is the fix.
 
-The practical consequence for a consumer is one line of code. Place each
-segment's audio at its `start_ms` and give it its `duration_ms`; let the
-placements overlap. A consumer that instead computes
-`next.start_ms - seg.start_ms` truncates the tail of every segment but the
-last — the §7 example was written that way and was wrong. Overlapping audio
-mixes; clipped audio loses words.
-
-Whether narration-only beats *should* overlap at all is a video-output
-question about the scheduler, not about this contract, and is deliberately
-left open. The contract's job is to say plainly that they can, so that
-consumers written today keep working either way.
+An earlier version of this section documented a third cause: uncapped `auto`
+transitions made *every* narration-only script overlap by 300 ms. That was a
+scheduler defect, found by the whole-branch review of this feature and fixed in
+core spec §6.3. The guidance here did not change when the defect was fixed,
+which is the point of stating the rule rather than the symptom.
 
 ### 5.3 Determinism
 

@@ -1,12 +1,20 @@
 use std::path::{Path, PathBuf};
 
+use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_core::Hash;
-use teleprompt_voice::{wav, NullVoice, VoiceBackend, NULL_SAMPLE_RATE};
+use teleprompt_voice::VoiceRegistry;
 
-use crate::cmd::check::compile_script;
+use crate::cmd::check::{cache_root, compile_script_with};
 use crate::project::Project;
+
+/// The `AudioInfo` sample rate for a locale that rendered no audio at all.
+///
+/// Every populated manifest takes its rate from the audio actually
+/// produced; this is only what the field says when `segments` is empty and
+/// there is nothing to describe. It is not a claim about any backend.
+const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
 
 /// A segment the fallback ladder could not deliver at the tier the script
 /// asked for. Computed here rather than in `main.rs` so the policy question
@@ -150,67 +158,157 @@ fn length_mismatch(segment_id: &str, actual_ms: u64, published_ms: u64) -> Optio
     ))
 }
 
-pub fn run_dub(
+pub async fn run_dub(
     project: &Project,
     script: &Path,
     locale: &str,
     out_root: &Path,
     check_only: bool,
 ) -> Result<DubOutput, DubError> {
-    let compiled = compile_script(project, script, locale).map_err(DubError::Validation)?;
+    run_dub_with(
+        &crate::voice::registry(),
+        project,
+        script,
+        locale,
+        out_root,
+        check_only,
+    )
+    .await
+}
 
-    // This backend is separate from the `NullVoice` `compile_script`
-    // constructs internally for duration estimation — a deliberate
-    // duplication until a real backend exists. `render_pcm` is only needed
-    // here, so `compile_script`'s signature (and `run_check`/`run_plan`/
-    // `run_diff`, which depend on it) stays untouched; when a real backend
-    // lands, both call sites will select it together.
-    let voice = NullVoice::default();
+/// [`run_dub`] against a caller-supplied registry. See
+/// [`crate::cmd::check::compile_script_with`] for why the seam exists.
+pub async fn run_dub_with(
+    registry: &VoiceRegistry,
+    project: &Project,
+    script: &Path,
+    locale: &str,
+    out_root: &Path,
+    check_only: bool,
+) -> Result<DubOutput, DubError> {
+    // The backend the script's config resolved to, not one chosen here.
+    // `detail.cache_key` was computed from this backend's `id()` and
+    // `capabilities().version`, so synthesizing with any other one writes
+    // the wrong audio into the content-addressed cache under this one's key
+    // — permanently, and reported as `measured` by every later `plan`.
+    let (compiled, backend) =
+        compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
+
+    // The same cache `compile_script` just read from, rooted the same way.
+    // `compile` only ever looks a key up; `dub` is the one that fills a
+    // miss in, by calling the backend and storing what comes back.
+    let cache = VoiceCache::new(cache_root(project));
 
     // Audio is rendered into memory before anything is written to disk, so
-    // a synthesis failure cannot leave a half-populated output directory
-    // behind.
-    let mut audio: Vec<(String, Vec<u8>)> = Vec::new();
-    let mut sample_rate = NULL_SAMPLE_RATE;
-    let mut channels = 1u16;
+    // a synthesis failure cannot leave a half-populated *output directory*
+    // behind. The cache is a different matter: `cache.store` runs inside
+    // this loop, so a failure after the first segment leaves those entries
+    // on disk. That is deliberate and harmless — the cache is
+    // content-addressed and gitignored, and keeping what was already
+    // synthesized is the point of it.
+    //
+    // Each segment's rendered length rides along with its bytes: the length
+    // guard cannot run here, because the number the manifest publishes is
+    // not known until the recompile below.
+    let mut audio: Vec<(String, Vec<u8>, u64)> = Vec::new();
+
+    // Read off the audio actually produced rather than assumed from any one
+    // backend. First segment wins, so the value is a function of document
+    // order rather than of completion order — the manifest has one
+    // `AudioInfo` for the whole locale, so a backend that varied its rate
+    // per segment would need a wider manifest, not a different pick here.
+    let mut audio_format: Option<(u32, u16)> = None;
+
+    // Cache entries `dub` had to re-render because they were unreadable.
+    // Collected here rather than taken from either compile's warnings: the
+    // recompile below runs against a cache this loop has already healed, so
+    // by then there is nothing left to notice.
+    let mut cache_warnings: Vec<String> = Vec::new();
 
     for detail in &compiled.narration {
-        // The request `compile` measured, not one rebuilt here. Rebuilding
-        // it dropped `voice` and `speed`, so a script with
-        // `voice: { speed: 2.0 }` published a duration from the resolved
-        // config and a file rendered at the default. One source of truth.
-        let pcm = match voice.render_pcm(&detail.synth_request) {
-            Ok(Some(pcm)) => pcm,
-            Ok(None) => {
-                return Err(DubError::Runtime(format!(
-                    "backend `{}` produces no audio; `dub` needs a backend that can render",
-                    voice.id()
-                )))
+        let read = cache
+            .lookup(&detail.cache_key)
+            .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+        if let Some(w) = read.warning() {
+            cache_warnings.push(format!("segment `{}`: {w}", detail.segment_id));
+        }
+
+        let (wav_bytes, rendered_ms) = match read.hit() {
+            Some(cached) => {
+                audio_format.get_or_insert((cached.sample_rate, cached.channels));
+                (cached.wav, cached.duration_ms)
             }
-            Err(e) => {
-                return Err(DubError::Runtime(format!(
-                    "segment `{}`: {e}",
-                    detail.segment_id
-                )))
+            None => {
+                // The request `compile` measured, not one rebuilt here.
+                // Rebuilding it dropped `voice` and `speed`, so a script
+                // with `voice: { speed: 2.0 }` published a duration from
+                // the resolved config and a file rendered at the default.
+                // One source of truth.
+                let synthesized = backend
+                    .synthesize(&detail.synth_request)
+                    .await
+                    .map_err(|e| {
+                        DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
+                    })?;
+                let stored = cache
+                    .store(
+                        &detail.cache_key,
+                        &synthesized.pcm,
+                        synthesized.word_timings.as_deref(),
+                    )
+                    .map_err(|e| {
+                        DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
+                    })?;
+                audio_format.get_or_insert((stored.sample_rate, stored.channels));
+                (stored.wav, stored.duration_ms)
             }
         };
 
-        // The guard rail for the above. The manifest publishes the
-        // *timeline's* duration for this segment, so that is what the file
-        // has to be — read it from the timeline rather than re-deriving it,
-        // or the check would only ever compare a value against itself.
-        // Checked before anything is written: an output directory that
-        // disagrees with its own manifest is worse than no output at all.
-        if let Some(published_ms) = published_duration_ms(&compiled.timeline, &detail.segment_id) {
-            length_mismatch(&detail.segment_id, pcm.duration_ms(), published_ms)
-                .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
-        }
-
-        sample_rate = pcm.sample_rate;
-        channels = pcm.channels;
-        audio.push((detail.segment_id.clone(), wav::encode(&pcm)));
+        audio.push((detail.segment_id.clone(), wav_bytes, rendered_ms));
     }
 
+    // Every segment is warm now — the loop above either found it already
+    // cached or just stored it. Recompile against that warm cache rather
+    // than building the manifest from `compiled` above: that first compile
+    // ran before anything was rendered, so on a cold project it published
+    // `estimated` durations even though real audio was about to exist a few
+    // lines later. Recompiling here is what makes `dub` idempotent — two
+    // runs on an unedited script see an equally warm cache and produce
+    // byte-identical manifests — and it costs one extra compile and no
+    // synthesis, since by this point every lookup is a hit.
+    let (compiled, _) =
+        compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
+
+    // The guard rail, now that the number the manifest publishes exists.
+    //
+    // It used to run inside the loop above, against the *first* compile's
+    // timeline — which on a cold cache holds estimates, not measurements.
+    // With `null` that was invisible, because `NullVoice::synthesize` and
+    // `WpmEstimator::estimate_ms` call the same function; against any
+    // backend whose render differs from the word-count estimate it made the
+    // first `dub` of every new segment fail, quoting a duration the manifest
+    // would never have published, and the identical second run succeed off
+    // the now-warm cache.
+    //
+    // Checked before anything is written to `--out`: an output directory
+    // that disagrees with its own manifest is worse than no output at all.
+    //
+    // Be aware that as the code stands this cannot fire: the recompile above
+    // reads back the very `duration_ms` that `cache.store` just wrote, so the
+    // two numbers are the same value by construction. That is the point —
+    // the invariant it asserts is currently upheld structurally, and the
+    // guard is here to catch the day it stops being. The failure it would
+    // catch is a key or metadata drift that makes the recompile resolve a
+    // *different* entry than the one this run stored, which is silent and
+    // unrecoverable at every layer above.
+    for (segment_id, _, rendered_ms) in &audio {
+        if let Some(published_ms) = published_duration_ms(&compiled.timeline, segment_id) {
+            length_mismatch(segment_id, *rendered_ms, published_ms)
+                .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
+        }
+    }
+
+    let (sample_rate, channels) = audio_format.unwrap_or((NO_AUDIO_SAMPLE_RATE, 1));
     let mut built = manifest::build(
         &compiled.timeline,
         &compiled.chapters,
@@ -222,24 +320,35 @@ pub fn run_dub(
         },
     );
 
-    // `manifest::build` seeds `audio_hash` with the timeline's value, which
-    // is the backend's synthesis *cache key* — it embeds the teleprompt
-    // version, so every release changed every segment's hash and `--check`
-    // reported "audio changed" on every segment of every consumer's next
-    // pull request. Spec §5.1 documents this field as hashing the rendered
-    // bytes, so publish the rendered bytes' hash. The `Timeline`'s own
-    // `audio_hash` is left alone: a synthesis cache key is the right thing
-    // there.
+    // The two `audio_hash`es answer different questions, so the seeded value
+    // has to be overwritten here rather than left alone.
+    //
+    // The timeline's is `Hash::of(cache_key)`: the *identity* of the audio a
+    // segment resolves to. It moves when the segment would resolve to
+    // different audio and stays put when `dub` re-renders the same audio,
+    // which is exactly what a pacing drift check wants.
+    //
+    // The manifest's is `Hash::of(&wav_bytes)`: a description of the file
+    // sitting beside it, which is what spec §5.1 documents and what lets a
+    // consumer skip re-encoding a byte-identical render. `manifest::build`
+    // runs before anything is encoded and can only seed the field with the
+    // timeline's value, so `dub` — the one place that has the bytes —
+    // publishes their hash.
     //
     // Done before the `--check` branch, not only on the write path, so a
     // comparison is always like-for-like.
-    for (segment_id, bytes) in &audio {
+    for (segment_id, bytes, _) in &audio {
         if let Some(seg) = built.segments.iter_mut().find(|s| s.id == *segment_id) {
             seg.audio_hash = Hash::of(bytes);
         }
     }
 
     let downgrades = downgrades_in(&built);
+
+    // The re-render notices come first: they explain why anything below them
+    // is being recomputed at all.
+    let mut warnings = cache_warnings;
+    warnings.extend(compiled.warnings.iter().cloned());
 
     if check_only {
         let committed =
@@ -260,7 +369,7 @@ pub fn run_dub(
         return Ok(DubOutput {
             manifest: built,
             written: Vec::new(),
-            warnings: compiled.warnings,
+            warnings: warnings.clone(),
             drift: Some(drift),
             downgrades,
         });
@@ -272,7 +381,7 @@ pub fn run_dub(
         .map_err(|e| DubError::Runtime(format!("cannot create {}: {e}", audio_dir.display())))?;
 
     let mut written = Vec::new();
-    for (segment_id, bytes) in &audio {
+    for (segment_id, bytes, _) in &audio {
         let path = dir.join(manifest::audio_path(segment_id, "wav"));
         std::fs::write(&path, bytes)
             .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
@@ -289,7 +398,7 @@ pub fn run_dub(
     Ok(DubOutput {
         manifest: built,
         written,
-        warnings: compiled.warnings,
+        warnings,
         drift: None,
         downgrades,
     })
@@ -338,6 +447,7 @@ mod tests {
             chapter: "a".to_string(),
             start_ms: 0,
             duration_ms: 0,
+            duration_source: "measured".to_string(),
             audio: String::new(),
             voice_source: requested.to_string(),
             voice_source_actual: actual.to_string(),

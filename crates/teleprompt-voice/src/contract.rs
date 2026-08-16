@@ -1,4 +1,4 @@
-use teleprompt_core::Hash;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LanguageSupport {
@@ -14,6 +14,25 @@ pub struct VoiceCapabilities {
     pub word_timings: bool,
     pub ssml: bool,
     pub speed_control: bool,
+    /// The backend's own version, not teleprompt's. Feeds
+    /// `teleprompt_cache::key`'s `backend_version`, which is what makes a
+    /// backend release turn over its cache entries instead of teleprompt's
+    /// own version doing that job for every backend at once.
+    ///
+    /// **This is also the only handle a backend has on its own cache key.**
+    /// `teleprompt_cache::key` is built from `backend_id`, `backend_version`
+    /// and the `SynthRequest` — text, locale, voice, speed — and nothing
+    /// else. A backend whose output depends on configuration the request
+    /// does not carry (a model checkpoint, a `base_url`, a sample rate, a
+    /// vocoder setting) **must** fold that configuration into this string,
+    /// or two differently-configured instances share cache entries.
+    ///
+    /// The failure mode of getting this wrong is not a stale build: it is
+    /// serving one voice's audio under another voice's name, permanently,
+    /// with `plan` reporting it as `measured` and nothing above this layer
+    /// able to detect it. Version strings like
+    /// `format!("{model}-{revision}@{host}")` are the intended shape.
+    pub version: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,17 +43,21 @@ pub struct SynthRequest {
     pub speed: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WordTiming {
     pub word: String,
     pub start_ms: u64,
     pub end_ms: u64,
 }
 
+/// What a backend produces. Duration is deliberately absent: it is
+/// `pcm.duration_ms()`, so a backend cannot report a length its samples do
+/// not have. An earlier contract returned the two separately, and `dub`
+/// published a 3250 ms duration beside a 6500 ms file.
 #[derive(Debug, Clone)]
-pub struct SynthResult {
-    pub duration_ms: u64,
-    pub audio_hash: Hash,
+pub struct Synthesized {
+    pub pcm: Pcm,
+    /// Present only when `capabilities().word_timings` is true.
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
@@ -62,25 +85,25 @@ impl Pcm {
 
 #[derive(Debug, thiserror::Error)]
 pub enum VoiceError {
+    /// `backend` is a `String`, not a `&'static str`: `id()` returns `&str`,
+    /// so a backend whose id is not a literal — one crate serving several
+    /// configured endpoints, which is the shape a network backend wants —
+    /// could not name itself in its own error. One allocation on an error
+    /// path is the whole cost.
     #[error("backend `{backend}` does not support {what}")]
-    Unsupported { backend: &'static str, what: String },
+    Unsupported { backend: String, what: String },
     #[error("{0}")]
     Other(String),
 }
 
+#[async_trait::async_trait]
 pub trait VoiceBackend: Send + Sync {
-    fn id(&self) -> &'static str;
+    fn id(&self) -> &str;
     fn capabilities(&self) -> VoiceCapabilities;
-    fn synthesize(&self, req: &SynthRequest) -> Result<SynthResult, VoiceError>;
 
-    /// Render this request to audio. Separate from [`VoiceBackend::synthesize`]
-    /// because the inner loop (`plan`, `diff`) needs durations thousands of
-    /// times and audio never; making one call do both would put a
-    /// multi-megabyte allocation on the hot path.
+    /// Turn text into audio. The only thing a backend does.
     ///
-    /// Returns `Ok(None)` from a backend that genuinely cannot produce audio.
-    /// `null` is not such a backend — it returns silence.
-    fn render_pcm(&self, req: &SynthRequest) -> Result<Option<Pcm>, VoiceError>;
-
-    fn cache_key(&self, req: &SynthRequest) -> String;
+    /// Caching and duration prediction are teleprompt's concerns and appear
+    /// nowhere in this contract.
+    async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError>;
 }

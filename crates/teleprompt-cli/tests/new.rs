@@ -17,12 +17,13 @@ fn scaffold_writes_a_runnable_project() {
 
 #[test]
 fn the_scaffolded_script_compiles() {
-    use teleprompt_compile::compile;
+    use teleprompt_cache::VoiceCache;
+    use teleprompt_compile::{compile, VoiceContext};
     use teleprompt_core::config::PartialConfig;
     use teleprompt_core::ident::assign_ids;
     use teleprompt_core::parse::parse_script;
     use teleprompt_core::program::resolve;
-    use teleprompt_voice::NullVoice;
+    use teleprompt_voice_null::WpmEstimator;
 
     let dir = tempdir();
     scaffold(&dir).unwrap();
@@ -38,10 +39,18 @@ fn the_scaffolded_script_compiles() {
         &PartialConfig::default(),
     )
     .expect("scaffolded script must resolve");
+    let cache = VoiceCache::new(dir.join(".teleprompt/cache"));
+    let estimator = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &estimator,
+    };
     let out = compile(
         &program,
         &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
+        &ctx,
         &dir,
         "0.1.0",
     )

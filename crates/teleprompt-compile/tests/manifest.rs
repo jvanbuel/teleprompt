@@ -1,67 +1,15 @@
 use std::path::Path;
 
+use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest::{self, AudioInfo, MANIFEST_VERSION};
-use teleprompt_compile::{compile, CompileOutput};
+use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::{
-    NullVoice, Pcm, SynthRequest, SynthResult, VoiceBackend, VoiceCapabilities, VoiceError,
-    WordTiming,
-};
-
-/// A backend that reports word timings, so the manifest's `WordTiming.word`
-/// -> `WordEntry.text` rename has something to actually exercise. Delegates
-/// duration and hashing to [`NullVoice`] and only replaces `word_timings`,
-/// so it stays as deterministic as the backend it wraps.
-#[derive(Default)]
-struct WordyVoice {
-    inner: NullVoice,
-}
-
-impl VoiceBackend for WordyVoice {
-    fn id(&self) -> &'static str {
-        "wordy"
-    }
-
-    fn capabilities(&self) -> VoiceCapabilities {
-        // Honest about what this stub does differently from the backend it
-        // wraps: everything else is `NullVoice`'s capabilities, but this one
-        // actually produces word timings.
-        VoiceCapabilities {
-            word_timings: true,
-            ..self.inner.capabilities()
-        }
-    }
-
-    fn synthesize(&self, req: &SynthRequest) -> Result<SynthResult, VoiceError> {
-        let mut result = self.inner.synthesize(req)?;
-        result.word_timings = Some(vec![
-            WordTiming {
-                word: "Every".to_string(),
-                start_ms: 0,
-                end_ms: 300,
-            },
-            WordTiming {
-                word: "video".to_string(),
-                start_ms: 300,
-                end_ms: 600,
-            },
-        ]);
-        Ok(result)
-    }
-
-    fn render_pcm(&self, req: &SynthRequest) -> Result<Option<Pcm>, VoiceError> {
-        // Unused on the manifest-building path; delegate rather than fake it.
-        self.inner.render_pcm(req)
-    }
-
-    fn cache_key(&self, req: &SynthRequest) -> String {
-        self.inner.cache_key(req)
-    }
-}
+use teleprompt_voice::{Pcm, WordTiming};
+use teleprompt_voice_null::WpmEstimator;
 
 fn program_for(src: &str) -> Program {
     let mut parsed = parse_script(src).expect("fixture parses");
@@ -80,12 +28,32 @@ fn program_for(src: &str) -> Program {
     .expect("fixture resolves")
 }
 
+/// A cache rooted in a fresh scratch directory, so every call gets a cold
+/// cache regardless of what any other test did.
+fn throwaway_cache() -> VoiceCache {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    VoiceCache::new(std::env::temp_dir().join(format!(
+        "tp-manifest-throwaway-{}-{:?}-{n}",
+        std::process::id(),
+        std::thread::current().id(),
+    )))
+}
+
 fn compiled_and_manifest(src: &str) -> (CompileOutput, manifest::NarrationManifest) {
     let program = program_for(src);
+    let cache = throwaway_cache();
+    let estimator = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &estimator,
+    };
     let out = compile(
         &program,
         &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
+        &ctx,
         Path::new("."),
         "0.1.0",
     )
@@ -103,32 +71,69 @@ fn compiled_and_manifest(src: &str) -> (CompileOutput, manifest::NarrationManife
     (out, m)
 }
 
-/// Like `manifest_for`, but takes the voice backend as a parameter so a test
-/// can substitute a stub (e.g. `WordyVoice`) instead of `NullVoice`.
-fn manifest_for_with(src: &str, voice: &dyn VoiceBackend) -> manifest::NarrationManifest {
+fn manifest_for(src: &str) -> manifest::NarrationManifest {
+    compiled_and_manifest(src).1
+}
+
+/// Builds the manifest from a *warm* cache carrying `word_timings` for every
+/// segment, so the manifest's `WordTiming.word` -> `WordEntry.text` rename
+/// has something to actually exercise. `compile` never synthesizes, so word
+/// timings only ever reach it through a cache hit — there is no longer a
+/// backend to stub for this.
+fn manifest_for_with_words(
+    src: &str,
+    word_timings: Vec<WordTiming>,
+) -> manifest::NarrationManifest {
     let program = program_for(src);
-    let out = compile(
+    let cache = throwaway_cache();
+    let estimator = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &estimator,
+    };
+
+    let cold = compile(
         &program,
         &SceneRegistry::with_builtins(),
-        voice,
+        &ctx,
+        Path::new("."),
+        "0.1.0",
+    )
+    .unwrap();
+    for detail in &cold.narration {
+        cache
+            .store(
+                &detail.cache_key,
+                &Pcm {
+                    sample_rate: 48_000,
+                    channels: 1,
+                    samples: vec![0; 48_000],
+                },
+                Some(&word_timings),
+            )
+            .unwrap();
+    }
+
+    let warm = compile(
+        &program,
+        &SceneRegistry::with_builtins(),
+        &ctx,
         Path::new("."),
         "0.1.0",
     )
     .unwrap();
     manifest::build(
-        &out.timeline,
+        &warm.timeline,
         &program.chapters,
-        &out.narration,
+        &warm.narration,
         AudioInfo {
             format: "wav".to_string(),
             sample_rate: 48_000,
             channels: 1,
         },
     )
-}
-
-fn manifest_for(src: &str) -> manifest::NarrationManifest {
-    manifest_for_with(src, &NullVoice::default())
 }
 
 const TWO_CHAPTERS: &str = "\
@@ -243,7 +248,7 @@ fn every_segment_names_the_chapter_it_was_spoken_in() {
 /// overlap, this test must fail loudly rather than the overlap silently
 /// vanishing while §5.2 and the §7 consumer example still describe it.
 #[test]
-fn consecutive_narration_only_segments_overlap() {
+fn consecutive_narration_only_segments_abut_exactly() {
     let m = manifest_for(
         "\
 # Quick start
@@ -259,17 +264,48 @@ Three.
 
     for pair in m.segments.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
-        assert!(
-            a.start_ms + a.duration_ms > b.start_ms,
-            "`{}` ends at {} but `{}` starts at {}: spec §5.2 documents this \
-             overlap; if the scheduler changed, update §5.2, README, and the \
-             §7 consumer example with it",
-            a.id,
+        assert_eq!(
             a.start_ms + a.duration_ms,
-            b.id,
             b.start_ms,
+            "`{}` and `{}` must neither overlap nor leave a gap: the auto \
+             transition is capped at the quiet window (core spec §6.3), so a \
+             script of plain paragraphs reads as continuous speech",
+            a.id,
+            b.id,
         );
     }
+}
+
+/// The contract still permits overlap (§5.2) — an author who sets a fixed
+/// transition wider than the quiet window gets exactly what they asked for.
+/// Pinned here because §5.2 tells consumers to expect it, and a claim in a
+/// published contract with no test behind it decays.
+#[test]
+fn a_fixed_transition_can_still_make_segments_overlap() {
+    let m = manifest_for(
+        "\
+---
+output:
+  transition: { kind: crossfade, duration: 2s }
+---
+
+# Quick start
+
+One.
+
+Two.
+",
+    );
+    assert_eq!(m.segments.len(), 2);
+    let (a, b) = (&m.segments[0], &m.segments[1]);
+    assert!(
+        a.start_ms + a.duration_ms > b.start_ms,
+        "`{}` ends at {} and `{}` starts at {}",
+        a.id,
+        a.start_ms + a.duration_ms,
+        b.id,
+        b.start_ms,
+    );
 }
 
 #[test]
@@ -335,7 +371,21 @@ fn downgrade_reason_is_present_as_null_but_words_are_omitted() {
 
 #[test]
 fn words_from_the_backend_serialize_under_the_key_text_not_word() {
-    let m = manifest_for_with(TWO_CHAPTERS, &WordyVoice::default());
+    let m = manifest_for_with_words(
+        TWO_CHAPTERS,
+        vec![
+            WordTiming {
+                word: "Every".to_string(),
+                start_ms: 0,
+                end_ms: 300,
+            },
+            WordTiming {
+                word: "video".to_string(),
+                start_ms: 300,
+                end_ms: 600,
+            },
+        ],
+    );
     let json = serde_json::to_value(&m).unwrap();
 
     assert_eq!(

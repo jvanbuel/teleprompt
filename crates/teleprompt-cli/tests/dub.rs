@@ -163,11 +163,13 @@ Every video in this repository is built from a script you can read.
     );
 }
 
-/// I4. The published `audio_hash` must describe the file on disk. It used
-/// to be the backend's synthesis cache key, which embeds
-/// `CARGO_PKG_VERSION` — so every teleprompt release changed every hash and
-/// `--check` reported "audio changed" on every segment of every consumer's
-/// next pull request.
+/// I4. The manifest's `audio_hash` must describe the file on disk, per spec
+/// §5.1 — that is what lets a consumer skip re-encoding a byte-identical
+/// render. It is a different quantity from the timeline's `audio_hash`,
+/// which identifies *which* audio a segment resolves to and correctly does
+/// not move when `dub` re-renders the same bytes. `manifest::build` can only
+/// seed this field with the timeline's value, so the overwrite in `dub` is
+/// what makes the published field mean what it says.
 #[test]
 fn audio_hash_is_the_hash_of_the_bytes_on_disk() {
     let root = project_with("audiohash", SCRIPT);
@@ -488,4 +490,87 @@ fn a_broken_script_fails_validation_before_writing_anything() {
         !root.join("public/narration/en").exists(),
         "no partial output"
     );
+}
+
+/// Overwrite every sidecar in the project's cache with garbage. Returns how
+/// many were clobbered, so a test cannot silently pass against an empty
+/// cache.
+fn corrupt_every_sidecar(root: &Path) -> usize {
+    let dir = root.join(".teleprompt/cache/voice");
+    let mut n = 0;
+    for entry in std::fs::read_dir(&dir).expect("dub must have populated the cache") {
+        let path = entry.unwrap().path();
+        if path.extension().is_some_and(|e| e == "json") {
+            std::fs::write(&path, "{ not json").unwrap();
+            n += 1;
+        }
+    }
+    n
+}
+
+/// I4. A corrupt sidecar used to exit 2 out of `check`, attributed to the
+/// script — a derived, gitignored artifact bricking a validation command,
+/// with no recovery path offered and no `cache clean` to offer. The cache is
+/// content-addressed and self-healing, so the only correct reading is a
+/// miss.
+#[test]
+fn a_corrupt_cache_entry_reads_as_a_miss_rather_than_bricking_check() {
+    let root = project_with("corruptcheck", SCRIPT);
+    let dubbed = tp(
+        &root,
+        &["dub", "scripts/test.md", "--out", "public/narration"],
+    );
+    assert_eq!(
+        code(&dubbed),
+        0,
+        "{}",
+        String::from_utf8_lossy(&dubbed.stderr)
+    );
+    assert!(corrupt_every_sidecar(&root) > 0);
+
+    let out = tp(&root, &["check", "scripts/test.md"]);
+    assert_eq!(
+        code(&out),
+        0,
+        "a corrupt cache entry must not fail validation: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("warning:") && stderr.contains(".teleprompt"),
+        "the author must be told which file caused the re-synthesis: {stderr}"
+    );
+}
+
+/// And the entry heals: `dub` re-renders the segment and publishes a
+/// measurement, rather than either failing or quietly shipping an estimate.
+#[test]
+fn a_corrupt_cache_entry_is_re_rendered_by_dub() {
+    let root = project_with("corruptdub", SCRIPT);
+    tp(
+        &root,
+        &["dub", "scripts/test.md", "--out", "public/narration"],
+    );
+    let before = read_manifest(&root);
+    assert!(corrupt_every_sidecar(&root) > 0);
+
+    let out = tp(
+        &root,
+        &["dub", "scripts/test.md", "--out", "public/narration"],
+    );
+    assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("warning:"),
+        "a silent re-render leaves the author guessing why dub got slow"
+    );
+
+    let after = read_manifest(&root);
+    assert_eq!(
+        before, after,
+        "a re-rendered segment must reproduce byte-identically — that is what \
+         content-addressing buys"
+    );
+    for seg in after["segments"].as_array().unwrap() {
+        assert_eq!(seg["duration_source"], "measured");
+    }
 }

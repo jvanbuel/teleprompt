@@ -1,12 +1,13 @@
 use std::path::{Path, PathBuf};
 
-use teleprompt_compile::compile;
+use teleprompt_cache::VoiceCache;
+use teleprompt_compile::{compile, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::NullVoice;
+use teleprompt_voice_null::WpmEstimator;
 
 fn workspace() -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -17,6 +18,13 @@ fn workspace() -> PathBuf {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir
+}
+
+/// A cache rooted alongside `workspace()`'s scratch directory rather than
+/// inside it, so it is never mistaken for a script include. Only ever read
+/// in this file, so a cold cache every time is fine.
+fn cache_for(dir: &Path) -> VoiceCache {
+    VoiceCache::new(dir.with_extension("voice-cache"))
 }
 
 fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<String>> {
@@ -30,14 +38,16 @@ fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<S
         &PartialConfig::default(),
     )
     .unwrap();
-    compile(
-        &p,
-        &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
-        dir,
-        "0.1.0",
-    )
-    .map_err(|d| d.0.iter().map(|x| x.message.clone()).collect())
+    let cache = cache_for(dir);
+    let estimator = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &estimator,
+    };
+    compile(&p, &SceneRegistry::with_builtins(), &ctx, dir, "0.1.0")
+        .map_err(|d| d.0.iter().map(|x| x.message.clone()).collect())
 }
 
 /// Like `run`, but keeps the whole rendered diagnostic — file, line, column —
@@ -53,15 +63,17 @@ fn run_rendered(dir: &Path, script_name: &str, src: &str) -> Result<(), Vec<Stri
         &PartialConfig::default(),
     )
     .unwrap();
-    compile(
-        &p,
-        &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
-        dir,
-        "0.1.0",
-    )
-    .map(|_| ())
-    .map_err(|d| d.0.iter().map(|x| x.render(script_name)).collect())
+    let cache = cache_for(dir);
+    let estimator = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &estimator,
+    };
+    compile(&p, &SceneRegistry::with_builtins(), &ctx, dir, "0.1.0")
+        .map(|_| ())
+        .map_err(|d| d.0.iter().map(|x| x.render(script_name)).collect())
 }
 
 #[test]

@@ -1,0 +1,28 @@
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
+use crate::contract::VoiceBackend;
+
+/// Mirrors `SceneRegistry`. `BTreeMap` so `available()` is ordered and
+/// `doctor`'s output does not depend on insertion order.
+///
+/// `Arc`, not `Box`: `dub` synthesizes segments concurrently, so the backend
+/// is shared across tasks.
+#[derive(Default)]
+pub struct VoiceRegistry {
+    backends: BTreeMap<String, Arc<dyn VoiceBackend>>,
+}
+
+impl VoiceRegistry {
+    pub fn register(&mut self, backend: Arc<dyn VoiceBackend>) {
+        self.backends.insert(backend.id().to_string(), backend);
+    }
+
+    pub fn get(&self, id: &str) -> Option<Arc<dyn VoiceBackend>> {
+        self.backends.get(id).cloned()
+    }
+
+    pub fn available(&self) -> Vec<&str> {
+        self.backends.keys().map(String::as_str).collect()
+    }
+}

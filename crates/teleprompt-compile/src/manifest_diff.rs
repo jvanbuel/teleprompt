@@ -14,9 +14,9 @@ pub struct ChangedSegment {
     pub id: String,
     pub before_ms: u64,
     pub after_ms: u64,
-    /// `text edited` | `audio changed` | `voice tier X → Y` |
-    /// `voice request changed` | `shifted`. Different causes want
-    /// different fixes, so the report must not collapse them.
+    /// `text edited` | `now measured` | `audio changed` |
+    /// `voice tier X → Y` | `voice request changed` | `shifted`. Different
+    /// causes want different fixes, so the report must not collapse them.
     pub reason: String,
 }
 
@@ -143,6 +143,24 @@ fn secs(ms: u64) -> String {
 fn reason_for(before: &SegmentEntry, after: &SegmentEntry) -> Option<String> {
     if before.source_hash != after.source_hash {
         Some("text edited".to_string())
+    // Ordered exactly as the timeline's own narration diff orders it
+    // (`teleprompt-schedule/src/diff.rs`): after `text edited`, because an
+    // author's edit is the cause they can act on and explains the duration
+    // change by itself; before the audio and duration checks, which would
+    // otherwise absorb this and send the reader looking for a content
+    // change that did not happen. The manifest must not contradict its
+    // sibling.
+    //
+    // The reverse transition — measured back to estimated, a cleared cache
+    // — deliberately does not claim something was just measured.
+    //
+    // Inert while `dub`'s recompile means every published manifest says
+    // `measured`. Without it the field carries no information at all, and
+    // with `null`, where the estimate and the render always coincide,
+    // `--check` would call an estimated-to-measured transition clean.
+    } else if before.duration_source != after.duration_source && after.duration_source == "measured"
+    {
+        Some("now measured".to_string())
     } else if before.audio_hash != after.audio_hash || before.duration_ms != after.duration_ms {
         Some("audio changed".to_string())
     } else if before.voice_source_actual != after.voice_source_actual {

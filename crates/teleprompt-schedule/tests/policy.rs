@@ -143,8 +143,11 @@ fn policy_parses_from_attribute_strings() {
         Policy::parse("concurrent", "end"),
         Some(Policy::Concurrent(Align::End))
     );
-    assert_eq!(Policy::parse("stretch", "start"), Some(Policy::Stretch));
-    assert_eq!(Policy::parse("trim", "start"), Some(Policy::Trim));
+    assert_eq!(
+        Policy::parse("stretch-action", "start"),
+        Some(Policy::Stretch)
+    );
+    assert_eq!(Policy::parse("trim-action", "start"), Some(Policy::Trim));
     assert_eq!(Policy::parse("nonsense", "start"), None);
     assert_eq!(Policy::parse("concurrent", "sideways"), None);
 }
@@ -192,4 +195,27 @@ fn no_policy_ever_denies_the_narration_its_full_length() {
             );
         }
     }
+}
+
+/// Issue #1: `stretch` and `trim` named an operation without naming its
+/// object, so both read as if the speech were adjusted. The old spellings are
+/// gone, not aliased — but `check` must say what to write instead rather than
+/// reporting a bare "unknown policy".
+#[test]
+fn the_old_policy_names_are_rejected_with_the_new_spelling() {
+    assert_eq!(Policy::parse("stretch", "start"), None);
+    assert_eq!(Policy::parse("trim", "start"), None);
+
+    assert_eq!(Policy::renamed_hint("stretch"), Some("stretch-action"));
+    assert_eq!(Policy::renamed_hint("trim"), Some("trim-action"));
+    assert_eq!(Policy::renamed_hint("hold"), None);
+    assert_eq!(Policy::renamed_hint("nonsense"), None);
+}
+
+#[test]
+fn labels_name_what_the_policy_adjusts() {
+    assert_eq!(Policy::Stretch.label(), "stretch-action");
+    assert_eq!(Policy::Trim.label(), "trim-action");
+    assert_eq!(Policy::Hold.label(), "hold");
+    assert_eq!(Policy::Concurrent(Align::Start).label(), "concurrent");
 }

@@ -236,3 +236,200 @@ fn an_unreachable_script_path_is_named_in_the_error() {
         "the error must name the path it could not reach: {stderr}"
     );
 }
+
+#[test]
+fn an_unknown_voice_backend_is_a_validation_error_naming_what_exists() {
+    let (p, s) =
+        project_with("---\nvoice: { backend: nope }\n---\n\n# Intro\n\nOne two three. {#a}\n");
+    let errors = run_check(&p, &s, "en").expect_err("unknown backend must fail check");
+    let joined = errors.join("\n");
+    assert!(joined.contains("nope"), "{joined}");
+    assert!(
+        joined.contains("null"),
+        "must name what is available: {joined}"
+    );
+}
+
+#[test]
+fn the_default_backend_is_null_so_existing_scripts_keep_working() {
+    let (p, s) = project_with("# Intro\n\nOne two three. {#a}\n");
+    assert!(run_check(&p, &s, "en").is_ok());
+}
+
+/// The extra requirement beyond the brief: a segment-level `voice.backend=`
+/// that disagrees with the program's resolved backend must fail `check`
+/// rather than being silently ignored — `VoiceContext` carries exactly one
+/// backend per compile, so an ignored override would let two segments that
+/// differ only by backend collide on one cache key and one would be served
+/// the other's audio.
+#[test]
+fn a_segment_level_backend_override_that_disagrees_with_the_resolved_backend_is_rejected() {
+    let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=nope}\n");
+    let errors = run_check(&p, &s, "en").expect_err("a disagreeing per-segment backend must fail");
+    let joined = errors.join("\n");
+    assert!(
+        joined.contains("segment `a`"),
+        "must name the segment: {joined}"
+    );
+    assert!(
+        joined.contains("nope") && joined.contains("null"),
+        "must name both the segment's requested backend and the resolved one: {joined}"
+    );
+    assert!(
+        joined.contains("not supported yet"),
+        "must say per-segment backends are not supported yet: {joined}"
+    );
+}
+
+/// A segment-level `voice.backend=` that agrees with the resolved backend
+/// is not an override at all and must not be rejected.
+#[test]
+fn a_segment_level_backend_that_matches_the_resolved_backend_is_fine() {
+    let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=null}\n");
+    assert!(run_check(&p, &s, "en").is_ok());
+}
+
+/// Fix round 1: a chapter-level `voice.backend` override with no segment
+/// attribute must still be rejected (Delivery A supports one backend per
+/// compile, full stop), but `Item::Narration`'s config is already merged
+/// and cannot say which layer produced the value. The diagnostic must
+/// therefore describe the effect ("resolves to") rather than accuse the
+/// segment of writing an attribute it never wrote, and the help text must
+/// mention that chapter-level overrides are unsupported too.
+#[test]
+fn a_chapter_level_backend_override_is_reported_without_claiming_the_segment_set_it() {
+    let (p, s) = project_with(
+        "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\nOne two three. {#a}\n",
+    );
+    let errors = run_check(&p, &s, "en").expect_err("a chapter-level backend override must fail");
+    let joined = errors.join("\n");
+    assert!(
+        !joined.contains("sets"),
+        "must not claim the segment wrote an attribute it did not: {joined}"
+    );
+    assert!(
+        joined.contains("resolves to voice backend `elsewhere`"),
+        "must describe the effect, not a guessed cause: {joined}"
+    );
+    assert!(
+        joined.contains("chapter"),
+        "help must mention chapter-level overrides are unsupported too: {joined}"
+    );
+}
+
+/// Fix round 1: a chapter-wide override affecting several segments must
+/// produce exactly one diagnostic naming all of them, not one per segment.
+#[test]
+fn a_chapter_level_backend_override_across_several_segments_is_one_diagnostic() {
+    let (p, s) = project_with(
+        "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\n\
+         One. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n",
+    );
+    let errors = run_check(&p, &s, "en").expect_err("a chapter-level backend override must fail");
+    assert_eq!(
+        errors.len(),
+        1,
+        "one diagnostic per offending value, not one per segment: {errors:?}"
+    );
+    let joined = errors.join("\n");
+    for id in ["a", "b", "c"] {
+        assert!(
+            joined.contains(&format!("`{id}`")),
+            "must name segment `{id}`: {joined}"
+        );
+    }
+}
+
+/// C1, through the real binary. The panic was the point: exit 101 is not a
+/// code `teleprompt_cli::output::exit_code_for` can issue, so the process
+/// bypassed the CLI's whole error contract. Driven through the binary rather
+/// than `run_check` because a panic in a library call would abort the test
+/// harness instead of being observed as an exit code.
+#[test]
+fn check_on_a_zero_voice_speed_exits_two_rather_than_panicking() {
+    let (p, _s) = project_with("---\nvoice: { speed: 0 }\n---\n\n# Intro\n\nOne two. {#a}\n");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .arg("check")
+        .arg(p.root.join("scripts/test.md"))
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "expected a validation error, got {:?}: {stderr}",
+        output.status.code()
+    );
+    assert!(
+        stderr.contains("speed must be greater than zero"),
+        "{stderr}"
+    );
+}
+
+/// The row that matters most in C1's table: before this, `check` exited 0 on
+/// a script `dub` exited 1 on. A validate-only command that passes what the
+/// real command refuses is the exact failure this delivery exists to
+/// prevent, so assert the two agree rather than asserting either alone.
+#[test]
+fn check_and_dub_agree_about_a_negative_voice_speed() {
+    let (p, _s) = project_with("---\nvoice: { speed: -1 }\n---\n\n# Intro\n\nOne two. {#a}\n");
+    let script = p.root.join("scripts/test.md");
+    let out_dir = p.root.join("out");
+
+    let check = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .arg("check")
+        .arg(&script)
+        .output()
+        .unwrap();
+    let dub = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["dub"])
+        .arg(&script)
+        .arg("--out")
+        .arg(&out_dir)
+        .output()
+        .unwrap();
+
+    assert_eq!(check.status.code(), Some(2), "check must reject");
+    assert_eq!(
+        dub.status.code(),
+        check.status.code(),
+        "dub must reject exactly what check does"
+    );
+}
+
+/// `doctor`'s cache root was CWD-relative, so from any subdirectory of a
+/// project with a full cache it reported `0 entries` — worse than reporting
+/// nothing, because it looks like an answer. `check` and `dub` root theirs
+/// at the project; so does this now, and the report says which root it used.
+#[test]
+fn doctor_reports_the_projects_cache_from_a_subdirectory() {
+    let (p, _s) = project_with(GOOD);
+    let dubbed = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["dub", "scripts/test.md", "--out", "out"])
+        .current_dir(&p.root)
+        .output()
+        .unwrap();
+    assert!(
+        dubbed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&dubbed.stderr)
+    );
+
+    let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["--format", "json", "doctor"])
+        .current_dir(p.root.join("scripts"))
+        .output()
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+
+    assert!(
+        json["cache_entries"].as_u64().unwrap() > 0,
+        "doctor must see the project's cache from inside it: {json}"
+    );
+    assert!(
+        json["cache_root"].as_str().unwrap().contains(".teleprompt"),
+        "the report must say which root it counted: {json}"
+    );
+}

@@ -11,6 +11,7 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
         chapter: "intro".to_string(),
         start_ms,
         duration_ms,
+        duration_source: "measured".to_string(),
         audio: format!("audio/{id}.wav"),
         voice_source: "synthetic".to_string(),
         voice_source_actual: "synthetic".to_string(),
@@ -284,4 +285,62 @@ fn the_report_names_the_duration_change_and_the_segments() {
     assert!(text.contains("welcome"), "{text}");
     assert!(text.contains("text edited"), "{text}");
     assert!(text.contains("needs re-render"), "{text}");
+}
+
+/// The manifest's `duration_source` used to be inert: `reason_for` never
+/// looked at it, so a segment that went from a prediction to a measurement
+/// with the same length — which with `null` is every segment, because the
+/// estimator and the backend call the same function — was reported as clean.
+/// A committed manifest full of estimates would have passed `--check`.
+#[test]
+fn an_estimated_segment_that_becomes_measured_is_drift() {
+    let mut before = seg("welcome", 0, 2750, "One two three four five six.", "a");
+    before.duration_source = "estimated".to_string();
+    let after = seg("welcome", 0, 2750, "One two three four five six.", "a");
+
+    let d = diff(&manifest(vec![before]), &manifest(vec![after]));
+    assert_eq!(d.changed.len(), 1, "{:?}", d.changed);
+    assert_eq!(d.changed[0].reason, "now measured");
+}
+
+/// The reverse — a cleared cache turning a measurement back into a
+/// prediction — is still drift, but it must not claim something was just
+/// measured. Mirrors the timeline diff's own reading of the same
+/// transition.
+#[test]
+fn a_measured_segment_that_reverts_to_estimated_does_not_claim_a_measurement() {
+    let before = seg("welcome", 0, 2750, "One two three four five six.", "a");
+    let mut after = seg("welcome", 0, 2750, "One two three four five six.", "a");
+    after.duration_source = "estimated".to_string();
+
+    let d = diff(&manifest(vec![before]), &manifest(vec![after]));
+    assert_ne!(
+        d.changed.first().map(|c| c.reason.as_str()),
+        Some("now measured")
+    );
+}
+
+/// `now measured` sits after `text edited`, so an author who rewrote a
+/// paragraph is told about their own edit rather than about the cache.
+#[test]
+fn a_text_edit_outranks_the_measurement_transition() {
+    let mut before = seg("welcome", 0, 2750, "One two three four five six.", "a");
+    before.duration_source = "estimated".to_string();
+    let after = seg("welcome", 0, 3000, "One two three four five six more.", "b");
+
+    let d = diff(&manifest(vec![before]), &manifest(vec![after]));
+    assert_eq!(d.changed[0].reason, "text edited");
+}
+
+/// And before `audio changed`, so the transition is named rather than being
+/// absorbed into a report that sends the reader hunting for a content
+/// change that did not happen.
+#[test]
+fn the_measurement_transition_outranks_a_length_change() {
+    let mut before = seg("welcome", 0, 2750, "One two three four five six.", "a");
+    before.duration_source = "estimated".to_string();
+    let after = seg("welcome", 0, 5000, "One two three four five six.", "b");
+
+    let d = diff(&manifest(vec![before]), &manifest(vec![after]));
+    assert_eq!(d.changed[0].reason, "now measured");
 }

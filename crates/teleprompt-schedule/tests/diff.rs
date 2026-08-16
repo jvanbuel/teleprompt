@@ -19,6 +19,7 @@ fn beat(id: &str, narration_ms: u64, source: &str) -> Beat {
             source_hash: Hash::of(source.as_bytes()),
             audio_hash: Hash::of(source.as_bytes()),
             duration_ms: narration_ms,
+            duration_source: DurationSource::Measured,
             lead_in_ms: Config::default().timing.lead_in_ms,
             tail_ms: Config::default().timing.tail_ms,
             voice_source: VoiceSource::Synthetic,
@@ -338,7 +339,12 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
     assert!(!d.is_empty(), "a re-timed timeline is not a clean diff");
     assert_eq!(d.transitions.len(), 1, "only b1 has an outgoing transition");
     assert_eq!(d.transitions[0].beat, "b1");
-    assert_eq!(d.transitions[0].before_ms, 600);
+    // 300, not the configured 600: core spec §6.3 caps an `auto` transition
+    // at the quiet window, which here is this beat's 150ms tail plus the
+    // next beat's 150ms lead_in. What this test guards is unaffected —
+    // retuning `max_ms` still moves every gap and the total while no beat's
+    // own hash or duration changes, which is what `diff` used to miss.
+    assert_eq!(d.transitions[0].before_ms, 300);
     assert_eq!(d.transitions[0].after_ms, 0);
     assert!(d.changed.is_empty(), "no beat's own content changed");
 
@@ -443,4 +449,105 @@ fn a_lead_in_retune_that_does_not_change_beat_length_is_still_reported() {
     assert!(!d.is_empty());
     assert_eq!(d.changed.len(), 1);
     assert_eq!(d.changed[0].reason, "padding changed");
+}
+
+/// The estimated-to-measured transition is real drift — the video did change
+/// — but it is not an author's edit, and conflating the two would send a
+/// reader to re-read prose that nobody touched.
+#[test]
+fn an_estimate_becoming_a_measurement_is_named_as_such() {
+    let before = {
+        let mut b = beat("b1", 4000, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
+        timeline(vec![b])
+    };
+    let after = {
+        let mut b = beat("b1", 4300, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
+        timeline(vec![b])
+    };
+
+    let d = diff(&before, &after);
+    assert!(!d.is_empty());
+    let changed = d
+        .changed
+        .iter()
+        .find(|c| c.beat == "b1")
+        .expect("b1 changed");
+    assert_eq!(changed.reason, "now measured");
+
+    let rendered = d.render();
+    assert!(rendered.contains("now measured"), "{rendered}");
+}
+
+/// The case above only reported because the duration also moved. With the
+/// `null` backend it never moves: `NullVoice::synthesize` renders exactly
+/// what `WpmEstimator` predicts, so every real estimate-to-measurement
+/// transition has an identical length on both sides. If the reason arm sits
+/// behind a guard that ignores `duration_source`, this is the case that goes
+/// silently clean — the same defect the review named for `manifest_diff`.
+#[test]
+fn a_measurement_that_matches_its_estimate_still_reports() {
+    let before = {
+        let mut b = beat("b1", 4000, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
+        timeline(vec![b])
+    };
+    let after = {
+        let mut b = beat("b1", 4000, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
+        timeline(vec![b])
+    };
+    assert_eq!(
+        before.duration_ms, after.duration_ms,
+        "the fixture must hold the length fixed, or it proves nothing"
+    );
+
+    let d = diff(&before, &after);
+    assert!(
+        !d.is_empty(),
+        "an unchanged length must not hide the measurement"
+    );
+    assert_eq!(d.changed.len(), 1);
+    assert_eq!(d.changed[0].reason, "now measured");
+}
+
+/// The reverse — a cleared cache turning a measurement back into an estimate
+/// — is not a change to the program, and must stay clean. This is why the
+/// guard tests the transition rather than a bare `duration_source`
+/// inequality: a symmetric guard would report this as "padding changed".
+#[test]
+fn a_cleared_cache_is_not_drift() {
+    let before = {
+        let mut b = beat("b1", 4000, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
+        timeline(vec![b])
+    };
+    let after = {
+        let mut b = beat("b1", 4000, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
+        timeline(vec![b])
+    };
+
+    let d = diff(&before, &after);
+    assert!(d.is_empty(), "{:?}", d.changed);
+}
+
+/// A text edit that also happens to cross the estimated/measured boundary is
+/// still a text edit — that is the cause the author can act on.
+#[test]
+fn a_text_edit_outranks_the_measurement_transition() {
+    let before = {
+        let mut b = beat("b1", 4000, "one");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
+        timeline(vec![b])
+    };
+    let after = {
+        let mut b = beat("b1", 4300, "two");
+        b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
+        timeline(vec![b])
+    };
+
+    let d = diff(&before, &after);
+    assert_eq!(d.changed[0].reason, "text edited");
 }

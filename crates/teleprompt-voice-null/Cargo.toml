@@ -1,0 +1,12 @@
+[package]
+name = "teleprompt-voice-null"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+teleprompt-voice = { path = "../teleprompt-voice" }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

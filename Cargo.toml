@@ -4,10 +4,16 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2021"
-rust-version = "1.75"
+# 1.85 is the floor the dependency graph sets, not a feature we reach for:
+# clap, blake3 and indexmap all moved to edition 2024, which Cargo cannot even
+# parse before 1.85. Holding 1.75 would mean pinning ten transitive crates to
+# pre-2024 releases and re-pinning them after every update. Our own code uses
+# nothing newer than `Option::is_some_and` (1.70).
+rust-version = "1.85"
 license = "MIT"
 
 [workspace.dependencies]
+async-trait = "0.1"
 blake3 = "1"
 clap = { version = "4", features = ["derive"] }
 insta = { version = "1", features = ["json"] }
@@ -16,4 +22,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 thiserror = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 toml = "0.8"

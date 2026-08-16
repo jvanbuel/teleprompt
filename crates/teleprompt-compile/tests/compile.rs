@@ -1,13 +1,16 @@
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use teleprompt_compile::{compile, CompileOutput};
+use teleprompt_cache::VoiceCache;
+use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_core::Diagnostics;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::{NullVoice, VoiceBackend};
+use teleprompt_voice::{Pcm, VoiceBackend};
+use teleprompt_voice_null::{NullVoice, WpmEstimator};
 
 fn program(src: &str) -> Program {
     let mut s = parse_script(src).unwrap();
@@ -22,15 +25,45 @@ fn program(src: &str) -> Program {
     .unwrap()
 }
 
-fn run(src: &str) -> teleprompt_compile::CompileOutput {
+/// A cache rooted in a fresh, never-written-to scratch directory, so every
+/// call gets a cold cache regardless of what any other test — or an earlier
+/// call in the same test — did. `compile` only ever reads its cache, so a
+/// directory nothing has created yet reads back as a clean miss on every
+/// lookup; the counter just keeps concurrent test threads out of each
+/// other's way.
+fn throwaway_cache() -> VoiceCache {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    VoiceCache::new(std::env::temp_dir().join(format!(
+        "tp-compile-throwaway-{}-{:?}-{n}",
+        std::process::id(),
+        std::thread::current().id(),
+    )))
+}
+
+/// Compiles `program` against a fresh cold cache with the reference
+/// estimator, returning the raw `Result` so error-path tests can inspect the
+/// diagnostics `compile` produced.
+fn compile_program(p: &Program) -> Result<CompileOutput, Diagnostics> {
+    let cache = throwaway_cache();
+    let estimator = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &estimator,
+    };
     compile(
-        &program(src),
+        p,
         &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
+        &ctx,
         Path::new("."),
         "0.1.0",
     )
-    .unwrap()
+}
+
+fn run(src: &str) -> teleprompt_compile::CompileOutput {
+    compile_program(&program(src)).unwrap()
 }
 
 fn program_for(src: &str) -> Program {
@@ -50,15 +83,31 @@ fn program_for(src: &str) -> Program {
     .expect("fixture resolves")
 }
 
-fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
+/// Compiles `src` against the caller's own `VoiceContext`, so a test can
+/// inspect or warm the cache in between calls.
+fn compile_with(src: &str, ctx: &VoiceContext) -> Result<CompileOutput, Diagnostics> {
     let program = program_for(src);
     compile(
         &program,
         &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
+        ctx,
         Path::new("."),
         "0.1.0",
     )
+}
+
+/// A thin wrapper over `compile_with` that builds a throwaway cache, so
+/// every test that does not care about cache state keeps working unchanged.
+fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
+    let cache = throwaway_cache();
+    let estimator = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &estimator,
+    };
+    compile_with(src, &ctx)
 }
 
 // Controller ruling F2 (addendum): `transition` lives inside `output:`, per
@@ -88,12 +137,15 @@ fn narration_and_the_following_action_form_one_beat() {
     assert!(e.action.is_some());
 }
 
+/// On a cold cache the duration is the estimator's prediction — no backend
+/// is involved, and `compile` has no way to reach one.
 #[test]
-fn narration_duration_comes_from_the_voice_backend() {
+fn a_cold_narration_duration_comes_from_the_estimator() {
     let out = run(ONE_BEAT);
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
     // 6 words at 150 wpm = 2400ms, plus 350ms for the full stop
     assert_eq!(n.duration_ms, 2750);
+    assert_eq!(n.duration_source, "estimated");
 }
 
 #[test]
@@ -178,14 +230,7 @@ fn an_unconfigured_scene_falls_back_to_its_default_adapter() {
 fn an_unavailable_adapter_is_a_diagnostic_not_a_panic() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=browser\nawait page.goto('/');\n```\n";
     let p = program(src);
-    let e = compile(
-        &p,
-        &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
-        Path::new("."),
-        "0.1.0",
-    )
-    .unwrap_err();
+    let e = compile_program(&p).unwrap_err();
     assert!(e.0[0].message.contains("no adapter `playwright`"));
     assert!(e.0[0].help.as_deref().unwrap().contains("mock"));
 }
@@ -194,14 +239,7 @@ fn an_unavailable_adapter_is_a_diagnostic_not_a_panic() {
 fn adapter_validation_errors_reach_the_caller() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock\nclick everything\n```\n";
     let p = program(src);
-    let e = compile(
-        &p,
-        &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
-        Path::new("."),
-        "0.1.0",
-    )
-    .unwrap_err();
+    let e = compile_program(&p).unwrap_err();
     assert!(e.0[0].message.contains("unknown mock directive"));
 }
 
@@ -209,14 +247,7 @@ fn adapter_validation_errors_reach_the_caller() {
 fn an_invalid_policy_is_a_diagnostic() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock policy=sideways\nwait 1s\n```\n";
     let p = program(src);
-    let e = compile(
-        &p,
-        &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
-        Path::new("."),
-        "0.1.0",
-    )
-    .unwrap_err();
+    let e = compile_program(&p).unwrap_err();
     assert!(e.0[0].message.contains("unknown policy `sideways`"));
 }
 
@@ -254,14 +285,7 @@ const SPAN_SRC: &str = "# A\n\nOne. {#a}\n\n\n\n\n\n\n\n\n\n\n```teleprompt scen
 #[test]
 fn adapter_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
     let p = program(SPAN_SRC);
-    let e = compile(
-        &p,
-        &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
-        Path::new("."),
-        "0.1.0",
-    )
-    .unwrap_err();
+    let e = compile_program(&p).unwrap_err();
     assert!(e.0[0].message.contains("unknown mock directive `bogus`"));
     assert_eq!(
         e.0[0].span.unwrap().line,
@@ -343,14 +367,7 @@ mark
 fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
     let src = "# A\n\nOne. {#a voice.source=recordedd}\n";
     let p = program(src);
-    let e = compile(
-        &p,
-        &SceneRegistry::with_builtins(),
-        &NullVoice::default(),
-        Path::new("."),
-        "0.1.0",
-    )
-    .unwrap_err();
+    let e = compile_program(&p).unwrap_err();
     assert!(e.0[0].message.contains("recordedd"));
 }
 
@@ -495,8 +512,8 @@ The second paragraph here.
 /// used to rebuild a `SynthRequest` itself, dropping `voice` and `speed`,
 /// and published a duration from the resolved config beside a file rendered
 /// at the defaults.
-#[test]
-fn the_narration_detail_carries_the_resolved_synth_request() {
+#[tokio::test]
+async fn the_narration_detail_carries_the_resolved_synth_request() {
     let src = "\
 ---
 voice:
@@ -522,13 +539,14 @@ One two three four five six.
     // And it is the same request the published duration was measured from.
     let measured = NullVoice::default()
         .synthesize(&detail.synth_request)
+        .await
         .unwrap();
     let published = out.timeline.entries[0]
         .narration
         .as_ref()
         .unwrap()
         .duration_ms;
-    assert_eq!(measured.duration_ms, published);
+    assert_eq!(measured.pcm.duration_ms(), published);
 }
 
 #[test]
@@ -553,5 +571,220 @@ Second. {#two}
         vec![(0, "setup"), (1, "setup")],
         "the slug cannot tell two identically-titled chapters apart; the \
          index must"
+    );
+}
+
+fn cache_dir(tag: &str) -> std::path::PathBuf {
+    let d = std::env::temp_dir().join(format!(
+        "tp-compile-{tag}-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&d);
+    d
+}
+
+const ONE: &str = "# Quick start\n\nOne two three four five six.\n";
+
+#[test]
+fn a_cold_cache_yields_estimated_durations() {
+    let cache = VoiceCache::new(cache_dir("cold"));
+    let est = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+    let out = compile_with(ONE, &ctx).expect("compiles");
+
+    let n = out.timeline.entries[0].narration.as_ref().unwrap();
+    assert_eq!(n.duration_source, "estimated");
+    // 6 words at 150 wpm = 2400ms speech, plus 350ms for `ONE`'s trailing
+    // full stop — the same shared `estimate_ms` model `NullVoice` and
+    // `WpmEstimator` both call, and the same total
+    // `a_cold_narration_duration_comes_from_the_estimator` pins for this exact
+    // sentence.
+    assert_eq!(
+        n.duration_ms, 2750,
+        "six words at 150 wpm, plus the full stop"
+    );
+}
+
+#[test]
+fn a_warm_cache_yields_measured_durations() {
+    let cache = VoiceCache::new(cache_dir("warm"));
+    let est = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+
+    // Populate the cache under the key compile will look up, with audio of a
+    // deliberately different length from the estimate.
+    let cold = compile_with(ONE, &ctx).expect("compiles");
+    let k = cold.narration[0].cache_key.clone();
+    cache
+        .store(
+            &k,
+            &Pcm {
+                sample_rate: 24_000,
+                channels: 1,
+                samples: vec![0; 24_000 * 5],
+            },
+            None,
+        )
+        .unwrap();
+
+    let warm = compile_with(ONE, &ctx).expect("compiles");
+    let n = warm.timeline.entries[0].narration.as_ref().unwrap();
+    assert_eq!(n.duration_source, "measured");
+    assert_eq!(
+        n.duration_ms, 5000,
+        "the cached audio's real length, not the estimate"
+    );
+}
+
+#[test]
+fn the_cache_key_covers_the_resolved_voice_config() {
+    let cache = VoiceCache::new(cache_dir("cfgkey"));
+    let est = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+
+    let plain = compile_with(ONE, &ctx).unwrap();
+    let fast = compile_with(
+        "---\nvoice: { speed: 2.0 }\n---\n\n# Quick start\n\nOne two three four five six.\n",
+        &ctx,
+    )
+    .unwrap();
+
+    assert_ne!(
+        plain.narration[0].cache_key.to_string(),
+        fast.narration[0].cache_key.to_string(),
+        "a different speed is different audio and must not share a cache entry"
+    );
+}
+
+/// Pins the reasoning behind `compile_script` reading `backend_id` off the
+/// *resolved* config (`program.config.voice.backend`) rather than the
+/// project's unresolved default: the cache key has to cover whichever
+/// backend actually produces a segment's audio, or two backends could
+/// collide on one cache entry.
+#[test]
+fn the_cache_key_covers_the_backend_id() {
+    let cache = VoiceCache::new(cache_dir("backendkey"));
+    let est = WpmEstimator::default();
+    let null_ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+    let other_ctx = VoiceContext {
+        backend_id: "other",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+
+    let null = compile_with(ONE, &null_ctx).unwrap();
+    let other = compile_with(ONE, &other_ctx).unwrap();
+
+    assert_ne!(
+        null.narration[0].cache_key.to_string(),
+        other.narration[0].cache_key.to_string(),
+        "the same text under two different backends is different audio and must \
+         not share a cache entry"
+    );
+}
+
+/// Every `narration.duration_source` in a serialized timeline replaced by
+/// one fixed token.
+///
+/// Comparing the serialized form rather than field by field is deliberate:
+/// a field added to `NarrationEntry` or `TimelineEntry` tomorrow is compared
+/// automatically, whereas a hand-written comparison would silently stop
+/// covering it. Only the narration's `duration_source` is normalized — an
+/// *action*'s must still match, or a cache hit quietly changing one would
+/// slip through.
+fn timeline_modulo_duration_source(t: &teleprompt_schedule::Timeline) -> serde_json::Value {
+    let mut v = serde_json::to_value(t).expect("a timeline always serializes");
+    for entry in v["entries"].as_array_mut().expect("entries is an array") {
+        if let Some(source) = entry.pointer_mut("/narration/duration_source") {
+            *source = serde_json::Value::String("<normalized>".to_string());
+        }
+    }
+    v
+}
+
+/// Spec §11: *a cache hit and a cache miss produce identical timelines apart
+/// from `duration_source`*.
+///
+/// `a_warm_cache_yields_measured_durations` deliberately caches audio of a
+/// different length, which proves the duration is read from the cache but
+/// says nothing about this identity claim. Here the cached audio is exactly
+/// what the backend would have rendered — the null backend's own output for
+/// the very request `compile` measured — so everything except the one field
+/// must survive the round trip untouched.
+#[tokio::test]
+async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() {
+    let cache = VoiceCache::new(cache_dir("roundtrip"));
+    let est = WpmEstimator::default();
+    let ctx = VoiceContext {
+        backend_id: "null",
+        backend_version: "0.1.0",
+        cache: &cache,
+        estimator: &est,
+    };
+
+    let cold = compile_with(ONE, &ctx).expect("compiles");
+    assert_eq!(
+        cold.timeline.entries[0]
+            .narration
+            .as_ref()
+            .unwrap()
+            .duration_source,
+        "estimated"
+    );
+
+    // The audio the backend really would have produced for the request
+    // `compile` measured, stored under the key `compile` looked up.
+    let detail = &cold.narration[0];
+    let rendered = NullVoice::default()
+        .synthesize(&detail.synth_request)
+        .await
+        .expect("null synthesizes");
+    cache
+        .store(&detail.cache_key, &rendered.pcm, None)
+        .expect("stores");
+
+    let warm = compile_with(ONE, &ctx).expect("compiles");
+    assert_eq!(
+        warm.timeline.entries[0]
+            .narration
+            .as_ref()
+            .unwrap()
+            .duration_source,
+        "measured"
+    );
+
+    // The field really did differ, so the normalization below is hiding a
+    // real difference rather than papering over an identical pair.
+    assert_ne!(
+        serde_json::to_value(&cold.timeline).unwrap(),
+        serde_json::to_value(&warm.timeline).unwrap()
+    );
+
+    assert_eq!(
+        timeline_modulo_duration_source(&cold.timeline),
+        timeline_modulo_duration_source(&warm.timeline),
+        "a cache hit must change which numbers are measurements, and nothing else"
     );
 }

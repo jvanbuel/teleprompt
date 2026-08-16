@@ -14,14 +14,17 @@ name = "teleprompt"
 path = "src/main.rs"
 
 [dependencies]
+teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
+teleprompt-voice-null = { path = "../teleprompt-voice-null" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

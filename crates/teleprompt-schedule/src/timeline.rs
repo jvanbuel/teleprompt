@@ -31,6 +31,7 @@ pub struct NarrationEntry {
     pub audio_hash: Hash,
     pub start_ms: u64,
     pub duration_ms: u64,
+    pub duration_source: String,
     pub voice_source: String,
     pub voice_source_actual: String,
     #[serde(skip_serializing_if = "Option::is_none")]

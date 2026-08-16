@@ -49,7 +49,7 @@ fn every_policy_appears_in_the_compiled_timeline() {
         .iter()
         .map(|e| e.policy.as_str())
         .collect();
-    for expected in ["hold", "concurrent", "stretch", "trim"] {
+    for expected in ["hold", "concurrent", "stretch-action", "trim-action"] {
         assert!(policies.contains(expected), "missing policy {expected}");
     }
 }
@@ -131,7 +131,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 /// `teleprompt_voice::null::estimate_ms`) rather than copied from program
 /// output.
 ///
-/// `rollback`'s beat uses `policy=trim`, whose layout sets the beat's
+/// `rollback`'s beat uses `policy=trim-action`, whose layout sets the beat's
 /// `duration_ms` to exactly the (padded) narration length regardless of the
 /// action's duration (`teleprompt_schedule::policy::layout`, `Policy::Trim`
 /// arm) — so this is also an exact assertion on the beat, not just the

@@ -17,11 +17,11 @@ expression: manifest
     },
     {
       "id": "deploying",
-      "start_ms": 21500,
+      "start_ms": 21950,
       "title": "Deploying"
     }
   ],
-  "duration_ms": 34350,
+  "duration_ms": 34800,
   "generated_by": "teleprompt 0.1.0",
   "locale": "en",
   "manifest_version": 1,
@@ -33,6 +33,7 @@ expression: manifest
       "chapter": "introduction",
       "downgrade_reason": null,
       "duration_ms": 12200,
+      "duration_source": "measured",
       "id": "welcome",
       "source_hash": "876ebe63cc761f4d46d15c4b4aae02bbfca440fea592b67e207978dc25c7f9c7",
       "start_ms": 150,
@@ -46,6 +47,7 @@ expression: manifest
       "chapter": "introduction",
       "downgrade_reason": null,
       "duration_ms": 8750,
+      "duration_source": "measured",
       "id": "provenance",
       "source_hash": "4b380a79f5acfff997d3b61abf110c87862f8d41315cba07e67647d7ccb903a7",
       "start_ms": 12450,
@@ -59,9 +61,10 @@ expression: manifest
       "chapter": "deploying",
       "downgrade_reason": null,
       "duration_ms": 4900,
+      "duration_source": "measured",
       "id": "deploy",
       "source_hash": "07ddd90d4a5f4916a13439a5f2c0ad63b600da4d033bd8aa227e944fd23db8dd",
-      "start_ms": 21500,
+      "start_ms": 21950,
       "text": "Deployment is one command, and it streams progress as it goes.",
       "voice_source": "synthetic",
       "voice_source_actual": "synthetic"
@@ -72,9 +75,10 @@ expression: manifest
       "chapter": "deploying",
       "downgrade_reason": null,
       "duration_ms": 6900,
+      "duration_source": "measured",
       "id": "rollback",
       "source_hash": "79bc51f2693074a0f8dd859de940da9df1568293ffeb82e76dc5a15da225de3b",
-      "start_ms": 27300,
+      "start_ms": 27750,
       "text": "If a deploy goes wrong, rolling back takes the same single command with one extra flag.",
       "voice_source": "synthetic",
       "voice_source_actual": "synthetic"
