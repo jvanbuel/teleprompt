@@ -35,6 +35,21 @@ pub struct Backends {
     /// The file the settings came from, so a diagnostic about them can point
     /// at it rather than at a script that has nothing to do with it.
     config_file: String,
+    /// The concrete Kokoro handle, kept alongside its `Arc<dyn VoiceBackend>`
+    /// clone in `registry` rather than instead of it.
+    ///
+    /// `dub`'s voice-list validation, `dub`'s fan-out limit, and `doctor`'s
+    /// probe all need an inherent method `VoiceBackend` does not carry —
+    /// `voices()`, `concurrency()`, `base_url()`. Kokoro used to answer that
+    /// with `as_any` and a `downcast_ref` at each of those three call sites.
+    /// This is the same information reached the way `voice.rs` was already
+    /// positioned to reach it: `backends_for` constructs the concrete type
+    /// right here, so keeping the `Arc<KokoroVoice>` costs one field, where
+    /// recovering it from the trait object afterwards cost a downcast per
+    /// caller. `None` when settings named `kokoro` but it did not construct
+    /// — the same case `unusable` records, so a caller that reads both never
+    /// sees them disagree.
+    kokoro: Option<Arc<KokoroVoice>>,
 }
 
 /// Every backend this build ships, each constructed from its own slice of
@@ -48,11 +63,16 @@ pub struct Backends {
 pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file: &str) -> Backends {
     let mut registry = VoiceRegistry::default();
     let mut unusable = BTreeMap::new();
+    let mut kokoro_handle = None;
 
     registry.register(Arc::new(NullVoice::default()));
 
     match kokoro(settings.get("kokoro")) {
-        Ok(v) => registry.register(Arc::new(v)),
+        Ok(v) => {
+            let v = Arc::new(v);
+            registry.register(v.clone());
+            kokoro_handle = Some(v);
+        }
         Err(e) => {
             unusable.insert("kokoro".to_string(), e);
         }
@@ -79,6 +99,7 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
         unusable,
         unknown,
         config_file: config_file.to_string(),
+        kokoro: kokoro_handle,
     }
 }
 
@@ -111,6 +132,7 @@ impl Backends {
             unusable: BTreeMap::new(),
             unknown: Vec::new(),
             config_file: "teleprompt.toml".to_string(),
+            kokoro: None,
         }
     }
 
@@ -134,6 +156,27 @@ impl Backends {
     /// up without resolving a project's choice.
     pub fn registry(&self) -> &VoiceRegistry {
         &self.registry
+    }
+
+    /// The concrete Kokoro handle, when `id` names it and it constructed
+    /// successfully — the escape hatch `dub`'s voice-list check, `dub`'s
+    /// fan-out limit, and `doctor`'s probe use to reach `voices()`,
+    /// `concurrency()` and `base_url()`, none of which `VoiceBackend`
+    /// carries.
+    ///
+    /// Gated on `id` rather than handed back unconditionally: a project can
+    /// select `null` while still having a valid `[backends.kokoro]` block
+    /// (or an invalid one), and none of the three callers above should act
+    /// on Kokoro's server unless Kokoro is the backend actually in use. This
+    /// mirrors [`resolve`](Self::resolve)'s own gating, and returns `None`
+    /// on the same two occasions `resolve("kokoro")` would fail: a
+    /// different id, or settings that never produced a backend.
+    pub fn kokoro(&self, id: &str) -> Option<&Arc<KokoroVoice>> {
+        if id == "kokoro" {
+            self.kokoro.as_ref()
+        } else {
+            None
+        }
     }
 
     /// The backend `id` names, or a diagnostic saying why not.

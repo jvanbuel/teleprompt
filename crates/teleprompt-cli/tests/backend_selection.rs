@@ -60,10 +60,6 @@ impl VoiceBackend for ToneVoice {
             word_timings: None,
         })
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 }
 
 /// A backend that renders *longer* than the word-count estimate predicts —
@@ -102,10 +98,6 @@ impl VoiceBackend for DrawlVoice {
             },
             word_timings: None,
         })
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 }
 

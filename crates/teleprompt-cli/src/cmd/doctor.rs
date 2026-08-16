@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use teleprompt_compile::manifest::MANIFEST_VERSION;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::VoiceRegistry;
-use teleprompt_voice_kokoro::KokoroVoice;
 
 use crate::project::Project;
 use crate::voice::Backends;
@@ -145,8 +143,6 @@ pub async fn doctor_report_with(
         .map(|d| d.message)
         .collect();
 
-    let voice_registry = backends.registry();
-
     // Spec §9: probe the *configured* backend, not every backend this
     // build happens to ship. A freshly scaffolded project's `voice.backend`
     // is `null`, which has no server — probing kokoro anyway made every
@@ -154,7 +150,7 @@ pub async fn doctor_report_with(
     // nothing configured, and print a line saying it was unreachable. That
     // is noise reported as a finding, and it trains people to ignore the
     // probe line.
-    let voice_probe = probe_configured_backend(voice_registry, &backend_id).await;
+    let voice_probe = probe_configured_backend(&backends, &backend_id).await;
 
     DoctorReport {
         ok: !blocking,
@@ -184,22 +180,18 @@ pub async fn doctor_report_with(
 }
 
 /// One line about the *configured* backend's server, or `None` when it has
-/// nothing to probe — either `backend_id` names something this registry
-/// has nothing registered under, or what is registered there does not
-/// downcast to `KokoroVoice` (today, always the `null` backend). Silence is
-/// the honest answer for a backend with no server, not a "not applicable"
-/// line.
+/// nothing to probe — either `backend_id` names something this build has no
+/// concrete handle for, or what is configured there is not server-backed
+/// (today, always the `null` backend). Silence is the honest answer for a
+/// backend with no server, not a "not applicable" line.
 ///
-/// Downcasting once, not twice: `VoiceRegistry::get` already hands back the
-/// same `Arc` both the "is this kokoro" check and the probe itself need, so
-/// there is exactly one `downcast_ref` here rather than one to test and a
-/// second, unwrapped, to use.
-async fn probe_configured_backend(
-    voice_registry: &VoiceRegistry,
-    backend_id: &str,
-) -> Option<VoiceProbe> {
-    let backend = voice_registry.get(backend_id)?;
-    let kokoro = backend.as_any().downcast_ref::<KokoroVoice>()?;
+/// `Backends::kokoro` rather than a downcast: `backends_for` already built
+/// the concrete `KokoroVoice` this project's settings describe, so asking
+/// for it by id is the same check — and the same handle — a
+/// `downcast_ref::<KokoroVoice>()` on the registry's trait object used to
+/// recover.
+async fn probe_configured_backend(backends: &Backends, backend_id: &str) -> Option<VoiceProbe> {
+    let kokoro = backends.kokoro(backend_id)?;
     let url = kokoro.base_url().to_string();
     let detail = match kokoro.voices().await {
         Ok(voices) => format!("{url} — reachable, {} voices", voices.len()),

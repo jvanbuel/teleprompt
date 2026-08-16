@@ -117,6 +117,57 @@ fn an_unknown_key_is_reported_even_when_the_project_resolves_elsewhere() {
     assert_eq!(b.diagnostics().len(), 1, "the unknown key still reports");
 }
 
+/// Group 6: `Backends::kokoro` is the escape hatch that replaced
+/// `backend.as_any().downcast_ref::<KokoroVoice>()` at the three call sites
+/// in `dub` and `doctor` that need an inherent method `VoiceBackend` does
+/// not carry. It must gate on the same thing the downcast implicitly gated
+/// on via `id()` matching plus a successful construction: asking under the
+/// wrong id, or asking when settings never produced a backend, must both
+/// come back empty rather than handing back a Kokoro server nothing
+/// resolved to.
+#[test]
+fn the_kokoro_handle_is_gated_on_the_resolved_id() {
+    let b = backends_for(
+        &settings("base_url: \"http://gpu-box:8880\""),
+        "teleprompt.toml",
+    );
+    assert!(
+        b.kokoro("kokoro").is_some(),
+        "kokoro constructed and was asked for by its own id"
+    );
+    assert!(
+        b.kokoro("null").is_none(),
+        "a project resolving to null must not reach kokoro's server just because kokoro also constructed"
+    );
+    assert!(b.kokoro("nonexistent-backend").is_none());
+}
+
+/// The other half of the same gate: settings that never produced a backend
+/// must not leave a handle behind either, or `dub`'s fan-out limit and
+/// voice-list check, and `doctor`'s probe, would silently read from (or
+/// probe) a `KokoroVoice` built from defaults instead of the broken
+/// settings the author actually wrote.
+#[test]
+fn the_kokoro_handle_is_absent_when_settings_do_not_validate() {
+    let b = backends_for(&settings("concurrency: 0"), "teleprompt.toml");
+    assert!(
+        b.kokoro("kokoro").is_none(),
+        "unusable settings must not leave a handle for dub or doctor to read from"
+    );
+}
+
+/// The value `dub`'s fan-out limit reads is the same `concurrency` the
+/// project's settings named — not a value `KokoroVoice` decided on its own
+/// after the fact.
+#[test]
+fn the_kokoro_handle_carries_the_configured_concurrency() {
+    let b = backends_for(&settings("concurrency: 7"), "teleprompt.toml");
+    let k = b
+        .kokoro("kokoro")
+        .expect("valid settings construct a handle");
+    assert_eq!(k.concurrency(), 7);
+}
+
 fn tempdir(tag: &str) -> std::path::PathBuf {
     let base = std::env::temp_dir().join(format!(
         "teleprompt-voice-selection-{tag}-{}-{:?}",

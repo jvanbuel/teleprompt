@@ -7,7 +7,6 @@ use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::Hash;
 use teleprompt_voice::VoiceBackend;
-use teleprompt_voice_kokoro::KokoroVoice;
 
 use crate::cmd::check::{cache_root, compile_script_with};
 use crate::project::Project;
@@ -304,12 +303,16 @@ pub async fn run_dub_with(
     // when a server happens to be running is worse than no gate — the same
     // script would pass on one machine and fail on another.
     //
-    // Downcasting rather than widening the trait: "list your voices" is not
-    // something every backend can do, and adding an
+    // `Backends::kokoro` rather than widening the trait: "list your voices"
+    // is not something every backend can do, and adding an
     // `Option<Vec<String>>`-returning method to a single-method contract to
     // serve one implementation is exactly the speculative surface the
-    // contract was sharpened to remove.
-    if let Some(kokoro) = backend.as_any().downcast_ref::<KokoroVoice>() {
+    // contract was sharpened to remove. `backends` already built the
+    // concrete `KokoroVoice` this project's settings describe, so asking it
+    // for that handle by the resolved backend's id is the same information
+    // a downcast on `backend` would recover, without needing `backend` to
+    // carry its own concrete type at runtime.
+    if let Some(kokoro) = backends.kokoro(backend.id()) {
         let wanted = compiled
             .narration
             .iter()
@@ -356,10 +359,14 @@ pub async fn run_dub_with(
 
     // Bounded rather than unbounded: a local model server is the
     // bottleneck, and fanning out wider than it can serve makes the whole
-    // run slower while making its failure modes worse. `null` has no
-    // `concurrency` of its own — the downcast misses and `limit` falls back
-    // to 1. At `limit = 1` the semaphore admits exactly one task at a time,
-    // and — because spawn order below is document order (see the sort on
+    // run slower while making its failure modes worse. `concurrency` is a
+    // pure configuration value — `backends` read it out of this project's
+    // settings when it built `KokoroVoice`, so it is read the same way here
+    // rather than asked of the backend after the fact. `null` (and any
+    // backend with no entry in `backends`) has no `concurrency` of its own —
+    // `Backends::kokoro` returns `None` and `limit` falls back to 1. At
+    // `limit = 1` the semaphore admits exactly one task at a time, and —
+    // because spawn order below is document order (see the sort on
     // `groups`) — that one task is always the earliest-document-order group
     // still waiting. On the CLI's current-thread runtime that chain (spawn
     // order → poll order → acquire order → completion order) has no room
@@ -367,9 +374,8 @@ pub async fn run_dub_with(
     // loop in every observable way, including stderr: verified by running a
     // six-segment `null` project's `dub` six times in a row and diffing the
     // printed segment-id sequence, not merely asserted.
-    let limit = backend
-        .as_any()
-        .downcast_ref::<KokoroVoice>()
+    let limit = backends
+        .kokoro(backend.id())
         .map(|k| k.concurrency())
         .unwrap_or(1);
     let permits = Arc::new(tokio::sync::Semaphore::new(limit));

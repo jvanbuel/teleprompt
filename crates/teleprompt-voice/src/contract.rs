@@ -96,6 +96,19 @@ pub enum VoiceError {
     Other(String),
 }
 
+/// One method that does the work, plus the two that let a caller holding
+/// only `dyn VoiceBackend` identify what it has.
+///
+/// There used to be a fourth method here — `as_any`, an escape hatch for
+/// capabilities genuinely one backend's own, such as listing a server's
+/// voices. It is gone: every caller that needed a backend-specific
+/// capability turned out to already be holding (or able to hold) the
+/// concrete type at the point it was constructed, so downcasting a trait
+/// object back into it was buying nothing the config layer did not already
+/// offer. See `teleprompt-cli`'s `Backends::kokoro` for where that capability
+/// now lives instead. A second server-backed backend needing the same thing
+/// is the signal that this contract should grow a real method for it —
+/// deliberately, not by re-adding a downcast.
 #[async_trait::async_trait]
 pub trait VoiceBackend: Send + Sync {
     fn id(&self) -> &str;
@@ -106,15 +119,4 @@ pub trait VoiceBackend: Send + Sync {
     /// Caching and duration prediction are teleprompt's concerns and appear
     /// nowhere in this contract.
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError>;
-
-    /// Escape hatch for capabilities that are genuinely one backend's own.
-    ///
-    /// The contract stays one method because that is what makes it
-    /// implementable; a backend that can do something extra — list its
-    /// server's voices, report a queue depth — exposes it as an inherent
-    /// method, and a caller that knows the concrete type reaches it here.
-    /// Nothing on the `check`/`plan`/`diff` path uses this, and nothing
-    /// should: downcasting from the inner loop would be a way to smuggle a
-    /// network call into it.
-    fn as_any(&self) -> &dyn std::any::Any;
 }
