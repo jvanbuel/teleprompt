@@ -61,6 +61,14 @@ impl Project {
         }
     }
 
+    /// The file `config` was read from. Diagnostics about project settings
+    /// point here: a bad `backends:` block is a fact about this file, and
+    /// anchoring it to whichever script happened to be compiled sends the
+    /// author to the wrong place to fix it.
+    pub fn config_path(&self) -> PathBuf {
+        self.root.join("teleprompt.toml")
+    }
+
     pub fn timeline_path(&self, script: &str, locale: &str) -> PathBuf {
         let stem = Path::new(script)
             .file_stem()

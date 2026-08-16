@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
-use teleprompt_cli::voice::{registry, registry_for};
+use teleprompt_cli::voice::{backends_for, Backends};
 
 fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
     let mut m = BTreeMap::new();
@@ -10,14 +11,18 @@ fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
 
 #[test]
 fn kokoro_is_registered_by_default() {
-    let r = registry();
-    assert_eq!(r.available(), vec!["kokoro", "null"]);
+    assert_eq!(Backends::defaults().ids(), vec!["kokoro", "null"]);
 }
 
 #[test]
 fn kokoro_takes_its_settings_from_the_backends_map() {
-    let r = registry_for(&settings("base_url: \"http://gpu-box:8880\"")).unwrap();
-    let k = r.get("kokoro").unwrap();
+    let b = backends_for(
+        &settings("base_url: \"http://gpu-box:8880\""),
+        "teleprompt.toml",
+    );
+    let k = b
+        .resolve("kokoro")
+        .unwrap_or_else(|d| panic!("{}", d.message));
     // The version string is what keys the cache, so this is the observable
     // that proves the settings reached the backend rather than the default.
     assert!(
@@ -27,28 +32,89 @@ fn kokoro_takes_its_settings_from_the_backends_map() {
     );
 }
 
+/// I2. A backend whose settings do not validate must still be *reported* —
+/// deferring the failure to the projects that select it is not the same as
+/// dropping it, and the message must survive the deferral intact.
 #[test]
 fn a_bad_backend_setting_is_reported_not_swallowed() {
-    // `VoiceRegistry` deliberately has no `Debug` impl (see
-    // `teleprompt-voice`), so `unwrap_err` — which would need one to print
-    // an `Ok` value it doesn't get — is not available here; match instead.
-    match registry_for(&settings("concurrency: 0")) {
+    let b = backends_for(&settings("concurrency: 0"), "/p/teleprompt.toml");
+    match b.resolve("kokoro") {
         Ok(_) => panic!("expected an error"),
-        Err(e) => assert!(e.contains("concurrency"), "{e}"),
+        Err(d) => {
+            assert!(d.message.contains("concurrency"), "{}", d.message);
+            assert_eq!(
+                d.file.as_deref(),
+                Some("/p/teleprompt.toml"),
+                "a settings error belongs to the settings file"
+            );
+        }
     }
 }
 
+/// I2, the other half. The same bad setting must not stop a project that
+/// resolves to a different backend, which is the offline inner loop the
+/// whole delivery exists to keep fast and network-free.
 #[test]
-fn settings_for_a_backend_this_build_lacks_are_ignored_here() {
-    // Reporting an unknown backend is `resolve`'s job, and only when the
-    // script actually selects it. A project carrying settings for a backend
-    // it does not currently use must still build.
+fn a_bad_setting_for_one_backend_leaves_the_others_usable() {
+    let b = backends_for(&settings("concurrency: 0"), "teleprompt.toml");
+    assert!(b.resolve("null").is_ok());
+    assert!(
+        b.diagnostics().is_empty(),
+        "a shipped backend with bad settings is not an unknown backend"
+    );
+    assert_eq!(
+        b.ids(),
+        vec!["kokoro", "null"],
+        "a misconfigured backend is still one this build ships"
+    );
+}
+
+/// I1. A `backends:` key matching no shipped id used to be dropped without a
+/// word, so `[backends.kokoro-local]` left `dub` talking to the default
+/// `localhost:8880`.
+#[test]
+fn settings_for_a_backend_this_build_lacks_are_named_not_dropped() {
     let mut m = BTreeMap::new();
     m.insert(
-        "elevenlabs".to_string(),
-        serde_yaml::from_str("profile: jan").unwrap(),
+        "kokoro-local".to_string(),
+        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881\"").unwrap(),
     );
-    assert!(registry_for(&m).is_ok());
+    let b = backends_for(&m, "/p/teleprompt.toml");
+
+    let diags = b.diagnostics();
+    assert_eq!(diags.len(), 1, "one diagnostic per unmatched key");
+    assert!(diags[0].is_error(), "{}", diags[0].message);
+    assert!(
+        diags[0].message.contains("backends.kokoro-local"),
+        "{}",
+        diags[0].message
+    );
+    assert!(
+        diags[0].message.contains("kokoro") && diags[0].message.contains("null"),
+        "must list the ids this build ships: {}",
+        diags[0].message
+    );
+    assert_eq!(diags[0].file.as_deref(), Some("/p/teleprompt.toml"));
+}
+
+/// Groups 2 and 3 must compose: an unknown key belongs to no resolvable
+/// backend, so a fix that only validates the selected backend must not
+/// silence it.
+#[test]
+fn an_unknown_key_is_reported_even_when_the_project_resolves_elsewhere() {
+    let mut m = BTreeMap::new();
+    m.insert(
+        "kokoro-local".to_string(),
+        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881\"").unwrap(),
+    );
+    m.insert(
+        "kokoro".to_string(),
+        serde_yaml::from_str("concurrency: 0").unwrap(),
+    );
+    let b = backends_for(&m, "teleprompt.toml");
+
+    assert!(b.resolve("null").is_ok(), "null is unaffected by either");
+    assert_eq!(b.diagnostics().len(), 1, "the unknown key still reports");
 }
 
 fn tempdir(tag: &str) -> std::path::PathBuf {
@@ -133,5 +199,113 @@ fn a_front_matter_backends_block_matching_the_project_is_not_a_warning() {
     assert!(
         !warnings.iter().any(|w| w.contains("kokoro")),
         "{warnings:?}"
+    );
+}
+
+/// A scaffolded project plus a `teleprompt.toml` of the caller's choosing.
+/// The scaffold's own `voice.backend` is `null`, which is what makes the
+/// "settings for a backend this project never uses" case reachable.
+fn project_with_toml(tag: &str, toml: &str) -> (teleprompt_cli::project::Project, PathBuf) {
+    let dir = tempdir(tag);
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    std::fs::write(dir.join("teleprompt.toml"), toml).unwrap();
+    let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
+    let script = dir.join("scripts/demo.md");
+    (project, script)
+}
+
+const NULL_PROJECT: &str = "\
+[locales]
+source = \"en\"
+targets = []
+
+[voice]
+source = \"synthetic\"
+backend = \"null\"
+
+[scene.mock]
+adapter = \"mock\"
+";
+
+const KOKORO_PROJECT: &str = "\
+[locales]
+source = \"en\"
+targets = []
+
+[voice]
+source = \"synthetic\"
+backend = \"kokoro\"
+
+[scene.mock]
+adapter = \"mock\"
+";
+
+/// I2, end to end. `check` and `plan` are the offline inner loop: a project
+/// that resolves to `null` never opens a socket and never reads a Kokoro
+/// setting, so a bad one must not fail it. It used to, with exit 2 and no
+/// file anchor, because every backend was constructed eagerly.
+#[test]
+fn a_bad_setting_for_a_backend_the_project_never_uses_does_not_fail_check() {
+    let (project, script) = project_with_toml(
+        "unused-bad-setting",
+        &format!("{NULL_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n"),
+    );
+    teleprompt_cli::cmd::check::run_check(&project, &script, "en").unwrap_or_else(|e| {
+        panic!("a null-backend project must not read kokoro's settings: {e:?}")
+    });
+}
+
+/// The same setting on a project that *does* resolve to kokoro still fails,
+/// and now says which file to go and fix.
+#[test]
+fn a_bad_setting_for_the_selected_backend_fails_check_and_names_the_config_file() {
+    let (project, script) = project_with_toml(
+        "used-bad-setting",
+        &format!("{KOKORO_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n"),
+    );
+    let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+        .expect_err("a backend the project uses must validate");
+    let joined = errors.join("\n");
+    assert!(joined.contains("concurrency"), "{joined}");
+    assert!(
+        joined.contains("teleprompt.toml"),
+        "the only check diagnostic with no file anchor was this one: {joined}"
+    );
+}
+
+/// I1, end to end. A near-miss spelling of a shipped backend id reached
+/// nothing and said nothing, and `dub` then connected to the default server.
+#[test]
+fn an_unknown_backends_key_fails_check_and_names_the_key() {
+    let (project, script) = project_with_toml(
+        "unknown-backends-key",
+        &format!("{NULL_PROJECT}\n[backends.kokoro-local]\nbase_url = \"http://127.0.0.1:8881\"\n"),
+    );
+    let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+        .expect_err("settings that reach nothing must be named");
+    let joined = errors.join("\n");
+    assert!(joined.contains("backends.kokoro-local"), "{joined}");
+    assert!(joined.contains("teleprompt.toml"), "{joined}");
+}
+
+/// The two fixes compose. Validating only the selected backend must not
+/// become a way for an unmatched key to slip through, and an unmatched key
+/// must not resurrect the eager validation of an unused one.
+#[test]
+fn an_unknown_key_and_an_unused_bad_setting_report_exactly_one_problem() {
+    let (project, script) = project_with_toml(
+        "compose",
+        &format!(
+            "{NULL_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n\
+             \n[backends.kokoro-local]\nbase_url = \"http://127.0.0.1:8881\"\n"
+        ),
+    );
+    let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+        .expect_err("the unknown key is still an error");
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(errors[0].contains("backends.kokoro-local"), "{errors:?}");
+    assert!(
+        !errors[0].contains("concurrency"),
+        "a backend this project never uses must not be validated: {errors:?}"
     );
 }

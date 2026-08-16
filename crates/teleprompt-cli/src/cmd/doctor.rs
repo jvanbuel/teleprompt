@@ -7,6 +7,7 @@ use teleprompt_voice::VoiceRegistry;
 use teleprompt_voice_kokoro::KokoroVoice;
 
 use crate::project::Project;
+use crate::voice::Backends;
 
 /// The cache `doctor` reports on, and the path it prints for it.
 ///
@@ -45,6 +46,13 @@ fn configured_backend_id(project: Option<&Project>) -> String {
 
 #[derive(Debug, Serialize)]
 pub struct DoctorReport {
+    /// Whether the project's own files are in a state teleprompt can work
+    /// from. Deliberately *not* a verdict on the machine: an unreachable
+    /// server leaves this `true`, because spec §9 makes that a warning and
+    /// `check`/`plan` do not need the server at all. A `backends:` block
+    /// that cannot be turned into the backend the project selected is a
+    /// different kind of fact — it is wrong in the repository, it is wrong
+    /// on every machine, and `dub` will not run until it is fixed.
     pub ok: bool,
     pub adapters: Vec<String>,
     pub voice_backends: Vec<String>,
@@ -60,6 +68,15 @@ pub struct DoctorReport {
     /// Every registered backend still appears in `voice_backends` above;
     /// only the probe is limited to the one actually selected.
     pub voice_probe: Option<String>,
+    /// Everything wrong with the project's settings, in the words `check`
+    /// would use. Empty on a healthy project.
+    ///
+    /// This used to be swallowed: `doctor` caught the construction failure,
+    /// substituted default settings, and reported a healthy project — with
+    /// a comment claiming `check` reported it "with a span", which was wrong
+    /// on both halves. The command you run when nothing works is the last
+    /// place a known problem should be hidden.
+    pub problems: Vec<String>,
     pub notes: Vec<String>,
 }
 
@@ -89,15 +106,33 @@ pub async fn doctor_report_with(
         bytes: 0,
     });
 
-    let backends = project
-        .and_then(|p| p.config.backends.clone())
-        .unwrap_or_default();
-    let voice_registry = crate::voice::registry_for(&backends).unwrap_or_else(|_| {
-        // A bad `backends:` value is reported by `check`, with a span.
-        // `doctor` is the command you run when nothing else works, so it
-        // falls back to defaults rather than refusing to say anything.
-        crate::voice::registry()
-    });
+    let backends = match project {
+        Some(p) => crate::cmd::check::backends_of(p),
+        None => Backends::defaults(),
+    };
+
+    // Everything the settings said that could not be turned into a backend,
+    // not just the part affecting the backend this project selected: unlike
+    // `check`, which answers "can this script be compiled", `doctor` answers
+    // "what is wrong here", and a `[backends.kokoro]` block a `null` project
+    // never reads is still a block the author wrote and expected to matter.
+    //
+    // `ok` is the narrower question, and it is deliberately narrower: it is
+    // false only for what stops *this* project working — an unmatched
+    // `backends:` key, which `check` rejects outright, or a selected backend
+    // whose settings will not build. A misconfigured backend nobody selects
+    // is listed and does not turn the report red, the same way an
+    // unreachable server is.
+    let backend_id = configured_backend_id(project);
+    let blocking = !backends.diagnostics().is_empty() || backends.resolve(&backend_id).is_err();
+    let problems: Vec<String> = backends
+        .diagnostics()
+        .into_iter()
+        .chain(backends.unusable_diagnostics())
+        .map(|d| d.message)
+        .collect();
+
+    let voice_registry = backends.registry();
 
     // Spec §9: probe the *configured* backend, not every backend this
     // build happens to ship. A freshly scaffolded project's `voice.backend`
@@ -106,22 +141,18 @@ pub async fn doctor_report_with(
     // nothing configured, and print a line saying it was unreachable. That
     // is noise reported as a finding, and it trains people to ignore the
     // probe line.
-    let backend_id = configured_backend_id(project);
-    let voice_probe = probe_configured_backend(&voice_registry, &backend_id).await;
+    let voice_probe = probe_configured_backend(voice_registry, &backend_id).await;
 
     DoctorReport {
-        ok: true,
+        ok: !blocking,
         adapters: registry.available().iter().map(|s| s.to_string()).collect(),
-        voice_backends: voice_registry
-            .available()
-            .iter()
-            .map(|s| s.to_string())
-            .collect(),
+        voice_backends: backends.ids(),
         manifest_version: MANIFEST_VERSION,
         cache_root: root.display().to_string(),
         cache_entries: stats.entries,
         cache_bytes: stats.bytes,
         voice_probe,
+        problems,
         notes: vec![
             "M0 builds no video, so ffmpeg is not required yet.".to_string(),
             "M0 ships no external runtime, so Node and Playwright are not required yet."
@@ -185,6 +216,9 @@ impl DoctorReport {
             "  cache            {}/voice — {} entries, {} bytes\n",
             self.cache_root, self.cache_entries, self.cache_bytes
         ));
+        for p in &self.problems {
+            out.push_str(&format!("  problem          {p}\n"));
+        }
         for n in &self.notes {
             out.push_str(&format!("  note             {n}\n"));
         }

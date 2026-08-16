@@ -6,11 +6,12 @@ use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::Hash;
-use teleprompt_voice::{VoiceBackend, VoiceRegistry};
+use teleprompt_voice::VoiceBackend;
 use teleprompt_voice_kokoro::KokoroVoice;
 
 use crate::cmd::check::{cache_root, compile_script_with};
 use crate::project::Project;
+use crate::voice::Backends;
 
 /// The `AudioInfo` sample rate for a locale that rendered no audio at all.
 ///
@@ -276,16 +277,14 @@ pub async fn run_dub(
     // See the matching comment on `compile_script`: this is the project's
     // real `backends:` settings, not defaults — script front-matter-level
     // overrides do not reach construction here, for the same reason.
-    let backends = project.config.backends.clone().unwrap_or_default();
-    let registry =
-        crate::voice::registry_for(&backends).map_err(|e| DubError::Validation(vec![e]))?;
-    run_dub_with(&registry, project, script, locale, out_root, check_only).await
+    let backends = crate::cmd::check::backends_of(project);
+    run_dub_with(&backends, project, script, locale, out_root, check_only).await
 }
 
-/// [`run_dub`] against a caller-supplied registry. See
+/// [`run_dub`] against caller-supplied backends. See
 /// [`crate::cmd::check::compile_script_with`] for why the seam exists.
 pub async fn run_dub_with(
-    registry: &VoiceRegistry,
+    backends: &Backends,
     project: &Project,
     script: &Path,
     locale: &str,
@@ -298,7 +297,7 @@ pub async fn run_dub_with(
     // the wrong audio into the content-addressed cache under this one's key
     // — permanently, and reported as `measured` by every later `plan`.
     let (compiled, backend) =
-        compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
+        compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
 
     // Spec §7: the voice list is checked once here, not at `check` time.
     // `check` must stay offline and synchronous, and a gate that only works
@@ -535,7 +534,7 @@ pub async fn run_dub_with(
     // byte-identical manifests — and it costs one extra compile and no
     // synthesis, since by this point every lookup is a hit.
     let (compiled, _) =
-        compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
+        compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
 
     // The guard rail, now that the number the manifest publishes exists.
     //

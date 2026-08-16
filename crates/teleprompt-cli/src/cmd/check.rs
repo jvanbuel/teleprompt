@@ -10,10 +10,11 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Item};
 use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::{VoiceBackend, VoiceRegistry};
+use teleprompt_voice::VoiceBackend;
 use teleprompt_voice_null::WpmEstimator;
 
 use crate::project::Project;
+use crate::voice::Backends;
 
 /// Where a project's synthesis cache lives. Shared between `compile_script`
 /// (which only ever reads it) and `dub` (which populates it), so the two
@@ -48,24 +49,42 @@ pub fn compile_script(
     // carries a further `backends:` override. Front-matter-level backend
     // settings therefore do not reach construction here; only the
     // project's are real, not defaults.
-    let backends = project.config.backends.clone().unwrap_or_default();
-    let registry = crate::voice::registry_for(&backends).map_err(|e| vec![e])?;
-    compile_script_with(&registry, project, script, locale)
+    compile_script_with(&backends_of(project), project, script, locale)
 }
 
-/// [`compile_script`] against a caller-supplied registry.
+/// The project's backends, built once from its settings and told which file
+/// those settings came from so a diagnostic about them can point at it.
+pub fn backends_of(project: &Project) -> Backends {
+    let settings = project.config.backends.clone().unwrap_or_default();
+    crate::voice::backends_for(&settings, &project.config_path().display().to_string())
+}
+
+/// [`compile_script`] against caller-supplied backends.
 ///
 /// The seam exists so a test can register a backend this build does not
 /// ship and watch the whole path — key, synthesis, cache, manifest — follow
-/// it. That is the claim spec §4.1 makes ("adding a backend is one line and
-/// one new crate"), and it is not a claim a workspace with exactly one
-/// backend registered can otherwise check.
+/// it. That is the claim spec §4.1 makes, and it is not a claim a workspace
+/// with exactly one real backend can otherwise check.
 pub fn compile_script_with(
-    registry: &VoiceRegistry,
+    backends: &Backends,
     project: &Project,
     script: &Path,
     locale: &str,
 ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
+    // Before the script is even read: a `backends:` key naming nothing this
+    // build ships is wrong about the project, not about whatever is being
+    // compiled, and it is wrong in the same way for every script in the
+    // repository. It is reported here rather than in `compile_script` so
+    // that `dub` — which goes through this function, not that one — cannot
+    // reach a server on settings the author never successfully wrote.
+    let config_diags = backends.diagnostics();
+    if !config_diags.is_empty() {
+        return Err(render(
+            &Diagnostics(config_diags),
+            &script.display().to_string(),
+        ));
+    }
+
     let name = script
         .file_name()
         .map(|s| s.to_string_lossy().to_string())
@@ -113,8 +132,14 @@ pub fn compile_script_with(
     // can override `voice.backend`, and this is what actually produces the
     // segment's audio, so `cache_key` and `backend_version` both need to
     // come from it rather than from the raw string.
-    let backend =
-        crate::voice::resolve(registry, &program.config.voice.backend).map_err(|e| vec![e])?;
+    // A backend whose settings did not validate fails here and only here —
+    // when it is the one this project actually resolves to. Constructing
+    // every backend eagerly used to fail `check` and `plan` with exit 2 on a
+    // `backend = "null"` project because of a Kokoro setting it would never
+    // read. The error is the same one; what changed is who gets it.
+    let backend = backends
+        .resolve(&program.config.voice.backend)
+        .map_err(|d| render(&Diagnostics(vec![d]), &display))?;
 
     // Delivery A supports exactly one backend per compile: `VoiceContext`
     // carries a single `backend_id` for the whole program. A narration item

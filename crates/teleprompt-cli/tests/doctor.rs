@@ -131,6 +131,88 @@ async fn a_kokoro_backend_project_against_a_dead_port_is_a_warning_not_a_failure
     assert!(report.ok, "unreachable is a warning, not an error");
 }
 
+/// I2's third leg. `doctor` used to catch a bad `backends:` value, silently
+/// substitute defaults and report a healthy project — the command you run
+/// when nothing works, hiding the thing that is breaking your build. Its
+/// comment claimed `check` reported it "with a span"; `check` reported it
+/// as a bare line with no file at all, and on a `null` project reported it
+/// for a backend that project never uses.
+#[tokio::test]
+async fn a_bad_backend_setting_is_a_reported_problem_not_a_silent_default() {
+    let mut backends = BTreeMap::new();
+    backends.insert(
+        "kokoro".to_string(),
+        serde_yaml::from_str("concurrency: 0").unwrap(),
+    );
+    let project = project_with_backend("kokoro", backends);
+    let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
+
+    let joined = report.problems.join("\n");
+    assert!(joined.contains("concurrency"), "{joined}");
+    assert!(
+        !report.ok,
+        "a project that cannot build its backend is not ok"
+    );
+    assert!(
+        report.render().contains("concurrency"),
+        "{}",
+        report.render()
+    );
+    assert!(
+        report.voice_probe.is_none(),
+        "there is no backend to probe: {:?}",
+        report.voice_probe
+    );
+    assert!(
+        report.voice_backends.contains(&"kokoro".to_string()),
+        "a misconfigured backend is still one this build ships: {:?}",
+        report.voice_backends
+    );
+}
+
+/// The other side of I2's fix. A misconfigured backend this project does
+/// not select stops nothing, so `ok` stays true — but `doctor` still says
+/// it, because the author wrote that block and expects it to matter.
+#[tokio::test]
+async fn a_bad_setting_for_an_unselected_backend_is_listed_without_turning_the_report_red() {
+    let mut backends = BTreeMap::new();
+    backends.insert(
+        "kokoro".to_string(),
+        serde_yaml::from_str("concurrency: 0").unwrap(),
+    );
+    let project = project_with_backend("null", backends);
+    let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
+
+    assert!(
+        report.problems.iter().any(|p| p.contains("concurrency")),
+        "{:?}",
+        report.problems
+    );
+    assert!(
+        report.ok,
+        "a backend this project never selects blocks nothing"
+    );
+}
+
+/// I1's other surface. A `backends:` key naming nothing this build ships is
+/// reported by `doctor` too, and reported even when the project resolves to
+/// a different backend entirely — the key belongs to no backend, so
+/// "validate only the selected one" must not be a way for it to disappear.
+#[tokio::test]
+async fn an_unknown_backends_key_is_a_reported_problem() {
+    let mut backends = BTreeMap::new();
+    backends.insert(
+        "kokoro-local".to_string(),
+        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881\"").unwrap(),
+    );
+    let project = project_with_backend("null", backends);
+    let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
+
+    let joined = report.problems.join("\n");
+    assert!(joined.contains("backends.kokoro-local"), "{joined}");
+    assert!(!report.ok);
+}
+
 /// Outside a project there is no configured backend to probe — nothing
 /// resolved `voice.backend`, so there is no server that this run could
 /// meaningfully be asking about. `doctor` still reports everything else
