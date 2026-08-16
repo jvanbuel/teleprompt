@@ -27,6 +27,19 @@ pub fn registry_for(
 /// The default registry, for callers with no project config in hand
 /// (`doctor` outside a project, tests). Settings-free, so every backend gets
 /// its defaults.
+///
+/// The `expect` cannot fail from any configuration: an empty map always
+/// takes `KokoroConfig::default()`, never `from_value`, so there is no
+/// deserialization or validation `Err` this call could ever produce. The
+/// one path still live underneath it is environmental, not configuration —
+/// `KokoroVoice::new` also propagates a failure from
+/// `reqwest::Client::builder().build()`, which can fail if the runtime's
+/// TLS backend is broken. That is not proven impossible, only unreachable
+/// from any input this function controls; a caller relying on this panic
+/// never firing should read it as "no configuration can trigger this," not
+/// "this cannot happen." If it ever does, the process could not have done
+/// the work anyway, so the panic — outside `exit_code_for`'s vocabulary —
+/// is at least an honest signal that something below `main` is broken.
 pub fn registry() -> VoiceRegistry {
     registry_for(&BTreeMap::new()).expect("default backend settings are always valid")
 }

@@ -91,6 +91,24 @@ pub fn compile_script_with(
     )
     .map_err(|d| render(&d, &display))?;
 
+    // A script's own front matter can set `backends:` too — `Config`'s
+    // field doc says so, and `resolve` above dutifully merges it into
+    // `program.config.backends`. But the registry `compile_script` built
+    // (or that a caller of `compile_script_with` supplied) was constructed
+    // from the *project's* `backends:` alone, before this script was ever
+    // read — nothing downstream of `resolve` can reach back and
+    // reconstruct an already-built backend. Silently accepting the merge
+    // and never mentioning the mismatch would be the same defect the
+    // segment-backend check below exists to catch: an author-written value
+    // the merge computes and the mechanism it is meant to affect never
+    // sees. A warning, not an error: unlike a segment resolving to an
+    // unregistered backend, the compile still produces something correct —
+    // audio from the *project's* settings for that backend, just not the
+    // script's requested variant of them.
+    let base_backends = project.config.backends.clone().unwrap_or_default();
+    let backend_override_diags =
+        backend_override_warnings(&base_backends, &program.config.backends);
+
     // The *resolved* backend, not just a name: a script's own front matter
     // can override `voice.backend`, and this is what actually produces the
     // segment's audio, so `cache_key` and `backend_version` both need to
@@ -173,7 +191,7 @@ pub fn compile_script_with(
         estimator: &estimator,
     };
 
-    let out = compile(
+    let mut out = compile(
         &program,
         &SceneRegistry::with_builtins(),
         &ctx,
@@ -182,7 +200,60 @@ pub fn compile_script_with(
     )
     .map_err(|d| render(&d, &display))?;
 
+    out.warnings
+        .extend(render(&Diagnostics(backend_override_diags), &display));
+
     Ok((out, backend))
+}
+
+/// Diagnoses `Config.backends` entries that `resolve` computed from a
+/// script's own front matter but that a caller-supplied registry cannot
+/// see — see the call site's comment for why. `base` is what the registry
+/// was (or should have been) built from; `merged` is `program.config
+/// .backends` after `resolve`. One diagnostic per distinct offending
+/// backend id, not per differing key, mirroring the segment-backend
+/// check's "once per group" shape.
+fn backend_override_warnings(
+    base: &std::collections::BTreeMap<String, serde_yaml::Value>,
+    merged: &std::collections::BTreeMap<String, serde_yaml::Value>,
+) -> Vec<Diagnostic> {
+    merged
+        .iter()
+        .filter(|(id, value)| base.get(*id) != Some(*value))
+        .map(|(id, value)| {
+            let keys = differing_backend_keys(base.get(id), value);
+            let which = if keys.is_empty() {
+                String::new()
+            } else {
+                format!(" (`{}`)", keys.join("`, `"))
+            };
+            Diagnostic::warning(format!(
+                "this script's front matter sets `backends.{id}`{which}, but backend settings \
+                 are resolved once per project before any script is parsed, so the override has \
+                 no effect here; set it in `teleprompt.toml` under `backends.{id}` instead"
+            ))
+        })
+        .collect()
+}
+
+/// The mapping keys `after` sets or changes relative to `before`, when both
+/// are YAML mappings. Empty for a non-mapping value (a wholesale
+/// replacement — there is nothing granular to name) or when `before` is
+/// absent (every key is "new", which the caller's message already covers
+/// by naming the backend itself).
+fn differing_backend_keys(
+    before: Option<&serde_yaml::Value>,
+    after: &serde_yaml::Value,
+) -> Vec<String> {
+    let (Some(before), Some(after)) = (before.and_then(|v| v.as_mapping()), after.as_mapping())
+    else {
+        return Vec::new();
+    };
+    after
+        .iter()
+        .filter(|(k, v)| before.get(*k) != Some(*v))
+        .filter_map(|(k, _)| k.as_str().map(str::to_string))
+        .collect()
 }
 
 /// Returns warnings on success, rendered errors on failure. `check` is
