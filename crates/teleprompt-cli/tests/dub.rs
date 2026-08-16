@@ -786,14 +786,25 @@ fn speech_bytes_for(text: &str) -> Vec<u8> {
         .collect()
 }
 
+/// [`kokoro_synth_stub`] with the default short delay, for callers that
+/// only care about overlap, not about a specific margin.
+async fn kokoro_synth_stub(fail_on: Option<&'static str>) -> KokoroSynthStub {
+    kokoro_synth_stub_with_delay(fail_on, std::time::Duration::from_millis(40)).await
+}
+
 /// Spawns the stub. `fail_on`, when set, makes exactly the `/v1/audio/speech`
 /// request whose `input` equals it fail with a 500 — everything else,
 /// including the voice list, succeeds. Every successful synthesis is held
-/// open for a short fixed delay before answering: a stub that replies
-/// instantly would read "peak 1 in flight" whether callers dispatched three
-/// requests at once or one after another, which would make the concurrency
-/// assertion below pass vacuously.
-async fn kokoro_synth_stub(fail_on: Option<&'static str>) -> KokoroSynthStub {
+/// open for `success_delay` before answering: a stub that replies instantly
+/// would read "peak 1 in flight" whether callers dispatched three requests
+/// at once or one after another, which would make the concurrency assertion
+/// below pass vacuously. A larger `success_delay` also gives a caller enough
+/// margin to assert that a *failing* sibling did not wait around for these
+/// slower ones to finish.
+async fn kokoro_synth_stub_with_delay(
+    fail_on: Option<&'static str>,
+    success_delay: std::time::Duration,
+) -> KokoroSynthStub {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let inflight = Arc::new(AtomicUsize::new(0));
@@ -826,13 +837,17 @@ async fn kokoro_synth_stub(fail_on: Option<&'static str>) -> KokoroSynthStub {
                 let text = body["input"].as_str().unwrap_or("").to_string();
 
                 if fail_on == Some(text.as_str()) {
+                    // Answered immediately, on purpose: this is the request
+                    // that is supposed to end the run, and a test asserting
+                    // the run does *not* wait on slower siblings needs this
+                    // one to be the fast one.
                     write_status(&mut socket, 500, "boom").await;
                     return;
                 }
 
                 let now = inflight.fetch_add(1, Ordering::SeqCst) + 1;
                 peak.fetch_max(now, Ordering::SeqCst);
-                tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+                tokio::time::sleep(success_delay).await;
                 inflight.fetch_sub(1, Ordering::SeqCst);
 
                 let pcm = speech_bytes_for(&text);
@@ -919,26 +934,229 @@ async fn segments_are_synthesized_concurrently_but_collected_in_document_order()
 
 /// Spec §7.1: one segment's failure fails the run. With fan-out it would be
 /// easy to collect every task's result and carry on regardless — a
-/// half-dubbed output directory is worse than none.
+/// half-dubbed output directory is worse than none. Siblings are given a
+/// long (600ms) delay so the test can also pin *how* the run ends: the
+/// surfaced error must be the real 500 rather than a cancellation artifact,
+/// and the run must return promptly rather than waiting on those siblings
+/// to finish first.
 #[tokio::test]
 async fn a_failure_in_one_segment_fails_the_run() {
-    let stub = kokoro_synth_stub(Some("Two.")).await;
+    let stub =
+        kokoro_synth_stub_with_delay(Some("Two."), std::time::Duration::from_millis(600)).await;
     let p = project_with_config_and_script(
         &format!(
             "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
-             base_url = \"{}\"\n",
+             base_url = \"{}\"\nconcurrency = 3\n",
             stub.base_url
         ),
         "# Failure\n\nOne.\n\nTwo.\n\nThree.\n",
     );
+    let start = std::time::Instant::now();
     let result = run_dub(&p.project, &p.script, "en", &p.out, false).await;
+    let elapsed = start.elapsed();
     match result {
         Ok(_) => panic!("a segment failure must fail the run"),
-        Err(DubError::Runtime(_)) => {}
+        Err(DubError::Runtime(r)) => {
+            assert!(
+                r.contains("500"),
+                "the surfaced error must be the real \
+                failure, not a cancellation artifact of aborting the \
+                siblings: {r}"
+            );
+        }
         Err(DubError::Validation(v)) => panic!(
             "a synthesis failure is a runtime error, not a validation one: {}",
             v.join("; ")
         ),
     }
     assert!(!manifest_path(&p.out, "en").exists(), "no partial output");
+    assert!(
+        elapsed < std::time::Duration::from_millis(300),
+        "the run must return once the failure is known, not wait on the \
+         600ms siblings still in flight: took {elapsed:?}"
+    );
+}
+
+// --- `teleprompt_cache::key` hashes backend id/version, locale, voice,
+// speed, and the *text*, not the segment id — so two segments with
+// identical narration text collide on one `CacheKey` by design. Rendering
+// each occurrence independently would double-count synthesis work against
+// the exact bottleneck fan-out exists to relieve, and two concurrent
+// `cache.store` calls under the same key would race on `std::fs::write`'s
+// truncate-then-write. The tests below pin that `dub` renders each distinct
+// key once and fans the result out to every segment that shares it.
+
+/// Answers `/v1/audio/voices` with `["af_heart"]` and `/v1/audio/speech`
+/// with PCM whose length depends on which call this is — the first
+/// `/v1/audio/speech` request gets a different length than the second. A
+/// real TTS server is not bit-deterministic between calls, so a caller that
+/// (incorrectly) issues two synthesis requests for identical text would get
+/// back two different lengths for what must be one duration in the
+/// manifest; a caller that (correctly) issues one request has no second
+/// call to differ from. Also records the total number of `/v1/audio/speech`
+/// requests received, so a test can assert on it directly rather than
+/// inferring de-duplication from a side effect.
+struct KokoroCallCountingStub {
+    base_url: String,
+    speech_requests: Arc<AtomicUsize>,
+}
+
+async fn kokoro_call_counting_stub() -> KokoroCallCountingStub {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let speech_requests = Arc::new(AtomicUsize::new(0));
+    let speech_requests_for_stub = speech_requests.clone();
+    let voices_body = serde_json::json!({ "voices": ["af_heart"] }).to_string();
+
+    tokio::spawn(async move {
+        let speech_requests = speech_requests_for_stub;
+        loop {
+            let Ok((mut socket, _)) = listener.accept().await else {
+                return;
+            };
+            let speech_requests = speech_requests.clone();
+            let voices_body = voices_body.clone();
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 65536];
+                let n = socket.read(&mut buf).await.unwrap_or(0);
+                let raw = String::from_utf8_lossy(&buf[..n]).to_string();
+
+                if raw.starts_with("GET /v1/audio/voices") {
+                    write_ok(&mut socket, "application/json", voices_body.as_bytes()).await;
+                    return;
+                }
+
+                let call = speech_requests.fetch_add(1, Ordering::SeqCst);
+                // 2400 i16 samples = 100ms at 24kHz; each successive call
+                // to this stub gets 100ms more than the last, so call 0 and
+                // call 1 are observably different lengths.
+                let samples = 2400 * (call + 1);
+                let pcm: Vec<u8> = (0..samples)
+                    .flat_map(|i| ((i % 1000) as i16).to_le_bytes())
+                    .collect();
+                write_ok(&mut socket, "application/octet-stream", &pcm).await;
+            });
+        }
+    });
+
+    KokoroCallCountingStub {
+        base_url: format!("http://{addr}"),
+        speech_requests,
+    }
+}
+
+/// A project whose config points at `stub` with `concurrency = 8`, and a
+/// script with two segments sharing the exact same narration text — the
+/// reproduction the finding used. `concurrency` is set well above the
+/// segment count so a version that (incorrectly) renders per-occurrence
+/// rather than per-key has every opportunity to fan the duplicate work out
+/// concurrently, rather than happening to serialize it back into one
+/// request by accident.
+fn project_with_duplicate_narration_text(stub: &str) -> TestProject {
+    project_with_config_and_script(
+        &format!(
+            "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
+             base_url = \"{stub}\"\nconcurrency = 8\n"
+        ),
+        "# Dup\n\nThe very same sentence.\n\nThe very same sentence.\n",
+    )
+}
+
+#[tokio::test]
+async fn identical_narration_text_synthesizes_once_not_once_per_segment() {
+    let stub = kokoro_call_counting_stub().await;
+    let p = project_with_duplicate_narration_text(&stub.base_url);
+
+    run_dub(&p.project, &p.script, "en", &p.out, false)
+        .await
+        .unwrap_or_else(|e| match e {
+            DubError::Validation(v) => panic!("validation: {v:?}"),
+            DubError::Runtime(r) => panic!("runtime: {r}"),
+        });
+
+    assert_eq!(
+        stub.speech_requests.load(Ordering::SeqCst),
+        1,
+        "two segments with identical text share one cache key; rendering \
+         each occurrence independently duplicates work against the exact \
+         bottleneck fan-out exists to relieve"
+    );
+}
+
+/// The stub's two calls would answer with different-length audio; if `dub`
+/// issued one synthesis request per occurrence, one of the two segments
+/// would end up with a `rendered_ms` that disagrees with what the
+/// recompiled timeline publishes for it (both segments resolve to the same
+/// cache key, so the timeline can only publish one duration), and the
+/// length-mismatch guard would fail the run. Rendering by key rather than
+/// by occurrence means there is only ever one real answer to disagree with
+/// itself.
+#[tokio::test]
+async fn identical_narration_text_with_a_non_deterministic_backend_still_succeeds() {
+    let stub = kokoro_call_counting_stub().await;
+    let p = project_with_duplicate_narration_text(&stub.base_url);
+
+    run_dub(&p.project, &p.script, "en", &p.out, false)
+        .await
+        .unwrap_or_else(|e| match e {
+            DubError::Validation(v) => panic!("validation: {v:?}"),
+            DubError::Runtime(r) => panic!("runtime: {r}"),
+        });
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(manifest_path(&p.out, "en")).unwrap())
+            .unwrap();
+    let segs = manifest["segments"].as_array().unwrap();
+    assert_eq!(segs.len(), 2);
+    let durations: Vec<u64> = segs
+        .iter()
+        .map(|s| s["duration_ms"].as_u64().unwrap())
+        .collect();
+    assert_eq!(
+        durations[0], durations[1],
+        "both segments resolve to one cache key and must publish the same \
+         duration: {durations:?}"
+    );
+}
+
+/// The other half of the finding: fanning identical-text segments into one
+/// task must not lose track of *which* segment is which. Both must still
+/// land in their own document-ordered slot, and — since they share one
+/// cache key — both must carry the exact same audio bytes.
+#[tokio::test]
+async fn identical_narration_text_still_lands_in_document_order_with_matching_audio() {
+    let stub = kokoro_call_counting_stub().await;
+    let p = project_with_duplicate_narration_text(&stub.base_url);
+
+    run_dub(&p.project, &p.script, "en", &p.out, false)
+        .await
+        .unwrap_or_else(|e| match e {
+            DubError::Validation(v) => panic!("validation: {v:?}"),
+            DubError::Runtime(r) => panic!("runtime: {r}"),
+        });
+
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(manifest_path(&p.out, "en")).unwrap())
+            .unwrap();
+    let segs = manifest["segments"].as_array().unwrap();
+    assert_eq!(segs.len(), 2);
+
+    let ids: Vec<&str> = segs.iter().map(|s| s["id"].as_str().unwrap()).collect();
+    assert_ne!(ids[0], ids[1], "two distinct segments sharing one render");
+    let sorted = {
+        let mut c = ids.clone();
+        c.sort();
+        c
+    };
+    assert_eq!(
+        ids, sorted,
+        "document order must hold even when segments share a render: {ids:?}"
+    );
+
+    let bytes: Vec<Vec<u8>> = segs.iter().map(|s| wav_bytes(&p.project.root, s)).collect();
+    assert_eq!(
+        bytes[0], bytes[1],
+        "both segments resolve to the same cache key, so both must carry \
+         the same audio bytes"
+    );
 }

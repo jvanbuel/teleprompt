@@ -161,18 +161,22 @@ fn length_mismatch(segment_id: &str, actual_ms: u64, published_ms: u64) -> Optio
     ))
 }
 
-/// One segment's audio, plus everything about how it was obtained that the
-/// caller needs once every segment is in: the format it came out at (for
-/// [`AudioInfo`]) and whether the cache entry it came from had to be healed
-/// (for the author-facing warning). Kept as its own type — rather than
-/// [`render_one`] returning the bare `(String, Vec<u8>, u64)` tuple `dub`
-/// eventually wants — because under fan-out those two things can no longer
-/// be folded into shared `Option`/`Vec` accumulators as segments finish:
-/// several tasks finish at once, in no particular order, so each one has to
-/// carry its own answer back rather than mutate a value the loop used to
-/// own outright.
-struct Rendered {
-    segment_id: String,
+/// What rendering one *cache key* produced: the audio, the format it came
+/// out at (for [`AudioInfo`]), and whether the cache entry it came from had
+/// to be healed (for the author-facing warning).
+///
+/// Deliberately keyed to a `CacheKey`, not a segment — `teleprompt_cache::key`
+/// hashes backend id/version, locale, voice, speed, and the narration
+/// *text*, not the segment id, so two segments with identical text resolve
+/// to the same key and must resolve to the same [`RenderedAudio`]. Rendering
+/// each occurrence independently would double-count synthesis work against
+/// the exact bottleneck fan-out exists to relieve, and — because
+/// `VoiceCache::store` truncates-then-writes rather than writing atomically
+/// — two concurrent tasks storing under the same key would be a torn-write
+/// hazard. See `run_dub_with`'s grouping step, which is what guarantees
+/// there is only ever one task per key and therefore only ever one
+/// `render_one` call per key.
+struct RenderedAudio {
     wav_bytes: Vec<u8>,
     rendered_ms: u64,
     sample_rate: u32,
@@ -182,15 +186,33 @@ struct Rendered {
     cache_warning: Option<String>,
 }
 
-/// Resolves one segment's audio: a cache hit already decided it, or a miss
-/// decides it by calling `backend` and storing what comes back. Pulled out
-/// of `run_dub_with`'s render step so each segment's work is a self-contained
-/// unit a spawned task can own end to end.
+/// One segment's audio: [`RenderedAudio`] plus the identity of the segment
+/// it is published under. Several segments can point at the same
+/// `RenderedAudio` (identical narration text), each getting its own
+/// `Rendered` with its own `segment_id` — the manifest still publishes one
+/// entry per segment even though only one render happened.
+struct Rendered {
+    segment_id: String,
+    wav_bytes: Vec<u8>,
+    rendered_ms: u64,
+    sample_rate: u32,
+    channels: u16,
+    cache_warning: Option<String>,
+}
+
+/// Resolves one *cache key*'s audio: a cache hit already decided it, or a
+/// miss decides it by calling `backend` and storing what comes back.
+/// `detail` is any one narration detail that resolves to this key — when
+/// several segments share a key, the caller picks one representative before
+/// calling this, since every one of them would produce an identical
+/// `SynthRequest` and therefore an identical result. Pulled out of
+/// `run_dub_with`'s render step so each key's work is a self-contained unit
+/// a spawned task can own end to end.
 async fn render_one(
     backend: &Arc<dyn VoiceBackend>,
     cache: &VoiceCache,
     detail: &NarrationDetail,
-) -> Result<Rendered, DubError> {
+) -> Result<RenderedAudio, DubError> {
     let read = cache
         .lookup(&detail.cache_key)
         .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
@@ -213,13 +235,9 @@ async fn render_one(
                 .synthesize(&detail.synth_request)
                 .await
                 .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
-            // Concurrent `store` calls are safe here: two tasks never share
-            // a key (each segment appears once in `compiled.narration`), so
-            // every pair of concurrent calls touches disjoint `<key>.wav`
-            // and `<key>.json` paths. The one thing they do share is the
-            // cache directory, and `create_dir_all` racing itself across
-            // threads is fine — each call either creates it or observes it
-            // already exists.
+            // Exactly one task ever calls `store` for a given key — see the
+            // grouping step in `run_dub_with` — so there is no concurrent
+            // writer to race here.
             let stored = cache
                 .store(
                     &detail.cache_key,
@@ -236,8 +254,7 @@ async fn render_one(
         }
     };
 
-    Ok(Rendered {
-        segment_id: detail.segment_id.clone(),
+    Ok(RenderedAudio {
         wav_bytes,
         rendered_ms,
         sample_rate,
@@ -356,14 +373,37 @@ pub async fn run_dub_with(
     let total = compiled.narration.len();
     let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
-    let mut tasks: tokio::task::JoinSet<(usize, Result<Rendered, DubError>)> =
-        tokio::task::JoinSet::new();
+    // Grouped by cache key, not spawned one task per segment: two segments
+    // with identical narration text resolve to the same `CacheKey` (see
+    // `RenderedAudio`'s doc comment), so one task renders each *distinct*
+    // key and its result is fanned out to every segment index that shares
+    // it. This is what makes rendering identical text once rather than
+    // once per occurrence, and it is what removes the same-key concurrent
+    // `store` race by construction — there is exactly one task per key, so
+    // there is never a second writer to race.
+    let mut groups: std::collections::HashMap<teleprompt_cache::CacheKey, Vec<usize>> =
+        std::collections::HashMap::new();
     for (i, detail) in compiled.narration.iter().enumerate() {
+        groups.entry(detail.cache_key.clone()).or_default().push(i);
+    }
+
+    let mut tasks: tokio::task::JoinSet<(Vec<usize>, Result<RenderedAudio, DubError>)> =
+        tokio::task::JoinSet::new();
+    for indices in groups.into_values() {
+        // Any member of the group is a valid representative: identical
+        // cache keys imply identical `SynthRequest`s (same backend/version,
+        // same locale/voice/speed, same text — that is exactly what the key
+        // is a hash of), so whichever one gets rendered is correct for
+        // every index in the group.
+        let detail = compiled.narration[indices[0]].clone();
+        let segment_ids: Vec<String> = indices
+            .iter()
+            .map(|&i| compiled.narration[i].segment_id.clone())
+            .collect();
         let backend = backend.clone();
         let cache = cache.clone();
         let permits = permits.clone();
         let completed = completed.clone();
-        let detail = detail.clone();
         tasks.spawn(async move {
             let _permit = permits
                 .acquire_owned()
@@ -371,15 +411,22 @@ pub async fn run_dub_with(
                 .expect("semaphore is never closed");
             let r = render_one(&backend, &cache, &detail).await;
             if r.is_ok() {
-                let n = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                eprintln!("  [{n}/{total}] {} done", detail.segment_id);
+                // One "done" line per segment the group covers, not one per
+                // request: progress is a promise to the author about their
+                // script, and a script with two identical sentences still
+                // has two segments to account for, even though only one of
+                // them made a network call.
+                for id in &segment_ids {
+                    let n = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                    eprintln!("  [{n}/{total}] {id} done");
+                }
             }
-            (i, r)
+            (indices, r)
         });
     }
 
     // `JoinSet` hands results back in completion order, not document order,
-    // so each one is filed at the index its task carried rather than
+    // so each one is filed at the indices its task carried rather than
     // appended. Spec §7.1: one segment's failure fails the run. The first
     // error to land aborts every task still in flight instead of waiting
     // for the rest to finish or fail too — a half-dubbed output directory
@@ -391,9 +438,20 @@ pub async fn run_dub_with(
     let mut slots: Vec<Option<Rendered>> = (0..total).map(|_| None).collect();
     let mut failure: Option<DubError> = None;
     while let Some(joined) = tasks.join_next().await {
-        let (i, r) = joined.expect("a render task panicked");
+        let (indices, r) = joined.expect("a render task panicked");
         match r {
-            Ok(v) => slots[i] = Some(v),
+            Ok(audio) => {
+                for i in indices {
+                    slots[i] = Some(Rendered {
+                        segment_id: compiled.narration[i].segment_id.clone(),
+                        wav_bytes: audio.wav_bytes.clone(),
+                        rendered_ms: audio.rendered_ms,
+                        sample_rate: audio.sample_rate,
+                        channels: audio.channels,
+                        cache_warning: audio.cache_warning.clone(),
+                    });
+                }
+            }
             Err(e) => {
                 failure = Some(e);
                 break;

@@ -70,7 +70,11 @@ impl<T> CacheRead<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `Hash` (the trait) is derived so a caller can group entries that share
+/// a key — e.g. `dub` grouping narration segments before fan-out, so two
+/// segments with identical text render once instead of racing each other
+/// to store the same key.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CacheKey(Hash);
 
 impl fmt::Display for CacheKey {
