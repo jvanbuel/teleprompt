@@ -76,17 +76,17 @@ fn the_gitignore_excludes_caches_and_build_output_but_not_timelines() {
     assert!(!ignore.contains("timelines/"));
 }
 
-#[test]
-fn doctor_reports_available_adapters_and_backends() {
-    let r = doctor_report(&SceneRegistry::with_builtins());
+#[tokio::test]
+async fn doctor_reports_available_adapters_and_backends() {
+    let r = doctor_report(&SceneRegistry::with_builtins()).await;
     assert!(r.adapters.contains(&"mock".to_string()));
     assert!(r.voice_backends.contains(&"null".to_string()));
     assert!(r.voice_backends.contains(&"kokoro".to_string()));
 }
 
-#[test]
-fn doctor_notes_that_rendering_is_out_of_scope_rather_than_failing_on_ffmpeg() {
-    let r = doctor_report(&SceneRegistry::with_builtins());
+#[tokio::test]
+async fn doctor_notes_that_rendering_is_out_of_scope_rather_than_failing_on_ffmpeg() {
+    let r = doctor_report(&SceneRegistry::with_builtins()).await;
     assert!(r.notes.iter().any(|n| n.contains("M0")));
     assert!(r.ok, "a missing ffmpeg must not make doctor fail in M0");
 }

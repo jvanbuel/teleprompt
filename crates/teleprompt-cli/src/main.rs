@@ -79,29 +79,33 @@ enum Command {
     },
 }
 
-/// The async runtime, built for `dub` and nothing else.
+/// The async runtime, built for `dub` and `doctor` and nothing else.
 ///
-/// Current-thread rather than multi-thread: `dub` awaits one synthesis at a
-/// time, so worker threads have nothing to do. Spec §7.2's bounded
-/// concurrent fan-out would want `new_multi_thread` back — which is why the
-/// `rt-multi-thread` feature is still declared rather than trimmed away.
+/// Current-thread rather than multi-thread: neither command awaits more
+/// than one thing at a time, so worker threads have nothing to do. Spec
+/// §7.2's bounded concurrent fan-out would want `new_multi_thread` back for
+/// `dub` — which is why the `rt-multi-thread` feature is still declared
+/// rather than trimmed away.
 ///
-/// A runtime that will not start is a runtime failure (exit 1), not a
-/// validation error, so it takes the same road as any other `dub` failure
-/// instead of panicking out through an exit code `exit_code_for` cannot
-/// issue.
-fn dub_runtime() -> Result<tokio::runtime::Runtime, dub::DubError> {
+/// Its error is a bare `String`, not `dub::DubError`: `doctor` has no
+/// `DubError` channel of its own, so a shared helper cannot return one
+/// without lying about where the error came from. `dub`'s call site maps it
+/// into `DubError::Runtime` instead, which is where that variant already
+/// says a runtime failure belongs — exit 1, not a validation error, taking
+/// the same road as any other `dub` failure instead of panicking out
+/// through an exit code `exit_code_for` cannot issue.
+fn runtime() -> Result<tokio::runtime::Runtime, String> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .map_err(|e| dub::DubError::Runtime(format!("cannot start the async runtime: {e}")))
+        .map_err(|e| format!("cannot start the async runtime: {e}"))
 }
 
 /// Synchronous on purpose. `#[tokio::main]` started a multi-thread runtime
 /// — a worker thread per core — for every subcommand, including
-/// `check`/`plan`/`diff`/`doctor`/`new`, none of which ever await. `dub`
-/// builds its own runtime in its own arm, which is the only place async is
-/// reachable from.
+/// `check`/`plan`/`diff`/`new`, none of which ever await. `dub` and
+/// `doctor` each build their own runtime in their own arm, which is the
+/// only place async is reachable from.
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let registry = SceneRegistry::with_builtins();
@@ -121,14 +125,22 @@ fn main() -> ExitCode {
                 Outcome::RuntimeFailure(e.to_string())
             }
         },
-        Command::Doctor => {
-            let report = doctor::doctor_report(&registry);
-            match cli.format {
-                Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
-                Format::Human => print!("{}", report.render()),
+        Command::Doctor => match runtime() {
+            Ok(rt) => {
+                let report = rt.block_on(doctor::doctor_report(&registry));
+                match cli.format {
+                    Format::Json => {
+                        println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                    }
+                    Format::Human => print!("{}", report.render()),
+                }
+                Outcome::Ok
             }
-            Outcome::Ok
-        }
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e)
+            }
+        },
         Command::Check { script, locale } => match Project::for_script(&script) {
             Err(e) => {
                 eprintln!("error: {e}");
@@ -274,7 +286,8 @@ fn main() -> ExitCode {
                 eprintln!("error: {e}");
                 Outcome::RuntimeFailure(e.to_string())
             }
-            Ok(project) => match dub_runtime()
+            Ok(project) => match runtime()
+                .map_err(dub::DubError::Runtime)
                 .and_then(|rt| rt.block_on(dub::run_dub(&project, &script, &locale, &out, check)))
             {
                 Ok(result) => {
