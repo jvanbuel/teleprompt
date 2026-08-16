@@ -229,3 +229,36 @@ fn an_unknown_top_level_key_is_still_an_error() {
     let err = PartialConfig::from_yaml("teleprompt: 1\nvioce:\n  source: synthetic\n").unwrap_err();
     assert!(err.to_string().contains("vioce"), "{err}");
 }
+
+#[test]
+fn backend_settings_survive_the_merge_without_core_understanding_them() {
+    let base: PartialConfig = PartialConfig::from_yaml(
+        "backends:\n  kokoro:\n    base_url: \"http://localhost:8880\"\n    timeout_ms: 30000\n",
+    )
+    .unwrap();
+    let over: PartialConfig =
+        PartialConfig::from_yaml("backends:\n  kokoro:\n    timeout_ms: 5000\n").unwrap();
+
+    let merged = Config::merged(&[base, over]);
+    let k = merged.backends.get("kokoro").expect("kokoro settings kept");
+
+    // Per-key merge, not whole-table replacement: the later layer overrides
+    // `timeout_ms` and leaves `base_url` alone. Whole-table replacement would
+    // mean a script overriding one setting silently discards the project's
+    // other ones.
+    assert_eq!(k.get("timeout_ms").unwrap().as_u64(), Some(5000));
+    assert_eq!(
+        k.get("base_url").unwrap().as_str(),
+        Some("http://localhost:8880")
+    );
+}
+
+#[test]
+fn an_unknown_backend_table_is_not_an_error() {
+    // Core does not validate backend ids. A config naming a backend this
+    // build does not ship must parse; `voice.backend` selection is where an
+    // unknown id is reported, with the available list.
+    let c = PartialConfig::from_yaml("backends:\n  elevenlabs:\n    profile: jan\n").unwrap();
+    let merged = Config::merged(&[c]);
+    assert!(merged.backends.contains_key("elevenlabs"));
+}
