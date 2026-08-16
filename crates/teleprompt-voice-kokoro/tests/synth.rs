@@ -132,10 +132,12 @@ async fn a_truncated_body_is_an_error_not_short_audio() {
         .unwrap_err();
     let msg = err.to_string();
     assert!(!msg.is_empty());
-    // Specific enough to catch a regression to a silent/short-audio result,
-    // without pinning reqwest's own wording: the error must still be ours
-    // (naming the server), not a bare passthrough of whatever hyper says.
     assert!(msg.contains(&s.base_url), "{msg}");
+    // Pins the actual path taken: `client.rs`'s own literal
+    // "response body incomplete: {e}", not reqwest's internal wording.
+    // Without this, the test would pass just as happily if a bug routed
+    // this scenario through the connect-error or non-200 path instead.
+    assert!(msg.contains("incomplete"), "{msg}");
 }
 
 #[tokio::test]

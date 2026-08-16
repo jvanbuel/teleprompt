@@ -1,3 +1,12 @@
+// Shared across every integration test target under `tests/` (`synth.rs`,
+// `voices.rs`, …). Each target exercises only the subset of this API its
+// own scenarios need — `voices.rs` never triggers `Reply::Hang`, for
+// instance — so from any single target's point of view the rest of this
+// module looks unused. That is a property of how cargo compiles each
+// integration test as its own crate, not of this module actually having
+// dead code.
+#![allow(dead_code)]
+
 use std::sync::{Arc, Mutex};
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

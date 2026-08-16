@@ -103,10 +103,22 @@ impl Client {
             .or_else(|| v.as_array())
             .ok_or_else(|| self.fail("voice list had no `voices` array"))?;
 
-        Ok(arr
-            .iter()
-            .filter_map(|x| x.as_str().map(str::to_string))
-            .collect())
+        // A non-string entry means the server's shape is not what we
+        // parsed above; skipping it silently would hide that a real
+        // protocol change happened and hand back a list that looks fine.
+        // Same reasoning as `decode_pcm`'s rejection of an odd byte count.
+        let mut names = Vec::with_capacity(arr.len());
+        for item in arr {
+            match item.as_str() {
+                Some(name) => names.push(name.to_string()),
+                None => {
+                    return Err(
+                        self.fail(&format!("voice list contained a non-string entry: {item}"))
+                    );
+                }
+            }
+        }
+        Ok(names)
     }
 }
 
