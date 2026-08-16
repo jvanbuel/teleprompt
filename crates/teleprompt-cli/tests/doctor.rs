@@ -112,7 +112,8 @@ async fn a_kokoro_backend_project_against_a_reachable_stub_reports_its_voice_cou
     let project = project_with_backend("kokoro", kokoro_backends(&stub.base_url));
     let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
 
-    let line = report.voice_probe.expect("probe ran");
+    let probe = report.voice_probe.expect("probe ran");
+    let line = &probe.detail;
     assert!(line.contains(&stub.base_url), "{line}");
     assert!(line.contains("reachable"), "{line}");
     assert!(line.contains('3'), "must report the voice count: {line}");
@@ -126,9 +127,38 @@ async fn a_kokoro_backend_project_against_a_dead_port_is_a_warning_not_a_failure
     let project = project_with_backend("kokoro", kokoro_backends("http://127.0.0.1:1"));
     let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
 
-    let line = report.voice_probe.expect("probe ran");
+    let probe = report.voice_probe.expect("probe ran");
+    let line = &probe.detail;
     assert!(line.contains("unreachable"), "{line}");
     assert!(report.ok, "unreachable is a warning, not an error");
+}
+
+/// The probe line names the backend it probed. `render` used to print the
+/// literal `voice kokoro` for whatever backend was configured — invisible
+/// today, and the moment a second server-backed backend exists it labels one
+/// machine's answer with the other one's name. Asserted on a report built by
+/// hand, because a second server-backed backend is exactly what this build
+/// does not have.
+#[test]
+fn the_probe_line_names_the_backend_that_was_probed() {
+    let report = teleprompt_cli::cmd::doctor::DoctorReport {
+        ok: true,
+        adapters: Vec::new(),
+        voice_backends: Vec::new(),
+        manifest_version: 1,
+        cache_root: ".teleprompt/cache".to_string(),
+        cache_entries: 0,
+        cache_bytes: 0,
+        voice_probe: Some(teleprompt_cli::cmd::doctor::VoiceProbe {
+            backend: "elevenlabs".to_string(),
+            detail: "https://api.example — reachable, 2 voices".to_string(),
+        }),
+        problems: Vec::new(),
+        notes: Vec::new(),
+    };
+    let rendered = report.render();
+    assert!(rendered.contains("voice elevenlabs"), "{rendered}");
+    assert!(!rendered.contains("kokoro"), "{rendered}");
 }
 
 /// I2's third leg. `doctor` used to catch a bad `backends:` value, silently

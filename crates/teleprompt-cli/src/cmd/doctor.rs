@@ -44,6 +44,19 @@ fn configured_backend_id(project: Option<&Project>) -> String {
         .unwrap_or_else(|| "null".to_string())
 }
 
+/// One backend's server, and what it said.
+///
+/// The id rides along with the answer rather than being implied by it. The
+/// rendered line used to be the literal `voice kokoro`, printed whichever
+/// backend was configured — harmless while Kokoro is the only server-backed
+/// backend and wrong the moment there are two, in the direction that is hard
+/// to notice: a correct-looking label naming the wrong machine's answer.
+#[derive(Debug, Serialize)]
+pub struct VoiceProbe {
+    pub backend: String,
+    pub detail: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DoctorReport {
     /// Whether the project's own files are in a state teleprompt can work
@@ -62,12 +75,12 @@ pub struct DoctorReport {
     pub cache_root: String,
     pub cache_entries: usize,
     pub cache_bytes: u64,
-    /// One line about the project's *configured* `voice.backend`'s server
+    /// What the project's *configured* `voice.backend`'s server had to say
     /// (spec §9), or `None` when that backend has nothing to probe — the
     /// common case, since a freshly scaffolded project's backend is `null`.
     /// Every registered backend still appears in `voice_backends` above;
     /// only the probe is limited to the one actually selected.
-    pub voice_probe: Option<String>,
+    pub voice_probe: Option<VoiceProbe>,
     /// Everything wrong with the project's settings, in the words `check`
     /// would use. Empty on a healthy project.
     ///
@@ -184,13 +197,17 @@ pub async fn doctor_report_with(
 async fn probe_configured_backend(
     voice_registry: &VoiceRegistry,
     backend_id: &str,
-) -> Option<String> {
+) -> Option<VoiceProbe> {
     let backend = voice_registry.get(backend_id)?;
     let kokoro = backend.as_any().downcast_ref::<KokoroVoice>()?;
     let url = kokoro.base_url().to_string();
-    Some(match kokoro.voices().await {
+    let detail = match kokoro.voices().await {
         Ok(voices) => format!("{url} — reachable, {} voices", voices.len()),
         Err(e) => format!("{url} — unreachable ({e})"),
+    };
+    Some(VoiceProbe {
+        backend: backend_id.to_string(),
+        detail,
     })
 }
 
@@ -206,7 +223,11 @@ impl DoctorReport {
             self.voice_backends.join(", ")
         ));
         if let Some(p) = &self.voice_probe {
-            out.push_str(&format!("  voice kokoro     {p}\n"));
+            out.push_str(&format!(
+                "  voice {:<10} {}\n",
+                p.backend,
+                p.detail.as_str()
+            ));
         }
         out.push_str(&format!(
             "  manifest         narration v{}\n",
