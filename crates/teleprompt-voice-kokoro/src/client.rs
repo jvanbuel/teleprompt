@@ -107,6 +107,16 @@ impl Client {
         // parsed above; skipping it silently would hide that a real
         // protocol change happened and hand back a list that looks fine.
         // Same reasoning as `decode_pcm`'s rejection of an odd byte count.
+        //
+        // Compatibility note for whoever revisits this: as of this writing
+        // there is an open, unmerged upstream proposal for Kokoro-FastAPI to
+        // return `{id, name}` objects here instead of bare strings, for
+        // OpenAI-client compatibility. Today's server returns bare strings,
+        // which is what this loop parses and what the error below rejects
+        // as "not a string" if it lands. If it does land, `voices()` needs
+        // to accept an object with an `id` (or `name`) field alongside the
+        // bare-string case — check upstream's release notes before assuming
+        // this rejection is still correct.
         let mut names = Vec::with_capacity(arr.len());
         for item in arr {
             match item.as_str() {
