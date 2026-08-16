@@ -200,8 +200,24 @@ every cached segment and would have failed every consumer's next `--check` with
 that produces the audio changes, and not before.
 
 The cache is a pure function of its key. It is never invalidated by time, and
-`teleprompt cache clean` (§10, already in the CLI synopsis) is how it is
-cleared.
+there is no `teleprompt cache clean` command — an earlier draft of this
+section promised one, which the implementation did not build.
+
+That is a deliberate omission, not a gap. A corrupt or truncated entry
+(`CacheRead::Unusable` in `teleprompt-cache`) is not treated as an error: it
+reads as a miss, the caller is told *why* so it can warn, and the segment is
+re-synthesized and the entry overwritten on the next `dub`. The cache
+self-heals one bad entry at a time without anything reaching for a `clean`
+subcommand, which makes such a command a convenience rather than a recovery
+path — nothing is ever stuck needing one.
+
+For the remaining case — starting over entirely, or reclaiming disk space —
+the manual answer is already complete: `rm -rf .teleprompt/cache`. Because
+the cache is content-addressed and gitignored, that is safe by construction.
+Nothing outside the cache references an entry by path, every entry is
+reproducible from its key, and deleting the whole directory costs
+recomputation, never correctness. A dedicated command would only save typing
+a path teleprompt itself chose and already ignores in version control.
 
 ## 6. Estimated versus measured
 
@@ -343,16 +359,54 @@ boundary had to sit any lower, it would have infected `plan`.
 
 ## 9. `doctor`
 
+`doctor` probes only the project's **configured** `voice.backend` — not
+every backend this build happens to ship. `voice backends` always lists
+everything registered; the probe line under it exists only when the
+configured one has a server to ask about.
+
+A project left at the default `voice.backend: null` has nothing to probe, so
+there is no probe line at all:
+
+```
+teleprompt doctor
+  scene adapters   mock
+  voice backends   kokoro, null
+  manifest         narration v1
+  cache            .teleprompt/cache/voice — 0 entries, 0 bytes
+  note             M0 builds no video, so ffmpeg is not required yet.
+  note             M0 ships no external runtime, so Node and Playwright are not required yet.
+  note             dub writes 16-bit PCM WAV; each manifest's `audio` block records the rate and channel count the backend produced.
+  note             the null backend renders silence of the estimated duration.
+```
+
+A project with `voice.backend: kokoro` gets one probe line, naming the
+configured server and, if it answers, how many voices it reports:
+
 ```
 teleprompt doctor
   scene adapters   mock
   voice backends   kokoro, null
   voice kokoro     http://localhost:8880 — reachable, 54 voices
-  cache            .teleprompt/cache/voice — 12 entries, 3.4 MB
+  manifest         narration v1
+  cache            .teleprompt/cache/voice — 12 entries, 3512480 bytes
+  note             M0 builds no video, so ffmpeg is not required yet.
+  note             M0 ships no external runtime, so Node and Playwright are not required yet.
+  note             dub writes 16-bit PCM WAV; each manifest's `audio` block records the rate and channel count the backend produced.
+  note             the null backend renders silence of the estimated duration.
 ```
 
-`doctor` probes the configured backend and reports unreachable as a warning
-rather than an error, since `check` and `plan` do not need it.
+`cache` reports raw bytes, not a human-readable size — there is exactly one
+reader of this field and it is a person, but the field is also machine-read
+via `--format json`, and a formatted string there would need un-formatting
+by any consumer that wants the number.
+
+An unreachable configured server prints as a warning, not an error — `check`
+and `plan` never need it reachable, so a down Kokoro should not make
+`doctor` look broken:
+
+```
+  voice kokoro     http://localhost:8880 — unreachable (kokoro at http://localhost:8880: cannot list voices: error sending request for url (http://localhost:8880/v1/audio/voices))
+```
 
 ## 10. Determinism and the drift gate
 
