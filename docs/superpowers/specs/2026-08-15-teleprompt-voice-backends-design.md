@@ -243,15 +243,26 @@ timeline committed from a cold cache will drift on the next `dub`.
 Kokoro-FastAPI, an OpenAI-compatible server the user runs locally (Docker or
 pip). teleprompt speaks HTTP to it and owns no Python.
 
-```toml
+```yaml
 voice:
   backend: kokoro
   voice: af_heart
   speed: 1.0
-kokoro:
-  base_url: "http://localhost:8880"
-  timeout_ms: 30000
+backends:
+  kokoro:
+    base_url: "http://localhost:8880"
+    timeout_ms: 30000
+    concurrency: 4
 ```
+
+**Backend settings live under a generic `backends:` map, not a top-level
+`kokoro:` table.** An earlier draft wrote the latter, which would have put a
+named field for one backend into `teleprompt-core`'s `Config` — and a core
+config that has to grow a field per backend is not a pluggable contract, it is
+a hardcoded list with extra steps. Core keeps `backends` as
+`BTreeMap<String, serde_yaml::Value>` and never interprets it; each backend
+deserializes its own slice by its own id. A third-party backend gets
+configuration for free, which is the whole claim §4.1 makes.
 
 ```
 POST {base_url}/v1/audio/speech
@@ -270,8 +281,17 @@ rather than resampled. This is exactly the boundary core spec §6.2 insists on:
 `voice.speed` is a synthesis parameter, and the scheduler still must never
 write it to make a beat fit.
 
-`GET {base_url}/v1/audio/voices` backs `doctor` and validates a configured
-`voice` at `check` time when the server is reachable.
+`GET {base_url}/v1/audio/voices` backs `doctor`, and validates a configured
+`voice` at the start of `dub` — once per run, before any synthesis, so an
+unknown voice fails immediately rather than after twenty segments.
+
+**Not at `check` time.** An earlier draft of this section said `check` would
+validate the voice "when the server is reachable", which contradicts §8: a
+network probe is an `await`, and the inner loop never awaits. It would also
+make the fast offline gate behave differently depending on whether a server
+happens to be running — the same script passing on one machine and failing on
+another — and break `check` on a laptop with no Kokoro at all. `check` validates
+what the artifact says; `dub` validates what the world provides.
 
 Capabilities: `cloning: false`, `cross_lingual: false`, `ssml: false`,
 `speed_control: true`, `word_timings: **false**`. Kokoro-FastAPI does expose
