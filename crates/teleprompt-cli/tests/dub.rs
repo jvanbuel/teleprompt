@@ -727,3 +727,36 @@ async fn an_unknown_kokoro_voice_fails_before_any_segment_is_synthesized() {
         "must fail before the first segment is rendered"
     );
 }
+
+/// Spec §7.1: "a server that is unreachable, slow, or returns non-200 fails
+/// the command with exit 1" — a fact about the machine, not the script.
+/// This pins the other side of the split the test above pins: that one
+/// asserts `Validation` when the server answers and simply does not list
+/// the configured voice; this one asserts `Runtime` when the server never
+/// answers at all. A version that collapsed both `kokoro.voices()` failure
+/// modes into one `DubError` variant would pass only one of the two tests,
+/// depending on which way it collapsed — checking just one arm would not
+/// catch that.
+#[tokio::test]
+async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() {
+    // Port 1 on loopback: nothing listens, connection refused immediately —
+    // the same fixture `teleprompt-voice-kokoro`'s own
+    // `an_unreachable_server_names_the_url` uses, for the same reason (fast
+    // and deterministic, no timeout to wait out).
+    let p = project_with_config_and_script(
+        "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
+         base_url = \"http://127.0.0.1:1\"\n",
+        "# Intro\n\nHello there.\n",
+    );
+
+    match run_dub(&p.project, &p.script, "en", &p.out, false).await {
+        Ok(_) => panic!("an unreachable server must fail, not synthesize"),
+        Err(DubError::Validation(v)) => panic!(
+            "an unreachable server is a runtime failure (exit 1), not a script \
+             problem (exit 2): {v:?}"
+        ),
+        Err(DubError::Runtime(r)) => {
+            assert!(r.contains("127.0.0.1:1"), "must name the url: {r}");
+        }
+    }
+}

@@ -210,10 +210,18 @@ pub async fn run_dub_with(
             .filter_map(|d| d.synth_request.voice.clone())
             .collect::<std::collections::BTreeSet<_>>();
         if !wanted.is_empty() {
+            // Spec §7.1: a server that is unreachable, slow, or returns
+            // non-200 fails the command with exit 1 — that is a fact about
+            // the machine, not the script. Only a server that *answered*
+            // and simply does not list the configured voice is a script
+            // problem (`Validation`, exit 2). `VoiceError`'s `Display`
+            // already names the URL (`Client::fail` prefixes every message
+            // with `kokoro at {base_url}: ...`), so both arms satisfy
+            // §7.1's "names the URL" requirement without repeating it here.
             let available = kokoro
                 .voices()
                 .await
-                .map_err(|e| DubError::Validation(vec![e.to_string()]))?;
+                .map_err(|e| DubError::Runtime(e.to_string()))?;
             let mut problems = Vec::new();
             for v in &wanted {
                 if !available.contains(v) {
