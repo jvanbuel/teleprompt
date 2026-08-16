@@ -1,13 +1,16 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
+use teleprompt_compile::NarrationDetail;
 use teleprompt_core::Hash;
-use teleprompt_voice::VoiceRegistry;
+use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::check::{cache_root, compile_script_with};
 use crate::project::Project;
+use crate::voice::Backends;
 
 /// The `AudioInfo` sample rate for a locale that rendered no audio at all.
 ///
@@ -158,6 +161,111 @@ fn length_mismatch(segment_id: &str, actual_ms: u64, published_ms: u64) -> Optio
     ))
 }
 
+/// What rendering one *cache key* produced: the audio, the format it came
+/// out at (for [`AudioInfo`]), and whether the cache entry it came from had
+/// to be healed (for the author-facing warning).
+///
+/// Deliberately keyed to a `CacheKey`, not a segment — `teleprompt_cache::key`
+/// hashes backend id/version, locale, voice, speed, and the narration
+/// *text*, not the segment id, so two segments with identical text resolve
+/// to the same key and must resolve to the same [`RenderedAudio`]. Rendering
+/// each occurrence independently would double-count synthesis work against
+/// the exact bottleneck fan-out exists to relieve, and would put two tasks
+/// of this run in a `store` race that the cache would have to arbitrate
+/// rather than one this run never enters. See `run_dub_with`'s grouping
+/// step, which is what guarantees there is only ever one task per key and
+/// therefore only ever one `render_one` call per key.
+struct RenderedAudio {
+    wav_bytes: Vec<u8>,
+    rendered_ms: u64,
+    sample_rate: u32,
+    channels: u16,
+    /// Set when the cache read that preceded this render was a corrupt
+    /// sidecar rather than an ordinary miss — see `CacheRead::warning`.
+    cache_warning: Option<String>,
+}
+
+/// One segment's audio: [`RenderedAudio`] plus the identity of the segment
+/// it is published under. Several segments can point at the same
+/// `RenderedAudio` (identical narration text), each getting its own
+/// `Rendered` with its own `segment_id` — the manifest still publishes one
+/// entry per segment even though only one render happened.
+struct Rendered {
+    segment_id: String,
+    wav_bytes: Vec<u8>,
+    rendered_ms: u64,
+    sample_rate: u32,
+    channels: u16,
+    cache_warning: Option<String>,
+}
+
+/// Resolves one *cache key*'s audio: a cache hit already decided it, or a
+/// miss decides it by calling `backend` and storing what comes back.
+/// `detail` is any one narration detail that resolves to this key — when
+/// several segments share a key, the caller picks one representative before
+/// calling this, since every one of them would produce an identical
+/// `SynthRequest` and therefore an identical result. Pulled out of
+/// `run_dub_with`'s render step so each key's work is a self-contained unit
+/// a spawned task can own end to end.
+async fn render_one(
+    backend: &Arc<dyn VoiceBackend>,
+    cache: &VoiceCache,
+    detail: &NarrationDetail,
+) -> Result<RenderedAudio, DubError> {
+    let read = cache
+        .lookup(&detail.cache_key)
+        .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+    let cache_warning = read.warning();
+
+    let (wav_bytes, rendered_ms, sample_rate, channels) = match read.hit() {
+        Some(cached) => (
+            cached.wav,
+            cached.duration_ms,
+            cached.sample_rate,
+            cached.channels,
+        ),
+        None => {
+            // The request `compile` measured, not one rebuilt here.
+            // Rebuilding it dropped `voice` and `speed`, so a script with
+            // `voice: { speed: 2.0 }` published a duration from the
+            // resolved config and a file rendered at the default. One
+            // source of truth.
+            let synthesized = backend
+                .synthesize(&detail.synth_request)
+                .await
+                .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+            // Exactly one task of *this* run ever calls `store` for a given
+            // key — see the grouping step in `run_dub_with`. Another
+            // `teleprompt dub` process on the same project is a different
+            // matter, and `VoiceCache::store` is what arbitrates that: it
+            // publishes atomically, and a writer that loses the race returns
+            // the entry that won, so the bytes below and the sidecar the
+            // recompile reads are always the same entry.
+            let stored = cache
+                .store(
+                    &detail.cache_key,
+                    &synthesized.pcm,
+                    synthesized.word_timings.as_deref(),
+                )
+                .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+            (
+                stored.wav,
+                stored.duration_ms,
+                stored.sample_rate,
+                stored.channels,
+            )
+        }
+    };
+
+    Ok(RenderedAudio {
+        wav_bytes,
+        rendered_ms,
+        sample_rate,
+        channels,
+        cache_warning,
+    })
+}
+
 pub async fn run_dub(
     project: &Project,
     script: &Path,
@@ -165,21 +273,17 @@ pub async fn run_dub(
     out_root: &Path,
     check_only: bool,
 ) -> Result<DubOutput, DubError> {
-    run_dub_with(
-        &crate::voice::registry(),
-        project,
-        script,
-        locale,
-        out_root,
-        check_only,
-    )
-    .await
+    // See the matching comment on `compile_script`: this is the project's
+    // real `backends:` settings, not defaults — script front-matter-level
+    // overrides do not reach construction here, for the same reason.
+    let backends = crate::cmd::check::backends_of(project);
+    run_dub_with(&backends, project, script, locale, out_root, check_only).await
 }
 
-/// [`run_dub`] against a caller-supplied registry. See
+/// [`run_dub`] against caller-supplied backends. See
 /// [`crate::cmd::check::compile_script_with`] for why the seam exists.
 pub async fn run_dub_with(
-    registry: &VoiceRegistry,
+    backends: &Backends,
     project: &Project,
     script: &Path,
     locale: &str,
@@ -192,29 +296,222 @@ pub async fn run_dub_with(
     // the wrong audio into the content-addressed cache under this one's key
     // — permanently, and reported as `measured` by every later `plan`.
     let (compiled, backend) =
-        compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
+        compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
+
+    // Spec §7: the voice list is checked once here, not at `check` time.
+    // `check` must stay offline and synchronous, and a gate that only works
+    // when a server happens to be running is worse than no gate — the same
+    // script would pass on one machine and fail on another.
+    //
+    // `Backends::kokoro` rather than widening the trait: "list your voices"
+    // is not something every backend can do, and adding an
+    // `Option<Vec<String>>`-returning method to a single-method contract to
+    // serve one implementation is exactly the speculative surface the
+    // contract was sharpened to remove. `backends` already built the
+    // concrete `KokoroVoice` this project's settings describe, so asking it
+    // for that handle by the resolved backend's id is the same information
+    // a downcast on `backend` would recover, without needing `backend` to
+    // carry its own concrete type at runtime.
+    if let Some(kokoro) = backends.kokoro(backend.id()) {
+        let wanted = compiled
+            .narration
+            .iter()
+            .filter_map(|d| d.synth_request.voice.clone())
+            .collect::<std::collections::BTreeSet<_>>();
+        if !wanted.is_empty() {
+            // Spec §7.1: a server that is unreachable, slow, or returns
+            // non-200 fails the command with exit 1 — that is a fact about
+            // the machine, not the script. Only a server that *answered*
+            // and simply does not list the configured voice is a script
+            // problem (`Validation`, exit 2). `VoiceError`'s `Display`
+            // already names the URL (`Client::fail` prefixes every message
+            // with `kokoro at {base_url}: ...`), so both arms satisfy
+            // §7.1's "names the URL" requirement without repeating it here.
+            let available = kokoro
+                .voices()
+                .await
+                .map_err(|e| DubError::Runtime(e.to_string()))?;
+            let mut problems = Vec::new();
+            for v in &wanted {
+                if !available.contains(v) {
+                    problems.push(format!(
+                        "voice `{v}` is not available on the kokoro server at {} \
+                         (available: {})",
+                        kokoro.base_url(),
+                        available.join(", ")
+                    ));
+                }
+            }
+            if !problems.is_empty() {
+                return Err(DubError::Validation(problems));
+            }
+        }
+    }
 
     // The same cache `compile_script` just read from, rooted the same way.
     // `compile` only ever looks a key up; `dub` is the one that fills a
-    // miss in, by calling the backend and storing what comes back.
-    let cache = VoiceCache::new(cache_root(project));
+    // miss in, by calling the backend and storing what comes back. `Arc`
+    // rather than a borrow: the fan-out below hands a clone into every
+    // spawned task, and `tokio::task::spawn` requires its future to be
+    // `'static`, which a borrow of this local cannot be. `VoiceCache` is
+    // just a `PathBuf` underneath, so the wrapping costs nothing.
+    let cache = Arc::new(VoiceCache::new(cache_root(project)));
 
-    // Audio is rendered into memory before anything is written to disk, so
-    // a synthesis failure cannot leave a half-populated *output directory*
-    // behind. The cache is a different matter: `cache.store` runs inside
-    // this loop, so a failure after the first segment leaves those entries
-    // on disk. That is deliberate and harmless — the cache is
-    // content-addressed and gitignored, and keeping what was already
-    // synthesized is the point of it.
-    //
+    // Bounded rather than unbounded: a local model server is the
+    // bottleneck, and fanning out wider than it can serve makes the whole
+    // run slower while making its failure modes worse. `concurrency` is a
+    // pure configuration value — `backends` read it out of this project's
+    // settings when it built `KokoroVoice`, so it is read the same way here
+    // rather than asked of the backend after the fact. `null` (and any
+    // backend with no entry in `backends`) has no `concurrency` of its own —
+    // `Backends::kokoro` returns `None` and `limit` falls back to 1. At
+    // `limit = 1` the semaphore admits exactly one task at a time, and —
+    // because spawn order below is document order (see the sort on
+    // `groups`) — that one task is always the earliest-document-order group
+    // still waiting. On the CLI's current-thread runtime that chain (spawn
+    // order → poll order → acquire order → completion order) has no room
+    // for anything to reorder it, which is what makes `limit = 1` a serial
+    // loop in every observable way, including stderr: verified by running a
+    // six-segment `null` project's `dub` six times in a row and diffing the
+    // printed segment-id sequence, not merely asserted.
+    let limit = backends
+        .kokoro(backend.id())
+        .map(|k| k.concurrency())
+        .unwrap_or(1);
+    let permits = Arc::new(tokio::sync::Semaphore::new(limit));
+
+    // Progress is reported in *completion* order with a running count, not
+    // pretended into document order: under genuine concurrency (`limit >
+    // 1`), which segment finishes second is a fact about the server, not
+    // about the script, and a counter that silently relabelled completions
+    // to look sequential would be lying about what just happened. At
+    // `limit = 1` there is no concurrency for completion order to diverge
+    // from document order in the first place — see the note on `limit`
+    // above — so this order is document order there too, not a special
+    // case, just the one case where "completion order" and "document
+    // order" happen to coincide. Progress is still per segment, because a
+    // cold multi-segment script is otherwise minutes of silence (spec §15).
+    let total = compiled.narration.len();
+    let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+    // Grouped by cache key, not spawned one task per segment: two segments
+    // with identical narration text resolve to the same `CacheKey` (see
+    // `RenderedAudio`'s doc comment), so one task renders each *distinct*
+    // key and its result is fanned out to every segment index that shares
+    // it. This is what makes rendering identical text once rather than
+    // once per occurrence, and it is what removes the same-key concurrent
+    // `store` race by construction — there is exactly one task per key, so
+    // there is never a second writer to race.
+    let mut groups: std::collections::HashMap<teleprompt_cache::CacheKey, Vec<usize>> =
+        std::collections::HashMap::new();
+    for (i, detail) in compiled.narration.iter().enumerate() {
+        groups.entry(detail.cache_key.clone()).or_default().push(i);
+    }
+
+    // `HashMap` iteration order is an arbitrary, per-process-random
+    // permutation (`RandomState`), so spawning in `groups.into_values()`
+    // order — as an earlier version of this function did — made stderr
+    // output a different, non-reproducible ordering on every run, on every
+    // backend including `null`. Each group's indices are already ascending
+    // (pushed in the `for (i, ...)` loop above), so sorting the groups
+    // themselves by their first index restores document order as the spawn
+    // order, for free, with no dependency on `HashMap`'s iteration order.
+    let mut groups: Vec<Vec<usize>> = groups.into_values().collect();
+    groups.sort_by_key(|indices| indices[0]);
+
+    let mut tasks: tokio::task::JoinSet<(Vec<usize>, Result<RenderedAudio, DubError>)> =
+        tokio::task::JoinSet::new();
+    for indices in groups {
+        // Any member of the group is a valid representative: identical
+        // cache keys imply identical `SynthRequest`s (same backend/version,
+        // same locale/voice/speed, same text — that is exactly what the key
+        // is a hash of), so whichever one gets rendered is correct for
+        // every index in the group.
+        let detail = compiled.narration[indices[0]].clone();
+        let segment_ids: Vec<String> = indices
+            .iter()
+            .map(|&i| compiled.narration[i].segment_id.clone())
+            .collect();
+        let backend = backend.clone();
+        let cache = cache.clone();
+        let permits = permits.clone();
+        let completed = completed.clone();
+        tasks.spawn(async move {
+            let _permit = permits
+                .acquire_owned()
+                .await
+                .expect("semaphore is never closed");
+            let r = render_one(&backend, &cache, &detail).await;
+            if r.is_ok() {
+                // One "done" line per segment the group covers, not one per
+                // request: progress is a promise to the author about their
+                // script, and a script with two identical sentences still
+                // has two segments to account for, even though only one of
+                // them made a network call.
+                for id in &segment_ids {
+                    let n = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                    eprintln!("  [{n}/{total}] {id} done");
+                }
+            }
+            (indices, r)
+        });
+    }
+
+    // `JoinSet` hands results back in completion order, not document order,
+    // so each one is filed at the indices its task carried rather than
+    // appended. Spec §7.1: one segment's failure fails the run. The first
+    // error to land aborts every task still in flight instead of waiting
+    // for the rest to finish or fail too — a half-dubbed output directory
+    // is worse than none, and there is no reason to keep hammering the
+    // server once the run is already going to fail. Cache entries other
+    // tasks already stored before the abort are left in place: the cache is
+    // content-addressed and gitignored, so keeping what was already
+    // synthesized is only useful, never wrong.
+    let mut slots: Vec<Option<Rendered>> = (0..total).map(|_| None).collect();
+    let mut failure: Option<DubError> = None;
+    while let Some(joined) = tasks.join_next().await {
+        let (indices, r) = joined.expect("a render task panicked");
+        match r {
+            Ok(audio) => {
+                for i in indices {
+                    slots[i] = Some(Rendered {
+                        segment_id: compiled.narration[i].segment_id.clone(),
+                        wav_bytes: audio.wav_bytes.clone(),
+                        rendered_ms: audio.rendered_ms,
+                        sample_rate: audio.sample_rate,
+                        channels: audio.channels,
+                        cache_warning: audio.cache_warning.clone(),
+                    });
+                }
+            }
+            Err(e) => {
+                failure = Some(e);
+                break;
+            }
+        }
+    }
+    if let Some(e) = failure {
+        tasks.abort_all();
+        return Err(e);
+    }
+
+    // Every slot was filled: the loop above only exits early (skipping some
+    // indices) by taking the `failure` branch above, which already
+    // returned.
+    let rendered: Vec<Rendered> = slots
+        .into_iter()
+        .map(|r| r.expect("every index rendered when there was no failure"))
+        .collect();
+
     // Each segment's rendered length rides along with its bytes: the length
     // guard cannot run here, because the number the manifest publishes is
     // not known until the recompile below.
-    let mut audio: Vec<(String, Vec<u8>, u64)> = Vec::new();
+    let mut audio: Vec<(String, Vec<u8>, u64)> = Vec::with_capacity(rendered.len());
 
     // Read off the audio actually produced rather than assumed from any one
-    // backend. First segment wins, so the value is a function of document
-    // order rather than of completion order — the manifest has one
+    // backend. First *document-order* segment wins — `rendered` is already
+    // sorted by index above, so this is a function of the script, not of
+    // whichever request happened to answer first. The manifest has one
     // `AudioInfo` for the whole locale, so a backend that varied its rate
     // per segment would need a wider manifest, not a different pick here.
     let mut audio_format: Option<(u32, u16)> = None;
@@ -225,46 +522,12 @@ pub async fn run_dub_with(
     // by then there is nothing left to notice.
     let mut cache_warnings: Vec<String> = Vec::new();
 
-    for detail in &compiled.narration {
-        let read = cache
-            .lookup(&detail.cache_key)
-            .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
-        if let Some(w) = read.warning() {
-            cache_warnings.push(format!("segment `{}`: {w}", detail.segment_id));
+    for r in rendered {
+        if let Some(w) = &r.cache_warning {
+            cache_warnings.push(format!("segment `{}`: {w}", r.segment_id));
         }
-
-        let (wav_bytes, rendered_ms) = match read.hit() {
-            Some(cached) => {
-                audio_format.get_or_insert((cached.sample_rate, cached.channels));
-                (cached.wav, cached.duration_ms)
-            }
-            None => {
-                // The request `compile` measured, not one rebuilt here.
-                // Rebuilding it dropped `voice` and `speed`, so a script
-                // with `voice: { speed: 2.0 }` published a duration from
-                // the resolved config and a file rendered at the default.
-                // One source of truth.
-                let synthesized = backend
-                    .synthesize(&detail.synth_request)
-                    .await
-                    .map_err(|e| {
-                        DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
-                    })?;
-                let stored = cache
-                    .store(
-                        &detail.cache_key,
-                        &synthesized.pcm,
-                        synthesized.word_timings.as_deref(),
-                    )
-                    .map_err(|e| {
-                        DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
-                    })?;
-                audio_format.get_or_insert((stored.sample_rate, stored.channels));
-                (stored.wav, stored.duration_ms)
-            }
-        };
-
-        audio.push((detail.segment_id.clone(), wav_bytes, rendered_ms));
+        audio_format.get_or_insert((r.sample_rate, r.channels));
+        audio.push((r.segment_id, r.wav_bytes, r.rendered_ms));
     }
 
     // Every segment is warm now — the loop above either found it already
@@ -277,7 +540,7 @@ pub async fn run_dub_with(
     // byte-identical manifests — and it costs one extra compile and no
     // synthesis, since by this point every lookup is a hit.
     let (compiled, _) =
-        compile_script_with(registry, project, script, locale).map_err(DubError::Validation)?;
+        compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
 
     // The guard rail, now that the number the manifest publishes exists.
     //
@@ -293,14 +556,19 @@ pub async fn run_dub_with(
     // Checked before anything is written to `--out`: an output directory
     // that disagrees with its own manifest is worse than no output at all.
     //
-    // Be aware that as the code stands this cannot fire: the recompile above
-    // reads back the very `duration_ms` that `cache.store` just wrote, so the
-    // two numbers are the same value by construction. That is the point —
-    // the invariant it asserts is currently upheld structurally, and the
-    // guard is here to catch the day it stops being. The failure it would
-    // catch is a key or metadata drift that makes the recompile resolve a
-    // *different* entry than the one this run stored, which is silent and
-    // unrecoverable at every layer above.
+    // An earlier version of this comment claimed the guard could not fire,
+    // on the grounds that the recompile reads back the very `duration_ms`
+    // that `cache.store` just wrote. That was only ever true of a single
+    // `dub`: a second process storing the same key could replace the sidecar
+    // between the store and the recompile, and the guard then fired on a run
+    // that had done nothing wrong. `VoiceCache::store` now returns whichever
+    // entry was published rather than always the caller's own, so the two
+    // numbers are again the same entry's — but "cannot fire" is a claim
+    // about a whole system and this one is a guard rail, so it is written to
+    // catch the day that stops holding. The failure it exists for is a key
+    // or metadata drift that makes the recompile resolve a *different* entry
+    // than the one this run stored, which is silent and unrecoverable at
+    // every layer above.
     for (segment_id, _, rendered_ms) in &audio {
         if let Some(published_ms) = published_duration_ms(&compiled.timeline, segment_id) {
             length_mismatch(segment_id, *rendered_ms, published_ms)

@@ -162,8 +162,18 @@ impl VoiceRegistry {
 backend is shared across tasks.
 
 The CLI wires the concrete set, the way it already does for scenes. Adding a
-backend is one line there and one new crate — nothing else in the workspace
-changes.
+backend is one crate and one registry line for the backend itself, plus — the
+first time a backend needs configuration, a capability beyond `synthesize`, or
+safety under concurrent synthesis — a small shared widening of
+`teleprompt-core`, `teleprompt-voice` and `teleprompt-cache` that Kokoro has
+already paid on later backends' behalf. The one cost that recurs per backend
+rather than once is the dependency tree a networked backend drags across the
+workspace's MSRV floor.
+
+The inner loop is where the original one-line claim held and still holds:
+`teleprompt-compile`, `teleprompt-schedule` and `teleprompt-scene` were
+untouched by the first real backend — zero lines — and a second one has no
+reason to reach them either.
 
 ### 4.2 Selection
 
@@ -200,8 +210,24 @@ every cached segment and would have failed every consumer's next `--check` with
 that produces the audio changes, and not before.
 
 The cache is a pure function of its key. It is never invalidated by time, and
-`teleprompt cache clean` (§10, already in the CLI synopsis) is how it is
-cleared.
+there is no `teleprompt cache clean` command — an earlier draft of this
+section promised one, which the implementation did not build.
+
+That is a deliberate omission, not a gap. A corrupt or truncated entry
+(`CacheRead::Unusable` in `teleprompt-cache`) is not treated as an error: it
+reads as a miss, the caller is told *why* so it can warn, and the segment is
+re-synthesized and the entry overwritten on the next `dub`. The cache
+self-heals one bad entry at a time without anything reaching for a `clean`
+subcommand, which makes such a command a convenience rather than a recovery
+path — nothing is ever stuck needing one.
+
+For the remaining case — starting over entirely, or reclaiming disk space —
+the manual answer is already complete: `rm -rf .teleprompt/cache`. Because
+the cache is content-addressed and gitignored, that is safe by construction.
+Nothing outside the cache references an entry by path, every entry is
+reproducible from its key, and deleting the whole directory costs
+recomputation, never correctness. A dedicated command would only save typing
+a path teleprompt itself chose and already ignores in version control.
 
 ## 6. Estimated versus measured
 
@@ -243,15 +269,33 @@ timeline committed from a cold cache will drift on the next `dub`.
 Kokoro-FastAPI, an OpenAI-compatible server the user runs locally (Docker or
 pip). teleprompt speaks HTTP to it and owns no Python.
 
+This is `teleprompt.toml`, not front matter — the two look alike (both nest
+`backends.kokoro` under a `voice` sibling) but only the project file's copy
+is ever read; a script that repeats it in its own front matter gets a
+warning saying so, not a second effective copy. An earlier revision of this
+section wrote the same settings as YAML, which is indistinguishable from
+front matter on the page and misled exactly that paste.
+
 ```toml
-voice:
-  backend: kokoro
-  voice: af_heart
-  speed: 1.0
-kokoro:
-  base_url: "http://localhost:8880"
-  timeout_ms: 30000
+[voice]
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 30000
+concurrency = 4
 ```
+
+**Backend settings live under a generic `backends:` map, not a top-level
+`kokoro:` table.** An earlier draft wrote the latter, which would have put a
+named field for one backend into `teleprompt-core`'s `Config` — and a core
+config that has to grow a field per backend is not a pluggable contract, it is
+a hardcoded list with extra steps. Core keeps `backends` as
+`BTreeMap<String, serde_yaml::Value>` and never interprets it; each backend
+deserializes its own slice by its own id. A third-party backend gets
+configuration for free, which is the whole claim §4.1 makes.
 
 ```
 POST {base_url}/v1/audio/speech
@@ -270,8 +314,17 @@ rather than resampled. This is exactly the boundary core spec §6.2 insists on:
 `voice.speed` is a synthesis parameter, and the scheduler still must never
 write it to make a beat fit.
 
-`GET {base_url}/v1/audio/voices` backs `doctor` and validates a configured
-`voice` at `check` time when the server is reachable.
+`GET {base_url}/v1/audio/voices` backs `doctor`, and validates a configured
+`voice` at the start of `dub` — once per run, before any synthesis, so an
+unknown voice fails immediately rather than after twenty segments.
+
+**Not at `check` time.** An earlier draft of this section said `check` would
+validate the voice "when the server is reachable", which contradicts §8: a
+network probe is an `await`, and the inner loop never awaits. It would also
+make the fast offline gate behave differently depending on whether a server
+happens to be running — the same script passing on one machine and failing on
+another — and break `check` on a laptop with no Kokoro at all. `check` validates
+what the artifact says; `dub` validates what the world provides.
 
 Capabilities: `cloning: false`, `cross_lingual: false`, `ssml: false`,
 `speed_control: true`, `word_timings: **false**`. Kokoro-FastAPI does expose
@@ -323,16 +376,54 @@ boundary had to sit any lower, it would have infected `plan`.
 
 ## 9. `doctor`
 
+`doctor` probes only the project's **configured** `voice.backend` — not
+every backend this build happens to ship. `voice backends` always lists
+everything registered; the probe line under it exists only when the
+configured one has a server to ask about.
+
+A project left at the default `voice.backend: null` has nothing to probe, so
+there is no probe line at all:
+
+```
+teleprompt doctor
+  scene adapters   mock
+  voice backends   kokoro, null
+  manifest         narration v1
+  cache            .teleprompt/cache/voice — 0 entries, 0 bytes
+  note             M0 builds no video, so ffmpeg is not required yet.
+  note             M0 ships no external runtime, so Node and Playwright are not required yet.
+  note             dub writes 16-bit PCM WAV; each manifest's `audio` block records the rate and channel count the backend produced.
+  note             the null backend renders silence of the estimated duration.
+```
+
+A project with `voice.backend: kokoro` gets one probe line, naming the
+configured server and, if it answers, how many voices it reports:
+
 ```
 teleprompt doctor
   scene adapters   mock
   voice backends   kokoro, null
   voice kokoro     http://localhost:8880 — reachable, 54 voices
-  cache            .teleprompt/cache/voice — 12 entries, 3.4 MB
+  manifest         narration v1
+  cache            .teleprompt/cache/voice — 12 entries, 3512480 bytes
+  note             M0 builds no video, so ffmpeg is not required yet.
+  note             M0 ships no external runtime, so Node and Playwright are not required yet.
+  note             dub writes 16-bit PCM WAV; each manifest's `audio` block records the rate and channel count the backend produced.
+  note             the null backend renders silence of the estimated duration.
 ```
 
-`doctor` probes the configured backend and reports unreachable as a warning
-rather than an error, since `check` and `plan` do not need it.
+`cache` reports raw bytes, not a human-readable size — there is exactly one
+reader of this field and it is a person, but the field is also machine-read
+via `--format json`, and a formatted string there would need un-formatting
+by any consumer that wants the number.
+
+An unreachable configured server prints as a warning, not an error — `check`
+and `plan` never need it reachable, so a down Kokoro should not make
+`doctor` look broken:
+
+```
+  voice kokoro     http://localhost:8880 — unreachable (kokoro at http://localhost:8880: cannot list voices: error sending request for url (http://localhost:8880/v1/audio/voices))
+```
 
 ## 10. Determinism and the drift gate
 

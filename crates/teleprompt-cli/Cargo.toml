@@ -20,11 +20,26 @@ teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
+teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
 teleprompt-voice-null = { path = "../teleprompt-voice-null" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio.workspace = true
+serde_yaml.workspace = true
+# `sync` beyond the workspace entry's `rt-multi-thread`/`macros`: `dub` is
+# the only command that fans out concurrently, and it is the only crate
+# that needs `Semaphore`/`JoinSet` — widening the workspace entry would hand
+# `sync` to every crate taking tokio as a dev-dependency for no reason.
+# `time` is for `tokio::time::timeout` around `doctor`'s probe: `doctor` is
+# the command reached for when something is broken, so it must not itself
+# wait out a hanging server's full synthesis `timeout_ms`.
+tokio = { workspace = true, features = ["sync", "time"] }
 
 [dev-dependencies]
 insta.workspace = true
+# `net` and `io-util` beyond the binary's own `rt-multi-thread`/`macros`:
+# `tests/dub.rs` runs an in-process HTTP stub for the kokoro voice-list
+# check, the same way `teleprompt-voice-kokoro`'s own tests do. `time` is
+# for `tokio::time::sleep`, which the same stub uses to hold a synthesis
+# response open long enough for concurrent callers to actually overlap.
+tokio = { workspace = true, features = ["net", "io-util", "time"] }

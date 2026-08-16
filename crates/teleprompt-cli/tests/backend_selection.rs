@@ -101,12 +101,12 @@ impl VoiceBackend for DrawlVoice {
     }
 }
 
-fn registry_with_tone() -> VoiceRegistry {
+fn registry_with_tone() -> teleprompt_cli::voice::Backends {
     let mut r = VoiceRegistry::default();
     r.register(Arc::new(NullVoice::default()));
     r.register(Arc::new(ToneVoice));
     r.register(Arc::new(DrawlVoice));
-    r
+    teleprompt_cli::voice::Backends::from_registry(r)
 }
 
 fn tempdir(tag: &str) -> PathBuf {

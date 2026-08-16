@@ -141,6 +141,86 @@ teleprompt ships no Remotion code and takes no Remotion dependency. Remotion's
 own licence — free for individuals and organisations up to three employees —
 is between you and Remotion.
 
+## Voice backends
+
+`voice.backend` in `teleprompt.toml` (or a script's front matter) picks which
+backend renders narration. It defaults to `null`, which produces silence of
+the estimated duration and needs nothing installed — that is what keeps a
+fresh `cargo run -- new demo` working with no setup. The other backend this
+build ships is `kokoro`, which speaks HTTP to a
+[Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) server you run
+yourself, in Docker or via pip. teleprompt owns no Python and bundles no
+model.
+
+```toml
+[voice]
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 30000
+concurrency = 4
+model = "kokoro"
+```
+
+`base_url` is the server's address; teleprompt does not start or manage it.
+`timeout_ms` (default 30000) bounds each synthesis request. `concurrency`
+(default 4) bounds how many segments `dub` sends at once — a local model
+server is the bottleneck, so unbounded fan-out only makes it slower.
+`model` (default `"kokoro"`) is sent as the request's `model` field, for
+servers hosting more than one checkpoint.
+
+**Kokoro only has to be running for `dub` to succeed.** `check`, `plan`, and
+`diff` read durations out of the cache — a real measurement once a segment
+has been synthesized, a word-count estimate otherwise — and never make a
+network call, never start an async runtime, and never open a socket. That is
+why the whole inner loop (edit prose, `plan`, `diff`, repeat) works on a
+laptop with no Kokoro, no Docker, and nothing else installed. `dub` (and
+`dub --check`) is the one command that fails without a reachable server.
+`doctor` also starts a runtime and opens a socket — it probes whichever
+backend the project has configured — but a down server there is a warning,
+not a failure; see below.
+
+**`base_url` and `model` are part of the cache key.** Pointing `dub` at a
+different server or a different model changes what produced the audio, so
+teleprompt re-synthesizes every segment once and caches the result under the
+new key — the old entries are still on disk, just no longer addressed by
+anything. This falls out of treating the key as "everything that changes the
+audio," but it has a sharp edge worth knowing in advance: `localhost` and
+`127.0.0.1` are two different strings, so retargeting `base_url` from one to
+the other — even though they may be the exact same server — is a full
+re-dub, not a no-op. Use whichever spelling you intend to keep using.
+
+**A broken server fails the run.** An unreachable, slow, or non-200 Kokoro
+fails `dub` with exit 1 naming the URL and the segment, rather than
+substituting silence. The voice fallback ladder moves between tiers an
+author explicitly asked for (`recorded` → `cloned` → `synthetic`); a
+synthesizer that is simply down is not a tier, and silently swapping in
+silence for a voice would be the worst possible failure mode for a tool
+whose whole point is narration.
+
+`doctor` probes whichever backend the project has configured and reports a
+down server as a warning, not an error — `check` and `plan` do not need it
+reachable, so a project's steady state is `dub`-only downtime, not a broken
+build.
+
+### Running the real-server test
+
+Everything above is covered by tests that run in CI against an in-process
+HTTP stub — no real Kokoro, no network, no model download. One test is
+different: `crates/teleprompt-voice-kokoro/tests/real.rs` hits an actual
+server and is `#[ignore]`d so CI never touches it. To run it yourself, start
+a Kokoro-FastAPI server on `localhost:8880` and then:
+
+```bash
+cargo test -p teleprompt-voice-kokoro --test real -- --ignored
+```
+
+It lists the server's voices, synthesizes one sentence, and asserts the
+audio's sample rate, channel count, and duration are plausible.
+
 ## Building and testing
 
 No network, no browser, no Node, and no ffmpeg are required — the whole

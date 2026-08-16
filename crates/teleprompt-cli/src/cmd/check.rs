@@ -10,10 +10,11 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Item};
 use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice::{VoiceBackend, VoiceRegistry};
+use teleprompt_voice::VoiceBackend;
 use teleprompt_voice_null::WpmEstimator;
 
 use crate::project::Project;
+use crate::voice::Backends;
 
 /// Where a project's synthesis cache lives. Shared between `compile_script`
 /// (which only ever reads it) and `dub` (which populates it), so the two
@@ -41,22 +42,49 @@ pub fn compile_script(
     script: &Path,
     locale: &str,
 ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
-    compile_script_with(&crate::voice::registry(), project, script, locale)
+    // The project's own `backends:` settings, read before the script even
+    // exists on disk — `compile_script_with` needs a registry to resolve
+    // the script's chosen backend against, and that resolution happens
+    // before this function knows whether the script's own front matter
+    // carries a further `backends:` override. Front-matter-level backend
+    // settings therefore do not reach construction here; only the
+    // project's are real, not defaults.
+    compile_script_with(&backends_of(project), project, script, locale)
 }
 
-/// [`compile_script`] against a caller-supplied registry.
+/// The project's backends, built once from its settings and told which file
+/// those settings came from so a diagnostic about them can point at it.
+pub fn backends_of(project: &Project) -> Backends {
+    let settings = project.config.backends.clone().unwrap_or_default();
+    crate::voice::backends_for(&settings, &project.config_path().display().to_string())
+}
+
+/// [`compile_script`] against caller-supplied backends.
 ///
 /// The seam exists so a test can register a backend this build does not
 /// ship and watch the whole path — key, synthesis, cache, manifest — follow
-/// it. That is the claim spec §4.1 makes ("adding a backend is one line and
-/// one new crate"), and it is not a claim a workspace with exactly one
-/// backend registered can otherwise check.
+/// it. That is the claim spec §4.1 makes, and it is not a claim a workspace
+/// with exactly one real backend can otherwise check.
 pub fn compile_script_with(
-    registry: &VoiceRegistry,
+    backends: &Backends,
     project: &Project,
     script: &Path,
     locale: &str,
 ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
+    // Before the script is even read: a `backends:` key naming nothing this
+    // build ships is wrong about the project, not about whatever is being
+    // compiled, and it is wrong in the same way for every script in the
+    // repository. It is reported here rather than in `compile_script` so
+    // that `dub` — which goes through this function, not that one — cannot
+    // reach a server on settings the author never successfully wrote.
+    let config_diags = backends.diagnostics();
+    if !config_diags.is_empty() {
+        return Err(render(
+            &Diagnostics(config_diags),
+            &script.display().to_string(),
+        ));
+    }
+
     let name = script
         .file_name()
         .map(|s| s.to_string_lossy().to_string())
@@ -82,12 +110,36 @@ pub fn compile_script_with(
     )
     .map_err(|d| render(&d, &display))?;
 
+    // A script's own front matter can set `backends:` too — `Config`'s
+    // field doc says so, and `resolve` above dutifully merges it into
+    // `program.config.backends`. But the registry `compile_script` built
+    // (or that a caller of `compile_script_with` supplied) was constructed
+    // from the *project's* `backends:` alone, before this script was ever
+    // read — nothing downstream of `resolve` can reach back and
+    // reconstruct an already-built backend. Silently accepting the merge
+    // and never mentioning the mismatch would be the same defect the
+    // segment-backend check below exists to catch: an author-written value
+    // the merge computes and the mechanism it is meant to affect never
+    // sees. A warning, not an error: unlike a segment resolving to an
+    // unregistered backend, the compile still produces something correct —
+    // audio from the *project's* settings for that backend, just not the
+    // script's requested variant of them.
+    let base_backends = project.config.backends.clone().unwrap_or_default();
+    let backend_override_diags =
+        backend_override_warnings(&base_backends, &program.config.backends);
+
     // The *resolved* backend, not just a name: a script's own front matter
     // can override `voice.backend`, and this is what actually produces the
     // segment's audio, so `cache_key` and `backend_version` both need to
     // come from it rather than from the raw string.
-    let backend =
-        crate::voice::resolve(registry, &program.config.voice.backend).map_err(|e| vec![e])?;
+    // A backend whose settings did not validate fails here and only here —
+    // when it is the one this project actually resolves to. Constructing
+    // every backend eagerly used to fail `check` and `plan` with exit 2 on a
+    // `backend = "null"` project because of a Kokoro setting it would never
+    // read. The error is the same one; what changed is who gets it.
+    let backend = backends
+        .resolve(&program.config.voice.backend)
+        .map_err(|d| render(&Diagnostics(vec![d]), &display))?;
 
     // Delivery A supports exactly one backend per compile: `VoiceContext`
     // carries a single `backend_id` for the whole program. A narration item
@@ -164,7 +216,7 @@ pub fn compile_script_with(
         estimator: &estimator,
     };
 
-    let out = compile(
+    let mut out = compile(
         &program,
         &SceneRegistry::with_builtins(),
         &ctx,
@@ -173,7 +225,67 @@ pub fn compile_script_with(
     )
     .map_err(|d| render(&d, &display))?;
 
+    // The bare message, not `render()`'s output: every other entry in
+    // `out.warnings` (cache, scheduling) is a plain sentence with no
+    // severity prefix and no `--> file` line, because both callers of this
+    // vec (`main.rs`'s `eprintln!("warning: {w}")` and `--format json`'s
+    // `warnings` array) add their own framing on top. Pushing a
+    // pre-rendered `"warning: ...\n  --> ..."` string here doubled the
+    // prefix on stderr and made the JSON array mix two shapes.
+    out.warnings
+        .extend(backend_override_diags.into_iter().map(|d| d.message));
+
     Ok((out, backend))
+}
+
+/// Diagnoses `Config.backends` entries that `resolve` computed from a
+/// script's own front matter but that a caller-supplied registry cannot
+/// see — see the call site's comment for why. `base` is what the registry
+/// was (or should have been) built from; `merged` is `program.config
+/// .backends` after `resolve`. One diagnostic per distinct offending
+/// backend id, not per differing key, mirroring the segment-backend
+/// check's "once per group" shape.
+fn backend_override_warnings(
+    base: &std::collections::BTreeMap<String, serde_yaml::Value>,
+    merged: &std::collections::BTreeMap<String, serde_yaml::Value>,
+) -> Vec<Diagnostic> {
+    merged
+        .iter()
+        .filter(|(id, value)| base.get(*id) != Some(*value))
+        .map(|(id, value)| {
+            let keys = differing_backend_keys(base.get(id), value);
+            let which = if keys.is_empty() {
+                String::new()
+            } else {
+                format!(" (`{}`)", keys.join("`, `"))
+            };
+            Diagnostic::warning(format!(
+                "this script's front matter sets `backends.{id}`{which}, but backend settings \
+                 are resolved once per project before any script is parsed, so the override has \
+                 no effect here; set it in `teleprompt.toml` under `backends.{id}` instead"
+            ))
+        })
+        .collect()
+}
+
+/// The mapping keys `after` sets or changes relative to `before`, when both
+/// are YAML mappings. Empty for a non-mapping value (a wholesale
+/// replacement — there is nothing granular to name) or when `before` is
+/// absent (every key is "new", which the caller's message already covers
+/// by naming the backend itself).
+fn differing_backend_keys(
+    before: Option<&serde_yaml::Value>,
+    after: &serde_yaml::Value,
+) -> Vec<String> {
+    let (Some(before), Some(after)) = (before.and_then(|v| v.as_mapping()), after.as_mapping())
+    else {
+        return Vec::new();
+    };
+    after
+        .iter()
+        .filter(|(k, v)| before.get(*k) != Some(*v))
+        .filter_map(|(k, _)| k.as_str().map(str::to_string))
+        .collect()
 }
 
 /// Returns warnings on success, rendered errors on failure. `check` is

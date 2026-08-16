@@ -18,6 +18,15 @@ blake3 = "1"
 clap = { version = "4", features = ["derive"] }
 insta = { version = "1", features = ["json"] }
 pulldown-cmark = { version = "0.11", default-features = false }
+# `idna_adapter` (a transitive dependency, pulled in via `url`) is pinned to
+# 1.2.0 in Cargo.lock, deliberately. Later versions pull in the `icu_*`
+# crates, which require rustc 1.86+ — above the workspace's 1.85 floor. That
+# pin lives only in the lock file; nothing in any manifest enforces it, so a
+# broad `cargo update` (run by a human, or by a tool that doesn't respect the
+# msrv job) can bump it straight past what CI tests. The msrv job runs
+# `cargo check --workspace --locked`, so a re-bumped lock fails loudly on the
+# offending PR — check that job before committing a regenerated lock.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"

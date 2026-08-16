@@ -96,6 +96,19 @@ pub enum VoiceError {
     Other(String),
 }
 
+/// One method that does the work, plus the two that let a caller holding
+/// only `dyn VoiceBackend` identify what it has.
+///
+/// There used to be a fourth method here — `as_any`, an escape hatch for
+/// capabilities genuinely one backend's own, such as listing a server's
+/// voices. It is gone: every caller that needed a backend-specific
+/// capability turned out to already be holding (or able to hold) the
+/// concrete type at the point it was constructed, so downcasting a trait
+/// object back into it was buying nothing the config layer did not already
+/// offer. See `teleprompt-cli`'s `Backends::kokoro` for where that capability
+/// now lives instead. A second server-backed backend needing the same thing
+/// is the signal that this contract should grow a real method for it —
+/// deliberately, not by re-adding a downcast.
 #[async_trait::async_trait]
 pub trait VoiceBackend: Send + Sync {
     fn id(&self) -> &str;

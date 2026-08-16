@@ -1,4 +1,6 @@
-use teleprompt_cache::{key, CachedMeta, VoiceCache};
+use std::sync::{Arc, Barrier};
+
+use teleprompt_cache::{key, CacheKey, CachedMeta, VoiceCache};
 use teleprompt_voice::{Pcm, SynthRequest, WordTiming};
 
 fn req(text: &str, voice: Option<&str>, speed: f64, locale: &str) -> SynthRequest {
@@ -310,4 +312,189 @@ fn an_orphaned_wav_is_not_counted_as_an_entry() {
         "the bytes are still on disk, and a reader wondering where the space \
          went is owed that"
     );
+}
+
+/// The sidecar's `duration_ms` beside the byte length of the WAV actually on
+/// disk. `pcm` is 24 kHz mono, so a WAV of `d` ms is exactly `44 + 48 * d`
+/// bytes — a pair where these two disagree is one where the sidecar
+/// describes audio other than the file next to it.
+fn pair_on_disk(root: &std::path::Path, k: &CacheKey) -> (u64, u64) {
+    let raw = std::fs::read_to_string(root.join(format!("voice/{k}.json"))).expect("sidecar");
+    let side: serde_json::Value = serde_json::from_str(&raw).expect("sidecar parses");
+    let duration_ms = side["duration_ms"].as_u64().expect("duration_ms");
+    let wav_len = std::fs::metadata(root.join(format!("voice/{k}.wav")))
+        .expect("wav")
+        .len();
+    (duration_ms, wav_len)
+}
+
+/// Two threads storing the same key with audio of different lengths, which
+/// is what two concurrent `teleprompt dub` processes on one project do: a
+/// real TTS server is not bit-deterministic, so two renders of one sentence
+/// differ slightly in length and each process stores its own.
+fn race_one_key(root: &std::path::Path, k: &CacheKey, a_ms: u64, b_ms: u64) -> Vec<u64> {
+    let barrier = Arc::new(Barrier::new(2));
+    let handles: Vec<_> = [a_ms, b_ms]
+        .into_iter()
+        .map(|ms| {
+            let root = root.to_path_buf();
+            let k = k.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                let c = VoiceCache::new(&root);
+                let audio = pcm(ms);
+                barrier.wait();
+                c.store(&k, &audio, None).expect("store").duration_ms
+            })
+        })
+        .collect();
+    handles.into_iter().map(|h| h.join().unwrap()).collect()
+}
+
+/// I3. `store` used to be two plain `std::fs::write` calls with nothing
+/// serialising writers, so the interleaving `wav_A → wav_B → sidecar_B →
+/// sidecar_A` left a well-formed sidecar beside audio it does not describe.
+/// Nothing above this layer can detect that: on a cache *hit* the duration
+/// `dub` publishes and the duration it checks the file against both come
+/// from this one sidecar, so the WAV-length guard compares a value against
+/// itself.
+///
+/// The audio is deliberately *small*. The dangerous interleaving needs each
+/// writer's two writes to be pulled apart, which happens when the writes are
+/// short enough that scheduling jitter dominates them — with ~1 MB payloads
+/// the long WAV write swamps the gap and the pair almost always comes out
+/// consistent by luck. At 1 ms and 2 ms of audio the pre-fix `store`
+/// mismatches on 10–30% of rounds, so sixty-four rounds against sixty-four
+/// distinct keys fails it every time (measured: ten runs, 6–19 bad pairs
+/// each). No hook or fault injection — this is the real `store`.
+#[test]
+fn concurrent_stores_of_one_key_leave_a_consistent_pair() {
+    let root = tempdir("race-pair");
+    for round in 0..64 {
+        let k = key(
+            "null",
+            "0.1.0",
+            &req(&format!("race {round}"), None, 1.0, "en"),
+        );
+        race_one_key(&root, &k, 1, 2);
+
+        let (duration_ms, wav_len) = pair_on_disk(&root, &k);
+        assert_eq!(
+            wav_len,
+            44 + 48 * duration_ms,
+            "round {round}: sidecar says {duration_ms}ms but the WAV beside it is \
+             {wav_len} bytes"
+        );
+    }
+}
+
+/// The same race seen from the caller's side. `dub` uses what `store`
+/// returns for the audio it writes out, then recompiles against the cache
+/// and publishes the duration the *sidecar* holds — so a `store` that hands
+/// back a length the published sidecar does not agree with makes `dub` fail
+/// its own length guard and blame itself for an external race. Whoever wins
+/// the key, both callers must be told the same thing the sidecar says.
+#[test]
+fn every_racing_store_returns_the_entry_that_was_published() {
+    let root = tempdir("race-return");
+    for round in 0..64 {
+        let k = key(
+            "null",
+            "0.1.0",
+            &req(&format!("race {round}"), None, 1.0, "en"),
+        );
+        let returned = race_one_key(&root, &k, 1, 2);
+
+        let (duration_ms, _) = pair_on_disk(&root, &k);
+        for got in returned {
+            assert_eq!(
+                got, duration_ms,
+                "round {round}: store returned {got}ms while the cache holds \
+                 {duration_ms}ms"
+            );
+        }
+    }
+}
+
+/// A published entry is immutable: the key is a hash of everything that
+/// changes the audio, so any complete entry under it is *the* answer, and a
+/// later store of the same key adopts it rather than replacing it. This is
+/// what stops a second writer from invalidating a duration the first writer
+/// has already published in a manifest.
+#[test]
+fn storing_a_key_that_is_already_published_adopts_the_published_entry() {
+    let root = tempdir("immutable");
+    let c = VoiceCache::new(&root);
+    let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
+
+    let first = c.store(&k, &pcm(1000), None).unwrap();
+    let second = c.store(&k, &pcm(2000), None).unwrap();
+
+    assert_eq!(second.duration_ms, first.duration_ms);
+    assert_eq!(second.wav, first.wav);
+    let (duration_ms, wav_len) = pair_on_disk(&root, &k);
+    assert_eq!(duration_ms, 1000);
+    assert_eq!(wav_len, 44 + 48 * 1000);
+}
+
+/// A WAV with no sidecar beside it is a half-written entry from an
+/// interrupted `dub`. `lookup` reads it as a miss, so the next run
+/// re-synthesizes — and `store` has to be able to replace it, or the entry
+/// stays a permanent miss and the segment is re-rendered on every run
+/// forever.
+#[test]
+fn an_orphaned_wav_is_healed_by_the_next_store() {
+    let root = tempdir("heal-orphan");
+    let c = VoiceCache::new(&root);
+    let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
+
+    c.store(&k, &pcm(1000), None).unwrap();
+    std::fs::remove_file(root.join(format!("voice/{k}.json"))).unwrap();
+
+    let healed = c.store(&k, &pcm(2000), None).unwrap();
+    assert_eq!(healed.duration_ms, 2000);
+    let (duration_ms, wav_len) = pair_on_disk(&root, &k);
+    assert_eq!(duration_ms, 2000);
+    assert_eq!(wav_len, 44 + 48 * 2000);
+    assert_eq!(c.lookup(&k).unwrap().hit().expect("hit").duration_ms, 2000);
+}
+
+/// The corrupt-sidecar path, end to end: `lookup` reads it as a miss and
+/// warns, and the next `store` must overwrite it rather than treating the
+/// key as already published and adopting an entry nothing can parse.
+#[test]
+fn a_corrupt_sidecar_is_healed_by_the_next_store() {
+    let root = tempdir("heal-corrupt");
+    let c = VoiceCache::new(&root);
+    let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
+
+    c.store(&k, &pcm(1000), None).unwrap();
+    std::fs::write(root.join(format!("voice/{k}.json")), "{ not json").unwrap();
+
+    let healed = c.store(&k, &pcm(2000), None).unwrap();
+    assert_eq!(healed.duration_ms, 2000);
+    let (duration_ms, wav_len) = pair_on_disk(&root, &k);
+    assert_eq!(duration_ms, 2000);
+    assert_eq!(wav_len, 44 + 48 * 2000);
+}
+
+/// A store leaves nothing behind but the pair itself. Temp files are named
+/// per process and per call so two writers never share one, and both the
+/// success and the failure paths remove them — a crashed run must not
+/// litter a directory `doctor` reports the size of.
+#[test]
+fn a_store_leaves_no_temporary_files_behind() {
+    let root = tempdir("no-litter");
+    let c = VoiceCache::new(&root);
+    for i in 0..4 {
+        let k = key("null", "0.1.0", &req(&format!("t{i}"), None, 1.0, "en"));
+        c.store(&k, &pcm(100), None).unwrap();
+    }
+    let names: Vec<String> = std::fs::read_dir(root.join("voice"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|n| !n.ends_with(".wav") && !n.ends_with(".json"))
+        .collect();
+    assert!(names.is_empty(), "left behind: {names:?}");
 }

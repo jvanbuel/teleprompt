@@ -17,6 +17,17 @@ pub struct Config {
     /// that is M1's job. Kept here rather than discarded so the value an
     /// author wrote survives the merge instead of being silently lost.
     pub default_scene: Option<String>,
+    /// Backend-native settings, keyed by backend id, exactly as written
+    /// under `backends:` in config or front matter.
+    ///
+    /// Core never interprets these. It cannot: the whole point of the
+    /// pluggable contract is that teleprompt does not know what backends
+    /// exist, so a named field per backend here would be a hardcoded list
+    /// wearing a config's clothes. Each backend deserializes its own slice
+    /// by its own id, and an id this build does not ship is not an error at
+    /// this layer — `voice.backend` selection reports that, with the
+    /// available list.
+    pub backends: BTreeMap<String, serde_yaml::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -120,6 +131,7 @@ impl Default for Config {
             },
             scenes: BTreeMap::new(),
             default_scene: None,
+            backends: BTreeMap::new(),
         }
     }
 }
@@ -150,6 +162,7 @@ pub struct PartialConfig {
     pub timing: Option<PartialTiming>,
     pub output: Option<PartialOutput>,
     pub scene: Option<PartialScenes>,
+    pub backends: Option<BTreeMap<String, serde_yaml::Value>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -424,6 +437,28 @@ impl Config {
                     set!(entry.adapter, ps.adapter.clone());
                     for (k, v) in &ps.settings {
                         entry.settings.insert(k.clone(), v.clone());
+                    }
+                }
+            }
+            if let Some(bs) = &layer.backends {
+                for (id, settings) in bs {
+                    // Merge the inner mapping key by key so a script
+                    // overriding one setting does not discard the project's
+                    // others. A non-mapping value replaces wholesale —
+                    // there is nothing sensible to merge into.
+                    match (c.backends.get_mut(id), settings.as_mapping()) {
+                        (Some(existing), Some(new)) => {
+                            if let Some(target) = existing.as_mapping_mut() {
+                                for (k, v) in new {
+                                    target.insert(k.clone(), v.clone());
+                                }
+                                continue;
+                            }
+                            c.backends.insert(id.clone(), settings.clone());
+                        }
+                        _ => {
+                            c.backends.insert(id.clone(), settings.clone());
+                        }
                     }
                 }
             }
