@@ -170,12 +170,11 @@ fn length_mismatch(segment_id: &str, actual_ms: u64, published_ms: u64) -> Optio
 /// *text*, not the segment id, so two segments with identical text resolve
 /// to the same key and must resolve to the same [`RenderedAudio`]. Rendering
 /// each occurrence independently would double-count synthesis work against
-/// the exact bottleneck fan-out exists to relieve, and — because
-/// `VoiceCache::store` truncates-then-writes rather than writing atomically
-/// — two concurrent tasks storing under the same key would be a torn-write
-/// hazard. See `run_dub_with`'s grouping step, which is what guarantees
-/// there is only ever one task per key and therefore only ever one
-/// `render_one` call per key.
+/// the exact bottleneck fan-out exists to relieve, and would put two tasks
+/// of this run in a `store` race that the cache would have to arbitrate
+/// rather than one this run never enters. See `run_dub_with`'s grouping
+/// step, which is what guarantees there is only ever one task per key and
+/// therefore only ever one `render_one` call per key.
 struct RenderedAudio {
     wav_bytes: Vec<u8>,
     rendered_ms: u64,
@@ -235,9 +234,13 @@ async fn render_one(
                 .synthesize(&detail.synth_request)
                 .await
                 .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
-            // Exactly one task ever calls `store` for a given key — see the
-            // grouping step in `run_dub_with` — so there is no concurrent
-            // writer to race here.
+            // Exactly one task of *this* run ever calls `store` for a given
+            // key — see the grouping step in `run_dub_with`. Another
+            // `teleprompt dub` process on the same project is a different
+            // matter, and `VoiceCache::store` is what arbitrates that: it
+            // publishes atomically, and a writer that loses the race returns
+            // the entry that won, so the bytes below and the sidecar the
+            // recompile reads are always the same entry.
             let stored = cache
                 .store(
                     &detail.cache_key,
@@ -548,14 +551,19 @@ pub async fn run_dub_with(
     // Checked before anything is written to `--out`: an output directory
     // that disagrees with its own manifest is worse than no output at all.
     //
-    // Be aware that as the code stands this cannot fire: the recompile above
-    // reads back the very `duration_ms` that `cache.store` just wrote, so the
-    // two numbers are the same value by construction. That is the point —
-    // the invariant it asserts is currently upheld structurally, and the
-    // guard is here to catch the day it stops being. The failure it would
-    // catch is a key or metadata drift that makes the recompile resolve a
-    // *different* entry than the one this run stored, which is silent and
-    // unrecoverable at every layer above.
+    // An earlier version of this comment claimed the guard could not fire,
+    // on the grounds that the recompile reads back the very `duration_ms`
+    // that `cache.store` just wrote. That was only ever true of a single
+    // `dub`: a second process storing the same key could replace the sidecar
+    // between the store and the recompile, and the guard then fired on a run
+    // that had done nothing wrong. `VoiceCache::store` now returns whichever
+    // entry was published rather than always the caller's own, so the two
+    // numbers are again the same entry's — but "cannot fire" is a claim
+    // about a whole system and this one is a guard rail, so it is written to
+    // catch the day that stops holding. The failure it exists for is a key
+    // or metadata drift that makes the recompile resolve a *different* entry
+    // than the one this run stored, which is silent and unrecoverable at
+    // every layer above.
     for (segment_id, _, rendered_ms) in &audio {
         if let Some(published_ms) = published_duration_ms(&compiled.timeline, segment_id) {
             length_mismatch(segment_id, *rendered_ms, published_ms)
