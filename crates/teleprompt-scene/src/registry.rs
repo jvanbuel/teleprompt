@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::contract::SceneCompiler;
 use crate::mock::MockScene;
+use crate::vhs::VhsScene;
 
 #[derive(Default)]
 pub struct SceneRegistry {
@@ -12,6 +13,7 @@ impl SceneRegistry {
     pub fn with_builtins() -> Self {
         let mut r = Self::default();
         r.register(Box::new(MockScene));
+        r.register(Box::new(VhsScene));
         r
     }
 

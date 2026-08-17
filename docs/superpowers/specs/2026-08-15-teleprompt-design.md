@@ -728,21 +728,45 @@ its own PTY rather than shelling out to `vhs`, because VHS renders a whole tape
 to one file and cannot resume — there would be no way to interleave narration.
 The language is reused; the runtime is not.
 
+> **As shipped.** Two departures from the sketch below, both found while
+> writing the adapter. The mark is spelled `# mark`, a VHS comment, rather
+> than a `Mark` command; and `estimate` returns `Estimated`, not `Exact`.
+> Both are argued at the end of this section.
+
 ```
 Set TypingSpeed 50ms
 Type "cargo build --release"
 Enter
 Sleep 2s
-Mark
+# mark
 Type "./target/release/acme --help"
 Enter
 ```
 
-`Mark` is teleprompt's one addition to the grammar, and tapes without it remain
-valid VHS. Because tapes carry explicit `Sleep` and `Set TypingSpeed`, `estimate`
-is exact — no measuring pass — and `Set TypingSpeed` is the natural knob for
-`stretch`. Output directives (`Output`, `Set Shell`) that conflict with
-teleprompt's own capture are rejected by `validate` with an explanatory error.
+**The mark is a comment, so the tape stays a tape.** An earlier draft added
+`Mark` to the grammar and claimed that tapes without it remain valid VHS —
+true, and beside the point, since every tape that *uses* the feature stops
+being valid VHS. `include=` is what makes the distinction matter: the whole
+reason to point a fence at a real `demo.tape` is that `vhs demo.tape` runs it,
+editors highlight it, and VHS's own tooling understands it. A grammar addition
+forfeits all three the moment an author reaches for a mark. `# mark` is inert
+to VHS and costs nothing but the convention that this one comment is
+reserved. Consistent with §7.1: the block body is adapter-native, and
+teleprompt's additions live around it, not inside it.
+
+**`estimate` returns `Estimated`, not `Exact`.** `Sleep` and `Set TypingSpeed`
+are exact, and if they were all a tape contained the earlier claim would
+hold. `Wait` is the exception: it blocks until the shell prompt returns, so
+its duration is whatever the command underneath takes — `cargo build` in the
+example above — and that number is nowhere in the tape. A tape without `Wait`
+does estimate exactly; the adapter cannot promise that in general, and
+`Estimated` is the honest signal to the compiler that M1's measuring pass has
+something to improve. `Exact` is reserved for adapters whose language states
+the whole truth about its own timing.
+
+`Set TypingSpeed` remains the natural knob for `stretch-action`. Output
+directives (`Output`, `Set Shell`) that conflict with teleprompt's own capture
+are rejected by `validate` with an explanatory error.
 
 ### 7.6 Later adapters
 
