@@ -106,3 +106,127 @@ fn folding_configuration_into_version_separates_two_instances() {
          cache entries, and serve one voice's audio under the other's name"
     );
 }
+
+/// A backend that claims word timings and does not deliver them.
+struct LyingVoice;
+
+#[async_trait]
+impl VoiceBackend for LyingVoice {
+    fn id(&self) -> &str {
+        "lying"
+    }
+
+    fn capabilities(&self) -> VoiceCapabilities {
+        VoiceCapabilities {
+            languages: LanguageSupport::Any,
+            cloning: false,
+            cross_lingual: false,
+            word_timings: true,
+            ssml: false,
+            speed: None,
+            version: "lying-1".to_string(),
+        }
+    }
+
+    async fn synthesize(&self, _req: &SynthRequest) -> Result<Synthesized, VoiceError> {
+        Ok(Synthesized {
+            pcm: teleprompt_voice::Pcm {
+                sample_rate: 48_000,
+                channels: 1,
+                samples: vec![0; 48],
+            },
+            word_timings: None,
+        })
+    }
+}
+
+/// A backend that keeps the promise.
+struct TimedVoice;
+
+#[async_trait]
+impl VoiceBackend for TimedVoice {
+    fn id(&self) -> &str {
+        "timed"
+    }
+
+    fn capabilities(&self) -> VoiceCapabilities {
+        VoiceCapabilities {
+            word_timings: true,
+            ..LyingVoice.capabilities()
+        }
+    }
+
+    async fn synthesize(&self, _req: &SynthRequest) -> Result<Synthesized, VoiceError> {
+        Ok(Synthesized {
+            word_timings: Some(vec![teleprompt_voice::WordTiming {
+                word: "hello".to_string(),
+                start_ms: 0,
+                end_ms: 1,
+            }]),
+            ..LyingVoice.synthesize(_req).await.unwrap()
+        })
+    }
+}
+
+fn any_request() -> SynthRequest {
+    SynthRequest {
+        text: "hello".to_string(),
+        locale: "en".to_string(),
+        voice: None,
+        speed: 1.0,
+    }
+}
+
+/// The invariant `Synthesized`'s doc has asserted since M1 and nothing has
+/// ever enforced, because nothing in the workspace reported `true`. The
+/// ElevenLabs backend will, so it is pinned here first — a contract clause
+/// that only starts being checked once something depends on it has already
+/// had its chance to be wrong.
+async fn assert_word_timings_invariant(b: &dyn VoiceBackend) {
+    let out = b
+        .synthesize(&any_request())
+        .await
+        .expect("synthesis succeeded");
+    if b.capabilities().word_timings {
+        assert!(
+            out.word_timings.is_some(),
+            "backend `{}` claims word_timings but returned None",
+            b.id()
+        );
+    }
+}
+
+#[tokio::test]
+#[should_panic(expected = "claims word_timings but returned None")]
+async fn a_backend_that_claims_timings_must_produce_them() {
+    assert_word_timings_invariant(&LyingVoice).await;
+}
+
+#[tokio::test]
+async fn a_backend_that_delivers_timings_satisfies_the_invariant() {
+    assert_word_timings_invariant(&TimedVoice).await;
+}
+
+/// And a backend that claims nothing is free to return nothing — the
+/// invariant is one-directional, which is what lets `null` and `kokoro`
+/// stay as they are.
+#[tokio::test]
+async fn a_backend_that_claims_no_timings_may_return_none() {
+    struct Quiet;
+    #[async_trait]
+    impl VoiceBackend for Quiet {
+        fn id(&self) -> &str {
+            "quiet"
+        }
+        fn capabilities(&self) -> VoiceCapabilities {
+            VoiceCapabilities {
+                word_timings: false,
+                ..LyingVoice.capabilities()
+            }
+        }
+        async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
+            LyingVoice.synthesize(req).await
+        }
+    }
+    assert_word_timings_invariant(&Quiet).await;
+}

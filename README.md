@@ -193,11 +193,33 @@ audio," but it has a sharp edge worth knowing in advance: `localhost` and
 the other — even though they may be the exact same server — is a full
 re-dub, not a no-op. Use whichever spelling you intend to keep using.
 
-**A broken server fails the run.** An unreachable, slow, or non-200 Kokoro
-fails `dub` with exit 1 naming the URL and the segment, rather than
-substituting silence. The voice fallback ladder moves between tiers an
-author explicitly asked for (`recorded` → `cloned` → `synthetic`); a
-synthesizer that is simply down is not a tier, and silently swapping in
+**`voice.speed` is checked against the backend, offline.** Each backend
+declares the range of speeds it accepts — `kokoro` takes `0.25` to `4.0`,
+which is what Kokoro-FastAPI itself enforces. A speed outside that range
+fails `check`, in the inner loop, with no network call and nothing spent.
+This exists because the alternative is silent: a backend that clamps
+server-side would accept `speed = 9.0`, return real audio, and publish a
+`measured` duration that is perfectly honest about a speed you never asked
+for. The output would be wrong and every signal would say it was fine.
+
+**A broken server fails the run — after trying again.** A transient failure
+(a connection refused, a timeout, a 5xx, a rate limit) is retried with
+exponential backoff and jitter, up to four attempts. A server having a bad
+moment halfway through a long `dub` no longer discards everything already
+synthesized. Failures that retrying cannot fix — a malformed request, an
+unknown voice, a response body that is not what the protocol promised — fail
+on the first answer, because trying them again would only restate them more
+slowly.
+
+Backoff is jittered so a wide fan-out does not retry in lockstep and rebuild
+the pile-up that caused the limit. The jitter is derived from each segment's
+own identity rather than drawn at random, so two runs of the same project
+retry on the same schedule.
+
+When retries are exhausted, `dub` exits 1 naming the URL and the segment,
+rather than substituting silence. The voice fallback ladder moves between
+tiers an author explicitly asked for (`recorded` → `cloned` → `synthetic`);
+a synthesizer that is simply down is not a tier, and silently swapping in
 silence for a voice would be the worst possible failure mode for a tool
 whose whole point is narration.
 
