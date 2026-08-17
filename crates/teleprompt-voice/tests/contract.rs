@@ -36,10 +36,7 @@ impl VoiceBackend for ConfiguredVoice {
         // The point of the test: a backend must be able to name *itself* in
         // its own error. With `backend: &'static str` this line did not
         // compile, because `id()` returns `&str`.
-        Err(VoiceError::Unsupported {
-            backend: self.id().to_string(),
-            what: "word timings".to_string(),
-        })
+        Err(VoiceError::unsupported(self.id(), "word timings"))
     }
 }
 
@@ -53,13 +50,47 @@ fn backend(endpoint: &str) -> ConfiguredVoice {
 #[test]
 fn a_backend_whose_id_is_not_a_literal_can_name_itself_in_unsupported() {
     let b = backend("alpha");
-    let e = VoiceError::Unsupported {
-        backend: b.id().to_string(),
-        what: "cloning".to_string(),
-    };
+    let e = VoiceError::unsupported(b.id(), "cloning");
     let rendered = e.to_string();
     assert!(rendered.contains("configured-alpha"), "{rendered}");
     assert!(rendered.contains("cloning"), "{rendered}");
+}
+
+#[test]
+fn error_kinds_classify_retryability() {
+    use teleprompt_voice::ErrorKind;
+    assert!(ErrorKind::RateLimited.retryable());
+    assert!(ErrorKind::Transient.retryable());
+    for k in [
+        ErrorKind::Auth,
+        ErrorKind::Quota,
+        ErrorKind::InvalidRequest,
+        ErrorKind::Protocol,
+        ErrorKind::Unsupported,
+        ErrorKind::Internal,
+    ] {
+        assert!(!k.retryable(), "{k:?} must not be retryable");
+    }
+}
+
+/// `Display` prefixes the backend, so a `detail` that repeats it would say
+/// the name twice. Every construction site depends on this.
+#[test]
+fn error_display_names_the_backend_once() {
+    let e = VoiceError::new(
+        "kokoro",
+        teleprompt_voice::ErrorKind::Transient,
+        "no response within 30000ms",
+    );
+    assert_eq!(e.to_string(), "kokoro: no response within 30000ms");
+}
+
+#[test]
+fn retry_after_is_absent_unless_set() {
+    let e = VoiceError::new("x", teleprompt_voice::ErrorKind::RateLimited, "slow down");
+    assert!(e.retry_after.is_none());
+    let e = e.with_retry_after(std::time::Duration::from_secs(2));
+    assert_eq!(e.retry_after, Some(std::time::Duration::from_secs(2)));
 }
 
 /// The escape hatch documented on `VoiceCapabilities::version`: two

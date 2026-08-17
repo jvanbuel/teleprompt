@@ -4,7 +4,8 @@
 
 use teleprompt_voice::async_trait;
 use teleprompt_voice::{
-    LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
+    ErrorKind, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
+    VoiceError,
 };
 
 pub struct StubVoice {
@@ -36,6 +37,10 @@ impl VoiceBackend for StubVoice {
     }
 
     async fn synthesize(&self, _req: &SynthRequest) -> Result<Synthesized, VoiceError> {
-        Err(VoiceError::Other("stub backend cannot synthesize".into()))
+        Err(VoiceError::new(
+            self.id,
+            ErrorKind::Unsupported,
+            "stub backend cannot synthesize",
+        ))
     }
 }

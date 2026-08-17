@@ -12,8 +12,8 @@ pub mod source;
 pub mod wav;
 
 pub use contract::{
-    LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
-    WordTiming,
+    ErrorKind, LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
+    VoiceError, WordTiming,
 };
 pub use estimator::DurationEstimator;
 pub use registry::VoiceRegistry;

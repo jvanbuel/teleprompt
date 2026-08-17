@@ -1,7 +1,7 @@
 mod stub;
 
 use stub::{spawn, Reply};
-use teleprompt_voice::{SynthRequest, VoiceBackend, VoiceError};
+use teleprompt_voice::{ErrorKind, SynthRequest, VoiceBackend};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice, KOKORO_SAMPLE_RATE};
 
 fn req(text: &str) -> SynthRequest {
@@ -104,7 +104,54 @@ async fn a_non_200_names_the_url_and_the_status() {
     assert!(msg.contains("500"), "{msg}");
     assert!(msg.contains(&s.base_url), "{msg}");
     // Spec §7.1: never a silent fallback to silence.
-    assert!(!matches!(err, VoiceError::Unsupported { .. }));
+    assert_ne!(err.kind, ErrorKind::Unsupported);
+    // A 5xx is the server having a bad moment, not the request being wrong.
+    assert_eq!(err.kind, ErrorKind::Transient);
+    assert!(err.kind.retryable());
+}
+
+#[tokio::test]
+async fn a_429_is_rate_limited_and_carries_retry_after() {
+    let s = spawn(Reply::StatusWithHeader {
+        code: 429,
+        body: "slow down".to_string(),
+        header: ("retry-after", "3"),
+    })
+    .await;
+    let err = backend(&s.base_url, 30_000)
+        .synthesize(&req("x"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind, ErrorKind::RateLimited);
+    assert!(err.kind.retryable());
+    assert_eq!(err.retry_after, Some(std::time::Duration::from_secs(3)));
+}
+
+/// A 4xx that is not a rate limit is the request's own problem, so retrying
+/// it would only spend time restating it.
+#[tokio::test]
+async fn a_400_is_an_invalid_request_and_is_not_retried() {
+    let s = spawn(Reply::Status(400, "bad voice".to_string())).await;
+    let err = backend(&s.base_url, 30_000)
+        .synthesize(&req("x"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind, ErrorKind::InvalidRequest);
+    assert!(!err.kind.retryable());
+}
+
+/// A 200 whose bytes are not what `response_format: "pcm"` promised. This is
+/// `Protocol`, emphatically not `Transient`: the server answered, and it
+/// will answer the same way next time.
+#[tokio::test]
+async fn an_odd_byte_count_is_protocol_not_transient() {
+    let s = spawn(Reply::Ok(vec![0x01, 0x02, 0x03])).await;
+    let err = backend(&s.base_url, 30_000)
+        .synthesize(&req("x"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind, ErrorKind::Protocol);
+    assert!(!err.kind.retryable());
 }
 
 #[tokio::test]

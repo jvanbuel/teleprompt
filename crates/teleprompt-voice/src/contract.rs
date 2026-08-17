@@ -83,17 +83,107 @@ impl Pcm {
     }
 }
 
+/// What went wrong, and whether trying again could help.
+///
+/// `backend` is a `String`, not a `&'static str`: `id()` returns `&str`, so
+/// a backend whose id is not a literal — one crate serving several
+/// configured endpoints, which is the shape a network backend wants — could
+/// not name itself in its own error. One allocation on an error path is the
+/// whole cost.
+///
+/// This was an enum until a backend arrived that could fail in ways worth
+/// telling apart. The enum carried `backend` per-variant, so each new
+/// variant re-litigated whether to include it and `Other(String)` simply
+/// lost it — which is why Kokoro's client hand-formatted its base URL into a
+/// bare string. Those are fields now, so a caller can render a failure
+/// according to what it is doing instead of every caller printing one
+/// pre-baked sentence.
 #[derive(Debug, thiserror::Error)]
-pub enum VoiceError {
-    /// `backend` is a `String`, not a `&'static str`: `id()` returns `&str`,
-    /// so a backend whose id is not a literal — one crate serving several
-    /// configured endpoints, which is the shape a network backend wants —
-    /// could not name itself in its own error. One allocation on an error
-    /// path is the whole cost.
-    #[error("backend `{backend}` does not support {what}")]
-    Unsupported { backend: String, what: String },
-    #[error("{0}")]
-    Other(String),
+#[error("{backend}: {detail}")]
+pub struct VoiceError {
+    pub backend: String,
+    pub kind: ErrorKind,
+    /// Already scoped to the backend by the `Display` impl above, so it must
+    /// not repeat the backend's name.
+    pub detail: String,
+    /// Only ever `Some` on `RateLimited`, and only when the server said so.
+    pub retry_after: Option<std::time::Duration>,
+}
+
+/// How a failure should be treated. Deliberately about *treatment* rather
+/// than about HTTP: a backend that speaks no HTTP still classifies into
+/// these.
+///
+/// `#[non_exhaustive]` because the next backend will bring a kind nobody
+/// predicted, and that should not be a breaking change for a workspace where
+/// most callers only ever ask `retryable()`. The cost is real and worth
+/// stating: a `match` that should have grown an arm falls through to its
+/// wildcard instead of failing to compile, so every wildcard arm over
+/// `ErrorKind` must be written to be correct for a kind it has never seen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ErrorKind {
+    /// Credentials missing, malformed, or rejected.
+    Auth,
+    /// Credentials fine, allowance spent. Distinct from `RateLimited`
+    /// because waiting does not help.
+    Quota,
+    /// Too many requests, or too many at once.
+    RateLimited,
+    /// The server rejected what we sent.
+    ///
+    /// Distinct from `Unsupported`: both mean the author must change
+    /// something, but only this one proves a server was reached and a
+    /// credential accepted — the first thing worth knowing when a `dub`
+    /// fails.
+    InvalidRequest,
+    /// DNS, TLS, connection refused, timeout, 5xx.
+    Transient,
+    /// A 2xx whose body was not what the protocol promised.
+    Protocol,
+    /// The request asks for something this backend cannot do, decided
+    /// locally without making a request.
+    Unsupported,
+    /// A bug in the backend itself.
+    Internal,
+}
+
+impl ErrorKind {
+    /// Whether trying the same request again could plausibly succeed.
+    ///
+    /// This hangs off `ErrorKind` rather than `VoiceError` on purpose.
+    /// Retryability is a property of the classification, and putting it on
+    /// the error would let two backends disagree about whether a 429 is
+    /// worth retrying — a disagreement that stays invisible until one of
+    /// them wastes an author's afternoon.
+    pub fn retryable(self) -> bool {
+        matches!(self, Self::RateLimited | Self::Transient)
+    }
+}
+
+impl VoiceError {
+    pub fn new(backend: impl Into<String>, kind: ErrorKind, detail: impl Into<String>) -> Self {
+        Self {
+            backend: backend.into(),
+            kind,
+            detail: detail.into(),
+            retry_after: None,
+        }
+    }
+
+    /// The request asks for something this backend cannot do.
+    pub fn unsupported(backend: impl Into<String>, what: impl std::fmt::Display) -> Self {
+        Self::new(
+            backend,
+            ErrorKind::Unsupported,
+            format!("does not support {what}"),
+        )
+    }
+
+    pub fn with_retry_after(mut self, after: std::time::Duration) -> Self {
+        self.retry_after = Some(after);
+        self
+    }
 }
 
 /// One method that does the work, plus the two that let a caller holding

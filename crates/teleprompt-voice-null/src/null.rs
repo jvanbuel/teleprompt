@@ -1,6 +1,7 @@
 use teleprompt_voice::async_trait;
 use teleprompt_voice::{
-    LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
+    ErrorKind, LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
+    VoiceError,
 };
 
 use crate::estimator::{estimate_ms, DEFAULT_WPM};
@@ -40,7 +41,14 @@ impl VoiceBackend for NullVoice {
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
         if req.speed <= 0.0 {
-            return Err(VoiceError::Other("speed must be greater than zero".into()));
+            // `InvalidRequest`, not `Unsupported`: `null` does vary speed —
+            // this particular value is the problem, and the two are told
+            // apart by whether the backend could ever accept it.
+            return Err(VoiceError::new(
+                "null",
+                ErrorKind::InvalidRequest,
+                "speed must be greater than zero",
+            ));
         }
         let ms = estimate_ms(&req.text, self.wpm, req.speed);
         let frames = (ms * NULL_SAMPLE_RATE as u64).div_ceil(1000) as usize;

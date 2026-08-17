@@ -22,6 +22,13 @@ pub enum Reply {
     Truncated { body: Vec<u8>, claim: usize },
     /// A non-200 with this body.
     Status(u16, String),
+    /// A non-200 carrying one extra response header. Exercises the paths
+    /// that read a header off a failure — `Retry-After`, so far.
+    StatusWithHeader {
+        code: u16,
+        body: String,
+        header: (&'static str, &'static str),
+    },
     /// Accept the connection and never answer. Exercises the timeout path.
     Hang,
 }
@@ -74,6 +81,19 @@ pub async fn spawn(reply: Reply) -> Stub {
                         let _ = socket.write_all(head.as_bytes()).await;
                         let _ = socket.write_all(&body).await;
                         // Close without sending the rest.
+                    }
+                    Reply::StatusWithHeader {
+                        code,
+                        body,
+                        header: (name, value),
+                    } => {
+                        let head = format!(
+                            "HTTP/1.1 {code} X\r\n{name}: {value}\r\nContent-Length: \
+                             {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = socket.write_all(head.as_bytes()).await;
+                        let _ = socket.write_all(body.as_bytes()).await;
                     }
                     Reply::Status(code, body) => {
                         let head = format!(

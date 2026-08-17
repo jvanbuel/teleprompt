@@ -1,4 +1,4 @@
-use teleprompt_voice::{Pcm, VoiceError};
+use teleprompt_voice::{ErrorKind, Pcm, VoiceError};
 
 use crate::config::{KokoroConfig, KOKORO_SAMPLE_RATE};
 
@@ -20,11 +20,17 @@ impl Client {
         &self.cfg
     }
 
-    /// Every failure here is fatal to the command. Spec §7.1: a broken
-    /// synthesizer is not a voice tier, so there is no fallback to silence
-    /// anywhere in this file.
-    fn fail(&self, what: &str) -> VoiceError {
-        VoiceError::Other(format!("kokoro at {}: {what}", self.cfg.base_url))
+    /// No failure here falls back to silence. Spec §7.1: a broken
+    /// synthesizer is not a voice tier. What a failure *does* get is a
+    /// classification, so `dub` can tell a server that is briefly busy from
+    /// one that will never answer this request.
+    ///
+    /// The base URL rides in `detail` rather than being prefixed onto every
+    /// message by hand: `VoiceError`'s `Display` already writes `kokoro:`,
+    /// and a machine may be running several servers, so which one refused is
+    /// still worth naming.
+    fn fail(&self, kind: ErrorKind, what: &str) -> VoiceError {
+        VoiceError::new("kokoro", kind, format!("{} — {what}", self.cfg.base_url))
     }
 
     pub async fn speech(
@@ -46,14 +52,19 @@ impl Client {
 
         let resp = self.http.post(&url).json(&body).send().await.map_err(|e| {
             if e.is_timeout() {
-                self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
+                self.fail(
+                    ErrorKind::Transient,
+                    &format!("no response within {}ms", self.cfg.timeout_ms),
+                )
             } else {
-                self.fail(&format!("request failed: {e}"))
+                self.fail(ErrorKind::Transient, &format!("request failed: {e}"))
             }
         })?;
 
         let status = resp.status();
         if !status.is_success() {
+            // Read before `text()` consumes the response.
+            let retry_after = retry_after_of(&resp);
             let detail = resp.text().await.unwrap_or_default();
             let detail = detail.trim();
             let tail = if detail.is_empty() {
@@ -61,39 +72,59 @@ impl Client {
             } else {
                 format!(" — {}", truncate(detail, 200))
             };
-            return Err(self.fail(&format!("returned {}{tail}", status.as_u16())));
+            let mut err = self.fail(
+                classify(status),
+                &format!("returned {}{tail}", status.as_u16()),
+            );
+            if let Some(after) = retry_after {
+                err = err.with_retry_after(after);
+            }
+            return Err(err);
         }
 
         let bytes = resp.bytes().await.map_err(|e| {
             if e.is_timeout() {
-                self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
+                self.fail(
+                    ErrorKind::Transient,
+                    &format!("no response within {}ms", self.cfg.timeout_ms),
+                )
             } else {
-                self.fail(&format!("response body incomplete: {e}"))
+                self.fail(
+                    ErrorKind::Transient,
+                    &format!("response body incomplete: {e}"),
+                )
             }
         })?;
 
-        decode_pcm(&bytes).map_err(|what| self.fail(&what))
+        // A 2xx whose bytes are not what `response_format: "pcm"` promised.
+        decode_pcm(&bytes).map_err(|what| self.fail(ErrorKind::Protocol, &what))
     }
 
     pub async fn voices(&self) -> Result<Vec<String>, VoiceError> {
         let url = format!("{}/v1/audio/voices", self.cfg.base_url);
         let resp = self.http.get(&url).send().await.map_err(|e| {
             if e.is_timeout() {
-                self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
+                self.fail(
+                    ErrorKind::Transient,
+                    &format!("no response within {}ms", self.cfg.timeout_ms),
+                )
             } else {
-                self.fail(&format!("cannot list voices: {e}"))
+                self.fail(ErrorKind::Transient, &format!("cannot list voices: {e}"))
             }
         })?;
         if !resp.status().is_success() {
-            return Err(self.fail(&format!(
-                "listing voices returned {}",
-                resp.status().as_u16()
-            )));
+            let status = resp.status();
+            return Err(self.fail(
+                classify(status),
+                &format!("listing voices returned {}", status.as_u16()),
+            ));
         }
-        let v: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| self.fail(&format!("voice list was not JSON: {e}")))?;
+        let v: serde_json::Value = resp.json().await.map_err(|e| {
+            self.fail(
+                ErrorKind::Protocol,
+                &format!("voice list was not JSON: {e}"),
+            )
+        })?;
 
         // Kokoro-FastAPI answers `{"voices": [...]}`; some OpenAI-compatible
         // servers answer a bare array. Accept both rather than making the
@@ -102,7 +133,7 @@ impl Client {
             .get("voices")
             .and_then(|x| x.as_array())
             .or_else(|| v.as_array())
-            .ok_or_else(|| self.fail("voice list had no `voices` array"))?;
+            .ok_or_else(|| self.fail(ErrorKind::Protocol, "voice list had no `voices` array"))?;
 
         // A non-string entry means the server's shape is not what we
         // parsed above; skipping it silently would hide that a real
@@ -123,14 +154,43 @@ impl Client {
             match item.as_str() {
                 Some(name) => names.push(name.to_string()),
                 None => {
-                    return Err(
-                        self.fail(&format!("voice list contained a non-string entry: {item}"))
-                    );
+                    return Err(self.fail(
+                        ErrorKind::Protocol,
+                        &format!("voice list contained a non-string entry: {item}"),
+                    ));
                 }
             }
         }
         Ok(names)
     }
+}
+
+/// Kokoro-FastAPI is a local model server: it has no credentials and no
+/// billing, so `Auth` and `Quota` are unreachable here. Anything that is
+/// neither a rate limit nor a server fault is the request's own problem.
+///
+/// The wildcard is deliberately the non-retryable answer. A status this
+/// function has never seen is not something to hammer a server with.
+fn classify(status: reqwest::StatusCode) -> ErrorKind {
+    match status.as_u16() {
+        429 => ErrorKind::RateLimited,
+        500..=599 => ErrorKind::Transient,
+        _ => ErrorKind::InvalidRequest,
+    }
+}
+
+/// `Retry-After` in its delta-seconds form. The HTTP-date form is legal too
+/// and is ignored: without a clock-skew story a date is worse than the
+/// caller's own backoff, which is what `None` falls back to.
+fn retry_after_of(resp: &reqwest::Response) -> Option<std::time::Duration> {
+    resp.headers()
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .map(std::time::Duration::from_secs)
 }
 
 fn truncate(s: &str, n: usize) -> String {
