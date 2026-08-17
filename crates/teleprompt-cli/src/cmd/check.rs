@@ -235,6 +235,66 @@ pub fn compile_script_with(
     out.warnings
         .extend(backend_override_diags.into_iter().map(|d| d.message));
 
+    // `capabilities()` is synchronous, offline and infallible, so an
+    // unreachable speed is caught here — in the inner loop, in under a
+    // second, with no network call and nothing spent — rather than at `dub`
+    // time or, worse, never. A backend that clamps server-side accepts the
+    // request and returns real audio whose `measured` duration is entirely
+    // honest about a speed the author never asked for; the output is wrong
+    // and every signal says it is fine.
+    //
+    // Over narration details rather than the merged config: a segment
+    // attribute can set `voice.speed`, so the project's merged value is not
+    // the only one that reaches a backend. `synth_request.speed` is the
+    // number actually sent.
+    if let Some(range) = &capabilities.speed {
+        let mut offenders: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
+        for d in &out.narration {
+            let s = d.synth_request.speed;
+            if !range.contains(&s) {
+                offenders
+                    .entry(format!("{s}"))
+                    .or_default()
+                    .push(d.segment_id.clone());
+            }
+        }
+        if !offenders.is_empty() {
+            // Grouped by offending value and reported once per group, naming
+            // every affected segment — the same shape as the segment-backend
+            // check above, so a chapter of twelve paragraphs under one stray
+            // attribute produces one error rather than twelve.
+            let diags: Vec<Diagnostic> = offenders
+                .into_iter()
+                .map(|(speed, segments)| {
+                    let (noun, verb) = if segments.len() == 1 {
+                        ("segment", "asks")
+                    } else {
+                        ("segments", "ask")
+                    };
+                    let names = segments
+                        .iter()
+                        .map(|id| format!("`{id}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    Diagnostic::error(format!(
+                        "{noun} {names} {verb} for voice.speed `{speed}`, which is outside \
+                         the range backend `{}` accepts ({}..={})",
+                        backend.id(),
+                        range.start(),
+                        range.end()
+                    ))
+                    .with_help(
+                        "choose a speed inside that range, or a backend whose range covers \
+                         it — a backend that clamps silently would publish a duration for a \
+                         speed you did not ask for",
+                    )
+                })
+                .collect();
+            return Err(render(&Diagnostics(diags), &display));
+        }
+    }
+
     Ok((out, backend))
 }
 

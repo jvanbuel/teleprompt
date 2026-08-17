@@ -379,3 +379,84 @@ fn an_unknown_key_and_an_unused_bad_setting_report_exactly_one_problem() {
         "a backend this project never uses must not be validated: {errors:?}"
     );
 }
+
+/// A speed the resolved backend cannot reach must fail in the *inner loop*,
+/// with no server listening and nothing spent. A backend that clamps
+/// server-side would otherwise return real audio and publish a `measured`
+/// duration for a speed the author never asked for.
+#[test]
+fn check_rejects_a_speed_the_backend_cannot_reach() {
+    let (project, script) = project_with_toml(
+        "speed-out-of-range",
+        "\
+[locales]
+source = \"en\"
+targets = []
+
+[voice]
+source = \"synthetic\"
+backend = \"kokoro\"
+speed = 9.0
+
+[scene.mock]
+adapter = \"mock\"
+",
+    );
+    let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+        .expect_err("9.0 is outside kokoro's 0.25..=4.0");
+    let joined = errors.join("\n");
+    assert!(joined.contains("speed"), "{joined}");
+    assert!(
+        joined.contains('9'),
+        "must name the offending value: {joined}"
+    );
+    assert!(joined.contains("0.25"), "must name the range: {joined}");
+    assert!(joined.contains('4'), "must name the range: {joined}");
+    assert!(joined.contains("kokoro"), "must name the backend: {joined}");
+}
+
+#[test]
+fn check_accepts_a_speed_inside_the_range() {
+    let (project, script) = project_with_toml(
+        "speed-in-range",
+        "\
+[locales]
+source = \"en\"
+targets = []
+
+[voice]
+source = \"synthetic\"
+backend = \"kokoro\"
+speed = 1.5
+
+[scene.mock]
+adapter = \"mock\"
+",
+    );
+    teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+        .unwrap_or_else(|e| panic!("1.5 is inside kokoro's range: {e:?}"));
+}
+
+/// `null` reports a range too, so this is not a kokoro-only gate.
+#[test]
+fn the_range_gate_applies_to_every_backend_that_declares_one() {
+    let (project, script) = project_with_toml(
+        "speed-out-of-range-null",
+        "\
+[locales]
+source = \"en\"
+targets = []
+
+[voice]
+source = \"synthetic\"
+backend = \"null\"
+speed = 0.1
+
+[scene.mock]
+adapter = \"mock\"
+",
+    );
+    let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+        .expect_err("0.1 is below null's 0.25 floor");
+    assert!(errors.join("\n").contains("null"), "{errors:?}");
+}
