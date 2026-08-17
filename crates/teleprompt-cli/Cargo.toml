@@ -43,3 +43,6 @@ insta.workspace = true
 # for `tokio::time::sleep`, which the same stub uses to hold a synthesis
 # response open long enough for concurrent callers to actually overlap.
 tokio = { workspace = true, features = ["net", "io-util", "time"] }
+
+[lints]
+workspace = true

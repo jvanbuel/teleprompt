@@ -14,3 +14,6 @@ serde_yaml = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "net", "io-util"] }
+
+[lints]
+workspace = true

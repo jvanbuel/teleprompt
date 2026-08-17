@@ -12,6 +12,21 @@ edition = "2021"
 rust-version = "1.85"
 license = "MIT"
 
+# Lints are configured once here and inherited by every crate via
+# `[lints] workspace = true`, so a rule cannot hold in one crate and lapse in
+# the next. Correctness is denied rather than warned: those lints fire on code
+# that is wrong, not merely unfashionable.
+[workspace.lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unexpected_cfgs = "warn"
+
 [workspace.dependencies]
 async-trait = "0.1"
 blake3 = "1"
