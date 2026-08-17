@@ -8,6 +8,7 @@ pub use async_trait::async_trait;
 pub mod contract;
 pub mod estimator;
 pub mod registry;
+pub mod retry;
 pub mod source;
 pub mod wav;
 
@@ -17,4 +18,5 @@ pub use contract::{
 };
 pub use estimator::DurationEstimator;
 pub use registry::VoiceRegistry;
+pub use retry::{with_retry, RetryPolicy};
 pub use source::{resolve_source, Resolution, VoiceSource};

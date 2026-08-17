@@ -10,3 +10,10 @@ teleprompt-core = { path = "../teleprompt-core" }
 async-trait.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+# `retry` sleeps between attempts, so the contract crate takes tokio's timer.
+# `test-util` below is what lets the retry tests run a whole backoff schedule
+# in zero wall-clock time via `#[tokio::test(start_paused = true)]`.
+tokio = { workspace = true, features = ["time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["time", "macros", "rt", "test-util"] }
