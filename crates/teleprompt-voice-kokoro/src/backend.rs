@@ -56,7 +56,10 @@ impl VoiceBackend for KokoroVoice {
             // `words` when absent.
             word_timings: false,
             ssml: false,
-            speed_control: true,
+            // Kokoro-FastAPI's own bounds: `RATE_MIN, RATE_MAX = 0.25,
+            // 4.0` in `api/src/structures/schemas.py`, enforced by a
+            // Pydantic `Rate` type, and clamped again by `clamp_rate`.
+            speed: Some(0.25..=4.0),
             version: self.version.clone(),
         }
     }

@@ -41,7 +41,7 @@ impl VoiceBackend for ToneVoice {
             cross_lingual: false,
             word_timings: false,
             ssml: false,
-            speed_control: true,
+            speed: Some(0.25..=4.0),
             version: "tone-9.9.9".to_string(),
         }
     }
@@ -82,7 +82,7 @@ impl VoiceBackend for DrawlVoice {
             cross_lingual: false,
             word_timings: false,
             ssml: false,
-            speed_control: true,
+            speed: Some(0.25..=4.0),
             version: "drawl-1".to_string(),
         }
     }

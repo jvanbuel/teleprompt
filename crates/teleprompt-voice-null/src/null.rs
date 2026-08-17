@@ -34,7 +34,10 @@ impl VoiceBackend for NullVoice {
             cross_lingual: false,
             word_timings: false,
             ssml: false,
-            speed_control: true,
+            // The estimator's usable band. `null` has no server to
+            // disagree with, so this is a statement about what the
+            // word-count model stays sensible across.
+            speed: Some(0.25..=4.0),
             version: env!("CARGO_PKG_VERSION").to_string(),
         }
     }

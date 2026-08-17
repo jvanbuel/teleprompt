@@ -6,14 +6,31 @@ pub enum LanguageSupport {
     Enumerated(Vec<String>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Not `Eq`: `speed` holds `f64` bounds. Nothing in the workspace compares
+/// two of these or uses one as a map key, so the derive was only ever
+/// costing a constraint.
+#[derive(Debug, Clone, PartialEq)]
 pub struct VoiceCapabilities {
     pub languages: LanguageSupport,
     pub cloning: bool,
     pub cross_lingual: bool,
     pub word_timings: bool,
     pub ssml: bool,
-    pub speed_control: bool,
+    /// The speeds this backend accepts, or `None` if it does not vary speed
+    /// at all.
+    ///
+    /// A range rather than a boolean, because a boolean cannot express the
+    /// constraint that matters. `teleprompt-core` validates `voice.speed` as
+    /// finite and greater than zero and nothing else, so a backend that
+    /// clamps server-side — ElevenLabs caps at 1.2 — accepts
+    /// `voice.speed: 1.5`, returns real audio, and publishes a `measured`
+    /// duration that is entirely honest about a speed the author never asked
+    /// for. The output is wrong and every signal says it is fine.
+    ///
+    /// `capabilities()` is synchronous, offline and infallible, which is
+    /// what lets this be checked in the inner loop rather than at `dub`
+    /// time: see `compile_script_with`.
+    pub speed: Option<std::ops::RangeInclusive<f64>>,
     /// The backend's own version, not teleprompt's. Feeds
     /// `teleprompt_cache::key`'s `backend_version`, which is what makes a
     /// backend release turn over its cache entries instead of teleprompt's

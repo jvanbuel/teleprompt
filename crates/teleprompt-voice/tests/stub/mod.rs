@@ -31,7 +31,7 @@ impl VoiceBackend for StubVoice {
             cross_lingual: false,
             word_timings: false,
             ssml: false,
-            speed_control: false,
+            speed: None,
             version: "0.0.0-stub".to_string(),
         }
     }

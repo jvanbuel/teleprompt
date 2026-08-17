@@ -27,7 +27,7 @@ impl VoiceBackend for ConfiguredVoice {
             cross_lingual: false,
             word_timings: false,
             ssml: false,
-            speed_control: false,
+            speed: None,
             version: format!("1.0@{}", self.endpoint),
         }
     }

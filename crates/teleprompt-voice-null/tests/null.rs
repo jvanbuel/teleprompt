@@ -90,7 +90,9 @@ async fn null_backend_declares_honest_capabilities() {
     let c = NullVoice::default().capabilities();
     assert!(!c.cloning);
     assert!(!c.word_timings);
-    assert!(c.speed_control);
+    let r = c.speed.expect("null varies speed");
+    assert!(r.contains(&1.0));
+    assert!(!r.contains(&0.0), "zero speed is not a speed");
 }
 
 #[tokio::test]
