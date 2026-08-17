@@ -8,6 +8,7 @@
 //! through key, synthesis, cache, and manifest.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use teleprompt_cli::project::Project;
@@ -292,4 +293,122 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
         seg.duration_source, "measured",
         "the recompile ran against the warm cache, so this is a measurement"
     );
+}
+
+/// Fails with `Transient` the first two times, then succeeds — the shape of
+/// a server having a brief bad moment mid-run.
+struct FlakyVoice {
+    calls: AtomicUsize,
+    kind: teleprompt_voice::ErrorKind,
+    fail_times: usize,
+}
+
+#[async_trait]
+impl VoiceBackend for FlakyVoice {
+    fn id(&self) -> &str {
+        "flaky"
+    }
+
+    fn capabilities(&self) -> VoiceCapabilities {
+        VoiceCapabilities {
+            languages: LanguageSupport::Any,
+            cloning: false,
+            cross_lingual: false,
+            word_timings: false,
+            ssml: false,
+            speed: Some(0.25..=4.0),
+            version: "flaky-1".to_string(),
+        }
+    }
+
+    async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
+        let n = self.calls.fetch_add(1, Ordering::SeqCst);
+        if n < self.fail_times {
+            return Err(VoiceError::new("flaky", self.kind, "not yet"));
+        }
+        let ms = WpmEstimator::default().estimate_ms(req);
+        let frames = (ms * TONE_SAMPLE_RATE as u64 / 1000) as usize;
+        Ok(Synthesized {
+            pcm: Pcm {
+                sample_rate: TONE_SAMPLE_RATE,
+                channels: 1,
+                samples: vec![11; frames],
+            },
+            word_timings: None,
+        })
+    }
+}
+
+const FLAKY_SCRIPT: &str = "\
+---
+voice:
+  backend: flaky
+---
+
+# Quick start
+
+Every video in this repository is built from a script you can read.
+";
+
+async fn dub_against_flaky(
+    tag: &str,
+    kind: teleprompt_voice::ErrorKind,
+    fail_times: usize,
+) -> (
+    Result<teleprompt_cli::cmd::dub::DubOutput, teleprompt_cli::cmd::dub::DubError>,
+    usize,
+) {
+    let backend = Arc::new(FlakyVoice {
+        calls: AtomicUsize::new(0),
+        kind,
+        fail_times,
+    });
+    let mut r = VoiceRegistry::default();
+    r.register(Arc::new(NullVoice::default()));
+    r.register(backend.clone());
+    let backends = teleprompt_cli::voice::Backends::from_registry(r);
+
+    let (project, script) = project_with(tag, FLAKY_SCRIPT);
+    let out_root = project.root.join("public/narration");
+    let result = teleprompt_cli::cmd::dub::run_dub_with(
+        &backends, &project, &script, "en", &out_root, false,
+    )
+    .await;
+    let calls = backend.calls.load(Ordering::SeqCst);
+    (result, calls)
+}
+
+/// A transient failure mid-run used to lose the whole dub — and with a paid
+/// backend, everything already synthesized before it.
+#[tokio::test(start_paused = true)]
+async fn dub_survives_a_transient_failure() {
+    let (result, calls) =
+        dub_against_flaky("flaky-transient", teleprompt_voice::ErrorKind::Transient, 2).await;
+    if let Err(e) = result {
+        match e {
+            teleprompt_cli::cmd::dub::DubError::Validation(v) => panic!("validation: {v:?}"),
+            teleprompt_cli::cmd::dub::DubError::Runtime(r) => panic!("runtime: {r}"),
+        }
+    }
+    assert_eq!(calls, 3, "two failures then a success");
+}
+
+/// The other half, and the reason the taxonomy exists: retrying a spent
+/// allowance just restates it four times more slowly.
+#[tokio::test(start_paused = true)]
+async fn dub_does_not_retry_a_fatal_failure() {
+    let (result, calls) =
+        dub_against_flaky("flaky-quota", teleprompt_voice::ErrorKind::Quota, 99).await;
+    assert!(result.is_err());
+    assert_eq!(calls, 1, "Quota must not be retried");
+}
+
+/// A backend that never recovers still fails the run, after a bounded
+/// number of attempts rather than forever.
+#[tokio::test(start_paused = true)]
+async fn dub_gives_up_on_a_permanently_transient_backend() {
+    let (result, calls) =
+        dub_against_flaky("flaky-forever", teleprompt_voice::ErrorKind::Transient, 99).await;
+    assert!(result.is_err());
+    assert_eq!(calls, 4, "RetryPolicy::default().max_attempts");
 }

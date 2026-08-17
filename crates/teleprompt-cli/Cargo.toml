@@ -42,4 +42,6 @@ insta.workspace = true
 # check, the same way `teleprompt-voice-kokoro`'s own tests do. `time` is
 # for `tokio::time::sleep`, which the same stub uses to hold a synthesis
 # response open long enough for concurrent callers to actually overlap.
-tokio = { workspace = true, features = ["net", "io-util", "time"] }
+# `test-util` gives `#[tokio::test(start_paused = true)]`, which runs the
+# retry tests' whole backoff schedule in zero wall-clock time.
+tokio = { workspace = true, features = ["net", "io-util", "time", "test-util"] }

@@ -211,6 +211,7 @@ async fn render_one(
     backend: &Arc<dyn VoiceBackend>,
     cache: &VoiceCache,
     detail: &NarrationDetail,
+    policy: &teleprompt_voice::RetryPolicy,
 ) -> Result<RenderedAudio, DubError> {
     let read = cache
         .lookup(&detail.cache_key)
@@ -230,10 +231,33 @@ async fn render_one(
             // `voice: { speed: 2.0 }` published a duration from the
             // resolved config and a file rendered at the default. One
             // source of truth.
-            let synthesized = backend
-                .synthesize(&detail.synth_request)
-                .await
-                .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+            // Retry lives here rather than inside a backend: `dub` owns the
+            // fan-out, the semaphore and the progress output, so it is the
+            // only layer that can tell the author a segment is being
+            // retried rather than stalled, and the only one that knows a
+            // sleeping task is holding a permit the whole time.
+            //
+            // Only the network call is wrapped. The cache lookup above and
+            // the `store` below are local and deterministic: retrying a
+            // disk error would not fix it, and re-running `store` after a
+            // success would be wrong.
+            //
+            // Seeded from the segment id so each segment's backoff is
+            // spread differently — that is what stops a whole fan-out from
+            // retrying in lockstep and rebuilding the herd that caused the
+            // rate limit — while staying identical from run to run.
+            let seed = teleprompt_voice::retry::seed_from(&detail.segment_id);
+            let synthesized = teleprompt_voice::with_retry(policy, seed, |attempt| async move {
+                if attempt > 0 {
+                    eprintln!(
+                        "  segment `{}`: retry {attempt} after a transient failure",
+                        detail.segment_id
+                    );
+                }
+                backend.synthesize(&detail.synth_request).await
+            })
+            .await
+            .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
             // Exactly one task of *this* run ever calls `store` for a given
             // key — see the grouping step in `run_dub_with`. Another
             // `teleprompt dub` process on the same project is a different
@@ -380,6 +404,10 @@ pub async fn run_dub_with(
         .unwrap_or(1);
     let permits = Arc::new(tokio::sync::Semaphore::new(limit));
 
+    // One policy for the whole run, not read from config: a knob nobody has
+    // asked for is a knob to add when they do.
+    let policy = teleprompt_voice::RetryPolicy::default();
+
     // Progress is reported in *completion* order with a running count, not
     // pretended into document order: under genuine concurrency (`limit >
     // 1`), which segment finishes second is a fact about the server, not
@@ -436,12 +464,13 @@ pub async fn run_dub_with(
         let cache = cache.clone();
         let permits = permits.clone();
         let completed = completed.clone();
+        let policy = policy.clone();
         tasks.spawn(async move {
             let _permit = permits
                 .acquire_owned()
                 .await
                 .expect("semaphore is never closed");
-            let r = render_one(&backend, &cache, &detail).await;
+            let r = render_one(&backend, &cache, &detail, &policy).await;
             if r.is_ok() {
                 // One "done" line per segment the group covers, not one per
                 // request: progress is a promise to the author about their

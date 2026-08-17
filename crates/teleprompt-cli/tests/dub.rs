@@ -829,6 +829,10 @@ async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() 
 struct KokoroSynthStub {
     base_url: String,
     peak_inflight: Arc<AtomicUsize>,
+    /// Every synthesis POST the stub answered, including ones it failed.
+    /// A retry is invisible from the outside otherwise — the run's result
+    /// looks identical whether it tried once or four times.
+    synth_requests: Arc<AtomicUsize>,
 }
 
 /// PCM bytes for `text`: one i16 sample per character (at least one), so
@@ -843,7 +847,7 @@ fn speech_bytes_for(text: &str) -> Vec<u8> {
 /// [`kokoro_synth_stub`] with the default short delay, for callers that
 /// only care about overlap, not about a specific margin.
 async fn kokoro_synth_stub(fail_on: Option<&'static str>) -> KokoroSynthStub {
-    kokoro_synth_stub_with_delay(fail_on, std::time::Duration::from_millis(40)).await
+    kokoro_synth_stub_with_delay(fail_on, std::time::Duration::from_millis(40), 400).await
 }
 
 /// Spawns the stub. `fail_on`, when set, makes exactly the `/v1/audio/speech`
@@ -858,22 +862,27 @@ async fn kokoro_synth_stub(fail_on: Option<&'static str>) -> KokoroSynthStub {
 async fn kokoro_synth_stub_with_delay(
     fail_on: Option<&'static str>,
     success_delay: std::time::Duration,
+    fail_status: u16,
 ) -> KokoroSynthStub {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let inflight = Arc::new(AtomicUsize::new(0));
     let peak = Arc::new(AtomicUsize::new(0));
     let peak_for_stub = peak.clone();
+    let synth_requests = Arc::new(AtomicUsize::new(0));
+    let synth_for_stub = synth_requests.clone();
     let voices_body = serde_json::json!({ "voices": ["af_heart"] }).to_string();
 
     tokio::spawn(async move {
         let peak = peak_for_stub;
+        let synth = synth_for_stub;
         loop {
             let Ok((mut socket, _)) = listener.accept().await else {
                 return;
             };
             let inflight = inflight.clone();
             let peak = peak.clone();
+            let synth = synth.clone();
             let voices_body = voices_body.clone();
             tokio::spawn(async move {
                 let mut buf = vec![0u8; 65536];
@@ -889,13 +898,14 @@ async fn kokoro_synth_stub_with_delay(
                 let body: serde_json::Value =
                     serde_json::from_str(body_str).unwrap_or(serde_json::Value::Null);
                 let text = body["input"].as_str().unwrap_or("").to_string();
+                synth.fetch_add(1, Ordering::SeqCst);
 
                 if fail_on == Some(text.as_str()) {
                     // Answered immediately, on purpose: this is the request
                     // that is supposed to end the run, and a test asserting
                     // the run does *not* wait on slower siblings needs this
                     // one to be the fast one.
-                    write_status(&mut socket, 500, "boom").await;
+                    write_status(&mut socket, fail_status, "boom").await;
                     return;
                 }
 
@@ -913,6 +923,7 @@ async fn kokoro_synth_stub_with_delay(
     KokoroSynthStub {
         base_url: format!("http://{addr}"),
         peak_inflight: peak,
+        synth_requests,
     }
 }
 
@@ -995,8 +1006,18 @@ async fn segments_are_synthesized_concurrently_but_collected_in_document_order()
 /// to finish first.
 #[tokio::test]
 async fn a_failure_in_one_segment_fails_the_run() {
-    let stub =
-        kokoro_synth_stub_with_delay(Some("Two."), std::time::Duration::from_millis(600)).await;
+    let stub = kokoro_synth_stub_with_delay(
+        Some("Two."),
+        std::time::Duration::from_millis(600),
+        // 400, not 500: a 5xx is `Transient` and `dub` now retries it, so
+        // with a 500 the failure is not "known" until the retry budget is
+        // spent and this test's timing assertion would be measuring backoff
+        // rather than the abort. A 4xx is `InvalidRequest` — the request is
+        // wrong and will be wrong next time — so it fails on the first
+        // response, which is the condition this test is about.
+        400,
+    )
+    .await;
     let p = project_with_config_and_script(
         &format!(
             "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
@@ -1016,7 +1037,7 @@ async fn a_failure_in_one_segment_fails_the_run() {
                 // ephemeral port, and a small fraction of ports contain the
                 // digits "500" too — that would make this assertion pass
                 // for the wrong reason on an unlucky port.
-                r.contains("returned 500"),
+                r.contains("returned 400"),
                 "the surfaced error must be the real \
                 failure, not a cancellation artifact of aborting the \
                 siblings: {r}"
@@ -1217,4 +1238,34 @@ async fn identical_narration_text_still_lands_in_document_order_with_matching_au
         "both segments resolve to the same cache key, so both must carry \
          the same audio bytes"
     );
+}
+
+/// The other side of `a_failure_in_one_segment_fails_the_run`: a 5xx is the
+/// server having a bad moment, so `dub` tries again rather than throwing
+/// away every segment already synthesized. It still fails in the end — a
+/// server that is down stays down — but only after the retry budget, and
+/// the attempts are what prove the retry happened at all.
+#[tokio::test]
+async fn a_server_error_is_retried_before_the_run_fails() {
+    let stub =
+        kokoro_synth_stub_with_delay(Some("Two."), std::time::Duration::from_millis(1), 500).await;
+    let p = project_with_config_and_script(
+        &format!(
+            "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
+             base_url = \"{}\"\nconcurrency = 1\n",
+            stub.base_url
+        ),
+        "# Retry\n\nTwo.\n",
+    );
+    match run_dub(&p.project, &p.script, "en", &p.out, false).await {
+        Ok(_) => panic!("a server that never recovers must still fail the run"),
+        Err(DubError::Runtime(r)) => assert!(r.contains("returned 500"), "{r}"),
+        Err(DubError::Validation(v)) => panic!("not a validation error: {}", v.join("; ")),
+    }
+    assert_eq!(
+        stub.synth_requests.load(Ordering::SeqCst),
+        4,
+        "RetryPolicy::default().max_attempts"
+    );
+    assert!(!manifest_path(&p.out, "en").exists(), "no partial output");
 }
