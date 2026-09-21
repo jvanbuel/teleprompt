@@ -1,0 +1,20 @@
+# The manual teleprompt writes about itself.
+#
+# `scripts/cli.md` narrates the command-line interface: its prose is the
+# voice-over, and its action blocks are VHS tapes running the very commands
+# it describes. `timelines/cli.en.json` is the compiled result, committed so
+# that `teleprompt diff` — and CI — can tell when the manual has drifted
+# away from the tool.
+[locales]
+source = "en"
+targets = []
+
+[voice]
+source = "synthetic"
+# The manual has to compile on any machine, in CI included, with nothing
+# installed. `null` renders silence of the estimated length; point this at
+# `kokoro` (and start a server) to hear it.
+backend = "null"
+
+[scene.terminal]
+adapter = "vhs"
