@@ -258,3 +258,46 @@ fn a_script_that_stops_compiling_keeps_the_last_good_preview() {
     let still = json(addr, "/manifest.json");
     assert_eq!(still, good, "the last compiling manifest is still served");
 }
+
+#[test]
+fn what_sits_before_an_edit_is_not_reported_as_moved() {
+    // The first preview must publish the durations it will still be
+    // publishing after the next save. If generation 1 carries estimates and
+    // generation 2 carries measurements, every segment "moves" on the first
+    // edit and the preview has nowhere meaningful to jump to.
+    let (script, addr) = serving();
+    let first = json(addr, "/manifest.json");
+    let sources: Vec<&str> = first["segments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["duration_source"].as_str().unwrap())
+        .collect();
+    assert!(
+        sources.iter().all(|s| *s == "measured"),
+        "serve synthesizes before it publishes, so nothing is an estimate: {sources:?}"
+    );
+
+    let src = std::fs::read_to_string(&script).unwrap();
+    std::fs::write(
+        &script,
+        src.replace(
+            "The second paragraph, which the edit in these tests rewrites.",
+            "The second paragraph, rewritten at considerable length so that the \
+             narration takes materially longer to speak than it did before.",
+        ),
+    )
+    .unwrap();
+
+    let changed = await_generation(addr, 1);
+    let changed: Vec<&str> = changed["changed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert!(
+        !changed.contains(&"welcome"),
+        "the paragraph above the edit did not move: {changed:?}"
+    );
+}

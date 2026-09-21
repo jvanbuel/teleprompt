@@ -99,6 +99,17 @@ async fn rebuild(
     let cache = VoiceCache::new(cache_root(project));
     let audio = warm(&backend, &cache, &compiled).await?;
 
+    // Compiled a second time, because the first one read a cache that did
+    // not yet hold what `warm` has just put in it: its durations are the
+    // estimator's guesses, and publishing those would make the first
+    // preview play at a pace the second one corrects. Every segment would
+    // then "move" on the first save, and the preview would have nowhere
+    // meaningful to jump to. `dub` recompiles after rendering for the same
+    // reason. The second pass is offline and sub-second — that is what the
+    // inner loop is built to be.
+    let (compiled, _) =
+        compile_script_with(&backends, project, script, locale).map_err(ServeError::Validation)?;
+
     let manifest = manifest::build(
         &compiled.timeline,
         &compiled.chapters,
