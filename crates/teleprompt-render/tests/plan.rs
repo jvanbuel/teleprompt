@@ -134,3 +134,27 @@ fn a_captured_clip_is_used_where_one_exists_for_the_span() {
         "and only the uncaptured beat is reported: {warnings:?}"
     );
 }
+
+/// A pause is a beat during which the picture holds — that is what a pause
+/// is. Looking for a clip under its hash would find nothing, count it as
+/// uncaptured, and cut to a blank field in the middle of a script that is
+/// working perfectly.
+#[test]
+fn a_pause_holds_the_picture_rather_than_asking_for_a_clip() {
+    let with_pause = MANIFEST.replace(
+        r#"      "scene": "terminal",
+      "adapter": "vhs",
+      "start_ms": 2150,"#,
+        r#"      "scene": "pause",
+      "adapter": "pause",
+      "start_ms": 2150,"#,
+    );
+    let manifest: NarrationManifest = serde_json::from_str(&with_pause).unwrap();
+    let (plan, warnings) = plan::from_manifest(&manifest, &inputs(&PathBuf::from("/project")));
+
+    assert_eq!(plan.beats[1].picture, Picture::Hold);
+    assert!(
+        warnings[0].starts_with("1 of 2 beat(s) have no captured clip"),
+        "a pause is not a missing capture: {warnings:?}"
+    );
+}

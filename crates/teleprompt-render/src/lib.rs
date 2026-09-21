@@ -66,10 +66,17 @@ impl Transition {
 pub enum Picture {
     /// A captured clip, to be fitted to the beat's scheduled duration.
     Clip(PathBuf),
-    /// Nothing was captured for this beat. A flat field of the background
-    /// colour holds the frame for its scheduled duration, so the timing is
-    /// exercised and the absence is visible rather than silently skipped.
+    /// Nothing was captured for this beat and there is nothing earlier to
+    /// hold — the opening of a video whose scenes were never captured. A
+    /// flat field of the background colour, so the timing is exercised and
+    /// the absence is visible rather than silently skipped.
     Slate,
+    /// Whatever is already on screen, held. A pause is one of these, and so
+    /// is every stretch of narration with no action under it: on a real
+    /// script that is most of the running time, and cutting to a blank
+    /// field for it is the difference between a video and a slideshow of
+    /// black.
+    Hold,
 }
 
 /// One narration clip and where it goes.

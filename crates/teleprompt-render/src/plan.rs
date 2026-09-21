@@ -12,6 +12,9 @@ use teleprompt_compile::manifest::NarrationManifest;
 
 use crate::{Beat, Narration, Picture, RenderPlan, Transition};
 
+/// The scene name the manifest gives a beat that is only a pause.
+const PAUSE: &str = "pause";
+
 /// Where the pieces of a render live, and what shape the result should be.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Inputs {
@@ -48,8 +51,13 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
         .beats
         .iter()
         .map(|beat| {
+            // A pause is a beat during which the picture holds — that is
+            // what a pause is. Looking for a clip under its hash would find
+            // nothing and report a capture that was never owed.
             let clip = inputs.clips_dir.join(format!("{}.mp4", beat.span_hash));
-            let picture = if clip.exists() {
+            let picture = if beat.scene == PAUSE {
+                Picture::Hold
+            } else if clip.exists() {
                 Picture::Clip(clip)
             } else {
                 uncaptured += 1;

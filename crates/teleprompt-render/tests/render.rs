@@ -441,3 +441,193 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
     // 2s held + 0.5s cut + 0.5s of tail hold to the plan's length.
     assert!((duration_of(&plan.output) - 3.0).abs() < 0.15);
 }
+
+/// Mean luma of the frame at `seconds`, as ffmpeg measures it. A slate is
+/// the background colour and reads about 12; anything with a terminal on it
+/// reads far higher.
+fn luma_at(path: &std::path::Path, seconds: f64) -> f64 {
+    let out = Command::new("ffmpeg")
+        .args(["-hide_banner", "-v", "error", "-ss"])
+        .arg(format!("{seconds}"))
+        .arg("-i")
+        .arg(path)
+        .args([
+            "-frames:v",
+            "1",
+            "-vf",
+            "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-",
+            "-f",
+            "null",
+            "-",
+        ])
+        .output()
+        .expect("ffmpeg runs");
+    let text =
+        String::from_utf8_lossy(&out.stderr).into_owned() + &String::from_utf8_lossy(&out.stdout);
+    text.split("lavfi.signalstats.YAVG=")
+        .nth(1)
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|n| n.parse().ok())
+        .unwrap_or_else(|| panic!("no YAVG in ffmpeg's output:\n{text}"))
+}
+
+/// A one-second clip of something bright, standing in for a capture.
+fn bright_clip(dir: &std::path::Path, name: &str) -> PathBuf {
+    let path = dir.join(name);
+    let status = Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-y",
+            "-f",
+            "lavfi",
+            "-t",
+            "1",
+            "-i",
+            "color=c=0x808080:s=320x180:r=24",
+            "-pix_fmt",
+            "yuv420p",
+        ])
+        .arg(&path)
+        .status()
+        .expect("ffmpeg runs");
+    assert!(status.success());
+    path
+}
+
+/// Narration keeps talking after the action stops — most of a script is
+/// like this — and the picture has to do something during it. Cutting to a
+/// slate makes a video that is mostly black while somebody speaks over it.
+/// It holds the last frame instead.
+#[test]
+fn a_gap_after_a_beat_freezes_its_last_frame() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("tp-render-freeze-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let plan = RenderPlan {
+        width: 320,
+        height: 180,
+        fps: 24,
+        duration_ms: 6_000,
+        beats: vec![Beat {
+            id: "only#0".into(),
+            start_ms: 0,
+            duration_ms: 1_000,
+            picture: Picture::Clip(bright_clip(&dir, "bright.mp4")),
+            transition: Transition::cut(),
+        }],
+        narration: vec![],
+        output: dir.join("freeze.mp4"),
+    };
+
+    FfmpegRenderer::default()
+        .render(&plan, &mut |_| {})
+        .expect("the graph is one ffmpeg accepts");
+
+    for t in [2.0, 4.0, 5.5] {
+        let luma = luma_at(&plan.output, t);
+        assert!(
+            luma > 100.0,
+            "the picture went dark {t}s in, during narration: YAVG {luma}"
+        );
+    }
+}
+
+/// The same at the head. Narration opens after a lead-in and the first beat
+/// starts with it, so a video that cut to black until then would open on
+/// black every single time.
+#[test]
+fn a_gap_before_the_first_beat_holds_its_first_frame() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("tp-render-open-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let plan = RenderPlan {
+        width: 320,
+        height: 180,
+        fps: 24,
+        duration_ms: 4_000,
+        beats: vec![Beat {
+            id: "late#0".into(),
+            start_ms: 2_000,
+            duration_ms: 1_000,
+            picture: Picture::Clip(bright_clip(&dir, "bright.mp4")),
+            transition: Transition::cut(),
+        }],
+        narration: vec![],
+        output: dir.join("open.mp4"),
+    };
+
+    FfmpegRenderer::default()
+        .render(&plan, &mut |_| {})
+        .expect("the graph is one ffmpeg accepts");
+
+    let luma = luma_at(&plan.output, 0.5);
+    assert!(
+        luma > 100.0,
+        "the video opened on black before its first beat: YAVG {luma}"
+    );
+    assert!((duration_of(&plan.output) - 4.0).abs() < 0.2);
+}
+
+/// A beat that contributes no picture must not take the gap in front of it
+/// with it. Dropping a zero-length beat used to drop the hold that preceded
+/// it, and the video came out a minute shorter than its own timeline.
+#[test]
+fn dropping_an_empty_beat_does_not_drop_the_time_before_it() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("tp-render-empty-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let plan = RenderPlan {
+        width: 320,
+        height: 180,
+        fps: 24,
+        duration_ms: 6_000,
+        beats: vec![
+            Beat {
+                id: "real#0".into(),
+                start_ms: 0,
+                duration_ms: 1_000,
+                picture: Picture::Clip(bright_clip(&dir, "bright.mp4")),
+                transition: Transition::cut(),
+            },
+            Beat {
+                id: "empty#0".into(),
+                // Three seconds of narration sit between the two.
+                start_ms: 4_000,
+                duration_ms: 0,
+                picture: Picture::Slate,
+                transition: Transition::cut(),
+            },
+        ],
+        narration: vec![],
+        output: dir.join("empty.mp4"),
+    };
+
+    FfmpegRenderer::default()
+        .render(&plan, &mut |_| {})
+        .expect("the graph is one ffmpeg accepts");
+
+    let seconds = duration_of(&plan.output);
+    assert!(
+        (seconds - 6.0).abs() < 0.2,
+        "a 6s plan rendered {seconds}s of picture"
+    );
+    assert!(
+        luma_at(&plan.output, 5.0) > 100.0,
+        "and it is still holding"
+    );
+}
