@@ -1180,6 +1180,7 @@ dependencies = [
 name = "teleprompt-render"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "teleprompt-compile",
  "teleprompt-core",
  "thiserror 1.0.69",

@@ -27,8 +27,12 @@ const SAMPLE_RATE: u32 = 24_000;
 /// too, and something has to fill them or every beat after a gap renders
 /// early against audio that is still correctly placed.
 struct Piece {
+    start_ms: u64,
     duration_ms: u64,
     picture: Picture,
+    /// How this piece is joined to the one before it: `None` for a cut,
+    /// `Some(kind)` for a blend lasting as long as the two overlap.
+    blend: Option<String>,
 }
 
 /// The plan's beats plus the holds between them, in order, covering
@@ -36,25 +40,52 @@ struct Piece {
 fn pieces(plan: &RenderPlan) -> Vec<Piece> {
     let mut out: Vec<Piece> = Vec::new();
     let mut cursor = 0u64;
-    let mut hold = |out: &mut Vec<Piece>, until: u64, cursor: u64| {
+    let hold = |out: &mut Vec<Piece>, until: u64, cursor: u64| {
         if until > cursor {
             out.push(Piece {
+                start_ms: cursor,
                 duration_ms: until - cursor,
                 picture: Picture::Slate,
+                blend: None,
             });
         }
     };
 
-    for beat in &plan.beats {
+    for (i, beat) in plan.beats.iter().enumerate() {
         hold(&mut out, beat.start_ms, cursor);
+
+        // A beat that starts before the one before it ended is a beat the
+        // scheduler granted a transition. The overlap is the transition,
+        // and the kind comes from the beat being left rather than the one
+        // being entered — that is which end of the join the manifest
+        // publishes it on.
+        let blend = match (i.checked_sub(1).and_then(|p| plan.beats.get(p)), cursor) {
+            (Some(previous), cursor) if beat.start_ms < cursor => Some(previous.transition.kind.clone()),
+            _ => None,
+        };
         out.push(Piece {
+            start_ms: beat.start_ms,
             duration_ms: beat.duration_ms,
             picture: beat.picture.clone(),
+            blend,
         });
         cursor = beat.start_ms + beat.duration_ms;
     }
     hold(&mut out, plan.duration_ms, cursor);
     out
+}
+
+/// The `xfade` transition to use for a configured transition kind.
+///
+/// An unknown kind fades rather than failing the render: the scheduler has
+/// already granted it time on the timeline, so refusing to draw it would
+/// leave a hole, and a fade is the least surprising thing to put there.
+fn xfade_for(kind: &str) -> &'static str {
+    match kind {
+        "dissolve" => "dissolve",
+        "wipe" => "wiperight",
+        _ => "fade",
+    }
 }
 
 /// The argument vector for `plan`, ffmpeg's own name excluded.
@@ -138,8 +169,31 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
             fps = plan.fps,
         ));
     }
-    let joined: String = (0..pieces.len()).map(|i| format!("[v{i}]")).collect();
-    filters.push(format!("{joined}concat=n={}:v=1:a=0[v]", pieces.len()));
+    // Joined pairwise rather than by one n-ary `concat`, because a blend
+    // takes two streams and produces one: a chain handles both kinds of
+    // join in one shape.
+    let mut label = "[v0]".to_string();
+    for (i, piece) in pieces.iter().enumerate().skip(1) {
+        let out = format!("[j{i}]");
+        match &piece.blend {
+            Some(kind) => {
+                // `offset` is where the blend begins in the stream built so
+                // far, which starts at zero because the pieces tile the
+                // timeline from zero. The overlap is the transition's
+                // length.
+                let overlap = pieces[i - 1].start_ms + pieces[i - 1].duration_ms - piece.start_ms;
+                filters.push(format!(
+                    "{label}[v{i}]xfade=transition={}:duration={}:offset={}{out}",
+                    xfade_for(kind),
+                    seconds(overlap),
+                    seconds(piece.start_ms),
+                ));
+            }
+            None => filters.push(format!("{label}[v{i}]concat=n=2:v=1:a=0{out}")),
+        }
+        label = out;
+    }
+    filters.push(format!("{label}null[v]"));
 
     args.push("-filter_complex".into());
     args.push(filters.join(";"));

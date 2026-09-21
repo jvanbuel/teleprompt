@@ -7,6 +7,7 @@
 //! silently is the one nobody renders from.
 
 pub mod ffmpeg;
+pub mod plan;
 
 use std::path::PathBuf;
 
@@ -33,6 +34,31 @@ pub struct Beat {
     pub start_ms: u64,
     pub duration_ms: u64,
     pub picture: Picture,
+    /// The transition *out* of this beat, as the manifest publishes it.
+    ///
+    /// Only its kind is read. How long the join lasts is already in the
+    /// arithmetic — the scheduler overlaps the next beat's `start_ms` by
+    /// exactly the transition it granted — and a renderer that believed
+    /// this field instead would be free to disagree with the offsets it is
+    /// rendering against.
+    pub transition: Transition,
+}
+
+/// How one beat gives way to the next.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Transition {
+    pub kind: String,
+    pub duration_ms: u64,
+}
+
+impl Transition {
+    /// A hard cut, which is what a beat that nothing follows also gets.
+    pub fn cut() -> Self {
+        Self {
+            kind: "cut".into(),
+            duration_ms: 0,
+        }
+    }
 }
 
 /// What fills a beat's frame.

@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use teleprompt_render::ffmpeg::FfmpegRenderer;
-use teleprompt_render::{Beat, Narration, Picture, RenderPlan, Renderer};
+use teleprompt_render::{Beat, Narration, Picture, RenderPlan, Renderer, Transition};
 
 fn have_ffmpeg() -> bool {
     Command::new("ffmpeg")
@@ -93,12 +93,14 @@ fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
                 start_ms: 0,
                 duration_ms: 1_500,
                 picture: Picture::Slate,
+                transition: Transition::cut(),
             },
             Beat {
                 id: "b#0".into(),
                 start_ms: 1_500,
                 duration_ms: 1_500,
                 picture: Picture::Slate,
+                transition: Transition::cut(),
             },
         ],
         narration: vec![Narration {
@@ -146,6 +148,7 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
             start_ms: 0,
             duration_ms: 4_000,
             picture: Picture::Slate,
+            transition: Transition::cut(),
         }],
         narration: vec![Narration {
             id: "late".into(),
@@ -214,6 +217,7 @@ fn a_gap_before_the_first_beat_is_held_rather_than_closed() {
             start_ms: 500,
             duration_ms: 1_000,
             picture: Picture::Slate,
+            transition: Transition::cut(),
         }],
         narration: vec![Narration {
             id: "one".into(),
@@ -232,5 +236,61 @@ fn a_gap_before_the_first_beat_is_held_rather_than_closed() {
         (seconds - 3.0).abs() < 0.2,
         "the video runs as long as the plan, head gap and tail included, \
          not just as long as its beats: {seconds}s"
+    );
+}
+
+/// A crossfade costs time: two beats joined by one occupy less of the
+/// timeline than they do apart, which is why the scheduler overlaps them.
+/// A renderer that concatenated them instead would run the same frames for
+/// half a second longer and put every later beat out of step with its
+/// narration.
+#[test]
+fn a_crossfade_overlaps_the_beats_it_joins() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+
+    let dir = std::env::temp_dir().join(format!("tp-render-xfade-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let plan = RenderPlan {
+        width: 320,
+        height: 180,
+        fps: 24,
+        duration_ms: 3_500,
+        beats: vec![
+            Beat {
+                id: "a#0".into(),
+                start_ms: 0,
+                duration_ms: 2_000,
+                picture: Picture::Slate,
+                transition: Transition {
+                    kind: "crossfade".into(),
+                    duration_ms: 500,
+                },
+            },
+            Beat {
+                id: "b#0".into(),
+                // 2_000 - 500: the scheduler already subtracted the fade.
+                start_ms: 1_500,
+                duration_ms: 2_000,
+                picture: Picture::Slate,
+                transition: Transition::cut(),
+            },
+        ],
+        narration: vec![],
+        output: dir.join("xfade.mp4"),
+    };
+
+    FfmpegRenderer::default()
+        .render(&plan, &mut |_| {})
+        .expect("the graph is one ffmpeg accepts");
+
+    let seconds = duration_of(&plan.output);
+    assert!(
+        (seconds - 3.5).abs() < 0.15,
+        "two 2s beats crossfaded by 0.5s make 3.5s of picture, not {seconds}s"
     );
 }

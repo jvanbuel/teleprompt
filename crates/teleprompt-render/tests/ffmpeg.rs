@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use teleprompt_render::ffmpeg;
-use teleprompt_render::{Beat, Narration, Picture, RenderPlan};
+use teleprompt_render::{Beat, Narration, Picture, RenderPlan, Transition};
 
 fn plan() -> RenderPlan {
     RenderPlan {
@@ -21,6 +21,7 @@ fn plan() -> RenderPlan {
             start_ms: 0,
             duration_ms: 4_000,
             picture: Picture::Slate,
+            transition: Transition::cut(),
         }],
         narration: vec![Narration {
             id: "welcome".into(),
