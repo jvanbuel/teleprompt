@@ -13,6 +13,8 @@ use teleprompt_cli::cmd::plan;
 use teleprompt_cli::cmd::serve;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
+use teleprompt_render::ffmpeg::FfmpegRenderer;
+use teleprompt_render::Progress;
 
 #[derive(Parser)]
 #[command(
@@ -129,6 +131,34 @@ enum Command {
         #[arg(long)]
         fps: Option<u32>,
     },
+}
+
+/// Where a render's progress goes.
+///
+/// Nothing, unless a human is watching a terminal in human format: the
+/// line rewrites itself with a carriage return, which a log file records
+/// as one enormous line and a JSON consumer cannot parse at all.
+fn progress_reporter(format: Format) -> impl FnMut(Progress) {
+    use std::io::{IsTerminal, Write};
+
+    let show = format == Format::Human && std::io::stderr().is_terminal();
+    let mut last = u64::MAX;
+    move |p: Progress| {
+        if !show || p.of_ms == 0 {
+            return;
+        }
+        let percent = (p.rendered_ms.min(p.of_ms) * 100) / p.of_ms;
+        if percent == last {
+            return;
+        }
+        last = percent;
+        let mut err = std::io::stderr();
+        let _ = write!(err, "\r  rendering  {percent:>3}%");
+        if percent == 100 {
+            let _ = writeln!(err);
+        }
+        let _ = err.flush();
+    }
 }
 
 /// The async runtime, built for `dub` and `doctor` and nothing else.
@@ -395,10 +425,22 @@ fn main() -> ExitCode {
                             options.resolution = Some(size);
                         }
                         options.fps = fps.or(options.fps);
+                        // Progress goes to stderr, and only to a terminal: a
+                        // carriage-returned percentage is for a human
+                        // watching, and in a CI log it is the same line a
+                        // few hundred times.
+                        let mut show = progress_reporter(cli.format);
                         match runtime()
                             .map_err(build::BuildError::Runtime)
                             .and_then(|rt| {
-                                rt.block_on(build::run_build(&project, &script, &locale, &options))
+                                rt.block_on(build::run_build_with(
+                                    &FfmpegRenderer::default(),
+                                    &project,
+                                    &script,
+                                    &locale,
+                                    &options,
+                                    &mut show,
+                                ))
                             }) {
                             Ok(report) => {
                                 for w in &report.warnings {

@@ -15,12 +15,20 @@ use teleprompt_render::ffmpeg::FfmpegRenderer;
 use teleprompt_render::{Beat, Narration, Picture, RenderPlan, Renderer, Transition};
 
 fn have_ffmpeg() -> bool {
-    Command::new("ffmpeg")
+    let present = Command::new("ffmpeg")
         .arg("-version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
-        .is_ok()
+        .is_ok();
+    // A skip that nobody sees is a test that stopped running. CI sets this
+    // and installs ffmpeg, so a missing one there is a broken workflow
+    // rather than a machine without a renderer.
+    assert!(
+        present || std::env::var_os("TELEPROMPT_REQUIRE_FFMPEG").is_none(),
+        "TELEPROMPT_REQUIRE_FFMPEG is set and there is no ffmpeg on PATH"
+    );
+    present
 }
 
 /// Seconds of **picture** in `path`, counted frame by frame.

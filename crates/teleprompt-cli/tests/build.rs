@@ -39,12 +39,20 @@ Enter
 ";
 
 fn have_ffmpeg() -> bool {
-    Command::new("ffmpeg")
+    let present = Command::new("ffmpeg")
         .arg("-version")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
-        .is_ok()
+        .is_ok();
+    // A skip that nobody sees is a test that stopped running. CI sets this
+    // and installs ffmpeg, so a missing one there is a broken workflow
+    // rather than a machine without a renderer.
+    assert!(
+        present || std::env::var_os("TELEPROMPT_REQUIRE_FFMPEG").is_none(),
+        "TELEPROMPT_REQUIRE_FFMPEG is set and there is no ffmpeg on PATH"
+    );
+    present
 }
 
 /// Seconds of picture, counted frame by frame — a container's own duration
@@ -240,4 +248,62 @@ fn frame_shape(path: &Path) -> (u32, u32, f64) {
         height,
         num.parse::<f64>().unwrap() / den.parse::<f64>().unwrap(),
     )
+}
+
+/// A render is the one command in teleprompt that takes real time, so it
+/// is the one that has to say where it has got to. ffmpeg's own
+/// `-progress` stream is the source; nothing scrapes its log.
+#[tokio::test]
+async fn a_render_reports_how_far_along_it_is() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project_with_script("progress");
+    let project = Project::discover(&dir).unwrap();
+    let options = BuildOptions {
+        resolution: Some((320, 180)),
+        fps: Some(24),
+        ..BuildOptions::defaults(&project, &script, "en")
+    };
+
+    let mut seen: Vec<u64> = Vec::new();
+    let report = teleprompt_cli::cmd::build::run_build_with(
+        &teleprompt_render::ffmpeg::FfmpegRenderer::default(),
+        &project,
+        &script,
+        "en",
+        &options,
+        &mut |p| seen.push(p.rendered_ms),
+    )
+    .await
+    .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+
+    assert!(
+        seen.len() > 1,
+        "progress is reported as it goes, not once at the end: {seen:?}"
+    );
+    assert!(
+        seen.windows(2).all(|w| w[1] >= w[0]),
+        "and it never goes backwards: {seen:?}"
+    );
+    assert_eq!(
+        seen.last().copied(),
+        Some(report.duration_ms),
+        "the last word is the whole length"
+    );
+}
+
+/// Where a build lands when nobody says. `new` gitignores `build/`, and a
+/// render is entirely derived from things that are committed — so it goes
+/// there rather than somewhere a checkout will offer to commit it.
+#[test]
+fn the_default_output_is_inside_the_directory_the_scaffold_ignores() {
+    let (dir, script) = project_with_script("defaults");
+    let project = Project::discover(&dir).unwrap();
+    let options = BuildOptions::defaults(&project, &script, "en");
+
+    assert_eq!(options.out, dir.join("build/tour.en.mp4"));
+    let ignored = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+    assert!(ignored.contains("build/"), "{ignored}");
 }

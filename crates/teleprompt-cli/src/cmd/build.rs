@@ -46,12 +46,15 @@ impl BuildOptions {
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| "video".into());
         Self {
+            // `build/` is what `new` gitignores, and a render is entirely
+            // derived: it belongs where a checkout will not offer to commit
+            // it. The name follows the committed timelines' — `cli.en.json`
+            // beside `cli.en.mp4`.
             out: project
                 .root
-                .join("out")
-                .join(locale)
-                .join(format!("{stem}.mp4")),
-            narration_root: project.root.join(".teleprompt").join("narration"),
+                .join("build")
+                .join(format!("{stem}.{locale}.mp4")),
+            narration_root: project.root.join("build").join("narration"),
             clips_dir: cache_root(project).join("video"),
             resolution: None,
             fps: None,
@@ -77,19 +80,19 @@ pub struct BuildReport {
 }
 
 impl BuildReport {
+    /// The human report. Warnings are not in it: `main` prints those to
+    /// stderr for every command, and printing them here too said
+    /// everything twice.
     pub fn render(&self) -> String {
-        let mut s = format!(
-            "  {}\n  {} via {}\n  {} segment(s), {} beat(s)\n",
+        format!(
+            "  {}\n  {} via {}\n  {} segment(s), {} beat(s), {} slate(s)\n",
             self.output.display(),
             clock(self.duration_ms),
             self.renderer,
             self.segments,
             self.beats,
-        );
-        for warning in &self.warnings {
-            s.push_str(&format!("\n  warning: {warning}\n"));
-        }
-        s
+            self.slates,
+        )
     }
 }
 

@@ -84,11 +84,19 @@ async fn doctor_reports_available_adapters_and_backends() {
     assert!(r.voice_backends.contains(&"kokoro".to_string()));
 }
 
+/// `ok` is a verdict on the repository, not on the machine. Rendering is
+/// the only thing ffmpeg is needed for, and `check`, `plan`, `diff` and
+/// `dub` all work without one — so a machine with no ffmpeg is a machine
+/// that cannot run `build`, not a project in a bad state.
 #[tokio::test]
-async fn doctor_notes_that_rendering_is_out_of_scope_rather_than_failing_on_ffmpeg() {
+async fn a_missing_ffmpeg_is_reported_without_turning_the_report_red() {
     let r = doctor_report(&SceneRegistry::with_builtins()).await;
-    assert!(r.notes.iter().any(|n| n.contains("M0")));
-    assert!(r.ok, "a missing ffmpeg must not make doctor fail in M0");
+    assert!(
+        r.notes.iter().any(|n| n.contains("ffmpeg")),
+        "{:?}",
+        r.notes
+    );
+    assert!(r.ok);
 }
 
 fn tempdir() -> std::path::PathBuf {
