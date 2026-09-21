@@ -18,6 +18,7 @@ teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
+teleprompt-scene-vhs = { path = "../teleprompt-scene-vhs" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
@@ -43,3 +44,6 @@ insta.workspace = true
 # for `tokio::time::sleep`, which the same stub uses to hold a synthesis
 # response open long enough for concurrent callers to actually overlap.
 tokio = { workspace = true, features = ["net", "io-util", "time"] }
+
+[lints]
+workspace = true

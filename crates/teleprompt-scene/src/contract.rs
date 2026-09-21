@@ -107,6 +107,76 @@ impl Measured {
     }
 }
 
+/// One uninterpretable line, as its adapter's line classifier saw it.
+///
+/// Deliberately not an `Error`: this never propagates as one. It is the half
+/// of a diagnostic an adapter knows — what is wrong and how to fix it — with
+/// the half only the caller knows, the location, left out. [`validate_lines`]
+/// joins the two.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LineError {
+    pub message: String,
+    /// Owned rather than `&'static str`: the most useful help an adapter can
+    /// give is often computed — the list of directives it understands, or the
+    /// correct spelling of the one that was nearly right — and a borrowed
+    /// help line forces those to be dropped or leaked.
+    pub help: Option<String>,
+}
+
+impl LineError {
+    /// A line error with a help line attached.
+    pub fn new(message: impl Into<String>, help: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            help: Some(help.into()),
+        }
+    }
+
+    /// A line error with nothing useful to suggest.
+    pub fn bare(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            help: None,
+        }
+    }
+}
+
+/// Validate a body one line at a time, reporting every bad line.
+///
+/// Adapters whose language is line-oriented implement `classify` and call
+/// this rather than writing the loop again. Two things it gets right that a
+/// hand-written loop has twice gotten wrong: it reports *all* failures rather
+/// than the first, so one `check` fixes a whole block; and it routes every
+/// diagnostic through [`BodyOrigin::locate`], so an `include`d body names its
+/// own file at its own line numbers instead of an offset into the script.
+pub fn validate_lines<T>(
+    src: &BlockSource,
+    classify: impl Fn(&str) -> Result<T, LineError>,
+) -> Result<Validated, Vec<Diagnostic>> {
+    let diags: Vec<Diagnostic> = src
+        .body
+        .lines()
+        .enumerate()
+        .filter_map(|(i, line)| {
+            let e = classify(line).err()?;
+            let mut d = Diagnostic::error(e.message);
+            if let Some(h) = e.help {
+                d = d.with_help(h);
+            }
+            Some(src.origin.locate(d, i, line.trim().len()))
+        })
+        .collect();
+
+    if diags.is_empty() {
+        Ok(Validated {
+            scene: src.scene.clone(),
+            body: src.body.clone(),
+        })
+    } else {
+        Err(diags)
+    }
+}
+
 pub trait SceneCompiler: Send + Sync {
     fn kind(&self) -> &'static str;
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>>;

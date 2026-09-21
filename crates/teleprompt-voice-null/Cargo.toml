@@ -10,3 +10,6 @@ teleprompt-voice = { path = "../teleprompt-voice" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

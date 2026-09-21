@@ -728,21 +728,65 @@ its own PTY rather than shelling out to `vhs`, because VHS renders a whole tape
 to one file and cannot resume — there would be no way to interleave narration.
 The language is reused; the runtime is not.
 
+> **As shipped.** Two departures from the sketch below, both found while
+> writing the adapter. The mark is spelled `# mark`, a VHS comment, rather
+> than a `Mark` command; and exactness is decided per span rather than
+> claimed for the whole language. Both are argued at the end of this section.
+
 ```
 Set TypingSpeed 50ms
 Type "cargo build --release"
 Enter
 Sleep 2s
-Mark
+# mark
 Type "./target/release/acme --help"
 Enter
 ```
 
-`Mark` is teleprompt's one addition to the grammar, and tapes without it remain
-valid VHS. Because tapes carry explicit `Sleep` and `Set TypingSpeed`, `estimate`
-is exact — no measuring pass — and `Set TypingSpeed` is the natural knob for
-`stretch`. Output directives (`Output`, `Set Shell`) that conflict with
-teleprompt's own capture are rejected by `validate` with an explanatory error.
+**The mark is a comment, so the tape stays a tape.** An earlier draft added
+`Mark` to the grammar and claimed that tapes without it remain valid VHS —
+true, and beside the point, since every tape that *uses* the feature stops
+being valid VHS. `include=` is what makes the distinction matter: the whole
+reason to point a fence at a real `demo.tape` is that `vhs demo.tape` runs it,
+editors highlight it, and VHS's own tooling understands it. A grammar addition
+forfeits all three the moment an author reaches for a mark. `# mark` is inert
+to VHS and costs nothing but the convention that this one comment is
+reserved. Consistent with §7.1: the block body is adapter-native, and
+teleprompt's additions live around it, not inside it.
+
+**`estimate` is exact per span, not per language.** `Sleep` and
+`Set TypingSpeed` are exact, and a span built from those alone states its own
+timing in full — that is what lets `plan` and `diff` pace a terminal scene
+offline, on a machine with no terminal recorder installed. `Wait` is the
+exception: it blocks until the shell prompt returns, so its duration is
+whatever the command underneath takes — `cargo build` in the example above —
+and that number is nowhere in the tape.
+
+An earlier draft resolved this by returning `Estimated` for every tape. That
+is honest about `Wait` and misleading about everything else: it tells M1's
+measuring pass that every span has something to improve, when almost none of
+them do. The unit `Measured` describes is a span, so the verdict belongs to
+the span. One containing a `Wait` contributes that `Wait`'s timeout — the
+bound the tape *does* state, `Set WaitTimeout` or VHS's 5 s default — and
+reports `Estimated`. Every other span reports `Exact`.
+
+`Set TypingSpeed` remains the natural knob for `stretch-action`.
+
+**What `validate` refuses, and why.** `Output` and `Set Shell` conflict with
+teleprompt's own capture, as above. `Source` splices another tape in at run
+time, long after `spans` decided where the beats are, so a mark inside the
+sourced tape is invisible to the split meant to honour it — `include=` is the
+supported spelling and keeps the marks visible. `Set PlaybackSpeed` re-times
+the finished recording, which would slide the narration out from under the
+action it was scheduled against; `policy=stretch-action` is the knob for that.
+
+A setting the adapter does not recognise is also refused, rather than passed
+through. Passing unknown settings through is the tempting reading — VHS has
+settings teleprompt does not care about — but it cannot tell `Set Padding 20`
+from `Set TypingSped 10ms`, and the second is a tape that types at a speed its
+author did not choose while `check` reports success. That is the same failure
+the adapter's single-`classify` discipline exists to prevent, arriving by a
+different door.
 
 ### 7.6 Later adapters
 
@@ -954,8 +998,9 @@ Shipped in M0 — six crates:
 | `teleprompt-schedule` | policies, `Timeline`, diffing. Pure. |
 | `teleprompt-voice` | `VoiceBackend` trait, capabilities, resolution ladder, `null` |
 | `teleprompt-scene` | `SceneCompiler` contract, registry, `mock` adapter |
+| `teleprompt-scene-vhs` | VHS tape parser, mark splitting, timing |
 | `teleprompt-compile` | the seam: walks a `Program`, drives scene and voice, emits beats |
-| `teleprompt-cli` | clap, output formatting, the `teleprompt` binary |
+| `teleprompt-cli` | clap, output formatting, the `teleprompt` binary, and the registries every adapter and backend is composed into |
 
 M1 and later:
 
@@ -965,10 +1010,19 @@ M1 and later:
 | `teleprompt-voice-elevenlabs` | API backend, cloning, enrollment |
 | `teleprompt-scene-media` | images, clips, title cards. Pure Rust. |
 | `teleprompt-scene-playwright` | Node sidecar, JSON-RPC protocol, mark splitting, `tp` helper |
-| `teleprompt-scene-vhs` | tape parser, PTY execution, terminal frame rendering |
+| `teleprompt-scene-vhs` (M6) | PTY execution and terminal frame rendering, added to the M0 crate above |
 | `teleprompt-import` | trace capture, ASR, segmentation, policy inference, script emission |
 | `teleprompt-render` | ffmpeg graph construction, muxing, subtitles |
 | `teleprompt-cache` | content-addressed store, `Slot`/`Clock`/`Recorder` measurement cache |
+
+An adapter is its own crate from the start, `vhs` included: it depends on
+`teleprompt-scene` for the contract, which is precisely why
+`SceneRegistry::with_builtins` cannot reach it. The registry is therefore
+assembled in `teleprompt-cli`, alongside the voice registry, and adding an
+adapter is one line there plus a crate — nothing in `-core`, `-compile`, or
+`-schedule` learns its name. That is the property §7.6 asks the contract to
+protect, and it only holds if the seam is exercised by a real adapter rather
+than asserted about a hypothetical one.
 
 `teleprompt-compile` exists because `core`, `scene`, `voice`, and `schedule`
 must not depend on one another: without it, `schedule` would have to know about

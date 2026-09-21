@@ -1,8 +1,20 @@
+//! The M0 stand-in scene: a body of `wait` and `mark` lines.
+//!
+//! It exists so the compiler can produce a real timeline, `plan`, and `diff`
+//! before any external runtime is involved, and it is the reference for what
+//! a `SceneCompiler` has to answer.
+
+// Rust guideline compliant 2026-07-18
+
 use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
 
-use crate::contract::{BlockSource, Measured, SceneCompiler, Span, Validated};
+use crate::contract::{
+    validate_lines, BlockSource, LineError, Measured, SceneCompiler, Span, Validated,
+};
 
+/// The mock adapter.
+#[derive(Debug)]
 pub struct MockScene;
 
 /// What one line of a mock body says.
@@ -20,7 +32,7 @@ pub struct MockScene;
 ///
 /// The mock is M0's only source of action duration, so a disagreement here
 /// is a disagreement about how long the video is.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 enum Line {
     /// Blank or a `#` comment: no executable content whatsoever. Ruling F13
     /// was written to keep these from becoming phantom beats; its wording
@@ -33,10 +45,7 @@ enum Line {
 }
 
 /// The lone place a mock body line is interpreted.
-///
-/// `Err` carries the message and optional help for a diagnostic; the caller
-/// supplies the location, since only it knows which file the line is in.
-fn classify(line: &str) -> Result<Line, (String, Option<&'static str>)> {
+fn classify(line: &str) -> Result<Line, LineError> {
     let line = line.trim();
     if line.is_empty() || line.starts_with('#') {
         return Ok(Line::Nothing);
@@ -51,16 +60,16 @@ fn classify(line: &str) -> Result<Line, (String, Option<&'static str>)> {
     match head {
         "mark" => match parts.next() {
             None => Ok(Line::Mark),
-            Some(extra) => Err((
+            Some(extra) => Err(LineError::new(
                 format!("`mark` takes no arguments, found `{extra}`"),
-                Some("write `mark` on a line of its own"),
+                "write `mark` on a line of its own",
             )),
         },
         "wait" => {
             let Some(value) = parts.next() else {
-                return Err((
-                    "`wait` needs a duration".to_string(),
-                    Some("e.g. `wait 500ms`"),
+                return Err(LineError::new(
+                    "`wait` needs a duration",
+                    "e.g. `wait 500ms`",
                 ));
             };
             // Trailing garbage is rejected rather than ignored. It used to
@@ -68,19 +77,19 @@ fn classify(line: &str) -> Result<Line, (String, Option<&'static str>)> {
             // of both: the author is told the script is fine and the clock
             // disagrees.
             if let Some(extra) = parts.next() {
-                return Err((
+                return Err(LineError::new(
                     format!("`wait` takes one duration, found trailing `{extra}`"),
-                    Some("e.g. `wait 500ms`"),
+                    "e.g. `wait 500ms`",
                 ));
             }
             match parse_duration_ms(value) {
                 Ok(ms) => Ok(Line::Wait(ms)),
-                Err(msg) => Err((msg, Some("e.g. `wait 500ms`"))),
+                Err(msg) => Err(LineError::new(msg, "e.g. `wait 500ms`")),
             }
         }
-        other => Err((
+        other => Err(LineError::new(
             format!("unknown mock directive `{other}`"),
-            Some("mock understands `wait <duration>` and `mark`"),
+            "mock understands `wait <duration>` and `mark`",
         )),
     }
 }
@@ -99,30 +108,7 @@ impl SceneCompiler for MockScene {
     }
 
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
-        let mut diags = Vec::new();
-        for (i, line) in src.body.lines().enumerate() {
-            if let Err((message, help)) = classify(line) {
-                // Every diagnostic about a body line goes through `locate`,
-                // which knows whether that line is in the script or in an
-                // `include`d file. Doing the offset arithmetic here is what
-                // made included bodies report a nonexistent line in the
-                // wrong file.
-                let mut d = Diagnostic::error(message);
-                if let Some(h) = help {
-                    d = d.with_help(h);
-                }
-                diags.push(src.origin.locate(d, i, line.trim().len()));
-            }
-        }
-
-        if diags.is_empty() {
-            Ok(Validated {
-                scene: src.scene.clone(),
-                body: src.body.clone(),
-            })
-        } else {
-            Err(diags)
-        }
+        validate_lines(src, classify)
     }
 
     fn spans(&self, v: &Validated, block_id: &str) -> Result<Vec<Span>, Vec<Diagnostic>> {
@@ -155,7 +141,9 @@ impl SceneCompiler for MockScene {
             .lines()
             .filter_map(|l| match classify(l) {
                 Ok(Line::Wait(ms)) => Some(ms),
-                _ => None,
+                // Not a catch-all: a directive added later must fail to
+                // compile here rather than silently contribute nothing.
+                Ok(Line::Nothing | Line::Mark) | Err(_) => None,
             })
             .sum();
         Measured::Exact(total)

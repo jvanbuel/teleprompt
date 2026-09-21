@@ -10,3 +10,6 @@ teleprompt-core = { path = "../teleprompt-core" }
 async-trait.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+
+[lints]
+workspace = true
