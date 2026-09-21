@@ -45,6 +45,7 @@ cargo run -- diff demo/scripts/demo.md
 | command | does |
 |---|---|
 | `new <path>` | scaffold a project |
+| `from <doc>` | draft a script from a Markdown document you already have |
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it |
 | `diff <script>` | compare against the committed timeline |
@@ -75,6 +76,24 @@ same `plan` is still instant, and now says `measured`.
 A timeline committed from a cold cache will drift the first time you `dub`,
 which `diff` reports as `now measured` rather than as a content edit. `plan`
 warns when it emits estimates for exactly that reason.
+
+## Starting from a document you already have
+
+```bash
+teleprompt from README.md
+```
+
+Prose becomes narration segments with their ids promoted at birth, so the
+first edit cannot shift them (§3.3). Shell code blocks become terminal tapes
+that **type** the command and never run it — marked `review=pending`, which
+`check` warns about on every run until a human has read the tape and removed
+the attribute. Everything else — a JSON payload, a TypeScript snippet — stays
+ordinary Markdown, which compilation ignores, so nothing is invented and
+nothing is lost.
+
+The result is a draft, not a script: no pacing is inferred, every block gets
+the default policy, and choosing `concurrent` over `hold` is exactly the
+judgement you are there to make.
 
 ## Watching what an edit costs
 

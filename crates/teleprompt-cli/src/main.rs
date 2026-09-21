@@ -6,6 +6,7 @@ use teleprompt_cli::cmd::check::{self, CheckReport};
 use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
 use teleprompt_cli::cmd::dub;
+use teleprompt_cli::cmd::from;
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
 use teleprompt_cli::cmd::serve;
@@ -32,6 +33,18 @@ enum Command {
     New { path: PathBuf },
     /// Report the environment teleprompt can see
     Doctor,
+    /// Draft a script from a Markdown document you already have
+    ///
+    /// Prose becomes narration segments with their ids promoted, shell code
+    /// blocks become terminal tapes that type the command and are marked
+    /// `review=pending` until a human has read them, and everything else is
+    /// left as ordinary Markdown for you to promote by hand.
+    From {
+        doc: PathBuf,
+        /// Where to write the draft; defaults to <doc>.teleprompt.md
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Parse and validate; no side effects, no cost
     Check {
         script: PathBuf,
@@ -132,6 +145,19 @@ fn main() -> ExitCode {
         Command::New { path } => match new::scaffold(&path) {
             Ok(files) => {
                 let report = NewReport { created: files };
+                match cli.format {
+                    Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
+                    Format::Human => print!("{}", report.render()),
+                }
+                Outcome::Ok
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+        },
+        Command::From { doc, out } => match from::run_from(&doc, out) {
+            Ok(report) => {
                 match cli.format {
                     Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
                     Format::Human => print!("{}", report.render()),

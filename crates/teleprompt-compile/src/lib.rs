@@ -273,8 +273,20 @@ pub fn compile(
                 config,
                 policy,
                 align,
+                review,
                 span,
             } => {
+                // A tape `from` generated types a command lifted out of
+                // someone else's document. `check` says so on every run
+                // until a human has read it and removed the attribute —
+                // the draft is a draft until somebody says otherwise.
+                if review.as_deref() == Some("pending") {
+                    cache_warnings.push(format!(
+                        "action block `{block_id}` is marked `review=pending`: \
+it was drafted from another document and has not been reviewed. \
+Read it, then remove the attribute."
+                    ));
+                }
                 // Controller ruling F5: an `include=` path is inspected
                 // *before* anything is joined to `base_dir`. `Path::join`
                 // followed by `starts_with` never rejects `..` — `..` is
