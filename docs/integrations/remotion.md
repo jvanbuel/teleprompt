@@ -28,7 +28,7 @@ drifts from the manifest, the manifest is right and this document is wrong —
 
 ```jsonc
 {
-  "manifest_version": 1,
+  "manifest_version": 2,
   "script": "tour.md",
   "locale": "en",
   "generated_by": "teleprompt 0.1.0",
@@ -85,6 +85,21 @@ export type Manifest = {
   audio: { format: string; sample_rate: number; channels: number };
   chapters: { id: string; title: string; start_ms: number }[];
   segments: Segment[];
+  beats: Beat[];
+};
+
+export type Beat = {
+  span: string;
+  /** The segment spoken over this span, or null for one after a mark. */
+  segment: string | null;
+  scene: string;
+  adapter: string;
+  start_ms: number;
+  duration_ms: number;
+  duration_source: "exact" | "measured" | "estimated";
+  policy: "hold" | "concurrent" | "fit-action" | "trim-action";
+  transition: { kind: string; duration_ms: number };
+  span_hash: string;
 };
 
 export type Segment = {
@@ -133,7 +148,7 @@ export const RemotionRoot = () => (
 
       // A major version teleprompt did not promise is a hard stop, not a
       // warning: the fields below are exactly what changed.
-      if (manifest.manifest_version !== 1) {
+      if (manifest.manifest_version !== 2) {
         throw new Error(`unsupported narration manifest v${manifest.manifest_version}`);
       }
 
@@ -238,23 +253,45 @@ anything not already cached — it has to, or it would be comparing against
 numbers it never measured. A first `--check` on a cold cache costs a full
 render and needs a writable checkout.
 
-## What the manifest does not carry
+## Placing the picture
 
-**Visual timing.** The manifest says when each *sentence* is spoken. It does not
-say when each action span starts, how long the scheduler gave it, or which
-policy governed it. A composition built on this can synchronise to speech but
-not to action: every `hold`, `concurrent`, `stretch-action` and `trim-action`
-decision stops at the boundary.
+`beats` is the other half: one entry per scheduled action span, carrying the
+numbers the **scheduler** arrived at rather than the ones the adapter proposed.
+That difference is the whole point — it is what separates replaying a tape at
+its authored pace from replaying it at the pace its narration bought.
 
-That data exists — `timelines/<script>.<locale>.json` holds it — but the
-timeline is an internal review surface, versioned separately from the manifest
-and explicitly not a contract. A consumer joining the two by document order is
-building on something that may move under it.
+```tsx
+{manifest.beats.map((beat) => {
+  const from = frameAt(beat.start_ms, fps);
+  const until = frameAt(beat.start_ms + beat.duration_ms, fps);
+  return (
+    <Sequence key={beat.span} name={beat.span} from={from} durationInFrames={until - from}>
+      <Scene beat={beat} />
+    </Sequence>
+  );
+})}
+```
 
-Publishing a `beats` projection in the manifest is the fix, and it is tracked
-rather than assumed. Until then, a Remotion project either draws its own
-visuals against chapter and segment boundaries, or reads the timeline knowing
-that it is unstable.
+Same arithmetic as a segment, for the same reasons. A few notes on the fields:
+
+- **`segment`** is `null` for a span that follows a mark inside a block — the
+  narration belongs to the block's first span, and the rest run under whatever
+  the policy left of it. It is also `null` for a pause.
+- **`scene: "pause"`** is a beat during which the picture holds. Skipping it
+  runs the next span early.
+- **`duration_source: "exact"`** means the adapter's language states the span's
+  timing in full, so no measuring pass will ever move it. A tape containing
+  `Wait` reports `estimated` instead, bounded by its timeout.
+- **`transition`** is the outgoing transition as scheduled. Deriving gaps from
+  neighbouring offsets instead is the arithmetic that goes wrong exactly where
+  beats overlap.
+- **`span_hash`** keys a per-span render cache, the counterpart of a segment's
+  `audio_hash`.
+
+What the manifest still does not carry is the span's **source** — the tape or
+the Playwright script. A consumer that draws its own picture does not need it;
+one that wants to replay the adapter's own actions does, and that is the
+renderer's business rather than an integrator's.
 
 ## Licence
 

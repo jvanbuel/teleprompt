@@ -136,6 +136,18 @@ fn manifest_for_with_words(
     )
 }
 
+const ONE_BLOCK_SPLIT_BY_A_MARK: &str = "\
+# Quick start
+
+Every video in this repository is built from a script you can read. {#intro}
+
+```teleprompt scene=mock policy=concurrent
+wait 500ms
+mark
+wait 200ms
+```
+";
+
 const TWO_CHAPTERS: &str = "\
 # Quick start
 
@@ -405,9 +417,109 @@ fn the_manifest_json_shape_is_stable() {
     insta::assert_json_snapshot!(m);
 }
 
+/// The same contract with a scene in it. `TWO_CHAPTERS` is narration-only —
+/// it exists to pin the chapter join — so on its own it would pin `beats` as
+/// an empty array and let the published shape of a beat change unnoticed.
+#[test]
+fn the_manifest_json_shape_with_beats_is_stable() {
+    insta::assert_json_snapshot!(manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK));
+}
+
 #[test]
 fn serialization_is_byte_stable() {
     let a = serde_json::to_string_pretty(&manifest_for(TWO_CHAPTERS)).unwrap();
     let b = serde_json::to_string_pretty(&manifest_for(TWO_CHAPTERS)).unwrap();
     assert_eq!(a, b);
+}
+
+/// The half of the manifest that lets a consumer place the *picture*.
+///
+/// Before `beats`, a consumer could place speech and nothing else, so
+/// anything drawing a scene had to read the timeline — an explicitly
+/// internal artifact — and join it to the manifest by document order.
+mod beats {
+    use super::*;
+
+    const TWO_BEATS: &str = "# Chapter\n\n\
+        First sentence. {#one}\n\n\
+        ```teleprompt scene=mock\nwait 400ms\n```\n\n\
+        Second sentence. {#two}\n\n\
+        ```teleprompt scene=mock policy=concurrent\nwait 900ms\nmark\nwait 300ms\n```\n";
+
+    #[test]
+    fn every_scheduled_span_is_published() {
+        let m = manifest_for(TWO_BEATS);
+        let spans: Vec<&str> = m.beats.iter().map(|b| b.span.as_str()).collect();
+        assert_eq!(spans.len(), 3, "two blocks, one of them split by a mark");
+        assert!(spans.iter().all(|s| s.contains('#')), "{spans:?}");
+    }
+
+    #[test]
+    fn a_beat_carries_the_scheduled_numbers_not_the_adapters() {
+        // The mock says `wait 900ms`; `concurrent` does not change that, so
+        // the two agree here — the point is that the published number comes
+        // from the timeline, which is what `fit-action` would move.
+        let (out, m) = compiled_and_manifest(TWO_BEATS);
+        for beat in &m.beats {
+            let entry = out
+                .timeline
+                .entries
+                .iter()
+                .find(|e| e.action.as_ref().is_some_and(|a| a.span == beat.span))
+                .expect("every beat comes from a timeline entry");
+            let action = entry.action.as_ref().unwrap();
+            assert_eq!(beat.start_ms, action.start_ms);
+            assert_eq!(beat.duration_ms, action.duration_ms);
+            assert_eq!(beat.policy, entry.policy);
+            assert_eq!(beat.span_hash, action.span_hash);
+        }
+    }
+
+    #[test]
+    fn the_segment_spoken_over_a_span_is_named_and_unpaired_spans_say_null() {
+        let m = manifest_for(TWO_BEATS);
+        assert_eq!(m.beats[0].segment.as_deref(), Some("one"));
+        assert_eq!(m.beats[1].segment.as_deref(), Some("two"));
+        assert_eq!(
+            m.beats[2].segment, None,
+            "a span after a mark runs under what the policy left of the paragraph"
+        );
+    }
+
+    #[test]
+    fn a_pause_is_a_beat_rather_than_a_gap_to_infer() {
+        let m = manifest_for(
+            "# Chapter\n\nOnly sentence. {#one}\n\n\
+             <!-- teleprompt: pause 600ms -->\n\n\
+             ```teleprompt scene=mock\nwait 200ms\n```\n",
+        );
+        let pause = m
+            .beats
+            .iter()
+            .find(|b| b.scene == "pause")
+            .expect("a pause directive is published as a beat");
+        assert_eq!(pause.duration_ms, 600);
+        assert_eq!(pause.segment, None);
+    }
+
+    #[test]
+    fn beats_and_segments_agree_about_the_scene_and_adapter() {
+        let m = manifest_for(TWO_BEATS);
+        for beat in m.beats.iter().filter(|b| b.scene != "pause") {
+            assert_eq!(beat.scene, "mock");
+            assert_eq!(beat.adapter, "mock");
+            assert_eq!(
+                beat.duration_source, "exact",
+                "the mock states its own timing"
+            );
+        }
+    }
+
+    #[test]
+    fn the_version_says_beats_are_there() {
+        // A v1 consumer that checks the version stops rather than silently
+        // rendering speech over a blank screen.
+        const _: () = assert!(MANIFEST_VERSION >= 2, "beats landed in v2");
+        assert_eq!(manifest_for(TWO_BEATS).manifest_version, MANIFEST_VERSION);
+    }
 }

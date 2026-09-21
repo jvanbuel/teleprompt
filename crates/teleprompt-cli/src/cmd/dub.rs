@@ -740,6 +740,7 @@ mod tests {
             },
             chapters: Vec::new(),
             segments,
+            beats: Vec::new(),
         }
     }
 

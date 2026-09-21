@@ -103,7 +103,7 @@ const msToFrames = (ms: number, fps: number) => Math.round((ms * fps) / 1000);
 
 calculateMetadata={async ({props}) => {
   const m = await (await fetch(staticFile(props.manifestPath))).json();
-  if (m.manifest_version !== 1) throw new Error(`unsupported manifest ${m.manifest_version}`);
+  if (m.manifest_version !== 2) throw new Error(`unsupported manifest ${m.manifest_version}`);
   return {durationInFrames: msToFrames(m.duration_ms, 30), props: {...props, manifest: m}};
 }}
 ```

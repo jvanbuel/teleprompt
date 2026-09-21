@@ -40,6 +40,7 @@ fn manifest(segments: Vec<SegmentEntry>) -> NarrationManifest {
         },
         chapters: Vec::new(),
         segments,
+        beats: Vec::new(),
     }
 }
 
