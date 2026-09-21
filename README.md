@@ -140,6 +140,10 @@ would be comparing against numbers it had not measured. So it needs a
 writable checkout on a cold cache, and a first `--check` in CI costs a full
 render.
 
+`docs/integrations/remotion.md` has the whole integration: a complete example
+project, what every manifest field is for, and the two ways to get the frame
+arithmetic wrong.
+
 teleprompt ships no Remotion code and takes no Remotion dependency. Remotion's
 own licence — free for individuals and organisations up to three employees —
 is between you and Remotion.
