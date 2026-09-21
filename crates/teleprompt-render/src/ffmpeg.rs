@@ -60,7 +60,9 @@ fn pieces(plan: &RenderPlan) -> Vec<Piece> {
         // being entered — that is which end of the join the manifest
         // publishes it on.
         let blend = match (i.checked_sub(1).and_then(|p| plan.beats.get(p)), cursor) {
-            (Some(previous), cursor) if beat.start_ms < cursor => Some(previous.transition.kind.clone()),
+            (Some(previous), cursor) if beat.start_ms < cursor => {
+                Some(previous.transition.kind.clone())
+            }
             _ => None,
         };
         out.push(Piece {
@@ -154,16 +156,18 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
         mix.len()
     ));
 
-    // Every piece is normalized to the same size, rate and duration before
-    // anything is joined: ffmpeg's concat filter requires it, and a clip
-    // recorded at another size would otherwise fail the render rather than
-    // be fitted.
+    // Every piece is normalized to the same size, rate, duration and
+    // timebase before anything is joined: `concat` requires matching
+    // formats, and `xfade` additionally refuses two inputs whose timebases
+    // differ — which is what its own output does to the next piece in the
+    // chain unless everything is pinned to `AVTB` first.
     for (i, piece) in pieces.iter().enumerate() {
         let d = seconds(piece.duration_ms);
         filters.push(format!(
             "[{i}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,\
              pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color={BACKGROUND},setsar=1,fps={fps},\
-             tpad=stop_mode=clone:stop_duration={d},trim=duration={d},setpts=PTS-STARTPTS[v{i}]",
+             tpad=stop_mode=clone:stop_duration={d},trim=duration={d},setpts=PTS-STARTPTS,\
+             settb=AVTB[v{i}]",
             w = plan.width,
             h = plan.height,
             fps = plan.fps,

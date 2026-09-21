@@ -262,3 +262,64 @@ fn an_unknown_backend_table_is_not_an_error() {
     let merged = Config::merged(&[c]);
     assert!(merged.backends.contains_key("elevenlabs"));
 }
+
+/// `output.resolution` and `output.fps` were parsed and dropped for as long
+/// as nothing rendered. They resolve like every other setting now: the
+/// later layer wins, and a layer that says nothing changes nothing.
+#[test]
+fn the_output_shape_resolves_through_the_layers() {
+    let default = Config::merged(&[]);
+    assert_eq!(default.output.resolution, (1920, 1080));
+    assert_eq!(default.output.fps, 30);
+
+    let project = PartialConfig::from_yaml("output:\n  resolution: [1280, 720]\n  fps: 24\n")
+        .expect("valid YAML");
+    let script = PartialConfig::from_yaml("output:\n  fps: 60\n").expect("valid YAML");
+
+    let merged = Config::merged(&[project, script]);
+    assert_eq!(
+        merged.output.resolution,
+        (1280, 720),
+        "the script said nothing about size, so the project's stands"
+    );
+    assert_eq!(merged.output.fps, 60, "and its frame rate overrides");
+}
+
+/// Half a resolution is not a size, and silently ignoring it would render
+/// at 1080p while the author believed otherwise — visible only after the
+/// wait.
+#[test]
+fn a_resolution_that_is_not_a_pair_is_rejected() {
+    let bad = PartialConfig::from_yaml("output:\n  resolution: [1920]\n");
+    let message = bad
+        .expect_err("a one-element resolution is not one")
+        .to_string();
+    assert!(
+        message.contains("resolution"),
+        "the error names the field: {message}"
+    );
+}
+
+/// Zero deserializes perfectly well and divides just as badly: a zero frame
+/// rate is a render that cannot be scheduled and a zero-width frame is one
+/// no encoder will accept.
+#[test]
+fn a_frame_that_cannot_exist_is_reported_by_the_merged_config() {
+    let zero_fps = Config::merged(&[PartialConfig::from_yaml("output:\n  fps: 0\n").unwrap()]);
+    assert!(
+        zero_fps.problems().iter().any(|p| p.contains("output.fps")),
+        "{:?}",
+        zero_fps.problems()
+    );
+
+    let zero_size =
+        Config::merged(&[PartialConfig::from_yaml("output:\n  resolution: [0, 1080]\n").unwrap()]);
+    assert!(
+        zero_size
+            .problems()
+            .iter()
+            .any(|p| p.contains("output.resolution")),
+        "{:?}",
+        zero_size.problems()
+    );
+}

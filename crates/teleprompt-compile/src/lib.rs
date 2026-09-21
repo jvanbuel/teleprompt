@@ -16,7 +16,7 @@
 use std::path::{Component, Path};
 
 use teleprompt_cache::{CacheKey, VoiceCache};
-use teleprompt_core::config::default_adapter;
+use teleprompt_core::config::{default_adapter, OutputConfig};
 use teleprompt_core::program::{ChapterInfo, Item, Program};
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry};
@@ -112,6 +112,14 @@ pub struct CompileOutput {
     /// Without it the manifest's chapter markers are unreachable from the
     /// command that has to write them.
     pub chapters: Vec<ChapterInfo>,
+    /// The frame the script asked for, resolved through every layer.
+    ///
+    /// Here for the same reason `chapters` is: `compile` drops the
+    /// `Program`, and a render has no other route to the script's own
+    /// `output:` block. It is deliberately not in the narration manifest —
+    /// that publishes when things are spoken, and the size of the picture
+    /// is not a timing fact.
+    pub output: OutputConfig,
 }
 
 /// Compiles `program` into a scheduled [`Timeline`].
@@ -505,5 +513,6 @@ Read it, then remove the attribute."
         narration: narration_details,
         spans: span_sources,
         chapters: program.chapters.clone(),
+        output: program.config.output.clone(),
     })
 }

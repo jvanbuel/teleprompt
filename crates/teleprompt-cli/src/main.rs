@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+use teleprompt_cli::cmd::build;
 use teleprompt_cli::cmd::check::{self, CheckReport};
 use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
@@ -107,6 +108,26 @@ enum Command {
         /// Treat a voice-tier downgrade as fatal; exit 4
         #[arg(long)]
         strict_voice: bool,
+    },
+    /// Render the video
+    ///
+    /// Synthesizes narration, publishes the manifest, and renders it with
+    /// ffmpeg. Beats that nothing has captured hold their slot as a slate
+    /// — the timing is the scheduled timing either way, and the count of
+    /// them is reported.
+    Build {
+        script: PathBuf,
+        #[arg(long, default_value = "en")]
+        locale: String,
+        /// Where to write the video; defaults to out/<locale>/<script>.mp4
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Frame size, as WIDTHxHEIGHT
+        #[arg(long)]
+        resolution: Option<String>,
+        /// Frames per second
+        #[arg(long)]
+        fps: Option<u32>,
     },
 }
 
@@ -343,6 +364,76 @@ fn main() -> ExitCode {
                     Err(serve::ServeError::Runtime(e)) => {
                         eprintln!("error: {e}");
                         Outcome::RuntimeFailure(e)
+                    }
+                }
+            }
+        },
+        Command::Build {
+            script,
+            locale,
+            out,
+            resolution,
+            fps,
+        } => match Project::for_script(&script) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => {
+                let size = resolution.as_deref().map(build::parse_resolution);
+                match size {
+                    Some(Err(e)) => {
+                        eprintln!("error: {e}");
+                        Outcome::RuntimeFailure(e)
+                    }
+                    size => {
+                        let mut options = build::BuildOptions::defaults(&project, &script, &locale);
+                        if let Some(path) = out {
+                            options.out = path;
+                        }
+                        if let Some(Ok(size)) = size {
+                            options.resolution = Some(size);
+                        }
+                        options.fps = fps.or(options.fps);
+                        match runtime()
+                            .map_err(build::BuildError::Runtime)
+                            .and_then(|rt| {
+                                rt.block_on(build::run_build(&project, &script, &locale, &options))
+                            }) {
+                            Ok(report) => {
+                                for w in &report.warnings {
+                                    eprintln!("warning: {w}");
+                                }
+                                match cli.format {
+                                    Format::Json => println!(
+                                        "{}",
+                                        serde_json::to_string_pretty(&report).unwrap()
+                                    ),
+                                    Format::Human => print!("{}", report.render()),
+                                }
+                                Outcome::Ok
+                            }
+                            Err(build::BuildError::Validation(errors)) => {
+                                if cli.format == Format::Json {
+                                    let report = ErrorReport::new(errors.clone());
+                                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                                } else {
+                                    for e in &errors {
+                                        eprintln!("error: {e}");
+                                    }
+                                }
+                                Outcome::ValidationError(errors)
+                            }
+                            Err(build::BuildError::Runtime(message)) => {
+                                if cli.format == Format::Json {
+                                    let report = ErrorReport::new(vec![message.clone()]);
+                                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                                } else {
+                                    eprintln!("error: {message}");
+                                }
+                                Outcome::RuntimeFailure(message)
+                            }
+                        }
                     }
                 }
             }

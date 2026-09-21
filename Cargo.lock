@@ -1139,6 +1139,7 @@ dependencies = [
  "teleprompt-cache",
  "teleprompt-compile",
  "teleprompt-core",
+ "teleprompt-render",
  "teleprompt-scene",
  "teleprompt-scene-vhs",
  "teleprompt-schedule",

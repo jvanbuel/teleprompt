@@ -175,13 +175,7 @@ fn first_sound(path: &std::path::Path) -> f64 {
     let out = Command::new("ffmpeg")
         .args(["-hide_banner", "-i"])
         .arg(path)
-        .args([
-            "-af",
-            "silencedetect=noise=-50dB:d=0.1",
-            "-f",
-            "null",
-            "-",
-        ])
+        .args(["-af", "silencedetect=noise=-50dB:d=0.1", "-f", "null", "-"])
         .output()
         .expect("ffmpeg runs");
     let log = String::from_utf8_lossy(&out.stderr);
