@@ -73,6 +73,12 @@ pub struct DoctorReport {
     pub cache_root: String,
     pub cache_entries: usize,
     pub cache_bytes: u64,
+    /// The renderer's own version line, or `None` when there is no ffmpeg
+    /// to ask. A missing one leaves `ok` true for the same reason an
+    /// unreachable server does: it is a fact about this machine, not about
+    /// the repository, and `check`, `plan`, `diff` and `dub` all work
+    /// without it. Only `build` does not.
+    pub ffmpeg: Option<String>,
     /// What the project's *configured* `voice.backend`'s server had to say
     /// (spec §9), or `None` when that backend has nothing to probe — the
     /// common case, since a freshly scaffolded project's backend is `null`.
@@ -160,11 +166,15 @@ pub async fn doctor_report_with(
         cache_root: root.display().to_string(),
         cache_entries: stats.entries,
         cache_bytes: stats.bytes,
+        ffmpeg: probe_ffmpeg("ffmpeg"),
         voice_probe,
         problems,
         notes: vec![
-            "M0 builds no video, so ffmpeg is not required yet.".to_string(),
-            "M0 ships no external runtime, so Node and Playwright are not required yet."
+            "build renders with ffmpeg as a subprocess; check, plan, diff and dub need none."
+                .to_string(),
+            "nothing captures scenes yet, so a build holds each beat's slot with a slate."
+                .to_string(),
+            "no external runtime ships with teleprompt: Node and Playwright are not required."
                 .to_string(),
             // No sample rate is claimed here. `VoiceCapabilities` does not
             // carry one, so the only honest source is the audio a backend
@@ -177,6 +187,28 @@ pub async fn doctor_report_with(
             "the null backend renders silence of the estimated duration.".to_string(),
         ],
     }
+}
+
+/// The renderer's version, as it reports it, or `None` when the binary is
+/// not there to ask.
+///
+/// The first line of `ffmpeg -version` rather than the whole banner, which
+/// is a dozen lines of build configuration nobody reading a health report
+/// wants. Spec §9 asks for availability *and* version, because a too-old
+/// ffmpeg fails a render halfway through with a filter error rather than
+/// refusing it up front.
+pub fn probe_ffmpeg(program: &str) -> Option<String> {
+    let out = std::process::Command::new(program)
+        .arg("-version")
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .next()
+        .map(|line| line.trim().to_string())
 }
 
 /// M2. The server's own `timeout_ms` (30 000 by default) is sized for
@@ -242,6 +274,12 @@ impl DoctorReport {
         out.push_str(&format!(
             "  cache            {}/voice — {} entries, {} bytes\n",
             self.cache_root, self.cache_entries, self.cache_bytes
+        ));
+        out.push_str(&format!(
+            "  ffmpeg           {}\n",
+            self.ffmpeg
+                .as_deref()
+                .unwrap_or("not found — `build` cannot render without it")
         ));
         for p in &self.problems {
             out.push_str(&format!("  problem          {p}\n"));

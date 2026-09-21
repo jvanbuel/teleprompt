@@ -1139,6 +1139,7 @@ dependencies = [
  "teleprompt-cache",
  "teleprompt-compile",
  "teleprompt-core",
+ "teleprompt-render",
  "teleprompt-scene",
  "teleprompt-scene-vhs",
  "teleprompt-schedule",
@@ -1174,6 +1175,16 @@ dependencies = [
  "serde_yaml",
  "thiserror 1.0.69",
  "toml",
+]
+
+[[package]]
+name = "teleprompt-render"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "teleprompt-compile",
+ "teleprompt-core",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

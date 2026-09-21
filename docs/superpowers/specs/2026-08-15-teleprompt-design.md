@@ -937,17 +937,26 @@ availability and version are checked by `doctor`, since a missing or too-old
 ffmpeg is the most likely first-run failure.
 
 **Rendering sits behind a trait with two implementations.** The ffmpeg path
-handles everything, transitions included. A second, pure-Rust path handles the
-no-transition case — concat, mix, mux, via a permissively licensed muxer and
-libopus — which covers every script whose beats are hard cuts, and makes a
-single static binary possible for those. Linking libav was considered and
+handles everything, transitions included, and is what `build` uses today. A
+second, pure-Rust path handles the no-transition case — concat, mix, mux, via
+a permissively licensed muxer and libopus — which covers every script whose
+beats are hard cuts, and makes a single static binary possible for those. It
+is not written; the trait is what leaves room for it. Linking libav was considered and
 rejected: it puts clang and the libav headers in every build, and a distro
 ffmpeg built `--enable-gpl` inside an MIT binary. Invoking a subprocess is not
 linking.
 
 **`build` consumes the published narration manifest**, exactly as an outside
 consumer does, rather than an in-process `Timeline`. Two timing paths would
-drift, and the one that drifts silently is the one nobody renders from.
+drift, and the one that drifts silently is the one nobody renders from. What
+the manifest does *not* carry is the frame: `output.resolution` and
+`output.fps` are configuration, read from the script, because how large the
+picture is was never a timing fact.
+
+**A beat with nothing captured holds its slot as a slate** rather than being
+skipped. Skipping it would run every later beat early against narration that
+is still correctly placed — a video that is wrong in a way that looks like a
+rendering bug rather than a missing stage.
 
 An optional HTML overlay pass — titles, captions, callouts rendered in a
 headless browser and composited on top — is a natural later extension and is
@@ -1000,7 +1009,7 @@ teleprompt trace ls|show|replay    inspect captured traces
 teleprompt loc sync                reconcile translation sidecars
 teleprompt loc status              per-locale coverage and staleness
 teleprompt cache ls|clean
-teleprompt serve                   local preview (later milestone)
+teleprompt serve                   local preview
 ```
 
 Two loops, by design. The inner loop is `plan`/`diff` — offline, sub-second with
@@ -1205,6 +1214,7 @@ tracker where they can be reordered without a documentation change:
 > *You can watch the beat you just edited, seconds after editing it.*
 > *You can turn a Markdown doc into a draft script.*
 > *You can render a video without a browser.*
+> *A beat shows what its tape does, rather than a slate.*
 > *Your teammate's cache works on your machine.*
 > *The fence says what it does.*
 > *A consumer can place the action, not just the speech.*
@@ -1213,12 +1223,17 @@ tracker where they can be reordered without a documentation change:
 Each is small enough to ship on its own and states its own argument, which the
 milestone numbers never did.
 
-**What shipped before the ladder came down**, for whoever reads the sections
-above and wonders what is real: the parser, segment identity, config
-resolution, the `null` and `kokoro` voice backends, the content-addressed
-cache, the scheduler and all four policies, the `Timeline` and its diff, the
-`mock` and `vhs` scene adapters, the narration manifest, and the commands
-`new`, `check`, `doctor`, `plan`, `diff`, `dub`. No video is rendered yet.
+**What is real**, for whoever reads the sections above and wonders: the
+parser, segment identity, config resolution, the `null` and `kokoro` voice
+backends, the content-addressed cache, the scheduler and all four policies,
+the `Timeline` and its diff, the `mock` and `vhs` scene adapters, the
+narration manifest with its beats, the ffmpeg renderer, and the commands
+`new`, `from`, `check`, `doctor`, `plan`, `diff`, `dub`, `serve`, `build`.
+
+**Capture — stage 5 — is not written.** `build` renders a real timeline with
+real narration and holds every beat's slot with a slate, and reports how many
+it held. That is the gap between a video that is correctly paced and a video
+worth watching.
 
 ## 17. Risks
 

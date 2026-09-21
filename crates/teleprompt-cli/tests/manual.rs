@@ -21,6 +21,7 @@
 
 use std::path::{Path, PathBuf};
 
+use teleprompt_cli::cmd::build::{self, BuildOptions};
 use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
 use teleprompt_cli::project::Project;
 
@@ -112,4 +113,86 @@ fn the_manual_demonstrates_every_pacing_policy() {
     for expected in ["hold", "concurrent", "stretch-action", "trim-action"] {
         assert!(policies.contains(expected), "missing policy {expected}");
     }
+}
+
+/// The manual renders. Every stage runs — parse, resolve, voice, schedule,
+/// publish, compose — against the `null` backend, which needs no model and
+/// no network, and the result is a real file of the length the timeline
+/// says it is.
+///
+/// A pipeline that only ever runs by hand is a pipeline that is broken most
+/// of the time, which is why this is here rather than in a script someone
+/// remembers to run before a release.
+#[tokio::test]
+async fn the_manual_renders() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (project, script) = manual();
+    let options = BuildOptions {
+        // Small and slow-framed: CI is checking that the pipeline runs and
+        // the arithmetic holds over 25 beats, not how a codec looks.
+        resolution: Some((320, 180)),
+        fps: Some(12),
+        ..BuildOptions::defaults(&project, &script, "en")
+    };
+
+    let report = build::run_build(&project, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("the manual must render: {}", build::render_error(&e)));
+
+    assert_eq!(report.segments, 21);
+    assert_eq!(report.beats, 25);
+
+    let seconds = picture_seconds(&report.output);
+    let expected = report.duration_ms as f64 / 1000.0;
+    assert!(
+        (seconds - expected).abs() < 0.5,
+        "the manual's timeline is {expected}s and its video runs {seconds}s"
+    );
+}
+
+fn have_ffmpeg() -> bool {
+    let present = std::process::Command::new("ffmpeg")
+        .arg("-version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok();
+    // A skip that nobody sees is a test that stopped running. CI sets this
+    // and installs ffmpeg, so a missing one there is a broken workflow
+    // rather than a machine without a renderer.
+    assert!(
+        present || std::env::var_os("TELEPROMPT_REQUIRE_FFMPEG").is_none(),
+        "TELEPROMPT_REQUIRE_FFMPEG is set and there is no ffmpeg on PATH"
+    );
+    present
+}
+
+/// Seconds of picture, counted frame by frame: a container reports its
+/// longest stream, so a video that stops early hides under a full-length
+/// audio bed.
+fn picture_seconds(path: &Path) -> f64 {
+    let out = std::process::Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-count_frames",
+            "-show_entries",
+            "stream=nb_read_frames,avg_frame_rate",
+            "-of",
+            "csv=p=0",
+        ])
+        .arg(path)
+        .output()
+        .expect("ffprobe runs");
+    let csv = String::from_utf8_lossy(&out.stdout);
+    let mut fields = csv.trim().split(',');
+    let rate = fields.next().expect("a frame rate");
+    let frames: f64 = fields.next().unwrap().parse().unwrap();
+    let (num, den) = rate.split_once('/').expect("a rational frame rate");
+    frames * den.parse::<f64>().unwrap() / num.parse::<f64>().unwrap()
 }

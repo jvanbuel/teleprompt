@@ -7,13 +7,17 @@ Narration duration drives visual pacing, so editing a paragraph changes the
 rhythm of the video — and `teleprompt diff` tells you exactly how before you
 render anything.
 
-**Status: M0.** The compiler and the feedback loop work end to end: parsing,
-narration timing, and timeline scheduling are all real. Terminal scenes are
-written as [VHS](https://github.com/charmbracelet/vhs) tapes and compile to
-exact durations. There is no video output yet — no rendering, no terminal
-capture, no ffmpeg: teleprompt reads a tape, it does not yet run one. See
-`docs/superpowers/specs/2026-08-15-teleprompt-design.md` for the full design
-and milestone plan.
+The compiler and the feedback loop work end to end: parsing, narration
+timing, timeline scheduling, a live preview, and `build`, which renders a
+video with ffmpeg. Terminal scenes are written as
+[VHS](https://github.com/charmbracelet/vhs) tapes and compile to exact
+durations.
+
+**Nothing captures scenes yet.** teleprompt reads a tape; it does not run
+one. A render therefore holds each beat's slot with a slate — the timing is
+the scheduled timing, and the picture is not there yet. `build` says how
+many, every time. See
+`docs/superpowers/specs/2026-08-15-teleprompt-design.md` for the design.
 
 ## Try it
 
@@ -51,6 +55,7 @@ cargo run -- diff demo/scripts/demo.md
 | `diff <script>` | compare against the committed timeline |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `serve <script>` | live preview that opens on the beat you just changed |
+| `build <script>` | render the video |
 | `doctor` | report the environment teleprompt can see |
 
 `doctor` also lists the scene adapters and voice backends this build ships.
@@ -118,6 +123,28 @@ which a consumer drawing its own picture would not.
 
 A script that stops compiling does not blank the preview: the error appears
 and the last version that compiled keeps playing.
+
+## Rendering
+
+```bash
+teleprompt build scripts/tour.md
+```
+
+Synthesizes narration, publishes the manifest, and renders
+`build/tour.en.mp4` — narration placed at the offsets the manifest
+published, each beat holding its scheduled slot, transitions overlapped the
+way the scheduler granted them. `--resolution` and `--fps` override the
+script's own `output:` block for one render; `teleprompt doctor` reports
+whether this machine has an ffmpeg to do it with.
+
+`build` reads the published manifest rather than the timeline it just
+compiled, exactly as an outside integrator does. Two timing paths drift, and
+the one that drifts silently is the one nobody renders from.
+
+Rendering sits behind a trait. ffmpeg handles everything, transitions
+included; a pure-Rust path for scripts whose beats are all hard cuts —
+concat, mix, mux — is what would make a single static binary possible for
+those, and is not written yet.
 
 ## Dubbing a pipeline that renders itself
 
@@ -367,8 +394,10 @@ audio's sample rate, channel count, and duration are plausible.
 
 ## Building and testing
 
-No network, no browser, no Node, and no ffmpeg are required — the whole
-workspace builds and tests offline:
+No network, no browser and no Node are required — the whole workspace
+builds and tests offline. ffmpeg is needed by `build` and by the render
+tests, which skip themselves where there is none; CI installs one and sets
+`TELEPROMPT_REQUIRE_FFMPEG=1`, which turns that skip into a failure:
 
 ```bash
 cargo test --workspace

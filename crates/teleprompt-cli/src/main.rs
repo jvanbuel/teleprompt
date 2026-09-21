@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+use teleprompt_cli::cmd::build;
 use teleprompt_cli::cmd::check::{self, CheckReport};
 use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
@@ -12,6 +13,8 @@ use teleprompt_cli::cmd::plan;
 use teleprompt_cli::cmd::serve;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
+use teleprompt_render::ffmpeg::FfmpegRenderer;
+use teleprompt_render::Progress;
 
 #[derive(Parser)]
 #[command(
@@ -108,6 +111,54 @@ enum Command {
         #[arg(long)]
         strict_voice: bool,
     },
+    /// Render the video
+    ///
+    /// Synthesizes narration, publishes the manifest, and renders it with
+    /// ffmpeg. Beats that nothing has captured hold their slot as a slate
+    /// — the timing is the scheduled timing either way, and the count of
+    /// them is reported.
+    Build {
+        script: PathBuf,
+        #[arg(long, default_value = "en")]
+        locale: String,
+        /// Where to write the video; defaults to out/<locale>/<script>.mp4
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Frame size, as WIDTHxHEIGHT
+        #[arg(long)]
+        resolution: Option<String>,
+        /// Frames per second
+        #[arg(long)]
+        fps: Option<u32>,
+    },
+}
+
+/// Where a render's progress goes.
+///
+/// Nothing, unless a human is watching a terminal in human format: the
+/// line rewrites itself with a carriage return, which a log file records
+/// as one enormous line and a JSON consumer cannot parse at all.
+fn progress_reporter(format: Format) -> impl FnMut(Progress) {
+    use std::io::{IsTerminal, Write};
+
+    let show = format == Format::Human && std::io::stderr().is_terminal();
+    let mut last = u64::MAX;
+    move |p: Progress| {
+        if !show || p.of_ms == 0 {
+            return;
+        }
+        let percent = (p.rendered_ms.min(p.of_ms) * 100) / p.of_ms;
+        if percent == last {
+            return;
+        }
+        last = percent;
+        let mut err = std::io::stderr();
+        let _ = write!(err, "\r  rendering  {percent:>3}%");
+        if percent == 100 {
+            let _ = writeln!(err);
+        }
+        let _ = err.flush();
+    }
 }
 
 /// The async runtime, built for `dub` and `doctor` and nothing else.
@@ -343,6 +394,88 @@ fn main() -> ExitCode {
                     Err(serve::ServeError::Runtime(e)) => {
                         eprintln!("error: {e}");
                         Outcome::RuntimeFailure(e)
+                    }
+                }
+            }
+        },
+        Command::Build {
+            script,
+            locale,
+            out,
+            resolution,
+            fps,
+        } => match Project::for_script(&script) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => {
+                let size = resolution.as_deref().map(build::parse_resolution);
+                match size {
+                    Some(Err(e)) => {
+                        eprintln!("error: {e}");
+                        Outcome::RuntimeFailure(e)
+                    }
+                    size => {
+                        let mut options = build::BuildOptions::defaults(&project, &script, &locale);
+                        if let Some(path) = out {
+                            options.out = path;
+                        }
+                        if let Some(Ok(size)) = size {
+                            options.resolution = Some(size);
+                        }
+                        options.fps = fps.or(options.fps);
+                        // Progress goes to stderr, and only to a terminal: a
+                        // carriage-returned percentage is for a human
+                        // watching, and in a CI log it is the same line a
+                        // few hundred times.
+                        let mut show = progress_reporter(cli.format);
+                        match runtime()
+                            .map_err(build::BuildError::Runtime)
+                            .and_then(|rt| {
+                                rt.block_on(build::run_build_with(
+                                    &FfmpegRenderer::default(),
+                                    &project,
+                                    &script,
+                                    &locale,
+                                    &options,
+                                    &mut show,
+                                ))
+                            }) {
+                            Ok(report) => {
+                                for w in &report.warnings {
+                                    eprintln!("warning: {w}");
+                                }
+                                match cli.format {
+                                    Format::Json => println!(
+                                        "{}",
+                                        serde_json::to_string_pretty(&report).unwrap()
+                                    ),
+                                    Format::Human => print!("{}", report.render()),
+                                }
+                                Outcome::Ok
+                            }
+                            Err(build::BuildError::Validation(errors)) => {
+                                if cli.format == Format::Json {
+                                    let report = ErrorReport::new(errors.clone());
+                                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                                } else {
+                                    for e in &errors {
+                                        eprintln!("error: {e}");
+                                    }
+                                }
+                                Outcome::ValidationError(errors)
+                            }
+                            Err(build::BuildError::Runtime(message)) => {
+                                if cli.format == Format::Json {
+                                    let report = ErrorReport::new(vec![message.clone()]);
+                                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                                } else {
+                                    eprintln!("error: {message}");
+                                }
+                                Outcome::RuntimeFailure(message)
+                            }
+                        }
                     }
                 }
             }

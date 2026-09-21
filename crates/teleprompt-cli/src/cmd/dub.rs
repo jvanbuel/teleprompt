@@ -5,6 +5,7 @@ use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_compile::NarrationDetail;
+use teleprompt_core::config::OutputConfig;
 use teleprompt_core::Hash;
 use teleprompt_voice::VoiceBackend;
 
@@ -32,6 +33,10 @@ pub struct Downgrade {
 
 pub struct DubOutput {
     pub manifest: NarrationManifest,
+    /// The frame the script asked for. Carried through because `build`
+    /// renders what `dub` published, and the script's `output:` block is
+    /// not part of the narration manifest.
+    pub output: OutputConfig,
     pub written: Vec<PathBuf>,
     pub warnings: Vec<String>,
     /// `Some` only under `--check`. `None` means nothing was compared.
@@ -636,6 +641,7 @@ pub async fn run_dub_with(
         };
         return Ok(DubOutput {
             manifest: built,
+            output: compiled.output.clone(),
             written: Vec::new(),
             warnings: warnings.clone(),
             drift: Some(drift),
@@ -665,6 +671,7 @@ pub async fn run_dub_with(
 
     Ok(DubOutput {
         manifest: built,
+        output: compiled.output.clone(),
         written,
         warnings,
         drift: None,

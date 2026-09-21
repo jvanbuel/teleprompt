@@ -214,6 +214,7 @@ fn the_probe_line_names_the_backend_that_was_probed() {
         cache_root: ".teleprompt/cache".to_string(),
         cache_entries: 0,
         cache_bytes: 0,
+        ffmpeg: None,
         voice_probe: Some(teleprompt_cli::cmd::doctor::VoiceProbe {
             backend: "elevenlabs".to_string(),
             detail: "https://api.example — reachable, 2 voices".to_string(),
@@ -319,4 +320,43 @@ async fn outside_a_project_there_is_no_probe() {
     assert!(report.voice_probe.is_none(), "{:?}", report.voice_probe);
     assert!(!report.render().contains("voice kokoro"));
     assert!(report.ok);
+}
+
+/// Spec §9: a missing or too-old ffmpeg is the most likely first-run
+/// failure, so `doctor` is where it is found rather than fifteen minutes
+/// into a render.
+#[tokio::test]
+async fn the_report_says_whether_this_machine_can_render() {
+    let report = doctor_report_with(&SceneRegistry::with_builtins(), None).await;
+
+    let has_ffmpeg = std::process::Command::new("ffmpeg")
+        .arg("-version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok();
+    assert_eq!(
+        report.ffmpeg.is_some(),
+        has_ffmpeg,
+        "the probe agrees with the machine it ran on"
+    );
+
+    let rendered = report.render();
+    assert!(
+        rendered.contains("ffmpeg"),
+        "and it is in the human report either way: {rendered}"
+    );
+    assert!(
+        !rendered.contains("M0 builds no video"),
+        "the note that video was out of scope outlived its milestone: {rendered}"
+    );
+}
+
+/// A version string comes from the binary, never from a guess.
+#[test]
+fn a_binary_that_is_not_there_probes_to_nothing() {
+    assert_eq!(
+        teleprompt_cli::cmd::doctor::probe_ffmpeg("teleprompt-no-such-binary"),
+        None
+    );
 }

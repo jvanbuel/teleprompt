@@ -9,6 +9,7 @@ pub struct Config {
     pub locales: Locales,
     pub voice: VoiceConfig,
     pub timing: TimingConfig,
+    pub output: OutputConfig,
     pub transition: TransitionConfig,
     pub scenes: BTreeMap<String, SceneConfig>,
     /// `scene.default:` from front matter (spec §3.1). Resolved through the
@@ -51,6 +52,18 @@ pub struct TimingConfig {
     pub max_stretch: f64,
     pub min_stretch: f64,
     pub max_speedup: f64,
+}
+
+/// The shape of the rendered video.
+///
+/// Separate from [`TransitionConfig`] even though front matter nests both
+/// under `output:`, because the two are read by different things: a
+/// transition is scheduling, which every command sees, and this is the
+/// frame, which only a render has any use for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutputConfig {
+    pub resolution: (u32, u32),
+    pub fps: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,6 +128,10 @@ impl Default for Config {
                 backend: "null".into(),
                 voice: None,
                 speed: 1.0,
+            },
+            output: OutputConfig {
+                resolution: (1920, 1080),
+                fps: 30,
             },
             timing: TimingConfig {
                 lead_in_ms: 150,
@@ -222,9 +239,36 @@ pub struct PartialTiming {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialOutput {
-    pub resolution: Option<Vec<u32>>,
+    pub resolution: Option<Resolution>,
     pub fps: Option<u32>,
     pub transition: Option<PartialTransition>,
+}
+
+/// `resolution: [1920, 1080]`, as front matter writes it.
+///
+/// A dedicated type rather than `Vec<u32>` so that a list of any other
+/// length is a deserialize error naming the field, the way a malformed
+/// transition duration is. Merging would otherwise have to choose between
+/// ignoring `[1920]` — an author rendering at the wrong size and finding
+/// out after the wait — and inventing a missing half.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Resolution(pub u32, pub u32);
+
+impl<'de> Deserialize<'de> for Resolution {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let parts = Vec::<u32>::deserialize(deserializer)?;
+        match parts[..] {
+            [w, h] => Ok(Resolution(w, h)),
+            _ => Err(serde::de::Error::custom(format!(
+                "`output.resolution` takes a width and a height \
+                 (e.g. `[1920, 1080]`), but has {} value(s)",
+                parts.len()
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -396,6 +440,17 @@ impl Config {
                 "voice.speed must be greater than zero, but is `{speed}`"
             ));
         }
+        // Zero deserializes and then divides: a zero frame rate schedules
+        // no frames, and a zero-width frame is one no encoder accepts.
+        if self.output.fps == 0 {
+            out.push("output.fps must be greater than zero".to_string());
+        }
+        let (w, h) = self.output.resolution;
+        if w == 0 || h == 0 {
+            out.push(format!(
+                "output.resolution must be greater than zero in both directions, but is `[{w}, {h}]`"
+            ));
+        }
         out
     }
 
@@ -420,6 +475,14 @@ impl Config {
                 set!(c.timing.max_stretch, t.max_stretch);
                 set!(c.timing.min_stretch, t.min_stretch);
                 set!(c.timing.max_speedup, t.max_speedup);
+            }
+            if let Some(o) = &layer.output {
+                // A resolution is a pair or it is nothing: half of one is
+                // not a size anything can be rendered at.
+                if let Some(Resolution(w, h)) = o.resolution {
+                    c.output.resolution = (w, h);
+                }
+                set!(c.output.fps, o.fps);
             }
             if let Some(t) = layer.output.as_ref().and_then(|o| o.transition.as_ref()) {
                 set!(c.transition.kind, t.kind.clone());
