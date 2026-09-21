@@ -1177,6 +1177,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-render"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-compile",
+ "teleprompt-core",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "teleprompt-scene"
 version = "0.1.0"
 dependencies = [
