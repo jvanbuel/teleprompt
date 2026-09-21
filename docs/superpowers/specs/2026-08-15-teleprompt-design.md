@@ -1,7 +1,11 @@
 # teleprompt — Design Specification
 
-**Status:** approved design, pre-implementation
-**Date:** 2026-08-15
+**Status:** living. Principles, concepts and contracts are maintained here and
+amended in place; scope and ordering are not in this document at all — they
+live in the issue tracker. A document about drift that drifts is the worst
+possible artifact for this project to own, so the churny half was removed
+rather than kept up to date.
+**Date:** 2026-08-15, amended 2026-09-21
 
 ## 1. Summary
 
@@ -9,10 +13,22 @@ teleprompt compiles videos from version-controlled source. A Markdown script
 describes what the viewer sees and what the narrator says; teleprompt turns it
 into a narrated, optionally multi-language video.
 
-The point is the feedback loop. Editing a paragraph changes narration duration,
-which shifts every transition after it. teleprompt makes that consequence
-visible and cheap: `plan` computes the new timeline without rendering a frame,
-`diff` explains what moved, and `build` re-renders only the parts that changed.
+**The promise is that making a video is cheap enough to keep improving one.**
+Editing a paragraph changes narration duration, which shifts every transition
+after it; teleprompt makes that consequence visible and cheap enough to iterate
+on. `plan` computes the new timeline without rendering a frame, `diff` explains
+what moved, and `build` re-renders only the parts that changed.
+
+The loop serves refinement, not maintenance. An earlier draft of this section
+claimed the timeline-and-diff machinery *is* the product — it is not. Nobody
+ships a diff. The diff exists so that the tenth pass over a script costs
+minutes instead of an afternoon, which is what lets an author chisel rather
+than settle. The artifact is the video.
+
+**Timing is derived, not authored.** This is the load-bearing difference from
+every other programmatic video tool. Elsewhere an author writes a scene's
+duration; here a paragraph's spoken length *is* the duration, and the visuals
+are paced to it. The author's job is the prose.
 
 The Playwright analogy is more than an analogy: browser scenes *are* Playwright
 scripts. A script is a program, execution is reproducible, and the artifact
@@ -42,6 +58,12 @@ it observed (§8) — after which the same feedback loop applies.
 - Translation itself. teleprompt maintains the ledger, not the prose.
 - Hosting, publishing, or analytics.
 - Real-time streaming. Output is a file.
+- **Action-led pacing.** Narration duration is the input and visuals are the
+  dependent variable, in that direction only. A screencast whose action has its
+  own rhythm — a build running, a test suite finishing — has no policy that
+  stretches the *speech* to cover it; `stretch-action`, `trim-action` and an
+  explicit `pause` are the available tools. This is a deliberate asymmetry,
+  because a bidirectional scheduler is what makes the diff hard to read.
 
 ## 2. Concepts
 
@@ -292,7 +314,7 @@ script:
 - `build` degrades a tier and emits a warning per stale segment.
 - `record --stale` records exactly the drifted segments, in script order.
 
-The hash binding is implemented from M0, well before recording exists.
+The hash binding shipped with the first cache, well before recording exists.
 Retrofitting identity and hashing onto an existing cache is far more expensive
 than carrying it from the start.
 
@@ -414,6 +436,14 @@ Cache entries are immutable and safe to delete at any time; deleting one costs
 recomputation, never correctness. `cache ls` reports size and age per class;
 `cache clean --unreferenced` prunes what no committed timeline points at.
 
+> **Decided, not yet implemented.** The backend version currently embeds the
+> server's address (`model@host`), so `localhost:8880` and `127.0.0.1:8880` are
+> different keys and a warm cache never crosses machines — which is what leaves
+> CI and every second contributor starting cold. The key drops the host and
+> keeps the model identity the server reports. The trade is real: two servers
+> serving different weights under one model name would collide, so `doctor`
+> reports the server's model identity to make that visible.
+
 Two properties keep the store honest. Backend version participates in the key,
 so upgrading a TTS model invalidates its clips rather than silently mixing
 voices. Slot duration participates in the video key, so a beat re-captures when
@@ -460,6 +490,17 @@ spellings and reports the new ones (issue #1).
 | `concurrent` | Action and narration overlap. `align=start` (default) begins them together; `align=end` makes them finish together; `align=center` centres the shorter within the longer. Whichever ends first waits. |
 | `stretch-action` | The action's internal delays scale by a uniform factor so the block's duration exactly equals the narration's. Intended for typing, scrolling, and progress animations. Bounded by `max_stretch` (default 3.0) and `min_stretch` (default 0.33); exceeding either is a warning and the bound is applied. |
 | `trim-action` | An action longer than its narration is time-compressed in post until it fits, bounded by `max_speedup` (default 2.0). Beyond the bound, the action's tail is cut at the last completed step and a warning is emitted. The narration sets the length and is itself untouched — an action shorter than its narration is left alone. |
+
+> **Decided, not yet implemented — three names that lie.** `stretch-action`
+> also compresses, when the narration is shorter than the action: it becomes
+> `fit-action`, one policy fitting the action to its narration within
+> `min_stretch`/`max_stretch`. `max_speedup` never speeds anything up — above
+> the threshold the action is cut to the narration's length exactly as below it
+> — so it becomes `trim_warn_above`, which is what it does. And `align` is
+> parsed for every policy while only `concurrent` reads it; it is rejected
+> where it has no effect, because ignored input is what this codebase refuses
+> everywhere else. Old spellings error and name their replacement, as
+> `Policy::renamed_hint` already does.
 
 ### 6.3 Slack and automatic transitions
 
@@ -605,11 +646,11 @@ what the indirection protects is everything *around* the body.
 
 Everything the compiler needs from a scene, and nothing more:
 
-> **As shipped in M0.** The trait is split at the async boundary. M0 ships the
+> **As shipped.** The trait is split at the async boundary. Today it ships the
 > compile-time half as `SceneCompiler: Send + Sync` — `kind`, `validate`,
 > `spans`, `estimate`, all synchronous and IO-free, which is what `check` and
 > `plan` need and all they need. `prepare`, `execute`, and `teardown` arrive in
-> M1 alongside rendering, as a separate async trait; M0 deliberately renders no
+> alongside rendering, as a separate async trait; nothing renders yet and no
 > video, so an async runtime would have had no work to do. Two further
 > departures from the sketch below: `spans` takes the block id as a second
 > argument, because span ids are `{block_id}#{index}`; and both fallible
@@ -763,7 +804,7 @@ whatever the command underneath takes — `cargo build` in the example above —
 and that number is nowhere in the tape.
 
 An earlier draft resolved this by returning `Estimated` for every tape. That
-is honest about `Wait` and misleading about everything else: it tells M1's
+is honest about `Wait` and misleading about everything else: it tells the
 measuring pass that every span has something to improve, when almost none of
 them do. The unit `Measured` describes is a span, so the verdict belongs to
 the span. One containing a `Wait` contributes that `Wait`'s timeout — the
@@ -892,8 +933,21 @@ ffmpeg, orchestrated from Rust. teleprompt builds the filter graph and invokes
 - Output: H.264/AAC MP4 by default, configurable.
 
 ffmpeg is invoked with an explicit argument vector, never a shell string. Its
-availability and version are checked by `check` and `doctor`, since a missing or
-too-old ffmpeg is the most likely first-run failure.
+availability and version are checked by `doctor`, since a missing or too-old
+ffmpeg is the most likely first-run failure.
+
+**Rendering sits behind a trait with two implementations.** The ffmpeg path
+handles everything, transitions included. A second, pure-Rust path handles the
+no-transition case — concat, mix, mux, via a permissively licensed muxer and
+libopus — which covers every script whose beats are hard cuts, and makes a
+single static binary possible for those. Linking libav was considered and
+rejected: it puts clang and the libav headers in every build, and a distro
+ffmpeg built `--enable-gpl` inside an MIT binary. Invoking a subprocess is not
+linking.
+
+**`build` consumes the published narration manifest**, exactly as an outside
+consumer does, rather than an in-process `Timeline`. Two timing paths would
+drift, and the one that drifts silently is the one nobody renders from.
 
 An optional HTML overlay pass — titles, captions, callouts rendered in a
 headless browser and composited on top — is a natural later extension and is
@@ -908,7 +962,12 @@ command is a function call into the library, and every command supports
 ```
 teleprompt new <name>              scaffold a project
 teleprompt check [script]          parse and validate; no side effects, no cost
-teleprompt doctor                  verify ffmpeg, browser, backends, credentials
+teleprompt doctor [script]         verify ffmpeg, browser, backends, credentials
+                                   given a script, also resolve its demands:
+                                   the voices it asks for, a tape's `Require`,
+                                   the adapters its scenes need
+teleprompt from <doc>              draft a script from an existing Markdown doc
+teleprompt serve [script]          live preview; opens on the beat that changed
 
 teleprompt plan [script]           compile the timeline; print it
   --locale <tag>  --chapter <slug>  --format json
@@ -990,7 +1049,7 @@ were recorded, by whom, and whether they have gone stale.
 A workspace. The split follows the purity boundary: everything that can be a
 pure function is, and lives where it can be tested without IO.
 
-Shipped in M0 — six crates:
+Shipped:
 
 | crate | responsibility |
 |---|---|
@@ -1002,7 +1061,7 @@ Shipped in M0 — six crates:
 | `teleprompt-compile` | the seam: walks a `Program`, drives scene and voice, emits beats |
 | `teleprompt-cli` | clap, output formatting, the `teleprompt` binary, and the registries every adapter and backend is composed into |
 
-M1 and later:
+Not yet written:
 
 | crate | responsibility |
 |---|---|
@@ -1010,7 +1069,7 @@ M1 and later:
 | `teleprompt-voice-elevenlabs` | API backend, cloning, enrollment |
 | `teleprompt-scene-media` | images, clips, title cards. Pure Rust. |
 | `teleprompt-scene-playwright` | Node sidecar, JSON-RPC protocol, mark splitting, `tp` helper |
-| `teleprompt-scene-vhs` (M6) | PTY execution and terminal frame rendering, added to the M0 crate above |
+| `teleprompt-scene-vhs` | PTY execution and terminal frame rendering, added to the shipped crate above |
 | `teleprompt-import` | trace capture, ASR, segmentation, policy inference, script emission |
 | `teleprompt-render` | ffmpeg graph construction, muxing, subtitles |
 | `teleprompt-cache` | content-addressed store, `Slot`/`Clock`/`Recorder` measurement cache |
@@ -1042,14 +1101,14 @@ replacement) is then an additive change rather than a rename.
 
 `core` and `schedule` have no async runtime, no network, and no filesystem
 dependency beyond reading the script. The most intricate logic in the project is
-consequently testable as plain functions over plain data. As shipped, M0 is
+consequently testable as plain functions over plain data. As shipped, the tool is
 stricter still: `core` does not read the script either — the CLI does, and hands
 `core` a `&str`.
 
 Adapters and backends are Cargo features, default-on for `media`, `null`, and
 `kokoro` only. The `playwright` feature is opt-in because it pulls a Node
 runtime requirement; a user who only needs `media` and `null` builds a small
-binary with no external runtime at all, which is exactly what M0 targets.
+binary with no external runtime at all, which is what the workspace holds to today.
 
 ## 13. Interfaces
 
@@ -1135,50 +1194,37 @@ Long operations report progress per beat. An interrupted build leaves the cache
 consistent: entries are written to a temporary path and atomically renamed, so a
 partial write is never observed as a hit.
 
-## 16. Milestones
+## 16. Ordering
 
-Each produces something usable on its own.
+**Not in this document.** The M0–M6 ladder that stood here was removed: it was
+opaque from outside — nobody can tell what "M3" enables without reading the
+list — and this project is too early to hold an ordering still. What replaced
+it is a set of sentences about what becomes possible, kept in the issue
+tracker where they can be reordered without a documentation change:
 
-**M0 — the loop, without video.** Parser, segment identity, config resolution,
-`null` backend, the `Scene` contract with the `mock` adapter, scheduler with all
-four policies, `Timeline`, and the commands `new`, `check`, `doctor`, `plan`,
-`diff`. No rendering at all, and no external runtime — pure Rust.
+> *You can watch the beat you just edited, seconds after editing it.*
+> *You can turn a Markdown doc into a draft script.*
+> *You can render a video without a browser.*
+> *Your teammate's cache works on your machine.*
+> *The fence says what it does.*
+> *A consumer can place the action, not just the speech.*
+> *You can record a terminal session and get a script back.*
 
-This deliberately ships no video, and that ordering is the most important
-decision in the plan. The timeline-and-diff machinery *is* the product; a
-renderer built on top of a loop that does not yet feel right only reaches a bad
-answer faster. At the end of M0, the core question — does editing prose produce
-a legible, useful diff of the video's pacing? — is answerable.
+Each is small enough to ship on its own and states its own argument, which the
+milestone numbers never did.
 
-**M1 — first real video.** `media` adapter, ffmpeg composition, `kokoro`, cache,
-subtitles, `build`, `--watch`. A narrated video from a committed script. Also
-`dub` and the narration manifest, which need a real voice backend and nothing
-else — see `2026-08-15-teleprompt-narration-manifest-design.md`.
-
-**M2 — Playwright adapter.** Node sidecar and protocol, the `tp` helper, mark
-splitting, measurement pass, Playwright video capture, determinism controls. The
-Playwright analogy becomes literal.
-
-**M3 — voice spectrum and locales.** ElevenLabs, cloning, `voice enroll`, the
-fallback ladder, `--strict-voice`, translation sidecars, `loc sync|status`,
-per-locale builds.
-
-**M4 — recording.** The prompter, the take manifest and slice model, hash
-binding, staleness reporting, `record --stale`, take management. The `recorded`
-tier lands, and the spectrum is complete.
-
-**M5 — record-first.** `import`: trace capture over Playwright codegen, ASR,
-segmentation, policy inference, script emission, take slicing. Depends on M2 for
-the trace and M4 for the manifest, which is why it lands here despite being the
-authoring path most creators will reach for first.
-
-**M6 — breadth.** VHS adapter, `serve`, HTML overlay pass.
+**What shipped before the ladder came down**, for whoever reads the sections
+above and wonders what is real: the parser, segment identity, config
+resolution, the `null` and `kokoro` voice backends, the content-addressed
+cache, the scheduler and all four policies, the `Timeline` and its diff, the
+`mock` and `vhs` scene adapters, the narration manifest, and the commands
+`new`, `check`, `doctor`, `plan`, `diff`, `dub`. No video is rendered yet.
 
 ## 17. Risks
 
 **Node runtime dependency.** The Playwright adapter needs Node and a Playwright
 install, which is a real cost for a Rust CLI. Mitigated by making it an opt-in
-Cargo feature: M0 and M1 need no external runtime, `doctor` diagnoses a missing
+Cargo feature: nothing before the browser adapter needs an external runtime, `doctor` diagnoses a missing
 or mismatched install precisely, and the contract means a future pure-Rust
 browser adapter is additive rather than a rewrite.
 
@@ -1217,5 +1263,5 @@ keeping segmentation a paragraph break the author can move, and by the take
 slices re-deriving from corrected boundaries rather than needing a re-record.
 
 **Scope.** The adapter and backend extension points invite indefinite expansion.
-Mitigated by the milestone ordering: the contract exists from M0, but only
+Mitigated by the ordering: the contract exists from the first release, but only
 `mock`, `media`, and `null` are required to prove the architecture.
