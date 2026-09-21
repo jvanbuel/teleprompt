@@ -323,3 +323,24 @@ fn a_frame_that_cannot_exist_is_reported_by_the_merged_config() {
         zero_size.problems()
     );
 }
+
+/// A pronunciation map is per-project and per-script: `teleprompt.toml`
+/// carries the house words, front matter adds the ones a single script
+/// needs, and the two merge rather than replacing one another.
+#[test]
+fn pronunciations_accumulate_across_the_layers() {
+    let project =
+        PartialConfig::from_yaml("voice:\n  pronounce:\n    MWAA: em-double-you-ay-ay\n").unwrap();
+    let script =
+        PartialConfig::from_yaml("voice:\n  pronounce:\n    flowrs: flow-ers\n    MWAA: moo-ah\n")
+            .unwrap();
+
+    let merged = Config::merged(&[project, script]);
+    assert_eq!(merged.voice.pronounce.get("flowrs").unwrap(), "flow-ers");
+    assert_eq!(
+        merged.voice.pronounce.get("MWAA").unwrap(),
+        "moo-ah",
+        "the later layer wins on the word it names"
+    );
+    assert_eq!(Config::merged(&[]).voice.pronounce.len(), 0);
+}

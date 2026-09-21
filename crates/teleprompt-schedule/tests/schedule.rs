@@ -27,6 +27,7 @@ fn action(id: &str, ms: u64) -> ActionInput {
         span_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
+        cue_ms: None,
     }
 }
 

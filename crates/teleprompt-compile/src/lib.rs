@@ -18,6 +18,7 @@ use std::path::{Component, Path};
 use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::{default_adapter, OutputConfig};
 use teleprompt_core::program::{ChapterInfo, Item, Program};
+use teleprompt_core::voice::spoken;
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry, Span};
 use teleprompt_schedule::{
@@ -122,6 +123,53 @@ pub struct CompileOutput {
     pub output: OutputConfig,
 }
 
+/// Where in a narration a cued action should start.
+///
+/// With no word timings from the backend — which is every backend today —
+/// the offset is interpolated from where the phrase sits in the sentence.
+/// That is an approximation and says so: speech is not uniform, and a long
+/// word takes longer than a short one. It lands within a syllable or two on
+/// a sentence, which is the difference between typing a command while it is
+/// being named and typing it half a paragraph early. When a backend does
+/// publish word timings, this is the one place that has to change.
+fn cue_offset_ms(
+    phrase: &str,
+    text: &str,
+    narration: Option<&NarrationInput>,
+    policy: &str,
+) -> Result<Option<u64>, Diagnostic> {
+    if policy != "concurrent" {
+        return Err(Diagnostic::error(format!(
+            "`at=\"{phrase}\"` needs `policy=concurrent`, not `{policy}`"
+        ))
+        .with_help(
+            "hold runs the action after the narration and the stretch policies \
+             size it to fit; a cue only means something where the two run together",
+        ));
+    }
+    let Some(narration) = narration else {
+        return Err(
+            Diagnostic::error(format!("`at=\"{phrase}\"` has no narration to start in"))
+                .with_help("a cue names a phrase in the paragraph above the block"),
+        );
+    };
+
+    let Some(at) = text.find(phrase) else {
+        return Err(Diagnostic::error(format!(
+            "`at=\"{phrase}\"` is not in the narration above it"
+        ))
+        .with_help(format!("the paragraph reads: {text}")));
+    };
+
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let fraction = at as f64 / text.chars().count() as f64;
+    Ok(Some(
+        (narration.duration_ms as f64 * fraction).round() as u64
+    ))
+}
+
 /// Puts the scheduler's decision back into the adapter's own language.
 ///
 /// `stretch-action` and `trim-action` change how long an action should
@@ -197,6 +245,9 @@ pub fn compile(
     // belong to the beat, not to the `NarrationInput` payload itself.
     let mut pending: Option<NarrationInput> = None;
     let mut pending_id = String::new();
+    // The words of the narration waiting for an action block, kept so an
+    // `at="…"` cue can be found in them.
+    let mut pending_text = String::new();
     let mut pending_config = program.config.clone();
 
     let flush = |beats: &mut Vec<Beat>,
@@ -253,7 +304,11 @@ pub fn compile(
                 };
 
                 let req = SynthRequest {
-                    text: text.clone(),
+                    // The voice is given the pronunciation; everything
+                    // published keeps the spelling. The mapped text is in
+                    // the cache key by construction, so correcting how a
+                    // word is said re-renders the audio that said it wrong.
+                    text: spoken(text, &config.voice.pronounce),
                     locale: program.locale.clone(),
                     voice: config.voice.voice.clone(),
                     speed: config.voice.speed,
@@ -320,6 +375,7 @@ pub fn compile(
                     downgrade_reason: resolution.downgrade_reason,
                 });
                 pending_id = id.clone();
+                pending_text = text.clone();
                 pending_config = config.clone();
             }
 
@@ -331,6 +387,7 @@ pub fn compile(
                 config,
                 policy,
                 align,
+                cue,
                 review,
                 span,
             } => {
@@ -403,6 +460,19 @@ Read it, then remove the attribute."
                         }
                     }
                     None => (body.clone(), BodyOrigin::Inline { fence: *span }),
+                };
+
+                let cue_ms = match cue {
+                    None => None,
+                    Some(phrase) => {
+                        match cue_offset_ms(phrase, &pending_text, pending.as_ref(), policy) {
+                            Ok(ms) => ms,
+                            Err(d) => {
+                                diags.push(d.at(*span));
+                                continue;
+                            }
+                        }
+                    }
                 };
 
                 let Some(parsed_policy) = Policy::parse(policy, align) else {
@@ -498,6 +568,9 @@ Read it, then remove the attribute."
                             Measured::Estimated(_) => DurationSource::Estimated,
                             Measured::Unknown => DurationSource::Estimated,
                         },
+                        // Only the span paired with the narration can be
+                        // cued to a word in it; the rest follow it.
+                        cue_ms: if i == 0 { cue_ms } else { None },
                     };
 
                     if i == 0 && pending.is_some() {
@@ -536,6 +609,7 @@ Read it, then remove the attribute."
                         span_hash: Hash::of(ms.to_string().as_bytes()),
                         duration_ms: *ms,
                         duration_source: DurationSource::Exact,
+                        cue_ms: None,
                     }),
                     policy: Policy::Hold,
                     config: program.config.clone(),

@@ -43,6 +43,9 @@ pub struct VoiceConfig {
     pub backend: String,
     pub voice: Option<String>,
     pub speed: f64,
+    /// How to say words a voice gets wrong, applied to synthesis only.
+    /// The script, the captions and the manifest keep the spelling.
+    pub pronounce: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -128,6 +131,7 @@ impl Default for Config {
                 backend: "null".into(),
                 voice: None,
                 speed: 1.0,
+                pronounce: BTreeMap::new(),
             },
             output: OutputConfig {
                 resolution: (1920, 1080),
@@ -196,6 +200,10 @@ pub struct PartialVoice {
     pub backend: Option<String>,
     pub voice: Option<String>,
     pub speed: Option<f64>,
+    /// `pronounce: { MWAA: em-double-you-ay-ay }`. Merged across layers
+    /// word by word rather than replaced wholesale: a script adding one
+    /// name should not drop the project's list.
+    pub pronounce: Option<BTreeMap<String, String>>,
     /// Per-tier backend configuration, exactly as spec §3.1 writes it:
     ///
     /// ```yaml
@@ -468,6 +476,11 @@ impl Config {
                     c.voice.voice = v.voice.clone();
                 }
                 set!(c.voice.speed, v.speed);
+                if let Some(pronounce) = &v.pronounce {
+                    c.voice
+                        .pronounce
+                        .extend(pronounce.iter().map(|(k, said)| (k.clone(), said.clone())));
+                }
             }
             if let Some(t) = &layer.timing {
                 set!(c.timing.lead_in_ms, t.lead_in_ms);

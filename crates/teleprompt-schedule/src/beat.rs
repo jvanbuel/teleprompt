@@ -65,6 +65,13 @@ pub struct ActionInput {
     pub span_hash: Hash,
     pub duration_ms: u64,
     pub duration_source: DurationSource,
+    /// Where inside the narration this action should start, from `at="…"`.
+    ///
+    /// `None` is the ordinary case: the policy decides. A cue is how an
+    /// author says "type the command while the voice is saying it", which
+    /// no policy can work out on its own — the sentence that names a
+    /// command is rarely the first one in the paragraph.
+    pub cue_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone)]

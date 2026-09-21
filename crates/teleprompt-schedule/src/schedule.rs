@@ -1,7 +1,7 @@
 use teleprompt_core::config::TransitionDuration;
 
 use crate::beat::{Beat, DurationSource};
-use crate::policy::layout;
+use crate::policy::layout_at;
 use crate::timeline::{ActionEntry, Entry, NarrationEntry, Timeline, TransitionEntry};
 
 pub const TIMELINE_VERSION: u32 = 1;
@@ -34,7 +34,8 @@ pub fn schedule(
             .unwrap_or(0);
         let action_ms = beat.action.as_ref().map(|a| a.duration_ms).unwrap_or(0);
 
-        let l = layout(beat.policy, narration_ms, action_ms, timing);
+        let cue_ms = beat.action.as_ref().and_then(|a| a.cue_ms);
+        let l = layout_at(beat.policy, narration_ms, action_ms, cue_ms, timing);
         for w in &l.warnings {
             warnings.push(format!("{}: {w}", beat.id));
         }

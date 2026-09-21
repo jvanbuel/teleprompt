@@ -6,6 +6,6 @@ pub mod timeline;
 
 pub use beat::{ActionInput, Beat, DurationSource, NarrationInput};
 pub use diff::{diff, ChangedBeat, ChangedTransition, ReorderedBeat, StaleTake, TimelineDiff};
-pub use policy::{layout, Align, Layout, Policy};
+pub use policy::{layout, layout_at, Align, Layout, Policy};
 pub use schedule::{schedule, TIMELINE_VERSION};
 pub use timeline::{ActionEntry, Entry, NarrationEntry, Timeline, TransitionEntry};

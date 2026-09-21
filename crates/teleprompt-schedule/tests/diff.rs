@@ -119,6 +119,7 @@ fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
         span_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
+        cue_ms: None,
     };
     let mut a1 = beat("b1", 1000, "one");
     a1.action = Some(action("s1", 500));
@@ -168,6 +169,7 @@ fn mock_action(id: &str, ms: u64) -> ActionInput {
         span_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
+        cue_ms: None,
     }
 }
 
@@ -293,6 +295,7 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
             span_hash: Hash::of(b"s1"),
             duration_ms: 500,
             duration_source: DurationSource::Exact,
+            cue_ms: None,
         });
         let mut b2 = beat("b2", 2000, "two");
         b2.config = auto;
@@ -322,6 +325,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
             span_hash: Hash::of(b"s1"),
             duration_ms: 500,
             duration_source: DurationSource::Exact,
+            cue_ms: None,
         });
         b1.policy = Policy::Concurrent(teleprompt_schedule::Align::Start);
         let mut b2 = beat("b2", 2000, "two");

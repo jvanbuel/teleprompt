@@ -59,6 +59,8 @@ pub enum Item {
         config: Config,
         policy: String,
         align: String,
+        /// `at="…"`: the phrase in the narration this action starts on.
+        cue: Option<String>,
         /// Source location of the fence this action block came from
         /// (controller ruling F12) — Task 11 passes it to the scene adapter
         /// for validation instead of inventing `line: 0`.
@@ -176,6 +178,7 @@ pub fn resolve(
                         review: attrs.get("review").map(str::to_string),
                         policy: attrs.get("policy").unwrap_or("hold").to_string(),
                         align: attrs.get("align").unwrap_or("start").to_string(),
+                        cue: attrs.get("at").map(str::to_string),
                         config,
                         span: block.span,
                     });

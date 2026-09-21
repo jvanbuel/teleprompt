@@ -788,3 +788,97 @@ async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() 
         "a cache hit must change which numbers are measurements, and nothing else"
     );
 }
+
+/// The pronunciation map reaches the synthesizer and nothing else. What
+/// gets spoken is the mapped form; what gets published — the manifest's
+/// text, a caption, the script itself — is what the author wrote, because
+/// "em-double-you-ay-ay" is not a word anyone wants to read.
+#[test]
+fn a_pronunciation_changes_what_is_spoken_and_not_what_is_published() {
+    let src = "---\nteleprompt: 1\nvoice:\n  pronounce:\n    MWAA: em-double-you-ay-ay\n---\n\n\
+               # Services\n\nIt works against MWAA today. {#services}\n";
+    let out = compile_program(&program(src)).expect("compiles");
+
+    let detail = &out.narration[0];
+    assert_eq!(
+        detail.text, "It works against MWAA today.",
+        "the published text keeps the spelling"
+    );
+    assert_eq!(
+        detail.synth_request.text, "It works against em-double-you-ay-ay today.",
+        "and the voice is given the pronunciation"
+    );
+}
+
+/// Changing how a word is said is changing the audio, so it has to change
+/// the key that audio is stored under. Otherwise the first render of a
+/// script wins forever and the fix is inaudible.
+#[test]
+fn changing_a_pronunciation_invalidates_the_cached_audio() {
+    let plain = compile_program(&program(
+        "---\nteleprompt: 1\n---\n\n# S\n\nIt works against MWAA today. {#services}\n",
+    ))
+    .expect("compiles");
+    let said = compile_program(&program(
+        "---\nteleprompt: 1\nvoice:\n  pronounce:\n    MWAA: em-double-you-ay-ay\n---\n\n\
+         # S\n\nIt works against MWAA today. {#services}\n",
+    ))
+    .expect("compiles");
+
+    assert_ne!(
+        plain.narration[0].cache_key, said.narration[0].cache_key,
+        "the same text said differently is different audio"
+    );
+}
+
+/// The complaint that produced this: the terminal types a command while
+/// the voice is somewhere else in the paragraph. `at=` anchors the action
+/// to the words that name it.
+#[test]
+fn an_action_cued_to_a_phrase_starts_when_that_phrase_is_spoken() {
+    let src = "# Config\n\n\
+               One command registers a server. `flowrs config add` asks for a name. {#c}\n\n\
+               ```teleprompt scene=mock policy=concurrent at=\"config add\"\n\
+               wait 500ms\n\
+               ```\n";
+    let out = compile_program(&program(src)).expect("compiles");
+
+    let entry = &out.timeline.entries[0];
+    let narration = entry.narration.as_ref().expect("the beat is narrated");
+    let action = entry.action.as_ref().expect("and has an action");
+
+    // The phrase sits a little over halfway through the sentence, so the
+    // action starts a little over halfway through the speech rather than
+    // at its first word.
+    let fraction = (action.start_ms - narration.start_ms) as f64 / narration.duration_ms as f64;
+    assert!(
+        (0.4..0.8).contains(&fraction),
+        "cued {fraction:.2} of the way through, not near the phrase"
+    );
+}
+
+/// A cue that names something the paragraph does not say is a typo, and a
+/// typo that silently does nothing is the kind that ships.
+#[test]
+fn a_cue_that_is_not_in_the_narration_is_an_error() {
+    let src = "# Config\n\nOne command registers a server. {#c}\n\n\
+               ```teleprompt scene=mock policy=concurrent at=\"config add\"\n\
+               wait 500ms\n\
+               ```\n";
+    let errors = compile_program(&program(src)).expect_err("a cue must be findable");
+    let rendered = format!("{errors:?}");
+    assert!(rendered.contains("config add"), "{rendered}");
+}
+
+/// `hold` runs the action after the narration and the stretch policies size
+/// it to fit; a cue would contradict either rather than refine it.
+#[test]
+fn a_cue_only_makes_sense_where_the_two_run_together() {
+    let src = "# Config\n\nOne command registers a server. {#c}\n\n\
+               ```teleprompt scene=mock policy=hold at=\"command\"\n\
+               wait 500ms\n\
+               ```\n";
+    let errors = compile_program(&program(src)).expect_err("a cue needs concurrent");
+    let rendered = format!("{errors:?}");
+    assert!(rendered.contains("concurrent"), "{rendered}");
+}

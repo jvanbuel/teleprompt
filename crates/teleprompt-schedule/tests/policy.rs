@@ -1,5 +1,5 @@
 use teleprompt_core::config::TimingConfig;
-use teleprompt_schedule::{layout, Align, Policy};
+use teleprompt_schedule::{layout, layout_at, Align, Policy};
 
 fn timing() -> TimingConfig {
     TimingConfig {
@@ -244,4 +244,40 @@ fn trimming_against_no_narration_leaves_the_action_alone() {
     assert_eq!(l.action_duration_ms, 4000);
     assert_eq!(l.beat_duration_ms, 4000);
     assert!(l.warnings.is_empty(), "{:?}", l.warnings);
+}
+
+/// A cue anchors the action to a moment inside the narration: the terminal
+/// should be typing the command at the moment the voice names it, not at
+/// the top of the paragraph and not after it.
+#[test]
+fn a_cue_starts_the_action_where_the_words_are() {
+    let l = layout_at(
+        Policy::Concurrent(Align::Start),
+        10_000,
+        3_000,
+        Some(4_000),
+        &timing(),
+    );
+    assert_eq!(l.narration_start_ms, 0);
+    assert_eq!(l.action_start_ms, 4_000, "the action waits for its cue");
+    assert_eq!(l.action_duration_ms, 3_000);
+    assert_eq!(
+        l.beat_duration_ms, 10_000,
+        "and still fits inside the paragraph"
+    );
+}
+
+/// An action cued late enough to outlast the sentence extends the beat
+/// rather than being cut off by it.
+#[test]
+fn a_cue_near_the_end_lengthens_the_beat_rather_than_clipping_the_action() {
+    let l = layout_at(
+        Policy::Concurrent(Align::Start),
+        10_000,
+        4_000,
+        Some(8_000),
+        &timing(),
+    );
+    assert_eq!(l.action_start_ms, 8_000);
+    assert_eq!(l.beat_duration_ms, 12_000);
 }

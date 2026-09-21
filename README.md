@@ -124,6 +124,49 @@ which a consumer drawing its own picture would not.
 A script that stops compiling does not blank the preview: the error appears
 and the last version that compiled keeps playing.
 
+## Saying it when you say it
+
+A concurrent action starts with its paragraph, which is right when the
+paragraph is about the action from its first word and wrong the moment the
+sentence naming the command is the third one. `at=` anchors it:
+
+```markdown
+One command registers a server. flowrs config add asks for a name. {#config}
+
+```teleprompt scene=terminal policy=concurrent at="flowrs config add"
+Type "flowrs config add"
+Enter
+```
+```
+
+The typing starts when the voice reaches that phrase. A cue that names
+something the paragraph does not say is an error, not a silent no-op, and a
+cue only means something under `policy=concurrent` — `hold` puts the action
+after the narration and the stretch policies size it to fit.
+
+Where a backend publishes word timings the offset is exact. Where none does
+— which is every backend today — it is interpolated from where the phrase
+sits in the sentence, which lands within a syllable or two and is the
+difference between typing a command while it is named and typing it half a
+paragraph early.
+
+## Saying it the way it is said
+
+A synthetic voice reads spelling. `MWAA` comes out as a word; so does every
+acronym and half the product names:
+
+```yaml
+voice:
+  pronounce:
+    MWAA: em-double-you-ay-ay
+    TUI: tee-you-eye
+```
+
+Applied to synthesis only — the script, the captions and the manifest keep
+the spelling, because that is what a reader wants to see. Whole words,
+case-sensitively, and the mapped text is in the cache key, so correcting a
+word re-renders exactly the audio that said it wrong.
+
 ## Rendering
 
 ```bash

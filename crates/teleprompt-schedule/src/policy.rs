@@ -70,6 +70,40 @@ pub struct Layout {
 }
 
 pub fn layout(policy: Policy, narration_ms: u64, action_ms: u64, timing: &TimingConfig) -> Layout {
+    layout_at(policy, narration_ms, action_ms, None, timing)
+}
+
+/// [`layout`] with a cue: the offset into the narration at which the action
+/// should start.
+///
+/// A cue is how an author says "type the command while the voice is saying
+/// it". Without one, a concurrent action starts with the paragraph — which
+/// is right when the paragraph is about the action from its first word, and
+/// wrong the moment the sentence that names the command is the third one.
+///
+/// It only applies where the two run together. `hold` puts the action after
+/// the narration and the stretch policies size it to the narration, so a
+/// cue there would contradict the policy rather than refine it; the caller
+/// rejects that pairing before this is reached.
+pub fn layout_at(
+    policy: Policy,
+    narration_ms: u64,
+    action_ms: u64,
+    cue_ms: Option<u64>,
+    timing: &TimingConfig,
+) -> Layout {
+    if let (Policy::Concurrent(_), Some(cue)) = (policy, cue_ms) {
+        return Layout {
+            narration_start_ms: 0,
+            action_start_ms: cue,
+            action_duration_ms: action_ms,
+            // An action cued late enough to outlast the sentence extends
+            // the beat; clipping it would drop the end of the very thing
+            // the cue exists to show.
+            beat_duration_ms: narration_ms.max(cue.saturating_add(action_ms)),
+            warnings: Vec::new(),
+        };
+    }
     match policy {
         Policy::Hold => Layout {
             narration_start_ms: 0,

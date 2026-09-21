@@ -21,6 +21,8 @@ pub const BLOCK_KEYS: &[&str] = &[
     "review",
     "policy",
     "align",
+    // The phrase in the narration this action should start on.
+    "at",
     "id",
     "max_speedup",
     "max_stretch",
