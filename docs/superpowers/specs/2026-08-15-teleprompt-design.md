@@ -998,8 +998,9 @@ Shipped in M0 — six crates:
 | `teleprompt-schedule` | policies, `Timeline`, diffing. Pure. |
 | `teleprompt-voice` | `VoiceBackend` trait, capabilities, resolution ladder, `null` |
 | `teleprompt-scene` | `SceneCompiler` contract, registry, `mock` adapter |
+| `teleprompt-scene-vhs` | VHS tape parser, mark splitting, timing |
 | `teleprompt-compile` | the seam: walks a `Program`, drives scene and voice, emits beats |
-| `teleprompt-cli` | clap, output formatting, the `teleprompt` binary |
+| `teleprompt-cli` | clap, output formatting, the `teleprompt` binary, and the registries every adapter and backend is composed into |
 
 M1 and later:
 
@@ -1009,10 +1010,19 @@ M1 and later:
 | `teleprompt-voice-elevenlabs` | API backend, cloning, enrollment |
 | `teleprompt-scene-media` | images, clips, title cards. Pure Rust. |
 | `teleprompt-scene-playwright` | Node sidecar, JSON-RPC protocol, mark splitting, `tp` helper |
-| `teleprompt-scene-vhs` | tape parser, PTY execution, terminal frame rendering |
+| `teleprompt-scene-vhs` (M6) | PTY execution and terminal frame rendering, added to the M0 crate above |
 | `teleprompt-import` | trace capture, ASR, segmentation, policy inference, script emission |
 | `teleprompt-render` | ffmpeg graph construction, muxing, subtitles |
 | `teleprompt-cache` | content-addressed store, `Slot`/`Clock`/`Recorder` measurement cache |
+
+An adapter is its own crate from the start, `vhs` included: it depends on
+`teleprompt-scene` for the contract, which is precisely why
+`SceneRegistry::with_builtins` cannot reach it. The registry is therefore
+assembled in `teleprompt-cli`, alongside the voice registry, and adding an
+adapter is one line there plus a crate — nothing in `-core`, `-compile`, or
+`-schedule` learns its name. That is the property §7.6 asks the contract to
+protect, and it only holds if the seam is exercised by a real adapter rather
+than asserted about a hypothetical one.
 
 `teleprompt-compile` exists because `core`, `scene`, `voice`, and `schedule`
 must not depend on one another: without it, `schedule` would have to know about

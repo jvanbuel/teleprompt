@@ -15,7 +15,7 @@
 use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
 
-use crate::contract::{
+use teleprompt_scene::{
     validate_lines, BlockSource, LineError, Measured, SceneCompiler, Span, Validated,
 };
 

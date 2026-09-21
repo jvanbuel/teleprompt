@@ -10,7 +10,6 @@ use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
-use teleprompt_scene::SceneRegistry;
 
 #[derive(Parser)]
 #[command(
@@ -111,7 +110,7 @@ fn runtime() -> Result<tokio::runtime::Runtime, String> {
 /// only place async is reachable from.
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let registry = SceneRegistry::with_builtins();
+    let registry = teleprompt_cli::scene::scenes();
 
     let outcome = match cli.command {
         Command::New { path } => match new::scaffold(&path) {

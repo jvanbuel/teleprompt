@@ -9,7 +9,6 @@ use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Item};
 use teleprompt_core::{Diagnostic, Diagnostics};
-use teleprompt_scene::SceneRegistry;
 use teleprompt_voice::VoiceBackend;
 use teleprompt_voice_null::WpmEstimator;
 
@@ -216,9 +215,14 @@ pub fn compile_script_with(
         estimator: &estimator,
     };
 
+    // `crate::scene::scenes()`, not `SceneRegistry::with_builtins()`: the
+    // builtins are the adapters living inside `teleprompt-scene` itself,
+    // which is the mock and nothing else. Compiling against the narrower
+    // registry fails `scene=terminal` with "no adapter `vhs` is available"
+    // on a build that ships one.
     let mut out = compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &crate::scene::scenes(),
         &ctx,
         base_dir,
         env!("CARGO_PKG_VERSION"),

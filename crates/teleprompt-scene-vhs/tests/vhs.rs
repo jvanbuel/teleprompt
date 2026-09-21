@@ -1,7 +1,6 @@
 use teleprompt_core::SourceSpan;
-use teleprompt_scene::{
-    BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Validated, VhsScene,
-};
+use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Validated};
+use teleprompt_scene_vhs::VhsScene;
 
 /// A fence opening on line 1. Body line `i` is therefore at absolute line `1 + i + 1`.
 const SPAN: SourceSpan = SourceSpan {
@@ -363,10 +362,13 @@ fn a_lowercase_command_is_diagnosed_as_a_lowercase_command() {
     );
 }
 
+/// The name `scene: terminal` resolves to, from the other side. A rename on
+/// either side of that lookup is meant to fail here.
 #[test]
-fn the_registry_serves_vhs_as_a_builtin() {
-    let r = SceneRegistry::with_builtins();
-
-    assert_eq!(r.get("vhs").map(SceneCompiler::kind), Some("vhs"));
-    assert!(r.available().contains(&"vhs"));
+fn the_adapter_answers_to_the_name_the_terminal_scene_resolves_to() {
+    assert_eq!(VhsScene.kind(), "vhs");
+    assert_eq!(
+        teleprompt_core::config::default_adapter("terminal"),
+        VhsScene.kind()
+    );
 }
