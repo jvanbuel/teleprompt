@@ -54,6 +54,16 @@ fn pieces(plan: &RenderPlan) -> Vec<Piece> {
     for (i, beat) in plan.beats.iter().enumerate() {
         hold(&mut out, beat.start_ms, cursor);
 
+        // A beat of no length is dropped rather than drawn. It would cost
+        // nothing to draw and does not: `-t 0` on a `color` source does not
+        // mean "no frames", it means *no limit*, and ffmpeg then renders
+        // until something stops it. The piece around it already covers the
+        // zero milliseconds it occupied.
+        if beat.duration_ms == 0 {
+            cursor = cursor.max(beat.start_ms);
+            continue;
+        }
+
         // A beat that starts before the one before it ended is a beat the
         // scheduler granted a transition. The overlap is the transition,
         // and the kind comes from the beat being left rather than the one

@@ -296,3 +296,148 @@ fn a_crossfade_overlaps_the_beats_it_joins() {
         "two 2s beats crossfaded by 0.5s make 3.5s of picture, not {seconds}s"
     );
 }
+
+/// A script can be prose alone — no action blocks, nothing to show. It
+/// still has a length, and a video of it is a legitimate thing to ask for.
+#[test]
+fn a_plan_with_no_beats_at_all_still_renders_its_narration() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("tp-render-prose-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let plan = RenderPlan {
+        width: 320,
+        height: 180,
+        fps: 24,
+        duration_ms: 2_000,
+        beats: vec![],
+        narration: vec![Narration {
+            id: "alone".into(),
+            path: tone(&dir, "alone.wav", 1_000),
+            start_ms: 200,
+        }],
+        output: dir.join("prose.mp4"),
+    };
+
+    FfmpegRenderer::default()
+        .render(&plan, &mut |_| {})
+        .expect("a script with no action blocks is still a script");
+    assert!((duration_of(&plan.output) - 2.0).abs() < 0.2);
+}
+
+/// A beat of no length is a beat there is nothing to show for, and
+/// `trim=duration=0` is not something ffmpeg will accept. It is dropped
+/// rather than rendered, which changes nothing about the timeline: the
+/// piece around it already covers those zero milliseconds.
+#[test]
+fn a_beat_of_no_length_does_not_reach_the_graph() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("tp-render-zero-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let plan = RenderPlan {
+        width: 320,
+        height: 180,
+        fps: 24,
+        duration_ms: 2_000,
+        beats: vec![
+            Beat {
+                id: "empty#0".into(),
+                start_ms: 0,
+                duration_ms: 0,
+                picture: Picture::Slate,
+                transition: Transition::cut(),
+            },
+            Beat {
+                id: "real#0".into(),
+                start_ms: 0,
+                duration_ms: 2_000,
+                picture: Picture::Slate,
+                transition: Transition::cut(),
+            },
+        ],
+        narration: vec![],
+        output: dir.join("zero.mp4"),
+    };
+
+    FfmpegRenderer::default()
+        .render(&plan, &mut |_| {})
+        .expect("a zero-length beat is dropped, not rendered");
+    assert!((duration_of(&plan.output) - 2.0).abs() < 0.2);
+}
+
+/// A captured clip is fitted to the slot the scheduler gave it, in both
+/// directions: a short one holds its last frame, a long one is cut. The
+/// alternative is a clip deciding the timeline, which is the thing this
+/// tool exists not to do.
+#[test]
+fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = std::env::temp_dir().join(format!("tp-render-clip-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    // A one-second clip, standing in for something a capture stage will
+    // one day produce.
+    let clip = dir.join("captured.mp4");
+    let status = Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-y",
+            "-f",
+            "lavfi",
+            "-t",
+            "1",
+            "-i",
+            "testsrc=size=640x360:rate=30",
+            "-pix_fmt",
+            "yuv420p",
+        ])
+        .arg(&clip)
+        .status()
+        .expect("ffmpeg runs");
+    assert!(status.success());
+
+    let plan = RenderPlan {
+        width: 320,
+        height: 180,
+        fps: 24,
+        duration_ms: 3_000,
+        beats: vec![
+            Beat {
+                id: "short#0".into(),
+                start_ms: 0,
+                duration_ms: 2_000,
+                picture: Picture::Clip(clip.clone()),
+                transition: Transition::cut(),
+            },
+            Beat {
+                id: "long#0".into(),
+                start_ms: 2_000,
+                duration_ms: 500,
+                picture: Picture::Clip(clip),
+                transition: Transition::cut(),
+            },
+        ],
+        narration: vec![],
+        output: dir.join("clips.mp4"),
+    };
+
+    FfmpegRenderer::default()
+        .render(&plan, &mut |_| {})
+        .expect("the graph is one ffmpeg accepts");
+
+    // 2s held + 0.5s cut + 0.5s of tail hold to the plan's length.
+    assert!((duration_of(&plan.output) - 3.0).abs() < 0.15);
+}
