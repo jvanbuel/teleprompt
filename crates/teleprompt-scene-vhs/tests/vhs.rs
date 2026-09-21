@@ -31,6 +31,14 @@ fn validated(body: &str) -> Validated {
         .expect("test body should validate")
 }
 
+/// The single span of a body that has no marks in it.
+fn only_span(body: &str) -> teleprompt_scene::Span {
+    let v = validated(body);
+    let mut spans = VhsScene.spans(&v, "b").expect("a validated body has spans");
+    assert_eq!(spans.len(), 1, "this helper is for single-span bodies");
+    spans.remove(0)
+}
+
 /// Total estimate of a whole body, as the compiler accumulates it: one
 /// `estimate` per span, summed.
 fn total_ms(body: &str) -> u64 {
@@ -370,5 +378,87 @@ fn the_adapter_answers_to_the_name_the_terminal_scene_resolves_to() {
     assert_eq!(
         teleprompt_core::config::default_adapter("terminal"),
         VhsScene.kind()
+    );
+}
+
+/// `stretch-action` says the action fills the narration above it. Until
+/// something re-times the tape, that is a number on a timeline and nothing
+/// else: a capture still runs the tape at its authored pace, and the
+/// difference is a frozen frame.
+#[test]
+fn a_stretched_span_is_re_timed_to_last_exactly_as_long_as_asked() {
+    let span = only_span(
+        "Set TypingSpeed 50ms\n\
+         Type \"cargo test\"\n\
+         Enter\n\
+         Sleep 1s\n",
+    );
+    let before = match VhsScene.estimate(&span) {
+        Measured::Exact(ms) => ms,
+        other => panic!("a tape without Wait is exact: {other:?}"),
+    };
+
+    let retimed = VhsScene
+        .retime(&span, before * 3)
+        .expect("a tape stating its own timing can be re-timed");
+
+    let after = VhsScene.estimate(&only_span(&retimed));
+    assert_eq!(
+        after,
+        Measured::Exact(before * 3),
+        "re-timed to {}ms, got {after:?}\n{retimed}",
+        before * 3
+    );
+}
+
+/// Not just a pause bolted on the end: the whole action spreads out, which
+/// is what "the typing slows to fill the sentence above it" means. A tape
+/// that types at its old speed and then sits still for twelve seconds is
+/// the frozen frame again, wearing a Sleep.
+#[test]
+fn stretching_slows_the_typing_rather_than_only_padding_the_end() {
+    let span = only_span("Set TypingSpeed 50ms\nType \"hello\"\nSleep 500ms\n");
+    let retimed = VhsScene.retime(&span, 3_000).expect("re-timable");
+
+    let speed: u64 = retimed
+        .lines()
+        .find_map(|l| l.strip_prefix("Set TypingSpeed "))
+        .and_then(|v| v.trim().trim_end_matches("ms").parse().ok())
+        .expect("the re-timed tape states a typing speed");
+    assert!(
+        speed > 50,
+        "typing still runs at the authored speed: {retimed}"
+    );
+    let sleep: u64 = retimed
+        .lines()
+        .find_map(|l| l.strip_prefix("Sleep "))
+        .and_then(|v| v.trim().trim_end_matches("ms").parse().ok())
+        .expect("the re-timed tape keeps its sleep");
+    assert!(sleep > 500, "the sleep did not stretch: {retimed}");
+}
+
+/// A span whose length the tape does not state cannot be promised to any
+/// duration. `Wait` blocks until a prompt returns, and no amount of
+/// arithmetic here changes how long `cargo build` takes.
+#[test]
+fn a_span_that_waits_cannot_be_re_timed() {
+    let span = only_span("Type \"cargo build\"\nEnter\nWait\n");
+    assert_eq!(VhsScene.retime(&span, 30_000), None);
+}
+
+/// Down as well as up: `trim-action` asks for a shorter action, and the
+/// same arithmetic runs in reverse.
+#[test]
+fn a_span_can_be_re_timed_shorter_as_well_as_longer() {
+    let span = only_span("Set TypingSpeed 100ms\nType \"slow\"\nSleep 4s\n");
+    let before = match VhsScene.estimate(&span) {
+        Measured::Exact(ms) => ms,
+        other => panic!("{other:?}"),
+    };
+    let retimed = VhsScene.retime(&span, before / 2).expect("re-timable");
+    assert_eq!(
+        VhsScene.estimate(&only_span(&retimed)),
+        Measured::Exact(before / 2),
+        "{retimed}"
     );
 }

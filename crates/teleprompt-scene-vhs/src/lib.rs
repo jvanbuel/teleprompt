@@ -548,4 +548,124 @@ impl SceneCompiler for VhsScene {
             Measured::Exact(total)
         }
     }
+
+    /// Re-times a tape by scaling everything that takes time in it.
+    ///
+    /// Every `Sleep`, and the speed of every keystroke, moves by the same
+    /// factor, so a stretched span is the same performance played slower
+    /// rather than the same performance followed by a wait. That is what
+    /// `stretch-action` means when it says the action fills the sentence
+    /// above it, and the difference is visible: a tape that types at its
+    /// authored speed and then sits still for ten seconds is the frozen
+    /// frame again, wearing a `Sleep`.
+    ///
+    /// Rounding is settled at the end rather than per line. Milliseconds
+    /// are integers and a factor is not, so a dozen scaled values can miss
+    /// the target by a few milliseconds between them; the remainder becomes
+    /// one trailing `Sleep`, which is the only line here that is not just
+    /// the author's own, scaled.
+    fn retime(&self, span: &Span, target_ms: u64) -> Option<String> {
+        // Only a span that states its own timing can be promised to a
+        // length. A `Wait` is as long as the command takes.
+        let current = match self.estimate(span) {
+            Measured::Exact(ms) => ms,
+            _ => return None,
+        };
+        if current == 0 || target_ms == 0 {
+            return None;
+        }
+
+        let factor = target_ms as f64 / current as f64;
+        let scale = |ms: u64| ((ms as f64 * factor).round() as u64).max(1);
+
+        let mut out: Vec<String> = Vec::new();
+        let mut stated_speed = false;
+        for line in span.source.lines() {
+            let trimmed = line.trim();
+            match classify(trimmed) {
+                Ok(Line::Sleep(ms)) => out.push(format!("Sleep {}ms", scale(ms))),
+                Ok(Line::Setting(Setting::TypingSpeed(ms))) => {
+                    stated_speed = true;
+                    out.push(format!("Set TypingSpeed {}ms", scale(ms)));
+                }
+                // `Type@100ms "…"` and `Enter@50ms` carry their own speed,
+                // which the tape states per command and which therefore
+                // scales per command.
+                Ok(
+                    Line::Type {
+                        speed: Some(at), ..
+                    }
+                    | Line::Keys {
+                        speed: Some(at), ..
+                    },
+                ) => {
+                    out.push(rescale_at(trimmed, scale(at)));
+                }
+                _ => out.push(line.to_string()),
+            }
+        }
+
+        // A tape that never said how fast it types is typing at the default,
+        // and the default is not the author's to leave alone here: without
+        // this line the keystrokes would be the one thing that did not
+        // stretch.
+        if !stated_speed {
+            out.insert(
+                0,
+                format!("Set TypingSpeed {}ms", scale(DEFAULT_TYPING_SPEED_MS)),
+            );
+        }
+
+        let mut source = out.join("\n");
+        source.push('\n');
+
+        let scaled = Span {
+            id: span.id.clone(),
+            source: source.clone(),
+            hash: span.hash,
+            index: span.index,
+        };
+        if let Measured::Exact(reached) = self.estimate(&scaled) {
+            if let Some(remainder) = target_ms.checked_sub(reached) {
+                if remainder > 0 {
+                    source.push_str(&format!("Sleep {remainder}ms\n"));
+                }
+            } else {
+                // Overshot by rounding: take it back off the last sleep
+                // rather than leaving the span longer than it was promised.
+                source = shorten_last_sleep(&source, reached - target_ms)?;
+            }
+        }
+        Some(source)
+    }
+}
+
+/// `Type@100ms "hi"` with its `@` replaced. The text after the command is
+/// the author's and is copied through untouched.
+fn rescale_at(line: &str, ms: u64) -> String {
+    match line.split_once(char::is_whitespace) {
+        Some((head, rest)) => {
+            let cmd = head.split('@').next().unwrap_or(head);
+            format!("{cmd}@{ms}ms {rest}")
+        }
+        None => {
+            let cmd = line.split('@').next().unwrap_or(line);
+            format!("{cmd}@{ms}ms")
+        }
+    }
+}
+
+/// Takes `excess` milliseconds off the tape's last `Sleep`, or gives up if
+/// there is no sleep long enough to take it from.
+fn shorten_last_sleep(source: &str, excess: u64) -> Option<String> {
+    let mut lines: Vec<String> = source.lines().map(str::to_string).collect();
+    let last = lines
+        .iter()
+        .rposition(|l| matches!(classify(l.trim()), Ok(Line::Sleep(ms)) if ms > excess))?;
+    if let Ok(Line::Sleep(ms)) = classify(lines[last].trim()) {
+        lines[last] = format!("Sleep {}ms", ms - excess);
+    }
+    let mut out = lines.join("\n");
+    out.push('\n');
+    Some(out)
 }

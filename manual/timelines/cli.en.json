@@ -2,7 +2,7 @@
   "version": 1,
   "script": "cli.md",
   "locale": "en",
-  "duration_ms": 396675,
+  "duration_ms": 398415,
   "generated_by": "teleprompt 0.1.0",
   "entries": [
     {
@@ -246,7 +246,7 @@
         "span": "diagnostics-a#0",
         "scene": "terminal",
         "adapter": "vhs",
-        "span_hash": "574828607c14631cea86c2a233085d2dc6ea78024a54d7167e4e1f8526d460f9",
+        "span_hash": "9960eee1b439a5c8d2105b1d57749c24c0b185bb5ea4b78c63373ac03f7960f3",
         "start_ms": 134190,
         "duration_ms": 18650,
         "duration_source": "exact"
@@ -391,7 +391,7 @@
         "span": "edit-the-prose-a#0",
         "scene": "terminal",
         "adapter": "vhs",
-        "span_hash": "fc7b26f6118aee12fd3ccb712c76922de4e1ec4df0427ac13719ba6fad7603e2",
+        "span_hash": "8b00e97f5b8fdeee36d3ae84ee42c3977599ef3c394c7b1fb0cc45674568dd62",
         "start_ms": 220720,
         "duration_ms": 11650,
         "duration_source": "exact"
@@ -568,7 +568,7 @@
     {
       "beat": "dub-check-a#1",
       "start_ms": 328845,
-      "duration_ms": 0,
+      "duration_ms": 1740,
       "policy": "trim-action",
       "action": {
         "span": "dub-check-a#1",
@@ -576,7 +576,7 @@
         "adapter": "vhs",
         "span_hash": "22f73a7b07e11a4b7a1d848207613dff8492e3e7dd79f7a6a327de83bd44192f",
         "start_ms": 328845,
-        "duration_ms": 0,
+        "duration_ms": 1740,
         "duration_source": "exact"
       },
       "transition": {
@@ -586,7 +586,7 @@
     },
     {
       "beat": "pause-21",
-      "start_ms": 328845,
+      "start_ms": 330585,
       "duration_ms": 500,
       "policy": "hold",
       "action": {
@@ -594,7 +594,7 @@
         "scene": "pause",
         "adapter": "pause",
         "span_hash": "76a7936849405a972db0416bbe56ca0b117ddeea82e1dfe0ea78afc46c02e5e4",
-        "start_ms": 328845,
+        "start_ms": 330585,
         "duration_ms": 500,
         "duration_source": "exact"
       },
@@ -605,14 +605,14 @@
     },
     {
       "beat": "doctor",
-      "start_ms": 329345,
+      "start_ms": 331085,
       "duration_ms": 18580,
       "policy": "hold",
       "narration": {
         "segment": "doctor",
         "source_hash": "dcae1d3d596b2f99eb44f0bb2f3efb24a5e92c5c86145c986c6e911eb9565db7",
         "audio_hash": "10febc16476e8bb4585f636e354a121bef55b252f2881a4f6d49e97002f4c88b",
-        "start_ms": 329495,
+        "start_ms": 331235,
         "duration_ms": 14650,
         "duration_source": "estimated",
         "voice_source": "synthetic",
@@ -623,7 +623,7 @@
         "scene": "terminal",
         "adapter": "vhs",
         "span_hash": "bfd66b4b5ac82854237d404b5479d6b12c582bc91cb378e92513f394f9c4f40d",
-        "start_ms": 344295,
+        "start_ms": 346035,
         "duration_ms": 3630,
         "duration_source": "exact"
       },
@@ -634,14 +634,14 @@
     },
     {
       "beat": "offline-by-default",
-      "start_ms": 347325,
+      "start_ms": 349065,
       "duration_ms": 26050,
       "policy": "concurrent",
       "narration": {
         "segment": "offline-by-default",
         "source_hash": "c1ab97043b5c4045ad86d9a5db173846301ff7c271495263a02b2aef2111b39f",
         "audio_hash": "eeec37ec6189710b2097e5d2735cc0cd3607c7fa2f6a3732da75ae534d31cfe5",
-        "start_ms": 347475,
+        "start_ms": 349215,
         "duration_ms": 25750,
         "duration_source": "estimated",
         "voice_source": "synthetic",
@@ -652,7 +652,7 @@
         "scene": "terminal",
         "adapter": "vhs",
         "span_hash": "801922a400fc7791486b938d3ac9bb93b4008cc25f231ec6138f1ce37cb54c96",
-        "start_ms": 347325,
+        "start_ms": 349065,
         "duration_ms": 3650,
         "duration_source": "exact"
       },
@@ -663,14 +663,14 @@
     },
     {
       "beat": "self-hosting",
-      "start_ms": 373075,
+      "start_ms": 374815,
       "duration_ms": 23600,
       "policy": "concurrent",
       "narration": {
         "segment": "self-hosting",
         "source_hash": "8c320a9539bc31e47610d30514273c25c6ded8eb25377b25adadcc0fc75d9eba",
         "audio_hash": "c7dd57c689ab1ec5d60bb1379d92af3d30361e18c75de72bba8b5e660031aaad",
-        "start_ms": 373225,
+        "start_ms": 374965,
         "duration_ms": 23300,
         "duration_source": "estimated",
         "voice_source": "synthetic",
@@ -681,7 +681,7 @@
         "scene": "terminal",
         "adapter": "vhs",
         "span_hash": "b2e4f69fedad7dbbba1307798c465eeb3e79c1567282a0d559448be1e4f6f9c0",
-        "start_ms": 373075,
+        "start_ms": 374815,
         "duration_ms": 3140,
         "duration_source": "exact"
       },

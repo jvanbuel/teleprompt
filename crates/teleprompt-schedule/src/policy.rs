@@ -99,6 +99,15 @@ pub fn layout(policy: Policy, narration_ms: u64, action_ms: u64, timing: &Timing
             let mut warnings = Vec::new();
             let adjusted = if action_ms == 0 {
                 0
+            } else if narration_ms == 0 {
+                // A span after a mark has no narration of its own — the
+                // paragraph belongs to the block's first span, and the rest
+                // run under whatever the policy left of it. There is
+                // nothing here to fill, so the tape keeps its own length.
+                // Falling through would compute a factor of zero and clamp
+                // it to `min_stretch`, which is the scheduler rewriting a
+                // tape it was never asked about.
+                action_ms
             } else {
                 let wanted = narration_ms as f64 / action_ms as f64;
                 let factor = if wanted > timing.max_stretch {
@@ -130,7 +139,9 @@ pub fn layout(policy: Policy, narration_ms: u64, action_ms: u64, timing: &Timing
         Policy::Trim => {
             let mut warnings = Vec::new();
             let adjusted = if narration_ms == 0 {
-                0
+                // Nothing to trim against, for the same reason as above.
+                // Trimming to zero deleted the action from the video.
+                action_ms
             } else if action_ms <= narration_ms {
                 action_ms
             } else {
@@ -147,7 +158,10 @@ pub fn layout(policy: Policy, narration_ms: u64, action_ms: u64, timing: &Timing
                 narration_start_ms: 0,
                 action_start_ms: 0,
                 action_duration_ms: adjusted,
-                beat_duration_ms: narration_ms,
+                // The beat is as long as whichever of the two is left:
+                // normally the narration, and the action where there is no
+                // narration to trim against.
+                beat_duration_ms: narration_ms.max(adjusted),
                 warnings,
             }
         }

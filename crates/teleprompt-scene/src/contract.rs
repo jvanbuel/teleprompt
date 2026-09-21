@@ -182,4 +182,24 @@ pub trait SceneCompiler: Send + Sync {
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>>;
     fn spans(&self, v: &Validated, block_id: &str) -> Result<Vec<Span>, Vec<Diagnostic>>;
     fn estimate(&self, span: &Span) -> Measured;
+
+    /// The same span, re-written to last `target_ms`, or `None` when this
+    /// adapter cannot promise that.
+    ///
+    /// This is the other half of `stretch-action` and `trim-action`. The
+    /// scheduler decides how long an action *should* take — usually as long
+    /// as the sentence over it — but the number alone changes nothing about
+    /// what a capture records: the tape still runs at its authored pace, and
+    /// whatever is left of the slot is a frozen frame. Re-timing puts the
+    /// scheduler's decision back into the adapter's own language, so what is
+    /// captured lasts as long as the schedule says.
+    ///
+    /// Returning `None` is the honest answer wherever the source does not
+    /// state its own timing — a tape that waits for a prompt is as long as
+    /// the command takes, and no arithmetic here changes that. The default
+    /// is `None`, so an adapter that cannot re-time says nothing and the
+    /// renderer holds a frame instead.
+    fn retime(&self, _span: &Span, _target_ms: u64) -> Option<String> {
+        None
+    }
 }

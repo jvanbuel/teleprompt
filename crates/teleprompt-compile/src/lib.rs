@@ -19,7 +19,7 @@ use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::{default_adapter, OutputConfig};
 use teleprompt_core::program::{ChapterInfo, Item, Program};
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
-use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry};
+use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry, Span};
 use teleprompt_schedule::{
     schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, Timeline,
 };
@@ -120,6 +120,56 @@ pub struct CompileOutput {
     /// that publishes when things are spoken, and the size of the picture
     /// is not a timing fact.
     pub output: OutputConfig,
+}
+
+/// Puts the scheduler's decision back into the adapter's own language.
+///
+/// `stretch-action` and `trim-action` change how long an action should
+/// take. Until this pass, that was a number on a timeline and nothing else:
+/// a capture would run the tape at its authored pace and whatever remained
+/// of the slot would be a held frame. Here the adapter re-writes the span
+/// to last exactly as long as it was scheduled for, and what is published
+/// is that tape.
+///
+/// The span's hash moves with it, which is the point rather than a side
+/// effect: spec §5.1 puts slot duration in the video cache key, and hashing
+/// the tape that will actually be captured does that exactly. An adapter
+/// that cannot re-time says so, the source stands, and the renderer holds
+/// the last frame for the difference.
+fn retime_stretched_spans(
+    timeline: &mut Timeline,
+    spans: &mut [SpanSource],
+    registry: &SceneRegistry,
+) {
+    for entry in &mut timeline.entries {
+        let Some(action) = entry.action.as_mut() else {
+            continue;
+        };
+        let Some(published) = spans.iter_mut().find(|s| s.id == action.span) else {
+            continue;
+        };
+        let Some(adapter) = registry.get(&action.adapter) else {
+            continue;
+        };
+
+        // Nothing to do where the schedule took the adapter's own number,
+        // which is every policy but the two that change it.
+        let span = Span {
+            id: published.id.clone(),
+            source: published.source.clone(),
+            hash: action.span_hash,
+            index: 0,
+        };
+        if adapter.estimate(&span).duration_ms() == Some(action.duration_ms) {
+            continue;
+        }
+
+        if let Some(source) = adapter.retime(&span, action.duration_ms) {
+            action.span_hash = Hash::of(source.as_bytes());
+            action.duration_source = "exact".to_string();
+            published.source = source;
+        }
+    }
 }
 
 /// Compiles `program` into a scheduled [`Timeline`].
@@ -501,8 +551,9 @@ Read it, then remove the attribute."
         return Err(d);
     }
 
-    let (timeline, scheduling_warnings) =
+    let (mut timeline, scheduling_warnings) =
         schedule(&beats, &program.script_name, &program.locale, version);
+    retime_stretched_spans(&mut timeline, &mut span_sources, registry);
     // Cache warnings first: they explain why the numbers the scheduler then
     // warns about are what they are.
     let mut warnings = cache_warnings;

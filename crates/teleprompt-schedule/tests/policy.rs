@@ -129,11 +129,14 @@ fn trim_beyond_max_speedup_cuts_and_warns() {
     assert!(l.warnings[0].contains("max_speedup"));
 }
 
+/// The divide-by-zero this guards against is real; zeroing the action to
+/// avoid it was not. An action with no narration to trim against keeps its
+/// own length, which is what the tape says and the only number available.
 #[test]
 fn trim_with_zero_narration_does_not_divide_by_zero() {
     let l = layout(Policy::Trim, 0, 5000, &timing());
-    assert_eq!(l.beat_duration_ms, 0);
-    assert_eq!(l.action_duration_ms, 0);
+    assert_eq!(l.beat_duration_ms, 5000);
+    assert_eq!(l.action_duration_ms, 5000);
 }
 
 #[test]
@@ -218,4 +221,27 @@ fn labels_name_what_the_policy_adjusts() {
     assert_eq!(Policy::Trim.label(), "trim-action");
     assert_eq!(Policy::Hold.label(), "hold");
     assert_eq!(Policy::Concurrent(Align::Start).label(), "concurrent");
+}
+
+/// A span after a mark has no narration of its own: the paragraph belongs
+/// to the block's first span and the rest run under what the policy left of
+/// it. There is nothing for such an action to fill, so it keeps its own
+/// length — clamping it to `min_stretch` cut it to a third of what the tape
+/// says, which is the scheduler rewriting a tape it was never asked about.
+#[test]
+fn stretching_against_no_narration_leaves_the_action_alone() {
+    let l = layout(Policy::Stretch, 0, 4000, &timing());
+    assert_eq!(l.action_duration_ms, 4000);
+    assert_eq!(l.beat_duration_ms, 4000);
+    assert!(l.warnings.is_empty(), "{:?}", l.warnings);
+}
+
+/// The same in the other direction: `trim-action` with nothing to trim
+/// against cut the action to zero, which deletes it from the video.
+#[test]
+fn trimming_against_no_narration_leaves_the_action_alone() {
+    let l = layout(Policy::Trim, 0, 4000, &timing());
+    assert_eq!(l.action_duration_ms, 4000);
+    assert_eq!(l.beat_duration_ms, 4000);
+    assert!(l.warnings.is_empty(), "{:?}", l.warnings);
 }
