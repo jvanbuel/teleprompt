@@ -730,8 +730,8 @@ The language is reused; the runtime is not.
 
 > **As shipped.** Two departures from the sketch below, both found while
 > writing the adapter. The mark is spelled `# mark`, a VHS comment, rather
-> than a `Mark` command; and `estimate` returns `Estimated`, not `Exact`.
-> Both are argued at the end of this section.
+> than a `Mark` command; and exactness is decided per span rather than
+> claimed for the whole language. Both are argued at the end of this section.
 
 ```
 Set TypingSpeed 50ms
@@ -754,19 +754,39 @@ to VHS and costs nothing but the convention that this one comment is
 reserved. Consistent with §7.1: the block body is adapter-native, and
 teleprompt's additions live around it, not inside it.
 
-**`estimate` returns `Estimated`, not `Exact`.** `Sleep` and `Set TypingSpeed`
-are exact, and if they were all a tape contained the earlier claim would
-hold. `Wait` is the exception: it blocks until the shell prompt returns, so
-its duration is whatever the command underneath takes — `cargo build` in the
-example above — and that number is nowhere in the tape. A tape without `Wait`
-does estimate exactly; the adapter cannot promise that in general, and
-`Estimated` is the honest signal to the compiler that M1's measuring pass has
-something to improve. `Exact` is reserved for adapters whose language states
-the whole truth about its own timing.
+**`estimate` is exact per span, not per language.** `Sleep` and
+`Set TypingSpeed` are exact, and a span built from those alone states its own
+timing in full — that is what lets `plan` and `diff` pace a terminal scene
+offline, on a machine with no terminal recorder installed. `Wait` is the
+exception: it blocks until the shell prompt returns, so its duration is
+whatever the command underneath takes — `cargo build` in the example above —
+and that number is nowhere in the tape.
 
-`Set TypingSpeed` remains the natural knob for `stretch-action`. Output
-directives (`Output`, `Set Shell`) that conflict with teleprompt's own capture
-are rejected by `validate` with an explanatory error.
+An earlier draft resolved this by returning `Estimated` for every tape. That
+is honest about `Wait` and misleading about everything else: it tells M1's
+measuring pass that every span has something to improve, when almost none of
+them do. The unit `Measured` describes is a span, so the verdict belongs to
+the span. One containing a `Wait` contributes that `Wait`'s timeout — the
+bound the tape *does* state, `Set WaitTimeout` or VHS's 5 s default — and
+reports `Estimated`. Every other span reports `Exact`.
+
+`Set TypingSpeed` remains the natural knob for `stretch-action`.
+
+**What `validate` refuses, and why.** `Output` and `Set Shell` conflict with
+teleprompt's own capture, as above. `Source` splices another tape in at run
+time, long after `spans` decided where the beats are, so a mark inside the
+sourced tape is invisible to the split meant to honour it — `include=` is the
+supported spelling and keeps the marks visible. `Set PlaybackSpeed` re-times
+the finished recording, which would slide the narration out from under the
+action it was scheduled against; `policy=stretch-action` is the knob for that.
+
+A setting the adapter does not recognise is also refused, rather than passed
+through. Passing unknown settings through is the tempting reading — VHS has
+settings teleprompt does not care about — but it cannot tell `Set Padding 20`
+from `Set TypingSped 10ms`, and the second is a tape that types at a speed its
+author did not choose while `check` reports success. That is the same failure
+the adapter's single-`classify` discipline exists to prevent, arriving by a
+different door.
 
 ### 7.6 Later adapters
 

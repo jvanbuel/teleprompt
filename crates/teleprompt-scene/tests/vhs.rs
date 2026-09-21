@@ -215,14 +215,152 @@ fn settings_alone_cost_no_time() {
     assert_eq!(total_ms("Set FontSize 32\nSet Theme \"Dracula\"\n"), 0);
 }
 
-/// A tape's own runtime is not in the tape, so the number is a starting
-/// point for M1's measuring pass rather than a promise.
+/// A span whose timing the tape states in full needs no measuring pass —
+/// which is what lets `plan` and `diff` pace a terminal scene offline.
 #[test]
-fn a_tape_estimate_is_never_exact() {
-    let v = validated("Sleep 1s\n");
+fn a_tape_that_states_its_timing_estimates_exactly() {
+    let v = validated("Set TypingSpeed 10ms\nType \"abc\"\nEnter\nSleep 1s\n");
     let spans = VhsScene.spans(&v, "b").expect("spans");
 
-    assert_eq!(VhsScene.estimate(&spans[0]), Measured::Estimated(1000));
+    assert_eq!(VhsScene.estimate(&spans[0]), Measured::Exact(1040));
+}
+
+/// `Wait` is the exception, and it is an exception per span rather than per
+/// adapter: it blocks until the prompt returns, so its length is whatever the
+/// command underneath takes, and that number is nowhere in the tape.
+#[test]
+fn a_span_containing_wait_is_estimated_and_bounded_by_its_timeout() {
+    let v = validated("Type \"cargo build\"\nWait\n# mark\nSleep 1s\n");
+    let spans = VhsScene.spans(&v, "b").expect("spans");
+
+    // 11 chars at the 50ms default, plus the 5s default timeout.
+    assert_eq!(VhsScene.estimate(&spans[0]), Measured::Estimated(5550));
+    assert_eq!(
+        VhsScene.estimate(&spans[1]),
+        Measured::Exact(1000),
+        "a `Wait` in one span says nothing about the span beside it"
+    );
+}
+
+#[test]
+fn a_wait_timeout_is_settable_per_tape_and_per_command() {
+    assert_eq!(total_ms("Set WaitTimeout 30s\nWait\n"), 30_000);
+    assert_eq!(total_ms("Wait@2s /\\$ $/\n"), 2000);
+}
+
+#[test]
+fn a_wait_scope_is_checked_rather_than_assumed() {
+    assert!(VhsScene
+        .validate(&src("Wait+Screen /\\$ $/\nWait+Line\n"))
+        .is_ok());
+
+    let e = VhsScene
+        .validate(&src("Wait+Prompt\n"))
+        .expect_err("an unknown scope should fail validation");
+    assert!(e[0].message.contains("Wait+Prompt"), "{}", e[0].message);
+}
+
+/// The pass-through this adapter deliberately does not do. `Set Padding 20`
+/// and `Set TypingSped 10ms` are indistinguishable to a catch-all, and the
+/// second is a tape that types at a speed its author did not choose.
+#[test]
+fn a_misspelled_setting_is_reported_rather_than_ignored() {
+    let e = VhsScene
+        .validate(&src("Set TypingSped 10ms\n"))
+        .expect_err("an unknown setting should fail validation");
+
+    assert!(
+        e[0].message.contains("unknown setting `TypingSped`"),
+        "{}",
+        e[0].message
+    );
+    assert!(
+        e[0].help
+            .as_deref()
+            .unwrap_or_default()
+            .contains("TypingSpeed"),
+        "the help should name the setting that was meant"
+    );
+}
+
+/// Sourcing another tape splices it in at run time, long after `spans` has
+/// decided where the beats are.
+#[test]
+fn source_points_at_the_include_attribute_instead() {
+    let e = VhsScene
+        .validate(&src("Source other.tape\n"))
+        .expect_err("`Source` should fail validation");
+
+    assert!(e[0]
+        .help
+        .as_deref()
+        .unwrap_or_default()
+        .contains("include="));
+}
+
+/// Re-timing the finished recording would slide the narration out from under
+/// the action it was scheduled against.
+#[test]
+fn set_playback_speed_is_rejected_and_names_the_policy_that_replaces_it() {
+    let e = VhsScene
+        .validate(&src("Set PlaybackSpeed 2\n"))
+        .expect_err("`Set PlaybackSpeed` should fail validation");
+
+    assert!(e[0].message.contains("PlaybackSpeed"), "{}", e[0].message);
+    assert!(e[0]
+        .help
+        .as_deref()
+        .unwrap_or_default()
+        .contains("stretch-action"));
+}
+
+#[test]
+fn a_chord_tail_is_checked_and_a_lone_letter_is_not_a_key() {
+    assert!(VhsScene.validate(&src("Ctrl+C\nAlt+Shift+Tab\n")).is_ok());
+
+    // A chord whose tail is a typo is reported, not silently pressed; and a
+    // lone character is a typo, not a keystroke.
+    for bad in ["Ctrl+Etner\n", "C\n"] {
+        assert!(
+            VhsScene.validate(&src(bad)).is_err(),
+            "{bad:?} should fail validation"
+        );
+    }
+}
+
+#[test]
+fn an_escaped_quote_is_typed_not_counted_as_the_end_of_the_string() {
+    // `say "hi"` is 8 characters; the backslashes are escapes, not keystrokes.
+    assert_eq!(total_ms("Type \"say \\\"hi\\\"\"\n"), 400);
+
+    let e = VhsScene
+        .validate(&src("Type \"never closed\n"))
+        .expect_err("an unterminated string should fail validation");
+    assert!(e[0].message.contains("never closed"), "{}", e[0].message);
+}
+
+#[test]
+fn a_trailing_argument_after_a_string_is_rejected_rather_than_swallowed() {
+    let e = VhsScene
+        .validate(&src("Type \"hi\" \"there\"\n"))
+        .expect_err("trailing content should fail validation");
+
+    assert!(e[0].message.contains("trailing"), "{}", e[0].message);
+}
+
+#[test]
+fn a_lowercase_command_is_diagnosed_as_a_lowercase_command() {
+    let e = VhsScene
+        .validate(&src("type \"hi\"\n"))
+        .expect_err("a lowercase command should fail validation");
+
+    assert!(
+        e[0].help
+            .as_deref()
+            .unwrap_or_default()
+            .contains("write `Type`"),
+        "a capitalisation slip should not read as a missing feature"
+    );
 }
 
 #[test]

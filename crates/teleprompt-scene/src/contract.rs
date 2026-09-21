@@ -116,15 +116,19 @@ impl Measured {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LineError {
     pub message: String,
-    pub help: Option<&'static str>,
+    /// Owned rather than `&'static str`: the most useful help an adapter can
+    /// give is often computed — the list of directives it understands, or the
+    /// correct spelling of the one that was nearly right — and a borrowed
+    /// help line forces those to be dropped or leaked.
+    pub help: Option<String>,
 }
 
 impl LineError {
     /// A line error with a help line attached.
-    pub fn new(message: impl Into<String>, help: &'static str) -> Self {
+    pub fn new(message: impl Into<String>, help: impl Into<String>) -> Self {
         Self {
             message: message.into(),
-            help: Some(help),
+            help: Some(help.into()),
         }
     }
 
