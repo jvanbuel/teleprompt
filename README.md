@@ -8,9 +8,10 @@ rhythm of the video — and `teleprompt diff` tells you exactly how before you
 render anything.
 
 **Status: M0.** The compiler and the feedback loop work end to end: parsing,
-narration timing, and timeline scheduling are all real. There is no video
-output yet — no rendering, no scene adapters beyond the mock one used for
-testing, no ffmpeg. See
+narration timing, and timeline scheduling are all real. Terminal scenes are
+written as [VHS](https://github.com/charmbracelet/vhs) tapes and compile to
+exact durations. There is no video output yet — no rendering, no terminal
+capture, no ffmpeg: teleprompt reads a tape, it does not yet run one. See
 `docs/superpowers/specs/2026-08-15-teleprompt-design.md` for the full design
 and milestone plan.
 
@@ -49,6 +50,8 @@ cargo run -- diff demo/scripts/demo.md
 | `diff <script>` | compare against the committed timeline |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `doctor` | report the environment teleprompt can see |
+
+`doctor` also lists the scene adapters and voice backends this build ships.
 
 All commands accept `--format json`.
 
@@ -140,6 +143,99 @@ render.
 teleprompt ships no Remotion code and takes no Remotion dependency. Remotion's
 own licence — free for individuals and organisations up to three employees —
 is between you and Remotion.
+
+## Terminal scenes
+
+An action block whose `scene=terminal` is a [VHS](https://github.com/charmbracelet/vhs)
+tape — Charm's recording language, borrowed whole:
+
+```teleprompt scene=terminal
+Set TypingSpeed 35ms
+Type "cargo build --release"
+Enter
+Sleep 2s
+# mark
+Type "./target/release/acme --help"
+Enter
+Sleep 1s
+```
+
+`# mark` ends a span, which is where the next paragraph of narration gets to
+start. It is spelled as a comment on purpose: VHS ignores it, so the body stays
+a tape `vhs` itself will run — which is the whole reason to point a fence's
+`include=` at a real `.tape` file rather than at a dialect only teleprompt
+reads.
+
+teleprompt reads the tape language rather than shelling out to `vhs`, because
+VHS renders a whole tape to one finished file and cannot pause in the middle,
+and the middle is exactly where narration goes. M0 ships the reading half:
+`check` validates a tape, `plan` and `diff` schedule it. Running one — the PTY
+and the terminal capture — is M6.
+
+**A tape states its own timing, so its spans are timed exactly.** Every `Sleep`
+is written down and every keystroke costs `Set TypingSpeed` (50 ms by default,
+matching VHS), so teleprompt adds them up instead of guessing, and never has to
+run a terminal to find out how long the terminal takes:
+
+```
+$ teleprompt plan manual/scripts/cli.md --format json | grep -A4 '"adapter": "vhs"'
+        "adapter": "vhs",
+        "span_hash": "c590e04a8aa99440733a0ad195e0f6c4e281e62c2e82bd16a9880fd52fb83ad4",
+        "start_ms": 20650,
+        "duration_ms": 2630,
+        "duration_source": "exact"
+```
+
+The one exception is `Wait`, which blocks on a program rather than on a clock.
+A span containing one contributes that `Wait`'s timeout (`Set WaitTimeout`,
+5 s by default) and is reported as `estimated`; every other span is `exact`.
+
+A few commands are refused on purpose, each with the reason: `Output` and
+`Set Shell` (teleprompt owns the capture and the terminal), `Source` (use the
+fence's `include=` instead, so the marks are visible before run time), and
+`Set PlaybackSpeed` — re-timing the finished recording would slide the
+narration out from under the action it was scheduled against, which is what
+`policy=stretch-action` is for. So is a setting teleprompt does not recognise:
+`Set TypingSped 10ms` is a typo, and passing it through would mean a tape that
+types at a speed its author did not choose while `check` reports success.
+
+Settings persist across a `Mark` but not across a fence: each action block is
+validated and split on its own, so a block that wants a non-default typing
+speed says so itself.
+
+## The manual narrates itself
+
+`manual/` is a teleprompt project whose script is this tool's command-line
+manual. Its prose is the narration; its action blocks are tapes running the
+commands the prose is describing.
+
+```bash
+cargo run -- check manual/scripts/cli.md
+cargo run -- plan  manual/scripts/cli.md
+cargo run -- diff  manual/scripts/cli.md
+```
+
+`manual/timelines/cli.en.json` is committed, and
+`crates/teleprompt-cli/tests/manual.rs` recompiles the manual on every CI run
+and fails when it no longer matches — so a command that grows a flag cannot
+leave the sentence about it, or the tape demonstrating it, quietly behind.
+
+That timeline is compiled from a **cold cache** on purpose: every narration
+duration in it is a word-count estimate, which any machine reproduces with
+nothing installed. Dubbing the manual locally is what makes it audible:
+
+```bash
+cargo run -- dub manual/scripts/cli.md --out manual/build/narration
+```
+
+With `voice.backend = "null"` that writes silence of the estimated length —
+enough to check the pacing. Point `teleprompt.toml` at a Kokoro server to hear
+the words.
+
+Dubbing warms `manual/.teleprompt/cache`, so `diff` will afterwards report
+every segment as `now measured` against the committed cold-cache timeline.
+That is the documented drift, not a regression, and it is why the test
+compiles the manual in a scratch directory instead of in place.
 
 ## Voice backends
 
