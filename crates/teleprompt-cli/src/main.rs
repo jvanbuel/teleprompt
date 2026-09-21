@@ -6,8 +6,10 @@ use teleprompt_cli::cmd::check::{self, CheckReport};
 use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
 use teleprompt_cli::cmd::dub;
+use teleprompt_cli::cmd::from;
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
+use teleprompt_cli::cmd::serve;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
 
@@ -31,6 +33,18 @@ enum Command {
     New { path: PathBuf },
     /// Report the environment teleprompt can see
     Doctor,
+    /// Draft a script from a Markdown document you already have
+    ///
+    /// Prose becomes narration segments with their ids promoted, shell code
+    /// blocks become terminal tapes that type the command and are marked
+    /// `review=pending` until a human has read them, and everything else is
+    /// left as ordinary Markdown for you to promote by hand.
+    From {
+        doc: PathBuf,
+        /// Where to write the draft; defaults to <doc>.teleprompt.md
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Parse and validate; no side effects, no cost
     Check {
         script: PathBuf,
@@ -51,6 +65,21 @@ enum Command {
         /// Exit 3 when the timeline has drifted
         #[arg(long)]
         exit_code: bool,
+    },
+    /// Serve a live preview that opens on the beat that changed
+    ///
+    /// Watches the script, recompiles on save, synthesizes only what the
+    /// cache is missing, and serves a preview on loopback. The preview
+    /// reads the published narration manifest — the same artifact an
+    /// outside consumer reads — so it cannot drift from what `build`
+    /// renders.
+    Serve {
+        script: PathBuf,
+        #[arg(long, default_value = "en")]
+        locale: String,
+        /// Port to listen on; 0 picks a free one
+        #[arg(long, default_value_t = 7878)]
+        port: u16,
     },
     /// Synthesize narration and write audio plus a manifest
     ///
@@ -116,6 +145,19 @@ fn main() -> ExitCode {
         Command::New { path } => match new::scaffold(&path) {
             Ok(files) => {
                 let report = NewReport { created: files };
+                match cli.format {
+                    Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
+                    Format::Human => print!("{}", report.render()),
+                }
+                Outcome::Ok
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+        },
+        Command::From { doc, out } => match from::run_from(&doc, out) {
+            Ok(report) => {
                 match cli.format {
                     Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
                     Format::Human => print!("{}", report.render()),
@@ -276,6 +318,34 @@ fn main() -> ExitCode {
                     Outcome::ValidationError(errors)
                 }
             },
+        },
+        Command::Serve {
+            script,
+            locale,
+            port,
+        } => match Project::for_script(&script) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => {
+                match runtime()
+                    .map_err(serve::ServeError::Runtime)
+                    .and_then(|rt| rt.block_on(serve::run_serve(&project, &script, &locale, port)))
+                {
+                    Ok(()) => Outcome::Ok,
+                    Err(serve::ServeError::Validation(errors)) => {
+                        for e in &errors {
+                            eprintln!("{e}");
+                        }
+                        Outcome::ValidationError(errors)
+                    }
+                    Err(serve::ServeError::Runtime(e)) => {
+                        eprintln!("error: {e}");
+                        Outcome::RuntimeFailure(e)
+                    }
+                }
+            }
         },
         Command::Dub {
             script,

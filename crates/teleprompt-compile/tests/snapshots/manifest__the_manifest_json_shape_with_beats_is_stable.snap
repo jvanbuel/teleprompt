@@ -1,13 +1,13 @@
 ---
 source: crates/teleprompt-compile/tests/manifest.rs
-expression: m
+expression: manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK)
 ---
 {
   "manifest_version": 2,
   "script": "tour.md",
   "locale": "en",
   "generated_by": "teleprompt 0.1.0",
-  "duration_ms": 9000,
+  "duration_ms": 5900,
   "audio": {
     "format": "wav",
     "sample_rate": 48000,
@@ -18,42 +18,54 @@ expression: m
       "id": "quick-start",
       "title": "Quick start",
       "start_ms": 150
-    },
-    {
-      "id": "provenance",
-      "title": "Provenance",
-      "start_ms": 5700
     }
   ],
   "segments": [
     {
-      "id": "quick-start-1",
+      "id": "intro",
       "text": "Every video in this repository is built from a script you can read.",
       "chapter": "quick-start",
       "start_ms": 150,
       "duration_ms": 5550,
       "duration_source": "estimated",
-      "audio": "audio/quick-start-1.wav",
+      "audio": "audio/intro.wav",
       "voice_source": "synthetic",
       "voice_source_actual": "synthetic",
       "downgrade_reason": null,
       "source_hash": "0fbee1f07d14ecc98c3ef11c61679dbd7e8323d8f88c8c77158f8bf7976f065c",
       "audio_hash": "76694f014a7308ccf908fb1b09257664d33aac066cfd824a5c6e0767dabde845"
-    },
-    {
-      "id": "provenance-1",
-      "text": "And every timeline is committed alongside it.",
-      "chapter": "provenance",
-      "start_ms": 5700,
-      "duration_ms": 3150,
-      "duration_source": "estimated",
-      "audio": "audio/provenance-1.wav",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic",
-      "downgrade_reason": null,
-      "source_hash": "2d0ca2b775c10771ab089230b4050525327384f999c98be24c75d31da4479b7f",
-      "audio_hash": "6292dc8c426fc5800f845823e350f9b770852d913c1b161807b86e793b517cdd"
     }
   ],
-  "beats": []
+  "beats": [
+    {
+      "span": "intro-a#0",
+      "segment": "intro",
+      "scene": "mock",
+      "adapter": "mock",
+      "start_ms": 0,
+      "duration_ms": 500,
+      "duration_source": "exact",
+      "policy": "concurrent",
+      "transition": {
+        "kind": "crossfade",
+        "duration_ms": 150
+      },
+      "span_hash": "4057dd5c308ea0fb5dcf8d6ab5e5c7cf86559417bcc6e30c50580b80901128eb"
+    },
+    {
+      "span": "intro-a#1",
+      "segment": null,
+      "scene": "mock",
+      "adapter": "mock",
+      "start_ms": 5700,
+      "duration_ms": 200,
+      "duration_source": "exact",
+      "policy": "concurrent",
+      "transition": {
+        "kind": "crossfade",
+        "duration_ms": 0
+      },
+      "span_hash": "8582c7f96226778c8a046c0ad9b08be614e9e287364041b7fe00b89038f68784"
+    }
+  ]
 }

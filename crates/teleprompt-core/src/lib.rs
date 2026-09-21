@@ -1,6 +1,7 @@
 pub mod ast;
 pub mod attrs;
 pub mod config;
+pub mod draft;
 pub mod error;
 pub mod hash;
 pub mod ident;

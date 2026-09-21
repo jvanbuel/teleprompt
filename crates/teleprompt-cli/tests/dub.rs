@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 
 use teleprompt_cli::cmd::dub::{manifest_path, run_dub, DubError};
 use teleprompt_cli::project::Project;
+use teleprompt_compile::manifest::MANIFEST_VERSION;
 
 const SCRIPT: &str = "\
 # Quick start
@@ -71,7 +72,7 @@ fn dub_writes_a_manifest_and_one_wav_per_segment() {
     assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
 
     let m = read_manifest(&root);
-    assert_eq!(m["manifest_version"], 1);
+    assert_eq!(m["manifest_version"], MANIFEST_VERSION);
     assert_eq!(m["locale"], "en");
     assert_eq!(m["segments"].as_array().unwrap().len(), 2);
 
@@ -455,11 +456,12 @@ fn a_manifest_from_a_future_version_is_refused_rather_than_misread() {
 
     let path = root.join("public/narration/en/narration.json");
     let raw = std::fs::read_to_string(&path).unwrap();
-    std::fs::write(
-        &path,
-        raw.replace("\"manifest_version\": 1", "\"manifest_version\": 999"),
-    )
-    .unwrap();
+    let from = format!("\"manifest_version\": {MANIFEST_VERSION}");
+    assert!(
+        raw.contains(&from),
+        "the manifest should state the version this build writes"
+    );
+    std::fs::write(&path, raw.replace(&from, "\"manifest_version\": 999")).unwrap();
 
     let out = tp(
         &root,

@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>teleprompt serve</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #0b0d10; --panel: #12161b; --rule: #232a33;
+    --ink: #d7dee7; --dim: #8a94a1; --accent: #6cb6ff;
+    --prompt: #7ee0a8; --moved: #febc2e; --bad: #ff8a80;
+    --mono: ui-monospace, SFMono-Regular, "DejaVu Sans Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  h1 { margin: 0; font: 500 14px/1.4 var(--mono); color: var(--dim); }
+  h1 b { color: var(--prompt); font-weight: 500; }
+  .gen { margin-left: auto; font: 12px var(--mono); color: var(--dim); }
+
+  #errors {
+    margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--bad);
+    border-radius: 4px; background: #1b1113; color: var(--bad);
+    font: 12.5px/1.6 var(--mono); white-space: pre-wrap;
+  }
+
+  #stage {
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 14px 16px; min-height: 260px; overflow: hidden;
+  }
+  #screen { margin: 0; font: 14px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+  #screen .p { color: var(--prompt); }
+  #screen .cursor { background: var(--accent); color: var(--ground); }
+  .scene-note { color: var(--dim); font: 12px var(--mono); }
+
+  #caption { min-height: 3.2em; margin: 14px 2px 0; color: var(--ink); }
+  #caption.none { color: var(--dim); }
+
+  .transport { display: flex; align-items: center; gap: 12px; margin: 16px 0 8px; }
+  button {
+    font: 13px var(--mono); color: var(--ink); background: var(--panel);
+    border: 1px solid var(--rule); border-radius: 4px; padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  .clock { font: 12.5px var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+
+  #strip { position: relative; height: 54px; border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); overflow: hidden; cursor: pointer; }
+  #strip .beat { position: absolute; top: 6px; height: 18px; background: #24303d; border-radius: 2px; }
+  #strip .beat.moved { background: var(--moved); }
+  #strip .beat.pause { background: #1b222b; }
+  #strip .seg { position: absolute; bottom: 6px; height: 12px; background: #2b3a49; border-radius: 2px; }
+  #strip .seg.moved { background: var(--moved); }
+  #strip .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+  .legend { display: flex; gap: 16px; margin-top: 8px; font: 11.5px var(--mono); color: var(--dim); }
+  .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><b>&#10095;</b> teleprompt serve <span id="script"></span></h1>
+    <span class="gen" id="gen"></span>
+  </header>
+
+  <pre id="errors" hidden></pre>
+
+  <div id="stage"><pre id="screen"></pre></div>
+  <p id="caption" class="none">&nbsp;</p>
+
+  <div class="transport">
+    <button id="play">play</button>
+    <button id="jump" hidden>jump to change</button>
+    <span class="clock" id="clock">0:00 / 0:00</span>
+  </div>
+
+  <div id="strip"></div>
+  <div class="legend">
+    <span><i class="swatch" style="background:#24303d"></i>action span</span>
+    <span><i class="swatch" style="background:#2b3a49"></i>narration</span>
+    <span><i class="swatch" style="background:var(--moved)"></i>moved since last save</span>
+  </div>
+</main>
+
+<script>
+"use strict";
+// The preview is a manifest consumer: it places speech from `segments` and
+// the picture from `beats`, exactly as docs/integrations/remotion.md tells an
+// outside integrator to. The only thing it asks teleprompt for beyond the
+// manifest is a span's source, which it needs to draw the scene and which a
+// consumer drawing its own picture would not.
+
+const $ = (id) => document.getElementById(id);
+const clock = (ms) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+const app = {
+  generation: 0,
+  manifest: null,
+  sources: new Map(),   // span id -> tape text
+  buffers: new Map(),   // audio_hash -> AudioBuffer
+  changed: new Set(),
+  playing: false,
+  head: 0,              // ms
+  origin: 0,            // ctx.currentTime when head was 0
+  live: [],             // scheduled AudioBufferSourceNodes
+};
+
+let ctx = null;
+const audio = () => (ctx ??= new AudioContext());
+
+async function load(generation) {
+  const manifest = await (await fetch("manifest.json")).json();
+  if (manifest.manifest_version !== 2) {
+    show([`this preview reads manifest v2; teleprompt served v${manifest.manifest_version}`]);
+    return;
+  }
+  app.manifest = manifest;
+  app.generation = generation;
+
+  // Span sources for scenes the preview can draw. Fetched per generation
+  // because an edited tape is a new source under the same span id.
+  app.sources.clear();
+  await Promise.all(
+    manifest.beats
+      .filter((b) => b.scene !== "pause")
+      .map(async (b) => {
+        const r = await fetch(`spans/${encodeURIComponent(b.span)}`);
+        if (r.ok) app.sources.set(b.span, await r.text());
+      })
+  );
+
+  // Audio is keyed by `audio_hash`, so a segment whose text did not change
+  // keeps its decoded buffer across a recompile.
+  await Promise.all(
+    manifest.segments.map(async (s) => {
+      if (app.buffers.has(s.audio_hash)) return;
+      const r = await fetch(`audio/${encodeURIComponent(s.id)}.wav`);
+      if (!r.ok) return;
+      app.buffers.set(s.audio_hash, await audio().decodeAudioData(await r.arrayBuffer()));
+    })
+  );
+
+  drawStrip();
+}
+
+function show(errors) {
+  const box = $("errors");
+  box.hidden = !errors || errors.length === 0;
+  box.textContent = errors ? errors.join("\n") : "";
+}
+
+// ---- playback -------------------------------------------------------------
+
+function stopAudio() {
+  for (const node of app.live) { try { node.stop(); } catch {} }
+  app.live = [];
+}
+
+function play(fromMs) {
+  stopAudio();
+  const c = audio();
+  if (c.state === "suspended") c.resume();
+  app.head = Math.max(0, fromMs ?? app.head);
+  app.origin = c.currentTime - app.head / 1000;
+  app.playing = true;
+  $("play").textContent = "pause";
+
+  for (const seg of app.manifest.segments) {
+    const buf = app.buffers.get(seg.audio_hash);
+    if (!buf) continue;
+    const end = seg.start_ms + seg.duration_ms;
+    if (end <= app.head) continue;
+    const node = c.createBufferSource();
+    node.buffer = buf;
+    node.connect(c.destination);
+    // A segment straddling the playhead starts part-way in; one ahead of it
+    // is scheduled against the same origin, which is what keeps every
+    // segment on one clock rather than on a chain of timers.
+    const when = c.currentTime + Math.max(0, seg.start_ms - app.head) / 1000;
+    const offset = Math.max(0, app.head - seg.start_ms) / 1000;
+    node.start(when, offset);
+    app.live.push(node);
+  }
+}
+
+function pause() {
+  app.head = now();
+  stopAudio();
+  app.playing = false;
+  $("play").textContent = "play";
+}
+
+const now = () => (app.playing ? (audio().currentTime - app.origin) * 1000 : app.head);
+
+// ---- the tape, replayed ---------------------------------------------------
+
+// Parsed exactly as the adapter parses it, minus what the preview cannot
+// show. A line the preview does not understand costs no time, which is the
+// same answer `estimate` gives for a `Set`.
+function ops(source) {
+  const out = [];
+  let speed = 50;
+  for (const raw of source.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    let m;
+    if ((m = line.match(/^Set\s+TypingSpeed\s+(\d+)(m?s)$/))) {
+      speed = m[2] === "s" ? +m[1] * 1000 : +m[1];
+    } else if ((m = line.match(/^Type(?:@(\d+)(m?s))?\s+(["'`])([\s\S]*)\3$/))) {
+      const per = m[1] ? (m[2] === "s" ? +m[1] * 1000 : +m[1]) : speed;
+      for (const ch of m[4].replace(/\\(["'`\\])/g, "$1")) out.push({ ms: per, ch });
+    } else if ((m = line.match(/^Sleep\s+([\d.]+)(m?s)$/))) {
+      out.push({ ms: m[2] === "s" ? +m[1] * 1000 : +m[1] });
+    } else if (/^Set\s/.test(line)) {
+      continue;
+    } else {
+      out.push({ ms: speed, enter: true });
+    }
+  }
+  return out;
+}
+
+/** The terminal as of `t`, replaying every span of the block up to it.
+ *
+ *  Per-block replay rather than per-span: a tape's state accumulates, so a
+ *  span that follows a mark means nothing without the ones before it. The
+ *  block is the bounded unit that is always correct to start from.
+ */
+function screenAt(block, t) {
+  let rows = [""];
+  for (const beat of app.manifest.beats) {
+    if (!beat.span.startsWith(block + "#")) continue;
+    if (beat.start_ms > t) break;
+    const source = app.sources.get(beat.span);
+    if (!source) continue;
+    const list = ops(source);
+    const natural = list.reduce((n, o) => n + o.ms, 0);
+    const scale = natural > 0 ? beat.duration_ms / natural : 1;
+    if (rows[rows.length - 1] !== "") rows.push("");
+    rows[rows.length - 1] = "❯ ";
+    let at = beat.start_ms;
+    for (const op of list) {
+      at += op.ms * scale;
+      if (at > t) return rows;
+      if (op.enter) rows.push("");
+      else if (op.ch) rows[rows.length - 1] += op.ch;
+    }
+  }
+  return rows;
+}
+
+function draw() {
+  const t = now();
+  const m = app.manifest;
+  if (!m) return requestAnimationFrame(draw);
+
+  if (app.playing && t >= m.duration_ms) pause();
+
+  const beat = [...m.beats].reverse().find((b) => b.start_ms <= t);
+  const screen = $("screen");
+  if (beat && beat.scene === "pause") {
+    screen.innerHTML = `<span class="scene-note">holding &mdash; pause ${beat.duration_ms}ms</span>`;
+  } else if (beat && app.sources.has(beat.span)) {
+    const rows = screenAt(beat.span.split("#")[0], t);
+    screen.innerHTML = rows
+      .map((row, i) => {
+        const body = row.startsWith("❯ ")
+          ? `<span class="p">❯</span> ${escape(row.slice(2))}`
+          : escape(row);
+        const caret = i === rows.length - 1 && Math.floor(t / 500) % 2 === 0 ? `<span class="cursor"> </span>` : "";
+        return body + caret;
+      })
+      .join("\n");
+  } else {
+    screen.innerHTML = `<span class="scene-note">no scene at this point in the timeline</span>`;
+  }
+
+  const seg = m.segments.find((s) => t >= s.start_ms && t < s.start_ms + s.duration_ms);
+  const cap = $("caption");
+  cap.textContent = seg ? seg.text : " ";
+  cap.className = seg ? "" : "none";
+
+  $("clock").textContent = `${clock(t)} / ${clock(m.duration_ms)}`;
+  const head = document.querySelector("#strip .head");
+  if (head) head.style.left = `${(t / m.duration_ms) * 100}%`;
+
+  requestAnimationFrame(draw);
+}
+
+const escape = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+// ---- the strip ------------------------------------------------------------
+
+function drawStrip() {
+  const m = app.manifest;
+  const strip = $("strip");
+  strip.innerHTML = "";
+  const pct = (ms) => (ms / m.duration_ms) * 100;
+
+  for (const b of m.beats) {
+    const el = document.createElement("div");
+    el.className = `beat${app.changed.has(b.span) ? " moved" : ""}${b.scene === "pause" ? " pause" : ""}`;
+    el.style.left = `${pct(b.start_ms)}%`;
+    el.style.width = `${Math.max(0.35, pct(b.duration_ms))}%`;
+    el.title = `${b.span} · ${b.policy} · ${b.duration_source} ${(b.duration_ms / 1000).toFixed(1)}s`;
+    strip.appendChild(el);
+  }
+  for (const s of m.segments) {
+    const el = document.createElement("div");
+    el.className = `seg${app.changed.has(s.id) ? " moved" : ""}`;
+    el.style.left = `${pct(s.start_ms)}%`;
+    el.style.width = `${Math.max(0.35, pct(s.duration_ms))}%`;
+    el.title = `${s.id} · ${s.duration_source} ${(s.duration_ms / 1000).toFixed(1)}s`;
+    strip.appendChild(el);
+  }
+  const head = document.createElement("div");
+  head.className = "head";
+  strip.appendChild(head);
+}
+
+/** Where the preview should open after a recompile: the earliest moved
+ *  thing, backed up a little so you hear the run-in rather than landing
+ *  mid-syllable. */
+function firstChange() {
+  const m = app.manifest;
+  const times = [
+    ...m.beats.filter((b) => app.changed.has(b.span)).map((b) => b.start_ms),
+    ...m.segments.filter((s) => app.changed.has(s.id)).map((s) => s.start_ms),
+  ];
+  return times.length ? Math.max(0, Math.min(...times) - 400) : null;
+}
+
+// ---- watching the server --------------------------------------------------
+
+async function poll() {
+  try {
+    const state = await (await fetch("state.json")).json();
+    $("script").textContent = state.script;
+    $("gen").textContent = `generation ${state.generation}`;
+    show(state.error);
+
+    if (state.generation !== app.generation) {
+      app.changed = new Set(state.changed || []);
+      const wasPlaying = app.playing;
+      if (!state.error) {
+        await load(state.generation);
+        const at = firstChange();
+        $("jump").hidden = at === null;
+        if (at !== null && (wasPlaying || app.generation > 1)) play(at);
+        else if (wasPlaying) play(app.head);
+      } else {
+        app.generation = state.generation;
+      }
+    }
+  } catch (e) {
+    $("gen").textContent = "server gone";
+  }
+  setTimeout(poll, 400);
+}
+
+$("play").addEventListener("click", () => (app.playing ? pause() : play()));
+$("jump").addEventListener("click", () => {
+  const at = firstChange();
+  if (at !== null) play(at);
+});
+$("strip").addEventListener("click", (e) => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  play(((e.clientX - rect.left) / rect.width) * app.manifest.duration_ms);
+});
+
+poll();
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

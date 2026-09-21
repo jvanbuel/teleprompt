@@ -15,6 +15,10 @@ pub const SEGMENT_KEYS: &[&str] = &[
 pub const BLOCK_KEYS: &[&str] = &[
     "scene",
     "include",
+    // Set by `from` on a tape it generated from someone else's document.
+    // The command in it has been read by nobody, so `check` says so until a
+    // human removes the attribute.
+    "review",
     "policy",
     "align",
     "id",

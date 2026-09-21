@@ -18,7 +18,15 @@ use crate::NarrationDetail;
 /// `TIMELINE_VERSION`: the timeline is an internal review surface, the
 /// manifest is a contract with third parties, and they will not move
 /// together.
-pub const MANIFEST_VERSION: u32 = 1;
+///
+/// **2** added `beats`. A consumer could place speech and nothing else, so
+/// anything wanting to show a picture had to read the timeline and join it
+/// to the manifest by document order — the exact fragility a published
+/// contract exists to remove. Adding a key is backward compatible for a
+/// consumer that ignores unknown fields, but silently missing the beats is
+/// worse than failing: a v1 consumer that checks the version now stops and
+/// says so.
+pub const MANIFEST_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NarrationManifest {
@@ -30,6 +38,16 @@ pub struct NarrationManifest {
     pub audio: AudioInfo,
     pub chapters: Vec<ChapterEntry>,
     pub segments: Vec<SegmentEntry>,
+    /// One entry per scheduled action span, in document order.
+    ///
+    /// `segments` says when each sentence is spoken; without this, that is
+    /// all a consumer knows, and every pacing decision the scheduler made —
+    /// `hold`, `concurrent`, `fit-action`, `trim-action` — stops at the
+    /// boundary. The numbers here are the ones the scheduler arrived at,
+    /// not the ones the adapter proposed, which is the difference between
+    /// replaying a tape at its authored pace and replaying it at the pace
+    /// its narration bought.
+    pub beats: Vec<BeatEntry>,
 }
 
 /// Uniform across every segment, so a consumer configures its player once
@@ -46,6 +64,44 @@ pub struct ChapterEntry {
     pub id: String,
     pub title: String,
     pub start_ms: u64,
+}
+
+/// One scheduled action span.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BeatEntry {
+    /// The span's id, `<block>#<index>`, as the adapter minted it.
+    pub span: String,
+    /// The segment spoken over this span, or `null`.
+    ///
+    /// Always serialized. A span is paired with narration only when it is
+    /// the first span of the block that followed a paragraph; every span
+    /// after a mark runs under whatever the policy left of that paragraph,
+    /// and a pause has no narration at all. A consumer should not have to
+    /// tell "absent" from "unpaired".
+    pub segment: Option<String>,
+    pub scene: String,
+    pub adapter: String,
+    pub start_ms: u64,
+    pub duration_ms: u64,
+    /// `exact` when the adapter's language states the span's timing in full,
+    /// `measured` from a measuring pass, `estimated` from a model. Same
+    /// vocabulary as a segment's, applied to an action.
+    pub duration_source: String,
+    pub policy: String,
+    /// The outgoing transition, as scheduled. Carried because a consumer
+    /// reproducing the video's shape needs the gaps between beats, and
+    /// deriving them from neighbouring offsets is exactly the arithmetic
+    /// that goes wrong where beats overlap.
+    pub transition: TransitionOut,
+    /// Identity of the span's source, for a per-span render cache. The
+    /// counterpart of a segment's `audio_hash`.
+    pub span_hash: Hash,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransitionOut {
+    pub kind: String,
+    pub duration_ms: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -171,6 +227,33 @@ pub fn build(
         })
         .collect();
 
+    // One beat per scheduled span, in the timeline's own order. A pause is
+    // included rather than filtered: `scene: "pause"` is a beat during which
+    // the picture holds, and a consumer that skipped it would run the next
+    // span early.
+    let beats: Vec<BeatEntry> = timeline
+        .entries
+        .iter()
+        .filter_map(|entry| {
+            let a = entry.action.as_ref()?;
+            Some(BeatEntry {
+                span: a.span.clone(),
+                segment: entry.narration.as_ref().map(|n| n.segment.clone()),
+                scene: a.scene.clone(),
+                adapter: a.adapter.clone(),
+                start_ms: a.start_ms,
+                duration_ms: a.duration_ms,
+                duration_source: a.duration_source.clone(),
+                policy: entry.policy.clone(),
+                transition: TransitionOut {
+                    kind: entry.transition.kind.clone(),
+                    duration_ms: entry.transition.duration_ms,
+                },
+                span_hash: a.span_hash,
+            })
+        })
+        .collect();
+
     // A chapter's start is its first spoken segment's start. A chapter with
     // nothing spoken in it has no defensible time and is omitted rather
     // than given a guessed one.
@@ -210,5 +293,6 @@ pub fn build(
         audio,
         chapters: chapter_entries,
         segments,
+        beats,
     }
 }

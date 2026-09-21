@@ -62,6 +62,11 @@ pub enum Item {
         /// Source location of the fence this action block came from
         /// (controller ruling F12) — Task 11 passes it to the scene adapter
         /// for validation instead of inventing `line: 0`.
+        /// `review=pending` on a block `from` generated: the command in
+        /// it came out of someone else's document and has been read by
+        /// nobody. Carried to `compile`, which is where `check`'s warnings
+        /// are collected.
+        review: Option<String>,
         span: SourceSpan,
     },
     Pause {
@@ -168,6 +173,7 @@ pub fn resolve(
                         scene,
                         body: block.body.clone(),
                         include: attrs.get("include").map(str::to_string),
+                        review: attrs.get("review").map(str::to_string),
                         policy: attrs.get("policy").unwrap_or("hold").to_string(),
                         align: attrs.get("align").unwrap_or("start").to_string(),
                         config,

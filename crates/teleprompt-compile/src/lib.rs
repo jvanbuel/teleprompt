@@ -79,12 +79,33 @@ pub struct NarrationDetail {
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
+/// One action span's source, as the adapter split it.
+///
+/// The timeline identifies a span and says when it plays; it does not carry
+/// what the span *is*. Anything that has to draw the scene — a renderer, a
+/// preview — needs the source, and re-deriving it means re-running the
+/// parse, the `include=` resolution and the adapter's own splitting, which
+/// is this function's work done a second time and a second place for the
+/// two to disagree.
+///
+/// Deliberately not in the published manifest: this is adapter-native code,
+/// and a consumer drawing its own picture has no use for it.
+#[derive(Debug, Clone)]
+pub struct SpanSource {
+    pub id: String,
+    pub scene: String,
+    pub adapter: String,
+    pub source: String,
+}
+
 #[derive(Debug)]
 pub struct CompileOutput {
     pub timeline: Timeline,
     pub warnings: Vec<String>,
     /// One entry per narration item that synthesized, in document order.
     pub narration: Vec<NarrationDetail>,
+    /// Every action span's source, in document order.
+    pub spans: Vec<SpanSource>,
     /// The script's chapters, in document order. Carried here because
     /// `compile` drops the `Program` and `cmd::check::compile_script` —
     /// the CLI's only route into compilation — returns just this struct.
@@ -110,6 +131,7 @@ pub fn compile(
     let mut diags = Vec::new();
     let mut beats: Vec<Beat> = Vec::new();
     let mut narration_details: Vec<NarrationDetail> = Vec::new();
+    let mut span_sources: Vec<SpanSource> = Vec::new();
     let mut cache_warnings: Vec<String> = Vec::new();
 
     // The narration waiting to be joined with the first span of the next
@@ -251,8 +273,20 @@ pub fn compile(
                 config,
                 policy,
                 align,
+                review,
                 span,
             } => {
+                // A tape `from` generated types a command lifted out of
+                // someone else's document. `check` says so on every run
+                // until a human has read it and removed the attribute —
+                // the draft is a draft until somebody says otherwise.
+                if review.as_deref() == Some("pending") {
+                    cache_warnings.push(format!(
+                        "action block `{block_id}` is marked `review=pending`: \
+it was drafted from another document and has not been reviewed. \
+Read it, then remove the attribute."
+                    ));
+                }
                 // Controller ruling F5: an `include=` path is inspected
                 // *before* anything is joined to `base_dir`. `Path::join`
                 // followed by `starts_with` never rejects `..` — `..` is
@@ -388,6 +422,12 @@ pub fn compile(
                 }
 
                 for (i, span) in spans.iter().enumerate() {
+                    span_sources.push(SpanSource {
+                        id: span.id.clone(),
+                        scene: scene.clone(),
+                        adapter: adapter_name.clone(),
+                        source: span.source.clone(),
+                    });
                     let measured = adapter.estimate(span);
                     let action = ActionInput {
                         span_id: span.id.clone(),
@@ -463,6 +503,7 @@ pub fn compile(
         timeline,
         warnings,
         narration: narration_details,
+        spans: span_sources,
         chapters: program.chapters.clone(),
     })
 }
