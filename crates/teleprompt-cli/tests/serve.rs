@@ -301,3 +301,49 @@ fn what_sits_before_an_edit_is_not_reported_as_moved() {
         "the paragraph above the edit did not move: {changed:?}"
     );
 }
+
+/// A save the clock cannot see.
+///
+/// The watcher compared modification times, so an edit landing inside the
+/// filesystem's timestamp resolution was invisible — not late, invisible,
+/// because the next comparison is against the same value. CI caught it as
+/// "the watcher never noticed the edit" on a run that had nothing to do
+/// with watching; this reproduces it deterministically by putting the
+/// timestamp back afterwards.
+#[test]
+fn an_edit_that_does_not_move_the_clock_is_still_noticed() {
+    let (script, addr) = serving();
+    let before = json(addr, "/state.json");
+    assert_eq!(before["generation"], 1);
+
+    let was = std::fs::metadata(&script).unwrap();
+    let src = std::fs::read_to_string(&script).unwrap();
+    std::fs::write(
+        &script,
+        src.replace(
+            "The second paragraph, which the edit in these tests rewrites.",
+            "The second paragraph, rewritten without the clock noticing at all.",
+        ),
+    )
+    .unwrap();
+
+    // Put the timestamps back exactly where they were, which is what a
+    // coarse filesystem does for free.
+    let restored = std::fs::File::options().write(true).open(&script).unwrap();
+    restored
+        .set_times(
+            std::fs::FileTimes::new()
+                .set_accessed(was.accessed().unwrap())
+                .set_modified(was.modified().unwrap()),
+        )
+        .unwrap();
+
+    let after = await_generation(addr, 1);
+    let changed: Vec<&str> = after["changed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert!(changed.contains(&"second"), "{changed:?}");
+}

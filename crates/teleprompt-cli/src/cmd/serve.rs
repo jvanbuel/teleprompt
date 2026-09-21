@@ -21,21 +21,22 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use serde::Serialize;
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest};
+use teleprompt_core::Hash;
 use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::check::{backends_of, cache_root, compile_script_with};
 use crate::project::Project;
 
-/// How often the watcher looks at the script's modification time.
+/// How often the watcher reads the script.
 ///
-/// Polling rather than an OS watcher: the whole dependency is one `metadata`
-/// call per file per tick, and a preview that reacts within a quarter second
-/// of a save is indistinguishable from one that reacts instantly.
+/// Polling rather than an OS watcher: the whole dependency is one read per
+/// file per tick, and a preview that reacts within a quarter second of a
+/// save is indistinguishable from one that reacts instantly.
 const POLL: Duration = Duration::from_millis(250);
 
 const PAGE: &str = include_str!("serve.html");
@@ -457,10 +458,10 @@ pub async fn serve_on(
 }
 
 async fn watch(state: Arc<Mutex<Preview>>, project: Project, script: PathBuf, locale: String) {
-    let mut seen = modified(&script);
+    let mut seen = fingerprint(&script);
     loop {
         tokio::time::sleep(POLL).await;
-        let now = modified(&script);
+        let now = fingerprint(&script);
         if now == seen {
             continue;
         }
@@ -503,8 +504,16 @@ async fn watch(state: Arc<Mutex<Preview>>, project: Project, script: PathBuf, lo
     }
 }
 
-fn modified(path: &Path) -> Option<SystemTime> {
-    std::fs::metadata(path).ok().and_then(|m| m.modified().ok())
+/// What the watcher compares between ticks: the script's contents.
+///
+/// Not its modification time. An edit that lands inside the filesystem's
+/// timestamp resolution leaves the mtime where it was, and comparing
+/// timestamps then misses it *permanently* — the next comparison is
+/// against the same value, so the save is never seen at all rather than
+/// seen late. CI found it as a preview that never updated; a script is a
+/// few kilobytes and hashing one every quarter second costs nothing.
+fn fingerprint(path: &Path) -> Option<Hash> {
+    std::fs::read(path).ok().map(|bytes| Hash::of(&bytes))
 }
 
 #[cfg(test)]
