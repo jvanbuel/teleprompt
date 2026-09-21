@@ -49,6 +49,7 @@ cargo run -- diff demo/scripts/demo.md
 | `plan <script>` | compile the timeline and print it |
 | `diff <script>` | compare against the committed timeline |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
+| `serve <script>` | live preview that opens on the beat you just changed |
 | `doctor` | report the environment teleprompt can see |
 
 `doctor` also lists the scene adapters and voice backends this build ships.
@@ -74,6 +75,30 @@ same `plan` is still instant, and now says `measured`.
 A timeline committed from a cold cache will drift the first time you `dub`,
 which `diff` reports as `now measured` rather than as a content edit. `plan`
 warns when it emits estimates for exactly that reason.
+
+## Watching what an edit costs
+
+`plan` and `diff` answer in milliseconds, and they answer in numbers. Judging
+an edit means hearing it:
+
+```bash
+teleprompt serve scripts/tour.md
+```
+
+Save the script and the preview recompiles, synthesizes only the segments
+whose text changed, and opens on the first beat that moved — with the ones
+that shifted marked on the timeline strip. A paragraph rewritten in an editor
+is audible in the browser about a second later.
+
+**The preview is a manifest consumer.** It reads exactly what
+`docs/integrations/remotion.md` tells an outside integrator to read — the
+published `narration.json`, with its `beats` — so the thing you watch while
+writing cannot drift from what a renderer produces. The only extra it asks
+teleprompt for is each span's source, which it needs to draw a terminal and
+which a consumer drawing its own picture would not.
+
+A script that stops compiling does not blank the preview: the error appears
+and the last version that compiled keeps playing.
 
 ## Dubbing a pipeline that renders itself
 
