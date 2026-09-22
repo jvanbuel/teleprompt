@@ -104,6 +104,11 @@ pub struct BeatEntry {
     /// of every beat before it; two blocks with the same steps — `j` twice
     /// in one walkthrough — have one `span_hash` and two pictures.
     pub capture_key: Hash,
+    /// Which run of the scene, from `session="…"`. Published because it is
+    /// the only part of the chain a reader cannot see in the script, and
+    /// because a capture stage needs it to know which beats share a screen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -259,6 +264,7 @@ pub fn build(
                 },
                 span_hash: a.span_hash,
                 capture_key: a.capture_key,
+                session: a.session.clone(),
             })
         })
         .collect();

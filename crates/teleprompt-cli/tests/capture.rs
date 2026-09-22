@@ -1,0 +1,182 @@
+//! `build`, with stage 5 in it: a beat shows what its scene did.
+//!
+//! Against the reference scene and the reference capture backend, so the
+//! claim under test is the pipeline's rather than any one terminal's: a
+//! script whose scenes this build can record produces a video with no
+//! slates in it, and a second build of the same script records nothing.
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use teleprompt_cli::cmd::build::{self, BuildOptions};
+use teleprompt_cli::project::Project;
+
+const SCRIPT: &str = "\
+---
+teleprompt: 1
+scene:
+  demo:
+    adapter: mock
+---
+
+# A short tour
+
+This paragraph is narrated, and the scene below runs underneath it. {#opening}
+
+```teleprompt scene=demo
+wait 800ms
+```
+
+And a second paragraph, so there is something to follow the first. {#second}
+
+```teleprompt scene=demo
+wait 800ms
+```
+";
+
+fn have_ffmpeg() -> bool {
+    let present = Command::new("ffmpeg")
+        .arg("-version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok();
+    assert!(
+        present || std::env::var_os("TELEPROMPT_REQUIRE_FFMPEG").is_none(),
+        "TELEPROMPT_REQUIRE_FFMPEG is set and there is no ffmpeg on PATH"
+    );
+    present
+}
+
+fn project(name: &str) -> (PathBuf, PathBuf) {
+    let dir = std::env::temp_dir().join(format!("tp-capture-e2e-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let script = dir.join("scripts/tour.md");
+    std::fs::write(&script, SCRIPT).unwrap();
+    (dir, script)
+}
+
+fn options(project: &Project, script: &Path) -> BuildOptions {
+    BuildOptions {
+        resolution: Some((320, 180)),
+        fps: Some(24),
+        ..BuildOptions::defaults(project, script, "en")
+    }
+}
+
+/// The whole point of stage 5. Before it, a build was a correctly-paced
+/// video of nothing.
+#[tokio::test]
+async fn a_build_records_its_scenes_and_renders_no_slates() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project("records");
+    let p = Project::discover(&dir).unwrap();
+    let options = options(&p, &script);
+
+    let report = build::run_build(&p, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+
+    assert_eq!(report.beats, 2);
+    assert_eq!(report.captured, 2, "both beats were recorded");
+    assert_eq!(
+        report.slates, 0,
+        "nothing was left to hold its slot with a blank field: {:?}",
+        report.warnings
+    );
+    assert!(report.output.exists());
+}
+
+/// And the second build. Capture is the expensive stage — a tape's sleeps
+/// are real seconds and nothing can beat realtime — so a script that has
+/// not changed must not be recorded again.
+#[tokio::test]
+async fn a_second_build_records_nothing_and_still_has_no_slates() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project("warm");
+    let p = Project::discover(&dir).unwrap();
+    let options = options(&p, &script);
+
+    build::run_build(&p, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    let warm = build::run_build(&p, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+
+    assert_eq!(warm.captured, 0, "a warm project re-recorded a scene");
+    assert_eq!(warm.slates, 0);
+}
+
+/// Editing a beat re-records it — and, because a scene is a session,
+/// everything after it in that scene. A beat downstream of an edit really
+/// does show a different screen.
+#[tokio::test]
+async fn editing_the_first_beat_re_records_the_second() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project("edit");
+    let p = Project::discover(&dir).unwrap();
+    let options = options(&p, &script);
+
+    build::run_build(&p, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+
+    std::fs::write(&script, SCRIPT.replacen("wait 800ms", "wait 900ms", 1)).unwrap();
+    let after = build::run_build(&p, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+
+    assert_eq!(
+        after.captured, 2,
+        "the edited beat and the one that opens on the screen it leaves"
+    );
+    assert_eq!(after.slates, 0);
+}
+
+/// A scene nothing here can record is a warning and a slate, not a failed
+/// build. The timing is still real, and a video with a hole in it is more
+/// use than no video.
+#[tokio::test]
+async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project("unbacked");
+    std::fs::write(
+        &script,
+        SCRIPT
+            .replace("adapter: mock", "adapter: vhs")
+            .replace("wait 800ms", "Sleep 800ms"),
+    )
+    .unwrap();
+    let p = Project::discover(&dir).unwrap();
+
+    let report = build::run_build(&p, &script, "en", &options(&p, &script))
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+
+    assert_eq!(report.captured, 0);
+    assert_eq!(report.slates, 2);
+    assert!(
+        report
+            .warnings
+            .iter()
+            .any(|w| w.contains("demo") && w.contains("vhs")),
+        "the warning names the scene the author wrote and the adapter it \
+         needs: {:?}",
+        report.warnings
+    );
+}

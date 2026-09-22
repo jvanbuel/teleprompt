@@ -16,6 +16,7 @@ use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::{Picture, Progress, RenderError, Renderer};
 
 use crate::cmd::cache;
+use crate::cmd::capture;
 use crate::cmd::check::cache_root;
 use crate::cmd::dub::{self, DubError};
 use crate::project::Project;
@@ -95,6 +96,9 @@ pub struct BuildReport {
     pub beats: usize,
     /// Beats that rendered as a slate because nothing had captured them.
     pub slates: usize,
+    /// Beats recorded on the way past. A warm project records none and
+    /// renders the same video.
+    pub captured: usize,
     /// How much of the picture was copied from the compose cache instead
     /// of encoded. `null` from a render that had no cache to draw on.
     pub reused_ms: Option<u64>,
@@ -197,7 +201,30 @@ pub async fn run_build_with(
     // without editing the script to get it.
     let (width, height) = options.resolution.unwrap_or(dubbed.output.resolution);
     let fps = options.fps.unwrap_or(dubbed.output.fps);
-    let (render_plan, mut warnings) = plan::from_manifest(
+
+    // Stage 5, between the manifest and the render. A scene this build
+    // cannot record is a warning and a slate rather than a failure: the
+    // timing is still real, and a video with a hole in it is more use than
+    // no video.
+    let mut warnings = dubbed.warnings;
+    let captured = match capture::run_capture(
+        &dubbed.manifest,
+        &dubbed.spans,
+        &capture::registry(),
+        &options.clips_dir,
+        teleprompt_capture::Frame { width, height, fps },
+        &mut |_| {},
+    ) {
+        Ok(report) => {
+            warnings.extend(report.warnings);
+            report.captured
+        }
+        Err(e) => {
+            warnings.push(format!("capture failed, rendering slates instead: {e}"));
+            0
+        }
+    };
+    let (render_plan, mut plan_warnings) = plan::from_manifest(
         &dubbed.manifest,
         &Inputs {
             narration_dir: options.narration_root.join(locale),
@@ -222,7 +249,8 @@ pub async fn run_build_with(
     // used are the newest, so they are the last things a cap would evict,
     // and pruning first would throw away pieces this render was about to
     // copy.
-    let mut all = dubbed.warnings;
+    warnings.append(&mut plan_warnings);
+    let mut all = warnings;
     if let Some(dir) = &options.compose_dir {
         let limit = options.cache_max_mb * 1_048_576;
         match cache::prune(dir, limit) {
@@ -236,7 +264,6 @@ pub async fn run_build_with(
         }
     }
 
-    all.append(&mut warnings);
     Ok(BuildReport {
         ok: true,
         output: rendered.path,
@@ -245,6 +272,7 @@ pub async fn run_build_with(
         segments: dubbed.manifest.segments.len(),
         beats: dubbed.manifest.beats.len(),
         slates,
+        captured,
         reused_ms: rendered.reused_ms,
         warnings: all,
     })

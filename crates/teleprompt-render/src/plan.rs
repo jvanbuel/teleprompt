@@ -33,8 +33,8 @@ pub struct Inputs {
 ///
 /// Warnings rather than errors: a render with slates in it is a useful
 /// thing to be able to watch — the timing is real and every offset is the
-/// published one — and refusing to produce it until capture exists would
-/// mean no video at all.
+/// published one — and refusing to produce it because one machine has no
+/// backend for one scene would mean no video at all.
 pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPlan, Vec<String>) {
     let narration = manifest
         .segments
@@ -83,7 +83,7 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
     if uncaptured > 0 {
         warnings.push(format!(
             "{uncaptured} of {} beat(s) have no captured clip and will render as a slate; \
-             nothing captures scenes yet, so the timing is real and the picture is not",
+             the timing is real and the picture is not",
             beats.len()
         ));
     }

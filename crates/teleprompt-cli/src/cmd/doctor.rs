@@ -55,6 +55,14 @@ pub struct VoiceProbe {
     pub detail: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct CaptureBackendStatus {
+    pub id: String,
+    pub adapter: String,
+    /// Why it cannot run here, or `null` when it can.
+    pub unavailable: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DoctorReport {
     /// Whether the project's own files are in a state teleprompt can work
@@ -66,6 +74,10 @@ pub struct DoctorReport {
     /// on every machine, and `dub` will not run until it is fixed.
     pub ok: bool,
     pub adapters: Vec<String>,
+    /// What can *run* a scene, as against compile one: the scene adapters
+    /// above say what a tape means, and these say whether this machine can
+    /// put it on screen. A scene with no backend here renders as a slate.
+    pub capture_backends: Vec<CaptureBackendStatus>,
     pub voice_backends: Vec<String>,
     pub manifest_version: u32,
     /// The cache directory these counts describe, so a reader can tell a
@@ -170,6 +182,7 @@ pub async fn doctor_report_with(
     DoctorReport {
         ok: !blocking,
         adapters: registry.available().iter().map(|s| s.to_string()).collect(),
+        capture_backends: capture_backends(),
         voice_backends: backends.ids(),
         manifest_version: MANIFEST_VERSION,
         cache_root: root.display().to_string(),
@@ -183,7 +196,8 @@ pub async fn doctor_report_with(
         notes: vec![
             "build renders with ffmpeg as a subprocess; check, plan, diff and dub need none."
                 .to_string(),
-            "nothing captures scenes yet, so a build holds each beat's slot with a slate."
+            "a beat whose scene nothing here can record holds its slot with a slate; \
+             `capture` says which."
                 .to_string(),
             "no external runtime ships with teleprompt: Node and Playwright are not required."
                 .to_string(),
@@ -276,6 +290,21 @@ impl DoctorReport {
             self.adapters.join(", ")
         ));
         out.push_str(&format!(
+            "  capture          {}\n",
+            if self.capture_backends.is_empty() {
+                "none — every scene renders as a slate".to_string()
+            } else {
+                self.capture_backends
+                    .iter()
+                    .map(|b| match &b.unavailable {
+                        None => format!("{} ({})", b.id, b.adapter),
+                        Some(why) => format!("{} ({}) — {why}", b.id, b.adapter),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
+        ));
+        out.push_str(&format!(
             "  voice backends   {}\n",
             self.voice_backends.join(", ")
         ));
@@ -312,4 +341,17 @@ impl DoctorReport {
         }
         out
     }
+}
+
+/// What this build can put on screen, and why it cannot where it cannot.
+fn capture_backends() -> Vec<CaptureBackendStatus> {
+    let registry = crate::cmd::capture::registry();
+    registry
+        .backends()
+        .map(|b| CaptureBackendStatus {
+            id: b.id().to_string(),
+            adapter: b.adapter().to_string(),
+            unavailable: b.unavailable(),
+        })
+        .collect()
 }

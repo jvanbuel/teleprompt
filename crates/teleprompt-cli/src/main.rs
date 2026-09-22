@@ -4,6 +4,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 use teleprompt_cli::cmd::build;
 use teleprompt_cli::cmd::cache;
+use teleprompt_cli::cmd::capture as capture_cmd;
 use teleprompt_cli::cmd::check::{self, CheckReport};
 use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
@@ -121,6 +122,23 @@ enum Command {
         /// Treat a voice-tier downgrade as fatal; exit 4
         #[arg(long)]
         strict_voice: bool,
+    },
+    /// Record the scenes a build will show
+    ///
+    /// Runs each scene as one session — its beats continue one another —
+    /// and keeps a clip for every beat that has none. `build` does this on
+    /// the way past; this is the same work on its own, for filling a cache
+    /// before a render or after editing a tape.
+    Capture {
+        script: PathBuf,
+        #[arg(long, default_value = "en")]
+        locale: String,
+        /// Frame size, as WIDTHxHEIGHT
+        #[arg(long)]
+        resolution: Option<String>,
+        /// Frames per second
+        #[arg(long)]
+        fps: Option<u32>,
     },
     /// Render the video
     ///
@@ -519,6 +537,98 @@ fn main() -> ExitCode {
                                     eprintln!("error: {message}");
                                 }
                                 Outcome::RuntimeFailure(message)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        Command::Capture {
+            script,
+            locale,
+            resolution,
+            fps,
+        } => match Project::for_script(&script) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => {
+                match resolution
+                    .as_deref()
+                    .map(build::parse_resolution)
+                    .transpose()
+                {
+                    Err(e) => {
+                        eprintln!("error: {e}");
+                        Outcome::RuntimeFailure(e)
+                    }
+                    Ok(size) => {
+                        let options = build::BuildOptions::defaults(&project, &script, &locale);
+                        // Capture needs the manifest, and publishing it is
+                        // `dub`'s job. Running it here rather than reading
+                        // a stale one on disk is the same argument the
+                        // renderer makes: two timing paths drift, and a
+                        // clip captured against a length nothing published
+                        // is a clip that does not fit.
+                        let dubbed = runtime().map_err(dub::DubError::Runtime).and_then(|rt| {
+                            rt.block_on(dub::run_dub(
+                                &project,
+                                &script,
+                                &locale,
+                                &options.narration_root,
+                                false,
+                            ))
+                        });
+                        match dubbed {
+                            Err(e) => {
+                                let message = match e {
+                                    dub::DubError::Validation(d) => d.join("\n"),
+                                    dub::DubError::Runtime(m) => m,
+                                };
+                                eprintln!("error: {message}");
+                                Outcome::RuntimeFailure(message)
+                            }
+                            Ok(dubbed) => {
+                                let (width, height) = size.unwrap_or(dubbed.output.resolution);
+                                let frame = teleprompt_capture::Frame {
+                                    width,
+                                    height,
+                                    fps: fps.unwrap_or(dubbed.output.fps),
+                                };
+                                match capture_cmd::run_capture(
+                                    &dubbed.manifest,
+                                    &dubbed.spans,
+                                    &capture_cmd::registry(),
+                                    &options.clips_dir,
+                                    frame,
+                                    &mut |p| {
+                                        if cli.format == Format::Human {
+                                            eprintln!(
+                                                "  [{}/{}] {} {}",
+                                                p.done, p.of, p.scene, p.span
+                                            );
+                                        }
+                                    },
+                                ) {
+                                    Ok(report) => {
+                                        for w in &report.warnings {
+                                            eprintln!("warning: {w}");
+                                        }
+                                        match cli.format {
+                                            Format::Json => println!(
+                                                "{}",
+                                                serde_json::to_string_pretty(&report).unwrap()
+                                            ),
+                                            Format::Human => print!("{}", report.render()),
+                                        }
+                                        Outcome::Ok
+                                    }
+                                    Err(e) => {
+                                        eprintln!("error: {e}");
+                                        Outcome::RuntimeFailure(e.to_string())
+                                    }
+                                }
                             }
                         }
                     }

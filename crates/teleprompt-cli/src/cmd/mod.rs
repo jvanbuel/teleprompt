@@ -1,5 +1,6 @@
 pub mod build;
 pub mod cache;
+pub mod capture;
 pub mod check;
 pub mod diff;
 pub mod doctor;

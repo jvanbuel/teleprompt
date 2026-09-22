@@ -1128,6 +1128,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-capture"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-core",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "teleprompt-cli"
 version = "0.1.0"
 dependencies = [
@@ -1137,6 +1145,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "teleprompt-cache",
+ "teleprompt-capture",
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-render",

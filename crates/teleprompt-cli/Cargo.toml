@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 teleprompt-cache = { path = "../teleprompt-cache" }
+teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }

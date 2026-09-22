@@ -56,6 +56,7 @@ cargo run -- diff demo/scripts/demo.md
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `serve <script>` | live preview that opens on the beat you just changed |
 | `build <script>` | render the video |
+| `capture` | record the scenes a build will show |
 | `doctor` | report the environment teleprompt can see |
 | `cache` | report what the project's caches hold, or shrink them |
 
@@ -167,6 +168,32 @@ Applied to synthesis only — the script, the captions and the manifest keep
 the spelling, because that is what a reader wants to see. Whole words,
 case-sensitively, and the mapped text is in the cache key, so correcting a
 word re-renders exactly the audio that said it wrong.
+
+## Capture
+
+```bash
+teleprompt capture scripts/tour.md
+```
+
+Stage 5, between the manifest and the render. It runs each scene as **one
+session** and keeps a clip for every beat that has none, filed under the
+beat's capture key. `build` does this on the way past, so the command is
+for filling a cache before a render or after editing a tape.
+
+The unit is the session rather than the beat, and that has a consequence
+worth stating: a beat whose clip is already cached **still runs**. Its clip
+is not needed; the screen it leaves behind is, because the beat after it
+opens on it. A session with nothing left to keep is not opened at all, and
+a session stops after the last beat worth keeping — on a tape whose sleeps
+are real seconds, that is the difference between a capture that stops and
+one that sits there.
+
+A scene this build cannot record is a warning and a slate, not a failed
+build: the timing is still real, and a video with a hole in it is more use
+than no video. `teleprompt doctor` lists what can record what.
+
+Recording a terminal is not written yet; `mock` scenes record today, which
+is what the rest of the stage is tested against.
 
 ## Rendering
 

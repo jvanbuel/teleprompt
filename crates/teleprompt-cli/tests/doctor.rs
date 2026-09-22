@@ -209,6 +209,7 @@ fn the_probe_line_names_the_backend_that_was_probed() {
     let report = teleprompt_cli::cmd::doctor::DoctorReport {
         ok: true,
         adapters: Vec::new(),
+        capture_backends: Vec::new(),
         voice_backends: Vec::new(),
         manifest_version: 1,
         cache_root: ".teleprompt/cache".to_string(),
