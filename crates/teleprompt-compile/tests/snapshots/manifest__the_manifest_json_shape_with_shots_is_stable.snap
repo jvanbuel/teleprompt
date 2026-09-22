@@ -36,7 +36,7 @@ expression: manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK)
       "audio_hash": "76694f014a7308ccf908fb1b09257664d33aac066cfd824a5c6e0767dabde845"
     }
   ],
-  "items": [
+  "shots": [
     {
       "shot": "intro-a#0",
       "line": "intro",

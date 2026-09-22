@@ -94,9 +94,9 @@ pub struct BuildReport {
     pub renderer: &'static str,
     pub lines: usize,
     pub items: usize,
-    /// Beats that rendered as a slate because nothing had captured them.
+    /// Shots that rendered as a slate because nothing had captured them.
     pub slates: usize,
-    /// Beats recorded on the way past. A warm project records none and
+    /// Shots recorded on the way past. A warm project records none and
     /// renders the same video.
     pub captured: usize,
     /// How much of the picture was copied from the compose cache instead

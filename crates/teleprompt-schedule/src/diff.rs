@@ -244,7 +244,7 @@ fn render_signed_tenths(tenths: i64) -> String {
     format!("{sign}{:.1}s", tenths.unsigned_abs() as f64 / 10.0)
 }
 
-/// Compare two committed timelines. Beats are matched by id; anything not
+/// Compare two committed timelines. Items are matched by id; anything not
 /// present in `before` is `added`, anything not present in `after` is
 /// `removed`. Everything else below only runs for items present in both.
 pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
@@ -427,7 +427,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
     }
 }
 
-/// Beats that survive the edit but play in a different order.
+/// Items that survive the edit but play in a different order.
 ///
 /// Only items present on both sides take part: an added or removed item
 /// necessarily shifts everything after it, and reporting those shifts as

@@ -143,7 +143,7 @@ enum Command {
     /// Render the video
     ///
     /// Synthesizes narration, publishes the manifest, and renders it with
-    /// ffmpeg. Beats that nothing has captured hold their slot as a slate
+    /// ffmpeg. Shots that nothing has captured hold their slot as a slate
     /// — the timing is the scheduled timing either way, and the count of
     /// them is reported.
     Build {
