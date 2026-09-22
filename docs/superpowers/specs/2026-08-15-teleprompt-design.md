@@ -883,6 +883,13 @@ explicit marks. Not a v1 commitment.
 **`asciinema`** — cast files are a recorded format rather than an authored one,
 which makes them a natural import source (§8) more than a scene.
 
+**`remotion`** — shipped. The block is JSX drawn by Remotion, and the one
+adapter whose shots are exactly as long as they are told to be: `estimate`
+is `Unknown`, `retime` always succeeds by stating the length in the source,
+and `continues` is `false`, because a composition does not open on the
+screen its predecessor left. That last is the one addition it made to the
+contract — a property of the adapter, which names no adapter.
+
 Adding an adapter touches no other crate. That is the property the contract
 exists to protect.
 

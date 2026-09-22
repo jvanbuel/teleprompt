@@ -21,6 +21,7 @@ teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-render = { path = "../teleprompt-render" }
 teleprompt-playwright = { path = "../teleprompt-playwright" }
+teleprompt-remotion = { path = "../teleprompt-remotion" }
 teleprompt-vhs = { path = "../teleprompt-vhs" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }

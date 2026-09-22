@@ -4,6 +4,11 @@ teleprompt publishes narration and its timing; Remotion owns the picture. This
 is the whole integration, and the seam between them is one file:
 `narration.json`.
 
+> This page is the route where Remotion owns the *whole* video. Where
+> teleprompt should own the video and Remotion draw some of its scenes,
+> use a `scene=` block whose adapter is `remotion` instead — see "Motion
+> graphics" in the README and `examples/remotion`.
+
 ```bash
 teleprompt dub scripts/tour.md --out public/narration
 ```
@@ -295,6 +300,10 @@ renderer's business rather than an integrator's.
 
 ## Licence
 
-teleprompt ships no Remotion code and takes no Remotion dependency. Remotion's
+This route ships no Remotion code and takes no Remotion dependency. The
+`remotion` scene adapter is the other direction — teleprompt owns the video
+and Remotion draws the scenes written as JSX blocks — and it too uses the
+project's own Remotion install rather than bundling one; see "Motion
+graphics" in the README. Remotion's
 own licence — free for individuals and organisations up to three employees —
 is between you and Remotion.

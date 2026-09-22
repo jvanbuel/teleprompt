@@ -21,7 +21,8 @@ fn the_registry_serves_every_adapter_this_build_ships() {
         r.get("playwright").map(SceneCompiler::kind),
         Some("playwright")
     );
-    assert_eq!(r.available(), vec!["mock", "playwright", "vhs"]);
+    assert_eq!(r.get("remotion").map(SceneCompiler::kind), Some("remotion"));
+    assert_eq!(r.available(), vec!["mock", "playwright", "remotion", "vhs"]);
 }
 
 #[test]

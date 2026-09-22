@@ -23,6 +23,10 @@ use teleprompt_scene::SceneRegistry;
 use teleprompt_voice_null::WpmEstimator;
 
 fn run(src: &str) -> CompileOutput {
+    run_with(src, &SceneRegistry::with_builtins())
+}
+
+fn run_with(src: &str, registry: &SceneRegistry) -> CompileOutput {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let cache =
@@ -44,14 +48,7 @@ fn run(src: &str) -> CompileOutput {
         &PartialConfig::default(),
     )
     .expect("fixture resolves");
-    compile(
-        &program,
-        &SceneRegistry::with_builtins(),
-        &ctx,
-        Path::new("."),
-        "0.1.0",
-    )
-    .expect("fixture compiles")
+    compile(&program, registry, &ctx, Path::new("."), "0.1.0").expect("fixture compiles")
 }
 
 /// Every action item's capture key, in timeline order.
@@ -285,4 +282,63 @@ fn a_capture_key_names_the_recipe_that_recorded_it() {
         "the first item of a session should be chain(0) = H(name(0)), \
          with the recipe inside name(0)"
     );
+}
+
+/// The mock adapter, speaking for a scene whose shots carry no state — a
+/// composition that draws the same frames whatever came before it.
+struct Still;
+
+impl teleprompt_scene::contract::SceneCompiler for Still {
+    fn kind(&self) -> &'static str {
+        "still"
+    }
+    fn validate(
+        &self,
+        src: &teleprompt_scene::contract::BlockSource,
+    ) -> Result<teleprompt_scene::contract::Validated, Vec<teleprompt_core::Diagnostic>> {
+        teleprompt_scene::mock::MockScene.validate(src)
+    }
+    fn shots(
+        &self,
+        v: &teleprompt_scene::contract::Validated,
+        block_id: &str,
+    ) -> Result<Vec<teleprompt_scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>> {
+        teleprompt_scene::mock::MockScene.shots(v, block_id)
+    }
+    fn estimate(
+        &self,
+        shot: &teleprompt_scene::contract::Shot,
+    ) -> teleprompt_scene::contract::Measured {
+        teleprompt_scene::mock::MockScene.estimate(shot)
+    }
+    fn continues(&self) -> bool {
+        false
+    }
+}
+
+fn stills(first: &str, second: &str) -> Vec<Hash> {
+    let mut registry = SceneRegistry::with_builtins();
+    registry.register(Box::new(Still));
+    let src = twice(first, second).replace("adapter: mock\n  other", "adapter: still\n  other");
+    keys(&run_with(&src, &registry))
+}
+
+/// A scene that does not continue its predecessor is named shot by shot.
+/// Editing the first picture re-captures the first picture, and the one
+/// after it — which draws the same frames whatever preceded it — is left
+/// in the cache.
+#[test]
+fn a_scene_that_does_not_continue_names_each_shot_by_itself() {
+    let before = stills(J, J);
+    let after = stills("wait 2000ms\n", J);
+    assert_ne!(before[0], after[0], "the edited shot is re-captured");
+    assert_eq!(before[1], after[1], "the one after it is not");
+}
+
+/// The other side of the same fact: with nothing carried between shots,
+/// two with the same source are the same picture, and share one clip.
+#[test]
+fn identical_shots_of_a_scene_that_does_not_continue_share_a_clip() {
+    let keys = stills(J, J);
+    assert_eq!(keys[0], keys[1]);
 }

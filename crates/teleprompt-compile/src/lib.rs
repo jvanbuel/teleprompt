@@ -273,7 +273,7 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
 /// to fit its slot is a different tape, and the chain has to be built from
 /// the tape that will actually be captured. That is also how slot duration
 /// gets into the key (spec §5.1) without being a field in it.
-fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
+fn chain_capture_keys(timeline: &mut Timeline, config: &Config, registry: &SceneRegistry) {
     let mut chains: BTreeMap<(String, String), Hash> = BTreeMap::new();
 
     for entry in &mut timeline.entries {
@@ -302,6 +302,16 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
             &settings,
             &action.shot_hash.to_string(),
         ]);
+
+        // A shot that does not open on its predecessor's screen is named
+        // by itself alone, and is no link in anybody's chain.
+        if registry
+            .get(&action.adapter)
+            .is_some_and(|adapter| !adapter.continues())
+        {
+            action.capture_key = Hash::of_fields(&[&name.to_string()]);
+            continue;
+        }
 
         // The session is keyed on (scene, name) rather than on an ordinal:
         // a session that opens with the same tape opens on the same screen,
@@ -736,7 +746,7 @@ Read it, then remove the attribute."
     let (mut timeline, scheduling_warnings) =
         schedule(&items, &program.script_name, &program.locale, version);
     retime_stretched_shots(&mut timeline, &mut shot_sources, registry);
-    chain_capture_keys(&mut timeline, &program.config);
+    chain_capture_keys(&mut timeline, &program.config, registry);
     // Cache warnings first: they explain why the numbers the scheduler then
     // warns about are what they are.
     let mut warnings = cache_warnings;

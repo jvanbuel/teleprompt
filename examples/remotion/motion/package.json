@@ -1,0 +1,13 @@
+{
+  "name": "teleprompt-remotion-demo",
+  "private": true,
+  "type": "module",
+  "description": "The Remotion components the demo script's motion scenes are drawn with.",
+  "dependencies": {
+    "@remotion/bundler": "4.0.527",
+    "@remotion/renderer": "4.0.527",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.527"
+  }
+}

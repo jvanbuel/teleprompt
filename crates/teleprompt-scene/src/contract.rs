@@ -202,4 +202,20 @@ pub trait SceneCompiler: Send + Sync {
     fn retime(&self, _span: &Shot, _target_ms: u64) -> Option<String> {
         None
     }
+
+    /// Whether a shot opens on the screen the shot before it left behind.
+    ///
+    /// True of a terminal and a browser — a running program, a selected
+    /// row, a signed-in page — and so true by default: a shot's picture is
+    /// then named by its own source *and every source before it* in its
+    /// session, and editing one re-captures everything after it.
+    ///
+    /// An adapter whose shots are functions of their own source alone —
+    /// a composition that draws the same frames whatever preceded it —
+    /// returns `false`, and each of its shots is named by itself. Editing
+    /// one then re-captures that one, which is the whole point of saying
+    /// so: chaining a stateless scene is correct and needlessly expensive.
+    fn continues(&self) -> bool {
+        true
+    }
 }

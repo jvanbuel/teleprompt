@@ -1,0 +1,36 @@
+# A narrated video whose every picture is drawn by Remotion, spoken by
+# Kokoro.
+#
+# Run from the repository root:
+#
+#   (cd examples/remotion/motion && npm install)
+#   cargo run -- build examples/remotion/scripts/remotion.md
+#
+# Kokoro-FastAPI has to be listening on base_url for `dub` and `build`;
+# `check`, `plan` and `diff` need neither it nor Node.
+[locales]
+source = "en"
+targets = []
+
+[voice]
+source = "synthetic"
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[voice.pronounce]
+JSX = "jay ess ex"
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 60000
+concurrency = 2
+
+# `project` is where Remotion is installed, and `components` is the module,
+# relative to it, whose exports a block's JSX can name. Both are relative
+# to the directory the build runs from, as a terminal scene's PATH is.
+[scene.motion]
+adapter = "remotion"
+project = "examples/remotion/motion"
+components = "src/components.tsx"
+background = "#0b0d10"

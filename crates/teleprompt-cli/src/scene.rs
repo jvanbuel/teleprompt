@@ -3,6 +3,7 @@
 // Rust guideline compliant 2026-07-18
 
 use teleprompt_playwright::PlaywrightScene;
+use teleprompt_remotion::RemotionScene;
 use teleprompt_scene::SceneRegistry;
 use teleprompt_vhs::VhsScene;
 
@@ -23,5 +24,6 @@ pub fn scenes() -> SceneRegistry {
     let mut registry = SceneRegistry::with_builtins();
     registry.register(Box::new(VhsScene));
     registry.register(Box::new(PlaywrightScene));
+    registry.register(Box::new(RemotionScene));
     registry
 }

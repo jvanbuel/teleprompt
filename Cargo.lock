@@ -1149,6 +1149,7 @@ dependencies = [
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-playwright",
+ "teleprompt-remotion",
  "teleprompt-render",
  "teleprompt-scene",
  "teleprompt-schedule",
@@ -1191,6 +1192,16 @@ dependencies = [
 name = "teleprompt-playwright"
 version = "0.1.0"
 dependencies = [
+ "teleprompt-capture",
+ "teleprompt-core",
+ "teleprompt-scene",
+]
+
+[[package]]
+name = "teleprompt-remotion"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
  "teleprompt-capture",
  "teleprompt-core",
  "teleprompt-scene",

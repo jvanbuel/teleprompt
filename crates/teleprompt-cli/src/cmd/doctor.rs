@@ -199,7 +199,7 @@ pub async fn doctor_report_with(
             "an item whose scene nothing here can record holds its slot with a slate; \
              `capture` says which."
                 .to_string(),
-            "no external runtime ships with teleprompt: Node and Playwright are not required."
+            "no external runtime ships with teleprompt: Node, Playwright and Remotion are needed only to capture the scenes that use them."
                 .to_string(),
             // No sample rate is claimed here. `VoiceCapabilities` does not
             // carry one, so the only honest source is the audio a backend

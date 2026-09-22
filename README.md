@@ -230,6 +230,73 @@ terminal a tape runs in, and an author owns what the tape does in it. The
 shell starts in the directory the build was run from unless the scene says
 `cwd`.
 
+### Motion graphics
+
+A scene whose adapter is `remotion` is JSX, drawn by
+[Remotion](https://www.remotion.dev) — titles, diagrams, charts, anything
+a React component can draw:
+
+````markdown
+The words decide the timing. {#timing}
+
+```teleprompt scene=motion policy=concurrent
+<Backdrop />
+<Pipeline steps={["Markdown", "Kokoro", "Timeline", "Remotion", "Video"]} />
+{/* mark */}
+<Title title="Rebuild" />
+```
+````
+
+The block is the children of a full-frame composition, and the capitalised
+names in it are looked up in the module `components` names, then in
+`remotion` itself. `{/* mark */}` splits it into shots — the JSX spelling
+of a comment, because `// mark` inside JSX children is text and would be
+drawn, which is why `check` refuses it.
+
+```toml
+[scene.motion]
+adapter = "remotion"
+project = "motion"                  # where Remotion is installed
+components = "src/components.tsx"   # relative to `project`
+background = "#0b0d10"
+# browser = "/path/to/chrome-headless-shell"
+```
+
+**A composition is as long as it is told to be.** A tape states its own
+length and a Playwright script takes as long as the page does; a
+composition's `durationInFrames` is an argument. So the block states no
+length, the scheduler gives each shot the sentence spoken over it, and the
+shot is rendered at exactly that length — a component that animates
+against `useVideoConfig().durationInFrames` fills a two-second slot and a
+fifteen-second one alike. The length is written into the published source
+as a JSX comment, so a reworded sentence re-renders the shot beneath it
+rather than reusing a clip made for the old length.
+
+**A shot does not continue the one before it.** A terminal shot opens on
+the screen its predecessor left, so its key chains through every shot
+before it. A composition draws the same frames whatever preceded it, so
+each shot is named by itself: editing one paragraph re-renders one shot,
+and a cached shot is not rendered at all.
+
+One Node process bundles the session once and renders each missing shot
+to its clip, with the project's own `node_modules` — teleprompt installs
+nothing. Remotion downloads a headless Chrome the first time it renders
+unless the scene names a `browser` or `TELEPROMPT_REMOTION_BROWSER` does;
+the variable is for a machine, where a path does not belong in a committed
+`teleprompt.toml`.
+
+The key covers the block and the scene's settings, not the project's
+source: editing a component re-renders nothing on its own. Delete
+`.teleprompt/cache/video` after changing what a component draws.
+
+`examples/remotion` is a complete project — a script narrated by Kokoro
+whose every picture is a motion scene:
+
+```bash
+(cd examples/remotion/motion && npm install)
+cargo run -- build examples/remotion/scripts/remotion.md
+```
+
 ## Rendering
 
 ```bash
@@ -340,7 +407,9 @@ render.
 project, what every manifest field is for, and the two ways to get the frame
 arithmetic wrong.
 
-teleprompt ships no Remotion code and takes no Remotion dependency. Remotion's
+The manifest route takes no Remotion dependency; the `remotion` scene
+adapter (see **Motion graphics**) is the other direction, where teleprompt
+owns the video and Remotion draws one scene of it. Remotion's
 own licence — free for individuals and organisations up to three employees —
 is between you and Remotion.
 
