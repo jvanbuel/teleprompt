@@ -401,7 +401,11 @@ async fn no_cache_re_encodes_everything_and_says_so() {
     let report = build::run_build(&project, &script, "en", &options)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
-    assert_eq!(report.renderer, "ffmpeg");
+    assert_eq!(
+        report.renderer, "ffmpeg-incremental",
+        "there is one renderer; --no-cache switches off reuse rather than \
+         selecting a different one"
+    );
     assert_eq!(
         report.reused_ms, None,
         "a render with no cache reused nothing, which is not the same \

@@ -82,6 +82,20 @@ impl Renderer for IncrementalRenderer {
             total => frames * plan.duration_ms / total,
         };
 
+        // Progress is reported from two places — encoding each chunk, then
+        // the concat pass — and the second starts its own count from zero.
+        // Left alone that reads as the render going backwards just as it
+        // finishes. The other renderer had no assembly pass, so nothing
+        // caught it until it was the only renderer left.
+        let mut furthest = 0u64;
+        let mut report = |on_progress: &mut dyn FnMut(Progress), rendered_ms: u64| {
+            furthest = furthest.max(rendered_ms);
+            on_progress(Progress {
+                rendered_ms: furthest,
+                of_ms: plan.duration_ms,
+            });
+        };
+
         let mut list = String::new();
         let mut done_frames = 0u64;
         let mut reused_frames = 0u64;
@@ -123,10 +137,7 @@ impl Renderer for IncrementalRenderer {
             ));
 
             done_frames += chunk.frames;
-            on_progress(Progress {
-                rendered_ms: on_the_clock(done_frames),
-                of_ms: plan.duration_ms,
-            });
+            report(on_progress, on_the_clock(done_frames));
         }
 
         let list_path = self.cache_dir.join(format!(
@@ -142,10 +153,7 @@ impl Renderer for IncrementalRenderer {
             &self.program,
             &assemble_args(plan, &list_path),
             &mut |rendered_ms| {
-                on_progress(Progress {
-                    rendered_ms,
-                    of_ms: plan.duration_ms,
-                });
+                report(on_progress, rendered_ms);
             },
         );
         let _ = std::fs::remove_file(&list_path);
@@ -158,7 +166,9 @@ impl Renderer for IncrementalRenderer {
         Ok(Rendered {
             path: plan.output.clone(),
             duration_ms: plan.duration_ms,
-            reused_ms: Some(on_the_clock(reused_frames)),
+            // `None` where there is no cache to draw on, which is a
+            // different claim from `Some(0)`, a cache that happened to be cold.
+            reused_ms: self.reuse.then(|| on_the_clock(reused_frames)),
         })
     }
 }
