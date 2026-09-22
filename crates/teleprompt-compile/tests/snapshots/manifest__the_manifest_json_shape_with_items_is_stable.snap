@@ -38,7 +38,7 @@ expression: manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK)
   ],
   "items": [
     {
-      "cue": "intro-a#0",
+      "shot": "intro-a#0",
       "line": "intro",
       "scene": "mock",
       "adapter": "mock",
@@ -50,11 +50,11 @@ expression: manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK)
         "kind": "crossfade",
         "duration_ms": 150
       },
-      "cue_hash": "4057dd5c308ea0fb5dcf8d6ab5e5c7cf86559417bcc6e30c50580b80901128eb",
+      "shot_hash": "4057dd5c308ea0fb5dcf8d6ab5e5c7cf86559417bcc6e30c50580b80901128eb",
       "capture_key": "6f2390a933e7e5e462127134dacfaa0ff8c6464a876215d7daa6fd50bb64e000"
     },
     {
-      "cue": "intro-a#1",
+      "shot": "intro-a#1",
       "line": null,
       "scene": "mock",
       "adapter": "mock",
@@ -66,7 +66,7 @@ expression: manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK)
         "kind": "crossfade",
         "duration_ms": 0
       },
-      "cue_hash": "8582c7f96226778c8a046c0ad9b08be614e9e287364041b7fe00b89038f68784",
+      "shot_hash": "8582c7f96226778c8a046c0ad9b08be614e9e287364041b7fe00b89038f68784",
       "capture_key": "71c3b96a26f7712b6469bb7337fe113380a126b923f2213b3b1a4c5ad472ee09"
     }
   ]

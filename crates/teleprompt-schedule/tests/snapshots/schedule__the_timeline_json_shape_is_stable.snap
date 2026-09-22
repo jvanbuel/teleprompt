@@ -25,10 +25,10 @@ expression: t
         "voice_source_actual": "synthetic"
       },
       "action": {
-        "cue": "welcome",
+        "shot": "welcome",
         "scene": "mock",
         "adapter": "mock",
-        "cue_hash": "a8eaf176930c892f301a3df3b70b9e8f63db8e832912f5a784c3f11a596a9a86",
+        "shot_hash": "a8eaf176930c892f301a3df3b70b9e8f63db8e832912f5a784c3f11a596a9a86",
         "capture_key": "a8eaf176930c892f301a3df3b70b9e8f63db8e832912f5a784c3f11a596a9a86",
         "start_ms": 1300,
         "duration_ms": 500,
