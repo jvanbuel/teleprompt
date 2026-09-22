@@ -21,7 +21,7 @@ fn narration(id: &str, ms: u64) -> NarrationInput {
 
 fn action(id: &str, ms: u64) -> ActionInput {
     ActionInput {
-        span_id: id.into(),
+        shot_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
         shot_hash: Hash::of(id.as_bytes()),
@@ -44,7 +44,7 @@ fn item(id: &str, n: Option<u64>, a: Option<u64>, policy: Policy, cfg: Config) -
 
 /// A hold item carrying only narration, with the default transition config —
 /// the shape a script of plain paragraphs produces.
-fn narration_beat(id: &str, ms: u64) -> Item {
+fn narration_item(id: &str, ms: u64) -> Item {
     item(id, Some(ms), None, Policy::Hold, Config::default())
 }
 
@@ -69,7 +69,7 @@ fn narration_is_padded_with_lead_in_and_tail() {
 }
 
 #[test]
-fn beats_lay_out_sequentially_when_transitions_are_zero() {
+fn shots_lay_out_sequentially_when_transitions_are_zero() {
     let cfg = no_transition();
     let items = vec![
         item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
@@ -82,7 +82,7 @@ fn beats_lay_out_sequentially_when_transitions_are_zero() {
 }
 
 #[test]
-fn transitions_overlap_adjacent_beats() {
+fn transitions_overlap_adjacent_shots() {
     let mut cfg = Config::default();
     cfg.transition.duration = TransitionDuration::Fixed(300);
     let items = vec![
@@ -96,7 +96,7 @@ fn transitions_overlap_adjacent_beats() {
 }
 
 #[test]
-fn the_last_beat_has_no_outgoing_transition() {
+fn the_last_shot_has_no_outgoing_transition() {
     let mut cfg = Config::default();
     cfg.transition.duration = TransitionDuration::Fixed(300);
     let t = schedule(
@@ -157,7 +157,7 @@ fn auto_transition_is_zero_when_there_is_no_slack() {
 }
 
 #[test]
-fn action_offsets_are_absolute_not_beat_relative() {
+fn action_offsets_are_absolute_not_shot_relative() {
     let cfg = no_transition();
     let items = vec![
         item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
@@ -169,7 +169,7 @@ fn action_offsets_are_absolute_not_beat_relative() {
 }
 
 #[test]
-fn policy_warnings_are_collected_with_the_beat_id() {
+fn policy_warnings_are_collected_with_the_shot_id() {
     let mut cfg = no_transition();
     cfg.timing.max_stretch = 2.0;
     let t = schedule(
@@ -183,7 +183,7 @@ fn policy_warnings_are_collected_with_the_beat_id() {
 }
 
 #[test]
-fn an_action_only_beat_schedules_with_no_narration() {
+fn an_action_only_shot_schedules_with_no_narration() {
     let t = schedule(
         &[item("b1", None, Some(800), Policy::Hold, no_transition())],
         "s.md",
@@ -219,11 +219,11 @@ fn the_timeline_json_shape_is_stable() {
 /// follows one line after another. Asserted on the timeline, because that
 /// is what both the manifest and the renderer read.
 #[test]
-fn narration_only_beats_never_talk_over_each_other() {
+fn narration_only_shots_never_talk_over_each_other() {
     let items = vec![
-        narration_beat("one", 6900),
-        narration_beat("two", 5300),
-        narration_beat("three", 4900),
+        narration_item("one", 6900),
+        narration_item("two", 5300),
+        narration_item("three", 4900),
     ];
     let (timeline, _) = schedule(&items, "tour.md", "en", "0.1.0");
 
@@ -251,7 +251,7 @@ fn narration_only_beats_never_talk_over_each_other() {
 /// as the silence allows, so a cap does not become "always cut".
 #[test]
 fn the_auto_transition_fills_the_quiet_window_exactly() {
-    let items = vec![narration_beat("one", 6900), narration_beat("two", 5300)];
+    let items = vec![narration_item("one", 6900), narration_item("two", 5300)];
     let (timeline, _) = schedule(&items, "tour.md", "en", "0.1.0");
 
     // tail 150 leaving the first item + lead_in 150 entering the second.
@@ -263,7 +263,7 @@ fn the_auto_transition_fills_the_quiet_window_exactly() {
 /// which they should hear about.
 #[test]
 fn a_fixed_transition_wider_than_the_quiet_window_warns() {
-    let mut items = vec![narration_beat("one", 6900), narration_beat("two", 5300)];
+    let mut items = vec![narration_item("one", 6900), narration_item("two", 5300)];
     for b in &mut items {
         b.config.transition.duration = TransitionDuration::Fixed(2000);
     }
@@ -283,7 +283,7 @@ fn a_fixed_transition_wider_than_the_quiet_window_warns() {
 
 #[test]
 fn narration_entries_report_where_their_duration_came_from() {
-    let mut items = vec![narration_beat("one", 5000), narration_beat("two", 3000)];
+    let mut items = vec![narration_item("one", 5000), narration_item("two", 3000)];
     items[0].narration.as_mut().unwrap().duration_source = DurationSource::Measured;
     items[1].narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
 

@@ -79,7 +79,7 @@ fn front_matter_config_reaches_every_item() {
 }
 
 #[test]
-fn segment_attributes_override_front_matter_for_that_segment_only() {
+fn segment_attributes_override_front_matter_for_that_line_only() {
     let p = program();
     let Element::Narration { config: first, .. } = &p.elements[0] else {
         panic!()
@@ -92,7 +92,7 @@ fn segment_attributes_override_front_matter_for_that_segment_only() {
 }
 
 #[test]
-fn cli_flags_beat_everything() {
+fn cli_flags_shot_everything() {
     let mut s = parse_script(SRC).unwrap();
     teleprompt_core::ident::assign_ids(&mut s);
     let cli = PartialConfig::from_yaml("timing:\n  lead_in_ms: 999\n").unwrap();
@@ -173,7 +173,7 @@ fn unknown_attribute_keys_surface_as_errors() {
 /// narration paragraph and the action fence on different lines, so the test
 /// would fail if the shots were swapped or both zeroed.
 #[test]
-fn item_spans_match_their_source_node_not_a_fabricated_line() {
+fn item_shots_match_their_source_node_not_a_fabricated_line() {
     let src = "# A\n\nFirst line. {#first}\n\n```teleprompt scene=mock\nwait 1s\n```\n";
     let mut s = parse_script(src).unwrap();
     teleprompt_core::ident::assign_ids(&mut s);
@@ -382,7 +382,7 @@ fn one_bad_speed_reports_once_and_names_a_line() {
 /// and it is the last one before the CLI — so the merged check has to see it
 /// even when the script-level config is perfectly fine.
 #[test]
-fn a_segment_level_speed_override_is_validated_too() {
+fn a_line_level_speed_override_is_validated_too() {
     let src = "# A\n\nOne. {#a voice.speed=0}\n";
     let mut s = parse_script(src).expect("fixture parses");
     assign_ids(&mut s);

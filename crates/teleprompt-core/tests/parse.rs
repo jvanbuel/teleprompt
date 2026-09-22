@@ -31,7 +31,7 @@ fn heading_becomes_chapter_with_slug() {
 }
 
 #[test]
-fn paragraphs_become_segments_and_fences_become_action_blocks() {
+fn paragraphs_become_lines_and_fences_become_action_blocks() {
     let s = parse_script(BASIC).unwrap();
     let kinds: Vec<&str> = s.chapters[0]
         .nodes
@@ -56,7 +56,7 @@ fn action_block_body_is_verbatim() {
 }
 
 #[test]
-fn segment_text_excludes_the_attribute_suffix() {
+fn line_text_excludes_the_attribute_suffix() {
     let s = parse_script(BASIC).unwrap();
     let Node::Line(seg) = &s.chapters[0].nodes[0] else {
         panic!("expected line")
@@ -234,7 +234,7 @@ fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
 //   error: expected `key=value`, found `fps:`
 // ---------------------------------------------------------------------------
 
-fn only_segment(src: &str) -> teleprompt_core::ast::Line {
+fn only_line(src: &str) -> teleprompt_core::ast::Line {
     let s = parse_script(src).expect("script must parse");
     match &s.chapters[0].nodes[0] {
         Node::Line(seg) => seg.clone(),
@@ -243,8 +243,8 @@ fn only_segment(src: &str) -> teleprompt_core::ast::Line {
 }
 
 #[test]
-fn a_paragraph_ending_in_an_inline_code_span_with_braces_is_narration() {
-    let seg = only_segment("# B\n\nThe config block looks like `{ fps: 30 }`\n");
+fn a_paragraph_ending_in_an_inline_code_shot_with_braces_is_narration() {
+    let seg = only_line("# B\n\nThe config block looks like `{ fps: 30 }`\n");
     assert_eq!(
         seg.text, "The config block looks like { fps: 30 }",
         "the code shot's text must survive intact into the narration"
@@ -254,14 +254,14 @@ fn a_paragraph_ending_in_an_inline_code_span_with_braces_is_narration() {
 
 #[test]
 fn a_real_id_suffix_still_parses() {
-    let seg = only_segment("# B\n\nGive it a name and you are done. {#done}\n");
+    let seg = only_line("# B\n\nGive it a name and you are done. {#done}\n");
     assert_eq!(seg.text, "Give it a name and you are done.");
     assert_eq!(seg.raw_attrs, "#done");
 }
 
 #[test]
 fn a_real_key_value_suffix_still_parses() {
-    let seg = only_segment("# B\n\nGive it a name. {#done voice.source=recorded}\n");
+    let seg = only_line("# B\n\nGive it a name. {#done voice.source=recorded}\n");
     assert_eq!(seg.text, "Give it a name.");
     assert_eq!(seg.raw_attrs, "#done voice.source=recorded");
 }
@@ -269,8 +269,8 @@ fn a_real_key_value_suffix_still_parses() {
 /// A code shot that is *not* at the paragraph's end must not suppress a real
 /// suffix that follows it.
 #[test]
-fn a_code_span_before_a_real_suffix_does_not_suppress_it() {
-    let seg = only_segment("# B\n\nThe block looks like `{ fps: 30 }` in practice. {#mixed}\n");
+fn a_code_shot_before_a_real_suffix_does_not_suppress_it() {
+    let seg = only_line("# B\n\nThe block looks like `{ fps: 30 }` in practice. {#mixed}\n");
     assert_eq!(seg.text, "The block looks like { fps: 30 } in practice.");
     assert_eq!(seg.raw_attrs, "#mixed");
 }

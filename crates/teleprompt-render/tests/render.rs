@@ -119,7 +119,7 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
 /// something has to hold, or every shot after it renders early against
 /// audio that is still correctly placed.
 #[test]
-fn a_gap_before_the_first_beat_is_held_rather_than_closed() {
+fn a_gap_before_the_first_shot_is_held_rather_than_closed() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -167,7 +167,7 @@ fn a_gap_before_the_first_beat_is_held_rather_than_closed() {
 /// half a second longer and put every later shot out of step with its
 /// narration.
 #[test]
-fn a_crossfade_overlaps_the_beats_it_joins() {
+fn a_crossfade_overlaps_the_shots_it_joins() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -220,7 +220,7 @@ fn a_crossfade_overlaps_the_beats_it_joins() {
 /// A script can be prose alone — no action blocks, nothing to show. It
 /// still has a length, and a video of it is a legitimate thing to ask for.
 #[test]
-fn a_plan_with_no_beats_at_all_still_renders_its_narration() {
+fn a_plan_with_no_shots_at_all_still_renders_its_narration() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -254,7 +254,7 @@ fn a_plan_with_no_beats_at_all_still_renders_its_narration() {
 /// rather than rendered, which changes nothing about the timeline: the
 /// placement around it already covers those zero milliseconds.
 #[test]
-fn a_beat_of_no_length_does_not_reach_the_graph() {
+fn a_shot_of_no_length_does_not_reach_the_graph() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -367,7 +367,7 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
 /// slate makes a video that is mostly black while somebody speaks over it.
 /// It holds the last frame instead.
 #[test]
-fn a_gap_after_a_beat_freezes_its_last_frame() {
+fn a_gap_after_a_shot_freezes_its_last_frame() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -409,7 +409,7 @@ fn a_gap_after_a_beat_freezes_its_last_frame() {
 /// starts with it, so a video that cut to black until then would open on
 /// black every single time.
 #[test]
-fn a_gap_before_the_first_beat_holds_its_first_frame() {
+fn a_gap_before_the_first_shot_holds_its_first_frame() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -450,7 +450,7 @@ fn a_gap_before_the_first_beat_holds_its_first_frame() {
 /// with it. Dropping a zero-length shot used to drop the hold that preceded
 /// it, and the video came out a minute shorter than its own timeline.
 #[test]
-fn dropping_an_empty_beat_does_not_drop_the_time_before_it() {
+fn dropping_an_empty_shot_does_not_drop_the_time_before_it() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;

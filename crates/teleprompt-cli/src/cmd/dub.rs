@@ -451,7 +451,7 @@ pub async fn run_dub_with(
         // is a hash of), so whichever one gets rendered is correct for
         // every index in the group.
         let detail = compiled.narration[indices[0]].clone();
-        let segment_ids: Vec<String> = indices
+        let line_ids: Vec<String> = indices
             .iter()
             .map(|&i| compiled.narration[i].line_id.clone())
             .collect();
@@ -471,7 +471,7 @@ pub async fn run_dub_with(
                 // script, and a script with two identical sentences still
                 // has two lines to account for, even though only one of
                 // them made a network call.
-                for id in &segment_ids {
+                for id in &line_ids {
                     let n = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
                     eprintln!("  [{n}/{total}] {id} done");
                 }
@@ -730,7 +730,7 @@ mod tests {
     /// 6500ms. The guard has to name the line and both numbers, because
     /// which of the two is wrong is the whole diagnosis.
     #[test]
-    fn a_mismatch_names_the_segment_and_both_lengths() {
+    fn a_mismatch_names_the_line_and_both_lengths() {
         let msg = length_mismatch("welcome", 6500, 3250).expect("must be caught");
         assert!(msg.contains("welcome"), "{msg}");
         assert!(msg.contains("6500ms"), "{msg}");
@@ -774,7 +774,7 @@ mod tests {
     }
 
     #[test]
-    fn a_segment_delivered_at_the_requested_tier_is_not_a_downgrade() {
+    fn a_line_delivered_at_the_requested_tier_is_not_a_downgrade() {
         let m = manifest_with(vec![line("a", "synthetic", "synthetic", None)]);
         assert!(downgrades_in(&m).is_empty());
     }

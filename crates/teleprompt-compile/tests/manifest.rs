@@ -159,7 +159,7 @@ And every timeline is committed alongside it.
 ";
 
 #[test]
-fn segment_timings_equal_the_timeline_they_came_from() {
+fn line_timings_equal_the_timeline_they_came_from() {
     let (out, m) = compiled_and_manifest(TWO_CHAPTERS);
 
     let from_timeline: Vec<(String, u64, u64)> = out
@@ -183,7 +183,7 @@ fn segment_timings_equal_the_timeline_they_came_from() {
 }
 
 #[test]
-fn chapters_carry_the_start_of_their_first_spoken_segment() {
+fn chapters_carry_the_start_of_their_first_spoken_line() {
     let m = manifest_for(TWO_CHAPTERS);
     assert_eq!(m.chapters.len(), 2);
     assert_eq!(m.chapters[0].id, "quick-start");
@@ -236,7 +236,7 @@ Second chapter speaks somewhere else entirely. {#setup-second}
 }
 
 #[test]
-fn every_segment_names_the_chapter_it_was_spoken_in() {
+fn every_line_names_the_chapter_it_was_spoken_in() {
     let m = manifest_for(TWO_CHAPTERS);
     assert_eq!(m.lines[0].chapter, "quick-start");
     assert_eq!(m.lines[1].chapter, "provenance");
@@ -260,7 +260,7 @@ fn every_segment_names_the_chapter_it_was_spoken_in() {
 /// overlap, this test must fail loudly rather than the overlap silently
 /// vanishing while §5.2 and the §7 consumer example still describe it.
 #[test]
-fn consecutive_narration_only_segments_abut_exactly() {
+fn consecutive_narration_only_lines_abut_exactly() {
     let m = manifest_for(
         "\
 # Quick start
@@ -293,7 +293,7 @@ Three.
 /// Pinned here because §5.2 tells consumers to expect it, and a claim in a
 /// published contract with no test behind it decays.
 #[test]
-fn a_fixed_transition_can_still_make_segments_overlap() {
+fn a_fixed_transition_can_still_make_lines_overlap() {
     let m = manifest_for(
         "\
 ---
@@ -444,7 +444,7 @@ mod items {
         ```teleprompt scene=mock policy=concurrent\nwait 900ms\nmark\nwait 300ms\n```\n";
 
     #[test]
-    fn every_scheduled_span_is_published() {
+    fn every_scheduled_shot_is_published() {
         let m = manifest_for(TWO_BEATS);
         let shots: Vec<&str> = m.shots.iter().map(|b| b.shot.as_str()).collect();
         assert_eq!(shots.len(), 3, "two blocks, one of them split by a mark");
@@ -452,7 +452,7 @@ mod items {
     }
 
     #[test]
-    fn a_beat_carries_the_scheduled_numbers_not_the_adapters() {
+    fn a_shot_carries_the_scheduled_numbers_not_the_adapters() {
         // The mock says `wait 900ms`; `concurrent` does not change that, so
         // the two agree here — the point is that the published number comes
         // from the timeline, which is what `fit-action` would move.
@@ -473,7 +473,7 @@ mod items {
     }
 
     #[test]
-    fn the_segment_spoken_over_a_span_is_named_and_unpaired_spans_say_null() {
+    fn the_line_spoken_over_a_span_is_named_and_unpaired_shots_say_null() {
         let m = manifest_for(TWO_BEATS);
         assert_eq!(m.shots[0].line.as_deref(), Some("one"));
         assert_eq!(m.shots[1].line.as_deref(), Some("two"));
@@ -484,7 +484,7 @@ mod items {
     }
 
     #[test]
-    fn a_pause_is_a_beat_rather_than_a_gap_to_infer() {
+    fn a_pause_is_a_shot_rather_than_a_gap_to_infer() {
         let m = manifest_for(
             "# Chapter\n\nOnly sentence. {#one}\n\n\
              <!-- teleprompt: pause 600ms -->\n\n\
@@ -500,7 +500,7 @@ mod items {
     }
 
     #[test]
-    fn beats_and_segments_agree_about_the_scene_and_adapter() {
+    fn shots_and_lines_agree_about_the_scene_and_adapter() {
         let m = manifest_for(TWO_BEATS);
         for item in m.shots.iter().filter(|b| b.scene != "pause") {
             assert_eq!(item.scene, "mock");
@@ -513,7 +513,7 @@ mod items {
     }
 
     #[test]
-    fn the_version_says_beats_are_there() {
+    fn the_version_says_shots_are_there() {
         // A v1 consumer that checks the version stops rather than silently
         // rendering speech over a blank screen.
         const _: () = assert!(MANIFEST_VERSION >= 2, "items landed in v2");

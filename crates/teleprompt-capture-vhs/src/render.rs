@@ -394,7 +394,7 @@ mod tests {
     /// re-timed to their slots; rewriting them here would be a second
     /// opinion about a number that is already settled.
     #[test]
-    fn a_session_is_one_tape_of_its_spans_in_order() {
+    fn a_session_is_one_tape_of_its_shots_in_order() {
         let tape = tape_for(
             &session(&[("Type \"one\"\n", 500), ("Type \"two\"\n", 500)]),
             &frame(),
@@ -472,7 +472,7 @@ mod tests {
     /// The shots are windows onto the one video, at the offsets the tape
     /// was written to produce.
     #[test]
-    fn the_beats_are_the_scheduled_durations_accumulated() {
+    fn the_shots_are_the_scheduled_durations_accumulated() {
         let windows = windows(&session(&[("a", 800), ("b", 1_200), ("c", 400)]));
         assert_eq!(windows, vec![(0, 800), (800, 1_200), (2_000, 400)]);
     }

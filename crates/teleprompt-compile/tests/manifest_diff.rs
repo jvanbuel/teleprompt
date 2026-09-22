@@ -81,7 +81,7 @@ fn a_new_voice_is_reported_as_an_audio_change_not_a_text_edit() {
 }
 
 #[test]
-fn a_segment_that_only_shifted_is_still_drift() {
+fn a_line_that_only_shifted_is_still_drift() {
     // Position-only change: everything else about the line (text, audio,
     // voice) is identical. Its audio is byte-identical, so this is drift a
     // consumer must still resynchronise against, but it is not "audio
@@ -146,7 +146,7 @@ fn a_voice_request_change_with_no_tier_change_is_named_separately() {
 }
 
 #[test]
-fn a_chapter_title_edit_is_drift_even_with_identical_segments() {
+fn a_chapter_title_edit_is_drift_even_with_identical_lines() {
     // "Quick start" -> "Quick Start" slugifies to the same chapter id, and
     // touches no LineEntry field at all — this is the case is_empty()
     // used to miss entirely.
@@ -183,7 +183,7 @@ fn a_changed_sample_rate_is_drift() {
 }
 
 #[test]
-fn editing_the_first_segment_shifts_later_segments_without_flagging_them_for_rerender() {
+fn editing_the_first_segment_shifts_later_lines_without_flagging_them_for_rerender() {
     let one = seg("one", 0, 500, "Hi.", "a");
     let two = seg("two", 500, 500, "Two.", "b");
     let three = seg("three", 1000, 500, "Three.", "c");
@@ -235,7 +235,7 @@ fn a_shorter_manifest_renders_a_minus_sign_on_the_delta() {
 }
 
 #[test]
-fn added_and_removed_segments_are_named() {
+fn added_and_removed_lines_are_named() {
     let before = manifest(vec![seg("welcome", 0, 1000, "Hello.", "a")]);
     let after = manifest(vec![
         seg("welcome", 0, 1000, "Hello.", "a"),
@@ -251,7 +251,7 @@ fn added_and_removed_segments_are_named() {
 }
 
 #[test]
-fn reordering_two_unchanged_segments_is_drift() {
+fn reordering_two_unchanged_lines_is_drift() {
     let a = seg("one", 0, 1000, "First.", "a");
     let mut b = seg("two", 1000, 1000, "Second.", "b");
     let before = manifest(vec![a.clone(), b.clone()]);
@@ -270,7 +270,7 @@ fn reordering_two_unchanged_segments_is_drift() {
 }
 
 #[test]
-fn the_report_names_the_duration_change_and_the_segments() {
+fn the_report_names_the_duration_change_and_the_lines() {
     let before = manifest(vec![seg("welcome", 0, 1000, "Hello.", "a")]);
     let after = manifest(vec![seg(
         "welcome",
@@ -294,7 +294,7 @@ fn the_report_names_the_duration_change_and_the_segments() {
 /// estimator and the backend call the same function — was reported as clean.
 /// A committed manifest full of estimates would have passed `--check`.
 #[test]
-fn an_estimated_segment_that_becomes_measured_is_drift() {
+fn an_estimated_line_that_becomes_measured_is_drift() {
     let mut before = seg("welcome", 0, 2750, "One two three four five six.", "a");
     before.duration_source = "estimated".to_string();
     let after = seg("welcome", 0, 2750, "One two three four five six.", "a");
@@ -309,7 +309,7 @@ fn an_estimated_segment_that_becomes_measured_is_drift() {
 /// measured. Mirrors the timeline diff's own reading of the same
 /// transition.
 #[test]
-fn a_measured_segment_that_reverts_to_estimated_does_not_claim_a_measurement() {
+fn a_measured_line_that_reverts_to_estimated_does_not_claim_a_measurement() {
     let before = seg("welcome", 0, 2750, "One two three four five six.", "a");
     let mut after = seg("welcome", 0, 2750, "One two three four five six.", "a");
     after.duration_source = "estimated".to_string();

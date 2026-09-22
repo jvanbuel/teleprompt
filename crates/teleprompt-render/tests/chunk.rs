@@ -61,7 +61,7 @@ fn tiles(chunks: &[Chunk], plan: &RenderPlan) {
 }
 
 #[test]
-fn a_plan_of_hard_cuts_is_one_chunk_per_beat() {
+fn a_plan_of_hard_cuts_is_one_chunk_per_shot() {
     let plan = plan(
         vec![
             shot("a#0", 0, 2_000, "/clips/a.mp4"),
@@ -81,7 +81,7 @@ fn a_plan_of_hard_cuts_is_one_chunk_per_beat() {
 /// Two renders of the same shot with a different amount of silence after it
 /// are genuinely different pictures, and the key has to say so.
 #[test]
-fn a_held_gap_belongs_to_the_beat_that_holds_it() {
+fn a_held_gap_belongs_to_the_shot_that_holds_it() {
     let short = plan(vec![shot("a#0", 0, 1_000, "/clips/a.mp4")], 2_000);
     let long = plan(vec![shot("a#0", 0, 1_000, "/clips/a.mp4")], 5_000);
 
@@ -142,7 +142,7 @@ fn a_transition_becomes_a_chunk_of_its_own() {
 /// blend consumed, or the video is longer than the plan and everything
 /// after the first transition is late.
 #[test]
-fn the_beats_either_side_of_a_blend_give_up_the_frames_it_uses() {
+fn the_shots_either_side_of_a_blend_give_up_the_frames_it_uses() {
     let mut shots = vec![
         shot("a#0", 0, 2_000, "/clips/a.mp4"),
         shot("b#0", 1_600, 2_000, "/clips/b.mp4"),
@@ -251,7 +251,7 @@ fn a_clip_that_cannot_be_read_fails_the_key_rather_than_guessing_one() {
 /// Reporting that honestly is what lets the caller fall back to rendering
 /// the whole graph in one pass.
 #[test]
-fn a_beat_shorter_than_the_blends_around_it_does_not_split() {
+fn a_shot_shorter_than_the_blends_around_it_does_not_split() {
     let mut shots = vec![
         shot("a#0", 0, 2_000, "/clips/a.mp4"),
         shot("b#0", 1_600, 500, "/clips/b.mp4"),

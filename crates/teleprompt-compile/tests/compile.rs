@@ -129,7 +129,7 @@ wait 500ms
 "#;
 
 #[test]
-fn narration_and_the_following_action_form_one_beat() {
+fn narration_and_the_following_action_form_one_shot() {
     let out = run(ONE_BEAT);
     assert_eq!(out.timeline.entries.len(), 1);
     let e = &out.timeline.entries[0];
@@ -166,7 +166,7 @@ fn action_duration_comes_from_the_scene_estimate() {
 }
 
 #[test]
-fn each_mark_after_the_first_span_becomes_its_own_beat() {
+fn each_mark_after_the_first_shot_becomes_its_own_shot() {
     let src = r#"---
 scene: { mock: { adapter: mock } }
 ---
@@ -198,7 +198,7 @@ wait 300ms
 }
 
 #[test]
-fn a_pause_directive_becomes_a_silent_beat() {
+fn a_pause_directive_becomes_a_silent_shot() {
     let src = "---\nscene: { mock: { adapter: mock } }\n---\n\n# A\n\nOne. {#a}\n\n<!-- teleprompt: pause 800ms -->\n";
     let out = run(src);
     assert_eq!(out.timeline.entries.len(), 2);
@@ -392,7 +392,7 @@ fn lead_in_fixture(with_action: bool) -> String {
 }
 
 #[test]
-fn a_segments_lead_in_survives_pairing_with_a_following_action_block() {
+fn a_lines_lead_in_survives_pairing_with_a_following_action_block() {
     let alone = run(&lead_in_fixture(false));
     let paired = run(&lead_in_fixture(true));
 

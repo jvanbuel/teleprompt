@@ -65,7 +65,7 @@ fn plan_produces_a_timeline_without_writing_one() {
 }
 
 #[test]
-fn diff_against_a_missing_timeline_reports_every_beat_as_added() {
+fn diff_against_a_missing_timeline_reports_every_item_as_added() {
     let (p, s) = project_with(GOOD);
     let d = run_diff(&p, &s, "en").unwrap();
     assert_eq!(d.added.len(), 1);
@@ -263,7 +263,7 @@ fn the_default_backend_is_null_so_existing_scripts_keep_working() {
 /// differ only by backend collide on one cache key and one would be served
 /// the other's audio.
 #[test]
-fn a_segment_level_backend_override_that_disagrees_with_the_resolved_backend_is_rejected() {
+fn a_line_level_backend_override_that_disagrees_with_the_resolved_backend_is_rejected() {
     let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=nope}\n");
     let errors = run_check(&p, &s, "en").expect_err("a disagreeing per-line backend must fail");
     let joined = errors.join("\n");
@@ -281,7 +281,7 @@ fn a_segment_level_backend_override_that_disagrees_with_the_resolved_backend_is_
 /// A line-level `voice.backend=` that agrees with the resolved backend
 /// is not an override at all and must not be rejected.
 #[test]
-fn a_segment_level_backend_that_matches_the_resolved_backend_is_fine() {
+fn a_line_level_backend_that_matches_the_resolved_backend_is_fine() {
     let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=null}\n");
     assert!(run_check(&p, &s, "en").is_ok());
 }
@@ -294,7 +294,7 @@ fn a_segment_level_backend_that_matches_the_resolved_backend_is_fine() {
 /// line of writing an attribute it never wrote, and the help text must
 /// mention that chapter-level overrides are unsupported too.
 #[test]
-fn a_chapter_level_backend_override_is_reported_without_claiming_the_segment_set_it() {
+fn a_chapter_level_backend_override_is_reported_without_claiming_the_line_set_it() {
     let (p, s) = project_with(
         "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\nOne two three. {#a}\n",
     );
@@ -317,7 +317,7 @@ fn a_chapter_level_backend_override_is_reported_without_claiming_the_segment_set
 /// Fix round 1: a chapter-wide override affecting several lines must
 /// produce exactly one diagnostic naming all of them, not one per line.
 #[test]
-fn a_chapter_level_backend_override_across_several_segments_is_one_diagnostic() {
+fn a_chapter_level_backend_override_across_several_lines_is_one_diagnostic() {
     let (p, s) = project_with(
         "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\n\
          One. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n",

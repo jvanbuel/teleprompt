@@ -54,7 +54,7 @@ fn a_narration_clip_is_delayed_to_the_offset_the_manifest_published() {
 /// run everything after it early — the picture would drift against speech
 /// that is still correctly placed.
 #[test]
-fn a_beat_with_no_capture_holds_its_slot_with_a_slate() {
+fn a_shot_with_no_capture_holds_its_slot_with_a_slate() {
     let args = ffmpeg::args(&plan());
     let joined = args.join(" ");
 

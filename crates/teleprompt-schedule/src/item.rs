@@ -59,7 +59,7 @@ pub enum DurationSource {
 
 #[derive(Debug, Clone)]
 pub struct ActionInput {
-    pub span_id: String,
+    pub shot_id: String,
     pub scene: String,
     pub adapter: String,
     pub shot_hash: Hash,

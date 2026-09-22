@@ -263,7 +263,7 @@ fn audio_id(path: &str) -> Option<&str> {
     ok.then_some(rest)
 }
 
-fn span_id(path: &str) -> Option<&str> {
+fn shot_id(path: &str) -> Option<&str> {
     let rest = path.strip_prefix("/shots/")?;
     let ok = !rest.is_empty()
         && rest
@@ -328,8 +328,8 @@ fn handle(
             respond(stream, "200 OK", "application/json", &body)
         }
 
-        p if span_id(p).is_some() => {
-            let id = span_id(p).expect("just checked");
+        p if shot_id(p).is_some() => {
+            let id = shot_id(p).expect("just checked");
             let preview = state.lock().expect("preview lock");
             match preview.shots.get(id) {
                 Some(source) => respond(
@@ -528,11 +528,11 @@ mod tests {
     }
 
     #[test]
-    fn a_span_id_survives_the_encoding_a_client_must_apply() {
+    fn a_shot_id_survives_the_encoding_a_client_must_apply() {
         // `welcome-a#0` has to arrive as `%23`, or the fragment split above
         // would eat everything after the `-a`.
         let path = route("GET /shots/welcome-a%230 HTTP/1.1").expect("decodes");
-        assert_eq!(span_id(&path), Some("welcome-a#0"));
+        assert_eq!(shot_id(&path), Some("welcome-a#0"));
         assert_eq!(route("GET /shots/bad%2 HTTP/1.1"), None);
         assert_eq!(route("GET /shots/bad%zz HTTP/1.1"), None);
     }
@@ -549,9 +549,9 @@ mod tests {
     }
 
     #[test]
-    fn a_span_path_admits_the_hash_a_span_id_carries() {
-        assert_eq!(span_id("/shots/welcome-a#0"), Some("welcome-a#0"));
-        assert_eq!(span_id("/shots/../secrets"), None);
-        assert_eq!(span_id("/shots/"), None);
+    fn a_span_path_admits_the_hash_a_shot_id_carries() {
+        assert_eq!(shot_id("/shots/welcome-a#0"), Some("welcome-a#0"));
+        assert_eq!(shot_id("/shots/../secrets"), None);
+        assert_eq!(shot_id("/shots/"), None);
     }
 }

@@ -120,7 +120,7 @@ async fn a_second_build_records_nothing_and_still_has_no_slates() {
 /// everything after it in that scene. A item downstream of an edit really
 /// does show a different screen.
 #[tokio::test]
-async fn editing_the_first_beat_re_records_the_second() {
+async fn editing_the_first_shot_re_records_the_second() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;

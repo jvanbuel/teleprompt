@@ -63,7 +63,7 @@ fn read_manifest(root: &Path) -> serde_json::Value {
 }
 
 #[test]
-fn dub_writes_a_manifest_and_one_wav_per_segment() {
+fn dub_writes_a_manifest_and_one_wav_per_line() {
     let root = project_with("write", SCRIPT);
     let out = tp(
         &root,
@@ -343,7 +343,7 @@ fn strict_voice_makes_a_downgrade_fatal() {
 }
 
 #[test]
-fn strict_voice_is_silent_when_every_segment_got_the_tier_it_asked_for() {
+fn strict_voice_is_silent_when_every_line_got_the_tier_it_asked_for() {
     let root = project_with("strictclean", SCRIPT);
     let out = tp(
         &root,
@@ -749,7 +749,7 @@ async fn dub_with_the_null_backend_makes_no_network_call() {
 /// twentieth. The stub's request count is the proof — one request for the
 /// voice list, and nothing for synthesis.
 #[tokio::test]
-async fn an_unknown_kokoro_voice_fails_before_any_segment_is_synthesized() {
+async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
     let stub = kokoro_stub_listing(&["af_heart", "af_bella"]).await;
     let p = project_with_config_and_script(
         &format!(
@@ -945,7 +945,7 @@ async fn write_status(socket: &mut tokio::net::TcpStream, code: u16, body: &str)
 /// is the proof that they were actually dispatched concurrently, not that
 /// a serial loop happened to produce the right order anyway.
 #[tokio::test]
-async fn segments_are_synthesized_concurrently_but_collected_in_document_order() {
+async fn lines_are_synthesized_concurrently_but_collected_in_document_order() {
     let stub = kokoro_synth_stub(None).await;
     let p = project_with_config_and_script(
         &format!(
@@ -996,7 +996,7 @@ async fn segments_are_synthesized_concurrently_but_collected_in_document_order()
 /// and the run must return promptly rather than waiting on those siblings
 /// to finish first.
 #[tokio::test]
-async fn a_failure_in_one_segment_fails_the_run() {
+async fn a_failure_in_one_line_fails_the_run() {
     let stub =
         kokoro_synth_stub_with_delay(Some("Two."), std::time::Duration::from_millis(600)).await;
     let p = project_with_config_and_script(
@@ -1123,7 +1123,7 @@ fn project_with_duplicate_narration_text(stub: &str) -> TestProject {
 }
 
 #[tokio::test]
-async fn identical_narration_text_synthesizes_once_not_once_per_segment() {
+async fn identical_narration_text_synthesizes_once_not_once_per_line() {
     let stub = kokoro_call_counting_stub().await;
     let p = project_with_duplicate_narration_text(&stub.base_url);
 

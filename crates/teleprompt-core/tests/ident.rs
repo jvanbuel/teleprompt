@@ -21,7 +21,7 @@ fn ids(src: &str) -> Vec<String> {
 }
 
 #[test]
-fn derived_ids_number_segments_within_a_chapter() {
+fn derived_ids_number_lines_within_a_chapter() {
     let src = "# Quick Start\n\nOne.\n\nTwo.\n";
     assert_eq!(ids(src), ["quick-start-1", "quick-start-2"]);
 }
@@ -39,7 +39,7 @@ fn explicit_id_wins_and_does_not_consume_an_ordinal() {
 }
 
 #[test]
-fn action_block_derives_from_the_preceding_segment() {
+fn action_block_derives_from_the_preceding_line() {
     let src = "# A\n\nOne.\n\n```teleprompt scene=mock\nwait 100ms\n```\n";
     assert_eq!(ids(src), ["a-1", "a-1-a"]);
 }
@@ -87,19 +87,19 @@ fn explicit_id_colliding_with_a_derived_id_is_an_error() {
 }
 
 #[test]
-fn adjacent_action_blocks_after_one_segment_get_distinct_derived_ids() {
+fn adjacent_action_blocks_after_one_line_get_distinct_derived_ids() {
     let src = "# A\n\nOne.\n\n```teleprompt scene=mock\nwait 100ms\n```\n\n```teleprompt scene=mock\nwait 200ms\n```\n";
     assert_eq!(ids(src), ["a-1", "a-1-a", "a-1-a2"]);
 }
 
 #[test]
-fn action_block_counter_resets_after_a_new_segment() {
+fn action_block_counter_resets_after_a_new_line() {
     let src = "# A\n\nOne.\n\n```teleprompt scene=mock\nwait 100ms\n```\n\nTwo.\n\n```teleprompt scene=mock\nwait 200ms\n```\n";
     assert_eq!(ids(src), ["a-1", "a-1-a", "a-2", "a-2-a"]);
 }
 
 #[test]
-fn block_id_colliding_with_an_explicit_segment_id_is_an_error() {
+fn block_id_colliding_with_an_explicit_line_id_is_an_error() {
     let src = "# A\n\nOne.\n\n```teleprompt scene=mock\nwait 100ms\n```\n\nTwo. {#a-1-a}\n";
     let mut s = parse_script(src).unwrap();
     let diags = assign_ids(&mut s);

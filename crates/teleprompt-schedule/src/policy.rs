@@ -65,7 +65,7 @@ pub struct Layout {
     pub narration_start_ms: u64,
     pub action_start_ms: u64,
     pub action_duration_ms: u64,
-    pub beat_duration_ms: u64,
+    pub item_duration_ms: u64,
     pub warnings: Vec<String>,
 }
 
@@ -100,7 +100,7 @@ pub fn layout_at(
             // An action cued late enough to outlast the sentence extends
             // the item; clipping it would drop the end of the very thing
             // the shot exists to show.
-            beat_duration_ms: narration_ms.max(shot.saturating_add(action_ms)),
+            item_duration_ms: narration_ms.max(shot.saturating_add(action_ms)),
             warnings: Vec::new(),
         };
     }
@@ -109,7 +109,7 @@ pub fn layout_at(
             narration_start_ms: 0,
             action_start_ms: narration_ms,
             action_duration_ms: action_ms,
-            beat_duration_ms: narration_ms + action_ms,
+            item_duration_ms: narration_ms + action_ms,
             warnings: Vec::new(),
         },
 
@@ -124,7 +124,7 @@ pub fn layout_at(
                 narration_start_ms: n_start,
                 action_start_ms: a_start,
                 action_duration_ms: action_ms,
-                beat_duration_ms: item,
+                item_duration_ms: item,
                 warnings: Vec::new(),
             }
         }
@@ -165,7 +165,7 @@ pub fn layout_at(
                 narration_start_ms: 0,
                 action_start_ms: 0,
                 action_duration_ms: adjusted,
-                beat_duration_ms: narration_ms.max(adjusted),
+                item_duration_ms: narration_ms.max(adjusted),
                 warnings,
             }
         }
@@ -195,7 +195,7 @@ pub fn layout_at(
                 // The item is as long as whichever of the two is left:
                 // normally the narration, and the action where there is no
                 // narration to trim against.
-                beat_duration_ms: narration_ms.max(adjusted),
+                item_duration_ms: narration_ms.max(adjusted),
                 warnings,
             }
         }

@@ -188,7 +188,7 @@ fn a_second_render_of_the_same_plan_encodes_nothing() {
 /// of the video is copied rather than encoded. This is what a rebuild after
 /// an edit looks like.
 #[test]
-fn changing_one_beat_re_encodes_only_the_chunks_that_moved() {
+fn changing_one_shot_re_encodes_only_the_chunks_that_moved() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;

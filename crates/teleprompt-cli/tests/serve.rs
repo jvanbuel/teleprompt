@@ -127,27 +127,27 @@ fn await_generation(addr: SocketAddr, after: u64) -> serde_json::Value {
 }
 
 #[test]
-fn the_preview_is_served_a_manifest_with_beats_in_it() {
+fn the_preview_is_served_a_manifest_with_shots_in_it() {
     let (_script, addr) = serving();
     let m = json(addr, "/manifest.json");
 
     assert_eq!(
         m["manifest_version"], 2,
-        "the preview places the picture from `items`, which is v2"
+        "the preview places the picture from `shots`, which is v2"
     );
     assert_eq!(m["lines"].as_array().unwrap().len(), 2);
-    let items = m["items"].as_array().unwrap();
-    assert_eq!(items.len(), 2, "one shot per action block");
-    assert_eq!(items[0]["scene"], "terminal");
-    assert_eq!(items[0]["policy"], "hold");
-    assert_eq!(items[1]["policy"], "concurrent");
+    let shots = m["shots"].as_array().unwrap();
+    assert_eq!(shots.len(), 2, "one shot per action block");
+    assert_eq!(shots[0]["scene"], "terminal");
+    assert_eq!(shots[0]["policy"], "hold");
+    assert_eq!(shots[1]["policy"], "concurrent");
 }
 
 #[test]
-fn a_span_source_is_served_so_the_scene_can_be_drawn() {
+fn a_shot_source_is_served_so_the_scene_can_be_drawn() {
     let (_script, addr) = serving();
     let m = json(addr, "/manifest.json");
-    let shot = m["items"][0]["shot"].as_str().unwrap().to_string();
+    let shot = m["shots"][0]["shot"].as_str().unwrap().to_string();
 
     // A shot id carries a `#`, which a client must percent-encode or the
     // fragment split eats the rest of the path.
@@ -158,7 +158,7 @@ fn a_span_source_is_served_so_the_scene_can_be_drawn() {
 }
 
 #[test]
-fn a_segments_audio_comes_back_as_a_wav() {
+fn a_lines_audio_comes_back_as_a_wav() {
     let (_script, addr) = serving();
     let (status, body) = get(addr, "/audio/welcome.wav");
     assert!(status.contains("200"), "{status}");

@@ -32,7 +32,7 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
     }
 }
 
-fn stale_beat(id: &str) -> Item {
+fn stale_shot(id: &str) -> Item {
     let mut b = item(id, 1000, id);
     let n = b.narration.as_mut().unwrap();
     n.voice_source = VoiceSource::Recorded;
@@ -53,7 +53,7 @@ fn identical_timelines_diff_to_nothing() {
 }
 
 #[test]
-fn a_longer_segment_is_reported_with_both_durations() {
+fn a_longer_line_is_reported_with_both_durations() {
     let a = timeline(vec![item("b1", 4200, "one")]);
     let b = timeline(vec![item("b1", 5800, "one but longer")]);
     let d = diff(&a, &b);
@@ -88,7 +88,7 @@ fn total_shift_is_the_difference_in_overall_duration() {
 }
 
 #[test]
-fn added_and_removed_beats_are_listed_separately() {
+fn added_and_removed_shots_are_listed_separately() {
     let a = timeline(vec![item("b1", 1000, "one")]);
     let b = timeline(vec![item("b1", 1000, "one"), item("b2", 1000, "two")]);
     let d = diff(&a, &b);
@@ -103,7 +103,7 @@ fn added_and_removed_beats_are_listed_separately() {
 #[test]
 fn stale_takes_are_reported_with_their_fallback_tier() {
     let a = timeline(vec![item("b1", 1000, "one")]);
-    let b = timeline(vec![stale_beat("b1")]);
+    let b = timeline(vec![stale_shot("b1")]);
     let d = diff(&a, &b);
     assert_eq!(d.stale_takes.len(), 1);
     assert_eq!(d.stale_takes[0].line, "b1");
@@ -111,9 +111,9 @@ fn stale_takes_are_reported_with_their_fallback_tier() {
 }
 
 #[test]
-fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
+fn shots_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
     let action = |id: &str, ms: u64| ActionInput {
-        span_id: id.into(),
+        shot_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
         shot_hash: Hash::of(id.as_bytes()),
@@ -164,7 +164,7 @@ fn a_text_edit_with_no_duration_change_is_still_reported() {
 
 fn mock_action(id: &str, ms: u64) -> ActionInput {
     ActionInput {
-        span_id: id.into(),
+        shot_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
         shot_hash: Hash::of(id.as_bytes()),
@@ -179,7 +179,7 @@ fn mock_action(id: &str, ms: u64) -> ActionInput {
 /// gaining or losing an action as by an existing action's shot or timing
 /// changing.
 #[test]
-fn a_beat_that_gains_an_action_needs_recapture() {
+fn a_shot_that_gains_an_action_needs_recapture() {
     let a = timeline(vec![item("b1", 1000, "one")]);
     let mut gained = item("b1", 1000, "one");
     gained.action = Some(mock_action("s1", 500));
@@ -190,7 +190,7 @@ fn a_beat_that_gains_an_action_needs_recapture() {
 }
 
 #[test]
-fn a_beat_that_loses_an_action_needs_recapture() {
+fn a_shot_that_loses_an_action_needs_recapture() {
     let mut had_action = item("b1", 1000, "one");
     had_action.action = Some(mock_action("s1", 500));
     let a = timeline(vec![had_action]);
@@ -291,7 +291,7 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
         let mut b1 = item("b1", 4000, "one");
         b1.config = auto.clone();
         b1.action = Some(ActionInput {
-            span_id: "s1".into(),
+            shot_id: "s1".into(),
             scene: "mock".into(),
             adapter: "mock".into(),
             shot_hash: Hash::of(b"s1"),
@@ -322,7 +322,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
         let mut b1 = item("b1", 4000, "one");
         b1.config = c.clone();
         b1.action = Some(ActionInput {
-            span_id: "s1".into(),
+            shot_id: "s1".into(),
             scene: "mock".into(),
             adapter: "mock".into(),
             shot_hash: Hash::of(b"s1"),
@@ -366,7 +366,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
 /// only the order the video plays them in. Before the fix this printed
 /// `no timeline changes`.
 #[test]
-fn swapping_two_beats_is_reported_as_reordering_not_as_add_remove() {
+fn swapping_two_shots_is_reported_as_reordering_not_as_add_remove() {
     let before = timeline(vec![item("alpha", 1000, "one"), item("beta", 2000, "two")]);
     let after = timeline(vec![item("beta", 2000, "two"), item("alpha", 1000, "one")]);
 
@@ -394,7 +394,7 @@ fn swapping_two_beats_is_reported_as_reordering_not_as_add_remove() {
 /// was reordered — the surviving items still play in the same relative
 /// order. Reporting them would turn every insertion into a wall of noise.
 #[test]
-fn inserting_a_beat_shifts_indices_without_reporting_a_reorder() {
+fn inserting_a_shot_shifts_indices_without_reporting_a_reorder() {
     let before = timeline(vec![item("b1", 1000, "one"), item("b3", 1000, "three")]);
     let after = timeline(vec![
         item("b1", 1000, "one"),
@@ -436,7 +436,7 @@ fn a_bare_total_duration_change_is_not_an_empty_diff() {
 /// line-level `lead_in=` retune that leaves the item's overall length
 /// alone still moves the audio, and `diff` must say so.
 #[test]
-fn a_lead_in_retune_that_does_not_change_beat_length_is_still_reported() {
+fn a_lead_in_retune_that_does_not_change_shot_length_is_still_reported() {
     let build = |lead_in: u64| {
         let mut b = item("b1", 1000, "one");
         {

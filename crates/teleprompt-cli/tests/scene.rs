@@ -31,7 +31,7 @@ fn an_unknown_adapter_is_not_served() {
 /// does not — a capture runs at the authored pace and the rest of the slot
 /// is a frozen frame.
 #[tokio::test]
-async fn a_stretched_span_is_published_re_timed_to_its_scheduled_length() {
+async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     use teleprompt_cli::project::Project;
     use teleprompt_scene::Measured;
 

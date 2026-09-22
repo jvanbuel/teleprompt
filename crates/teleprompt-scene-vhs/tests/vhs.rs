@@ -32,7 +32,7 @@ fn validated(body: &str) -> Validated {
 }
 
 /// The single shot of a body that has no marks in it.
-fn only_span(body: &str) -> teleprompt_scene::Shot {
+fn only_shot(body: &str) -> teleprompt_scene::Shot {
     let v = validated(body);
     let mut shots = VhsScene.shots(&v, "b").expect("a validated body has shots");
     assert_eq!(shots.len(), 1, "this helper is for single-shot bodies");
@@ -116,7 +116,7 @@ fn every_bad_line_is_reported_not_just_the_first() {
 }
 
 #[test]
-fn marks_split_a_tape_into_one_span_per_beat() {
+fn marks_split_a_tape_into_one_shot_each() {
     let v = validated("Type \"a\"\n# mark\nSleep 1s\n");
     let shots = VhsScene.shots(&v, "deploy").expect("shots");
 
@@ -126,7 +126,7 @@ fn marks_split_a_tape_into_one_span_per_beat() {
 }
 
 #[test]
-fn a_chunk_of_only_comments_is_not_a_span() {
+fn a_chunk_of_only_comments_is_not_a_shot() {
     let v = validated("Sleep 1s\n# mark\n# just a note\n\n# mark\nSleep 1s\n");
     let shots = VhsScene.shots(&v, "b").expect("shots");
 
@@ -185,7 +185,7 @@ fn a_setting_carries_across_a_mark() {
 /// The other half of carrying settings: they land in the hash, so changing
 /// one invalidates the later shots whose timing it moves.
 #[test]
-fn changing_a_setting_changes_the_hash_of_a_later_span() {
+fn changing_a_setting_changes_the_hash_of_a_later_shot() {
     let a = VhsScene
         .shots(
             &validated("Set TypingSpeed 10ms\n# mark\nType \"abc\"\n"),
@@ -205,7 +205,7 @@ fn changing_a_setting_changes_the_hash_of_a_later_span() {
 /// `Set TypingSpeed` carries a duration but spends none of it, so a chunk
 /// holding only settings is not a shot.
 #[test]
-fn a_chunk_of_only_settings_is_not_a_span() {
+fn a_chunk_of_only_settings_is_not_a_shot() {
     let v = validated("Sleep 1s\n# mark\nSet TypingSpeed 10ms\n# mark\nType \"abc\"\n");
     let shots = VhsScene.shots(&v, "b").expect("shots");
 
@@ -236,7 +236,7 @@ fn a_tape_that_states_its_timing_estimates_exactly() {
 /// adapter: it blocks until the prompt returns, so its length is whatever the
 /// command underneath takes, and that number is nowhere in the tape.
 #[test]
-fn a_span_containing_wait_is_estimated_and_bounded_by_its_timeout() {
+fn a_shot_containing_wait_is_estimated_and_bounded_by_its_timeout() {
     let v = validated("Type \"cargo build\"\nWait\n# mark\nSleep 1s\n");
     let shots = VhsScene.shots(&v, "b").expect("shots");
 
@@ -386,8 +386,8 @@ fn the_adapter_answers_to_the_name_the_terminal_scene_resolves_to() {
 /// else: a capture still runs the tape at its authored pace, and the
 /// difference is a frozen frame.
 #[test]
-fn a_stretched_span_is_re_timed_to_last_exactly_as_long_as_asked() {
-    let shot = only_span(
+fn a_stretched_shot_is_re_timed_to_last_exactly_as_long_as_asked() {
+    let shot = only_shot(
         "Set TypingSpeed 50ms\n\
          Type \"cargo test\"\n\
          Enter\n\
@@ -402,7 +402,7 @@ fn a_stretched_span_is_re_timed_to_last_exactly_as_long_as_asked() {
         .retime(&shot, before * 3)
         .expect("a tape stating its own timing can be re-timed");
 
-    let after = VhsScene.estimate(&only_span(&retimed));
+    let after = VhsScene.estimate(&only_shot(&retimed));
     assert_eq!(
         after,
         Measured::Exact(before * 3),
@@ -417,7 +417,7 @@ fn a_stretched_span_is_re_timed_to_last_exactly_as_long_as_asked() {
 /// the frozen frame again, wearing a Sleep.
 #[test]
 fn stretching_slows_the_typing_rather_than_only_padding_the_end() {
-    let shot = only_span("Set TypingSpeed 50ms\nType \"hello\"\nSleep 500ms\n");
+    let shot = only_shot("Set TypingSpeed 50ms\nType \"hello\"\nSleep 500ms\n");
     let retimed = VhsScene.retime(&shot, 3_000).expect("re-timable");
 
     let speed: u64 = retimed
@@ -441,23 +441,23 @@ fn stretching_slows_the_typing_rather_than_only_padding_the_end() {
 /// duration. `Wait` blocks until a prompt returns, and no amount of
 /// arithmetic here changes how long `cargo build` takes.
 #[test]
-fn a_span_that_waits_cannot_be_re_timed() {
-    let shot = only_span("Type \"cargo build\"\nEnter\nWait\n");
+fn a_shot_that_waits_cannot_be_re_timed() {
+    let shot = only_shot("Type \"cargo build\"\nEnter\nWait\n");
     assert_eq!(VhsScene.retime(&shot, 30_000), None);
 }
 
 /// Down as well as up: `trim-action` asks for a shorter action, and the
 /// same arithmetic runs in reverse.
 #[test]
-fn a_span_can_be_re_timed_shorter_as_well_as_longer() {
-    let shot = only_span("Set TypingSpeed 100ms\nType \"slow\"\nSleep 4s\n");
+fn a_shot_can_be_re_timed_shorter_as_well_as_longer() {
+    let shot = only_shot("Set TypingSpeed 100ms\nType \"slow\"\nSleep 4s\n");
     let before = match VhsScene.estimate(&shot) {
         Measured::Exact(ms) => ms,
         other => panic!("{other:?}"),
     };
     let retimed = VhsScene.retime(&shot, before / 2).expect("re-timable");
     assert_eq!(
-        VhsScene.estimate(&only_span(&retimed)),
+        VhsScene.estimate(&only_shot(&retimed)),
         Measured::Exact(before / 2),
         "{retimed}"
     );
@@ -468,7 +468,7 @@ fn a_span_can_be_re_timed_shorter_as_well_as_longer() {
 /// screen, and nothing hidden is. Counting it would size the slot for work
 /// nobody sees and leave the narration waiting through it.
 #[test]
-fn hidden_commands_cost_the_beat_nothing() {
+fn hidden_commands_cost_the_shot_nothing() {
     let shown = total_ms("Set TypingSpeed 10ms\nType \"ls\"\nSleep 500ms\n");
     let with_setup = total_ms(
         "Set TypingSpeed 10ms\n\

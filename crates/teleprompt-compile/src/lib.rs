@@ -192,7 +192,7 @@ fn at_offset_ms(
 /// the tape that will actually be captured does that exactly. An adapter
 /// that cannot re-time says so, the source stands, and the renderer holds
 /// the last frame for the difference.
-fn retime_stretched_spans(
+fn retime_stretched_shots(
     timeline: &mut Timeline,
     shots: &mut [ShotSource],
     registry: &SceneRegistry,
@@ -269,7 +269,7 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
 /// a paragraph changes every later item's `start_ms` and no item's key,
 /// because start time is not in one.
 ///
-/// Runs after [`retime_stretched_spans`], deliberately: a shot re-written
+/// Runs after [`retime_stretched_shots`], deliberately: a shot re-written
 /// to fit its slot is a different tape, and the chain has to be built from
 /// the tape that will actually be captured. That is also how slot duration
 /// gets into the key (spec §5.1) without being a field in it.
@@ -338,7 +338,7 @@ pub fn compile(
     let mut diags = Vec::new();
     let mut items: Vec<Item> = Vec::new();
     let mut narration_details: Vec<NarrationDetail> = Vec::new();
-    let mut span_sources: Vec<ShotSource> = Vec::new();
+    let mut shot_sources: Vec<ShotSource> = Vec::new();
     let mut cache_warnings: Vec<String> = Vec::new();
 
     // The narration waiting to be joined with the first shot of the next
@@ -652,7 +652,7 @@ Read it, then remove the attribute."
                 }
 
                 for (i, shot) in shots.iter().enumerate() {
-                    span_sources.push(ShotSource {
+                    shot_sources.push(ShotSource {
                         id: shot.id.clone(),
                         scene: scene.clone(),
                         adapter: adapter_name.clone(),
@@ -660,7 +660,7 @@ Read it, then remove the attribute."
                     });
                     let measured = adapter.estimate(shot);
                     let action = ActionInput {
-                        span_id: shot.id.clone(),
+                        shot_id: shot.id.clone(),
                         scene: scene.clone(),
                         adapter: adapter_name.clone(),
                         shot_hash: shot.hash,
@@ -706,7 +706,7 @@ Read it, then remove the attribute."
                     // `scene: "pause"`, so the scheduler's existing hold
                     // arithmetic applies unchanged with no third case.
                     action: Some(ActionInput {
-                        span_id: id,
+                        shot_id: id,
                         scene: "pause".into(),
                         adapter: "pause".into(),
                         shot_hash: Hash::of(ms.to_string().as_bytes()),
@@ -731,7 +731,7 @@ Read it, then remove the attribute."
 
     let (mut timeline, scheduling_warnings) =
         schedule(&items, &program.script_name, &program.locale, version);
-    retime_stretched_spans(&mut timeline, &mut span_sources, registry);
+    retime_stretched_shots(&mut timeline, &mut shot_sources, registry);
     chain_capture_keys(&mut timeline, &program.config);
     // Cache warnings first: they explain why the numbers the scheduler then
     // warns about are what they are.
@@ -741,7 +741,7 @@ Read it, then remove the attribute."
         timeline,
         warnings,
         narration: narration_details,
-        shots: span_sources,
+        shots: shot_sources,
         scenes: program.config.scenes.clone(),
         chapters: program.chapters.clone(),
         output: program.config.output.clone(),

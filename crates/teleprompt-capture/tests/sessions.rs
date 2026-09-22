@@ -33,7 +33,7 @@ fn cached(shots: &[&str]) -> impl Fn(&Hash) -> bool {
 }
 
 #[test]
-fn the_beats_of_a_scene_are_one_session_in_order() {
+fn the_shots_of_a_scene_are_one_session_in_order() {
     let out = sessions(
         &[
             shot("a#0", "terminal", "wait 1s"),

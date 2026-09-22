@@ -4,7 +4,7 @@
 use teleprompt_core::draft::draft;
 
 #[test]
-fn a_paragraph_becomes_a_segment_carrying_its_own_id() {
+fn a_paragraph_becomes_a_line_carrying_its_own_id() {
     // §3.3: a derived id shifts when a paragraph is inserted above it, which
     // silently invalidates caches and takes. A drafted script promotes the
     // id at birth so the first edit cannot move it.

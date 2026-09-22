@@ -55,7 +55,7 @@ fn every_policy_appears_in_the_compiled_timeline() {
 }
 
 #[test]
-fn beats_never_overlap_and_never_gap() {
+fn items_never_overlap_and_never_gap() {
     let (p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     for pair in out.timeline.entries.windows(2) {
@@ -70,7 +70,7 @@ fn beats_never_overlap_and_never_gap() {
 }
 
 #[test]
-fn the_timeline_ends_where_the_last_beat_ends() {
+fn the_timeline_ends_where_the_last_shot_ends() {
     let (p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     let last = out.timeline.entries.last().unwrap();
@@ -152,7 +152,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 /// Narration duration_ms = 6_400 + 500 = 6_900 ms
 /// Padded with 150 ms lead-in + 150 ms tail = 7_200 ms
 #[test]
-fn rollback_segment_has_the_hand_derived_exact_duration() {
+fn rollback_line_has_the_hand_derived_exact_duration() {
     let (p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     let entry = out

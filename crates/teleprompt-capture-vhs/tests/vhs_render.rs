@@ -92,7 +92,7 @@ fn seconds_of(path: &Path) -> f64 {
 /// and the shots are windows onto what came back at the lengths they were
 /// scheduled for.
 #[test]
-fn vhs_renders_the_session_and_the_beats_come_back_their_scheduled_length() {
+fn vhs_renders_the_session_and_the_shots_come_back_their_scheduled_length() {
     let dir = workdir("shots");
     let shots = [
         shot(

@@ -52,7 +52,7 @@ fn comments_and_blank_lines_are_ignored() {
 }
 
 #[test]
-fn marks_split_the_block_into_spans() {
+fn marks_split_the_block_into_shots() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nmark\nwait 300ms\n")).unwrap();
     let shots = m.shots(&v, "a-1-a").unwrap();
@@ -62,7 +62,7 @@ fn marks_split_the_block_into_spans() {
 }
 
 #[test]
-fn a_block_with_no_marks_is_one_span() {
+fn a_block_with_no_marks_is_one_shot() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nwait 300ms\n")).unwrap();
     assert_eq!(m.shots(&v, "b").unwrap().len(), 1);
@@ -77,7 +77,7 @@ fn estimate_sums_the_waits_exactly() {
 }
 
 #[test]
-fn span_hashes_differ_by_content_and_repeat_for_identical_content() {
+fn shot_hashes_differ_by_content_and_repeat_for_identical_content() {
     let m = MockScene;
     let v1 = m.validate(&src("wait 500ms\nmark\nwait 500ms\n")).unwrap();
     let s1 = m.shots(&v1, "b").unwrap();
@@ -96,7 +96,7 @@ fn registry_resolves_builtin_adapters_and_rejects_unknown_ones() {
 }
 
 #[test]
-fn a_body_ending_with_mark_yields_one_span_not_two() {
+fn a_body_ending_with_mark_yields_one_shot_not_two() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nmark\n")).unwrap();
     let shots = m.shots(&v, "c").unwrap();
@@ -105,7 +105,7 @@ fn a_body_ending_with_mark_yields_one_span_not_two() {
 }
 
 #[test]
-fn a_body_starting_with_mark_yields_one_span_not_two() {
+fn a_body_starting_with_mark_yields_one_shot_not_two() {
     let m = MockScene;
     let v = m.validate(&src("mark\nwait 500ms\n")).unwrap();
     let shots = m.shots(&v, "d").unwrap();
@@ -114,7 +114,7 @@ fn a_body_starting_with_mark_yields_one_span_not_two() {
 }
 
 #[test]
-fn consecutive_marks_yield_contiguous_spans() {
+fn consecutive_marks_yield_contiguous_shots() {
     let m = MockScene;
     let v = m
         .validate(&src("wait 100ms\nmark\nmark\nwait 200ms\n"))
@@ -130,7 +130,7 @@ fn consecutive_marks_yield_contiguous_spans() {
 }
 
 #[test]
-fn a_body_that_is_only_mark_yields_zero_spans() {
+fn a_body_that_is_only_mark_yields_zero_shots() {
     let m = MockScene;
     let v = m.validate(&src("mark\n")).unwrap();
     let shots = m.shots(&v, "f").unwrap();
@@ -176,7 +176,7 @@ fn an_inline_bodys_diagnostic_defers_to_the_callers_file() {
 // so a `check`-clean script could silently lose five seconds.
 // ---------------------------------------------------------------------------
 
-fn only_span(body: &str) -> teleprompt_scene::Shot {
+fn only_shot(body: &str) -> teleprompt_scene::Shot {
     let m = MockScene;
     let v = m.validate(&src(body)).expect("body must validate");
     let shots = m.shots(&v, "b").unwrap();
@@ -189,7 +189,7 @@ fn only_span(body: &str) -> teleprompt_scene::Shot {
 fn a_tab_between_wait_and_its_duration_is_counted() {
     let m = MockScene;
     assert_eq!(
-        m.estimate(&only_span("wait\t5000ms\n")),
+        m.estimate(&only_shot("wait\t5000ms\n")),
         Measured::Exact(5000),
         "check accepts a tab, so the estimate has to as well"
     );
@@ -223,7 +223,7 @@ fn trailing_garbage_after_mark_is_rejected_by_validate() {
 /// survived the filter and became a phantom zero-duration shot — exactly the
 /// shape F13 was written to eliminate.
 #[test]
-fn a_comment_only_chunk_between_marks_produces_no_span() {
+fn a_comment_only_chunk_between_marks_produces_no_shot() {
     let m = MockScene;
     let v = m
         .validate(&src(
@@ -255,7 +255,7 @@ fn everything_validate_accepts_as_a_wait_is_counted_by_estimate() {
         ("# comment\nwait 250ms\n\nwait 250ms\n", 500),
     ] {
         assert_eq!(
-            MockScene.estimate(&only_span(body)),
+            MockScene.estimate(&only_shot(body)),
             Measured::Exact(expected),
             "body {body:?}"
         );

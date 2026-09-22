@@ -62,7 +62,7 @@ pub fn schedule(
             .and_then(|b| b.narration.as_ref())
             .map(|n| n.lead_in_ms)
             .unwrap_or(0);
-        let quiet_window_ms = l.beat_duration_ms.saturating_sub(speech_end_ms) + next_lead_in_ms;
+        let quiet_window_ms = l.item_duration_ms.saturating_sub(speech_end_ms) + next_lead_in_ms;
 
         let transition_ms = if is_last {
             0
@@ -92,12 +92,12 @@ pub fn schedule(
             }
         }
         // A transition can never consume more than the item it leaves.
-        .min(l.beat_duration_ms);
+        .min(l.item_duration_ms);
 
         entries.push(Entry {
             item: item.id.clone(),
             start_ms: cursor,
-            duration_ms: l.beat_duration_ms,
+            duration_ms: l.item_duration_ms,
             policy: item.policy.label().to_string(),
             narration: item.narration.as_ref().map(|n| NarrationEntry {
                 line: n.line_id.clone(),
@@ -116,7 +116,7 @@ pub fn schedule(
                 downgrade_reason: n.downgrade_reason.clone(),
             }),
             action: item.action.as_ref().map(|a| ActionEntry {
-                shot: a.span_id.clone(),
+                shot: a.shot_id.clone(),
                 scene: a.scene.clone(),
                 adapter: a.adapter.clone(),
                 shot_hash: a.shot_hash,
@@ -141,7 +141,7 @@ pub fn schedule(
             },
         });
 
-        cursor += l.beat_duration_ms - transition_ms;
+        cursor += l.item_duration_ms - transition_ms;
     }
 
     let duration_ms = entries

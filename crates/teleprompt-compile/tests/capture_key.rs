@@ -121,7 +121,7 @@ fn two_blocks_with_the_same_tape_do_not_share_a_picture() {
 /// The chain's shape. Editing a item invalidates it and everything after
 /// it in that session, and nothing before it.
 #[test]
-fn editing_a_beat_invalidates_it_and_what_follows_it() {
+fn editing_a_shot_invalidates_it_and_what_follows_it() {
     let before = keys(&run(&twice(J, J)));
     let after = keys(&run(&twice(J, "wait 1500ms\n")));
 
@@ -130,7 +130,7 @@ fn editing_a_beat_invalidates_it_and_what_follows_it() {
 }
 
 #[test]
-fn editing_the_first_beat_invalidates_every_beat_after_it() {
+fn editing_the_first_beat_invalidates_every_shot_after_it() {
     let before = keys(&run(&twice(J, J)));
     let after = keys(&run(&twice("wait 700ms\n", J)));
 
@@ -175,7 +175,7 @@ fn a_named_session_starts_a_chain_of_its_own() {
 /// Two scenes are two screens. A item in one is not downstream of a item
 /// in the other, however they interleave in the document.
 #[test]
-fn a_beat_does_not_follow_a_beat_in_another_scene() {
+fn a_beat_does_not_follow_a_shot_in_another_scene() {
     let interleaved = run(&format!(
         "{HEAD}One. {{#one}}\n\n\
          ```teleprompt scene=terminal\n{J}```\n\n\
@@ -204,7 +204,7 @@ fn a_beat_does_not_follow_a_beat_in_another_scene() {
 /// like blocks do — the second half of a block runs on what the first half
 /// left on screen.
 #[test]
-fn the_spans_of_one_block_chain_like_blocks_do() {
+fn the_shots_of_one_block_chain_like_blocks_do() {
     let out = run(&format!(
         "{HEAD}One. {{#one}}\n\n\
          ```teleprompt scene=terminal\n{J}mark\n{J}```\n"
