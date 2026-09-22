@@ -60,7 +60,28 @@ jobs:
         env:
           TELEPROMPT_REQUIRE_FFMPEG: "1"
           TELEPROMPT_REQUIRE_CAPTURE: "1"
-          TELEPROMPT_REQUIRE_VHS: "1"
+
+      # Last on purpose. `vhs` exits 0 and writes nothing here, and the
+      # only way to read why from outside is the end of the log: this
+      # sandbox cannot fetch the blob store a step's own output lives in.
+      #
+      # The gif/mp4 pair is the discriminator. A gif never touches ffmpeg,
+      # so gif working and mp4 not is an encoder problem, and neither
+      # working is the browser or ttyd.
+      - name: Why does vhs write nothing?
+        if: always()
+        run: |
+          set -x
+          vhs --version; ttyd --version; ffmpeg -version | head -1
+          command -v google-chrome chromium chromium-browser || echo "no chrome on PATH"
+          ls -la "$HOME/.cache/rod/browser" 2>&1 | head -5
+          cd /tmp
+          printf 'Output "/tmp/a.gif"\nSet Width 600\nSet Height 400\nType "echo hi"\nEnter\nSleep 500ms\n' > a.tape
+          vhs a.tape; echo "gif rc=$?"; ls -la /tmp/a.gif || echo "NO GIF"
+          printf 'Output "/tmp/b.mp4"\nSet Width 600\nSet Height 400\nType "echo hi"\nEnter\nSleep 500ms\n' > b.tape
+          vhs b.tape; echo "mp4 rc=$?"; ls -la /tmp/b.mp4 || echo "NO MP4"
+          printf 'Output /tmp/c.gif\nType "echo hi"\nEnter\nSleep 500ms\n' > c.tape
+          vhs c.tape; echo "unquoted rc=$?"; ls -la /tmp/c.gif || echo "NO UNQUOTED GIF"
 
   msrv:
     runs-on: ubuntu-latest
