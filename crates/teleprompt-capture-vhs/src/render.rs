@@ -48,18 +48,19 @@ pub fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
     // took. `Hide` is what VHS has for exactly this.
     out.push_str("Hide\n");
     for (key, value) in session.nested("env") {
+        // PATH is the one variable a scene must not be allowed to clear:
+        // see `path_with_fallback`.
+        if key == "PATH" {
+            let inherited = std::env::var("PATH").ok();
+            out.push_str(&format!(
+                "Env PATH \"{}\"\n",
+                path_with_fallback(value, inherited.as_deref())
+            ));
+            continue;
+        }
         // `Env` is refused in an authored tape — the environment belongs to
         // the scene — which is precisely why it is set here, from the
         // scene, in the one tape teleprompt writes itself.
-        //
-        // Mind what `Env PATH` does. VHS applies `Env` to its *own*
-        // process, not only to the shell it records, and VHS finds the
-        // browser it screenshots through by searching PATH. So a scene
-        // that sets PATH so its terminal can find the program being
-        // demonstrated also decides which Chromium VHS launches — and if
-        // that PATH has no usable browser on it, capture fails talking
-        // about a debug URL rather than about a path. A scene's PATH
-        // wants a browser on it as well as the program.
         out.push_str(&format!("Env {key} \"{value}\"\n"));
     }
     out.push_str(&format!(
@@ -73,6 +74,30 @@ pub fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
         out.push('\n');
     }
     out
+}
+
+/// A scene's `PATH`, with the one teleprompt was run with behind it.
+///
+/// A scene's `env` describes the terminal being recorded, and setting
+/// `PATH` there is how a project points its tapes at the binary it is
+/// demonstrating. But VHS applies `Env` to its *own* process, and finds
+/// `ttyd` — and the browser it screenshots through — by searching `PATH`.
+/// A scene that replaced `PATH` outright therefore disarmed the recorder,
+/// and the failure arrived in the wrong vocabulary: `could not start tty:
+/// exec: "ttyd": executable file not found in $PATH`, for a setting the
+/// author wrote to make their own program findable.
+///
+/// So the scene wins where it speaks — its directories come first — and
+/// what teleprompt inherited follows, so the tools VHS needs stay
+/// reachable. A directory the scene already names is not repeated.
+fn path_with_fallback(scene: &str, inherited: Option<&str>) -> String {
+    let mut out: Vec<&str> = scene.split(':').filter(|d| !d.is_empty()).collect();
+    for dir in inherited.unwrap_or_default().split(':') {
+        if !dir.is_empty() && !out.contains(&dir) {
+            out.push(dir);
+        }
+    }
+    out.join(":")
 }
 
 /// Where each beat begins and ends in the session's video.
@@ -411,8 +436,43 @@ mod tests {
         s.settings
             .insert("env.PATH".into(), "target/release".into());
         let tape = tape_for(&s, &frame(), "o.mp4");
-        let env = tape.find("Env PATH \"target/release\"").expect("set");
+        let env = tape.find("Env PATH \"target/release").expect("set");
         assert!(env < tape.find("Show\n").unwrap(), "before the recording");
+    }
+
+    /// A scene's PATH says what its terminal should prefer, not what the
+    /// recorder should forget.
+    ///
+    /// VHS applies `Env` to its own process, and finds both `ttyd` and the
+    /// browser it screenshots through by searching PATH. A scene that
+    /// replaced PATH outright therefore disarmed the recorder: the manual
+    /// asks for `target/release:/usr/local/bin:/usr/bin:/bin`, and on a
+    /// GitHub runner — where `vhs-action` installs `ttyd` somewhere else —
+    /// that is a VHS which cannot open a terminal at all.
+    ///
+    /// So the scene's entries come first and win, and what teleprompt was
+    /// run with follows as a fallback.
+    #[test]
+    fn a_scene_path_keeps_what_teleprompt_was_run_with_behind_it() {
+        let composed = path_with_fallback("target/release", Some("/usr/bin:/opt/ttyd/bin"));
+        assert_eq!(composed, "target/release:/usr/bin:/opt/ttyd/bin");
+
+        // A directory the scene already names is not repeated.
+        let composed = path_with_fallback("target/release:/usr/bin", Some("/usr/bin:/bin"));
+        assert_eq!(composed, "target/release:/usr/bin:/bin");
+
+        // Nothing inherited is nothing appended.
+        assert_eq!(path_with_fallback("only", None), "only");
+    }
+
+    /// Only PATH is extended. A scene that sets any other variable means
+    /// exactly what it says.
+    #[test]
+    fn other_scene_variables_are_passed_through_untouched() {
+        let mut s = session(&[("Type \"x\"\n", 100)]);
+        s.settings.insert("env.EDITOR".into(), "vim".into());
+        let tape = tape_for(&s, &frame(), "o.mp4");
+        assert!(tape.contains("Env EDITOR \"vim\"\n"), "{tape}");
     }
 
     /// The beats are windows onto the one video, at the offsets the tape

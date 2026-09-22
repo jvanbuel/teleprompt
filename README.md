@@ -213,13 +213,14 @@ the frame comes from `output.resolution`, and the tape says only what to
 type. All of it is in the capture key, so changing the terminal re-records
 the scenes it changed.
 
-**Keep a browser on the scene's `PATH`.** VHS draws the terminal in a
-headless Chromium and finds it by searching `PATH`, and it applies `Env`
-to its own process rather than only to the shell it records. So the
-`PATH` you set here for the program being demonstrated is also the `PATH`
-VHS looks down for a browser. Set one without `/usr/bin` on it and
-capture fails reporting that it could not get a debug URL — which is a
-sentence about a browser for a problem about a path.
+**A scene's `PATH` extends, it does not replace.** VHS applies `Env` to
+its own process rather than only to the shell it records, and it finds
+`ttyd` and the headless Chromium it draws through by searching `PATH`. A
+scene that replaced `PATH` outright would disarm the recorder — and say
+so in the wrong vocabulary, complaining that `ttyd` is missing or that it
+could not get a debug URL, about a setting you wrote to make your own
+binary findable. So the directories you name here come first and win, and
+the `PATH` teleprompt was run with follows them as a fallback.
 
 **A capture runs the commands.** There is no sandbox and no dry run: a
 tape that types `teleprompt new demo` scaffolds a project, and one that
