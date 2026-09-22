@@ -1,3 +1,9 @@
 /target
 .teleprompt/
 build/
+
+# A capture runs the tapes for real, so a script that demonstrates
+# `teleprompt new demo` really does scaffold one. These are what the
+# manual's own tapes leave behind.
+/demo
+/public

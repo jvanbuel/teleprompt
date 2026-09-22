@@ -18,6 +18,7 @@
 
 pub mod mock;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use teleprompt_core::Hash;
@@ -38,6 +39,12 @@ pub struct Beat {
     /// longer; whether it may take less is the backend's business, since
     /// the renderer holds the last frame either way.
     pub duration_ms: u64,
+    /// The scene's own settings, flattened to strings — what terminal to
+    /// open, how big, in what shell. Strings because a backend reads the
+    /// handful of keys it understands and the planner reads none of them;
+    /// the same settings are in the capture key, so changing one
+    /// invalidates the clips it changed.
+    pub settings: BTreeMap<String, String>,
 }
 
 /// One run of a scene: the steps that share a screen, in order.
@@ -46,6 +53,8 @@ pub struct Session {
     pub scene: String,
     pub adapter: String,
     pub name: Option<String>,
+    /// The scene's settings, as every step in it shares them.
+    pub settings: BTreeMap<String, String>,
     pub steps: Vec<Step>,
 }
 
@@ -66,6 +75,28 @@ impl Session {
     /// How many of this session's steps are to be kept.
     pub fn wanted(&self) -> usize {
         self.steps.iter().filter(|s| s.wanted).count()
+    }
+
+    /// A setting, or what to use when the scene does not name one.
+    pub fn setting<'a>(&'a self, key: &str, default: &'a str) -> &'a str {
+        self.settings.get(key).map_or(default, String::as_str)
+    }
+
+    /// The settings under one nested key, as `prefix.name` pairs are
+    /// flattened — `env:` being the one that matters.
+    pub fn nested<'a>(&'a self, prefix: &str) -> impl Iterator<Item = (&'a str, &'a str)> {
+        let prefix = format!("{prefix}.");
+        self.settings
+            .iter()
+            .filter_map(move |(k, v)| k.strip_prefix(&prefix).map(|name| (name, v.as_str())))
+    }
+
+    /// A numeric setting, or the default when it is absent or unreadable.
+    pub fn number(&self, key: &str, default: u32) -> u32 {
+        self.settings
+            .get(key)
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(default)
     }
 }
 
@@ -103,6 +134,7 @@ pub fn sessions(beats: &[Beat], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
                 scene: beat.scene.clone(),
                 adapter: beat.adapter.clone(),
                 name: beat.session.clone(),
+                settings: beat.settings.clone(),
                 steps: vec![step],
             }),
         }

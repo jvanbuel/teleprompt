@@ -192,8 +192,51 @@ A scene this build cannot record is a warning and a slate, not a failed
 build: the timing is still real, and a video with a hole in it is more use
 than no video. `teleprompt doctor` lists what can record what.
 
-Recording a terminal is not written yet; `mock` scenes record today, which
-is what the rest of the stage is tested against.
+### Terminals, without a browser
+
+`terminal` scenes are recorded by running their tape against a pty and
+drawing the result with [`agg`](https://github.com/asciinema/agg),
+asciinema's renderer. VHS itself is deliberately not shelled out to: it
+drives a terminal through `ttyd` and screenshots xterm.js canvases in
+headless Chromium, which in a container captures zero frames, invokes no
+encoder and exits 0 — a failure with no error in it — and it puts a
+browser behind a tool whose README says it needs none.
+
+The tape is parsed by the same function the compiler measures it with, so
+a line the two would disagree about cannot exist: one asks how long a line
+takes, the other what it sends.
+
+Two details that a real TUI makes matter. A program asks the terminal what
+colour it is (OSC 10/11) and what it can do (DA1) before drawing, and
+waits out its own timeout when nobody replies; one that turns on focus
+reporting may skip its refresh until told it has focus. The driver answers
+all three.
+
+The terminal is the scene's, not the tape's — the same reason `Set Shell`
+is refused at compile time:
+
+```toml
+[scene.terminal]
+adapter = "vhs"
+columns = 100
+rows = 28
+
+[scene.terminal.env]
+PATH = "target/release:/usr/local/bin:/usr/bin:/bin"
+```
+
+`columns`, `rows`, `shell`, `cwd`, `settle_ms`, `font_size`, `theme` and
+anything under `env` are read here; the tape says only what to type. All
+of it is in the capture key, so changing the terminal re-records the
+scenes it changed.
+
+**A capture runs the commands.** There is no sandbox and no dry run: a
+tape that types `teleprompt new demo` scaffolds a project, and one that
+types `rm` removes something. That is what makes the video true, and it is
+why `check` refuses `Output` and `Set Shell` — teleprompt owns the
+terminal a tape runs in, and an author owns what the tape does in it. The
+shell starts in the directory the build was run from unless the scene says
+`cwd`.
 
 ## Rendering
 
@@ -413,6 +456,11 @@ cargo run -- check manual/scripts/cli.md
 cargo run -- plan  manual/scripts/cli.md
 cargo run -- diff  manual/scripts/cli.md
 ```
+
+Its `[scene.terminal]` block puts `target/release` on the capture shell's
+`PATH`, so the tapes run the binary the checkout just built — the manual
+demonstrates the tool by using it, which is only true if the terminal in
+the video is running it.
 
 `manual/timelines/cli.en.json` is committed, and
 `crates/teleprompt-cli/tests/manual.rs` recompiles the manual on every CI run

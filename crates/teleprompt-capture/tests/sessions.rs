@@ -18,6 +18,7 @@ fn beat(span: &str, scene: &str, source: &str) -> Beat {
         key: Hash::of(span.as_bytes()),
         source: source.into(),
         duration_ms: 1_000,
+        settings: Default::default(),
     }
 }
 

@@ -154,8 +154,9 @@ pub async fn run_build(
     locale: &str,
     options: &BuildOptions,
 ) -> Result<BuildReport, BuildError> {
-    run_build_with(
+    run_build_with_capture(
         renderer(options).as_ref(),
+        &capture::registry(),
         project,
         script,
         locale,
@@ -189,6 +190,34 @@ pub async fn run_build_with(
     options: &BuildOptions,
     on_progress: &mut dyn FnMut(Progress),
 ) -> Result<BuildReport, BuildError> {
+    run_build_with_capture(
+        renderer,
+        &capture::registry(),
+        project,
+        script,
+        locale,
+        options,
+        on_progress,
+    )
+    .await
+}
+
+/// `run_build_with`, with the capture backends named too.
+///
+/// A parameter because "this machine cannot record that scene" is a path
+/// with its own behaviour — a warning, a slate, a video that still plays —
+/// and a test that cannot produce a machine without a backend cannot check
+/// any of it.
+#[allow(clippy::too_many_arguments)]
+pub async fn run_build_with_capture(
+    renderer: &dyn Renderer,
+    captures: &teleprompt_capture::CaptureRegistry,
+    project: &Project,
+    script: &Path,
+    locale: &str,
+    options: &BuildOptions,
+    on_progress: &mut dyn FnMut(Progress),
+) -> Result<BuildReport, BuildError> {
     let dubbed = dub::run_dub(project, script, locale, &options.narration_root, false)
         .await
         .map_err(|e| match e {
@@ -210,7 +239,8 @@ pub async fn run_build_with(
     let captured = match capture::run_capture(
         &dubbed.manifest,
         &dubbed.spans,
-        &capture::registry(),
+        &dubbed.scenes,
+        captures,
         &options.clips_dir,
         teleprompt_capture::Frame { width, height, fps },
         &mut |_| {},

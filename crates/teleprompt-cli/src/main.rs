@@ -599,6 +599,7 @@ fn main() -> ExitCode {
                                 match capture_cmd::run_capture(
                                     &dubbed.manifest,
                                     &dubbed.spans,
+                                    &dubbed.scenes,
                                     &capture_cmd::registry(),
                                     &options.clips_dir,
                                     frame,

@@ -404,8 +404,14 @@ parse ─► resolve ─► voice ─► schedule ─► capture ─► compose
    word_timings }` by synthesis or take lookup. Content-addressed; unchanged
    segments cost nothing.
 4. **Schedule** — apply beat policies, compute the `Timeline`.
-5. **Capture** — run each scene against its timeline slice, producing video
-   segments. Only beats whose inputs changed are re-captured.
+5. **Capture** — run each scene as **one session** and keep a clip per beat
+   that has none. A scene is a session: the beats of a walkthrough continue
+   one another, so a backend is handed a run of a scene rather than a beat,
+   and a beat whose clip is already cached still runs — its clip is not
+   needed, the screen it leaves behind is. A session with nothing left to
+   keep is not opened, and a session stops after the last beat worth
+   keeping. A scene this machine cannot record is a warning and a slate,
+   not a failure.
 6. **Compose** — build the ffmpeg graph, mux, emit the video and subtitle
    sidecars.
 
@@ -429,7 +435,7 @@ canonical description of the inputs:
 |---|---|
 | audio clip | segment text, locale, backend ID, voice, speed, backend version |
 | span measurement | span source, scene kind, scene config, adapter version |
-| video segment | the span's **capture key** — see below |
+| video segment | the span's **capture key** — see below, plus the capture backend's own version, which is local: clips are filed under the published key so a render can find them |
 | composed output | timeline hash, all member artifact hashes, output settings |
 
 Cache entries are immutable and safe to delete at any time; deleting one costs

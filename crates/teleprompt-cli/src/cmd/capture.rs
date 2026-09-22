@@ -10,19 +10,25 @@
 //! opens on the screen it leaves behind — which is why the unit here is
 //! not the beat.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use teleprompt_capture::{sessions, Beat, CaptureError, CaptureRegistry, Frame, Progress, Session};
 use teleprompt_compile::manifest::NarrationManifest;
 use teleprompt_compile::SpanSource;
+use teleprompt_core::config::SceneConfig;
 
 /// The beats of a published manifest, as the planner needs them.
 ///
 /// Built from the manifest rather than from the in-process timeline for
 /// the reason the renderer is: two timing paths drift, and a clip captured
 /// against a length nothing published is a clip that does not fit.
-pub fn beats_of(manifest: &NarrationManifest, spans: &[SpanSource]) -> Vec<Beat> {
+pub fn beats_of(
+    manifest: &NarrationManifest,
+    spans: &[SpanSource],
+    scenes: &BTreeMap<String, SceneConfig>,
+) -> Vec<Beat> {
     manifest
         .beats
         .iter()
@@ -38,8 +44,59 @@ pub fn beats_of(manifest: &NarrationManifest, spans: &[SpanSource]) -> Vec<Beat>
                 .map(|s| s.source.clone())
                 .unwrap_or_default(),
             duration_ms: beat.duration_ms,
+            settings: scenes
+                .get(&beat.scene)
+                .map(|s| flatten(&s.settings))
+                .unwrap_or_default(),
         })
         .collect()
+}
+
+/// A scene's settings as strings.
+///
+/// A backend reads the handful of keys it understands — how many columns,
+/// which shell, what to put in the environment — and none of them are
+/// structured. Anything that is not a scalar is left out rather than
+/// rendered as YAML, because a backend that cannot read it would be
+/// reading a syntax, not a value.
+///
+/// One level of nesting survives, flattened with a dot, so that `env:` can
+/// be written as the map it is:
+///
+/// ```yaml
+/// scene:
+///   terminal:
+///     env:
+///       PATH: target/release:/usr/bin
+/// ```
+fn flatten(settings: &BTreeMap<String, serde_yaml::Value>) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for (key, value) in settings {
+        match value {
+            serde_yaml::Value::Mapping(map) => {
+                for (inner, value) in map {
+                    if let (Some(name), Some(text)) = (inner.as_str(), scalar(value)) {
+                        out.insert(format!("{key}.{name}"), text);
+                    }
+                }
+            }
+            other => {
+                if let Some(text) = scalar(other) {
+                    out.insert(key.clone(), text);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn scalar(value: &serde_yaml::Value) -> Option<String> {
+    match value {
+        serde_yaml::Value::String(s) => Some(s.clone()),
+        serde_yaml::Value::Number(n) => Some(n.to_string()),
+        serde_yaml::Value::Bool(b) => Some(b.to_string()),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -79,12 +136,13 @@ impl CaptureReport {
 pub fn run_capture(
     manifest: &NarrationManifest,
     spans: &[SpanSource],
+    scenes: &BTreeMap<String, SceneConfig>,
     registry: &CaptureRegistry,
     clips_dir: &Path,
     frame: Frame,
     on_progress: &mut dyn FnMut(Progress),
 ) -> Result<CaptureReport, CaptureError> {
-    let beats = beats_of(manifest, spans);
+    let beats = beats_of(manifest, spans, scenes);
     let have = |key: &teleprompt_core::Hash| clips_dir.join(format!("{key}.mp4")).is_file();
     let planned = sessions(&beats, &have);
 
@@ -149,5 +207,7 @@ fn usable<'a>(
 
 /// The backends this build ships.
 pub fn registry() -> CaptureRegistry {
-    CaptureRegistry::new().with(Box::new(teleprompt_capture::mock::MockCapture::default()))
+    CaptureRegistry::new()
+        .with(Box::new(teleprompt_capture_vhs::VhsCapture::default()))
+        .with(Box::new(teleprompt_capture::mock::MockCapture::default()))
 }

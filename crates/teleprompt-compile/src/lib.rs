@@ -122,6 +122,13 @@ pub struct CompileOutput {
     /// that publishes when things are spoken, and the size of the picture
     /// is not a timing fact.
     pub output: OutputConfig,
+    /// The scenes as configured, resolved through every layer.
+    ///
+    /// Here for the reason `output` is: a capture backend has to know what
+    /// terminal it is opening — its size, its shell, what colours it wears
+    /// — and `compile` drops the `Program` that held it. Not in the
+    /// narration manifest, which publishes when things are spoken.
+    pub scenes: BTreeMap<String, SceneConfig>,
 }
 
 /// Where in a narration a cued action should start.
@@ -718,6 +725,7 @@ Read it, then remove the attribute."
         warnings,
         narration: narration_details,
         spans: span_sources,
+        scenes: program.config.scenes.clone(),
         chapters: program.chapters.clone(),
         output: program.config.output.clone(),
     })

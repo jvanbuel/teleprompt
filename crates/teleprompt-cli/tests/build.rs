@@ -137,13 +137,24 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
         ..BuildOptions::defaults(&project, &script, "en")
     };
 
-    let report = build::run_build(&project, &script, "en", &options)
-        .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    // A machine with no backend for this scene. Not a contrivance: it is
+    // every machine that has no terminal renderer installed, and every
+    // scene kind teleprompt can compile and cannot yet run.
+    let report = build::run_build_with_capture(
+        build::renderer(&options).as_ref(),
+        &teleprompt_capture::CaptureRegistry::new(),
+        &project,
+        &script,
+        "en",
+        &options,
+        &mut |_| {},
+    )
+    .await
+    .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
 
-    // Nothing captures scenes yet. A video of correctly-timed slates is a
-    // useful artifact and a misleading one to hand over unannounced, so
-    // the count is part of the report rather than a footnote.
+    // A video of correctly-timed slates is a useful artifact and a
+    // misleading one to hand over unannounced, so the count is part of the
+    // report rather than a footnote.
     assert_eq!(report.slates, 2, "both tape spans rendered as slates");
     assert!(
         report.warnings.iter().any(|w| w.contains("slate")),
@@ -186,7 +197,8 @@ async fn the_binary_builds_a_video_and_reports_it_as_json() {
     assert_eq!(json["output"], out.display().to_string());
     assert_eq!(json["renderer"], "ffmpeg-incremental");
     assert!(json["duration_ms"].as_u64().unwrap() > 0);
-    assert_eq!(json["slates"], 2);
+    assert_eq!(json["slates"], 0, "the binary records the scenes it can");
+    assert_eq!(json["captured"], 2);
     assert!(out.exists());
 }
 

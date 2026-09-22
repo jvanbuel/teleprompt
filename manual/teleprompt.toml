@@ -18,3 +18,11 @@ backend = "null"
 
 [scene.terminal]
 adapter = "vhs"
+columns = 100
+rows = 28
+
+# The manual's tapes run the tool the manual is about, so the terminal a
+# capture opens has to be able to find it. `target/release` is relative to
+# the directory the build runs from, which is the repository root.
+[scene.terminal.env]
+PATH = "target/release:/usr/local/bin:/usr/bin:/bin"

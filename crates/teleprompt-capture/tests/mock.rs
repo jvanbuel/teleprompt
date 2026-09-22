@@ -41,6 +41,7 @@ fn beat(span: &str, ms: u64) -> Beat {
         key: Hash::of(span.as_bytes()),
         source: "wait 1000ms".into(),
         duration_ms: ms,
+        settings: Default::default(),
     }
 }
 

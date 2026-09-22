@@ -36,6 +36,9 @@ pub struct DubOutput {
     /// Every span's published source, which is what a capture backend
     /// runs. The manifest names the beats; only this says what they do.
     pub spans: Vec<teleprompt_compile::SpanSource>,
+    /// The scenes as configured. A capture backend has to know what
+    /// terminal it is opening.
+    pub scenes: std::collections::BTreeMap<String, teleprompt_core::config::SceneConfig>,
     /// The frame the script asked for. Carried through because `build`
     /// renders what `dub` published, and the script's `output:` block is
     /// not part of the narration manifest.
@@ -660,6 +663,7 @@ pub async fn run_dub_with(
         return Ok(DubOutput {
             manifest: built,
             spans: compiled.spans.clone(),
+            scenes: compiled.scenes.clone(),
             output: compiled.output.clone(),
             written: Vec::new(),
             warnings: warnings.clone(),
@@ -691,6 +695,7 @@ pub async fn run_dub_with(
     Ok(DubOutput {
         manifest: built,
         spans: compiled.spans.clone(),
+        scenes: compiled.scenes.clone(),
         output: compiled.output.clone(),
         written,
         warnings,

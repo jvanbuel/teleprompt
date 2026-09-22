@@ -1,0 +1,16 @@
+[package]
+name = "teleprompt-capture-vhs"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+teleprompt-capture = { path = "../teleprompt-capture" }
+teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-scene-vhs = { path = "../teleprompt-scene-vhs" }
+portable-pty = "0.9"
+serde_json.workspace = true
+
+[lints]
+workspace = true

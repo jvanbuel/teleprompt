@@ -19,11 +19,20 @@ jobs:
       # TELEPROMPT_REQUIRE_FFMPEG — which turns a skip into a failure, so a
       # workflow that stops installing it cannot go quietly green.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # `capture` draws a terminal recording with `agg`, asciinema's
+      # renderer. Installed from crates.io rather than a release binary so
+      # the workflow depends on one registry rather than on an asset name,
+      # and cached with everything else. TELEPROMPT_REQUIRE_CAPTURE turns
+      # the capture tests' skip into a failure for the same reason
+      # TELEPROMPT_REQUIRE_FFMPEG does: a stage nothing exercises is a
+      # stage that rots.
+      - run: cargo install --locked agg
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
         env:
           TELEPROMPT_REQUIRE_FFMPEG: "1"
+          TELEPROMPT_REQUIRE_CAPTURE: "1"
 
   msrv:
     runs-on: ubuntu-latest

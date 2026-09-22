@@ -155,18 +155,23 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
         return;
     }
     let (dir, script) = project("unbacked");
-    std::fs::write(
-        &script,
-        SCRIPT
-            .replace("adapter: mock", "adapter: vhs")
-            .replace("wait 800ms", "Sleep 800ms"),
-    )
-    .unwrap();
     let p = Project::discover(&dir).unwrap();
+    let options = options(&p, &script);
 
-    let report = build::run_build(&p, &script, "en", &options(&p, &script))
-        .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    // A machine with no backend for this scene — which is every machine
+    // that has not installed one, and every scene kind teleprompt can
+    // compile and cannot yet run.
+    let report = build::run_build_with_capture(
+        build::renderer(&options).as_ref(),
+        &teleprompt_capture::CaptureRegistry::new(),
+        &p,
+        &script,
+        "en",
+        &options,
+        &mut |_| {},
+    )
+    .await
+    .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
 
     assert_eq!(report.captured, 0);
     assert_eq!(report.slates, 2);
@@ -174,7 +179,7 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
         report
             .warnings
             .iter()
-            .any(|w| w.contains("demo") && w.contains("vhs")),
+            .any(|w| w.contains("demo") && w.contains("mock")),
         "the warning names the scene the author wrote and the adapter it \
          needs: {:?}",
         report.warnings

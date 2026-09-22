@@ -101,8 +101,8 @@ const COSMETIC_SETTINGS: &[&str] = &[
 const MARK: &str = "# mark";
 
 /// A `Set` that teleprompt reads, or one it only passes through.
-#[derive(Debug)]
-enum Setting {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Setting {
     TypingSpeed(u64),
     WaitTimeout(u64),
     /// Real, applied by the terminal, and costing no time.
@@ -116,19 +116,27 @@ enum Setting {
 /// `Type@100ms` that `validate` accepts and `estimate` does not understand
 /// is not a parse bug, it is a video that is the wrong length while `check`
 /// reports success.
-#[derive(Debug)]
-enum Line {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Line {
     /// Blank, a comment, or a command with no duration.
     Nothing,
     Mark,
     Sleep(u64),
     /// `speed` is a `Type@<duration>` override; `None` means "whatever
     /// `Set TypingSpeed` last established".
+    ///
+    /// The text rides along rather than just its length, because this enum
+    /// is the adapter's single notion of what a tape line contains and a
+    /// capture backend has to send the characters somewhere. Two parsers
+    /// for one language is a tape that `check` accepts and nothing can
+    /// run.
     Type {
-        chars: u64,
+        text: String,
         speed: Option<u64>,
     },
     Keys {
+        /// The key as the tape spelled it — `Enter`, `Ctrl+C`, `Down`.
+        key: String,
         count: u64,
         speed: Option<u64>,
     },
@@ -141,7 +149,11 @@ enum Line {
 }
 
 /// The lone place a tape line is interpreted.
-fn classify(line: &str) -> Result<Line, LineError> {
+///
+/// Public because it is the lone place: the capture backend that runs a
+/// tape reads the same enum the compiler measures, so a line the two would
+/// disagree about cannot exist.
+pub fn classify(line: &str) -> Result<Line, LineError> {
     let line = line.trim();
 
     if line == MARK {
@@ -190,8 +202,7 @@ fn classify(line: &str) -> Result<Line, LineError> {
             reject_trailing(cmd, tail)?;
             // A tape long enough to overflow this could not fit in memory,
             // but `as` would wrap silently if one ever did.
-            let chars = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
-            Ok(Line::Type { chars, speed: at })
+            Ok(Line::Type { text, speed: at })
         }
 
         "Set" => setting(parts.next(), parts.next()),
@@ -229,7 +240,11 @@ fn classify(line: &str) -> Result<Line, LineError> {
                     )
                 })?,
             };
-            Ok(Line::Keys { count, speed: at })
+            Ok(Line::Keys {
+                key: key.to_string(),
+                count,
+                speed: at,
+            })
         }
 
         instant if INSTANT.contains(&instant) => Ok(Line::Nothing),
@@ -526,10 +541,15 @@ impl SceneCompiler for VhsScene {
                 Ok(Line::Sleep(ms)) => total = total.saturating_add(ms),
                 Ok(Line::Setting(Setting::TypingSpeed(ms))) => speed = ms,
                 Ok(Line::Setting(Setting::WaitTimeout(ms))) => timeout = ms,
-                Ok(Line::Type { chars, speed: at }) => {
+                Ok(Line::Type { text, speed: at }) => {
+                    // A tape long enough to overflow this could not fit in
+                    // memory, but `as` would wrap silently if one ever did.
+                    let chars = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
                     total = total.saturating_add(chars.saturating_mul(at.unwrap_or(speed)));
                 }
-                Ok(Line::Keys { count, speed: at }) => {
+                Ok(Line::Keys {
+                    count, speed: at, ..
+                }) => {
                     total = total.saturating_add(count.saturating_mul(at.unwrap_or(speed)));
                 }
                 Ok(Line::Wait { timeout: at }) => {
