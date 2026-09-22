@@ -175,7 +175,13 @@ mod capture {
         );
         let ms: u64 = js
             .lines()
-            .find_map(|l| l.trim().strip_prefix("duration: ")?.trim_end_matches(',').parse().ok())
+            .find_map(|l| {
+                l.trim()
+                    .strip_prefix("duration: ")?
+                    .trim_end_matches(',')
+                    .parse()
+                    .ok()
+            })
             .expect("the script sets an annotation duration");
         assert!(ms >= 1_000, "{ms}ms is a blink: {js}");
         // And not so long that a handful of clicks cannot fit under one
