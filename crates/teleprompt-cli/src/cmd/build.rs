@@ -31,7 +31,7 @@ pub struct BuildOptions {
     /// integrator read, and a render that cannot be traced back to a
     /// manifest cannot be checked against one.
     pub narration_root: PathBuf,
-    /// Where captured clips are looked up, by cue hash.
+    /// Where captured clips are looked up, by shot hash.
     pub clips_dir: PathBuf,
     /// A frame size from the command line, which overrides the script's
     /// own `output.resolution`. `None` — the usual case — leaves the
@@ -238,7 +238,7 @@ pub async fn run_build_with_capture(
     let mut warnings = dubbed.warnings;
     let recorded = capture::run_capture(
         &dubbed.manifest,
-        &dubbed.cues,
+        &dubbed.shots,
         &dubbed.scenes,
         captures,
         &options.clips_dir,
@@ -260,7 +260,7 @@ pub async fn run_build_with_capture(
         },
     );
     let slates = render_plan
-        .cues
+        .shots
         .iter()
         .filter(|b| b.picture == Picture::Slate)
         .count();

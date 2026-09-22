@@ -137,7 +137,7 @@ fn the_preview_is_served_a_manifest_with_beats_in_it() {
     );
     assert_eq!(m["lines"].as_array().unwrap().len(), 2);
     let items = m["items"].as_array().unwrap();
-    assert_eq!(items.len(), 2, "one cue per action block");
+    assert_eq!(items.len(), 2, "one shot per action block");
     assert_eq!(items[0]["scene"], "terminal");
     assert_eq!(items[0]["policy"], "hold");
     assert_eq!(items[1]["policy"], "concurrent");
@@ -147,11 +147,11 @@ fn the_preview_is_served_a_manifest_with_beats_in_it() {
 fn a_span_source_is_served_so_the_scene_can_be_drawn() {
     let (_script, addr) = serving();
     let m = json(addr, "/manifest.json");
-    let cue = m["items"][0]["cue"].as_str().unwrap().to_string();
+    let shot = m["items"][0]["shot"].as_str().unwrap().to_string();
 
-    // A cue id carries a `#`, which a client must percent-encode or the
+    // A shot id carries a `#`, which a client must percent-encode or the
     // fragment split eats the rest of the path.
-    let (status, body) = get(addr, &format!("/cues/{}", cue.replace('#', "%23")));
+    let (status, body) = get(addr, &format!("/shots/{}", shot.replace('#', "%23")));
     assert!(status.contains("200"), "{status}");
     let source = String::from_utf8(body).unwrap();
     assert!(source.contains("teleprompt plan demo.md"), "{source}");
@@ -170,7 +170,7 @@ fn nothing_outside_the_cache_can_be_asked_for() {
     let (_script, addr) = serving();
     for path in [
         "/audio/..%2f..%2fetc%2fpasswd.wav",
-        "/cues/..%2f..%2fsecrets",
+        "/shots/..%2f..%2fsecrets",
         "/../Cargo.toml",
     ] {
         let (status, _) = get(addr, path);

@@ -272,12 +272,12 @@ fn compilation_is_deterministic() {
     );
 }
 
-// Controller ruling F12 (second half): `Element::Action`'s `cue` must be
+// Controller ruling F12 (second half): `Element::Action`'s `shot` must be
 // threaded into `BlockSource` for real, not `SourceSpan { line: 0, .. }`.
 // The fence here opens on line 14 (verified against `parse_script`
 // independently), so the invalid `bogus` directive on the block's second
 // body line sits at absolute source line 16 (14 + 1 + 1, per the mock
-// adapter's `cue.line + i + 1` convention). A fabricated `line: 0` would
+// adapter's `shot.line + i + 1` convention). A fabricated `line: 0` would
 // instead report line 2 (0 + 1 + 1) — a small, visibly wrong number that a
 // real user's editor would never scroll to.
 const SPAN_SRC: &str = "# A\n\nOne. {#a}\n\n\n\n\n\n\n\n\n\n\n```teleprompt scene=mock\nwait 100ms\nbogus directive\n```\n";
@@ -296,7 +296,7 @@ fn adapter_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
 }
 
 // Fix round 1, finding 1: Task 6's F13 filter can reduce an all-`mark`
-// action block to zero surviving cues. A narration must not reach across
+// action block to zero surviving shots. A narration must not reach across
 // that empty block to pair with a later one — pairing stays scoped to the
 // immediately following action item.
 #[test]
@@ -830,7 +830,7 @@ fn changing_a_pronunciation_invalidates_the_cached_audio() {
 fn an_action_cued_to_a_phrase_starts_when_that_phrase_is_spoken() {
     let src = "# Config\n\n\
                One command registers a server. `flowrs config add` asks for a name. {#c}\n\n\
-               ```teleprompt scene=mock policy=concurrent at=\"config add\"\n\
+               ```teleprompt scene=mock policy=concurrent cue=\"config add\"\n\
                wait 500ms\n\
                ```\n";
     let out = compile_program(&program(src)).expect("compiles");
@@ -849,28 +849,28 @@ fn an_action_cued_to_a_phrase_starts_when_that_phrase_is_spoken() {
     );
 }
 
-/// A cue that names something the paragraph does not say is a typo, and a
+/// A shot that names something the paragraph does not say is a typo, and a
 /// typo that silently does nothing is the kind that ships.
 #[test]
 fn a_cue_that_is_not_in_the_narration_is_an_error() {
     let src = "# Config\n\nOne command registers a server. {#c}\n\n\
-               ```teleprompt scene=mock policy=concurrent at=\"config add\"\n\
+               ```teleprompt scene=mock policy=concurrent cue=\"config add\"\n\
                wait 500ms\n\
                ```\n";
-    let errors = compile_program(&program(src)).expect_err("a cue must be findable");
+    let errors = compile_program(&program(src)).expect_err("a shot must be findable");
     let rendered = format!("{errors:?}");
     assert!(rendered.contains("config add"), "{rendered}");
 }
 
 /// `hold` runs the action after the narration and the stretch policies size
-/// it to fit; a cue would contradict either rather than refine it.
+/// it to fit; a shot would contradict either rather than refine it.
 #[test]
 fn a_cue_only_makes_sense_where_the_two_run_together() {
     let src = "# Config\n\nOne command registers a server. {#c}\n\n\
-               ```teleprompt scene=mock policy=hold at=\"command\"\n\
+               ```teleprompt scene=mock policy=hold cue=\"command\"\n\
                wait 500ms\n\
                ```\n";
-    let errors = compile_program(&program(src)).expect_err("a cue needs concurrent");
+    let errors = compile_program(&program(src)).expect_err("a shot needs concurrent");
     let rendered = format!("{errors:?}");
     assert!(rendered.contains("concurrent"), "{rendered}");
 }

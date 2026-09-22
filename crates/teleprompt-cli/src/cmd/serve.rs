@@ -8,7 +8,7 @@
 //!
 //! **The preview is a manifest consumer.** It reads exactly what
 //! `docs/integrations/remotion.md` tells an outside integrator to read —
-//! `narration.json` with its `items` — plus the cue sources it needs to draw
+//! `narration.json` with its `items` — plus the shot sources it needs to draw
 //! a scene. Nothing here has privileged access to the schedule, which is what
 //! keeps "looked fine in preview" from becoming a category of bug.
 //!
@@ -54,8 +54,8 @@ pub enum ServeError {
 struct Preview {
     generation: u64,
     manifest: NarrationManifest,
-    /// Cue id to adapter-native source, for the scenes the preview draws.
-    cues: BTreeMap<String, String>,
+    /// Shot id to adapter-native source, for the scenes the preview draws.
+    shots: BTreeMap<String, String>,
     /// Line id to the cache key its audio lives under. The cache is
     /// addressed by content, so this is the index from the name a consumer
     /// asks for to the file that answers it.
@@ -81,7 +81,7 @@ struct State<'a> {
 /// What one compile produces for the preview.
 struct Built {
     manifest: NarrationManifest,
-    cues: BTreeMap<String, String>,
+    shots: BTreeMap<String, String>,
     audio_keys: BTreeMap<String, String>,
     changed: Vec<String>,
 }
@@ -127,8 +127,8 @@ async fn rebuild(
             .iter()
             .map(|d| (d.line_id.clone(), d.cache_key.to_string()))
             .collect(),
-        cues: compiled
-            .cues
+        shots: compiled
+            .shots
             .into_iter()
             .map(|s| (s.id, s.source))
             .collect(),
@@ -199,14 +199,14 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
         }
     }
     for item in &after.items {
-        match before.items.iter().find(|b| b.cue == item.cue) {
-            None => out.push(item.cue.clone()),
+        match before.items.iter().find(|b| b.shot == item.shot) {
+            None => out.push(item.shot.clone()),
             Some(was) => {
                 if was.capture_key != item.capture_key
                     || was.start_ms != item.start_ms
                     || was.duration_ms != item.duration_ms
                 {
-                    out.push(item.cue.clone());
+                    out.push(item.shot.clone());
                 }
             }
         }
@@ -217,9 +217,9 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
 /// A request line's path: query stripped, percent-decoding applied. `None`
 /// for anything that is not a well-formed HTTP GET this server serves.
 ///
-/// The decode is not optional politeness: a cue id contains a `#`
+/// The decode is not optional politeness: a shot id contains a `#`
 /// (`welcome-a#0`), which a client must percent-encode, so without this
-/// every cue request arrives as `%23` and matches nothing.
+/// every shot request arrives as `%23` and matches nothing.
 fn route(line: &str) -> Option<String> {
     let mut parts = line.split_whitespace();
     if parts.next()? != "GET" {
@@ -264,7 +264,7 @@ fn audio_id(path: &str) -> Option<&str> {
 }
 
 fn span_id(path: &str) -> Option<&str> {
-    let rest = path.strip_prefix("/cues/")?;
+    let rest = path.strip_prefix("/shots/")?;
     let ok = !rest.is_empty()
         && rest
             .chars()
@@ -331,14 +331,14 @@ fn handle(
         p if span_id(p).is_some() => {
             let id = span_id(p).expect("just checked");
             let preview = state.lock().expect("preview lock");
-            match preview.cues.get(id) {
+            match preview.shots.get(id) {
                 Some(source) => respond(
                     stream,
                     "200 OK",
                     "text/plain; charset=utf-8",
                     source.as_bytes(),
                 ),
-                None => respond(stream, "404 Not Found", "text/plain", b"no such cue"),
+                None => respond(stream, "404 Not Found", "text/plain", b"no such shot"),
             }
         }
 
@@ -401,7 +401,7 @@ pub async fn serve_on(
     let state = Arc::new(Mutex::new(Preview {
         generation: 1,
         manifest: built.manifest,
-        cues: built.cues,
+        shots: built.shots,
         audio_keys: built.audio_keys,
         changed: Vec::new(),
         error: None,
@@ -472,7 +472,7 @@ async fn watch(state: Arc<Mutex<Preview>>, project: Project, script: PathBuf, lo
                 let mut p = state.lock().expect("preview lock");
                 p.generation += 1;
                 p.manifest = built.manifest;
-                p.cues = built.cues;
+                p.shots = built.shots;
                 p.audio_keys = built.audio_keys;
                 p.changed = built.changed;
                 p.error = None;
@@ -531,10 +531,10 @@ mod tests {
     fn a_span_id_survives_the_encoding_a_client_must_apply() {
         // `welcome-a#0` has to arrive as `%23`, or the fragment split above
         // would eat everything after the `-a`.
-        let path = route("GET /cues/welcome-a%230 HTTP/1.1").expect("decodes");
+        let path = route("GET /shots/welcome-a%230 HTTP/1.1").expect("decodes");
         assert_eq!(span_id(&path), Some("welcome-a#0"));
-        assert_eq!(route("GET /cues/bad%2 HTTP/1.1"), None);
-        assert_eq!(route("GET /cues/bad%zz HTTP/1.1"), None);
+        assert_eq!(route("GET /shots/bad%2 HTTP/1.1"), None);
+        assert_eq!(route("GET /shots/bad%zz HTTP/1.1"), None);
     }
 
     #[test]
@@ -550,8 +550,8 @@ mod tests {
 
     #[test]
     fn a_span_path_admits_the_hash_a_span_id_carries() {
-        assert_eq!(span_id("/cues/welcome-a#0"), Some("welcome-a#0"));
-        assert_eq!(span_id("/cues/../secrets"), None);
-        assert_eq!(span_id("/cues/"), None);
+        assert_eq!(span_id("/shots/welcome-a#0"), Some("welcome-a#0"));
+        assert_eq!(span_id("/shots/../secrets"), None);
+        assert_eq!(span_id("/shots/"), None);
     }
 }

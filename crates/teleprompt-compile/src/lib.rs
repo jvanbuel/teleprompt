@@ -2,7 +2,7 @@
 //! [`Timeline`]: asks the scene registry to validate and split action
 //! blocks, takes each narration's duration from the synthesis cache when
 //! the line is already rendered and from a [`DurationEstimator`] when it
-//! is not, pairs narration with the action cue that follows it into items,
+//! is not, pairs narration with the action shot that follows it into items,
 //! and hands the items to the scheduler.
 //!
 //! It never asks a voice backend for anything. It cannot: [`VoiceContext`]
@@ -21,7 +21,7 @@ use teleprompt_core::config::{default_adapter, Config, OutputConfig, SceneConfig
 use teleprompt_core::program::{ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
-use teleprompt_scene::{BlockSource, BodyOrigin, Cue, Measured, SceneRegistry};
+use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry, Shot};
 use teleprompt_schedule::{
     schedule, ActionInput, DurationSource, Item, NarrationInput, Policy, Timeline,
 };
@@ -81,10 +81,10 @@ pub struct NarrationDetail {
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
-/// One action cue's source, as the adapter split it.
+/// One action shot's source, as the adapter split it.
 ///
-/// The timeline identifies a cue and says when it plays; it does not carry
-/// what the cue *is*. Anything that has to draw the scene — a renderer, a
+/// The timeline identifies a shot and says when it plays; it does not carry
+/// what the shot *is*. Anything that has to draw the scene — a renderer, a
 /// preview — needs the source, and re-deriving it means re-running the
 /// parse, the `include=` resolution and the adapter's own splitting, which
 /// is this function's work done a second time and a second place for the
@@ -93,7 +93,7 @@ pub struct NarrationDetail {
 /// Deliberately not in the published manifest: this is adapter-native code,
 /// and a consumer drawing its own picture has no use for it.
 #[derive(Debug, Clone)]
-pub struct CueSource {
+pub struct ShotSource {
     pub id: String,
     pub scene: String,
     pub adapter: String,
@@ -106,8 +106,8 @@ pub struct CompileOutput {
     pub warnings: Vec<String>,
     /// One entry per narration item that synthesized, in document order.
     pub narration: Vec<NarrationDetail>,
-    /// Every action cue's source, in document order.
-    pub cues: Vec<CueSource>,
+    /// Every action shot's source, in document order.
+    pub shots: Vec<ShotSource>,
     /// The script's chapters, in document order. Carried here because
     /// `compile` drops the `Program` and `cmd::check::compile_script` —
     /// the CLI's only route into compilation — returns just this struct.
@@ -148,23 +148,23 @@ fn at_offset_ms(
 ) -> Result<Option<u64>, Diagnostic> {
     if policy != "concurrent" {
         return Err(Diagnostic::error(format!(
-            "`at=\"{phrase}\"` needs `policy=concurrent`, not `{policy}`"
+            "`cue=\"{phrase}\"` needs `policy=concurrent`, not `{policy}`"
         ))
         .with_help(
             "hold runs the action after the narration and the stretch policies \
-             size it to fit; a cue only means something where the two run together",
+             size it to fit; a shot only means something where the two run together",
         ));
     }
     let Some(narration) = narration else {
         return Err(
-            Diagnostic::error(format!("`at=\"{phrase}\"` has no narration to start in"))
-                .with_help("a cue names a phrase in the paragraph above the block"),
+            Diagnostic::error(format!("`cue=\"{phrase}\"` has no narration to start in"))
+                .with_help("a shot names a phrase in the paragraph above the block"),
         );
     };
 
     let Some(at) = text.find(phrase) else {
         return Err(Diagnostic::error(format!(
-            "`at=\"{phrase}\"` is not in the narration above it"
+            "`cue=\"{phrase}\"` is not in the narration above it"
         ))
         .with_help(format!("the paragraph reads: {text}")));
     };
@@ -183,25 +183,25 @@ fn at_offset_ms(
 /// `stretch-action` and `trim-action` change how long an action should
 /// take. Until this pass, that was a number on a timeline and nothing else:
 /// a capture would run the tape at its authored pace and whatever remained
-/// of the slot would be a held frame. Here the adapter re-writes the cue
+/// of the slot would be a held frame. Here the adapter re-writes the shot
 /// to last exactly as long as it was scheduled for, and what is published
 /// is that tape.
 ///
-/// The cue's hash moves with it, which is the point rather than a side
+/// The shot's hash moves with it, which is the point rather than a side
 /// effect: spec §5.1 puts slot duration in the video cache key, and hashing
 /// the tape that will actually be captured does that exactly. An adapter
 /// that cannot re-time says so, the source stands, and the renderer holds
 /// the last frame for the difference.
 fn retime_stretched_spans(
     timeline: &mut Timeline,
-    cues: &mut [CueSource],
+    shots: &mut [ShotSource],
     registry: &SceneRegistry,
 ) {
     for entry in &mut timeline.entries {
         let Some(action) = entry.action.as_mut() else {
             continue;
         };
-        let Some(published) = cues.iter_mut().find(|s| s.id == action.cue) else {
+        let Some(published) = shots.iter_mut().find(|s| s.id == action.shot) else {
             continue;
         };
         let Some(adapter) = registry.get(&action.adapter) else {
@@ -210,18 +210,18 @@ fn retime_stretched_spans(
 
         // Nothing to do where the schedule took the adapter's own number,
         // which is every policy but the two that change it.
-        let cue = Cue {
+        let shot = Shot {
             id: published.id.clone(),
             source: published.source.clone(),
-            hash: action.cue_hash,
+            hash: action.shot_hash,
             index: 0,
         };
-        if adapter.estimate(&cue).duration_ms() == Some(action.duration_ms) {
+        if adapter.estimate(&shot).duration_ms() == Some(action.duration_ms) {
             continue;
         }
 
-        if let Some(source) = adapter.retime(&cue, action.duration_ms) {
-            action.cue_hash = Hash::of(source.as_bytes());
+        if let Some(source) = adapter.retime(&shot, action.duration_ms) {
+            action.shot_hash = Hash::of(source.as_bytes());
             action.duration_source = "exact".to_string();
             published.source = source;
         }
@@ -269,7 +269,7 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
 /// a paragraph changes every later item's `start_ms` and no item's key,
 /// because start time is not in one.
 ///
-/// Runs after [`retime_stretched_spans`], deliberately: a cue re-written
+/// Runs after [`retime_stretched_spans`], deliberately: a shot re-written
 /// to fit its slot is a different tape, and the chain has to be built from
 /// the tape that will actually be captured. That is also how slot duration
 /// gets into the key (spec §5.1) without being a field in it.
@@ -284,11 +284,11 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
         // is in no chain. Putting it in one would make every item after a
         // pause depend on how long the pause was.
         if action.scene == PAUSE_SCENE {
-            action.capture_key = action.cue_hash;
+            action.capture_key = action.shot_hash;
             continue;
         }
 
-        // What this cue is on its own: its tape, the adapter that will
+        // What this shot is on its own: its tape, the adapter that will
         // read it, and the scene settings that decide what the screen
         // looks like before anything is typed.
         let settings = config
@@ -300,7 +300,7 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
             CAPTURE_RECIPE,
             &action.adapter,
             &settings,
-            &action.cue_hash.to_string(),
+            &action.shot_hash.to_string(),
         ]);
 
         // The session is keyed on (scene, name) rather than on an ordinal:
@@ -338,16 +338,16 @@ pub fn compile(
     let mut diags = Vec::new();
     let mut items: Vec<Item> = Vec::new();
     let mut narration_details: Vec<NarrationDetail> = Vec::new();
-    let mut span_sources: Vec<CueSource> = Vec::new();
+    let mut span_sources: Vec<ShotSource> = Vec::new();
     let mut cache_warnings: Vec<String> = Vec::new();
 
-    // The narration waiting to be joined with the first cue of the next
+    // The narration waiting to be joined with the first shot of the next
     // action block. `id` and `config` travel alongside it because they
     // belong to the item, not to the `NarrationInput` payload itself.
     let mut pending: Option<NarrationInput> = None;
     let mut pending_id = String::new();
     // The words of the narration waiting for an action block, kept so an
-    // `at="…"` cue can be found in them.
+    // `cue="…"` shot can be found in them.
     let mut pending_text = String::new();
     let mut pending_config = program.config.clone();
 
@@ -488,7 +488,7 @@ pub fn compile(
                 config,
                 policy,
                 align,
-                at,
+                cue,
                 session,
                 review,
                 span,
@@ -564,7 +564,7 @@ Read it, then remove the attribute."
                     None => (body.clone(), BodyOrigin::Inline { fence: *span }),
                 };
 
-                let at_ms = match at {
+                let cue_ms = match cue {
                     None => None,
                     Some(phrase) => {
                         match at_offset_ms(phrase, &pending_text, pending.as_ref(), policy) {
@@ -633,7 +633,7 @@ Read it, then remove the attribute."
                         continue;
                     }
                 };
-                let cues = match adapter.cues(&validated, block_id) {
+                let shots = match adapter.shots(&validated, block_id) {
                     Ok(s) => s,
                     Err(mut e) => {
                         diags.append(&mut e);
@@ -641,9 +641,9 @@ Read it, then remove the attribute."
                     }
                 };
 
-                if cues.is_empty() {
+                if shots.is_empty() {
                     // Task 6's F13 filter can reduce an all-`mark` block to
-                    // zero surviving cues. Pairing stays scoped to the
+                    // zero surviving shots. Pairing stays scoped to the
                     // *immediately* following action item, so a pending
                     // narration must be flushed as its own item here rather
                     // than left to be picked up by a later action block.
@@ -651,28 +651,28 @@ Read it, then remove the attribute."
                     continue;
                 }
 
-                for (i, cue) in cues.iter().enumerate() {
-                    span_sources.push(CueSource {
-                        id: cue.id.clone(),
+                for (i, shot) in shots.iter().enumerate() {
+                    span_sources.push(ShotSource {
+                        id: shot.id.clone(),
                         scene: scene.clone(),
                         adapter: adapter_name.clone(),
-                        source: cue.source.clone(),
+                        source: shot.source.clone(),
                     });
-                    let measured = adapter.estimate(cue);
+                    let measured = adapter.estimate(shot);
                     let action = ActionInput {
-                        span_id: cue.id.clone(),
+                        span_id: shot.id.clone(),
                         scene: scene.clone(),
                         adapter: adapter_name.clone(),
-                        cue_hash: cue.hash,
+                        shot_hash: shot.hash,
                         duration_ms: measured.duration_ms().unwrap_or(0),
                         duration_source: match measured {
                             Measured::Exact(_) => DurationSource::Exact,
                             Measured::Estimated(_) => DurationSource::Estimated,
                             Measured::Unknown => DurationSource::Estimated,
                         },
-                        // Only the cue paired with the narration can be
+                        // Only the shot paired with the narration can be
                         // cued to a word in it; the rest follow it.
-                        at_ms: if i == 0 { at_ms } else { None },
+                        cue_ms: if i == 0 { cue_ms } else { None },
                         session: session.clone(),
                     };
 
@@ -686,7 +686,7 @@ Read it, then remove the attribute."
                         });
                     } else {
                         items.push(Item {
-                            id: cue.id.clone(),
+                            id: shot.id.clone(),
                             narration: None,
                             action: Some(action),
                             policy: parsed_policy,
@@ -709,10 +709,10 @@ Read it, then remove the attribute."
                         span_id: id,
                         scene: "pause".into(),
                         adapter: "pause".into(),
-                        cue_hash: Hash::of(ms.to_string().as_bytes()),
+                        shot_hash: Hash::of(ms.to_string().as_bytes()),
                         duration_ms: *ms,
                         duration_source: DurationSource::Exact,
-                        at_ms: None,
+                        cue_ms: None,
                         session: None,
                     }),
                     policy: Policy::Hold,
@@ -741,7 +741,7 @@ Read it, then remove the attribute."
         timeline,
         warnings,
         narration: narration_details,
-        cues: span_sources,
+        shots: span_sources,
         scenes: program.config.scenes.clone(),
         chapters: program.chapters.clone(),
         output: program.config.output.clone(),

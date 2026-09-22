@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use teleprompt_render::ffmpeg;
-use teleprompt_render::{Cue, Narration, Picture, RenderPlan, Transition};
+use teleprompt_render::{Narration, Picture, RenderPlan, Shot, Transition};
 
 fn plan() -> RenderPlan {
     RenderPlan {
@@ -16,7 +16,7 @@ fn plan() -> RenderPlan {
         height: 1080,
         fps: 30,
         duration_ms: 4_000,
-        cues: vec![Cue {
+        shots: vec![Shot {
             id: "intro#0".into(),
             start_ms: 0,
             duration_ms: 4_000,
@@ -50,7 +50,7 @@ fn a_narration_clip_is_delayed_to_the_offset_the_manifest_published() {
     );
 }
 
-/// A cue with nothing captured still occupies its slot. Skipping it would
+/// A shot with nothing captured still occupies its slot. Skipping it would
 /// run everything after it early — the picture would drift against speech
 /// that is still correctly placed.
 #[test]
@@ -64,7 +64,7 @@ fn a_beat_with_no_capture_holds_its_slot_with_a_slate() {
     );
     assert!(
         joined.contains("-t 4.000"),
-        "and it lasts exactly as long as the cue was scheduled for: {joined}"
+        "and it lasts exactly as long as the shot was scheduled for: {joined}"
     );
     assert!(
         joined.contains("libx264") && joined.contains("yuv420p"),

@@ -25,29 +25,29 @@ pub struct RenderPlan {
     pub height: u32,
     pub fps: u32,
     pub duration_ms: u64,
-    pub cues: Vec<Cue>,
+    pub shots: Vec<Shot>,
     pub narration: Vec<Narration>,
     pub output: PathBuf,
 }
 
-/// One scheduled cue of picture.
+/// One scheduled shot of picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Cue {
+pub struct Shot {
     pub id: String,
     pub start_ms: u64,
     pub duration_ms: u64,
     pub picture: Picture,
-    /// The transition *out* of this cue, as the manifest publishes it.
+    /// The transition *out* of this shot, as the manifest publishes it.
     ///
     /// Only its kind is read. How long the join lasts is already in the
-    /// arithmetic — the scheduler overlaps the next cue's `start_ms` by
+    /// arithmetic — the scheduler overlaps the next shot's `start_ms` by
     /// exactly the transition it granted — and a renderer that believed
     /// this field instead would be free to disagree with the offsets it is
     /// rendering against.
     pub transition: Transition,
 }
 
-/// How one cue gives way to the next.
+/// How one shot gives way to the next.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transition {
     pub kind: String,
@@ -55,7 +55,7 @@ pub struct Transition {
 }
 
 impl Transition {
-    /// A hard cut, which is what a cue that nothing follows also gets.
+    /// A hard cut, which is what a shot that nothing follows also gets.
     pub fn cut() -> Self {
         Self {
             kind: "cut".into(),
@@ -64,12 +64,12 @@ impl Transition {
     }
 }
 
-/// What fills a cue's frame.
+/// What fills a shot's frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Picture {
-    /// A captured clip, to be fitted to the cue's scheduled duration.
+    /// A captured clip, to be fitted to the shot's scheduled duration.
     Clip(PathBuf),
-    /// Nothing was captured for this cue and there is nothing earlier to
+    /// Nothing was captured for this shot and there is nothing earlier to
     /// hold — the opening of a video whose scenes were never captured. A
     /// flat field of the background colour, so the timing is exercised and
     /// the absence is visible rather than silently skipped.
@@ -136,7 +136,7 @@ pub enum RenderError {
 ///
 /// A trait rather than a function because there is more than one honest way
 /// to do it: ffmpeg handles everything, and a pure-Rust path can handle the
-/// case where every cue is a hard cut — concat, mix, mux — which is what
+/// case where every shot is a hard cut — concat, mix, mux — which is what
 /// would make a single static binary possible for those scripts.
 pub trait Renderer {
     /// Stable identifier, for reporting which path a render took.

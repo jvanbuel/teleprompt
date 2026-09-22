@@ -40,20 +40,20 @@ pub struct NarrationEntry {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionEntry {
-    pub cue: String,
+    pub shot: String,
     pub scene: String,
     pub adapter: String,
-    /// Identity of this cue's own source — what the author wrote, and
+    /// Identity of this shot's own source — what the author wrote, and
     /// nothing else. What `diff` reads to say *this block changed*.
-    pub cue_hash: Hash,
-    /// Identity of the picture: this cue's source and every cue before
+    pub shot_hash: Hash,
+    /// Identity of the picture: this shot's source and every shot before
     /// it in the same session.
     ///
     /// A scene is a session — the items of a walkthrough continue one
     /// another, and the screen at item N is the accumulation of items
     /// 1..N — so a clip is not named by its own tape. Two blocks with the
     /// same steps in the same session show different screens, and naming
-    /// them both by `cue_hash` would serve one's picture for the other.
+    /// them both by `shot_hash` would serve one's picture for the other.
     ///
     /// The arithmetic is OCI's chain ID, for the same reason OCI has one:
     /// `chain(0) = H(name(0))`, `chain(n) = H(chain(n-1) ‖ name(n))`.

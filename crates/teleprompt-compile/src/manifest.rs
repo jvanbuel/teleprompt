@@ -38,7 +38,7 @@ pub struct NarrationManifest {
     pub audio: AudioInfo,
     pub chapters: Vec<ChapterEntry>,
     pub lines: Vec<LineEntry>,
-    /// One entry per scheduled action cue, in document order.
+    /// One entry per scheduled action shot, in document order.
     ///
     /// `lines` says when each sentence is spoken; without this, that is
     /// all a consumer knows, and every pacing decision the scheduler made —
@@ -66,15 +66,15 @@ pub struct ChapterEntry {
     pub start_ms: u64,
 }
 
-/// One scheduled action cue.
+/// One scheduled action shot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemEntry {
-    /// The cue's id, `<block>#<index>`, as the adapter minted it.
-    pub cue: String,
-    /// The line spoken over this cue, or `null`.
+    /// The shot's id, `<block>#<index>`, as the adapter minted it.
+    pub shot: String,
+    /// The line spoken over this shot, or `null`.
     ///
-    /// Always serialized. A cue is paired with narration only when it is
-    /// the first cue of the block that followed a paragraph; every cue
+    /// Always serialized. A shot is paired with narration only when it is
+    /// the first shot of the block that followed a paragraph; every shot
     /// after a mark runs under whatever the policy left of that paragraph,
     /// and a pause has no narration at all. A consumer should not have to
     /// tell "absent" from "unpaired".
@@ -83,7 +83,7 @@ pub struct ItemEntry {
     pub adapter: String,
     pub start_ms: u64,
     pub duration_ms: u64,
-    /// `exact` when the adapter's language states the cue's timing in full,
+    /// `exact` when the adapter's language states the shot's timing in full,
     /// `measured` from a measuring pass, `estimated` from a model. Same
     /// vocabulary as a line's, applied to an action.
     pub duration_source: String,
@@ -93,16 +93,16 @@ pub struct ItemEntry {
     /// deriving them from neighbouring offsets is exactly the arithmetic
     /// that goes wrong where items overlap.
     pub transition: TransitionOut,
-    /// Identity of the cue's source, for a per-cue render cache. The
+    /// Identity of the shot's source, for a per-shot render cache. The
     /// counterpart of a line's `audio_hash`.
-    pub cue_hash: Hash,
-    /// Identity of the *picture*: this cue's source and every cue before
+    pub shot_hash: Hash,
+    /// Identity of the *picture*: this shot's source and every shot before
     /// it in the same session. What a captured clip is filed under.
     ///
-    /// Not the same as `cue_hash`, and the difference is the point. A
+    /// Not the same as `shot_hash`, and the difference is the point. A
     /// scene is a session, so the screen a item shows is the accumulation
     /// of every item before it; two blocks with the same steps — `j` twice
-    /// in one walkthrough — have one `cue_hash` and two pictures.
+    /// in one walkthrough — have one `shot_hash` and two pictures.
     pub capture_key: Hash,
     /// Which run of the scene, from `session="…"`. Published because it is
     /// the only part of the chain a reader cannot see in the script, and
@@ -240,17 +240,17 @@ pub fn build(
         })
         .collect();
 
-    // One item per scheduled cue, in the timeline's own order. A pause is
+    // One item per scheduled shot, in the timeline's own order. A pause is
     // included rather than filtered: `scene: "pause"` is a item during which
     // the picture holds, and a consumer that skipped it would run the next
-    // cue early.
+    // shot early.
     let items: Vec<ItemEntry> = timeline
         .entries
         .iter()
         .filter_map(|entry| {
             let a = entry.action.as_ref()?;
             Some(ItemEntry {
-                cue: a.cue.clone(),
+                shot: a.shot.clone(),
                 line: entry.narration.as_ref().map(|n| n.line.clone()),
                 scene: a.scene.clone(),
                 adapter: a.adapter.clone(),
@@ -262,7 +262,7 @@ pub fn build(
                     kind: entry.transition.kind.clone(),
                     duration_ms: entry.transition.duration_ms,
                 },
-                cue_hash: a.cue_hash,
+                shot_hash: a.shot_hash,
                 capture_key: a.capture_key,
                 session: a.session.clone(),
             })

@@ -10,7 +10,7 @@ use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
 
 use crate::contract::{
-    validate_commands, BlockSource, CommandError, Cue, Measured, SceneCompiler, Validated,
+    validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
 };
 
 /// The mock adapter.
@@ -35,10 +35,10 @@ pub struct MockScene;
 #[derive(Debug)]
 enum Command {
     /// Blank or a `#` comment: no executable content whatsoever. Ruling F13
-    /// was written to keep these from becoming phantom cues; its wording
+    /// was written to keep these from becoming phantom shots; its wording
     /// said "whitespace-only" when it meant "no executable content", which
     /// is why a chunk of pure comments between two `mark`s still survived
-    /// the filter as a zero-duration cue.
+    /// the filter as a zero-duration shot.
     Nothing,
     Mark,
     Wait(u64),
@@ -95,7 +95,7 @@ fn classify(line: &str) -> Result<Command, CommandError> {
 }
 
 /// True when a mark-separated chunk carries something to execute. A chunk of
-/// nothing but comments and blank lines is empty, not a zero-duration cue.
+/// nothing but comments and blank lines is empty, not a zero-duration shot.
 fn has_content(chunk: &str) -> bool {
     chunk
         .lines()
@@ -111,7 +111,7 @@ impl SceneCompiler for MockScene {
         validate_commands(src, classify)
     }
 
-    fn cues(&self, v: &Validated, block_id: &str) -> Result<Vec<Cue>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let chunks: Vec<String> = v
             .body
             .lines()
@@ -124,7 +124,7 @@ impl SceneCompiler for MockScene {
         Ok(chunks
             .into_iter()
             .enumerate()
-            .map(|(index, source)| Cue {
+            .map(|(index, source)| Shot {
                 id: format!("{block_id}#{index}"),
                 hash: Hash::of(source.trim().as_bytes()),
                 source,
@@ -133,10 +133,10 @@ impl SceneCompiler for MockScene {
             .collect())
     }
 
-    fn estimate(&self, cue: &Cue) -> Measured {
-        // Same `classify` as `validate` and `cues`, so a line that passed
+    fn estimate(&self, shot: &Shot) -> Measured {
+        // Same `classify` as `validate` and `shots`, so a line that passed
         // `check` as a `wait` is a `wait` here too, tab or no tab.
-        let total: u64 = cue
+        let total: u64 = shot
             .source
             .lines()
             .filter_map(|l| match classify(l) {

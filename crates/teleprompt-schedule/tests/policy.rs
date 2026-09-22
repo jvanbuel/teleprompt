@@ -223,8 +223,8 @@ fn labels_name_what_the_policy_adjusts() {
     assert_eq!(Policy::Concurrent(Align::Start).label(), "concurrent");
 }
 
-/// A cue after a mark has no narration of its own: the paragraph belongs
-/// to the block's first cue and the rest run under what the policy left of
+/// A shot after a mark has no narration of its own: the paragraph belongs
+/// to the block's first shot and the rest run under what the policy left of
 /// it. There is nothing for such an action to fill, so it keeps its own
 /// length — clamping it to `min_stretch` cut it to a third of what the tape
 /// says, which is the scheduler rewriting a tape it was never asked about.
@@ -246,7 +246,7 @@ fn trimming_against_no_narration_leaves_the_action_alone() {
     assert!(l.warnings.is_empty(), "{:?}", l.warnings);
 }
 
-/// A cue anchors the action to a moment inside the narration: the terminal
+/// A shot anchors the action to a moment inside the narration: the terminal
 /// should be typing the command at the moment the voice names it, not at
 /// the top of the paragraph and not after it.
 #[test]
@@ -259,7 +259,7 @@ fn a_cue_starts_the_action_where_the_words_are() {
         &timing(),
     );
     assert_eq!(l.narration_start_ms, 0);
-    assert_eq!(l.action_start_ms, 4_000, "the action waits for its cue");
+    assert_eq!(l.action_start_ms, 4_000, "the action waits for its shot");
     assert_eq!(l.action_duration_ms, 3_000);
     assert_eq!(
         l.beat_duration_ms, 10_000,

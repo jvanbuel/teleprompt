@@ -135,7 +135,7 @@ sentence naming the command is the third one. `at=` anchors it:
 ```markdown
 One command registers a server. flowrs config add asks for a name. {#config}
 
-```teleprompt scene=terminal policy=concurrent at="flowrs config add"
+```teleprompt scene=terminal policy=concurrent cue="flowrs config add"
 Type "flowrs config add"
 Enter
 ```

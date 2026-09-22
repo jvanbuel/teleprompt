@@ -226,7 +226,7 @@ fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
 // ---------------------------------------------------------------------------
 // Final review, item 5: `split_attr_suffix` ran `ends_with('}')` + `rfind('{')`
 // over the *normalised* paragraph text, after backticks were stripped, so it
-// could not tell an inline code cue from an attribute block. teleprompt's
+// could not tell an inline code shot from an attribute block. teleprompt's
 // own scripts are documentation full of config snippets, so this rejected
 // valid prose:
 //
@@ -247,7 +247,7 @@ fn a_paragraph_ending_in_an_inline_code_span_with_braces_is_narration() {
     let seg = only_segment("# B\n\nThe config block looks like `{ fps: 30 }`\n");
     assert_eq!(
         seg.text, "The config block looks like { fps: 30 }",
-        "the code cue's text must survive intact into the narration"
+        "the code shot's text must survive intact into the narration"
     );
     assert_eq!(seg.raw_attrs, "", "no attribute suffix was written here");
 }
@@ -266,7 +266,7 @@ fn a_real_key_value_suffix_still_parses() {
     assert_eq!(seg.raw_attrs, "#done voice.source=recorded");
 }
 
-/// A code cue that is *not* at the paragraph's end must not suppress a real
+/// A code shot that is *not* at the paragraph's end must not suppress a real
 /// suffix that follows it.
 #[test]
 fn a_code_span_before_a_real_suffix_does_not_suppress_it() {
@@ -275,7 +275,7 @@ fn a_code_span_before_a_real_suffix_does_not_suppress_it() {
     assert_eq!(seg.raw_attrs, "#mixed");
 }
 
-/// The reason this fix tracks the code cue rather than pattern-matching the
+/// The reason this fix tracks the code shot rather than pattern-matching the
 /// suffix's shape: a genuinely malformed attribute block must stay an error.
 /// A shape test would reclassify this as prose and silently drop it.
 #[test]

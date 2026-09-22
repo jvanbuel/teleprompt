@@ -233,7 +233,7 @@ fn the_probe_line_names_the_backend_that_was_probed() {
 /// I2's third leg. `doctor` used to catch a bad `backends:` value, silently
 /// substitute defaults and report a healthy project — the command you run
 /// when nothing works, hiding the thing that is breaking your build. Its
-/// comment claimed `check` reported it "with a cue"; `check` reported it
+/// comment claimed `check` reported it "with a shot"; `check` reported it
 /// as a bare line with no file at all, and on a `null` project reported it
 /// for a backend that project never uses.
 #[tokio::test]

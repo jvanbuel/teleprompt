@@ -1,14 +1,14 @@
 //! The reference backend, against real ffmpeg.
 //!
 //! What it draws is not the interesting part. What it has to get right is
-//! everything a real backend has to get right: keep the wanted cues and
+//! everything a real backend has to get right: keep the wanted shots and
 //! only those, file each clip under its key, and make the slot.
 
 use std::path::Path;
 use std::process::Command;
 
 use teleprompt_capture::mock::MockCapture;
-use teleprompt_capture::{sessions, CaptureBackend, Cue, Frame};
+use teleprompt_capture::{sessions, CaptureBackend, Frame, Shot};
 use teleprompt_core::Hash;
 
 fn have_ffmpeg() -> bool {
@@ -32,13 +32,13 @@ fn workdir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-fn cue(cue: &str, ms: u64) -> Cue {
-    Cue {
-        id: cue.into(),
+fn shot(shot: &str, ms: u64) -> Shot {
+    Shot {
+        id: shot.into(),
         scene: "terminal".into(),
         adapter: "mock".into(),
         session: None,
-        key: Hash::of(cue.as_bytes()),
+        key: Hash::of(shot.as_bytes()),
         source: "wait 1000ms".into(),
         duration_ms: ms,
         settings: Default::default(),
@@ -77,8 +77,8 @@ fn a_session_yields_one_clip_per_wanted_step_named_by_its_key() {
         return;
     }
     let dir = workdir("mock-clips");
-    let cues = [cue("a#0", 1_000), cue("b#0", 2_000)];
-    let plan = sessions(&cues, &|_| false);
+    let shots = [shot("a#0", 1_000), shot("b#0", 2_000)];
+    let plan = sessions(&shots, &|_| false);
 
     let clips = MockCapture::default()
         .capture(
@@ -94,7 +94,7 @@ fn a_session_yields_one_clip_per_wanted_step_named_by_its_key() {
         .expect("the reference backend captures");
 
     assert_eq!(clips.len(), 2);
-    for (clip, b) in clips.iter().zip(&cues) {
+    for (clip, b) in clips.iter().zip(&shots) {
         assert_eq!(clip.key, b.key);
         assert_eq!(
             clip.path,
@@ -111,7 +111,7 @@ fn a_session_yields_one_clip_per_wanted_step_named_by_its_key() {
     }
 }
 
-/// A cue whose clip is in hand is run through and not kept. Writing it
+/// A shot whose clip is in hand is run through and not kept. Writing it
 /// again would be work the whole cache exists to avoid.
 #[test]
 fn a_step_nothing_wants_produces_no_clip() {
@@ -120,9 +120,9 @@ fn a_step_nothing_wants_produces_no_clip() {
         return;
     }
     let dir = workdir("mock-skip");
-    let cues = [cue("a#0", 1_000), cue("b#0", 1_000)];
-    let already = cues[0].key;
-    let plan = sessions(&cues, &|k| *k == already);
+    let shots = [shot("a#0", 1_000), shot("b#0", 1_000)];
+    let already = shots[0].key;
+    let plan = sessions(&shots, &|k| *k == already);
 
     let clips = MockCapture::default()
         .capture(
@@ -138,11 +138,11 @@ fn a_step_nothing_wants_produces_no_clip() {
         .expect("captures");
 
     assert_eq!(clips.len(), 1);
-    assert_eq!(clips[0].key, cues[1].key);
+    assert_eq!(clips[0].key, shots[1].key);
     assert!(!dir.join(format!("{already}.mp4")).exists());
 }
 
-/// Two cues are two pictures. A backend that drew the same frame for both
+/// Two shots are two pictures. A backend that drew the same frame for both
 /// would pass every timing assertion and produce a video nobody can follow.
 #[test]
 fn two_steps_do_not_look_the_same() {
@@ -151,8 +151,8 @@ fn two_steps_do_not_look_the_same() {
         return;
     }
     let dir = workdir("mock-distinct");
-    let cues = [cue("a#0", 500), cue("b#0", 500)];
-    let plan = sessions(&cues, &|_| false);
+    let shots = [shot("a#0", 500), shot("b#0", 500)];
+    let plan = sessions(&shots, &|_| false);
     let clips = MockCapture::default()
         .capture(
             &plan[0],

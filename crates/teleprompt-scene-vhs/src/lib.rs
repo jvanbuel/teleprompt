@@ -5,7 +5,7 @@
 //! reason (§7.5). teleprompt reuses the language; the runtime is its own PTY.
 //!
 //! A tape mostly states its own timing: every `Sleep` is written down and
-//! every keystroke costs `Set TypingSpeed`. So `estimate` is exact for a cue
+//! every keystroke costs `Set TypingSpeed`. So `estimate` is exact for a shot
 //! that contains only those, and `Estimated` for one containing a `Wait`,
 //! whose real length is a fact about the command underneath rather than about
 //! the tape. See [`VhsScene::estimate`].
@@ -16,7 +16,7 @@ use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
 
 use teleprompt_scene::{
-    validate_commands, BlockSource, CommandError, Cue, Measured, SceneCompiler, Validated,
+    validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
 };
 
 /// The VHS adapter.
@@ -128,7 +128,7 @@ pub enum Command {
     Mark,
     /// Stop recording. What follows runs and is not seen, and — this is
     /// the part that has to agree between measuring and capturing — costs
-    /// the cue no time, because nothing is on screen for it to cost.
+    /// the shot no time, because nothing is on screen for it to cost.
     Hide,
     Show,
     /// `Require <program>`: refuse to record unless it is there.
@@ -231,18 +231,18 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
             "remove the line; the compiler routes frames to the timeline",
         )),
 
-        // `Source` splices another tape in at run time, long after `cues`
-        // has decided where the cues are — so any mark inside the sourced
+        // `Source` splices another tape in at run time, long after `shots`
+        // has decided where the shots are — so any mark inside the sourced
         // tape is invisible to the split that was supposed to honour it.
         "Source" => Err(CommandError::new(
-            "`Source` runs another tape inline, which hides its marks from the cue split",
+            "`Source` runs another tape inline, which hides its marks from the shot split",
             "load the other tape with the fence's `include=` attribute instead",
         )),
 
         // `Wait` blocks until the shell prompt returns, so its real duration
         // is however long the command underneath takes — a number that is
         // nowhere in the tape. Its timeout is the one thing the tape does
-        // state, so that is what it contributes, and the cue carrying it
+        // state, so that is what it contributes, and the shot carrying it
         // reports `Estimated` rather than `Exact`.
         w if w.starts_with("Wait") => wait(w, at, line[head.len()..].trim()),
 
@@ -304,7 +304,7 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
         // unscheduled artifact beside the one the timeline expects.
         "Screenshot" => Err(CommandError::new(
             "`Screenshot` is written by teleprompt, not by the tape",
-            "remove the line; every cue's last frame is already kept",
+            "remove the line; every shot's last frame is already kept",
         )),
 
         instant if INSTANT.contains(&instant) => Ok(Command::Nothing),
@@ -368,12 +368,12 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, CommandEr
         "PlaybackSpeed" => Err(CommandError::new(
             "`Set PlaybackSpeed` re-times the recording after the fact, which would slide the \
              narration out from under it",
-            "pace the cue against its narration with `policy=stretch-action` on the fence",
+            "pace the shot against its narration with `policy=stretch-action` on the fence",
         )),
 
-        // A GIF-only setting, and a cue inside a video never loops.
+        // A GIF-only setting, and a shot inside a video never loops.
         "LoopOffset" => Err(CommandError::new(
-            "`Set LoopOffset` chooses which frame a looping GIF starts on, and a cue inside a \
+            "`Set LoopOffset` chooses which frame a looping GIF starts on, and a shot inside a \
              video never loops",
             "remove the line",
         )),
@@ -517,10 +517,10 @@ fn reject_trailing(cmd: &str, tail: &str) -> Result<(), CommandError> {
 /// True when a mark-separated chunk carries something to execute.
 ///
 /// A chunk of nothing but comments and `Set` lines is empty, not a
-/// zero-duration cue (ruling F13). `TypingSpeed` counts as a setting here
+/// zero-duration shot (ruling F13). `TypingSpeed` counts as a setting here
 /// even though it carries a duration: it configures later typing rather than
 /// spending any time itself, and a chunk holding only settings is exactly the
-/// phantom cue F13 rules out.
+/// phantom shot F13 rules out.
 fn has_content(chunk: &[&str]) -> bool {
     chunk
         .iter()
@@ -536,17 +536,17 @@ impl SceneCompiler for VhsScene {
         validate_commands(src, classify)
     }
 
-    fn cues(&self, v: &Validated, block_id: &str) -> Result<Vec<Cue>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let lines: Vec<&str> = v.body.lines().collect();
         let mut settings: Vec<&str> = Vec::new();
-        let mut cues: Vec<Cue> = Vec::new();
+        let mut shots: Vec<Shot> = Vec::new();
 
         for chunk in lines.split(|l| matches!(classify(l), Ok(Command::Mark))) {
             // `Set` lines established before a mark still govern the tape
-            // after it, so each cue carries the settings in force when it
-            // starts. That keeps `estimate` a pure function of `cue.source`,
+            // after it, so each shot carries the settings in force when it
+            // starts. That keeps `estimate` a pure function of `shot.source`,
             // and puts the settings in the hash — so raising TypingSpeed
-            // invalidates exactly the later cues whose timing it changes.
+            // invalidates exactly the later shots whose timing it changes.
             let source = settings
                 .iter()
                 .chain(chunk.iter())
@@ -565,8 +565,8 @@ impl SceneCompiler for VhsScene {
                 continue;
             }
 
-            let index = cues.len();
-            cues.push(Cue {
+            let index = shots.len();
+            shots.push(Shot {
                 id: format!("{block_id}#{index}"),
                 hash: Hash::of(source.trim().as_bytes()),
                 source,
@@ -574,36 +574,36 @@ impl SceneCompiler for VhsScene {
             });
         }
 
-        Ok(cues)
+        Ok(shots)
     }
 
-    /// Exact for a cue whose timing the tape states in full, `Estimated` for
+    /// Exact for a shot whose timing the tape states in full, `Estimated` for
     /// one containing a `Wait`.
     ///
-    /// The distinction is per cue rather than per adapter. `Sleep` and
-    /// `Set TypingSpeed` are exact, and a cue built from those alone needs
+    /// The distinction is per shot rather than per adapter. `Sleep` and
+    /// `Set TypingSpeed` are exact, and a shot built from those alone needs
     /// no measuring pass — which is what lets `plan` and `diff` report a
     /// terminal scene's pacing offline, with no terminal anywhere. `Wait` is
     /// the exception: it blocks until the shell prompt returns, so its length
     /// is whatever `cargo build` takes, and that number is nowhere in the
-    /// tape. Its timeout is the bound the tape does state, so the cue
+    /// tape. Its timeout is the bound the tape does state, so the shot
     /// contributes that and says `Estimated` — the honest signal that M1's
     /// measuring pass has something to improve here and nothing to improve on
-    /// the cue next to it.
-    fn estimate(&self, cue: &Cue) -> Measured {
+    /// the shot next to it.
+    fn estimate(&self, shot: &Shot) -> Measured {
         let mut speed = DEFAULT_TYPING_SPEED_MS;
         let mut timeout = DEFAULT_WAIT_TIMEOUT_MS;
         let mut total: u64 = 0;
         let mut waited = false;
-        // Hidden commands cost the cue nothing. They run — the `cd` really
-        // happens — but a cue's duration is how long something is *on
+        // Hidden commands cost the shot nothing. They run — the `cd` really
+        // happens — but a shot's duration is how long something is *on
         // screen*, and nothing hidden is. Counting them would size the slot
         // for work the viewer never sees and leave the narration waiting
         // through it.
         let mut hidden = false;
 
-        for line in cue.source.lines() {
-            // Hidden commands run and cost the cue nothing, so every
+        for line in shot.source.lines() {
+            // Hidden commands run and cost the shot nothing, so every
             // duration below goes through `visible`.
             let mut visible = |ms: u64| {
                 if !hidden {
@@ -655,7 +655,7 @@ impl SceneCompiler for VhsScene {
     /// Re-times a tape by scaling everything that takes time in it.
     ///
     /// Every `Sleep`, and the speed of every keystroke, moves by the same
-    /// factor, so a stretched cue is the same performance played slower
+    /// factor, so a stretched shot is the same performance played slower
     /// rather than the same performance followed by a wait. That is what
     /// `stretch-action` means when it says the action fills the sentence
     /// above it, and the difference is visible: a tape that types at its
@@ -667,10 +667,10 @@ impl SceneCompiler for VhsScene {
     /// the target by a few milliseconds between them; the remainder becomes
     /// one trailing `Sleep`, which is the only line here that is not just
     /// the author's own, scaled.
-    fn retime(&self, cue: &Cue, target_ms: u64) -> Option<String> {
-        // Only a cue that states its own timing can be promised to a
+    fn retime(&self, shot: &Shot, target_ms: u64) -> Option<String> {
+        // Only a shot that states its own timing can be promised to a
         // length. A `Wait` is as long as the command takes.
-        let current = match self.estimate(cue) {
+        let current = match self.estimate(shot) {
             Measured::Exact(ms) => ms,
             _ => return None,
         };
@@ -683,7 +683,7 @@ impl SceneCompiler for VhsScene {
 
         let mut out: Vec<String> = Vec::new();
         let mut stated_speed = false;
-        for line in cue.source.lines() {
+        for line in shot.source.lines() {
             let trimmed = line.trim();
             match classify(trimmed) {
                 Ok(Command::Sleep(ms)) => out.push(format!("Sleep {}ms", scale(ms))),
@@ -722,11 +722,11 @@ impl SceneCompiler for VhsScene {
         let mut source = out.join("\n");
         source.push('\n');
 
-        let scaled = Cue {
-            id: cue.id.clone(),
+        let scaled = Shot {
+            id: shot.id.clone(),
             source: source.clone(),
-            hash: cue.hash,
-            index: cue.index,
+            hash: shot.hash,
+            index: shot.index,
         };
         if let Measured::Exact(reached) = self.estimate(&scaled) {
             if let Some(remainder) = target_ms.checked_sub(reached) {
@@ -735,7 +735,7 @@ impl SceneCompiler for VhsScene {
                 }
             } else {
                 // Overshot by rounding: take it back off the last sleep
-                // rather than leaving the cue longer than it was promised.
+                // rather than leaving the shot longer than it was promised.
                 source = shorten_last_sleep(&source, reached - target_ms)?;
             }
         }

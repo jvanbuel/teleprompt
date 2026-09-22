@@ -155,7 +155,7 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
     // A video of correctly-timed slates is a useful artifact and a
     // misleading one to hand over unannounced, so the count is part of the
     // report rather than a footnote.
-    assert_eq!(report.slates, 2, "both tape cues rendered as slates");
+    assert_eq!(report.slates, 2, "both tape shots rendered as slates");
     assert!(
         report.warnings.iter().any(|w| w.contains("slate")),
         "and the author is told: {:?}",

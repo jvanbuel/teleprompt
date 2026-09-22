@@ -1,15 +1,15 @@
-//! The reference capture backend: a flat field of colour per cue.
+//! The reference capture backend: a flat field of colour per shot.
 //!
 //! The counterpart of [`teleprompt_scene::mock`] at the other end of the
 //! pipeline, and it exists for the same reason. A mock scene's source says
 //! how long things take and nothing about what is on screen, so the honest
-//! picture for one is a field that is *identifiably this cue* and claims
-//! nothing else: the colour is taken from the cue's capture key, so two
-//! cues look different exactly when they are different.
+//! picture for one is a field that is *identifiably this shot* and claims
+//! nothing else: the colour is taken from the shot's capture key, so two
+//! shots look different exactly when they are different.
 //!
 //! It is also what makes the rest of the stage testable. Everything a real
 //! backend has to get right — running a session in order, keeping only the
-//! wanted cues, filing a clip under its key, fitting the slot — is
+//! wanted shots, filing a clip under its key, fitting the slot — is
 //! exercised here without a terminal, a display or a font.
 
 use std::path::Path;
@@ -80,27 +80,27 @@ impl CaptureBackend for MockCapture {
 
         let wanted = session.wanted();
         let mut clips = Vec::new();
-        for cue in &session.cues {
-            // A cue nothing wants is still a cue the session ran
+        for shot in &session.shots {
+            // A shot nothing wants is still a shot the session ran
             // through; there is simply nothing to keep. A real backend
             // replays it to reach the screen the next one opens on, and
             // this one keeps the shape so that difference stays visible.
-            if !cue.wanted {
+            if !shot.wanted {
                 continue;
             }
-            let path = out_dir.join(format!("{}.mp4", cue.key));
+            let path = out_dir.join(format!("{}.mp4", shot.key));
             let status = Command::new(&self.program)
                 .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi"])
                 .arg("-t")
                 .arg(format!(
                     "{}.{:03}",
-                    cue.duration_ms / 1000,
-                    cue.duration_ms % 1000
+                    shot.duration_ms / 1000,
+                    shot.duration_ms % 1000
                 ))
                 .arg("-i")
                 .arg(format!(
                     "color=c={}:s={}x{}:r={}",
-                    colour_of(&cue.key),
+                    colour_of(&shot.key),
                     frame.width,
                     frame.height,
                     frame.fps
@@ -116,15 +116,18 @@ impl CaptureBackend for MockCapture {
             if !status.success() {
                 return Err(CaptureError::Failed {
                     backend: self.id().to_string(),
-                    cue: cue.id.clone(),
+                    shot: shot.id.clone(),
                     reason: format!("{} exited {status}", self.program),
                 });
             }
 
-            clips.push(Clip { key: cue.key, path });
+            clips.push(Clip {
+                key: shot.key,
+                path,
+            });
             on_progress(Progress {
                 scene: session.scene.clone(),
-                cue: cue.id.clone(),
+                shot: shot.id.clone(),
                 done: clips.len(),
                 of: wanted,
             });

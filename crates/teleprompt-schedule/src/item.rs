@@ -62,16 +62,16 @@ pub struct ActionInput {
     pub span_id: String,
     pub scene: String,
     pub adapter: String,
-    pub cue_hash: Hash,
+    pub shot_hash: Hash,
     pub duration_ms: u64,
     pub duration_source: DurationSource,
-    /// Where inside the narration this action should start, from `at="…"`.
+    /// Where inside the narration this action should start, from `cue="…"`.
     ///
-    /// `None` is the ordinary case: the policy decides. A cue is how an
+    /// `None` is the ordinary case: the policy decides. A shot is how an
     /// author says "type the command while the voice is saying it", which
     /// no policy can work out on its own — the sentence that names a
     /// command is rarely the first one in the paragraph.
-    pub at_ms: Option<u64>,
+    pub cue_ms: Option<u64>,
     /// Which run of the scene this action belongs to, from `session="…"`.
     /// `None` is the scene's own, which is where most items live.
     pub session: Option<String>,

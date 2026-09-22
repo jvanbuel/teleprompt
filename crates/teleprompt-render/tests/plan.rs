@@ -37,7 +37,7 @@ const MANIFEST: &str = r#"{
   ],
   "items": [
     {
-      "cue": "plan#0",
+      "shot": "plan#0",
       "line": "welcome",
       "scene": "terminal",
       "adapter": "vhs",
@@ -46,11 +46,11 @@ const MANIFEST: &str = r#"{
       "duration_source": "exact",
       "policy": "hold",
       "transition": { "kind": "cut", "duration_ms": 0 },
-      "cue_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "shot_hash": "3333333333333333333333333333333333333333333333333333333333333333",
       "capture_key": "5555555555555555555555555555555555555555555555555555555555555555"
     },
     {
-      "cue": "plan#1",
+      "shot": "plan#1",
       "line": null,
       "scene": "terminal",
       "adapter": "vhs",
@@ -59,7 +59,7 @@ const MANIFEST: &str = r#"{
       "duration_source": "exact",
       "policy": "concurrent",
       "transition": { "kind": "cut", "duration_ms": 0 },
-      "cue_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "shot_hash": "4444444444444444444444444444444444444444444444444444444444444444",
       "capture_key": "6666666666666666666666666666666666666666666666666666666666666666"
     }
   ]
@@ -101,15 +101,15 @@ fn a_cue_with_no_captured_clip_is_a_slate_and_is_reported() {
     let dir = PathBuf::from("/project");
     let (plan, warnings) = plan::from_manifest(&manifest(), &inputs(&dir));
 
-    assert_eq!(plan.cues.len(), 2);
-    assert!(plan.cues.iter().all(|b| b.picture == Picture::Slate));
+    assert_eq!(plan.shots.len(), 2);
+    assert!(plan.shots.iter().all(|b| b.picture == Picture::Slate));
     assert_eq!(
         warnings.len(),
         1,
-        "one line for the lot, not one per cue: {warnings:?}"
+        "one line for the lot, not one per shot: {warnings:?}"
     );
     assert!(
-        warnings[0].starts_with("2 of 2 cue(s) have no captured clip"),
+        warnings[0].starts_with("2 of 2 shot(s) have no captured clip"),
         "the warning counts what is missing: {warnings:?}"
     );
 }
@@ -126,18 +126,18 @@ fn a_captured_clip_is_used_where_one_exists_for_the_cue() {
     let (plan, warnings) = plan::from_manifest(&manifest(), &inputs(&dir));
 
     assert_eq!(
-        plan.cues[0].picture,
+        plan.shots[0].picture,
         Picture::Clip(clip),
         "a clip is found by the capture key the manifest published"
     );
-    assert_eq!(plan.cues[1].picture, Picture::Slate);
+    assert_eq!(plan.shots[1].picture, Picture::Slate);
     assert!(
-        warnings[0].starts_with("1 of 2 cue(s) have no captured clip"),
-        "and only the uncaptured cue is reported: {warnings:?}"
+        warnings[0].starts_with("1 of 2 shot(s) have no captured clip"),
+        "and only the uncaptured shot is reported: {warnings:?}"
     );
 }
 
-/// A pause is a cue during which the picture holds — that is what a pause
+/// A pause is a shot during which the picture holds — that is what a pause
 /// is. Looking for a clip under its hash would find nothing, count it as
 /// uncaptured, and cut to a blank field in the middle of a script that is
 /// working perfectly.
@@ -154,9 +154,9 @@ fn a_pause_holds_the_picture_rather_than_asking_for_a_clip() {
     let manifest: NarrationManifest = serde_json::from_str(&with_pause).unwrap();
     let (plan, warnings) = plan::from_manifest(&manifest, &inputs(&PathBuf::from("/project")));
 
-    assert_eq!(plan.cues[1].picture, Picture::Hold);
+    assert_eq!(plan.shots[1].picture, Picture::Hold);
     assert!(
-        warnings[0].starts_with("1 of 2 cue(s) have no captured clip"),
+        warnings[0].starts_with("1 of 2 shot(s) have no captured clip"),
         "a pause is not a missing capture: {warnings:?}"
     );
 }

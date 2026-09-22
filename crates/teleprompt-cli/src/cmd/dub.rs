@@ -33,9 +33,9 @@ pub struct Downgrade {
 
 pub struct DubOutput {
     pub manifest: NarrationManifest,
-    /// Every cue's published source, which is what a capture backend
+    /// Every shot's published source, which is what a capture backend
     /// runs. The manifest names the items; only this says what they do.
-    pub cues: Vec<teleprompt_compile::CueSource>,
+    pub shots: Vec<teleprompt_compile::ShotSource>,
     /// The scenes as configured. A capture backend has to know what
     /// terminal it is opening.
     pub scenes: std::collections::BTreeMap<String, teleprompt_core::config::SceneConfig>,
@@ -659,7 +659,7 @@ pub async fn run_dub_with(
         };
         return Ok(DubOutput {
             manifest: built,
-            cues: compiled.cues.clone(),
+            shots: compiled.shots.clone(),
             scenes: compiled.scenes.clone(),
             output: compiled.output.clone(),
             written: Vec::new(),
@@ -691,7 +691,7 @@ pub async fn run_dub_with(
 
     Ok(DubOutput {
         manifest: built,
-        cues: compiled.cues.clone(),
+        shots: compiled.shots.clone(),
         scenes: compiled.scenes.clone(),
         output: compiled.output.clone(),
         written,

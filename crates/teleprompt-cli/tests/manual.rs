@@ -91,8 +91,8 @@ fn every_terminal_action_is_timed_exactly() {
         tapes += 1;
         assert_eq!(
             a.duration_source, "exact",
-            "cue {} is {} rather than exact",
-            a.cue, a.duration_source
+            "shot {} is {} rather than exact",
+            a.shot, a.duration_source
         );
     }
     assert!(tapes > 0, "the manual must exercise the tape adapter");
@@ -254,13 +254,13 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
     std::fs::create_dir_all(&dir).unwrap();
 
     let mut bad = Vec::new();
-    for cue in &out.cues {
-        // An `Output` line is the one thing a cue never carries and a
+    for shot in &out.shots {
+        // An `Output` line is the one thing a shot never carries and a
         // tape may not omit; everything after it is the manual's own.
-        let path = dir.join(format!("{}.tape", cue.id.replace(['/', '#'], "_")));
+        let path = dir.join(format!("{}.tape", shot.id.replace(['/', '#'], "_")));
         let mut f = std::fs::File::create(&path).unwrap();
         writeln!(f, "Output \"{}.mp4\"", path.display()).unwrap();
-        f.write_all(cue.source.as_bytes()).unwrap();
+        f.write_all(shot.source.as_bytes()).unwrap();
         drop(f);
 
         let said = Command::new("vhs")
@@ -271,7 +271,7 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
         if !said.status.success() {
             bad.push(format!(
                 "  {}: {}",
-                cue.id,
+                shot.id,
                 String::from_utf8_lossy(&said.stdout)
                     .lines()
                     .chain(String::from_utf8_lossy(&said.stderr).lines())

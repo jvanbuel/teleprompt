@@ -59,12 +59,11 @@ pub enum Element {
         config: Config,
         policy: String,
         align: String,
-        /// `at="…"`: the phrase in the narration this action starts on.
+        /// `cue="…"`: the phrase in the narration this shot starts on.
         ///
-        /// A cue in the theatrical sense — the word that triggers the
-        /// action — but the bare name belongs to the unit now, so this is
-        /// named for the attribute that carries it.
-        at: Option<String>,
+        /// A cue in the plain sense — the words that trigger what happens
+        /// next. The thing triggered is the shot; this is what triggers it.
+        cue: Option<String>,
         /// `session="…"`: which run of the scene this block belongs to.
         ///
         /// `None` is the scene's own session, which is the ordinary case:
@@ -188,7 +187,7 @@ pub fn resolve(
                         review: attrs.get("review").map(str::to_string),
                         policy: attrs.get("policy").unwrap_or("hold").to_string(),
                         align: attrs.get("align").unwrap_or("start").to_string(),
-                        at: attrs.get("at").map(str::to_string),
+                        cue: attrs.get("cue").map(str::to_string),
                         session: attrs.get("session").map(str::to_string),
                         config,
                         span: block.span,

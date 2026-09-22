@@ -175,7 +175,7 @@ pub fn compile_script_with(
         let diags: Vec<Diagnostic> = offenders
             .into_iter()
             .map(|(backend, lines)| {
-                let cue = lines[0].1;
+                let shot = lines[0].1;
                 let names = lines
                     .iter()
                     .map(|(id, _)| format!("`{id}`"))
@@ -191,7 +191,7 @@ pub fn compile_script_with(
                      `{}`",
                     program.config.voice.backend
                 ))
-                .at(cue)
+                .at(shot)
                 .with_help(
                     "per-line and per-chapter voice backends are not supported yet; set \
                      voice.backend at the project or script front-matter level instead",

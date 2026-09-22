@@ -34,8 +34,8 @@ pub fn schedule(
             .unwrap_or(0);
         let action_ms = item.action.as_ref().map(|a| a.duration_ms).unwrap_or(0);
 
-        let at_ms = item.action.as_ref().and_then(|a| a.at_ms);
-        let l = layout_at(item.policy, narration_ms, action_ms, at_ms, timing);
+        let cue_ms = item.action.as_ref().and_then(|a| a.cue_ms);
+        let l = layout_at(item.policy, narration_ms, action_ms, cue_ms, timing);
         for w in &l.warnings {
             warnings.push(format!("{}: {w}", item.id));
         }
@@ -116,15 +116,15 @@ pub fn schedule(
                 downgrade_reason: n.downgrade_reason.clone(),
             }),
             action: item.action.as_ref().map(|a| ActionEntry {
-                cue: a.span_id.clone(),
+                shot: a.span_id.clone(),
                 scene: a.scene.clone(),
                 adapter: a.adapter.clone(),
-                cue_hash: a.cue_hash,
+                shot_hash: a.shot_hash,
                 // Filled by `compile`'s chaining pass, which runs after
-                // re-timing: a cue that was re-written to fit its slot is
+                // re-timing: a shot that was re-written to fit its slot is
                 // a different tape, and the chain has to be built from the
                 // tape that will actually be captured.
-                capture_key: a.cue_hash,
+                capture_key: a.shot_hash,
                 session: a.session.clone(),
                 start_ms: cursor + l.action_start_ms,
                 duration_ms: l.action_duration_ms,

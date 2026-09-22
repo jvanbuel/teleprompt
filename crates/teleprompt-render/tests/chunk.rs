@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use teleprompt_core::Hash;
 use teleprompt_render::chunk::{self, Chunk, ChunkKey, Content, Source};
-use teleprompt_render::{Cue, Picture, RenderPlan, Transition};
+use teleprompt_render::{Picture, RenderPlan, Shot, Transition};
 
 /// A resolver that gives every clip the same identity, for the tests that
 /// are not about clip contents.
@@ -17,8 +17,8 @@ fn same(_: &Path) -> std::io::Result<Hash> {
     Ok(Hash::of(b"a clip"))
 }
 
-fn cue(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Cue {
-    Cue {
+fn shot(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Shot {
+    Shot {
         id: id.into(),
         start_ms,
         duration_ms,
@@ -27,13 +27,13 @@ fn cue(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Cue {
     }
 }
 
-fn plan(cues: Vec<Cue>, duration_ms: u64) -> RenderPlan {
+fn plan(shots: Vec<Shot>, duration_ms: u64) -> RenderPlan {
     RenderPlan {
         width: 640,
         height: 360,
         fps: 25,
         duration_ms,
-        cues,
+        shots,
         narration: Vec::new(),
         output: PathBuf::from("/out/tour.mp4"),
     }
@@ -64,8 +64,8 @@ fn tiles(chunks: &[Chunk], plan: &RenderPlan) {
 fn a_plan_of_hard_cuts_is_one_chunk_per_beat() {
     let plan = plan(
         vec![
-            cue("a#0", 0, 2_000, "/clips/a.mp4"),
-            cue("b#0", 2_000, 2_000, "/clips/b.mp4"),
+            shot("a#0", 0, 2_000, "/clips/a.mp4"),
+            shot("b#0", 2_000, 2_000, "/clips/b.mp4"),
         ],
         4_000,
     );
@@ -76,14 +76,14 @@ fn a_plan_of_hard_cuts_is_one_chunk_per_beat() {
     tiles(&chunks, &plan);
 }
 
-/// A gap between cues is held on the previous cue's last frame, which
-/// makes it part of that cue's chunk rather than a chunk of its own.
-/// Two renders of the same cue with a different amount of silence after it
+/// A gap between shots is held on the previous shot's last frame, which
+/// makes it part of that shot's chunk rather than a chunk of its own.
+/// Two renders of the same shot with a different amount of silence after it
 /// are genuinely different pictures, and the key has to say so.
 #[test]
 fn a_held_gap_belongs_to_the_beat_that_holds_it() {
-    let short = plan(vec![cue("a#0", 0, 1_000, "/clips/a.mp4")], 2_000);
-    let long = plan(vec![cue("a#0", 0, 1_000, "/clips/a.mp4")], 5_000);
+    let short = plan(vec![shot("a#0", 0, 1_000, "/clips/a.mp4")], 2_000);
+    let long = plan(vec![shot("a#0", 0, 1_000, "/clips/a.mp4")], 5_000);
 
     let a = chunk::chunks(&short).expect("splits");
     let b = chunk::chunks(&long).expect("splits");
@@ -101,21 +101,21 @@ fn a_held_gap_belongs_to_the_beat_that_holds_it() {
     tiles(&b, &long);
 }
 
-/// A transition is the one join that two cues share, so it cannot live in
+/// A transition is the one join that two shots share, so it cannot live in
 /// either of them. It is a chunk: body, blend, body.
 #[test]
 fn a_transition_becomes_a_chunk_of_its_own() {
-    let mut cues = vec![
-        cue("a#0", 0, 2_000, "/clips/a.mp4"),
-        // 400ms of overlap: the scheduler starts the next cue before this
+    let mut shots = vec![
+        shot("a#0", 0, 2_000, "/clips/a.mp4"),
+        // 400ms of overlap: the scheduler starts the next shot before this
         // one ends, which is how the manifest expresses a transition.
-        cue("b#0", 1_600, 2_000, "/clips/b.mp4"),
+        shot("b#0", 1_600, 2_000, "/clips/b.mp4"),
     ];
-    cues[0].transition = Transition {
+    shots[0].transition = Transition {
         kind: "dissolve".into(),
         duration_ms: 400,
     };
-    let plan = plan(cues, 3_600);
+    let plan = plan(shots, 3_600);
     let chunks = chunk::chunks(&plan).expect("splits");
 
     assert_eq!(chunks.len(), 3, "body, blend, body: {chunks:#?}");
@@ -126,7 +126,10 @@ fn a_transition_becomes_a_chunk_of_its_own() {
     assert_eq!(chunks[1].frames, 10, "400ms at 25fps");
     assert_eq!(from.frames, 10);
     assert_eq!(to.frames, 10);
-    assert_eq!(to.from_frame, 0, "the blend takes the head of the next cue");
+    assert_eq!(
+        to.from_frame, 0,
+        "the blend takes the head of the next shot"
+    );
     assert_eq!(
         from.source,
         Source::Clip(PathBuf::from("/clips/a.mp4")),
@@ -135,20 +138,20 @@ fn a_transition_becomes_a_chunk_of_its_own() {
     tiles(&chunks, &plan);
 }
 
-/// Two cues that share a blend must not also each render the frames the
+/// Two shots that share a blend must not also each render the frames the
 /// blend consumed, or the video is longer than the plan and everything
 /// after the first transition is late.
 #[test]
 fn the_beats_either_side_of_a_blend_give_up_the_frames_it_uses() {
-    let mut cues = vec![
-        cue("a#0", 0, 2_000, "/clips/a.mp4"),
-        cue("b#0", 1_600, 2_000, "/clips/b.mp4"),
+    let mut shots = vec![
+        shot("a#0", 0, 2_000, "/clips/a.mp4"),
+        shot("b#0", 1_600, 2_000, "/clips/b.mp4"),
     ];
-    cues[0].transition = Transition {
+    shots[0].transition = Transition {
         kind: "crossfade".into(),
         duration_ms: 400,
     };
-    let plan = plan(cues, 3_600);
+    let plan = plan(shots, 3_600);
     let chunks = chunk::chunks(&plan).expect("splits");
 
     assert_eq!(chunks[0].frames, 40, "2000ms less the 400ms blend");
@@ -159,9 +162,9 @@ fn the_beats_either_side_of_a_blend_give_up_the_frames_it_uses() {
 /// Nothing captured at all is still a render, and still a chunk.
 #[test]
 fn an_uncaptured_plan_is_a_slate_chunk() {
-    let mut cues = vec![cue("a#0", 0, 2_000, "/clips/a.mp4")];
-    cues[0].picture = Picture::Slate;
-    let plan = plan(cues, 2_000);
+    let mut shots = vec![shot("a#0", 0, 2_000, "/clips/a.mp4")];
+    shots[0].picture = Picture::Slate;
+    let plan = plan(shots, 2_000);
     let chunks = chunk::chunks(&plan).expect("splits");
 
     let Content::Body(window) = &chunks[0].content else {
@@ -175,15 +178,15 @@ fn an_uncaptured_plan_is_a_slate_chunk() {
 /// same bytes, whichever script asked for it.
 #[test]
 fn two_identical_chunks_share_a_key() {
-    let one = plan(vec![cue("a#0", 0, 2_000, "/clips/a.mp4")], 2_000);
-    let two = plan(vec![cue("elsewhere#7", 0, 2_000, "/clips/a.mp4")], 2_000);
+    let one = plan(vec![shot("a#0", 0, 2_000, "/clips/a.mp4")], 2_000);
+    let two = plan(vec![shot("elsewhere#7", 0, 2_000, "/clips/a.mp4")], 2_000);
 
     let a = chunk::chunks(&one).expect("splits");
     let b = chunk::chunks(&two).expect("splits");
     assert_eq!(
         ChunkKey::for_chunk(&one, &a[0]).hash(&mut same).unwrap(),
         ChunkKey::for_chunk(&two, &b[0]).hash(&mut same).unwrap(),
-        "a cue's name is not part of its picture"
+        "a shot's name is not part of its picture"
     );
 }
 
@@ -192,7 +195,7 @@ fn two_identical_chunks_share_a_key() {
 /// a thing that changes what the encoder emits.
 #[test]
 fn everything_that_changes_the_bytes_changes_the_key() {
-    let base = plan(vec![cue("a#0", 0, 2_000, "/clips/a.mp4")], 2_000);
+    let base = plan(vec![shot("a#0", 0, 2_000, "/clips/a.mp4")], 2_000);
     let chunks = chunk::chunks(&base).expect("splits");
     let key_of = |plan: &RenderPlan, resolve: &mut dyn FnMut(&Path) -> std::io::Result<Hash>| {
         let chunks = chunk::chunks(plan).expect("splits");
@@ -215,9 +218,9 @@ fn everything_that_changes_the_bytes_changes_the_key() {
     assert_ne!(original, key_of(&faster, &mut same), "frame rate");
 
     let mut longer = base.clone();
-    longer.cues[0].duration_ms = 3_000;
+    longer.shots[0].duration_ms = 3_000;
     longer.duration_ms = 3_000;
-    assert_ne!(original, key_of(&longer, &mut same), "cue length");
+    assert_ne!(original, key_of(&longer, &mut same), "shot length");
 
     assert_ne!(
         original,
@@ -232,7 +235,7 @@ fn everything_that_changes_the_bytes_changes_the_key() {
 /// key for it would cache the failure.
 #[test]
 fn a_clip_that_cannot_be_read_fails_the_key_rather_than_guessing_one() {
-    let base = plan(vec![cue("a#0", 0, 2_000, "/clips/gone.mp4")], 2_000);
+    let base = plan(vec![shot("a#0", 0, 2_000, "/clips/gone.mp4")], 2_000);
     let chunks = chunk::chunks(&base).expect("splits");
     let result = ChunkKey::for_chunk(&base, &chunks[0]).hash(&mut |path| {
         Err(std::io::Error::new(
@@ -243,27 +246,27 @@ fn a_clip_that_cannot_be_read_fails_the_key_rather_than_guessing_one() {
     assert!(result.is_err());
 }
 
-/// Blends that eat more of a cue than the cue has cannot be cut into
+/// Blends that eat more of a shot than the shot has cannot be cut into
 /// independent chunks — the two joins would draw the same frames twice.
 /// Reporting that honestly is what lets the caller fall back to rendering
 /// the whole graph in one pass.
 #[test]
 fn a_beat_shorter_than_the_blends_around_it_does_not_split() {
-    let mut cues = vec![
-        cue("a#0", 0, 2_000, "/clips/a.mp4"),
-        cue("b#0", 1_600, 500, "/clips/b.mp4"),
-        cue("c#0", 1_700, 2_000, "/clips/c.mp4"),
+    let mut shots = vec![
+        shot("a#0", 0, 2_000, "/clips/a.mp4"),
+        shot("b#0", 1_600, 500, "/clips/b.mp4"),
+        shot("c#0", 1_700, 2_000, "/clips/c.mp4"),
     ];
-    for b in &mut cues {
+    for b in &mut shots {
         b.transition = Transition {
             kind: "crossfade".into(),
             duration_ms: 400,
         };
     }
-    let plan = plan(cues, 3_700);
+    let plan = plan(shots, 3_700);
     assert!(
         chunk::chunks(&plan).is_none(),
-        "400ms in and 400ms out of a 500ms cue overlap"
+        "400ms in and 400ms out of a 500ms shot overlap"
     );
 }
 
@@ -271,30 +274,30 @@ fn a_beat_shorter_than_the_blends_around_it_does_not_split() {
 /// lose. Rewording a sentence at the top of a script moves everything
 /// after it, usually by some fraction of a frame — and a chunk whose
 /// length was read off the global timeline rounds the other way when that
-/// happens. A cue that did not otherwise change has to keep its key
+/// happens. A shot that did not otherwise change has to keep its key
 /// through a shift, or a one-word edit re-encodes half a video that nobody
 /// touched.
 #[test]
 fn a_cue_that_only_slid_along_the_timeline_keeps_its_key() {
     // 1030ms at 25fps is 25.75 frames — not a whole number, which is what
     // makes it sensitive to where on the timeline it lands.
-    // The cue under test is deliberately not the last one: the last
+    // The shot under test is deliberately not the last one: the last
     // chunk is where the rounding of the whole video is settled, so it
     // is the one chunk that does depend on everything before it.
     let before = plan(
         vec![
-            cue("a#0", 0, 1_000, "/clips/a.mp4"),
-            cue("b#0", 1_000, 1_030, "/clips/b.mp4"),
-            cue("c#0", 2_030, 1_000, "/clips/c.mp4"),
+            shot("a#0", 0, 1_000, "/clips/a.mp4"),
+            shot("b#0", 1_000, 1_030, "/clips/b.mp4"),
+            shot("c#0", 2_030, 1_000, "/clips/c.mp4"),
         ],
         3_030,
     );
-    // The sentence over the first cue got twenty milliseconds longer.
+    // The sentence over the first shot got twenty milliseconds longer.
     let after = plan(
         vec![
-            cue("a#0", 0, 1_020, "/clips/a.mp4"),
-            cue("b#0", 1_020, 1_030, "/clips/b.mp4"),
-            cue("c#0", 2_050, 1_000, "/clips/c.mp4"),
+            shot("a#0", 0, 1_020, "/clips/a.mp4"),
+            shot("b#0", 1_020, 1_030, "/clips/b.mp4"),
+            shot("c#0", 2_050, 1_000, "/clips/c.mp4"),
         ],
         3_050,
     );
@@ -308,7 +311,7 @@ fn a_cue_that_only_slid_along_the_timeline_keeps_its_key() {
     assert_eq!(
         ChunkKey::for_chunk(&before, &a[1]).hash(&mut same).unwrap(),
         ChunkKey::for_chunk(&after, &b[1]).hash(&mut same).unwrap(),
-        "the second cue shows the same clip for the same length; only \
+        "the second shot shows the same clip for the same length; only \
          everything before it moved"
     );
 }

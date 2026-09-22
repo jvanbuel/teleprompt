@@ -12,7 +12,7 @@ use std::time::SystemTime;
 
 use teleprompt_render::ffmpeg::FfmpegRenderer;
 use teleprompt_render::incremental::IncrementalRenderer;
-use teleprompt_render::{Cue, Narration, Picture, RenderPlan, Renderer, Transition};
+use teleprompt_render::{Narration, Picture, RenderPlan, Renderer, Shot, Transition};
 
 mod support;
 use support::{bright_clip, duration_of, first_sound, have_ffmpeg, luma_at, workdir};
@@ -40,16 +40,16 @@ fn last_used(path: &Path) -> SystemTime {
     std::fs::metadata(path).unwrap().modified().unwrap()
 }
 
-fn plan(dir: &Path, clip: &Path, cues: &[(u64, u64)], duration_ms: u64) -> RenderPlan {
+fn plan(dir: &Path, clip: &Path, shots: &[(u64, u64)], duration_ms: u64) -> RenderPlan {
     RenderPlan {
         width: 320,
         height: 180,
         fps: 24,
         duration_ms,
-        cues: cues
+        shots: shots
             .iter()
             .enumerate()
-            .map(|(i, (start_ms, duration_ms))| Cue {
+            .map(|(i, (start_ms, duration_ms))| Shot {
                 id: format!("b{i}#0"),
                 start_ms: *start_ms,
                 duration_ms: *duration_ms,
@@ -99,7 +99,7 @@ fn an_incremental_render_is_the_same_length_as_a_one_pass_render() {
     );
 }
 
-/// A gap between cues is held on the last frame, and it is held through
+/// A gap between shots is held on the last frame, and it is held through
 /// the concat too — the seam between two chunks must not be a flash of
 /// black.
 #[test]
@@ -184,7 +184,7 @@ fn a_second_render_of_the_same_plan_encodes_nothing() {
     assert!((duration_of(&rendered.path) - 4.0).abs() < 0.1);
 }
 
-/// And the case that makes it worth having: one cue moves, and the rest
+/// And the case that makes it worth having: one shot moves, and the rest
 /// of the video is copied rather than encoded. This is what a rebuild after
 /// an edit looks like.
 #[test]
@@ -194,7 +194,7 @@ fn changing_one_beat_re_encodes_only_the_chunks_that_moved() {
         return;
     }
     let dir = workdir("incr-edit");
-    // Three different pictures, because two cues showing the same frames
+    // Three different pictures, because two shots showing the same frames
     // for the same length *are* the same chunk — the cache is entitled
     // to encode them once, and does.
     let a = support::colour_clip(&dir, "a.mp4", "0x808080");
@@ -210,17 +210,17 @@ fn changing_one_beat_re_encodes_only_the_chunks_that_moved() {
         &[(0, 1_000), (2_000, 1_000), (4_000, 1_000)],
         6_000,
     );
-    plan.cues[1].picture = Picture::Clip(b);
-    plan.cues[2].picture = Picture::Clip(c);
+    plan.shots[1].picture = Picture::Clip(b);
+    plan.shots[2].picture = Picture::Clip(c);
 
     renderer.render(&plan, &mut |_| {}).expect("renders cold");
     let before = cache_state(&cache);
-    assert_eq!(before.len(), 3, "one chunk per cue: {before:#?}");
+    assert_eq!(before.len(), 3, "one chunk per shot: {before:#?}");
 
-    // The middle cue now shows something else. The cues either side of
+    // The middle shot now shows something else. The shots either side of
     // it did not move — same clip, same slot, same held tail — so their
     // chunks are still exactly the frames already on disk.
-    plan.cues[1].picture = Picture::Clip(edited);
+    plan.shots[1].picture = Picture::Clip(edited);
     let rendered = renderer
         .render(&plan, &mut |_| {})
         .expect("renders after the edit");
@@ -228,7 +228,7 @@ fn changing_one_beat_re_encodes_only_the_chunks_that_moved() {
     assert_eq!(
         rendered.reused_ms,
         Some(4_000),
-        "the two untouched cues — 2s each, held gaps included — came \
+        "the two untouched shots — 2s each, held gaps included — came \
          from the cache"
     );
     let after = cache_state(&cache);
@@ -251,7 +251,7 @@ fn a_crossfade_survives_being_a_chunk_of_its_own() {
     let dir = workdir("incr-xfade");
     let clip = bright_clip(&dir, "clip.mp4");
     let mut plan = plan(&dir, &clip, &[(0, 2_000), (1_500, 2_000)], 3_500);
-    plan.cues[0].transition = Transition {
+    plan.shots[0].transition = Transition {
         kind: "crossfade".into(),
         duration_ms: 500,
     };
@@ -263,7 +263,7 @@ fn a_crossfade_survives_being_a_chunk_of_its_own() {
     let seconds = duration_of(&rendered.path);
     assert!(
         (seconds - 3.5).abs() < 0.1,
-        "two 2s cues crossfaded by 0.5s make 3.5s of picture, not {seconds}s"
+        "two 2s shots crossfaded by 0.5s make 3.5s of picture, not {seconds}s"
     );
     for t in [0.5, 1.6, 3.0] {
         let luma = luma_at(&rendered.path, t);
@@ -281,7 +281,7 @@ fn a_plan_that_cannot_be_cut_still_renders() {
     }
     let dir = workdir("incr-fallback");
     let clip = bright_clip(&dir, "clip.mp4");
-    // A 500ms cue with 400ms of blend at each end: the two joins would
+    // A 500ms shot with 400ms of blend at each end: the two joins would
     // draw the same frames twice.
     let mut plan = plan(
         &dir,
@@ -289,8 +289,8 @@ fn a_plan_that_cannot_be_cut_still_renders() {
         &[(0, 2_000), (1_600, 500), (1_700, 2_000)],
         3_700,
     );
-    for cue in &mut plan.cues {
-        cue.transition = Transition {
+    for shot in &mut plan.shots {
+        shot.transition = Transition {
             kind: "crossfade".into(),
             duration_ms: 400,
         };

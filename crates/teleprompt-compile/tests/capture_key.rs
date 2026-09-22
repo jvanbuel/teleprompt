@@ -92,7 +92,7 @@ fn twice(first: &str, second: &str) -> String {
 /// A one-second step, in the reference adapter's language.
 const J: &str = "wait 1000ms\n";
 
-/// The bug this exists to stop. `cue_hash` is the hash of a tape and
+/// The bug this exists to stop. `shot_hash` is the hash of a tape and
 /// nothing else, so two blocks with the same steps collide — and the
 /// second item would render the first item's picture. One is "move down
 /// the DAG list", the other is "move down the task list".
@@ -104,7 +104,7 @@ fn two_blocks_with_the_same_tape_do_not_share_a_picture() {
         .entries
         .iter()
         .filter_map(|e| e.action.as_ref())
-        .map(|a| a.cue_hash)
+        .map(|a| a.shot_hash)
         .collect();
 
     assert_eq!(
@@ -200,7 +200,7 @@ fn a_beat_does_not_follow_a_beat_in_another_scene() {
     assert_eq!(keys[0], keys[1]);
 }
 
-/// Marks split one block into cues that share a session, so they chain
+/// Marks split one block into shots that share a session, so they chain
 /// like blocks do — the second half of a block runs on what the first half
 /// left on screen.
 #[test]
@@ -211,7 +211,7 @@ fn the_spans_of_one_block_chain_like_blocks_do() {
     ));
     let keys = keys(&out);
 
-    assert_eq!(keys.len(), 2, "two marks, two cues");
+    assert_eq!(keys.len(), 2, "two marks, two shots");
     assert_ne!(keys[0], keys[1]);
 }
 
@@ -276,7 +276,7 @@ fn a_capture_key_names_the_recipe_that_recorded_it() {
         CAPTURE_RECIPE,
         &action.adapter,
         &settings,
-        &action.cue_hash.to_string(),
+        &action.shot_hash.to_string(),
     ]);
 
     assert_eq!(

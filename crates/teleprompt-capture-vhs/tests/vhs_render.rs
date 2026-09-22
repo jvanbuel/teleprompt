@@ -1,9 +1,9 @@
-//! Handing a re-timed tape to `vhs` and cutting the cues out of what it
+//! Handing a re-timed tape to `vhs` and cutting the shots out of what it
 //! draws.
 //!
 //! The tape teleprompt writes is a pure function and is tested in the
 //! crate's own unit tests. What needs a machine is the rest: whether `vhs`
-//! records at all here, and whether the cues come back the right length.
+//! records at all here, and whether the shots come back the right length.
 //!
 //! `vhs` drives `ttyd` through a browser and fails quietly when it cannot
 //! — exit 0, no frames, no error has been seen in a container — so the
@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use teleprompt_capture::{sessions, CaptureBackend, Cue, Frame};
+use teleprompt_capture::{sessions, CaptureBackend, Frame, Shot};
 use teleprompt_capture_vhs::render::VhsRender;
 use teleprompt_core::Hash;
 
@@ -51,13 +51,13 @@ fn workdir(name: &str) -> PathBuf {
     dir
 }
 
-fn cue(cue: &str, source: &str, ms: u64) -> Cue {
-    Cue {
-        id: cue.into(),
+fn shot(shot: &str, source: &str, ms: u64) -> Shot {
+    Shot {
+        id: shot.into(),
         scene: "terminal".into(),
         adapter: "vhs".into(),
         session: None,
-        key: Hash::of(cue.as_bytes()),
+        key: Hash::of(shot.as_bytes()),
         source: source.into(),
         duration_ms: ms,
         settings: Default::default(),
@@ -89,24 +89,24 @@ fn seconds_of(path: &Path) -> f64 {
 }
 
 /// The whole proposition: teleprompt writes the tape, `vhs` renders it,
-/// and the cues are windows onto what came back at the lengths they were
+/// and the shots are windows onto what came back at the lengths they were
 /// scheduled for.
 #[test]
 fn vhs_renders_the_session_and_the_beats_come_back_their_scheduled_length() {
-    let dir = workdir("cues");
-    let cues = [
-        cue(
+    let dir = workdir("shots");
+    let shots = [
+        shot(
             "a#0",
             "Set TypingSpeed 20ms\nType \"echo one\"\nEnter\nSleep 800ms\n",
             1_000,
         ),
-        cue(
+        shot(
             "b#0",
             "Set TypingSpeed 20ms\nType \"echo two\"\nEnter\nSleep 800ms\n",
             1_000,
         ),
     ];
-    let plan = sessions(&cues, &|_| false);
+    let plan = sessions(&shots, &|_| false);
     assert_eq!(plan.len(), 1, "one scene is one session, so one vhs run");
 
     let Some(clips) = recorded(
@@ -122,7 +122,7 @@ fn vhs_renders_the_session_and_the_beats_come_back_their_scheduled_length() {
     };
 
     assert_eq!(clips.len(), 2);
-    for (clip, b) in clips.iter().zip(&cues) {
+    for (clip, b) in clips.iter().zip(&shots) {
         assert_eq!(clip.key, b.key, "filed under the capture key");
         let seconds = seconds_of(&clip.path);
         assert!(
@@ -138,8 +138,8 @@ fn vhs_renders_the_session_and_the_beats_come_back_their_scheduled_length() {
 #[test]
 fn the_tape_and_the_session_video_do_not_survive() {
     let dir = workdir("tidy");
-    let cues = [cue("a#0", "Sleep 400ms\n", 400)];
-    let plan = sessions(&cues, &|_| false);
+    let shots = [shot("a#0", "Sleep 400ms\n", 400)];
+    let plan = sessions(&shots, &|_| false);
     if recorded(
         &plan[0],
         &Frame {
@@ -163,7 +163,7 @@ fn the_tape_and_the_session_video_do_not_survive() {
     assert!(left.is_empty(), "left behind: {left:?}");
 }
 
-/// What a short recording does to the cues past its end.
+/// What a short recording does to the shots past its end.
 ///
 /// `windows` cuts the session video at offsets accumulated from the
 /// *scheduled* durations — what the tape ought to take. Nothing compared
@@ -175,10 +175,10 @@ fn the_tape_and_the_session_video_do_not_survive() {
 ///     Stream specifier ':v' in filtergraph description … matches no streams
 ///
 /// which is a sentence about stream specifiers for a problem about a
-/// truncated recording. Observed on the manual: cues 0-17 exact to
-/// within 0.03s, cue 18 cut off mid-way, cues 19-23 empty.
+/// truncated recording. Observed on the manual: shots 0-17 exact to
+/// within 0.03s, shot 18 cut off mid-way, shots 19-23 empty.
 ///
-/// The line is drawn at a cue that gets nothing, not at a cue that is
+/// The line is drawn at a shot that gets nothing, not at a shot that is
 /// short. Drawing it at "short" turned 80ms of encoder rounding on a
 /// two-second tape into a red build.
 #[test]
@@ -186,14 +186,14 @@ fn a_recording_that_stops_early_is_refused_rather_than_cut_into_empty_clips() {
     let dir = workdir("short");
     let video = dir.join("session.mp4");
 
-    // Three cues of one second each; a recording holding only two of
+    // Three shots of one second each; a recording holding only two of
     // them. `windows` would place the third at 2000..3000ms.
     let session = teleprompt_capture::Session {
         scene: "terminal".into(),
         adapter: "vhs".into(),
         name: Some("short".into()),
         settings: Default::default(),
-        cues: vec![
+        shots: vec![
             a_step("a", "Sleep 1s", 1000),
             a_step("b", "Sleep 1s", 1000),
             a_step("c", "Sleep 1s", 1000),
@@ -206,21 +206,21 @@ fn a_recording_that_stops_early_is_refused_rather_than_cut_into_empty_clips() {
     }
 
     let why = teleprompt_capture_vhs::render::starved(&video, &session)
-        .expect("cue `c` begins at 2.00s, which is where the video ends");
+        .expect("shot `c` begins at 2.00s, which is where the video ends");
     assert!(
         why.contains('c'),
-        "the complaint should name the cue that gets nothing: {why}"
+        "the complaint should name the shot that gets nothing: {why}"
     );
 
-    // A recording that merely falls a few frames short of the last cue
-    // is not starved: every cue still opens on real footage, and the
+    // A recording that merely falls a few frames short of the last shot
+    // is not starved: every shot still opens on real footage, and the
     // renderer holds the last frame to fill the slot. This is the case
     // that turned CI red.
     let nearly = dir.join("nearly.mp4");
     assert!(make_silent_video(&nearly, 2.92));
     assert!(
         teleprompt_capture_vhs::render::starved(&nearly, &session).is_none(),
-        "80ms short of three seconds is rounding, not a missing cue"
+        "80ms short of three seconds is rounding, not a missing shot"
     );
 
     // And a recording that covers everything is silent.
@@ -232,10 +232,10 @@ fn a_recording_that_stops_early_is_refused_rather_than_cut_into_empty_clips() {
     );
 }
 
-fn a_step(cue: &str, source: &str, ms: u64) -> teleprompt_capture::SessionCue {
-    teleprompt_capture::SessionCue {
-        id: cue.into(),
-        key: Hash::of(cue.as_bytes()),
+fn a_step(shot: &str, source: &str, ms: u64) -> teleprompt_capture::SessionShot {
+    teleprompt_capture::SessionShot {
+        id: shot.into(),
+        key: Hash::of(shot.as_bytes()),
         source: source.into(),
         duration_ms: ms,
         wanted: true,

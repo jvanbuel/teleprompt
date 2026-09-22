@@ -116,10 +116,10 @@ fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
         span_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
-        cue_hash: Hash::of(id.as_bytes()),
+        shot_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
-        at_ms: None,
+        cue_ms: None,
         session: None,
     };
     let mut a1 = item("b1", 1000, "one");
@@ -131,7 +131,7 @@ fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
     assert_eq!(
         d.recapture,
         ["b1"],
-        "the slot moved even though the cue did not"
+        "the slot moved even though the shot did not"
     );
 }
 
@@ -167,16 +167,16 @@ fn mock_action(id: &str, ms: u64) -> ActionInput {
         span_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
-        cue_hash: Hash::of(id.as_bytes()),
+        shot_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
-        at_ms: None,
+        cue_ms: None,
         session: None,
     }
 }
 
 /// Review round 1, finding 2: a item's slot changed just as much by
-/// gaining or losing an action as by an existing action's cue or timing
+/// gaining or losing an action as by an existing action's shot or timing
 /// changing.
 #[test]
 fn a_beat_that_gains_an_action_needs_recapture() {
@@ -294,10 +294,10 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
             span_id: "s1".into(),
             scene: "mock".into(),
             adapter: "mock".into(),
-            cue_hash: Hash::of(b"s1"),
+            shot_hash: Hash::of(b"s1"),
             duration_ms: 500,
             duration_source: DurationSource::Exact,
-            at_ms: None,
+            cue_ms: None,
             session: None,
         });
         let mut b2 = item("b2", 2000, "two");
@@ -325,10 +325,10 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
             span_id: "s1".into(),
             scene: "mock".into(),
             adapter: "mock".into(),
-            cue_hash: Hash::of(b"s1"),
+            shot_hash: Hash::of(b"s1"),
             duration_ms: 500,
             duration_source: DurationSource::Exact,
-            at_ms: None,
+            cue_ms: None,
             session: None,
         });
         b1.policy = Policy::Concurrent(teleprompt_schedule::Align::Start);

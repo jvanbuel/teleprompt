@@ -1,4 +1,4 @@
-//! Grouping a timeline's cues into the sessions a backend can run.
+//! Grouping a timeline's shots into the sessions a backend can run.
 //!
 //! All of it is arithmetic over a list: nothing here runs a terminal, and
 //! the point of that is that the decisions a capture makes — what to run,
@@ -6,16 +6,16 @@
 
 use std::collections::HashSet;
 
-use teleprompt_capture::{sessions, Cue};
+use teleprompt_capture::{sessions, Shot};
 use teleprompt_core::Hash;
 
-fn cue(cue: &str, scene: &str, source: &str) -> Cue {
-    Cue {
-        id: cue.into(),
+fn shot(shot: &str, scene: &str, source: &str) -> Shot {
+    Shot {
+        id: shot.into(),
         scene: scene.into(),
         adapter: "mock".into(),
         session: None,
-        key: Hash::of(cue.as_bytes()),
+        key: Hash::of(shot.as_bytes()),
         source: source.into(),
         duration_ms: 1_000,
         settings: Default::default(),
@@ -27,8 +27,8 @@ fn cold(_: &Hash) -> bool {
     false
 }
 
-fn cached(cues: &[&str]) -> impl Fn(&Hash) -> bool {
-    let keys: HashSet<Hash> = cues.iter().map(|s| Hash::of(s.as_bytes())).collect();
+fn cached(shots: &[&str]) -> impl Fn(&Hash) -> bool {
+    let keys: HashSet<Hash> = shots.iter().map(|s| Hash::of(s.as_bytes())).collect();
     move |key: &Hash| keys.contains(key)
 }
 
@@ -36,89 +36,89 @@ fn cached(cues: &[&str]) -> impl Fn(&Hash) -> bool {
 fn the_beats_of_a_scene_are_one_session_in_order() {
     let out = sessions(
         &[
-            cue("a#0", "terminal", "wait 1s"),
-            cue("b#0", "terminal", "wait 2s"),
+            shot("a#0", "terminal", "wait 1s"),
+            shot("b#0", "terminal", "wait 2s"),
         ],
         &cold,
     );
 
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].scene, "terminal");
-    assert_eq!(out[0].cues.len(), 2);
-    assert_eq!(out[0].cues[0].id, "a#0");
-    assert!(out[0].cues.iter().all(|s| s.wanted));
+    assert_eq!(out[0].shots.len(), 2);
+    assert_eq!(out[0].shots[0].id, "a#0");
+    assert!(out[0].shots.iter().all(|s| s.wanted));
 }
 
 #[test]
 fn two_scenes_are_two_sessions() {
     let out = sessions(
         &[
-            cue("a#0", "terminal", "wait 1s"),
-            cue("b#0", "browser", "wait 1s"),
-            cue("c#0", "terminal", "wait 1s"),
+            shot("a#0", "terminal", "wait 1s"),
+            shot("b#0", "browser", "wait 1s"),
+            shot("c#0", "terminal", "wait 1s"),
         ],
         &cold,
     );
 
     assert_eq!(out.len(), 2);
-    assert_eq!(out[0].cues.len(), 2, "the terminal's two cues");
-    assert_eq!(out[1].cues.len(), 1);
+    assert_eq!(out[0].shots.len(), 2, "the terminal's two shots");
+    assert_eq!(out[1].shots.len(), 1);
 }
 
 #[test]
 fn a_named_session_is_a_session_of_its_own() {
-    let mut second = cue("b#0", "terminal", "wait 1s");
+    let mut second = shot("b#0", "terminal", "wait 1s");
     second.session = Some("retry".into());
-    let out = sessions(&[cue("a#0", "terminal", "wait 1s"), second], &cold);
+    let out = sessions(&[shot("a#0", "terminal", "wait 1s"), second], &cold);
 
     assert_eq!(out.len(), 2);
     assert_eq!(out[1].name.as_deref(), Some("retry"));
 }
 
-/// The property that makes a session a session. A cue whose clip is
-/// already in hand still runs, because the cue after it opens on the
+/// The property that makes a session a session. A shot whose clip is
+/// already in hand still runs, because the shot after it opens on the
 /// screen it leaves behind — it just is not kept.
 #[test]
 fn a_cached_step_still_runs_when_something_after_it_is_wanted() {
     let out = sessions(
         &[
-            cue("a#0", "terminal", "wait 1s"),
-            cue("b#0", "terminal", "wait 1s"),
+            shot("a#0", "terminal", "wait 1s"),
+            shot("b#0", "terminal", "wait 1s"),
         ],
         &cached(&["a#0"]),
     );
 
     assert_eq!(out.len(), 1);
-    assert_eq!(out[0].cues.len(), 2, "both cues run");
-    assert!(!out[0].cues[0].wanted, "the first one is not kept");
-    assert!(out[0].cues[1].wanted);
+    assert_eq!(out[0].shots.len(), 2, "both shots run");
+    assert!(!out[0].shots[0].wanted, "the first one is not kept");
+    assert!(out[0].shots[1].wanted);
     assert_eq!(out[0].wanted(), 1);
 }
 
-/// And the other end: a cue after the last wanted one leads nowhere
+/// And the other end: a shot after the last wanted one leads nowhere
 /// anybody is looking. On a tape whose sleeps are real seconds that is the
 /// difference between a capture that stops and one that sits there.
 #[test]
 fn a_session_stops_after_the_last_step_worth_keeping() {
     let out = sessions(
         &[
-            cue("a#0", "terminal", "wait 1s"),
-            cue("b#0", "terminal", "wait 1s"),
-            cue("c#0", "terminal", "wait 1s"),
+            shot("a#0", "terminal", "wait 1s"),
+            shot("b#0", "terminal", "wait 1s"),
+            shot("c#0", "terminal", "wait 1s"),
         ],
         &cached(&["b#0", "c#0"]),
     );
 
-    assert_eq!(out[0].cues.len(), 1, "everything after `a#0` is cached");
-    assert_eq!(out[0].cues[0].id, "a#0");
+    assert_eq!(out[0].shots.len(), 1, "everything after `a#0` is cached");
+    assert_eq!(out[0].shots[0].id, "a#0");
 }
 
 #[test]
 fn a_session_with_nothing_to_keep_is_not_run_at_all() {
     let out = sessions(
         &[
-            cue("a#0", "terminal", "wait 1s"),
-            cue("b#0", "terminal", "wait 1s"),
+            shot("a#0", "terminal", "wait 1s"),
+            shot("b#0", "terminal", "wait 1s"),
         ],
         &cached(&["a#0", "b#0"]),
     );
@@ -133,16 +133,16 @@ fn a_session_with_nothing_to_keep_is_not_run_at_all() {
 fn a_pause_is_not_captured() {
     let out = sessions(
         &[
-            cue("a#0", "terminal", "wait 1s"),
-            cue("pause-1", "pause", "2000"),
-            cue("b#0", "terminal", "wait 1s"),
+            shot("a#0", "terminal", "wait 1s"),
+            shot("pause-1", "pause", "2000"),
+            shot("b#0", "terminal", "wait 1s"),
         ],
         &cold,
     );
 
     assert_eq!(out.len(), 1);
-    assert_eq!(out[0].cues.len(), 2);
-    assert!(out[0].cues.iter().all(|s| s.id != "pause-1"));
+    assert_eq!(out[0].shots.len(), 2);
+    assert!(out[0].shots.iter().all(|s| s.id != "pause-1"));
 }
 
 /// A scene kind this build records, and one it does not. The difference

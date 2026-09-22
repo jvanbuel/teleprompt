@@ -251,7 +251,7 @@ fn every_segment_names_the_chapter_it_was_spoken_in() {
 
 /// Pins current behaviour, deliberately. The scheduler subtracts a item's
 /// transition window from that item before advancing its cursor, and for a
-/// narration-only item there is no action cue to absorb it, so the window
+/// narration-only item there is no action shot to absorb it, so the window
 /// eats into speech and consecutive lines overlap. See spec §5.2, which
 /// tells consumers to treat each line's own `duration_ms` as
 /// authoritative for exactly this reason.
@@ -446,9 +446,9 @@ mod items {
     #[test]
     fn every_scheduled_span_is_published() {
         let m = manifest_for(TWO_BEATS);
-        let cues: Vec<&str> = m.items.iter().map(|b| b.cue.as_str()).collect();
-        assert_eq!(cues.len(), 3, "two blocks, one of them split by a mark");
-        assert!(cues.iter().all(|s| s.contains('#')), "{cues:?}");
+        let shots: Vec<&str> = m.items.iter().map(|b| b.shot.as_str()).collect();
+        assert_eq!(shots.len(), 3, "two blocks, one of them split by a mark");
+        assert!(shots.iter().all(|s| s.contains('#')), "{shots:?}");
     }
 
     #[test]
@@ -462,13 +462,13 @@ mod items {
                 .timeline
                 .entries
                 .iter()
-                .find(|e| e.action.as_ref().is_some_and(|a| a.cue == item.cue))
+                .find(|e| e.action.as_ref().is_some_and(|a| a.shot == item.shot))
                 .expect("every item comes from a timeline entry");
             let action = entry.action.as_ref().unwrap();
             assert_eq!(item.start_ms, action.start_ms);
             assert_eq!(item.duration_ms, action.duration_ms);
             assert_eq!(item.policy, entry.policy);
-            assert_eq!(item.cue_hash, action.cue_hash);
+            assert_eq!(item.shot_hash, action.shot_hash);
         }
     }
 
@@ -479,7 +479,7 @@ mod items {
         assert_eq!(m.items[1].line.as_deref(), Some("two"));
         assert_eq!(
             m.items[2].line, None,
-            "a cue after a mark runs under what the policy left of the paragraph"
+            "a shot after a mark runs under what the policy left of the paragraph"
         );
     }
 

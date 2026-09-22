@@ -598,7 +598,7 @@ fn main() -> ExitCode {
                                 };
                                 let report = capture_cmd::run_capture(
                                     &dubbed.manifest,
-                                    &dubbed.cues,
+                                    &dubbed.shots,
                                     &dubbed.scenes,
                                     &capture_cmd::registry(),
                                     &options.clips_dir,
@@ -607,7 +607,7 @@ fn main() -> ExitCode {
                                         if cli.format == Format::Human {
                                             eprintln!(
                                                 "  [{}/{}] {} {}",
-                                                p.done, p.of, p.scene, p.cue
+                                                p.done, p.of, p.scene, p.shot
                                             );
                                         }
                                     },

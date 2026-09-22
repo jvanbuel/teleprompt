@@ -24,10 +24,10 @@ fn action(id: &str, ms: u64) -> ActionInput {
         span_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
-        cue_hash: Hash::of(id.as_bytes()),
+        shot_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
-        at_ms: None,
+        cue_ms: None,
         session: None,
     }
 }

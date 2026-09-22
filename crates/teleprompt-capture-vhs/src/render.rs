@@ -1,14 +1,14 @@
 //! Letting `vhs` do the rendering.
 //!
 //! This is the obvious way round and it should have been first: teleprompt
-//! already re-times every tape so a cue lasts exactly as long as the
+//! already re-times every tape so a shot lasts exactly as long as the
 //! sentence over it, so the tape handed to `vhs` *is* the schedule. Run it,
 //! and the video's timeline is the timeline — there is nothing to
 //! reimplement and nothing to estimate.
 //!
-//! One run per session, because a scene is a session: the cues are
-//! concatenated in order so the program stays running across cues, and
-//! the cues are then windows onto the one video. Their boundaries are the
+//! One run per session, because a scene is a session: the shots are
+//! concatenated in order so the program stays running across shots, and
+//! the shots are then windows onto the one video. Their boundaries are the
 //! scheduled durations — the same numbers the tape was written from — so
 //! they are right by construction rather than by inference.
 //!
@@ -22,7 +22,7 @@ use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Se
 
 /// The tape `vhs` should run for a whole session.
 ///
-/// `output` is where `vhs` writes the one video the cues are cut from.
+/// `output` is where `vhs` writes the one video the shots are cut from.
 pub fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
     let mut out = String::new();
     // Quoted: VHS's parser reads a bare `/` as the start of a command, so
@@ -43,8 +43,8 @@ pub fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
         out.push_str(&format!("Set FontSize {size}\n"));
     }
 
-    // The shell drawing its first prompt is not part of any cue, and a
-    // video that opens on it would put every cue late by however long it
+    // The shell drawing its first prompt is not part of any shot, and a
+    // video that opens on it would put every shot late by however long it
     // took. `Hide` is what VHS has for exactly this.
     out.push_str("Hide\n");
     for (key, value) in session.nested("env") {
@@ -69,8 +69,8 @@ pub fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
     ));
     out.push_str("Show\n");
 
-    for cue in &session.cues {
-        out.push_str(cue.source.trim_end());
+    for shot in &session.shots {
+        out.push_str(shot.source.trim_end());
         out.push('\n');
     }
     out
@@ -100,7 +100,7 @@ fn path_with_fallback(scene: &str, inherited: Option<&str>) -> String {
     out.join(":")
 }
 
-/// Where each cue begins and ends in the session's video.
+/// Where each shot begins and ends in the session's video.
 ///
 /// The scheduled durations, accumulated. Not a guess: the tape was
 /// re-written to last exactly this long, so these are the numbers the video
@@ -108,12 +108,12 @@ fn path_with_fallback(scene: &str, inherited: Option<&str>) -> String {
 pub fn windows(session: &Session) -> Vec<(u64, u64)> {
     let mut at = 0;
     session
-        .cues
+        .shots
         .iter()
-        .map(|cue| {
+        .map(|shot| {
             let from = at;
-            at += cue.duration_ms;
-            (from, cue.duration_ms)
+            at += shot.duration_ms;
+            (from, shot.duration_ms)
         })
         .collect()
 }
@@ -181,13 +181,13 @@ impl CaptureBackend for VhsRender {
             source,
         })?;
 
-        let failed = |cue: &str, reason: String| CaptureError::Failed {
+        let failed = |shot: &str, reason: String| CaptureError::Failed {
             backend: "vhs".to_string(),
-            cue: cue.to_string(),
+            shot: shot.to_string(),
             reason,
         };
         let first = session
-            .cues
+            .shots
             .first()
             .map(|s| s.id.clone())
             .unwrap_or_default();
@@ -253,20 +253,20 @@ impl CaptureBackend for VhsRender {
 
         let wanted = session.wanted();
         let mut clips = Vec::new();
-        for (cue, (from_ms, duration_ms)) in session.cues.iter().zip(windows(session)) {
-            if !cue.wanted {
+        for (shot, (from_ms, duration_ms)) in session.shots.iter().zip(windows(session)) {
+            if !shot.wanted {
                 continue;
             }
-            let clip = out_dir.join(format!("{}.mp4", cue.key));
+            let clip = out_dir.join(format!("{}.mp4", shot.key));
             cut(&self.ffmpeg, &video, &clip, from_ms, duration_ms)
-                .map_err(|reason| failed(&cue.id, reason))?;
+                .map_err(|reason| failed(&shot.id, reason))?;
             clips.push(Clip {
-                key: cue.key,
+                key: shot.key,
                 path: clip,
             });
             on_progress(Progress {
                 scene: session.scene.clone(),
-                cue: cue.id.clone(),
+                shot: shot.id.clone(),
                 done: clips.len(),
                 of: wanted,
             });
@@ -277,19 +277,19 @@ impl CaptureBackend for VhsRender {
     }
 }
 
-/// Any cue the recording stops short of entirely.
+/// Any shot the recording stops short of entirely.
 ///
-/// `windows` places every cue at an offset accumulated from what the
+/// `windows` places every shot at an offset accumulated from what the
 /// tape was *scheduled* to take. That is a prediction about the recorder,
 /// and a prediction nothing checks is the bug this crate keeps finding:
 /// when `vhs` stops early — exits 0, writes a valid but truncated video —
-/// the cues past its end are cut anyway, and ffmpeg writes a container
+/// the shots past its end are cut anyway, and ffmpeg writes a container
 /// with no video stream rather than an error. The build then dies much
 /// later, in compose, on `Stream specifier ':v' … matches no streams`,
 /// which points at the filtergraph rather than at the recording.
 ///
-/// Too short means a cue that gets *nothing* — one whose window begins
-/// at or after the last recorded frame. A final cue merely clipped by a
+/// Too short means a shot that gets *nothing* — one whose window begins
+/// at or after the last recorded frame. A final shot merely clipped by a
 /// few frames is not a failure: ffmpeg returns the footage that exists,
 /// the renderer holds the last frame to fill the slot, and the picture is
 /// right. Refusing those cost a red build over 80ms of encoder rounding
@@ -297,15 +297,15 @@ impl CaptureBackend for VhsRender {
 pub fn starved(video: &Path, session: &Session) -> Option<String> {
     let have_ms = duration_ms(video)?;
     let empty: Vec<&str> = session
-        .cues
+        .shots
         .iter()
         .zip(windows(session))
-        .filter(|(cue, (from_ms, _))| cue.wanted && *from_ms >= have_ms)
-        .map(|(cue, _)| cue.id.as_str())
+        .filter(|(shot, (from_ms, _))| shot.wanted && *from_ms >= have_ms)
+        .map(|(shot, _)| shot.id.as_str())
         .collect();
     (!empty.is_empty()).then(|| {
         format!(
-            "the recording is {:.2}s and {} cue(s) begin after it ends ({}), \
+            "the recording is {:.2}s and {} shot(s) begin after it ends ({}), \
              so they would be cut from frames that do not exist",
             have_ms as f64 / 1000.0,
             empty.len(),
@@ -330,7 +330,7 @@ fn duration_ms(video: &Path) -> Option<u64> {
     Some((seconds * 1000.0).round() as u64)
 }
 
-/// One cue out of the session's video.
+/// One shot out of the session's video.
 fn cut(
     ffmpeg: &str,
     video: &Path,
@@ -360,18 +360,18 @@ fn cut(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_capture::SessionCue;
+    use teleprompt_capture::SessionShot;
     use teleprompt_core::Hash;
 
-    fn session(cues: &[(&str, u64)]) -> Session {
+    fn session(shots: &[(&str, u64)]) -> Session {
         Session {
             scene: "terminal".into(),
             adapter: "vhs".into(),
             name: None,
             settings: Default::default(),
-            cues: cues
+            shots: shots
                 .iter()
-                .map(|(source, ms)| SessionCue {
+                .map(|(source, ms)| SessionShot {
                     id: "s".into(),
                     key: Hash::of(source.as_bytes()),
                     source: (*source).to_string(),
@@ -390,7 +390,7 @@ mod tests {
         }
     }
 
-    /// The cues go in in order and unedited. They have already been
+    /// The shots go in in order and unedited. They have already been
     /// re-timed to their slots; rewriting them here would be a second
     /// opinion about a number that is already settled.
     #[test]
@@ -400,7 +400,7 @@ mod tests {
             &frame(),
             "/out/session.mp4",
         );
-        let one = tape.find("Type \"one\"").expect("the first cue is in it");
+        let one = tape.find("Type \"one\"").expect("the first shot is in it");
         let two = tape.find("Type \"two\"").expect("and the second");
         assert!(one < two, "in order:\n{tape}");
         assert!(
@@ -409,8 +409,8 @@ mod tests {
         );
     }
 
-    /// The shell's first prompt belongs to no cue. Recording it would put
-    /// every cue late by however long it took to draw.
+    /// The shell's first prompt belongs to no shot. Recording it would put
+    /// every shot late by however long it took to draw.
     #[test]
     fn the_shell_starting_up_is_hidden() {
         let tape = tape_for(&session(&[("Type \"x\"\n", 100)]), &frame(), "o.mp4");
@@ -469,7 +469,7 @@ mod tests {
         assert!(tape.contains("Env EDITOR \"vim\"\n"), "{tape}");
     }
 
-    /// The cues are windows onto the one video, at the offsets the tape
+    /// The shots are windows onto the one video, at the offsets the tape
     /// was written to produce.
     #[test]
     fn the_beats_are_the_scheduled_durations_accumulated() {

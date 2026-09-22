@@ -22,7 +22,7 @@ pub const BLOCK_KEYS: &[&str] = &[
     "policy",
     "align",
     // The phrase in the narration this action should start on.
-    "at",
+    "cue",
     // Which run of the scene this block belongs to. Blocks naming the same
     // scene continue one session by default — that is what naming a scene
     // means, and it is why a walkthrough's elements show a running program

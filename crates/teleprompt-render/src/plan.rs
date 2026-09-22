@@ -10,9 +10,9 @@ use std::path::PathBuf;
 
 use teleprompt_compile::manifest::NarrationManifest;
 
-use crate::{Cue, Narration, Picture, RenderPlan, Transition};
+use crate::{Narration, Picture, RenderPlan, Shot, Transition};
 
-/// The scene name the manifest gives a cue that is only a pause.
+/// The scene name the manifest gives a shot that is only a pause.
 const PAUSE: &str = "pause";
 
 /// Where the placements of a render live, and what shape the result should be.
@@ -47,18 +47,18 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
         .collect();
 
     let mut uncaptured = 0usize;
-    let cues: Vec<Cue> = manifest
+    let shots: Vec<Shot> = manifest
         .items
         .iter()
-        .map(|cue| {
-            // A pause is a cue during which the picture holds — that is
+        .map(|shot| {
+            // A pause is a shot during which the picture holds — that is
             // what a pause is. Looking for a clip under its hash would find
             // nothing and report a capture that was never owed.
-            // Filed under the capture key, not the cue hash: the same
+            // Filed under the capture key, not the shot hash: the same
             // tape in two places in a walkthrough is two pictures, because
             // the screen each one starts from is different.
-            let clip = inputs.clips_dir.join(format!("{}.mp4", cue.capture_key));
-            let picture = if cue.scene == PAUSE {
+            let clip = inputs.clips_dir.join(format!("{}.mp4", shot.capture_key));
+            let picture = if shot.scene == PAUSE {
                 Picture::Hold
             } else if clip.exists() {
                 Picture::Clip(clip)
@@ -66,14 +66,14 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
                 uncaptured += 1;
                 Picture::Slate
             };
-            Cue {
-                id: cue.cue.clone(),
-                start_ms: cue.start_ms,
-                duration_ms: cue.duration_ms,
+            Shot {
+                id: shot.shot.clone(),
+                start_ms: shot.start_ms,
+                duration_ms: shot.duration_ms,
                 picture,
                 transition: Transition {
-                    kind: cue.transition.kind.clone(),
-                    duration_ms: cue.transition.duration_ms,
+                    kind: shot.transition.kind.clone(),
+                    duration_ms: shot.transition.duration_ms,
                 },
             }
         })
@@ -82,9 +82,9 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
     let mut warnings = Vec::new();
     if uncaptured > 0 {
         warnings.push(format!(
-            "{uncaptured} of {} cue(s) have no captured clip and will render as a slate; \
+            "{uncaptured} of {} shot(s) have no captured clip and will render as a slate; \
              the timing is real and the picture is not",
-            cues.len()
+            shots.len()
         ));
     }
 
@@ -94,7 +94,7 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
             height: inputs.height,
             fps: inputs.fps,
             duration_ms: manifest.duration_ms,
-            cues,
+            shots,
             narration,
             output: inputs.output.clone(),
         },
