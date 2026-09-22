@@ -1,4 +1,4 @@
-//! `build`, with stage 5 in it: a item shows what its scene did.
+//! `build`, with stage 5 in it: an item shows what its scene did.
 //!
 //! Against the reference scene and the reference capture backend, so the
 //! claim under test is the pipeline's rather than any one terminal's: a
@@ -116,7 +116,7 @@ async fn a_second_build_records_nothing_and_still_has_no_slates() {
     assert_eq!(warm.slates, 0);
 }
 
-/// Editing a item re-records it — and, because a scene is a session,
+/// Editing an item re-records it — and, because a scene is a session,
 /// everything after it in that scene. A item downstream of an edit really
 /// does show a different screen.
 #[tokio::test]

@@ -175,7 +175,7 @@ fn mock_action(id: &str, ms: u64) -> ActionInput {
     }
 }
 
-/// Review round 1, finding 2: a item's slot changed just as much by
+/// Review round 1, finding 2: an item's slot changed just as much by
 /// gaining or losing an action as by an existing action's shot or timing
 /// changing.
 #[test]
@@ -390,7 +390,7 @@ fn swapping_two_shots_is_reported_as_reordering_not_as_add_remove() {
     assert!(rendered.contains("position"), "{rendered}");
 }
 
-/// Adding a item in the middle shifts every later item's index, but nothing
+/// Adding an item in the middle shifts every later item's index, but nothing
 /// was reordered — the surviving items still play in the same relative
 /// order. Reporting them would turn every insertion into a wall of noise.
 #[test]

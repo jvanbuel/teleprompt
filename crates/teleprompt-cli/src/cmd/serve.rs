@@ -180,7 +180,7 @@ async fn warm(
 /// What moved between two manifests, as ids the preview can seek to.
 ///
 /// Deliberately coarser than `diff`: the preview only needs somewhere to
-/// jump, so a line whose text or timing changed and a item whose schedule
+/// jump, so a line whose text or timing changed and an item whose schedule
 /// moved are both simply "changed". `diff` remains the surface for reading
 /// *what* changed.
 fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {

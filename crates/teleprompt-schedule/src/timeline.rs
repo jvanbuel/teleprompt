@@ -57,7 +57,7 @@ pub struct ActionEntry {
     ///
     /// The arithmetic is OCI's chain ID, for the same reason OCI has one:
     /// `chain(0) = H(name(0))`, `chain(n) = H(chain(n-1) ‖ name(n))`.
-    /// Invalidation falls out of it — editing a item invalidates that item
+    /// Invalidation falls out of it — editing an item invalidates that item
     /// and everything after it in its session, and nothing before it, and
     /// nothing in any other scene.
     pub capture_key: Hash,

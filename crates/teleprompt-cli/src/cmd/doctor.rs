@@ -196,7 +196,7 @@ pub async fn doctor_report_with(
         notes: vec![
             "build renders with ffmpeg as a subprocess; check, plan, diff and dub need none."
                 .to_string(),
-            "a item whose scene nothing here can record holds its slot with a slate; \
+            "an item whose scene nothing here can record holds its slot with a slate; \
              `capture` says which."
                 .to_string(),
             "no external runtime ships with teleprompt: Node and Playwright are not required."

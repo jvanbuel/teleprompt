@@ -343,7 +343,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
 
             // A item needs recapture when its picture changed
             // (capture_key — its own steps, or any step before it in the
-            // same session, because the screen a item shows is what the
+            // same session, because the screen an item shows is what the
             // items before it left behind),
             // when its rendered action duration changed (e.g. a stretch/
             // trim policy re-timed it), when the item's own local duration
@@ -352,9 +352,9 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
             // Concurrent/etc. reposition the action relative to narration
             // within the item — or when an action was added or removed
             // outright. `duration_ms` here is each item's own local
-            // duration, not the timeline total, so a item whose *position*
+            // duration, not the timeline total, so an item whose *position*
             // shifted only because an earlier, unrelated item changed does
-            // NOT get flagged — only a item whose own internal layout
+            // NOT get flagged — only an item whose own internal layout
             // actually moved does.
             //
             // The duration comparison runs whenever *either* side carries

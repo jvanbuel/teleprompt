@@ -100,7 +100,7 @@ pub struct ShotEntry {
     /// it in the same session. What a captured clip is filed under.
     ///
     /// Not the same as `shot_hash`, and the difference is the point. A
-    /// scene is a session, so the screen a item shows is the accumulation
+    /// scene is a session, so the screen an item shows is the accumulation
     /// of every item before it; two blocks with the same steps — `j` twice
     /// in one walkthrough — have one `shot_hash` and two pictures.
     pub capture_key: Hash,
@@ -241,7 +241,7 @@ pub fn build(
         .collect();
 
     // One item per scheduled shot, in the timeline's own order. A pause is
-    // included rather than filtered: `scene: "pause"` is a item during which
+    // included rather than filtered: `scene: "pause"` is an item during which
     // the picture holds, and a consumer that skipped it would run the next
     // shot early.
     let shots: Vec<ShotEntry> = timeline

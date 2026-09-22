@@ -249,7 +249,7 @@ fn every_line_names_the_chapter_it_was_spoken_in() {
     );
 }
 
-/// Pins current behaviour, deliberately. The scheduler subtracts a item's
+/// Pins current behaviour, deliberately. The scheduler subtracts an item's
 /// transition window from that item before advancing its cursor, and for a
 /// narration-only item there is no action shot to absorb it, so the window
 /// eats into speech and consecutive lines overlap. See spec §5.2, which
@@ -416,7 +416,7 @@ fn the_manifest_json_shape_is_stable() {
 
 /// The same contract with a scene in it. `TWO_CHAPTERS` is narration-only —
 /// it exists to pin the chapter join — so on its own it would pin `items` as
-/// an empty array and let the published shape of a item change unnoticed.
+/// an empty array and let the published shape of an item change unnoticed.
 #[test]
 fn the_manifest_json_shape_with_shots_is_stable() {
     insta::assert_json_snapshot!(manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK));
@@ -494,7 +494,7 @@ mod items {
             .shots
             .iter()
             .find(|b| b.scene == "pause")
-            .expect("a pause directive is published as a item");
+            .expect("a pause directive is published as an item");
         assert_eq!(pause.duration_ms, 600);
         assert_eq!(pause.line, None);
     }

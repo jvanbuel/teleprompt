@@ -265,7 +265,7 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
 /// item changes that item's key and every key after it *in its session*,
 /// and nothing before it, and nothing in another scene. Where the analogy
 /// stops is position — a container rebuilds everything below a changed
-/// line, and this does not care where in the document a item sits. Moving
+/// line, and this does not care where in the document an item sits. Moving
 /// a paragraph changes every later item's `start_ms` and no item's key,
 /// because start time is not in one.
 ///

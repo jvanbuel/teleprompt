@@ -20,7 +20,7 @@ pub struct NarrationInput {
     /// Silence before the clip, and silence after it.
     ///
     /// These travel with the narration rather than being read off the
-    /// [`Item`]'s single `config` because a item's two halves resolve from
+    /// [`Item`]'s single `config` because an item's two halves resolve from
     /// different configuration layers: the narration's padding comes from the
     /// *line's* attributes (`{#a lead_in=1000ms}`), while the item's
     /// `config` is the following action block's. Reading padding off

@@ -17,12 +17,16 @@ fn the_registry_serves_every_adapter_this_build_ships() {
 
     assert_eq!(r.get("mock").map(SceneCompiler::kind), Some("mock"));
     assert_eq!(r.get("vhs").map(SceneCompiler::kind), Some("vhs"));
-    assert_eq!(r.available(), vec!["mock", "vhs"]);
+    assert_eq!(
+        r.get("playwright").map(SceneCompiler::kind),
+        Some("playwright")
+    );
+    assert_eq!(r.available(), vec!["mock", "playwright", "vhs"]);
 }
 
 #[test]
 fn an_unknown_adapter_is_not_served() {
-    assert!(scenes().get("playwright").is_none());
+    assert!(scenes().get("selenium").is_none());
 }
 
 /// The other half of `stretch-action`: the scheduler decides the action

@@ -1,4 +1,4 @@
-//! What names a item's picture.
+//! What names an item's picture.
 //!
 //! A scene is a session: the items of a walkthrough continue one another,
 //! and the screen at item *N* is the accumulation of items 1..*N*. So a
@@ -118,7 +118,7 @@ fn two_blocks_with_the_same_tape_do_not_share_a_picture() {
     );
 }
 
-/// The chain's shape. Editing a item invalidates it and everything after
+/// The chain's shape. Editing an item invalidates it and everything after
 /// it in that session, and nothing before it.
 #[test]
 fn editing_a_shot_invalidates_it_and_what_follows_it() {
@@ -172,7 +172,7 @@ fn a_named_session_starts_a_chain_of_its_own() {
     );
 }
 
-/// Two scenes are two screens. A item in one is not downstream of a item
+/// Two scenes are two screens. A item in one is not downstream of an item
 /// in the other, however they interleave in the document.
 #[test]
 fn a_beat_does_not_follow_a_shot_in_another_scene() {
