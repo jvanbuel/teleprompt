@@ -5,14 +5,14 @@ use crate::policy::Policy;
 
 #[derive(Debug, Clone)]
 pub struct NarrationInput {
-    pub segment_id: String,
+    pub line_id: String,
     pub source_hash: Hash,
     pub audio_hash: Hash,
     /// Clip duration excluding lead-in and tail padding.
     pub duration_ms: u64,
     /// Whether `duration_ms` was measured from real audio or predicted.
     ///
-    /// `plan` and `diff` never synthesize, so a segment not yet in the cache
+    /// `plan` and `diff` never synthesize, so a line not yet in the cache
     /// carries an estimate. Publishing which is which is the difference
     /// between a timeline a reader can trust and one that quietly conflates
     /// a prediction with a measurement.
@@ -22,9 +22,9 @@ pub struct NarrationInput {
     /// These travel with the narration rather than being read off the
     /// [`Beat`]'s single `config` because a beat's two halves resolve from
     /// different configuration layers: the narration's padding comes from the
-    /// *segment's* attributes (`{#a lead_in=1000ms}`), while the beat's
+    /// *line's* attributes (`{#a lead_in=1000ms}`), while the beat's
     /// `config` is the following action block's. Reading padding off
-    /// `Beat::config` silently discarded every segment-level `lead_in=` /
+    /// `Beat::config` silently discarded every line-level `lead_in=` /
     /// `tail=` whenever an action block followed the paragraph — which, per
     /// spec §3.1, is the normal case.
     pub lead_in_ms: u64,
@@ -62,7 +62,7 @@ pub struct ActionInput {
     pub span_id: String,
     pub scene: String,
     pub adapter: String,
-    pub span_hash: Hash,
+    pub cue_hash: Hash,
     pub duration_ms: u64,
     pub duration_source: DurationSource,
     /// Where inside the narration this action should start, from `at="…"`.
@@ -71,7 +71,7 @@ pub struct ActionInput {
     /// author says "type the command while the voice is saying it", which
     /// no policy can work out on its own — the sentence that names a
     /// command is rarely the first one in the paragraph.
-    pub cue_ms: Option<u64>,
+    pub at_ms: Option<u64>,
     /// Which run of the scene this action belongs to, from `session="…"`.
     /// `None` is the scene's own, which is where most beats live.
     pub session: Option<String>,

@@ -15,7 +15,7 @@ fn beat(id: &str, narration_ms: u64, source: &str) -> Beat {
     Beat {
         id: id.into(),
         narration: Some(NarrationInput {
-            segment_id: id.into(),
+            line_id: id.into(),
             source_hash: Hash::of(source.as_bytes()),
             audio_hash: Hash::of(source.as_bytes()),
             duration_ms: narration_ms,
@@ -106,7 +106,7 @@ fn stale_takes_are_reported_with_their_fallback_tier() {
     let b = timeline(vec![stale_beat("b1")]);
     let d = diff(&a, &b);
     assert_eq!(d.stale_takes.len(), 1);
-    assert_eq!(d.stale_takes[0].segment, "b1");
+    assert_eq!(d.stale_takes[0].line, "b1");
     assert_eq!(d.stale_takes[0].falls_back_to, "cloned");
 }
 
@@ -116,10 +116,10 @@ fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
         span_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
-        span_hash: Hash::of(id.as_bytes()),
+        cue_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
-        cue_ms: None,
+        at_ms: None,
         session: None,
     };
     let mut a1 = beat("b1", 1000, "one");
@@ -131,7 +131,7 @@ fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
     assert_eq!(
         d.recapture,
         ["b1"],
-        "the slot moved even though the span did not"
+        "the slot moved even though the cue did not"
     );
 }
 
@@ -167,16 +167,16 @@ fn mock_action(id: &str, ms: u64) -> ActionInput {
         span_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
-        span_hash: Hash::of(id.as_bytes()),
+        cue_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
-        cue_ms: None,
+        at_ms: None,
         session: None,
     }
 }
 
 /// Review round 1, finding 2: a beat's slot changed just as much by
-/// gaining or losing an action as by an existing action's span or timing
+/// gaining or losing an action as by an existing action's cue or timing
 /// changing.
 #[test]
 fn a_beat_that_gains_an_action_needs_recapture() {
@@ -294,10 +294,10 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
             span_id: "s1".into(),
             scene: "mock".into(),
             adapter: "mock".into(),
-            span_hash: Hash::of(b"s1"),
+            cue_hash: Hash::of(b"s1"),
             duration_ms: 500,
             duration_source: DurationSource::Exact,
-            cue_ms: None,
+            at_ms: None,
             session: None,
         });
         let mut b2 = beat("b2", 2000, "two");
@@ -325,10 +325,10 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
             span_id: "s1".into(),
             scene: "mock".into(),
             adapter: "mock".into(),
-            span_hash: Hash::of(b"s1"),
+            cue_hash: Hash::of(b"s1"),
             duration_ms: 500,
             duration_source: DurationSource::Exact,
-            cue_ms: None,
+            at_ms: None,
             session: None,
         });
         b1.policy = Policy::Concurrent(teleprompt_schedule::Align::Start);
@@ -433,7 +433,7 @@ fn a_bare_total_duration_change_is_not_an_empty_diff() {
 }
 
 /// The narration's placement *within its own beat* is a local fact: a
-/// segment-level `lead_in=` retune that leaves the beat's overall length
+/// line-level `lead_in=` retune that leaves the beat's overall length
 /// alone still moves the audio, and `diff` must say so.
 #[test]
 fn a_lead_in_retune_that_does_not_change_beat_length_is_still_reported() {

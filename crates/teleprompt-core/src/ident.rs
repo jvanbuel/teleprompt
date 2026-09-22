@@ -48,7 +48,7 @@ impl BlockId {
 ///
 /// Path traversal and filesystem control characters — **not** non-ASCII
 /// letters. `café-1.wav` is a valid file name on every modern filesystem
-/// and a valid URL path segment once percent-encoded, so it is permitted.
+/// and a valid URL path line once percent-encoded, so it is permitted.
 ///
 /// An earlier revision of this check required ASCII, which made `# Café`
 /// or `# Развёртывание` a hard error. That is wrong for this project
@@ -66,7 +66,7 @@ impl BlockId {
 /// Control characters are covered by the allow-list already — none of them
 /// are alphanumeric — but they get their own branch so the diagnostic can
 /// say what is wrong instead of trying to print the character.
-const ID_HELP: &str = "ids become file names and URL path segments: use letters \
+const ID_HELP: &str = "ids become file names and URL path lines: use letters \
                        (in any script), digits, `-`, `_`, and `.`, and do not \
                        start with `.`; a derived id comes from the chapter \
                        heading, so pin one with `{#id}` when the heading cannot \
@@ -74,22 +74,22 @@ const ID_HELP: &str = "ids become file names and URL path segments: use letters 
 
 fn id_error(id: &str) -> Option<String> {
     if id == "." || id == ".." {
-        return Some(format!("segment id `{id}` is a path component"));
+        return Some(format!("line id `{id}` is a path component"));
     }
     if id.starts_with('.') {
-        return Some(format!("segment id `{id}` starts with `.`"));
+        return Some(format!("line id `{id}` starts with `.`"));
     }
     if id.contains('/') || id.contains('\\') {
-        return Some(format!("segment id `{id}` contains a path separator"));
+        return Some(format!("line id `{id}` contains a path separator"));
     }
     if id.chars().any(char::is_control) {
-        return Some(format!("segment id `{id}` contains a control character"));
+        return Some(format!("line id `{id}` contains a control character"));
     }
     if let Some(c) = id
         .chars()
         .find(|c| !(c.is_alphanumeric() || *c == '-' || *c == '_' || *c == '.'))
     {
-        return Some(format!("segment id `{id}` contains `{c}`"));
+        return Some(format!("line id `{id}` contains `{c}`"));
     }
     None
 }
@@ -107,13 +107,13 @@ pub fn assign_ids(script: &mut Script) -> Vec<Diagnostic> {
 
         for node in &mut chapter.nodes {
             match node {
-                Node::Segment(seg) => {
+                Node::Line(seg) => {
                     seg_n += 1;
                     seg_block_n = 0;
                     let (id, origin) = match &seg.id {
                         Some(explicit) if explicit.is_empty() => {
                             diags.push(
-                                Diagnostic::error("segment id cannot be empty")
+                                Diagnostic::error("line id cannot be empty")
                                     .at(seg.span)
                                     .with_help("remove the empty `{#}` or give it a non-empty id"),
                             );
@@ -156,7 +156,7 @@ pub fn assign_ids(script: &mut Script) -> Vec<Diagnostic> {
 }
 
 /// Validates and records one id. Every id reaches here — derived and
-/// explicit, segment and action block — because every one of them can end
+/// explicit, line and action block — because every one of them can end
 /// up as a file name, so the check must not be scoped to the explicit ones.
 fn record_id(seen: &mut HashSet<String>, id: &str, span: SourceSpan, diags: &mut Vec<Diagnostic>) {
     if let Some(msg) = id_error(id) {
@@ -164,7 +164,7 @@ fn record_id(seen: &mut HashSet<String>, id: &str, span: SourceSpan, diags: &mut
     }
     if !seen.insert(id.to_string()) {
         diags.push(
-            Diagnostic::error(format!("duplicate segment id `{id}`"))
+            Diagnostic::error(format!("duplicate line id `{id}`"))
                 .at(span)
                 .with_help("give one of them an explicit unique `{#id}`"),
         );

@@ -10,7 +10,7 @@ use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
 
 use crate::contract::{
-    validate_lines, BlockSource, LineError, Measured, SceneCompiler, Span, Validated,
+    validate_lines, BlockSource, Cue, LineError, Measured, SceneCompiler, Validated,
 };
 
 /// The mock adapter.
@@ -33,22 +33,22 @@ pub struct MockScene;
 /// The mock is M0's only source of action duration, so a disagreement here
 /// is a disagreement about how long the video is.
 #[derive(Debug)]
-enum Line {
+enum Command {
     /// Blank or a `#` comment: no executable content whatsoever. Ruling F13
     /// was written to keep these from becoming phantom beats; its wording
     /// said "whitespace-only" when it meant "no executable content", which
     /// is why a chunk of pure comments between two `mark`s still survived
-    /// the filter as a zero-duration span.
+    /// the filter as a zero-duration cue.
     Nothing,
     Mark,
     Wait(u64),
 }
 
 /// The lone place a mock body line is interpreted.
-fn classify(line: &str) -> Result<Line, LineError> {
+fn classify(line: &str) -> Result<Command, LineError> {
     let line = line.trim();
     if line.is_empty() || line.starts_with('#') {
-        return Ok(Line::Nothing);
+        return Ok(Command::Nothing);
     }
 
     // `split_whitespace`, so a tab between a directive and its argument is
@@ -59,7 +59,7 @@ fn classify(line: &str) -> Result<Line, LineError> {
 
     match head {
         "mark" => match parts.next() {
-            None => Ok(Line::Mark),
+            None => Ok(Command::Mark),
             Some(extra) => Err(LineError::new(
                 format!("`mark` takes no arguments, found `{extra}`"),
                 "write `mark` on a line of its own",
@@ -83,7 +83,7 @@ fn classify(line: &str) -> Result<Line, LineError> {
                 ));
             }
             match parse_duration_ms(value) {
-                Ok(ms) => Ok(Line::Wait(ms)),
+                Ok(ms) => Ok(Command::Wait(ms)),
                 Err(msg) => Err(LineError::new(msg, "e.g. `wait 500ms`")),
             }
         }
@@ -99,7 +99,7 @@ fn classify(line: &str) -> Result<Line, LineError> {
 fn has_content(chunk: &str) -> bool {
     chunk
         .lines()
-        .any(|l| !matches!(classify(l), Ok(Line::Nothing)))
+        .any(|l| !matches!(classify(l), Ok(Command::Nothing)))
 }
 
 impl SceneCompiler for MockScene {
@@ -111,12 +111,12 @@ impl SceneCompiler for MockScene {
         validate_lines(src, classify)
     }
 
-    fn spans(&self, v: &Validated, block_id: &str) -> Result<Vec<Span>, Vec<Diagnostic>> {
+    fn cues(&self, v: &Validated, block_id: &str) -> Result<Vec<Cue>, Vec<Diagnostic>> {
         let chunks: Vec<String> = v
             .body
             .lines()
             .collect::<Vec<_>>()
-            .split(|l| matches!(classify(l), Ok(Line::Mark)))
+            .split(|l| matches!(classify(l), Ok(Command::Mark)))
             .map(|lines| lines.join("\n"))
             .filter(|chunk| has_content(chunk))
             .collect();
@@ -124,7 +124,7 @@ impl SceneCompiler for MockScene {
         Ok(chunks
             .into_iter()
             .enumerate()
-            .map(|(index, source)| Span {
+            .map(|(index, source)| Cue {
                 id: format!("{block_id}#{index}"),
                 hash: Hash::of(source.trim().as_bytes()),
                 source,
@@ -133,17 +133,17 @@ impl SceneCompiler for MockScene {
             .collect())
     }
 
-    fn estimate(&self, span: &Span) -> Measured {
-        // Same `classify` as `validate` and `spans`, so a line that passed
+    fn estimate(&self, cue: &Cue) -> Measured {
+        // Same `classify` as `validate` and `cues`, so a line that passed
         // `check` as a `wait` is a `wait` here too, tab or no tab.
-        let total: u64 = span
+        let total: u64 = cue
             .source
             .lines()
             .filter_map(|l| match classify(l) {
-                Ok(Line::Wait(ms)) => Some(ms),
+                Ok(Command::Wait(ms)) => Some(ms),
                 // Not a catch-all: a directive added later must fail to
                 // compile here rather than silently contribute nothing.
-                Ok(Line::Nothing | Line::Mark) | Err(_) => None,
+                Ok(Command::Nothing | Command::Mark) | Err(_) => None,
             })
             .sum();
         Measured::Exact(total)

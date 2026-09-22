@@ -16,7 +16,7 @@ fn program_for(src: &str) -> Program {
     let diags = assign_ids(&mut parsed);
     assert!(
         !diags.iter().any(|d| d.is_error()),
-        "fixture must yield unambiguous segment ids"
+        "fixture must yield unambiguous line ids"
     );
     resolve(
         &parsed,
@@ -76,7 +76,7 @@ fn manifest_for(src: &str) -> manifest::NarrationManifest {
 }
 
 /// Builds the manifest from a *warm* cache carrying `word_timings` for every
-/// segment, so the manifest's `WordTiming.word` -> `WordEntry.text` rename
+/// line, so the manifest's `WordTiming.word` -> `WordEntry.text` rename
 /// has something to actually exercise. `compile` never synthesizes, so word
 /// timings only ever reach it through a cache hit — there is no longer a
 /// backend to stub for this.
@@ -167,10 +167,10 @@ fn segment_timings_equal_the_timeline_they_came_from() {
         .entries
         .iter()
         .filter_map(|e| e.narration.as_ref())
-        .map(|n| (n.segment.clone(), n.start_ms, n.duration_ms))
+        .map(|n| (n.line.clone(), n.start_ms, n.duration_ms))
         .collect();
     let from_manifest: Vec<(String, u64, u64)> = m
-        .segments
+        .lines
         .iter()
         .map(|s| (s.id.clone(), s.start_ms, s.duration_ms))
         .collect();
@@ -188,20 +188,20 @@ fn chapters_carry_the_start_of_their_first_spoken_segment() {
     assert_eq!(m.chapters.len(), 2);
     assert_eq!(m.chapters[0].id, "quick-start");
     assert_eq!(m.chapters[0].title, "Quick start");
-    assert_eq!(m.chapters[0].start_ms, m.segments[0].start_ms);
+    assert_eq!(m.chapters[0].start_ms, m.lines[0].start_ms);
     assert_eq!(m.chapters[1].id, "provenance");
-    assert_eq!(m.chapters[1].start_ms, m.segments[1].start_ms);
+    assert_eq!(m.chapters[1].start_ms, m.lines[1].start_ms);
 }
 
 /// Chapter slugs derive from titles, cannot be pinned, and are never
 /// deduplicated, so two `# Setup` chapters share the slug `setup`. Joining
 /// details to chapters by that slug made `min()` run over both chapters'
-/// segments: the two markers came out with the same `start_ms` and the
+/// lines: the two markers came out with the same `start_ms` and the
 /// second chapter's real start was lost. The join has to be positional.
 #[test]
 fn two_chapters_with_the_same_title_keep_their_own_starts() {
     // Explicit ids, because two identically-titled chapters would otherwise
-    // derive the same segment id and `assign_ids` would reject the script
+    // derive the same line id and `assign_ids` would reject the script
     // before this join is ever reached. Pinning the ids is exactly what an
     // author hitting that error is told to do, so this is the shape the bug
     // actually reaches production in.
@@ -220,12 +220,12 @@ Second chapter speaks somewhere else entirely. {#setup-second}
     assert_eq!(m.chapters.len(), 2, "two headings, two markers");
     assert_eq!(m.chapters[0].id, "setup");
     assert_eq!(m.chapters[1].id, "setup");
-    assert_eq!(m.segments.len(), 2);
+    assert_eq!(m.lines.len(), 2);
 
-    assert_eq!(m.chapters[0].start_ms, m.segments[0].start_ms);
+    assert_eq!(m.chapters[0].start_ms, m.lines[0].start_ms);
     assert_eq!(
-        m.chapters[1].start_ms, m.segments[1].start_ms,
-        "the second chapter's marker must be its own first segment's start, \
+        m.chapters[1].start_ms, m.lines[1].start_ms,
+        "the second chapter's marker must be its own first line's start, \
          not the earlier chapter's"
     );
     assert_ne!(
@@ -238,12 +238,12 @@ Second chapter speaks somewhere else entirely. {#setup-second}
 #[test]
 fn every_segment_names_the_chapter_it_was_spoken_in() {
     let m = manifest_for(TWO_CHAPTERS);
-    assert_eq!(m.segments[0].chapter, "quick-start");
-    assert_eq!(m.segments[1].chapter, "provenance");
+    assert_eq!(m.lines[0].chapter, "quick-start");
+    assert_eq!(m.lines[1].chapter, "provenance");
 
     let json = serde_json::to_value(&m).unwrap();
     assert_eq!(
-        json["segments"][0]["chapter"], "quick-start",
+        json["lines"][0]["chapter"], "quick-start",
         "always serialized: reconstructing this from timestamps against a \
          `chapters` list that omits silent chapters is lossy"
     );
@@ -251,9 +251,9 @@ fn every_segment_names_the_chapter_it_was_spoken_in() {
 
 /// Pins current behaviour, deliberately. The scheduler subtracts a beat's
 /// transition window from that beat before advancing its cursor, and for a
-/// narration-only beat there is no action span to absorb it, so the window
-/// eats into speech and consecutive segments overlap. See spec §5.2, which
-/// tells consumers to treat each segment's own `duration_ms` as
+/// narration-only beat there is no action cue to absorb it, so the window
+/// eats into speech and consecutive lines overlap. See spec §5.2, which
+/// tells consumers to treat each line's own `duration_ms` as
 /// authoritative for exactly this reason.
 ///
 /// If the scheduler is ever changed so narration-only beats no longer
@@ -272,9 +272,9 @@ Two.
 Three.
 ",
     );
-    assert_eq!(m.segments.len(), 3);
+    assert_eq!(m.lines.len(), 3);
 
-    for pair in m.segments.windows(2) {
+    for pair in m.lines.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
         assert_eq!(
             a.start_ms + a.duration_ms,
@@ -308,8 +308,8 @@ One.
 Two.
 ",
     );
-    assert_eq!(m.segments.len(), 2);
-    let (a, b) = (&m.segments[0], &m.segments[1]);
+    assert_eq!(m.lines.len(), 2);
+    let (a, b) = (&m.lines[0], &m.lines[1]);
     assert!(
         a.start_ms + a.duration_ms > b.start_ms,
         "`{}` ends at {} and `{}` starts at {}",
@@ -342,12 +342,9 @@ Only this chapter speaks.
 #[test]
 fn audio_paths_are_relative_to_the_manifest() {
     let m = manifest_for(TWO_CHAPTERS);
-    assert_eq!(
-        m.segments[0].audio,
-        format!("audio/{}.wav", m.segments[0].id)
-    );
+    assert_eq!(m.lines[0].audio, format!("audio/{}.wav", m.lines[0].id));
     assert!(
-        !m.segments[0].audio.starts_with('/'),
+        !m.lines[0].audio.starts_with('/'),
         "an absolute path would not survive being served from anywhere else"
     );
 }
@@ -368,7 +365,7 @@ fn header_records_version_provenance_and_audio_shape() {
 fn downgrade_reason_is_present_as_null_but_words_are_omitted() {
     let m = manifest_for(TWO_CHAPTERS);
     let json = serde_json::to_value(&m).unwrap();
-    let seg = &json["segments"][0];
+    let seg = &json["lines"][0];
 
     assert!(
         seg.get("downgrade_reason").is_some(),
@@ -401,7 +398,7 @@ fn words_from_the_backend_serialize_under_the_key_text_not_word() {
     let json = serde_json::to_value(&m).unwrap();
 
     assert_eq!(
-        json["segments"][0]["words"],
+        json["lines"][0]["words"],
         serde_json::json!([
             { "text": "Every", "start_ms": 0, "end_ms": 300 },
             { "text": "video", "start_ms": 300, "end_ms": 600 },
@@ -449,9 +446,9 @@ mod beats {
     #[test]
     fn every_scheduled_span_is_published() {
         let m = manifest_for(TWO_BEATS);
-        let spans: Vec<&str> = m.beats.iter().map(|b| b.span.as_str()).collect();
-        assert_eq!(spans.len(), 3, "two blocks, one of them split by a mark");
-        assert!(spans.iter().all(|s| s.contains('#')), "{spans:?}");
+        let cues: Vec<&str> = m.beats.iter().map(|b| b.cue.as_str()).collect();
+        assert_eq!(cues.len(), 3, "two blocks, one of them split by a mark");
+        assert!(cues.iter().all(|s| s.contains('#')), "{cues:?}");
     }
 
     #[test]
@@ -465,24 +462,24 @@ mod beats {
                 .timeline
                 .entries
                 .iter()
-                .find(|e| e.action.as_ref().is_some_and(|a| a.span == beat.span))
+                .find(|e| e.action.as_ref().is_some_and(|a| a.cue == beat.cue))
                 .expect("every beat comes from a timeline entry");
             let action = entry.action.as_ref().unwrap();
             assert_eq!(beat.start_ms, action.start_ms);
             assert_eq!(beat.duration_ms, action.duration_ms);
             assert_eq!(beat.policy, entry.policy);
-            assert_eq!(beat.span_hash, action.span_hash);
+            assert_eq!(beat.cue_hash, action.cue_hash);
         }
     }
 
     #[test]
     fn the_segment_spoken_over_a_span_is_named_and_unpaired_spans_say_null() {
         let m = manifest_for(TWO_BEATS);
-        assert_eq!(m.beats[0].segment.as_deref(), Some("one"));
-        assert_eq!(m.beats[1].segment.as_deref(), Some("two"));
+        assert_eq!(m.beats[0].line.as_deref(), Some("one"));
+        assert_eq!(m.beats[1].line.as_deref(), Some("two"));
         assert_eq!(
-            m.beats[2].segment, None,
-            "a span after a mark runs under what the policy left of the paragraph"
+            m.beats[2].line, None,
+            "a cue after a mark runs under what the policy left of the paragraph"
         );
     }
 
@@ -499,7 +496,7 @@ mod beats {
             .find(|b| b.scene == "pause")
             .expect("a pause directive is published as a beat");
         assert_eq!(pause.duration_ms, 600);
-        assert_eq!(pause.segment, None);
+        assert_eq!(pause.line, None);
     }
 
     #[test]

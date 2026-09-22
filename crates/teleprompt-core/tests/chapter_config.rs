@@ -51,7 +51,7 @@ fn chapter_front_matter_overrides_script_front_matter() {
 
 #[test]
 fn a_chapter_config_block_is_not_narration() {
-    assert_eq!(items().len(), 2, "the yaml block must not become a segment");
+    assert_eq!(items().len(), 2, "the yaml block must not become a line");
 }
 
 #[test]

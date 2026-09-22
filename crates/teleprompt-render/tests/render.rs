@@ -252,7 +252,7 @@ fn a_plan_with_no_beats_at_all_still_renders_its_narration() {
 /// A beat of no length is a beat there is nothing to show for, and
 /// `trim=duration=0` is not something ffmpeg will accept. It is dropped
 /// rather than rendered, which changes nothing about the timeline: the
-/// piece around it already covers those zero milliseconds.
+/// placement around it already covers those zero milliseconds.
 #[test]
 fn a_beat_of_no_length_does_not_reach_the_graph() {
     if !have_ffmpeg() {

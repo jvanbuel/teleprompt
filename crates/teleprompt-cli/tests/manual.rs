@@ -91,8 +91,8 @@ fn every_terminal_action_is_timed_exactly() {
         tapes += 1;
         assert_eq!(
             a.duration_source, "exact",
-            "span {} is {} rather than exact",
-            a.span, a.duration_source
+            "cue {} is {} rather than exact",
+            a.cue, a.duration_source
         );
     }
     assert!(tapes > 0, "the manual must exercise the tape adapter");
@@ -142,7 +142,7 @@ async fn the_manual_renders() {
         .await
         .unwrap_or_else(|e| panic!("the manual must render: {}", build::render_error(&e)));
 
-    assert_eq!(report.segments, 21);
+    assert_eq!(report.lines, 21);
     assert_eq!(report.beats, 25);
 
     // `TELEPROMPT_REQUIRE_CAPTURE` is CI saying it has a recorder and
@@ -254,13 +254,13 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
     std::fs::create_dir_all(&dir).unwrap();
 
     let mut bad = Vec::new();
-    for span in &out.spans {
-        // An `Output` line is the one thing a span never carries and a
+    for cue in &out.cues {
+        // An `Output` line is the one thing a cue never carries and a
         // tape may not omit; everything after it is the manual's own.
-        let path = dir.join(format!("{}.tape", span.id.replace(['/', '#'], "_")));
+        let path = dir.join(format!("{}.tape", cue.id.replace(['/', '#'], "_")));
         let mut f = std::fs::File::create(&path).unwrap();
         writeln!(f, "Output \"{}.mp4\"", path.display()).unwrap();
-        f.write_all(span.source.as_bytes()).unwrap();
+        f.write_all(cue.source.as_bytes()).unwrap();
         drop(f);
 
         let said = Command::new("vhs")
@@ -271,7 +271,7 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
         if !said.status.success() {
             bad.push(format!(
                 "  {}: {}",
-                span.id,
+                cue.id,
                 String::from_utf8_lossy(&said.stdout)
                     .lines()
                     .chain(String::from_utf8_lossy(&said.stderr).lines())

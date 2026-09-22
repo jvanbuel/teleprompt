@@ -68,21 +68,21 @@ async fn a_stretched_span_is_published_re_timed_to_its_scheduled_length() {
         .find_map(|e| e.action.as_ref())
         .expect("the beat has an action");
     let published = compiled
-        .spans
+        .cues
         .iter()
-        .find(|s| s.id == entry.span)
+        .find(|s| s.id == entry.cue)
         .expect("its source is published");
 
-    let span = teleprompt_scene::Span {
+    let cue = teleprompt_scene::Cue {
         id: published.id.clone(),
         source: published.source.clone(),
-        hash: entry.span_hash,
+        hash: entry.cue_hash,
         index: 0,
     };
     let registry = scenes();
     let adapter = registry.get("vhs").expect("this build ships vhs");
     assert_eq!(
-        adapter.estimate(&span),
+        adapter.estimate(&cue),
         Measured::Exact(entry.duration_ms),
         "the published tape should last exactly its slot:\n{}",
         published.source

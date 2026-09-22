@@ -3,44 +3,44 @@
 //! Stage 5. It sits between the manifest and the render, and it is what
 //! turns a correctly-paced video of slates into a video.
 //!
-//! The work is organised by session rather than by beat, because a scene
-//! *is* a session: the beats of a walkthrough continue one another, so a
-//! backend is handed a run of a scene and told which of its steps to keep.
-//! A step whose clip is already cached still runs — the step after it
+//! The work is organised by session rather than by cue, because a scene
+//! *is* a session: the cues of a walkthrough continue one another, so a
+//! backend is handed a run of a scene and told which of its cues to keep.
+//! A cue whose clip is already cached still runs — the cue after it
 //! opens on the screen it leaves behind — which is why the unit here is
-//! not the beat.
+//! not the cue.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_capture::{sessions, Beat, CaptureRegistry, Frame, Progress, Session};
+use teleprompt_capture::{sessions, CaptureRegistry, Cue, Frame, Progress, Session};
 use teleprompt_compile::manifest::NarrationManifest;
-use teleprompt_compile::SpanSource;
+use teleprompt_compile::CueSource;
 use teleprompt_core::config::SceneConfig;
 
-/// The beats of a published manifest, as the planner needs them.
+/// The cues of a published manifest, as the planner needs them.
 ///
 /// Built from the manifest rather than from the in-process timeline for
 /// the reason the renderer is: two timing paths drift, and a clip captured
 /// against a length nothing published is a clip that does not fit.
-pub fn beats_of(
+pub fn cues_of(
     manifest: &NarrationManifest,
-    spans: &[SpanSource],
+    cues: &[CueSource],
     scenes: &BTreeMap<String, SceneConfig>,
-) -> Vec<Beat> {
+) -> Vec<Cue> {
     manifest
         .beats
         .iter()
-        .map(|beat| Beat {
-            span: beat.span.clone(),
+        .map(|beat| Cue {
+            id: beat.cue.clone(),
             scene: beat.scene.clone(),
             adapter: beat.adapter.clone(),
             session: beat.session.clone(),
             key: beat.capture_key,
-            source: spans
+            source: cues
                 .iter()
-                .find(|s| s.id == beat.span)
+                .find(|s| s.id == beat.cue)
                 .map(|s| s.source.clone())
                 .unwrap_or_default(),
             duration_ms: beat.duration_ms,
@@ -135,16 +135,16 @@ impl CaptureReport {
 /// because there may be another one that manages.
 pub fn run_capture(
     manifest: &NarrationManifest,
-    spans: &[SpanSource],
+    cues: &[CueSource],
     scenes: &BTreeMap<String, SceneConfig>,
     registry: &CaptureRegistry,
     clips_dir: &Path,
     frame: Frame,
     on_progress: &mut dyn FnMut(Progress),
 ) -> CaptureReport {
-    let beats = beats_of(manifest, spans, scenes);
+    let cues = cues_of(manifest, cues, scenes);
     let have = |key: &teleprompt_core::Hash| clips_dir.join(format!("{key}.mp4")).is_file();
-    let planned = sessions(&beats, &have);
+    let planned = sessions(&cues, &have);
 
     let mut warnings = Vec::new();
     let mut captured = 0usize;
@@ -153,8 +153,8 @@ pub fn run_capture(
 
     for session in &planned {
         match record(registry, session, &frame, clips_dir, on_progress) {
-            Ok(shots) => {
-                captured += shots;
+            Ok(clips) => {
+                captured += clips;
                 ran += 1;
             }
             Err(why) => {
@@ -164,7 +164,7 @@ pub fn run_capture(
         }
     }
 
-    let total = beats.iter().filter(|b| b.scene != "pause").count();
+    let total = cues.iter().filter(|b| b.scene != "pause").count();
     CaptureReport {
         ok: true,
         clips_dir: clips_dir.to_path_buf(),
@@ -187,7 +187,7 @@ fn record(
     let Some(backend) = registry.for_adapter(&session.adapter) else {
         return Err(format!(
             "nothing in this build can record `{}` scenes (adapter `{}`), so \
-             its {} beat(s) will render as slates",
+             its {} cue(s) will render as slates",
             session.scene,
             session.adapter,
             session.wanted()
@@ -195,7 +195,7 @@ fn record(
     };
     if let Some(reason) = backend.unavailable() {
         return Err(format!(
-            "`{}` cannot record `{}` scenes here: {reason}; its {} beat(s) \
+            "`{}` cannot record `{}` scenes here: {reason}; its {} cue(s) \
              will render as slates",
             backend.id(),
             session.scene,
@@ -204,10 +204,10 @@ fn record(
     }
     backend
         .capture(session, frame, clips_dir, on_progress)
-        .map(|shots| shots.len())
+        .map(|clips| clips.len())
         .map_err(|e| {
             format!(
-                "recording `{}` failed, so its {} beat(s) will render as \
+                "recording `{}` failed, so its {} cue(s) will render as \
                  slates: {e}",
                 session.scene,
                 session.wanted()

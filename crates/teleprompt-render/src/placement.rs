@@ -1,7 +1,7 @@
-//! The plan's beats as pieces that tile the output.
+//! The plan's beats as placements that tile the output.
 //!
 //! Shared by both renderers: the monolithic graph builds one filter chain
-//! per piece, and the incremental one cuts the same pieces into cacheable
+//! per placement, and the incremental one cuts the same placements into cacheable
 //! chunks. Deriving the geometry twice would mean two videos that agree
 //! until they do not.
 
@@ -13,33 +13,33 @@ pub(crate) const BACKGROUND: &str = "0x0b0d10";
 
 /// One beat's place on screen: what to draw, and for how long.
 ///
-/// A piece is not the same thing as a beat. The plan's beats do not tile
+/// A placement is not the same thing as a beat. The plan's beats do not tile
 /// the timeline — narration opens after a lead-in, and most paragraphs have
 /// no action under them at all, which on a real script is the majority of
 /// the running time. Those gaps are picture too. They are folded into the
-/// neighbouring piece as frozen frames rather than becoming anything of
+/// neighbouring placement as frozen frames rather than becoming anything of
 /// their own, because the alternative is a video that cuts to a blank field
 /// every time somebody keeps talking.
-pub(crate) struct Piece {
-    /// Where this piece begins on the output timeline, lead-in included.
+pub(crate) struct Placement {
+    /// Where this placement begins on the output timeline, lead-in included.
     pub start_ms: u64,
     /// Frozen first frame before the clip itself starts. Only the opening
-    /// piece has one: there is nothing earlier to hold.
+    /// placement has one: there is nothing earlier to hold.
     pub lead_in_ms: u64,
     /// Total time on screen — lead-in, the beat, and any gap after it,
     /// which is held on the last frame.
     pub duration_ms: u64,
     pub picture: Picture,
-    /// How this piece is joined to the one before it, and by how much they
+    /// How this placement is joined to the one before it, and by how much they
     /// overlap. The overlap is the transition the scheduler granted, read
     /// off the beats' own arithmetic rather than off the published
     /// duration, so there is one source of truth for when a join happens.
     pub blend: Option<(String, u64)>,
 }
 
-/// The plan's beats as pieces covering `[0, plan.duration_ms)` exactly.
-pub(crate) fn pieces(plan: &RenderPlan) -> Vec<Piece> {
-    let mut out: Vec<Piece> = Vec::new();
+/// The plan's beats as placements covering `[0, plan.duration_ms)` exactly.
+pub(crate) fn placements(plan: &RenderPlan) -> Vec<Placement> {
+    let mut out: Vec<Placement> = Vec::new();
     let mut cursor = 0u64;
     let mut pending_lead = 0u64;
 
@@ -54,8 +54,8 @@ pub(crate) fn pieces(plan: &RenderPlan) -> Vec<Piece> {
         };
 
         // Otherwise, whatever time sits between them is held: on the
-        // previous piece's last frame where there is one, and on this
-        // piece's first frame where there is not. This is settled before
+        // previous placement's last frame where there is one, and on this
+        // placement's first frame where there is not. This is settled before
         // the beat itself is looked at, because a beat that contributes
         // nothing still has a gap in front of it, and dropping the beat
         // must not drop the time.
@@ -87,7 +87,7 @@ pub(crate) fn pieces(plan: &RenderPlan) -> Vec<Piece> {
         }
 
         let lead_in_ms = std::mem::take(&mut pending_lead);
-        out.push(Piece {
+        out.push(Placement {
             start_ms: beat.start_ms - lead_in_ms,
             lead_in_ms,
             duration_ms: beat.duration_ms + lead_in_ms,
@@ -105,7 +105,7 @@ pub(crate) fn pieces(plan: &RenderPlan) -> Vec<Piece> {
         }
         // Nothing was captured at all, and there is no frame to hold. This
         // is the only case that draws a slate.
-        None if plan.duration_ms > 0 => out.push(Piece {
+        None if plan.duration_ms > 0 => out.push(Placement {
             start_ms: 0,
             lead_in_ms: 0,
             duration_ms: plan.duration_ms,

@@ -56,7 +56,7 @@ fn a_non_shell_fence_survives_as_ordinary_markdown() {
 #[test]
 fn two_paragraphs_that_open_the_same_way_get_different_ids() {
     // Ids are the anchor for caching, translation and take binding (§3.3).
-    // Two of them colliding would make two segments one.
+    // Two of them colliding would make two lines one.
     let out = draft(
         "Run the build. It takes a while.\n\nRun the build again.\n",
         "Acme",

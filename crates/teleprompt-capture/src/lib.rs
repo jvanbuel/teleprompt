@@ -3,17 +3,17 @@
 //! Everything before this decided *when* each thing happens; the renderer
 //! turns that into a file. This is the stage that makes the file worth
 //! watching — without it a build is a correctly-paced video of nothing,
-//! every beat holding its slot with a slate.
+//! every cue holding its slot with a slate.
 //!
-//! The organising idea is that **a scene is a session**. The beats of a
+//! The organising idea is that **a scene is a session**. The cues of a
 //! walkthrough continue one another — a running program, a selected row,
-//! an open log — so a backend is not handed a beat, it is handed a session
-//! and told which of its steps to keep. Handing it beats one at a time
-//! would restart the program once per beat, which is six fresh shells in a
+//! an open log — so a backend is not handed a cue, it is handed a session
+//! and told which of its cues to keep. Handing it cues one at a time
+//! would restart the program once per cue, which is six fresh shells in a
 //! two-minute video.
 //!
-//! That is also why a step that is already cached still *runs*. Its clip is
-//! not needed; the screen it leaves behind is, because the next step opens
+//! That is also why a cue that is already cached still *runs*. Its clip is
+//! not needed; the screen it leaves behind is, because the next cue opens
 //! on it.
 
 pub mod mock;
@@ -23,19 +23,19 @@ use std::path::{Path, PathBuf};
 
 use teleprompt_core::Hash;
 
-/// One action beat, as the planner needs it.
+/// One action cue, as the planner needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Beat {
-    pub span: String,
+pub struct Cue {
+    pub id: String,
     pub scene: String,
     pub adapter: String,
     /// `session="…"`, naming a different run of the scene.
     pub session: Option<String>,
-    /// What the clip will be filed under — the chain, not the span hash.
+    /// What the clip will be filed under — the chain, not the cue hash.
     pub key: Hash,
-    /// The adapter's own source for this span, as re-timed and published.
+    /// The adapter's own source for this cue, as re-timed and published.
     pub source: String,
-    /// How long the schedule gave this beat. A backend may not take
+    /// How long the schedule gave this cue. A backend may not take
     /// longer; whether it may take less is the backend's business, since
     /// the renderer holds the last frame either way.
     pub duration_ms: u64,
@@ -47,34 +47,34 @@ pub struct Beat {
     pub settings: BTreeMap<String, String>,
 }
 
-/// One run of a scene: the steps that share a screen, in order.
+/// One run of a scene: the cues that share a screen, in order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Session {
     pub scene: String,
     pub adapter: String,
     pub name: Option<String>,
-    /// The scene's settings, as every step in it shares them.
+    /// The scene's settings, as every cue in it shares them.
     pub settings: BTreeMap<String, String>,
-    pub steps: Vec<Step>,
+    pub cues: Vec<SessionCue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Step {
-    pub span: String,
+pub struct SessionCue {
+    pub id: String,
     pub key: Hash,
     pub source: String,
     pub duration_ms: u64,
-    /// Whether a clip is wanted for this step.
+    /// Whether a clip is wanted for this cue.
     ///
-    /// `false` where one is already cached. The step still runs — the next
-    /// step opens on the screen it leaves behind — it just is not kept.
+    /// `false` where one is already cached. The cue still runs — the next
+    /// cue opens on the screen it leaves behind — it just is not kept.
     pub wanted: bool,
 }
 
 impl Session {
-    /// How many of this session's steps are to be kept.
+    /// How many of this session's cues are to be kept.
     pub fn wanted(&self) -> usize {
-        self.steps.iter().filter(|s| s.wanted).count()
+        self.cues.iter().filter(|s| s.wanted).count()
     }
 
     /// A setting, or what to use when the scene does not name one.
@@ -103,51 +103,51 @@ impl Session {
 /// The scene name a pause wears, which is not a scene and has no picture.
 const PAUSE: &str = "pause";
 
-/// Group `beats` into the sessions a backend can run, dropping what is
+/// Group `cues` into the sessions a backend can run, dropping what is
 /// already captured.
 ///
 /// `have` answers whether a clip for a key is in hand. It is a predicate
 /// rather than a directory because the planner has no business reading the
 /// filesystem, and a test has no business writing to one.
-pub fn sessions(beats: &[Beat], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
+pub fn sessions(cues: &[Cue], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
     let mut out: Vec<Session> = Vec::new();
 
-    for beat in beats {
+    for cue in cues {
         // A pause has no picture: it holds whatever is on screen. There is
         // nothing to run and nothing to keep.
-        if beat.scene == PAUSE {
+        if cue.scene == PAUSE {
             continue;
         }
-        let step = Step {
-            span: beat.span.clone(),
-            key: beat.key,
-            source: beat.source.clone(),
-            duration_ms: beat.duration_ms,
-            wanted: !have(&beat.key),
+        let in_session = SessionCue {
+            id: cue.id.clone(),
+            key: cue.key,
+            source: cue.source.clone(),
+            duration_ms: cue.duration_ms,
+            wanted: !have(&cue.key),
         };
         match out
             .iter_mut()
-            .find(|s| s.scene == beat.scene && s.name == beat.session)
+            .find(|s| s.scene == cue.scene && s.name == cue.session)
         {
-            Some(session) => session.steps.push(step),
+            Some(session) => session.cues.push(in_session),
             None => out.push(Session {
-                scene: beat.scene.clone(),
-                adapter: beat.adapter.clone(),
-                name: beat.session.clone(),
-                settings: beat.settings.clone(),
-                steps: vec![step],
+                scene: cue.scene.clone(),
+                adapter: cue.adapter.clone(),
+                name: cue.session.clone(),
+                settings: cue.settings.clone(),
+                cues: vec![in_session],
             }),
         }
     }
 
     for session in &mut out {
         // Steps after the last wanted one are not run. The prefix has to
-        // be replayed to reach the screen a wanted step opens on; the
+        // be replayed to reach the screen a wanted cue opens on; the
         // suffix leads nowhere anybody is looking, and on a tape whose
         // sleeps are real seconds that is the difference between a capture
         // that stops early and one that sits there.
-        if let Some(last) = session.steps.iter().rposition(|s| s.wanted) {
-            session.steps.truncate(last + 1);
+        if let Some(last) = session.cues.iter().rposition(|s| s.wanted) {
+            session.cues.truncate(last + 1);
         }
     }
     // A session with nothing to keep is a session with nothing to do.
@@ -157,7 +157,7 @@ pub fn sessions(beats: &[Beat], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
 
 /// A clip a backend produced.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Shot {
+pub struct Clip {
     pub key: Hash,
     pub path: PathBuf,
 }
@@ -170,12 +170,12 @@ pub struct Frame {
     pub fps: u32,
 }
 
-/// How far a capture has got. Reported per step, because a step is the
+/// How far a capture has got. Reported per cue, because a cue is the
 /// unit an author recognises and a session can be minutes long.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Progress {
     pub scene: String,
-    pub span: String,
+    pub cue: String,
     pub done: usize,
     pub of: usize,
 }
@@ -188,10 +188,10 @@ pub enum CaptureError {
     /// a warning rather than an error.
     #[error("{backend} cannot capture here: {reason}")]
     Unavailable { backend: String, reason: String },
-    #[error("{backend} failed to capture `{span}`: {reason}")]
+    #[error("{backend} failed to capture `{cue}`: {reason}")]
     Failed {
         backend: String,
-        span: String,
+        cue: String,
         reason: String,
     },
     #[error("cannot write {path}: {source}")]
@@ -207,7 +207,7 @@ pub trait CaptureBackend {
     /// Stable identifier, for reporting which path a capture took.
     fn id(&self) -> &'static str;
 
-    /// The scene adapter whose spans this backend speaks.
+    /// The scene adapter whose cues this backend speaks.
     fn adapter(&self) -> &'static str;
 
     /// Why this backend cannot run on this machine, if it cannot.
@@ -219,14 +219,14 @@ pub trait CaptureBackend {
         None
     }
 
-    /// Run `session`, writing a clip into `out_dir` for each wanted step.
+    /// Run `session`, writing a clip into `out_dir` for each wanted cue.
     fn capture(
         &self,
         session: &Session,
         frame: &Frame,
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
-    ) -> Result<Vec<Shot>, CaptureError>;
+    ) -> Result<Vec<Clip>, CaptureError>;
 }
 
 /// The backends a build can choose between.

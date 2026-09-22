@@ -223,8 +223,8 @@ fn labels_name_what_the_policy_adjusts() {
     assert_eq!(Policy::Concurrent(Align::Start).label(), "concurrent");
 }
 
-/// A span after a mark has no narration of its own: the paragraph belongs
-/// to the block's first span and the rest run under what the policy left of
+/// A cue after a mark has no narration of its own: the paragraph belongs
+/// to the block's first cue and the rest run under what the policy left of
 /// it. There is nothing for such an action to fill, so it keeps its own
 /// length — clamping it to `min_stretch` cut it to a third of what the tape
 /// says, which is the scheduler rewriting a tape it was never asked about.

@@ -145,7 +145,7 @@ fn truncate(s: &str, n: usize) -> String {
 ///
 /// Both rejections below matter: an odd byte count means the body is not
 /// what it claims, and an empty body would become a zero-length WAV
-/// published as a real segment. Neither is recoverable by guessing.
+/// published as a real line. Neither is recoverable by guessing.
 fn decode_pcm(bytes: &[u8]) -> Result<Pcm, String> {
     if bytes.is_empty() {
         return Err("returned an empty audio body".to_string());

@@ -195,7 +195,7 @@ fn no_voice_is_distinguishable_from_a_voice_literally_named_dash() {
 /// blame attributed to the script and no recovery offered. The cache is
 /// content-addressed: an unreadable entry is missing information, never
 /// wrong information, so the only correct reading is a miss. The warning is
-/// what keeps that from being silent, since a segment would otherwise revert
+/// what keeps that from being silent, since a line would otherwise revert
 /// from `measured` to `estimated` for no visible reason.
 #[test]
 fn a_corrupt_sidecar_reads_as_a_miss_and_names_itself() {
@@ -223,7 +223,7 @@ fn a_corrupt_sidecar_reads_as_a_miss_and_names_itself() {
 
 /// An ordinary miss has nothing to explain, so it must not manufacture a
 /// warning — a `plan` on a cold project would otherwise print one per
-/// segment.
+/// line.
 #[test]
 fn an_ordinary_miss_carries_no_warning() {
     let root = tempdir("quietmiss");
@@ -440,7 +440,7 @@ fn storing_a_key_that_is_already_published_adopts_the_published_entry() {
 /// A WAV with no sidecar beside it is a half-written entry from an
 /// interrupted `dub`. `lookup` reads it as a miss, so the next run
 /// re-synthesizes — and `store` has to be able to replace it, or the entry
-/// stays a permanent miss and the segment is re-rendered on every run
+/// stays a permanent miss and the line is re-rendered on every run
 /// forever.
 #[test]
 fn an_orphaned_wav_is_healed_by_the_next_store() {

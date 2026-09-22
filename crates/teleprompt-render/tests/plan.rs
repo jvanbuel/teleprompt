@@ -19,7 +19,7 @@ const MANIFEST: &str = r#"{
   "duration_ms": 4300,
   "audio": { "format": "wav", "sample_rate": 24000, "channels": 1 },
   "chapters": [{ "id": "opening", "title": "Opening", "start_ms": 150 }],
-  "segments": [
+  "lines": [
     {
       "id": "welcome",
       "text": "Welcome.",
@@ -37,8 +37,8 @@ const MANIFEST: &str = r#"{
   ],
   "beats": [
     {
-      "span": "plan#0",
-      "segment": "welcome",
+      "cue": "plan#0",
+      "line": "welcome",
       "scene": "terminal",
       "adapter": "vhs",
       "start_ms": 150,
@@ -46,12 +46,12 @@ const MANIFEST: &str = r#"{
       "duration_source": "exact",
       "policy": "hold",
       "transition": { "kind": "cut", "duration_ms": 0 },
-      "span_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "cue_hash": "3333333333333333333333333333333333333333333333333333333333333333",
       "capture_key": "5555555555555555555555555555555555555555555555555555555555555555"
     },
     {
-      "span": "plan#1",
-      "segment": null,
+      "cue": "plan#1",
+      "line": null,
       "scene": "terminal",
       "adapter": "vhs",
       "start_ms": 2150,
@@ -59,7 +59,7 @@ const MANIFEST: &str = r#"{
       "duration_source": "exact",
       "policy": "concurrent",
       "transition": { "kind": "cut", "duration_ms": 0 },
-      "span_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "cue_hash": "4444444444444444444444444444444444444444444444444444444444444444",
       "capture_key": "6666666666666666666666666666666666666666666666666666666666666666"
     }
   ]

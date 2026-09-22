@@ -1,15 +1,15 @@
-//! The reference capture backend: a flat field of colour per step.
+//! The reference capture backend: a flat field of colour per cue.
 //!
 //! The counterpart of [`teleprompt_scene::mock`] at the other end of the
 //! pipeline, and it exists for the same reason. A mock scene's source says
 //! how long things take and nothing about what is on screen, so the honest
-//! picture for one is a field that is *identifiably this step* and claims
-//! nothing else: the colour is taken from the step's capture key, so two
-//! steps look different exactly when they are different.
+//! picture for one is a field that is *identifiably this cue* and claims
+//! nothing else: the colour is taken from the cue's capture key, so two
+//! cues look different exactly when they are different.
 //!
 //! It is also what makes the rest of the stage testable. Everything a real
 //! backend has to get right — running a session in order, keeping only the
-//! wanted steps, filing a clip under its key, fitting the slot — is
+//! wanted cues, filing a clip under its key, fitting the slot — is
 //! exercised here without a terminal, a display or a font.
 
 use std::path::Path;
@@ -17,7 +17,7 @@ use std::process::{Command, Stdio};
 
 use teleprompt_core::Hash;
 
-use crate::{CaptureBackend, CaptureError, Frame, Progress, Session, Shot};
+use crate::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
 #[derive(Debug, Clone)]
 pub struct MockCapture {
@@ -72,35 +72,35 @@ impl CaptureBackend for MockCapture {
         frame: &Frame,
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
-    ) -> Result<Vec<Shot>, CaptureError> {
+    ) -> Result<Vec<Clip>, CaptureError> {
         std::fs::create_dir_all(out_dir).map_err(|source| CaptureError::Io {
             path: out_dir.display().to_string(),
             source,
         })?;
 
         let wanted = session.wanted();
-        let mut shots = Vec::new();
-        for step in &session.steps {
-            // A step nothing wants is still a step the session ran
+        let mut clips = Vec::new();
+        for cue in &session.cues {
+            // A cue nothing wants is still a cue the session ran
             // through; there is simply nothing to keep. A real backend
             // replays it to reach the screen the next one opens on, and
             // this one keeps the shape so that difference stays visible.
-            if !step.wanted {
+            if !cue.wanted {
                 continue;
             }
-            let path = out_dir.join(format!("{}.mp4", step.key));
+            let path = out_dir.join(format!("{}.mp4", cue.key));
             let status = Command::new(&self.program)
                 .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi"])
                 .arg("-t")
                 .arg(format!(
                     "{}.{:03}",
-                    step.duration_ms / 1000,
-                    step.duration_ms % 1000
+                    cue.duration_ms / 1000,
+                    cue.duration_ms % 1000
                 ))
                 .arg("-i")
                 .arg(format!(
                     "color=c={}:s={}x{}:r={}",
-                    colour_of(&step.key),
+                    colour_of(&cue.key),
                     frame.width,
                     frame.height,
                     frame.fps
@@ -116,22 +116,19 @@ impl CaptureBackend for MockCapture {
             if !status.success() {
                 return Err(CaptureError::Failed {
                     backend: self.id().to_string(),
-                    span: step.span.clone(),
+                    cue: cue.id.clone(),
                     reason: format!("{} exited {status}", self.program),
                 });
             }
 
-            shots.push(Shot {
-                key: step.key,
-                path,
-            });
+            clips.push(Clip { key: cue.key, path });
             on_progress(Progress {
                 scene: session.scene.clone(),
-                span: step.span.clone(),
-                done: shots.len(),
+                cue: cue.id.clone(),
+                done: clips.len(),
                 of: wanted,
             });
         }
-        Ok(shots)
+        Ok(clips)
     }
 }

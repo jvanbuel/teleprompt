@@ -16,16 +16,16 @@ use crate::voice::Backends;
 /// The `AudioInfo` sample rate for a locale that rendered no audio at all.
 ///
 /// Every populated manifest takes its rate from the audio actually
-/// produced; this is only what the field says when `segments` is empty and
+/// produced; this is only what the field says when `lines` is empty and
 /// there is nothing to describe. It is not a claim about any backend.
 const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
 
-/// A segment the fallback ladder could not deliver at the tier the script
+/// A line the fallback ladder could not deliver at the tier the script
 /// asked for. Computed here rather than in `main.rs` so the policy question
 /// — is a downgrade fatal? — is the only thing left for the caller.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Downgrade {
-    pub segment_id: String,
+    pub line_id: String,
     pub requested: String,
     pub actual: String,
     pub reason: String,
@@ -33,9 +33,9 @@ pub struct Downgrade {
 
 pub struct DubOutput {
     pub manifest: NarrationManifest,
-    /// Every span's published source, which is what a capture backend
+    /// Every cue's published source, which is what a capture backend
     /// runs. The manifest names the beats; only this says what they do.
-    pub spans: Vec<teleprompt_compile::SpanSource>,
+    pub cues: Vec<teleprompt_compile::CueSource>,
     /// The scenes as configured. A capture backend has to know what
     /// terminal it is opening.
     pub scenes: std::collections::BTreeMap<String, teleprompt_core::config::SceneConfig>,
@@ -47,7 +47,7 @@ pub struct DubOutput {
     pub warnings: Vec<String>,
     /// `Some` only under `--check`. `None` means nothing was compared.
     pub drift: Option<ManifestDiff>,
-    /// Every segment whose delivered voice tier is not the requested one,
+    /// Every line whose delivered voice tier is not the requested one,
     /// in manifest order. Always populated; `--strict-voice` decides
     /// whether it is fatal.
     pub downgrades: Vec<Downgrade>,
@@ -57,11 +57,11 @@ pub struct DubOutput {
 /// `--strict-voice` fails on is exactly what a consumer would read.
 fn downgrades_in(manifest: &NarrationManifest) -> Vec<Downgrade> {
     manifest
-        .segments
+        .lines
         .iter()
         .filter(|s| s.voice_source != s.voice_source_actual)
         .map(|s| Downgrade {
-            segment_id: s.id.clone(),
+            line_id: s.id.clone(),
             requested: s.voice_source.clone(),
             actual: s.voice_source_actual.clone(),
             reason: s
@@ -77,7 +77,7 @@ pub fn render_downgrades(downgrades: &[Downgrade]) -> String {
     for d in downgrades {
         s.push_str(&format!(
             "  {} — asked for {}, got {}: {}\n",
-            d.segment_id, d.requested, d.actual, d.reason
+            d.line_id, d.requested, d.actual, d.reason
         ));
     }
     s
@@ -128,29 +128,26 @@ fn read_committed(path: &Path) -> Result<Option<NarrationManifest>, String> {
         .map_err(|e| format!("cannot parse {}: {e}", path.display()))
 }
 
-/// The duration the manifest will publish for `segment_id`.
+/// The duration the manifest will publish for `line_id`.
 ///
 /// Read off the timeline's narration entry, because that is precisely what
-/// `manifest::build` copies into `SegmentEntry::duration_ms`. Deriving it
+/// `manifest::build` copies into `LineEntry::duration_ms`. Deriving it
 /// again from the synth result would compare a value against itself and
 /// catch nothing.
 ///
-/// `None` means the timeline has no narration entry for this segment, in
+/// `None` means the timeline has no narration entry for this line, in
 /// which case `build` drops it and there is no published duration to
 /// disagree with.
-fn published_duration_ms(
-    timeline: &teleprompt_schedule::Timeline,
-    segment_id: &str,
-) -> Option<u64> {
+fn published_duration_ms(timeline: &teleprompt_schedule::Timeline, line_id: &str) -> Option<u64> {
     timeline
         .entries
         .iter()
         .filter_map(|e| e.narration.as_ref())
-        .find(|n| n.segment == segment_id)
+        .find(|n| n.line == line_id)
         .map(|n| n.duration_ms)
 }
 
-/// `Some(message)` when a rendered segment is not the length the manifest
+/// `Some(message)` when a rendered line is not the length the manifest
 /// is about to publish for it.
 ///
 /// This is the guard rail for the class of bug where the audio and the
@@ -161,12 +158,12 @@ fn published_duration_ms(
 ///
 /// The message names both values because "they differ" is not actionable —
 /// which one is wrong is the whole question.
-fn length_mismatch(segment_id: &str, actual_ms: u64, published_ms: u64) -> Option<String> {
+fn length_mismatch(line_id: &str, actual_ms: u64, published_ms: u64) -> Option<String> {
     if actual_ms == published_ms {
         return None;
     }
     Some(format!(
-        "segment `{segment_id}`: rendered audio is {actual_ms}ms but the manifest \
+        "line `{line_id}`: rendered audio is {actual_ms}ms but the manifest \
          publishes {published_ms}ms; a consumer placing this file at its stated \
          duration would clip or pad it"
     ))
@@ -176,9 +173,9 @@ fn length_mismatch(segment_id: &str, actual_ms: u64, published_ms: u64) -> Optio
 /// out at (for [`AudioInfo`]), and whether the cache entry it came from had
 /// to be healed (for the author-facing warning).
 ///
-/// Deliberately keyed to a `CacheKey`, not a segment — `teleprompt_cache::key`
+/// Deliberately keyed to a `CacheKey`, not a line — `teleprompt_cache::key`
 /// hashes backend id/version, locale, voice, speed, and the narration
-/// *text*, not the segment id, so two segments with identical text resolve
+/// *text*, not the line id, so two lines with identical text resolve
 /// to the same key and must resolve to the same [`RenderedAudio`]. Rendering
 /// each occurrence independently would double-count synthesis work against
 /// the exact bottleneck fan-out exists to relieve, and would put two tasks
@@ -196,13 +193,13 @@ struct RenderedAudio {
     cache_warning: Option<String>,
 }
 
-/// One segment's audio: [`RenderedAudio`] plus the identity of the segment
-/// it is published under. Several segments can point at the same
+/// One line's audio: [`RenderedAudio`] plus the identity of the line
+/// it is published under. Several lines can point at the same
 /// `RenderedAudio` (identical narration text), each getting its own
-/// `Rendered` with its own `segment_id` — the manifest still publishes one
-/// entry per segment even though only one render happened.
+/// `Rendered` with its own `line_id` — the manifest still publishes one
+/// entry per line even though only one render happened.
 struct Rendered {
-    segment_id: String,
+    line_id: String,
     wav_bytes: Vec<u8>,
     rendered_ms: u64,
     sample_rate: u32,
@@ -213,7 +210,7 @@ struct Rendered {
 /// Resolves one *cache key*'s audio: a cache hit already decided it, or a
 /// miss decides it by calling `backend` and storing what comes back.
 /// `detail` is any one narration detail that resolves to this key — when
-/// several segments share a key, the caller picks one representative before
+/// several lines share a key, the caller picks one representative before
 /// calling this, since every one of them would produce an identical
 /// `SynthRequest` and therefore an identical result. Pulled out of
 /// `run_dub_with`'s render step so each key's work is a self-contained unit
@@ -225,7 +222,7 @@ async fn render_one(
 ) -> Result<RenderedAudio, DubError> {
     let read = cache
         .lookup(&detail.cache_key)
-        .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+        .map_err(|e| DubError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
     let cache_warning = read.warning();
 
     let (wav_bytes, rendered_ms, sample_rate, channels) = match read.hit() {
@@ -244,7 +241,7 @@ async fn render_one(
             let synthesized = backend
                 .synthesize(&detail.synth_request)
                 .await
-                .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+                .map_err(|e| DubError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
             // Exactly one task of *this* run ever calls `store` for a given
             // key — see the grouping step in `run_dub_with`. Another
             // `teleprompt dub` process on the same project is a different
@@ -258,7 +255,7 @@ async fn render_one(
                     &synthesized.pcm,
                     synthesized.word_timings.as_deref(),
                 )
-                .map_err(|e| DubError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?;
+                .map_err(|e| DubError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
             (
                 stored.wav,
                 stored.duration_ms,
@@ -312,7 +309,7 @@ pub async fn run_dub_with(
     let cache = Arc::new(VoiceCache::new(cache_root(project)));
 
     // Whether this run has anything to ask a server for. A project whose
-    // every segment is already cached needs no server at all, and saying so
+    // every line is already cached needs no server at all, and saying so
     // is what makes "build it once, then iterate on the cache" a workflow
     // rather than something you can only do while a GPU box answers. A
     // corrupt entry counts as missing: it is about to be re-synthesized.
@@ -398,8 +395,8 @@ pub async fn run_dub_with(
     // order → poll order → acquire order → completion order) has no room
     // for anything to reorder it, which is what makes `limit = 1` a serial
     // loop in every observable way, including stderr: verified by running a
-    // six-segment `null` project's `dub` six times in a row and diffing the
-    // printed segment-id sequence, not merely asserted.
+    // six-line `null` project's `dub` six times in a row and diffing the
+    // printed line-id sequence, not merely asserted.
     let limit = backends
         .kokoro(backend.id())
         .map(|k| k.concurrency())
@@ -408,22 +405,22 @@ pub async fn run_dub_with(
 
     // Progress is reported in *completion* order with a running count, not
     // pretended into document order: under genuine concurrency (`limit >
-    // 1`), which segment finishes second is a fact about the server, not
+    // 1`), which line finishes second is a fact about the server, not
     // about the script, and a counter that silently relabelled completions
     // to look sequential would be lying about what just happened. At
     // `limit = 1` there is no concurrency for completion order to diverge
     // from document order in the first place — see the note on `limit`
     // above — so this order is document order there too, not a special
     // case, just the one case where "completion order" and "document
-    // order" happen to coincide. Progress is still per segment, because a
-    // cold multi-segment script is otherwise minutes of silence (spec §15).
+    // order" happen to coincide. Progress is still per line, because a
+    // cold multi-line script is otherwise minutes of silence (spec §15).
     let total = compiled.narration.len();
     let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
-    // Grouped by cache key, not spawned one task per segment: two segments
+    // Grouped by cache key, not spawned one task per line: two lines
     // with identical narration text resolve to the same `CacheKey` (see
     // `RenderedAudio`'s doc comment), so one task renders each *distinct*
-    // key and its result is fanned out to every segment index that shares
+    // key and its result is fanned out to every line index that shares
     // it. This is what makes rendering identical text once rather than
     // once per occurrence, and it is what removes the same-key concurrent
     // `store` race by construction — there is exactly one task per key, so
@@ -456,7 +453,7 @@ pub async fn run_dub_with(
         let detail = compiled.narration[indices[0]].clone();
         let segment_ids: Vec<String> = indices
             .iter()
-            .map(|&i| compiled.narration[i].segment_id.clone())
+            .map(|&i| compiled.narration[i].line_id.clone())
             .collect();
         let backend = backend.clone();
         let cache = cache.clone();
@@ -469,10 +466,10 @@ pub async fn run_dub_with(
                 .expect("semaphore is never closed");
             let r = render_one(&backend, &cache, &detail).await;
             if r.is_ok() {
-                // One "done" line per segment the group covers, not one per
+                // One "done" line per line the group covers, not one per
                 // request: progress is a promise to the author about their
                 // script, and a script with two identical sentences still
-                // has two segments to account for, even though only one of
+                // has two lines to account for, even though only one of
                 // them made a network call.
                 for id in &segment_ids {
                     let n = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
@@ -485,7 +482,7 @@ pub async fn run_dub_with(
 
     // `JoinSet` hands results back in completion order, not document order,
     // so each one is filed at the indices its task carried rather than
-    // appended. Spec §7.1: one segment's failure fails the run. The first
+    // appended. Spec §7.1: one line's failure fails the run. The first
     // error to land aborts every task still in flight instead of waiting
     // for the rest to finish or fail too — a half-dubbed output directory
     // is worse than none, and there is no reason to keep hammering the
@@ -501,7 +498,7 @@ pub async fn run_dub_with(
             Ok(audio) => {
                 for i in indices {
                     slots[i] = Some(Rendered {
-                        segment_id: compiled.narration[i].segment_id.clone(),
+                        line_id: compiled.narration[i].line_id.clone(),
                         wav_bytes: audio.wav_bytes.clone(),
                         rendered_ms: audio.rendered_ms,
                         sample_rate: audio.sample_rate,
@@ -529,17 +526,17 @@ pub async fn run_dub_with(
         .map(|r| r.expect("every index rendered when there was no failure"))
         .collect();
 
-    // Each segment's rendered length rides along with its bytes: the length
+    // Each line's rendered length rides along with its bytes: the length
     // guard cannot run here, because the number the manifest publishes is
     // not known until the recompile below.
     let mut audio: Vec<(String, Vec<u8>, u64)> = Vec::with_capacity(rendered.len());
 
     // Read off the audio actually produced rather than assumed from any one
-    // backend. First *document-order* segment wins — `rendered` is already
+    // backend. First *document-order* line wins — `rendered` is already
     // sorted by index above, so this is a function of the script, not of
     // whichever request happened to answer first. The manifest has one
     // `AudioInfo` for the whole locale, so a backend that varied its rate
-    // per segment would need a wider manifest, not a different pick here.
+    // per line would need a wider manifest, not a different pick here.
     let mut audio_format: Option<(u32, u16)> = None;
 
     // Cache entries `dub` had to re-render because they were unreadable.
@@ -550,13 +547,13 @@ pub async fn run_dub_with(
 
     for r in rendered {
         if let Some(w) = &r.cache_warning {
-            cache_warnings.push(format!("segment `{}`: {w}", r.segment_id));
+            cache_warnings.push(format!("line `{}`: {w}", r.line_id));
         }
         audio_format.get_or_insert((r.sample_rate, r.channels));
-        audio.push((r.segment_id, r.wav_bytes, r.rendered_ms));
+        audio.push((r.line_id, r.wav_bytes, r.rendered_ms));
     }
 
-    // Every segment is warm now — the loop above either found it already
+    // Every line is warm now — the loop above either found it already
     // cached or just stored it. Recompile against that warm cache rather
     // than building the manifest from `compiled` above: that first compile
     // ran before anything was rendered, so on a cold project it published
@@ -575,7 +572,7 @@ pub async fn run_dub_with(
     // With `null` that was invisible, because `NullVoice::synthesize` and
     // `WpmEstimator::estimate_ms` call the same function; against any
     // backend whose render differs from the word-count estimate it made the
-    // first `dub` of every new segment fail, quoting a duration the manifest
+    // first `dub` of every new line fail, quoting a duration the manifest
     // would never have published, and the identical second run succeed off
     // the now-warm cache.
     //
@@ -595,9 +592,9 @@ pub async fn run_dub_with(
     // or metadata drift that makes the recompile resolve a *different* entry
     // than the one this run stored, which is silent and unrecoverable at
     // every layer above.
-    for (segment_id, _, rendered_ms) in &audio {
-        if let Some(published_ms) = published_duration_ms(&compiled.timeline, segment_id) {
-            length_mismatch(segment_id, *rendered_ms, published_ms)
+    for (line_id, _, rendered_ms) in &audio {
+        if let Some(published_ms) = published_duration_ms(&compiled.timeline, line_id) {
+            length_mismatch(line_id, *rendered_ms, published_ms)
                 .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
         }
     }
@@ -618,7 +615,7 @@ pub async fn run_dub_with(
     // has to be overwritten here rather than left alone.
     //
     // The timeline's is `Hash::of(cache_key)`: the *identity* of the audio a
-    // segment resolves to. It moves when the segment would resolve to
+    // line resolves to. It moves when the line would resolve to
     // different audio and stays put when `dub` re-renders the same audio,
     // which is exactly what a pacing drift check wants.
     //
@@ -631,8 +628,8 @@ pub async fn run_dub_with(
     //
     // Done before the `--check` branch, not only on the write path, so a
     // comparison is always like-for-like.
-    for (segment_id, bytes, _) in &audio {
-        if let Some(seg) = built.segments.iter_mut().find(|s| s.id == *segment_id) {
+    for (line_id, bytes, _) in &audio {
+        if let Some(seg) = built.lines.iter_mut().find(|s| s.id == *line_id) {
             seg.audio_hash = Hash::of(bytes);
         }
     }
@@ -652,7 +649,7 @@ pub async fn run_dub_with(
             // No manifest at all is maximal drift: everything is new.
             None => manifest_diff::diff(
                 &NarrationManifest {
-                    segments: Vec::new(),
+                    lines: Vec::new(),
                     chapters: Vec::new(),
                     duration_ms: 0,
                     ..built.clone()
@@ -662,7 +659,7 @@ pub async fn run_dub_with(
         };
         return Ok(DubOutput {
             manifest: built,
-            spans: compiled.spans.clone(),
+            cues: compiled.cues.clone(),
             scenes: compiled.scenes.clone(),
             output: compiled.output.clone(),
             written: Vec::new(),
@@ -678,8 +675,8 @@ pub async fn run_dub_with(
         .map_err(|e| DubError::Runtime(format!("cannot create {}: {e}", audio_dir.display())))?;
 
     let mut written = Vec::new();
-    for (segment_id, bytes, _) in &audio {
-        let path = dir.join(manifest::audio_path(segment_id, "wav"));
+    for (line_id, bytes, _) in &audio {
+        let path = dir.join(manifest::audio_path(line_id, "wav"));
         std::fs::write(&path, bytes)
             .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
         written.push(path);
@@ -694,7 +691,7 @@ pub async fn run_dub_with(
 
     Ok(DubOutput {
         manifest: built,
-        spans: compiled.spans.clone(),
+        cues: compiled.cues.clone(),
         scenes: compiled.scenes.clone(),
         output: compiled.output.clone(),
         written,
@@ -706,10 +703,10 @@ pub async fn run_dub_with(
 
 pub fn render_dub(out: &DubOutput) -> String {
     let mut s = format!(
-        "{} ({}) — {} segment(s), {:.1}s\n",
+        "{} ({}) — {} line(s), {:.1}s\n",
         out.manifest.script,
         out.manifest.locale,
-        out.manifest.segments.len(),
+        out.manifest.lines.len(),
         out.manifest.duration_ms as f64 / 1000.0,
     );
     for path in &out.written {
@@ -721,7 +718,7 @@ pub fn render_dub(out: &DubOutput) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_compile::manifest::SegmentEntry;
+    use teleprompt_compile::manifest::LineEntry;
     use teleprompt_core::Hash;
 
     #[test]
@@ -730,7 +727,7 @@ mod tests {
     }
 
     /// The exact shape of C1: a manifest publishing 3250ms beside a file of
-    /// 6500ms. The guard has to name the segment and both numbers, because
+    /// 6500ms. The guard has to name the line and both numbers, because
     /// which of the two is wrong is the whole diagnosis.
     #[test]
     fn a_mismatch_names_the_segment_and_both_lengths() {
@@ -740,8 +737,8 @@ mod tests {
         assert!(msg.contains("3250ms"), "{msg}");
     }
 
-    fn segment(id: &str, requested: &str, actual: &str, reason: Option<&str>) -> SegmentEntry {
-        SegmentEntry {
+    fn line(id: &str, requested: &str, actual: &str, reason: Option<&str>) -> LineEntry {
+        LineEntry {
             id: id.to_string(),
             text: String::new(),
             chapter: "a".to_string(),
@@ -758,7 +755,7 @@ mod tests {
         }
     }
 
-    fn manifest_with(segments: Vec<SegmentEntry>) -> NarrationManifest {
+    fn manifest_with(lines: Vec<LineEntry>) -> NarrationManifest {
         NarrationManifest {
             manifest_version: MANIFEST_VERSION,
             script: "s.md".to_string(),
@@ -771,27 +768,27 @@ mod tests {
                 channels: 1,
             },
             chapters: Vec::new(),
-            segments,
+            lines,
             beats: Vec::new(),
         }
     }
 
     #[test]
     fn a_segment_delivered_at_the_requested_tier_is_not_a_downgrade() {
-        let m = manifest_with(vec![segment("a", "synthetic", "synthetic", None)]);
+        let m = manifest_with(vec![line("a", "synthetic", "synthetic", None)]);
         assert!(downgrades_in(&m).is_empty());
     }
 
     #[test]
     fn a_downgrade_carries_both_tiers_and_the_reason() {
         let m = manifest_with(vec![
-            segment("a", "synthetic", "synthetic", None),
-            segment("b", "recorded", "synthetic", Some("no takes recorded")),
+            line("a", "synthetic", "synthetic", None),
+            line("b", "recorded", "synthetic", Some("no takes recorded")),
         ]);
         assert_eq!(
             downgrades_in(&m),
             vec![Downgrade {
-                segment_id: "b".to_string(),
+                line_id: "b".to_string(),
                 requested: "recorded".to_string(),
                 actual: "synthetic".to_string(),
                 reason: "no takes recorded".to_string(),

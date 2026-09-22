@@ -71,7 +71,7 @@ fn program_for(src: &str) -> Program {
     let diags = assign_ids(&mut parsed);
     assert!(
         !diags.iter().any(|d| d.is_error()),
-        "fixture must yield unambiguous segment ids"
+        "fixture must yield unambiguous line ids"
     );
     resolve(
         &parsed,
@@ -272,12 +272,12 @@ fn compilation_is_deterministic() {
     );
 }
 
-// Controller ruling F12 (second half): `Item::Action`'s `span` must be
+// Controller ruling F12 (second half): `Item::Action`'s `cue` must be
 // threaded into `BlockSource` for real, not `SourceSpan { line: 0, .. }`.
 // The fence here opens on line 14 (verified against `parse_script`
 // independently), so the invalid `bogus` directive on the block's second
 // body line sits at absolute source line 16 (14 + 1 + 1, per the mock
-// adapter's `span.line + i + 1` convention). A fabricated `line: 0` would
+// adapter's `cue.line + i + 1` convention). A fabricated `line: 0` would
 // instead report line 2 (0 + 1 + 1) — a small, visibly wrong number that a
 // real user's editor would never scroll to.
 const SPAN_SRC: &str = "# A\n\nOne. {#a}\n\n\n\n\n\n\n\n\n\n\n```teleprompt scene=mock\nwait 100ms\nbogus directive\n```\n";
@@ -296,7 +296,7 @@ fn adapter_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
 }
 
 // Fix round 1, finding 1: Task 6's F13 filter can reduce an all-`mark`
-// action block to zero surviving spans. A narration must not reach across
+// action block to zero surviving cues. A narration must not reach across
 // that empty block to pair with a later one — pairing stays scoped to the
 // immediately following action item.
 #[test]
@@ -372,12 +372,12 @@ fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
 }
 
 // Final review, item 2: a `Beat` carries one `Config`, but its two halves
-// resolve from different layers — the narration's from the segment's own
+// resolve from different layers — the narration's from the line's own
 // attributes, the beat's from the following action block's. `compile` used
 // to set `config: config.clone()` (the action block's) and read the
-// narration's padding off that, so an identical segment produced different
+// narration's padding off that, so an identical line produced different
 // narration timing depending on whether an action block happened to follow
-// it. Per spec §3.1 every segment is followed by an action block, so the
+// it. Per spec §3.1 every line is followed by an action block, so the
 // broken case was the normal one.
 const SEGMENT_WITH_LEAD_IN: &str = "One two three. {#a lead_in=1000ms}";
 
@@ -401,11 +401,11 @@ fn a_segments_lead_in_survives_pairing_with_a_following_action_block() {
 
     assert_eq!(
         alone_n.start_ms, 1000,
-        "the segment's own lead_in=1000ms places its narration"
+        "the line's own lead_in=1000ms places its narration"
     );
     assert_eq!(
         paired_n.start_ms, alone_n.start_ms,
-        "the same segment must produce the same narration start whether or \
+        "the same line must produce the same narration start whether or \
          not an action block follows"
     );
 
@@ -429,11 +429,7 @@ And every timeline is committed.
 ";
     let out = compile_str(src).expect("compiles");
 
-    let ids: Vec<&str> = out
-        .narration
-        .iter()
-        .map(|n| n.segment_id.as_str())
-        .collect();
+    let ids: Vec<&str> = out.narration.iter().map(|n| n.line_id.as_str()).collect();
     assert_eq!(
         ids.len(),
         2,
@@ -492,18 +488,14 @@ The second paragraph here.
         .timeline
         .entries
         .iter()
-        .filter_map(|e| e.narration.as_ref().map(|n| n.segment.as_str()))
+        .filter_map(|e| e.narration.as_ref().map(|n| n.line.as_str()))
         .collect();
-    let detail_ids: Vec<&str> = out
-        .narration
-        .iter()
-        .map(|n| n.segment_id.as_str())
-        .collect();
+    let detail_ids: Vec<&str> = out.narration.iter().map(|n| n.line_id.as_str()).collect();
 
     assert_eq!(
         timeline_ids, detail_ids,
         "the join key must be total in both directions, or the manifest \
-         will silently drop or invent segments"
+         will silently drop or invent lines"
     );
 }
 
@@ -675,7 +667,7 @@ fn the_cache_key_covers_the_resolved_voice_config() {
 /// Pins the reasoning behind `compile_script` reading `backend_id` off the
 /// *resolved* config (`program.config.voice.backend`) rather than the
 /// project's unresolved default: the cache key has to cover whichever
-/// backend actually produces a segment's audio, or two backends could
+/// backend actually produces a line's audio, or two backends could
 /// collide on one cache entry.
 #[test]
 fn the_cache_key_covers_the_backend_id() {

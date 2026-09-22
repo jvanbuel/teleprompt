@@ -13,7 +13,7 @@ fn ids(src: &str) -> Vec<String> {
         .iter()
         .flat_map(|c| c.nodes.iter())
         .filter_map(|n| match n {
-            Node::Segment(seg) => seg.id.clone(),
+            Node::Line(seg) => seg.id.clone(),
             Node::ActionBlock(b) => b.id.clone(),
             Node::Directive(_) => None,
         })
@@ -59,7 +59,7 @@ fn id_origin_is_recorded() {
         .nodes
         .iter()
         .filter_map(|n| match n {
-            Node::Segment(seg) => Some(seg.id_origin),
+            Node::Line(seg) => Some(seg.id_origin),
             _ => None,
         })
         .collect();
@@ -73,7 +73,7 @@ fn duplicate_explicit_ids_are_an_error() {
     let diags = assign_ids(&mut s);
     assert!(diags
         .iter()
-        .any(|d| d.is_error() && d.message.contains("duplicate segment id `dup`")));
+        .any(|d| d.is_error() && d.message.contains("duplicate line id `dup`")));
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn explicit_id_colliding_with_a_derived_id_is_an_error() {
     let diags = assign_ids(&mut s);
     assert!(diags
         .iter()
-        .any(|d| d.is_error() && d.message.contains("duplicate segment id `a-1`")));
+        .any(|d| d.is_error() && d.message.contains("duplicate line id `a-1`")));
 }
 
 #[test]
@@ -105,7 +105,7 @@ fn block_id_colliding_with_an_explicit_segment_id_is_an_error() {
     let diags = assign_ids(&mut s);
     assert!(diags
         .iter()
-        .any(|d| d.is_error() && d.message.contains("duplicate segment id `a-1-a`")));
+        .any(|d| d.is_error() && d.message.contains("duplicate line id `a-1-a`")));
 }
 
 fn diags_for(src: &str) -> Vec<teleprompt_core::Diagnostic> {
@@ -202,7 +202,7 @@ fn a_non_ascii_id_is_a_usable_audio_path() {
     assert_eq!(path, "audio/café-1.wav");
     assert!(
         !path.contains("..") && !path[6..].contains('/'),
-        "still one path segment, still inside `audio/`: {path}"
+        "still one path line, still inside `audio/`: {path}"
     );
 }
 
@@ -250,9 +250,9 @@ fn empty_explicit_id_is_an_error() {
     let diags = assign_ids(&mut s);
     assert!(diags
         .iter()
-        .any(|d| d.is_error() && d.message.contains("segment id cannot be empty")));
-    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
-        panic!("expected segment")
+        .any(|d| d.is_error() && d.message.contains("line id cannot be empty")));
+    let Node::Line(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
     assert_eq!(seg.id.as_deref(), Some("a-1"));
     assert_eq!(seg.id_origin, IdOrigin::Derived);

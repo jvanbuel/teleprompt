@@ -60,7 +60,11 @@ pub enum Item {
         policy: String,
         align: String,
         /// `at="…"`: the phrase in the narration this action starts on.
-        cue: Option<String>,
+        ///
+        /// A cue in the theatrical sense — the word that triggers the
+        /// action — but the bare name belongs to the unit now, so this is
+        /// named for the attribute that carries it.
+        at: Option<String>,
         /// `session="…"`: which run of the scene this block belongs to.
         ///
         /// `None` is the scene's own session, which is the ordinary case:
@@ -109,9 +113,9 @@ pub fn resolve(
 
     // Merged-config problems, keyed by message so one bad `voice.speed` in
     // front matter produces one diagnostic rather than one per paragraph.
-    // The span is the first segment that resolved to the offending value —
+    // The span is the first line that resolved to the offending value —
     // the merge has already flattened the layers, so which layer supplied it
-    // is not recoverable here, but the segment it reaches is.
+    // is not recoverable here, but the line it reaches is.
     let mut config_problems: std::collections::BTreeMap<String, SourceSpan> =
         std::collections::BTreeMap::new();
 
@@ -134,7 +138,7 @@ pub fn resolve(
 
         for node in &chapter.nodes {
             match node {
-                Node::Segment(seg) => {
+                Node::Line(seg) => {
                     let (attrs, mut d) = parse_attrs(&seg.raw_attrs, SEGMENT_KEYS, seg.span);
                     diags.append(&mut d);
                     let config = Config::merged(&[
@@ -184,7 +188,7 @@ pub fn resolve(
                         review: attrs.get("review").map(str::to_string),
                         policy: attrs.get("policy").unwrap_or("hold").to_string(),
                         align: attrs.get("align").unwrap_or("start").to_string(),
-                        cue: attrs.get("at").map(str::to_string),
+                        at: attrs.get("at").map(str::to_string),
                         session: attrs.get("session").map(str::to_string),
                         config,
                         span: block.span,
@@ -197,7 +201,7 @@ pub fn resolve(
 
     // The script-level merge too, so a value nothing narrates against is
     // still reported rather than sitting in the config unread. Only added
-    // when no segment already carries the same message, so the spanned
+    // when no line already carries the same message, so the spanned
     // version wins when both apply.
     for problem in base.problems() {
         if !config_problems.contains_key(&problem) {

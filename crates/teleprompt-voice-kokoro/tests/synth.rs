@@ -84,7 +84,7 @@ async fn an_odd_byte_count_is_an_error_not_a_dropped_sample() {
 
 #[tokio::test]
 async fn an_empty_body_is_an_error() {
-    // Zero samples would be a zero-length WAV published as a real segment.
+    // Zero samples would be a zero-length WAV published as a real line.
     let s = spawn(Reply::Ok(Vec::new())).await;
     let err = backend(&s.base_url, 30_000)
         .synthesize(&req("x"))

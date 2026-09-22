@@ -89,10 +89,10 @@ pub fn layout_at(
     policy: Policy,
     narration_ms: u64,
     action_ms: u64,
-    cue_ms: Option<u64>,
+    at_ms: Option<u64>,
     timing: &TimingConfig,
 ) -> Layout {
-    if let (Policy::Concurrent(_), Some(cue)) = (policy, cue_ms) {
+    if let (Policy::Concurrent(_), Some(cue)) = (policy, at_ms) {
         return Layout {
             narration_start_ms: 0,
             action_start_ms: cue,
@@ -134,8 +134,8 @@ pub fn layout_at(
             let adjusted = if action_ms == 0 {
                 0
             } else if narration_ms == 0 {
-                // A span after a mark has no narration of its own — the
-                // paragraph belongs to the block's first span, and the rest
+                // A cue after a mark has no narration of its own — the
+                // paragraph belongs to the block's first cue, and the rest
                 // run under whatever the policy left of it. There is
                 // nothing here to fill, so the tape keeps its own length.
                 // Falling through would compute a factor of zero and clamp

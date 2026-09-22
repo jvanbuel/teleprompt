@@ -33,12 +33,12 @@ fn absent_layers_change_nothing() {
 
 #[test]
 fn attributes_become_a_config_layer() {
-    let span = SourceSpan {
+    let cue = SourceSpan {
         line: 1,
         column: 1,
         len: 0,
     };
-    let (a, _) = parse_attrs("lead_in=400ms voice.source=cloned", SEGMENT_KEYS, span);
+    let (a, _) = parse_attrs("lead_in=400ms voice.source=cloned", SEGMENT_KEYS, cue);
     let c = Config::merged(&[PartialConfig::from_attrs(&a)]);
     assert_eq!(c.timing.lead_in_ms, 400);
     assert_eq!(c.voice.source, "cloned");

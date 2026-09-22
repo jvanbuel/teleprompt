@@ -50,7 +50,7 @@ enum Command {
     },
     /// Draft a script from a Markdown document you already have
     ///
-    /// Prose becomes narration segments with their ids promoted, shell code
+    /// Prose becomes narration lines with their ids promoted, shell code
     /// blocks become terminal tapes that type the command and are marked
     /// `review=pending` until a human has read them, and everything else is
     /// left as ordinary Markdown for you to promote by hand.
@@ -98,13 +98,13 @@ enum Command {
     },
     /// Synthesize narration and write audio plus a manifest
     ///
-    /// Placing a segment: convert its own absolute offsets to frames and
+    /// Placing a line: convert its own absolute offsets to frames and
     /// subtract — round(start_ms * fps / 1000) and round((start_ms +
     /// duration_ms) * fps / 1000). Never round duration_ms on its own
     /// (rounding error accumulates and drifts audio out of sync by the end
-    /// of a long video), and never take the next segment's start_ms as this
-    /// one's end: consecutive segments may overlap, so that clips the tail
-    /// of the speech. A segment's own duration_ms is authoritative for its
+    /// of a long video), and never take the next line's start_ms as this
+    /// one's end: consecutive lines may overlap, so that clips the tail
+    /// of the speech. A line's own duration_ms is authoritative for its
     /// length.
     Dub {
         script: PathBuf,
@@ -598,7 +598,7 @@ fn main() -> ExitCode {
                                 };
                                 let report = capture_cmd::run_capture(
                                     &dubbed.manifest,
-                                    &dubbed.spans,
+                                    &dubbed.cues,
                                     &dubbed.scenes,
                                     &capture_cmd::registry(),
                                     &options.clips_dir,
@@ -607,7 +607,7 @@ fn main() -> ExitCode {
                                         if cli.format == Format::Human {
                                             eprintln!(
                                                 "  [{}/{}] {} {}",
-                                                p.done, p.of, p.scene, p.span
+                                                p.done, p.of, p.scene, p.cue
                                             );
                                         }
                                     },
@@ -665,10 +665,7 @@ fn main() -> ExitCode {
                     // hear that their `recorded` script was machine-read
                     // whether or not they asked for it to be fatal.
                     if !result.downgrades.is_empty() {
-                        eprintln!(
-                            "voice downgraded on {} segment(s):",
-                            result.downgrades.len()
-                        );
+                        eprintln!("voice downgraded on {} line(s):", result.downgrades.len());
                         eprint!("{}", dub::render_downgrades(&result.downgrades));
                     }
 

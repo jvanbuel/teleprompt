@@ -6,7 +6,7 @@ use crate::contract::VoiceBackend;
 /// Mirrors `SceneRegistry`. `BTreeMap` so `available()` is ordered and
 /// `doctor`'s output does not depend on insertion order.
 ///
-/// `Arc`, not `Box`: `dub` synthesizes segments concurrently, so the backend
+/// `Arc`, not `Box`: `dub` synthesizes lines concurrently, so the backend
 /// is shared across tasks.
 #[derive(Default)]
 pub struct VoiceRegistry {

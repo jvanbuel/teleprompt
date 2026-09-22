@@ -109,7 +109,7 @@ pub struct DoctorReport {
     ///
     /// This used to be swallowed: `doctor` caught the construction failure,
     /// substituted default settings, and reported a healthy project — with
-    /// a comment claiming `check` reported it "with a span", which was wrong
+    /// a comment claiming `check` reported it "with a cue", which was wrong
     /// on both halves. The command you run when nothing works is the last
     /// place a known problem should be hidden.
     pub problems: Vec<String>,

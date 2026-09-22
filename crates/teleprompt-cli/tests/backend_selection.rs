@@ -175,8 +175,8 @@ async fn dub_synthesizes_with_the_backend_the_script_resolved_to() {
         teleprompt_cli::cmd::dub::DubError::Runtime(r) => panic!("runtime: {r}"),
     });
 
-    assert_eq!(result.manifest.segments.len(), 1);
-    let wav = std::fs::read(out_root.join("en").join(&result.manifest.segments[0].audio)).unwrap();
+    assert_eq!(result.manifest.lines.len(), 1);
+    let wav = std::fs::read(out_root.join("en").join(&result.manifest.lines[0].audio)).unwrap();
 
     let s = samples(&wav);
     assert!(!s.is_empty(), "no audio was written at all");
@@ -244,7 +244,7 @@ Every video in this repository is built from a script you can read.
 /// With `null` the two always agreed, because `NullVoice::synthesize` and
 /// `WpmEstimator::estimate_ms` call the same function. For any backend whose
 /// render differs from the word-count estimate the first `dub` of every new
-/// segment failed, quoting a duration the manifest would never have
+/// line failed, quoting a duration the manifest would never have
 /// published, and the identical second run succeeded off the now-warm cache.
 #[tokio::test]
 async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run() {
@@ -263,11 +263,11 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
     .unwrap_or_else(|e| match e {
         teleprompt_cli::cmd::dub::DubError::Validation(v) => panic!("validation: {v:?}"),
         teleprompt_cli::cmd::dub::DubError::Runtime(r) => {
-            panic!("the first dub of a cold segment must not fail: {r}")
+            panic!("the first dub of a cold line must not fail: {r}")
         }
     });
 
-    let seg = &result.manifest.segments[0];
+    let seg = &result.manifest.lines[0];
     let wav = std::fs::read(out_root.join("en").join(&seg.audio)).unwrap();
     let rendered_ms = samples(&wav).len() as u64 * 1000 / TONE_SAMPLE_RATE as u64;
 

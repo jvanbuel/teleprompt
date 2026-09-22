@@ -37,12 +37,12 @@ fn paragraphs_become_segments_and_fences_become_action_blocks() {
         .nodes
         .iter()
         .map(|n| match n {
-            Node::Segment(_) => "segment",
+            Node::Line(_) => "line",
             Node::ActionBlock(_) => "action",
             Node::Directive(_) => "directive",
         })
         .collect();
-    assert_eq!(kinds, ["segment", "action", "segment"]);
+    assert_eq!(kinds, ["line", "action", "line"]);
 }
 
 #[test]
@@ -58,8 +58,8 @@ fn action_block_body_is_verbatim() {
 #[test]
 fn segment_text_excludes_the_attribute_suffix() {
     let s = parse_script(BASIC).unwrap();
-    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
-        panic!("expected segment")
+    let Node::Line(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
     assert_eq!(seg.text, "Welcome to Acme.");
     assert_eq!(seg.raw_attrs, "#welcome");
@@ -93,8 +93,8 @@ fn html_comment_paragraph_is_a_directive() {
 fn inline_markup_is_normalised_for_speech() {
     let src = "# C\n\nUse *the* `--watch` [flag](https://x.dev).\n";
     let s = parse_script(src).unwrap();
-    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
-        panic!("expected segment")
+    let Node::Line(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
     assert_eq!(seg.text, "Use the --watch flag.");
 }
@@ -110,8 +110,8 @@ fn content_before_any_heading_is_an_error() {
 fn a_soft_wrapped_paragraph_joins_lines_with_a_single_space() {
     let src = "# C\n\nrolling back takes the same single command with one\nextra flag.\n";
     let s = parse_script(src).unwrap();
-    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
-        panic!("expected segment")
+    let Node::Line(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
     assert_eq!(
         seg.text,
@@ -123,8 +123,8 @@ fn a_soft_wrapped_paragraph_joins_lines_with_a_single_space() {
 fn a_paragraph_wrapped_across_three_lines_has_no_doubled_spaces() {
     let src = "# C\n\none\ntwo\nthree\n";
     let s = parse_script(src).unwrap();
-    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
-        panic!("expected segment")
+    let Node::Line(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
     assert_eq!(seg.text, "one two three");
     assert!(!seg.text.contains("  "));
@@ -134,8 +134,8 @@ fn a_paragraph_wrapped_across_three_lines_has_no_doubled_spaces() {
 fn a_hard_break_via_trailing_spaces_is_a_single_space() {
     let src = "# C\n\none  \ntwo\n";
     let s = parse_script(src).unwrap();
-    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
-        panic!("expected segment")
+    let Node::Line(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
     assert_eq!(seg.text, "one two");
 }
@@ -144,8 +144,8 @@ fn a_hard_break_via_trailing_spaces_is_a_single_space() {
 fn a_hard_break_via_backslash_is_a_single_space() {
     let src = "# C\n\none\\\ntwo\n";
     let s = parse_script(src).unwrap();
-    let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
-        panic!("expected segment")
+    let Node::Line(seg) = &s.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
     assert_eq!(seg.text, "one two");
 }
@@ -214,11 +214,11 @@ fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
     let one_line = "# C\n\nrolling back takes the same single command with one extra flag.\n";
     let a = parse_script(wrapped).unwrap();
     let b = parse_script(one_line).unwrap();
-    let Node::Segment(sa) = &a.chapters[0].nodes[0] else {
-        panic!("expected segment")
+    let Node::Line(sa) = &a.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
-    let Node::Segment(sb) = &b.chapters[0].nodes[0] else {
-        panic!("expected segment")
+    let Node::Line(sb) = &b.chapters[0].nodes[0] else {
+        panic!("expected line")
     };
     assert_eq!(sa.text, sb.text);
 }
@@ -226,7 +226,7 @@ fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
 // ---------------------------------------------------------------------------
 // Final review, item 5: `split_attr_suffix` ran `ends_with('}')` + `rfind('{')`
 // over the *normalised* paragraph text, after backticks were stripped, so it
-// could not tell an inline code span from an attribute block. teleprompt's
+// could not tell an inline code cue from an attribute block. teleprompt's
 // own scripts are documentation full of config snippets, so this rejected
 // valid prose:
 //
@@ -234,11 +234,11 @@ fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
 //   error: expected `key=value`, found `fps:`
 // ---------------------------------------------------------------------------
 
-fn only_segment(src: &str) -> teleprompt_core::ast::Segment {
+fn only_segment(src: &str) -> teleprompt_core::ast::Line {
     let s = parse_script(src).expect("script must parse");
     match &s.chapters[0].nodes[0] {
-        Node::Segment(seg) => seg.clone(),
-        other => panic!("expected a segment, got {other:?}"),
+        Node::Line(seg) => seg.clone(),
+        other => panic!("expected a line, got {other:?}"),
     }
 }
 
@@ -247,7 +247,7 @@ fn a_paragraph_ending_in_an_inline_code_span_with_braces_is_narration() {
     let seg = only_segment("# B\n\nThe config block looks like `{ fps: 30 }`\n");
     assert_eq!(
         seg.text, "The config block looks like { fps: 30 }",
-        "the code span's text must survive intact into the narration"
+        "the code cue's text must survive intact into the narration"
     );
     assert_eq!(seg.raw_attrs, "", "no attribute suffix was written here");
 }
@@ -266,7 +266,7 @@ fn a_real_key_value_suffix_still_parses() {
     assert_eq!(seg.raw_attrs, "#done voice.source=recorded");
 }
 
-/// A code span that is *not* at the paragraph's end must not suppress a real
+/// A code cue that is *not* at the paragraph's end must not suppress a real
 /// suffix that follows it.
 #[test]
 fn a_code_span_before_a_real_suffix_does_not_suppress_it() {
@@ -275,7 +275,7 @@ fn a_code_span_before_a_real_suffix_does_not_suppress_it() {
     assert_eq!(seg.raw_attrs, "#mixed");
 }
 
-/// The reason this fix tracks the code span rather than pattern-matching the
+/// The reason this fix tracks the code cue rather than pattern-matching the
 /// suffix's shape: a genuinely malformed attribute block must stay an error.
 /// A shape test would reclassify this as prose and silently drop it.
 #[test]
@@ -283,8 +283,8 @@ fn a_malformed_attribute_suffix_is_still_reported_not_silently_prose() {
     let e = parse_script("# B\n\nGive it a name. {polcy hold}\n");
     match e {
         Ok(s) => {
-            let Node::Segment(seg) = &s.chapters[0].nodes[0] else {
-                panic!("expected segment")
+            let Node::Line(seg) = &s.chapters[0].nodes[0] else {
+                panic!("expected line")
             };
             assert_eq!(
                 seg.raw_attrs, "polcy hold",

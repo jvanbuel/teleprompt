@@ -10,7 +10,7 @@
 //!
 //! The audio is still mixed in one pass. It is cheap (a four-hundred-second
 //! mix and AAC encode measured 1.4s against 7.3s for the same picture), it
-//! has no natural seams, and a mix cut into cached pieces would put a join
+//! has no natural seams, and a mix cut into cached placements would put a join
 //! in the middle of a word.
 
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ use teleprompt_core::Hash;
 
 use crate::chunk::{self, Chunk, ChunkKey, Content, Source, Window};
 use crate::ffmpeg::{self, FfmpegRenderer};
-use crate::piece::{xfade_for, BACKGROUND};
+use crate::placement::{xfade_for, BACKGROUND};
 use crate::{Progress, RenderError, RenderPlan, Rendered, Renderer};
 
 /// Renders through a cache of encoded chunks.
@@ -315,7 +315,7 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         "-f".into(),
         "lavfi".into(),
         "-t".into(),
-        crate::piece::seconds(plan.duration_ms),
+        crate::placement::seconds(plan.duration_ms),
         "-i".into(),
         format!(
             "anullsrc=channel_layout=mono:sample_rate={}",

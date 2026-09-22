@@ -31,21 +31,21 @@ fn validated(body: &str) -> Validated {
         .expect("test body should validate")
 }
 
-/// The single span of a body that has no marks in it.
-fn only_span(body: &str) -> teleprompt_scene::Span {
+/// The single cue of a body that has no marks in it.
+fn only_span(body: &str) -> teleprompt_scene::Cue {
     let v = validated(body);
-    let mut spans = VhsScene.spans(&v, "b").expect("a validated body has spans");
-    assert_eq!(spans.len(), 1, "this helper is for single-span bodies");
-    spans.remove(0)
+    let mut cues = VhsScene.cues(&v, "b").expect("a validated body has cues");
+    assert_eq!(cues.len(), 1, "this helper is for single-cue bodies");
+    cues.remove(0)
 }
 
 /// Total estimate of a whole body, as the compiler accumulates it: one
-/// `estimate` per span, summed.
+/// `estimate` per cue, summed.
 fn total_ms(body: &str) -> u64 {
     let v = validated(body);
     VhsScene
-        .spans(&v, "b")
-        .expect("spans should split a validated body")
+        .cues(&v, "b")
+        .expect("cues should split a validated body")
         .iter()
         .filter_map(|s| VhsScene.estimate(s).duration_ms())
         .sum()
@@ -82,7 +82,7 @@ fn an_included_body_reports_its_own_file_and_line() {
         .expect_err("an unknown command should fail validation");
 
     assert_eq!(e[0].file.as_deref(), Some("demo.tape"));
-    // Line 2 of demo.tape, not the fence's offset applied to the script.
+    // Command 2 of demo.tape, not the fence's offset applied to the script.
     assert_eq!(e[0].span.expect("diagnostic should carry a span").line, 2);
 }
 
@@ -118,28 +118,28 @@ fn every_bad_line_is_reported_not_just_the_first() {
 #[test]
 fn marks_split_a_tape_into_one_span_per_beat() {
     let v = validated("Type \"a\"\n# mark\nSleep 1s\n");
-    let spans = VhsScene.spans(&v, "deploy").expect("spans");
+    let cues = VhsScene.cues(&v, "deploy").expect("cues");
 
-    assert_eq!(spans.len(), 2);
-    assert_eq!(spans[0].id, "deploy#0");
-    assert_eq!(spans[1].id, "deploy#1");
+    assert_eq!(cues.len(), 2);
+    assert_eq!(cues[0].id, "deploy#0");
+    assert_eq!(cues[1].id, "deploy#1");
 }
 
 #[test]
 fn a_chunk_of_only_comments_is_not_a_span() {
     let v = validated("Sleep 1s\n# mark\n# just a note\n\n# mark\nSleep 1s\n");
-    let spans = VhsScene.spans(&v, "b").expect("spans");
+    let cues = VhsScene.cues(&v, "b").expect("cues");
 
-    assert_eq!(spans.len(), 2, "the comment-only chunk should not survive");
+    assert_eq!(cues.len(), 2, "the comment-only chunk should not survive");
     // Indices stay dense after the empty chunk is dropped.
-    assert_eq!(spans[1].index, 1);
+    assert_eq!(cues[1].index, 1);
 }
 
 #[test]
 fn a_plain_comment_is_not_a_mark() {
     let v = validated("Sleep 1s\n# marking things\nSleep 1s\n");
 
-    assert_eq!(VhsScene.spans(&v, "b").expect("spans").len(), 1);
+    assert_eq!(VhsScene.cues(&v, "b").expect("cues").len(), 1);
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn a_per_command_speed_overrides_the_tape_setting() {
     );
 }
 
-/// The regression the span preamble exists for: a setting established before
+/// The regression the cue preamble exists for: a setting established before
 /// a mark still governs the beats after it.
 #[test]
 fn a_setting_carries_across_a_mark() {
@@ -183,21 +183,21 @@ fn a_setting_carries_across_a_mark() {
 }
 
 /// The other half of carrying settings: they land in the hash, so changing
-/// one invalidates the later spans whose timing it moves.
+/// one invalidates the later cues whose timing it moves.
 #[test]
 fn changing_a_setting_changes_the_hash_of_a_later_span() {
     let a = VhsScene
-        .spans(
+        .cues(
             &validated("Set TypingSpeed 10ms\n# mark\nType \"abc\"\n"),
             "b",
         )
-        .expect("spans");
+        .expect("cues");
     let b = VhsScene
-        .spans(
+        .cues(
             &validated("Set TypingSpeed 20ms\n# mark\nType \"abc\"\n"),
             "b",
         )
-        .expect("spans");
+        .expect("cues");
 
     assert_ne!(a[0].hash, b[0].hash);
 }
@@ -207,9 +207,9 @@ fn changing_a_setting_changes_the_hash_of_a_later_span() {
 #[test]
 fn a_chunk_of_only_settings_is_not_a_span() {
     let v = validated("Sleep 1s\n# mark\nSet TypingSpeed 10ms\n# mark\nType \"abc\"\n");
-    let spans = VhsScene.spans(&v, "b").expect("spans");
+    let cues = VhsScene.cues(&v, "b").expect("cues");
 
-    assert_eq!(spans.len(), 2);
+    assert_eq!(cues.len(), 2);
     assert_eq!(
         total_ms("Sleep 1s\n# mark\nSet TypingSpeed 10ms\n# mark\nType \"abc\"\n"),
         1030,
@@ -222,30 +222,30 @@ fn settings_alone_cost_no_time() {
     assert_eq!(total_ms("Set FontSize 32\nSet Theme \"Dracula\"\n"), 0);
 }
 
-/// A span whose timing the tape states in full needs no measuring pass —
+/// A cue whose timing the tape states in full needs no measuring pass —
 /// which is what lets `plan` and `diff` pace a terminal scene offline.
 #[test]
 fn a_tape_that_states_its_timing_estimates_exactly() {
     let v = validated("Set TypingSpeed 10ms\nType \"abc\"\nEnter\nSleep 1s\n");
-    let spans = VhsScene.spans(&v, "b").expect("spans");
+    let cues = VhsScene.cues(&v, "b").expect("cues");
 
-    assert_eq!(VhsScene.estimate(&spans[0]), Measured::Exact(1040));
+    assert_eq!(VhsScene.estimate(&cues[0]), Measured::Exact(1040));
 }
 
-/// `Wait` is the exception, and it is an exception per span rather than per
+/// `Wait` is the exception, and it is an exception per cue rather than per
 /// adapter: it blocks until the prompt returns, so its length is whatever the
 /// command underneath takes, and that number is nowhere in the tape.
 #[test]
 fn a_span_containing_wait_is_estimated_and_bounded_by_its_timeout() {
     let v = validated("Type \"cargo build\"\nWait\n# mark\nSleep 1s\n");
-    let spans = VhsScene.spans(&v, "b").expect("spans");
+    let cues = VhsScene.cues(&v, "b").expect("cues");
 
     // 11 chars at the 50ms default, plus the 5s default timeout.
-    assert_eq!(VhsScene.estimate(&spans[0]), Measured::Estimated(5550));
+    assert_eq!(VhsScene.estimate(&cues[0]), Measured::Estimated(5550));
     assert_eq!(
-        VhsScene.estimate(&spans[1]),
+        VhsScene.estimate(&cues[1]),
         Measured::Exact(1000),
-        "a `Wait` in one span says nothing about the span beside it"
+        "a `Wait` in one cue says nothing about the cue beside it"
     );
 }
 
@@ -258,7 +258,7 @@ fn a_wait_timeout_is_settable_per_tape_and_per_command() {
 #[test]
 fn a_wait_scope_is_checked_rather_than_assumed() {
     assert!(VhsScene
-        .validate(&src("Wait+Screen /\\$ $/\nWait+Line\n"))
+        .validate(&src("Wait+Screen /\\$ $/\nWait+Command\n"))
         .is_ok());
 
     let e = VhsScene
@@ -290,7 +290,7 @@ fn a_misspelled_setting_is_reported_rather_than_ignored() {
     );
 }
 
-/// Sourcing another tape splices it in at run time, long after `spans` has
+/// Sourcing another tape splices it in at run time, long after `cues` has
 /// decided where the beats are.
 #[test]
 fn source_points_at_the_include_attribute_instead() {
@@ -387,19 +387,19 @@ fn the_adapter_answers_to_the_name_the_terminal_scene_resolves_to() {
 /// difference is a frozen frame.
 #[test]
 fn a_stretched_span_is_re_timed_to_last_exactly_as_long_as_asked() {
-    let span = only_span(
+    let cue = only_span(
         "Set TypingSpeed 50ms\n\
          Type \"cargo test\"\n\
          Enter\n\
          Sleep 1s\n",
     );
-    let before = match VhsScene.estimate(&span) {
+    let before = match VhsScene.estimate(&cue) {
         Measured::Exact(ms) => ms,
         other => panic!("a tape without Wait is exact: {other:?}"),
     };
 
     let retimed = VhsScene
-        .retime(&span, before * 3)
+        .retime(&cue, before * 3)
         .expect("a tape stating its own timing can be re-timed");
 
     let after = VhsScene.estimate(&only_span(&retimed));
@@ -417,8 +417,8 @@ fn a_stretched_span_is_re_timed_to_last_exactly_as_long_as_asked() {
 /// the frozen frame again, wearing a Sleep.
 #[test]
 fn stretching_slows_the_typing_rather_than_only_padding_the_end() {
-    let span = only_span("Set TypingSpeed 50ms\nType \"hello\"\nSleep 500ms\n");
-    let retimed = VhsScene.retime(&span, 3_000).expect("re-timable");
+    let cue = only_span("Set TypingSpeed 50ms\nType \"hello\"\nSleep 500ms\n");
+    let retimed = VhsScene.retime(&cue, 3_000).expect("re-timable");
 
     let speed: u64 = retimed
         .lines()
@@ -437,25 +437,25 @@ fn stretching_slows_the_typing_rather_than_only_padding_the_end() {
     assert!(sleep > 500, "the sleep did not stretch: {retimed}");
 }
 
-/// A span whose length the tape does not state cannot be promised to any
+/// A cue whose length the tape does not state cannot be promised to any
 /// duration. `Wait` blocks until a prompt returns, and no amount of
 /// arithmetic here changes how long `cargo build` takes.
 #[test]
 fn a_span_that_waits_cannot_be_re_timed() {
-    let span = only_span("Type \"cargo build\"\nEnter\nWait\n");
-    assert_eq!(VhsScene.retime(&span, 30_000), None);
+    let cue = only_span("Type \"cargo build\"\nEnter\nWait\n");
+    assert_eq!(VhsScene.retime(&cue, 30_000), None);
 }
 
 /// Down as well as up: `trim-action` asks for a shorter action, and the
 /// same arithmetic runs in reverse.
 #[test]
 fn a_span_can_be_re_timed_shorter_as_well_as_longer() {
-    let span = only_span("Set TypingSpeed 100ms\nType \"slow\"\nSleep 4s\n");
-    let before = match VhsScene.estimate(&span) {
+    let cue = only_span("Set TypingSpeed 100ms\nType \"slow\"\nSleep 4s\n");
+    let before = match VhsScene.estimate(&cue) {
         Measured::Exact(ms) => ms,
         other => panic!("{other:?}"),
     };
-    let retimed = VhsScene.retime(&span, before / 2).expect("re-timable");
+    let retimed = VhsScene.retime(&cue, before / 2).expect("re-timable");
     assert_eq!(
         VhsScene.estimate(&only_span(&retimed)),
         Measured::Exact(before / 2),

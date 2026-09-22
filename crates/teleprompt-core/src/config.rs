@@ -179,7 +179,7 @@ pub fn default_adapter(scene: &str) -> &'static str {
 }
 
 /// All-optional mirror of `Config`, deserialized from one configuration layer
-/// (`teleprompt.toml`, script/chapter front matter, or segment/block attributes).
+/// (`teleprompt.toml`, script/chapter front matter, or line/block attributes).
 ///
 /// Carries `teleprompt` (schema version) and `output` (resolution/fps/transition)
 /// so real front matter — which nests `transition` under `output:` and stamps a
@@ -388,7 +388,7 @@ impl PartialConfig {
         Ok(toml::from_str(s)?)
     }
 
-    /// Builds a layer from segment or block attributes. Unparseable values are
+    /// Builds a layer from line or block attributes. Unparseable values are
     /// dropped here; `parse_attrs` has already reported them as diagnostics.
     pub fn from_attrs(a: &Attributes) -> Self {
         let mut c = Self::default();
@@ -436,7 +436,7 @@ impl Config {
     /// wrapped in a [`crate::Diagnostic`].
     ///
     /// `voice.speed` can arrive from `teleprompt.toml`, script or chapter
-    /// front matter, a segment attribute, or the CLI, and the layers
+    /// front matter, a line attribute, or the CLI, and the layers
     /// override one another — so no single layer knows what the estimator
     /// will actually be handed. This runs on the merged result, which is the
     /// value that reaches it.

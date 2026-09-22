@@ -9,7 +9,7 @@
 pub mod chunk;
 pub mod ffmpeg;
 pub mod incremental;
-mod piece;
+mod placement;
 pub mod plan;
 
 use std::path::PathBuf;
@@ -30,7 +30,7 @@ pub struct RenderPlan {
     pub output: PathBuf,
 }
 
-/// One scheduled span of picture.
+/// One scheduled cue of picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Beat {
     pub id: String,

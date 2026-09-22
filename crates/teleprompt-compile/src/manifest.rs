@@ -37,10 +37,10 @@ pub struct NarrationManifest {
     pub duration_ms: u64,
     pub audio: AudioInfo,
     pub chapters: Vec<ChapterEntry>,
-    pub segments: Vec<SegmentEntry>,
-    /// One entry per scheduled action span, in document order.
+    pub lines: Vec<LineEntry>,
+    /// One entry per scheduled action cue, in document order.
     ///
-    /// `segments` says when each sentence is spoken; without this, that is
+    /// `lines` says when each sentence is spoken; without this, that is
     /// all a consumer knows, and every pacing decision the scheduler made —
     /// `hold`, `concurrent`, `fit-action`, `trim-action` — stops at the
     /// boundary. The numbers here are the ones the scheduler arrived at,
@@ -50,7 +50,7 @@ pub struct NarrationManifest {
     pub beats: Vec<BeatEntry>,
 }
 
-/// Uniform across every segment, so a consumer configures its player once
+/// Uniform across every line, so a consumer configures its player once
 /// rather than probing each file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AudioInfo {
@@ -66,26 +66,26 @@ pub struct ChapterEntry {
     pub start_ms: u64,
 }
 
-/// One scheduled action span.
+/// One scheduled action cue.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BeatEntry {
-    /// The span's id, `<block>#<index>`, as the adapter minted it.
-    pub span: String,
-    /// The segment spoken over this span, or `null`.
+    /// The cue's id, `<block>#<index>`, as the adapter minted it.
+    pub cue: String,
+    /// The line spoken over this cue, or `null`.
     ///
-    /// Always serialized. A span is paired with narration only when it is
-    /// the first span of the block that followed a paragraph; every span
+    /// Always serialized. A cue is paired with narration only when it is
+    /// the first cue of the block that followed a paragraph; every cue
     /// after a mark runs under whatever the policy left of that paragraph,
     /// and a pause has no narration at all. A consumer should not have to
     /// tell "absent" from "unpaired".
-    pub segment: Option<String>,
+    pub line: Option<String>,
     pub scene: String,
     pub adapter: String,
     pub start_ms: u64,
     pub duration_ms: u64,
-    /// `exact` when the adapter's language states the span's timing in full,
+    /// `exact` when the adapter's language states the cue's timing in full,
     /// `measured` from a measuring pass, `estimated` from a model. Same
-    /// vocabulary as a segment's, applied to an action.
+    /// vocabulary as a line's, applied to an action.
     pub duration_source: String,
     pub policy: String,
     /// The outgoing transition, as scheduled. Carried because a consumer
@@ -93,16 +93,16 @@ pub struct BeatEntry {
     /// deriving them from neighbouring offsets is exactly the arithmetic
     /// that goes wrong where beats overlap.
     pub transition: TransitionOut,
-    /// Identity of the span's source, for a per-span render cache. The
-    /// counterpart of a segment's `audio_hash`.
-    pub span_hash: Hash,
-    /// Identity of the *picture*: this span's source and every span before
+    /// Identity of the cue's source, for a per-cue render cache. The
+    /// counterpart of a line's `audio_hash`.
+    pub cue_hash: Hash,
+    /// Identity of the *picture*: this cue's source and every cue before
     /// it in the same session. What a captured clip is filed under.
     ///
-    /// Not the same as `span_hash`, and the difference is the point. A
+    /// Not the same as `cue_hash`, and the difference is the point. A
     /// scene is a session, so the screen a beat shows is the accumulation
     /// of every beat before it; two blocks with the same steps — `j` twice
-    /// in one walkthrough — have one `span_hash` and two pictures.
+    /// in one walkthrough — have one `cue_hash` and two pictures.
     pub capture_key: Hash,
     /// Which run of the scene, from `session="…"`. Published because it is
     /// the only part of the chain a reader cannot see in the script, and
@@ -118,13 +118,13 @@ pub struct TransitionOut {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SegmentEntry {
+pub struct LineEntry {
     pub id: String,
     pub text: String,
-    /// Slug of the chapter this segment was spoken in. Always serialized,
+    /// Slug of the chapter this line was spoken in. Always serialized,
     /// including when that chapter has no entry in `chapters` — a chapter
     /// is only omitted there when nothing in it is spoken, which cannot be
-    /// true of a chapter that owns a segment, but a consumer must not have
+    /// true of a chapter that owns a line, but a consumer must not have
     /// to reason about that to answer "which chapter is this?".
     ///
     /// Published because the alternative is reconstruction from timestamps
@@ -136,7 +136,7 @@ pub struct SegmentEntry {
     /// `measured` when this came from real audio, `estimated` when it is the
     /// duration model's prediction. A consumer building a player can show the
     /// difference; one committing the manifest should know a re-dub will move
-    /// every estimated segment.
+    /// every estimated line.
     pub duration_source: String,
     pub audio: String,
     pub voice_source: String,
@@ -151,7 +151,7 @@ pub struct SegmentEntry {
     /// [`build`] cannot fill this in: it runs before anything is encoded.
     /// The only hash it has in hand is the `Timeline`'s `audio_hash`, which
     /// is a deliberately *different* quantity — the identity of the audio a
-    /// segment resolves to, derived from its synthesis cache key, which is
+    /// line resolves to, derived from its synthesis cache key, which is
     /// why it does not move when `dub` re-renders byte-identical audio.
     /// This field describes the file: the bytes, and nothing else. `build`
     /// seeds it with the timeline's value and `teleprompt dub` overwrites
@@ -161,10 +161,10 @@ pub struct SegmentEntry {
     /// that is byte-identical hashes identically — which is the whole
     /// point, since that is exactly when a consumer may reuse a cached
     /// render. It is conspicuous with the `null` backend in particular:
-    /// `null` emits pure silence, so every segment of the same duration
+    /// `null` emits pure silence, so every line of the same duration
     /// produces the same bytes and therefore the same hash, and a manifest
     /// full of repeated hashes is the correct output. Real speech differs
-    /// per segment and the repetition disappears. Segment identity for
+    /// per line and the repetition disappears. Line identity for
     /// drift purposes comes from `source_hash`, which does not collide.
     pub audio_hash: Hash,
     /// Omitted entirely when the backend has no word timings, so absence is
@@ -180,9 +180,9 @@ pub struct WordEntry {
     pub end_ms: u64,
 }
 
-/// Where a segment's audio sits, relative to the manifest that names it.
-pub fn audio_path(segment_id: &str, format: &str) -> String {
-    format!("audio/{segment_id}.{format}")
+/// Where a line's audio sits, relative to the manifest that names it.
+pub fn audio_path(line_id: &str, format: &str) -> String {
+    format!("audio/{line_id}.{format}")
 }
 
 /// Join a scheduled [`Timeline`] with the narration detail `compile`
@@ -194,8 +194,8 @@ pub fn audio_path(segment_id: &str, format: &str) -> String {
 /// a fallible signature that every caller would then `unwrap`.
 ///
 /// **`audio_hash` is seeded, not final.** Nothing here has encoded any
-/// audio, so each segment's `audio_hash` is set to the `Timeline`'s value —
-/// which answers a different question: *which* audio this segment resolves
+/// audio, so each line's `audio_hash` is set to the `Timeline`'s value —
+/// which answers a different question: *which* audio this line resolves
 /// to, rather than what the file on disk contains. `teleprompt dub`
 /// replaces it with the hash of the bytes it actually wrote. The
 /// alternative — taking a `&[(String, Hash)]` of byte hashes here — was
@@ -208,20 +208,20 @@ pub fn build(
     details: &[NarrationDetail],
     audio: AudioInfo,
 ) -> NarrationManifest {
-    let segments: Vec<SegmentEntry> = timeline
+    let lines: Vec<LineEntry> = timeline
         .entries
         .iter()
         .filter_map(|entry| {
             let n = entry.narration.as_ref()?;
-            let detail = details.iter().find(|d| d.segment_id == n.segment)?;
-            Some(SegmentEntry {
-                id: n.segment.clone(),
+            let detail = details.iter().find(|d| d.line_id == n.line)?;
+            Some(LineEntry {
+                id: n.line.clone(),
                 text: detail.text.clone(),
                 chapter: detail.chapter.clone(),
                 start_ms: n.start_ms,
                 duration_ms: n.duration_ms,
                 duration_source: n.duration_source.clone(),
-                audio: audio_path(&n.segment, &audio.format),
+                audio: audio_path(&n.line, &audio.format),
                 voice_source: n.voice_source.clone(),
                 voice_source_actual: n.voice_source_actual.clone(),
                 downgrade_reason: n.downgrade_reason.clone(),
@@ -240,18 +240,18 @@ pub fn build(
         })
         .collect();
 
-    // One beat per scheduled span, in the timeline's own order. A pause is
+    // One beat per scheduled cue, in the timeline's own order. A pause is
     // included rather than filtered: `scene: "pause"` is a beat during which
     // the picture holds, and a consumer that skipped it would run the next
-    // span early.
+    // cue early.
     let beats: Vec<BeatEntry> = timeline
         .entries
         .iter()
         .filter_map(|entry| {
             let a = entry.action.as_ref()?;
             Some(BeatEntry {
-                span: a.span.clone(),
-                segment: entry.narration.as_ref().map(|n| n.segment.clone()),
+                cue: a.cue.clone(),
+                line: entry.narration.as_ref().map(|n| n.line.clone()),
                 scene: a.scene.clone(),
                 adapter: a.adapter.clone(),
                 start_ms: a.start_ms,
@@ -262,21 +262,21 @@ pub fn build(
                     kind: entry.transition.kind.clone(),
                     duration_ms: entry.transition.duration_ms,
                 },
-                span_hash: a.span_hash,
+                cue_hash: a.cue_hash,
                 capture_key: a.capture_key,
                 session: a.session.clone(),
             })
         })
         .collect();
 
-    // A chapter's start is its first spoken segment's start. A chapter with
+    // A chapter's start is its first spoken line's start. A chapter with
     // nothing spoken in it has no defensible time and is omitted rather
     // than given a guessed one.
     //
     // The join is **positional**, not by slug. Slugs derive from titles
     // (`teleprompt_core::ast::slugify`), cannot be pinned, and are never
     // deduplicated, so two `# Setup` chapters share the slug `setup`.
-    // Joining on it made `min()` run across both chapters' segments: the
+    // Joining on it made `min()` run across both chapters' lines: the
     // two markers came out with the same `start_ms` and the second
     // chapter's real start was lost. `ChapterEntry.id` stays the slug —
     // that is what a consumer wants to see — but the join behind it is the
@@ -288,7 +288,7 @@ pub fn build(
             let start_ms = details
                 .iter()
                 .filter(|d| d.chapter_index == index)
-                .filter_map(|d| segments.iter().find(|s| s.id == d.segment_id))
+                .filter_map(|d| lines.iter().find(|s| s.id == d.line_id))
                 .map(|s| s.start_ms)
                 .min()?;
             Some(ChapterEntry {
@@ -307,7 +307,7 @@ pub fn build(
         duration_ms: timeline.duration_ms,
         audio,
         chapters: chapter_entries,
-        segments,
+        lines,
         beats,
     }
 }

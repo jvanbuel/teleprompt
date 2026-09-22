@@ -256,32 +256,29 @@ fn the_default_backend_is_null_so_existing_scripts_keep_working() {
     assert!(run_check(&p, &s, "en").is_ok());
 }
 
-/// The extra requirement beyond the brief: a segment-level `voice.backend=`
+/// The extra requirement beyond the brief: a line-level `voice.backend=`
 /// that disagrees with the program's resolved backend must fail `check`
 /// rather than being silently ignored — `VoiceContext` carries exactly one
-/// backend per compile, so an ignored override would let two segments that
+/// backend per compile, so an ignored override would let two lines that
 /// differ only by backend collide on one cache key and one would be served
 /// the other's audio.
 #[test]
 fn a_segment_level_backend_override_that_disagrees_with_the_resolved_backend_is_rejected() {
     let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=nope}\n");
-    let errors = run_check(&p, &s, "en").expect_err("a disagreeing per-segment backend must fail");
+    let errors = run_check(&p, &s, "en").expect_err("a disagreeing per-line backend must fail");
     let joined = errors.join("\n");
-    assert!(
-        joined.contains("segment `a`"),
-        "must name the segment: {joined}"
-    );
+    assert!(joined.contains("line `a`"), "must name the line: {joined}");
     assert!(
         joined.contains("nope") && joined.contains("null"),
-        "must name both the segment's requested backend and the resolved one: {joined}"
+        "must name both the line's requested backend and the resolved one: {joined}"
     );
     assert!(
         joined.contains("not supported yet"),
-        "must say per-segment backends are not supported yet: {joined}"
+        "must say per-line backends are not supported yet: {joined}"
     );
 }
 
-/// A segment-level `voice.backend=` that agrees with the resolved backend
+/// A line-level `voice.backend=` that agrees with the resolved backend
 /// is not an override at all and must not be rejected.
 #[test]
 fn a_segment_level_backend_that_matches_the_resolved_backend_is_fine() {
@@ -289,12 +286,12 @@ fn a_segment_level_backend_that_matches_the_resolved_backend_is_fine() {
     assert!(run_check(&p, &s, "en").is_ok());
 }
 
-/// Fix round 1: a chapter-level `voice.backend` override with no segment
+/// Fix round 1: a chapter-level `voice.backend` override with no line
 /// attribute must still be rejected (Delivery A supports one backend per
 /// compile, full stop), but `Item::Narration`'s config is already merged
 /// and cannot say which layer produced the value. The diagnostic must
 /// therefore describe the effect ("resolves to") rather than accuse the
-/// segment of writing an attribute it never wrote, and the help text must
+/// line of writing an attribute it never wrote, and the help text must
 /// mention that chapter-level overrides are unsupported too.
 #[test]
 fn a_chapter_level_backend_override_is_reported_without_claiming_the_segment_set_it() {
@@ -305,7 +302,7 @@ fn a_chapter_level_backend_override_is_reported_without_claiming_the_segment_set
     let joined = errors.join("\n");
     assert!(
         !joined.contains("sets"),
-        "must not claim the segment wrote an attribute it did not: {joined}"
+        "must not claim the line wrote an attribute it did not: {joined}"
     );
     assert!(
         joined.contains("resolves to voice backend `elsewhere`"),
@@ -317,8 +314,8 @@ fn a_chapter_level_backend_override_is_reported_without_claiming_the_segment_set
     );
 }
 
-/// Fix round 1: a chapter-wide override affecting several segments must
-/// produce exactly one diagnostic naming all of them, not one per segment.
+/// Fix round 1: a chapter-wide override affecting several lines must
+/// produce exactly one diagnostic naming all of them, not one per line.
 #[test]
 fn a_chapter_level_backend_override_across_several_segments_is_one_diagnostic() {
     let (p, s) = project_with(
@@ -329,13 +326,13 @@ fn a_chapter_level_backend_override_across_several_segments_is_one_diagnostic() 
     assert_eq!(
         errors.len(),
         1,
-        "one diagnostic per offending value, not one per segment: {errors:?}"
+        "one diagnostic per offending value, not one per line: {errors:?}"
     );
     let joined = errors.join("\n");
     for id in ["a", "b", "c"] {
         assert!(
             joined.contains(&format!("`{id}`")),
-            "must name segment `{id}`: {joined}"
+            "must name line `{id}`: {joined}"
         );
     }
 }

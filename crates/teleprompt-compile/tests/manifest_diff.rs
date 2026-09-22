@@ -1,11 +1,11 @@
 use teleprompt_compile::manifest::{
-    AudioInfo, ChapterEntry, NarrationManifest, SegmentEntry, MANIFEST_VERSION,
+    AudioInfo, ChapterEntry, LineEntry, NarrationManifest, MANIFEST_VERSION,
 };
 use teleprompt_compile::manifest_diff::diff;
 use teleprompt_core::Hash;
 
-fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) -> SegmentEntry {
-    SegmentEntry {
+fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) -> LineEntry {
+    LineEntry {
         id: id.to_string(),
         text: text.to_string(),
         chapter: "intro".to_string(),
@@ -22,8 +22,8 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
     }
 }
 
-fn manifest(segments: Vec<SegmentEntry>) -> NarrationManifest {
-    let duration_ms = segments
+fn manifest(lines: Vec<LineEntry>) -> NarrationManifest {
+    let duration_ms = lines
         .last()
         .map(|s| s.start_ms + s.duration_ms)
         .unwrap_or(0);
@@ -39,7 +39,7 @@ fn manifest(segments: Vec<SegmentEntry>) -> NarrationManifest {
             channels: 1,
         },
         chapters: Vec::new(),
-        segments,
+        lines,
         beats: Vec::new(),
     }
 }
@@ -82,7 +82,7 @@ fn a_new_voice_is_reported_as_an_audio_change_not_a_text_edit() {
 
 #[test]
 fn a_segment_that_only_shifted_is_still_drift() {
-    // Position-only change: everything else about the segment (text, audio,
+    // Position-only change: everything else about the line (text, audio,
     // voice) is identical. Its audio is byte-identical, so this is drift a
     // consumer must still resynchronise against, but it is not "audio
     // changed" — nothing about the audio changed, only where it lands.
@@ -92,7 +92,7 @@ fn a_segment_that_only_shifted_is_still_drift() {
 
     assert!(
         !d.is_empty(),
-        "a shifted segment desynchronises every consumer"
+        "a shifted line desynchronises every consumer"
     );
     assert_eq!(d.changed[0].reason, "shifted");
 }
@@ -148,16 +148,16 @@ fn a_voice_request_change_with_no_tier_change_is_named_separately() {
 #[test]
 fn a_chapter_title_edit_is_drift_even_with_identical_segments() {
     // "Quick start" -> "Quick Start" slugifies to the same chapter id, and
-    // touches no SegmentEntry field at all — this is the case is_empty()
+    // touches no LineEntry field at all — this is the case is_empty()
     // used to miss entirely.
-    let segments = vec![seg("welcome", 0, 1000, "Hello.", "a")];
-    let mut before = manifest(segments.clone());
+    let lines = vec![seg("welcome", 0, 1000, "Hello.", "a")];
+    let mut before = manifest(lines.clone());
     before.chapters = vec![ChapterEntry {
         id: "quick-start".to_string(),
         title: "Quick start".to_string(),
         start_ms: 0,
     }];
-    let mut after = manifest(segments);
+    let mut after = manifest(lines);
     after.chapters = vec![ChapterEntry {
         id: "quick-start".to_string(),
         title: "Quick Start".to_string(),
@@ -171,10 +171,10 @@ fn a_chapter_title_edit_is_drift_even_with_identical_segments() {
 
 #[test]
 fn a_changed_sample_rate_is_drift() {
-    let segments = vec![seg("welcome", 0, 1000, "Hello.", "a")];
-    let mut before = manifest(segments.clone());
+    let lines = vec![seg("welcome", 0, 1000, "Hello.", "a")];
+    let mut before = manifest(lines.clone());
     before.audio.sample_rate = 48_000;
-    let mut after = manifest(segments);
+    let mut after = manifest(lines);
     after.audio.sample_rate = 44_100;
 
     let d = diff(&before, &after);
@@ -289,8 +289,8 @@ fn the_report_names_the_duration_change_and_the_segments() {
 }
 
 /// The manifest's `duration_source` used to be inert: `reason_for` never
-/// looked at it, so a segment that went from a prediction to a measurement
-/// with the same length — which with `null` is every segment, because the
+/// looked at it, so a line that went from a prediction to a measurement
+/// with the same length — which with `null` is every line, because the
 /// estimator and the backend call the same function — was reported as clean.
 /// A committed manifest full of estimates would have passed `--check`.
 #[test]

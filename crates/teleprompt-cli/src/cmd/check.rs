@@ -117,9 +117,9 @@ pub fn compile_script_with(
     // read — nothing downstream of `resolve` can reach back and
     // reconstruct an already-built backend. Silently accepting the merge
     // and never mentioning the mismatch would be the same defect the
-    // segment-backend check below exists to catch: an author-written value
+    // line-backend check below exists to catch: an author-written value
     // the merge computes and the mechanism it is meant to affect never
-    // sees. A warning, not an error: unlike a segment resolving to an
+    // sees. A warning, not an error: unlike a line resolving to an
     // unregistered backend, the compile still produces something correct —
     // audio from the *project's* settings for that backend, just not the
     // script's requested variant of them.
@@ -129,7 +129,7 @@ pub fn compile_script_with(
 
     // The *resolved* backend, not just a name: a script's own front matter
     // can override `voice.backend`, and this is what actually produces the
-    // segment's audio, so `cache_key` and `backend_version` both need to
+    // line's audio, so `cache_key` and `backend_version` both need to
     // come from it rather than from the raw string.
     // A backend whose settings did not validate fails here and only here —
     // when it is the one this project actually resolves to. Constructing
@@ -143,16 +143,16 @@ pub fn compile_script_with(
     // Delivery A supports exactly one backend per compile: `VoiceContext`
     // carries a single `backend_id` for the whole program. A narration item
     // can resolve to a different backend than the program's overall
-    // resolved backend two ways: a segment attribute set it, or a
+    // resolved backend two ways: a line attribute set it, or a
     // chapter's front matter did. `Item::Narration` does not retain which
     // layer supplied the value — `config` is already the fully merged
-    // result — so the diagnostic describes the *effect* ("this segment
+    // result — so the diagnostic describes the *effect* ("this line
     // resolves to a backend other than the one in use") rather than
     // guessing which layer is at fault and telling the author to remove an
     // attribute that, for a chapter-level override, was never written.
     //
     // Grouped by the offending value and reported once per group, naming
-    // every affected segment, so a chapter of twelve paragraphs under one
+    // every affected line, so a chapter of twelve paragraphs under one
     // stray `voice: { backend: ... }` produces one error, not twelve.
     let mut offenders: std::collections::BTreeMap<
         String,
@@ -174,26 +174,26 @@ pub fn compile_script_with(
     if !offenders.is_empty() {
         let diags: Vec<Diagnostic> = offenders
             .into_iter()
-            .map(|(backend, segments)| {
-                let span = segments[0].1;
-                let names = segments
+            .map(|(backend, lines)| {
+                let cue = lines[0].1;
+                let names = lines
                     .iter()
                     .map(|(id, _)| format!("`{id}`"))
                     .collect::<Vec<_>>()
                     .join(", ");
-                let (noun, verb) = if segments.len() == 1 {
-                    ("segment", "resolves")
+                let (noun, verb) = if lines.len() == 1 {
+                    ("line", "resolves")
                 } else {
-                    ("segments", "resolve")
+                    ("lines", "resolve")
                 };
                 Diagnostic::error(format!(
                     "{noun} {names} {verb} to voice backend `{backend}`, but this compile uses \
                      `{}`",
                     program.config.voice.backend
                 ))
-                .at(span)
+                .at(cue)
                 .with_help(
-                    "per-segment and per-chapter voice backends are not supported yet; set \
+                    "per-line and per-chapter voice backends are not supported yet; set \
                      voice.backend at the project or script front-matter level instead",
                 )
             })
@@ -247,7 +247,7 @@ pub fn compile_script_with(
 /// see — see the call site's comment for why. `base` is what the registry
 /// was (or should have been) built from; `merged` is `program.config
 /// .backends` after `resolve`. One diagnostic per distinct offending
-/// backend id, not per differing key, mirroring the segment-backend
+/// backend id, not per differing key, mirroring the line-backend
 /// check's "once per group" shape.
 fn backend_override_warnings(
     base: &std::collections::BTreeMap<String, serde_yaml::Value>,

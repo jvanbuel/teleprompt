@@ -108,7 +108,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 
     let d = run_diff(&p, &s, "en").unwrap();
 
-    assert_eq!(d.changed.len(), 1, "exactly one segment changed");
+    assert_eq!(d.changed.len(), 1, "exactly one line changed");
     assert_eq!(d.changed[0].beat, "deploy");
     assert!(d.changed[0].reason.contains("text edited"));
     assert!(d.shift_ms > 0, "a longer paragraph lengthens the video");
@@ -137,7 +137,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 /// arm) — so this is also an exact assertion on the beat, not just the
 /// narration slot.
 ///
-/// Segment text (after soft-break-as-space joins the two source lines and
+/// Line text (after soft-break-as-space joins the two source lines and
 /// the `{#rollback}` attribute suffix is stripped):
 ///   "If a deploy goes wrong, rolling back takes the same single command
 ///    with one extra flag."

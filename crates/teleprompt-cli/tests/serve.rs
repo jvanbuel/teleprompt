@@ -135,9 +135,9 @@ fn the_preview_is_served_a_manifest_with_beats_in_it() {
         m["manifest_version"], 2,
         "the preview places the picture from `beats`, which is v2"
     );
-    assert_eq!(m["segments"].as_array().unwrap().len(), 2);
+    assert_eq!(m["lines"].as_array().unwrap().len(), 2);
     let beats = m["beats"].as_array().unwrap();
-    assert_eq!(beats.len(), 2, "one span per action block");
+    assert_eq!(beats.len(), 2, "one cue per action block");
     assert_eq!(beats[0]["scene"], "terminal");
     assert_eq!(beats[0]["policy"], "hold");
     assert_eq!(beats[1]["policy"], "concurrent");
@@ -147,11 +147,11 @@ fn the_preview_is_served_a_manifest_with_beats_in_it() {
 fn a_span_source_is_served_so_the_scene_can_be_drawn() {
     let (_script, addr) = serving();
     let m = json(addr, "/manifest.json");
-    let span = m["beats"][0]["span"].as_str().unwrap().to_string();
+    let cue = m["beats"][0]["cue"].as_str().unwrap().to_string();
 
-    // A span id carries a `#`, which a client must percent-encode or the
+    // A cue id carries a `#`, which a client must percent-encode or the
     // fragment split eats the rest of the path.
-    let (status, body) = get(addr, &format!("/spans/{}", span.replace('#', "%23")));
+    let (status, body) = get(addr, &format!("/cues/{}", cue.replace('#', "%23")));
     assert!(status.contains("200"), "{status}");
     let source = String::from_utf8(body).unwrap();
     assert!(source.contains("teleprompt plan demo.md"), "{source}");
@@ -170,7 +170,7 @@ fn nothing_outside_the_cache_can_be_asked_for() {
     let (_script, addr) = serving();
     for path in [
         "/audio/..%2f..%2fetc%2fpasswd.wav",
-        "/spans/..%2f..%2fsecrets",
+        "/cues/..%2f..%2fsecrets",
         "/../Cargo.toml",
     ] {
         let (status, _) = get(addr, path);
@@ -213,7 +213,7 @@ fn editing_a_paragraph_republishes_and_names_what_moved() {
 
     assert!(
         changed.contains(&"second"),
-        "the edited segment should be named: {changed:?}"
+        "the edited line should be named: {changed:?}"
     );
     assert!(
         after["duration_ms"].as_u64().unwrap() > was,
@@ -222,7 +222,7 @@ fn editing_a_paragraph_republishes_and_names_what_moved() {
 
     // And the manifest the preview reads is the new one.
     let m = json(addr, "/manifest.json");
-    let second = m["segments"]
+    let second = m["lines"]
         .as_array()
         .unwrap()
         .iter()
@@ -263,11 +263,11 @@ fn a_script_that_stops_compiling_keeps_the_last_good_preview() {
 fn what_sits_before_an_edit_is_not_reported_as_moved() {
     // The first preview must publish the durations it will still be
     // publishing after the next save. If generation 1 carries estimates and
-    // generation 2 carries measurements, every segment "moves" on the first
+    // generation 2 carries measurements, every line "moves" on the first
     // edit and the preview has nowhere meaningful to jump to.
     let (script, addr) = serving();
     let first = json(addr, "/manifest.json");
-    let sources: Vec<&str> = first["segments"]
+    let sources: Vec<&str> = first["lines"]
         .as_array()
         .unwrap()
         .iter()

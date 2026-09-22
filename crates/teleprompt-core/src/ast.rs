@@ -19,13 +19,13 @@ pub struct Chapter {
 
 #[derive(Debug, Clone)]
 pub enum Node {
-    Segment(Segment),
+    Line(Line),
     ActionBlock(ActionBlock),
     Directive(Directive),
 }
 
 #[derive(Debug, Clone)]
-pub struct Segment {
+pub struct Line {
     pub id: Option<String>,
     pub id_origin: IdOrigin,
     pub text: String,

@@ -25,7 +25,7 @@ scene:
 
 # Getting started
 
-Welcome to teleprompt. This paragraph is a narration segment, and its spoken
+Welcome to teleprompt. This paragraph is a narration line, and its spoken
 length decides how long the visuals below stay on screen. {#welcome}
 
 ```teleprompt scene=mock

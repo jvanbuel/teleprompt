@@ -8,7 +8,7 @@
 //!
 //! **The preview is a manifest consumer.** It reads exactly what
 //! `docs/integrations/remotion.md` tells an outside integrator to read —
-//! `narration.json` with its `beats` — plus the span sources it needs to draw
+//! `narration.json` with its `beats` — plus the cue sources it needs to draw
 //! a scene. Nothing here has privileged access to the schedule, which is what
 //! keeps "looked fine in preview" from becoming a category of bug.
 //!
@@ -54,13 +54,13 @@ pub enum ServeError {
 struct Preview {
     generation: u64,
     manifest: NarrationManifest,
-    /// Span id to adapter-native source, for the scenes the preview draws.
-    spans: BTreeMap<String, String>,
-    /// Segment id to the cache key its audio lives under. The cache is
+    /// Cue id to adapter-native source, for the scenes the preview draws.
+    cues: BTreeMap<String, String>,
+    /// Line id to the cache key its audio lives under. The cache is
     /// addressed by content, so this is the index from the name a consumer
     /// asks for to the file that answers it.
     audio_keys: BTreeMap<String, String>,
-    /// Ids of the beats and segments whose timing or content moved in the
+    /// Ids of the beats and lines whose timing or content moved in the
     /// compile that produced this generation. Empty on the first one.
     changed: Vec<String>,
     /// Set when the last save failed to compile. The previous generation's
@@ -81,7 +81,7 @@ struct State<'a> {
 /// What one compile produces for the preview.
 struct Built {
     manifest: NarrationManifest,
-    spans: BTreeMap<String, String>,
+    cues: BTreeMap<String, String>,
     audio_keys: BTreeMap<String, String>,
     changed: Vec<String>,
 }
@@ -103,7 +103,7 @@ async fn rebuild(
     // Compiled a second time, because the first one read a cache that did
     // not yet hold what `warm` has just put in it: its durations are the
     // estimator's guesses, and publishing those would make the first
-    // preview play at a pace the second one corrects. Every segment would
+    // preview play at a pace the second one corrects. Every line would
     // then "move" on the first save, and the preview would have nowhere
     // meaningful to jump to. `dub` recompiles after rendering for the same
     // reason. The second pass is offline and sub-second — that is what the
@@ -125,10 +125,10 @@ async fn rebuild(
         audio_keys: compiled
             .narration
             .iter()
-            .map(|d| (d.segment_id.clone(), d.cache_key.to_string()))
+            .map(|d| (d.line_id.clone(), d.cache_key.to_string()))
             .collect(),
-        spans: compiled
-            .spans
+        cues: compiled
+            .cues
             .into_iter()
             .map(|s| (s.id, s.source))
             .collect(),
@@ -151,7 +151,7 @@ async fn warm(
     for detail in &compiled.narration {
         let hit = cache
             .lookup_meta(&detail.cache_key)
-            .map_err(|e| ServeError::Runtime(format!("segment `{}`: {e}", detail.segment_id)))?
+            .map_err(|e| ServeError::Runtime(format!("line `{}`: {e}", detail.line_id)))?
             .hit();
         let (rate, channels) = match hit {
             Some(meta) => (meta.sample_rate, meta.channels),
@@ -159,14 +159,10 @@ async fn warm(
                 let s = backend
                     .synthesize(&detail.synth_request)
                     .await
-                    .map_err(|e| {
-                        ServeError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
-                    })?;
+                    .map_err(|e| ServeError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
                 cache
                     .store(&detail.cache_key, &s.pcm, s.word_timings.as_deref())
-                    .map_err(|e| {
-                        ServeError::Runtime(format!("segment `{}`: {e}", detail.segment_id))
-                    })?;
+                    .map_err(|e| ServeError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
                 (s.pcm.sample_rate, s.pcm.channels)
             }
         };
@@ -184,13 +180,13 @@ async fn warm(
 /// What moved between two manifests, as ids the preview can seek to.
 ///
 /// Deliberately coarser than `diff`: the preview only needs somewhere to
-/// jump, so a segment whose text or timing changed and a beat whose schedule
+/// jump, so a line whose text or timing changed and a beat whose schedule
 /// moved are both simply "changed". `diff` remains the surface for reading
 /// *what* changed.
 fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
     let mut out = Vec::new();
-    for seg in &after.segments {
-        match before.segments.iter().find(|s| s.id == seg.id) {
+    for seg in &after.lines {
+        match before.lines.iter().find(|s| s.id == seg.id) {
             None => out.push(seg.id.clone()),
             Some(was) => {
                 if was.source_hash != seg.source_hash
@@ -203,14 +199,14 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
         }
     }
     for beat in &after.beats {
-        match before.beats.iter().find(|b| b.span == beat.span) {
-            None => out.push(beat.span.clone()),
+        match before.beats.iter().find(|b| b.cue == beat.cue) {
+            None => out.push(beat.cue.clone()),
             Some(was) => {
                 if was.capture_key != beat.capture_key
                     || was.start_ms != beat.start_ms
                     || was.duration_ms != beat.duration_ms
                 {
-                    out.push(beat.span.clone());
+                    out.push(beat.cue.clone());
                 }
             }
         }
@@ -221,9 +217,9 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
 /// A request line's path: query stripped, percent-decoding applied. `None`
 /// for anything that is not a well-formed HTTP GET this server serves.
 ///
-/// The decode is not optional politeness: a span id contains a `#`
+/// The decode is not optional politeness: a cue id contains a `#`
 /// (`welcome-a#0`), which a client must percent-encode, so without this
-/// every span request arrives as `%23` and matches nothing.
+/// every cue request arrives as `%23` and matches nothing.
 fn route(line: &str) -> Option<String> {
     let mut parts = line.split_whitespace();
     if parts.next()? != "GET" {
@@ -255,7 +251,7 @@ fn decode_percent(s: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// The segment id in `/audio/<id>.wav`, rejecting anything that could escape
+/// The line id in `/audio/<id>.wav`, rejecting anything that could escape
 /// the cache: this server answers a browser, and a path is user input even
 /// when the user is its own author.
 fn audio_id(path: &str) -> Option<&str> {
@@ -268,7 +264,7 @@ fn audio_id(path: &str) -> Option<&str> {
 }
 
 fn span_id(path: &str) -> Option<&str> {
-    let rest = path.strip_prefix("/spans/")?;
+    let rest = path.strip_prefix("/cues/")?;
     let ok = !rest.is_empty()
         && rest
             .chars()
@@ -335,20 +331,20 @@ fn handle(
         p if span_id(p).is_some() => {
             let id = span_id(p).expect("just checked");
             let preview = state.lock().expect("preview lock");
-            match preview.spans.get(id) {
+            match preview.cues.get(id) {
                 Some(source) => respond(
                     stream,
                     "200 OK",
                     "text/plain; charset=utf-8",
                     source.as_bytes(),
                 ),
-                None => respond(stream, "404 Not Found", "text/plain", b"no such span"),
+                None => respond(stream, "404 Not Found", "text/plain", b"no such cue"),
             }
         }
 
         p if audio_id(p).is_some() => {
             let id = audio_id(p).expect("just checked");
-            // The cache is addressed by content, not by segment id, so the
+            // The cache is addressed by content, not by line id, so the
             // key index built during the compile is what turns the name a
             // consumer asks for into the file that answers it. Reconstructing
             // the key here would be a second answer to a question the compile
@@ -358,7 +354,7 @@ fn handle(
                 preview.audio_keys.get(id).cloned()
             };
             let Some(key) = key else {
-                return respond(stream, "404 Not Found", "text/plain", b"no such segment");
+                return respond(stream, "404 Not Found", "text/plain", b"no such line");
             };
             match std::fs::read(cache_dir.join("voice").join(format!("{key}.wav"))) {
                 Ok(bytes) => respond(stream, "200 OK", "audio/wav", &bytes),
@@ -405,7 +401,7 @@ pub async fn serve_on(
     let state = Arc::new(Mutex::new(Preview {
         generation: 1,
         manifest: built.manifest,
-        spans: built.spans,
+        cues: built.cues,
         audio_keys: built.audio_keys,
         changed: Vec::new(),
         error: None,
@@ -476,7 +472,7 @@ async fn watch(state: Arc<Mutex<Preview>>, project: Project, script: PathBuf, lo
                 let mut p = state.lock().expect("preview lock");
                 p.generation += 1;
                 p.manifest = built.manifest;
-                p.spans = built.spans;
+                p.cues = built.cues;
                 p.audio_keys = built.audio_keys;
                 p.changed = built.changed;
                 p.error = None;
@@ -535,17 +531,17 @@ mod tests {
     fn a_span_id_survives_the_encoding_a_client_must_apply() {
         // `welcome-a#0` has to arrive as `%23`, or the fragment split above
         // would eat everything after the `-a`.
-        let path = route("GET /spans/welcome-a%230 HTTP/1.1").expect("decodes");
+        let path = route("GET /cues/welcome-a%230 HTTP/1.1").expect("decodes");
         assert_eq!(span_id(&path), Some("welcome-a#0"));
-        assert_eq!(route("GET /spans/bad%2 HTTP/1.1"), None);
-        assert_eq!(route("GET /spans/bad%zz HTTP/1.1"), None);
+        assert_eq!(route("GET /cues/bad%2 HTTP/1.1"), None);
+        assert_eq!(route("GET /cues/bad%zz HTTP/1.1"), None);
     }
 
     #[test]
     fn an_audio_path_cannot_escape_the_cache() {
         assert_eq!(audio_id("/audio/welcome.wav"), Some("welcome"));
         assert_eq!(audio_id("/audio/the-loop.wav"), Some("the-loop"));
-        // A segment id is `[a-z0-9-_]` by construction, so anything that
+        // A line id is `[a-z0-9-_]` by construction, so anything that
         // could walk out of the cache directory is not one.
         assert_eq!(audio_id("/audio/../../etc/passwd.wav"), None);
         assert_eq!(audio_id("/audio/.wav"), None);
@@ -554,8 +550,8 @@ mod tests {
 
     #[test]
     fn a_span_path_admits_the_hash_a_span_id_carries() {
-        assert_eq!(span_id("/spans/welcome-a#0"), Some("welcome-a#0"));
-        assert_eq!(span_id("/spans/../secrets"), None);
-        assert_eq!(span_id("/spans/"), None);
+        assert_eq!(span_id("/cues/welcome-a#0"), Some("welcome-a#0"));
+        assert_eq!(span_id("/cues/../secrets"), None);
+        assert_eq!(span_id("/cues/"), None);
     }
 }

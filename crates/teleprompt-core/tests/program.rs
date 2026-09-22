@@ -42,7 +42,7 @@ fn program_for(src: &str) -> Program {
     let diags = assign_ids(&mut parsed);
     assert!(
         !diags.iter().any(|d| d.is_error()),
-        "fixture must yield unambiguous segment ids"
+        "fixture must yield unambiguous line ids"
     );
     resolve(
         &parsed,
@@ -102,7 +102,7 @@ fn cli_flags_beat_everything() {
     };
     assert_eq!(
         config.timing.lead_in_ms, 999,
-        "CLI outranks the segment attribute"
+        "CLI outranks the line attribute"
     );
 }
 
@@ -167,11 +167,11 @@ fn unknown_attribute_keys_surface_as_errors() {
     assert!(e.0[0].message.contains("unknown attribute key `polcy`"));
 }
 
-/// Controller ruling F12: `Item` carries the source span from the AST node it
+/// Controller ruling F12: `Item` carries the source cue from the AST node it
 /// was built from, so Task 11 can point an adapter validation error at the
 /// real line instead of a fabricated `line: 0`. This script puts the
 /// narration paragraph and the action fence on different lines, so the test
-/// would fail if the spans were swapped or both zeroed.
+/// would fail if the cues were swapped or both zeroed.
 #[test]
 fn item_spans_match_their_source_node_not_a_fabricated_line() {
     let src = "# A\n\nFirst line. {#first}\n\n```teleprompt scene=mock\nwait 1s\n```\n";
@@ -360,7 +360,7 @@ fn ordinary_voice_speeds_resolve() {
 }
 
 /// One bad value in front matter is one diagnostic, however many paragraphs
-/// resolve against it — and it points at a real segment rather than nowhere.
+/// resolve against it — and it points at a real line rather than nowhere.
 #[test]
 fn one_bad_speed_reports_once_and_names_a_line() {
     let src = "---\nvoice: { speed: 0 }\n---\n\n# A\n\nOne. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n";
@@ -375,10 +375,10 @@ fn one_bad_speed_reports_once_and_names_a_line() {
     )
     .expect_err("speed 0 must not resolve");
     assert_eq!(e.0.len(), 1, "{:?}", e.0);
-    assert!(e.0[0].span.is_some(), "diagnostic must point at a segment");
+    assert!(e.0[0].span.is_some(), "diagnostic must point at a line");
 }
 
-/// A segment attribute is one of the five layers the value can arrive from,
+/// A line attribute is one of the five layers the value can arrive from,
 /// and it is the last one before the CLI — so the merged check has to see it
 /// even when the script-level config is perfectly fine.
 #[test]
@@ -393,7 +393,7 @@ fn a_segment_level_speed_override_is_validated_too() {
         &PartialConfig::default(),
         &PartialConfig::default(),
     )
-    .expect_err("a segment-level speed 0 must not resolve");
+    .expect_err("a line-level speed 0 must not resolve");
     assert!(
         e.0.iter()
             .any(|d| d.message.contains("speed must be greater than zero")),

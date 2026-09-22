@@ -1,5 +1,5 @@
 //! Which tier of the dubbing spectrum produced (or should produce) a
-//! segment's audio.
+//! line's audio.
 //!
 //! This lives in `core` rather than in `teleprompt-voice` because it is
 //! shared *vocabulary*, not backend machinery: `teleprompt-schedule` records

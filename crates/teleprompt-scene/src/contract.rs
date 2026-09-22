@@ -2,8 +2,8 @@ use teleprompt_core::{Diagnostic, Hash, SourceSpan};
 
 /// Where an action block's body text actually lives.
 ///
-/// A `BlockSource` used to carry only the *fence's* span in the script, and
-/// adapters offset body line `i` by `span.line + i + 1`. That is right for a
+/// A `BlockSource` used to carry only the *fence's* cue in the script, and
+/// adapters offset body line `i` by `cue.line + i + 1`. That is right for a
 /// body written inline, and meaningless for one loaded with `include=`: an
 /// error on line 3 of `steps.mock` came out as `scripts/h1.md:12:1` in a
 /// ten-line script. Controller ruling F12 removed a fabricated `line: 0` from
@@ -70,14 +70,14 @@ pub struct Validated {
 }
 
 #[derive(Debug, Clone)]
-pub struct Span {
+pub struct Cue {
     pub id: String,
     pub source: String,
     pub hash: Hash,
     pub index: usize,
 }
 
-/// Duration of a span, in milliseconds.
+/// Duration of a cue, in milliseconds.
 ///
 /// `Exact` comes from a declarative language that states its own timing.
 /// `Estimated` is a guess the compiler may improve by measuring.
@@ -180,10 +180,10 @@ pub fn validate_lines<T>(
 pub trait SceneCompiler: Send + Sync {
     fn kind(&self) -> &'static str;
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>>;
-    fn spans(&self, v: &Validated, block_id: &str) -> Result<Vec<Span>, Vec<Diagnostic>>;
-    fn estimate(&self, span: &Span) -> Measured;
+    fn cues(&self, v: &Validated, block_id: &str) -> Result<Vec<Cue>, Vec<Diagnostic>>;
+    fn estimate(&self, cue: &Cue) -> Measured;
 
-    /// The same span, re-written to last `target_ms`, or `None` when this
+    /// The same cue, re-written to last `target_ms`, or `None` when this
     /// adapter cannot promise that.
     ///
     /// This is the other half of `stretch-action` and `trim-action`. The
@@ -199,7 +199,7 @@ pub trait SceneCompiler: Send + Sync {
     /// the command takes, and no arithmetic here changes that. The default
     /// is `None`, so an adapter that cannot re-time says nothing and the
     /// renderer holds a frame instead.
-    fn retime(&self, _span: &Span, _target_ms: u64) -> Option<String> {
+    fn retime(&self, _span: &Cue, _target_ms: u64) -> Option<String> {
         None
     }
 }

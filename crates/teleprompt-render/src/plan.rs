@@ -15,10 +15,10 @@ use crate::{Beat, Narration, Picture, RenderPlan, Transition};
 /// The scene name the manifest gives a beat that is only a pause.
 const PAUSE: &str = "pause";
 
-/// Where the pieces of a render live, and what shape the result should be.
+/// Where the placements of a render live, and what shape the result should be.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Inputs {
-    /// The directory holding the manifest. A segment's `audio` is relative
+    /// The directory holding the manifest. A line's `audio` is relative
     /// to it.
     pub narration_dir: PathBuf,
     /// Where captured clips are looked up, by capture key.
@@ -37,12 +37,12 @@ pub struct Inputs {
 /// backend for one scene would mean no video at all.
 pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPlan, Vec<String>) {
     let narration = manifest
-        .segments
+        .lines
         .iter()
-        .map(|segment| Narration {
-            id: segment.id.clone(),
-            path: inputs.narration_dir.join(&segment.audio),
-            start_ms: segment.start_ms,
+        .map(|line| Narration {
+            id: line.id.clone(),
+            path: inputs.narration_dir.join(&line.audio),
+            start_ms: line.start_ms,
         })
         .collect();
 
@@ -54,7 +54,7 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
             // A pause is a beat during which the picture holds — that is
             // what a pause is. Looking for a clip under its hash would find
             // nothing and report a capture that was never owed.
-            // Filed under the capture key, not the span hash: the same
+            // Filed under the capture key, not the cue hash: the same
             // tape in two places in a walkthrough is two pictures, because
             // the screen each one starts from is different.
             let clip = inputs.clips_dir.join(format!("{}.mp4", beat.capture_key));
@@ -67,7 +67,7 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
                 Picture::Slate
             };
             Beat {
-                id: beat.span.clone(),
+                id: beat.cue.clone(),
                 start_ms: beat.start_ms,
                 duration_ms: beat.duration_ms,
                 picture,

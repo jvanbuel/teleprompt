@@ -1,6 +1,6 @@
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
-use crate::ast::{slugify, ActionBlock, Chapter, Directive, IdOrigin, Node, Script, Segment};
+use crate::ast::{slugify, ActionBlock, Chapter, Directive, IdOrigin, Line, Node, Script};
 use crate::{Diagnostic, Diagnostics, SourceSpan};
 
 const FENCE_TAG: &str = "teleprompt";
@@ -237,7 +237,7 @@ fn paragraph_node(
         .next()
         .and_then(|t| t.strip_prefix('#'))
         .map(str::to_string);
-    Some(Node::Segment(Segment {
+    Some(Node::Line(Line {
         id,
         id_origin: IdOrigin::Derived,
         text: text.trim().to_string(),
@@ -334,7 +334,7 @@ fn push_node(
         None => diags.push(
             Diagnostic::error("content appears before the first heading")
                 .at(span)
-                .with_help("every segment and action block must belong to a chapter"),
+                .with_help("every line and action block must belong to a chapter"),
         ),
     }
 }

@@ -5,7 +5,7 @@
 //! reason (§7.5). teleprompt reuses the language; the runtime is its own PTY.
 //!
 //! A tape mostly states its own timing: every `Sleep` is written down and
-//! every keystroke costs `Set TypingSpeed`. So `estimate` is exact for a span
+//! every keystroke costs `Set TypingSpeed`. So `estimate` is exact for a cue
 //! that contains only those, and `Estimated` for one containing a `Wait`,
 //! whose real length is a fact about the command underneath rather than about
 //! the tape. See [`VhsScene::estimate`].
@@ -16,7 +16,7 @@ use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
 
 use teleprompt_scene::{
-    validate_lines, BlockSource, LineError, Measured, SceneCompiler, Span, Validated,
+    validate_lines, BlockSource, Cue, LineError, Measured, SceneCompiler, Validated,
 };
 
 /// The VHS adapter.
@@ -70,7 +70,7 @@ const INSTANT: &[&str] = &[];
 /// misspelling is reported rather than silently having no effect — `Set
 /// TypingSped 10ms` used to pass `check` and then type at the default speed,
 /// which is the "wrong length while `check` reports success" failure this
-/// adapter's own `Line` doc warns about, arriving by a different door.
+/// adapter's own `Command` doc warns about, arriving by a different door.
 const COSMETIC_SETTINGS: &[&str] = &[
     "BorderRadius",
     "CursorBlink",
@@ -122,7 +122,7 @@ const SHOW: &str = "Show";
 /// is not a parse bug, it is a video that is the wrong length while `check`
 /// reports success.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Line {
+pub enum Command {
     /// Blank, a comment, or a command with no duration.
     Nothing,
     Mark,
@@ -168,14 +168,14 @@ pub enum Line {
 /// Public because it is the lone place: the capture backend that runs a
 /// tape reads the same enum the compiler measures, so a line the two would
 /// disagree about cannot exist.
-pub fn classify(line: &str) -> Result<Line, LineError> {
+pub fn classify(line: &str) -> Result<Command, LineError> {
     let line = line.trim();
 
     if line == MARK {
-        return Ok(Line::Mark);
+        return Ok(Command::Mark);
     }
     if line.is_empty() || line.starts_with('#') {
-        return Ok(Line::Nothing);
+        return Ok(Command::Nothing);
     }
 
     let mut parts = line.split_whitespace();
@@ -208,7 +208,7 @@ pub fn classify(line: &str) -> Result<Line, LineError> {
                 ));
             }
             parse_duration_ms(value)
-                .map(Line::Sleep)
+                .map(Command::Sleep)
                 .map_err(|m| LineError::new(m, "e.g. `Sleep 2s`"))
         }
 
@@ -217,7 +217,7 @@ pub fn classify(line: &str) -> Result<Line, LineError> {
             reject_trailing(cmd, tail)?;
             // A tape long enough to overflow this could not fit in memory,
             // but `as` would wrap silently if one ever did.
-            Ok(Line::Type { text, speed: at })
+            Ok(Command::Type { text, speed: at })
         }
 
         "Set" => setting(parts.next(), parts.next()),
@@ -230,18 +230,18 @@ pub fn classify(line: &str) -> Result<Line, LineError> {
             "remove the line; the compiler routes frames to the timeline",
         )),
 
-        // `Source` splices another tape in at run time, long after `spans`
+        // `Source` splices another tape in at run time, long after `cues`
         // has decided where the beats are — so any mark inside the sourced
         // tape is invisible to the split that was supposed to honour it.
         "Source" => Err(LineError::new(
-            "`Source` runs another tape inline, which hides its marks from the span split",
+            "`Source` runs another tape inline, which hides its marks from the cue split",
             "load the other tape with the fence's `include=` attribute instead",
         )),
 
         // `Wait` blocks until the shell prompt returns, so its real duration
         // is however long the command underneath takes — a number that is
         // nowhere in the tape. Its timeout is the one thing the tape does
-        // state, so that is what it contributes, and the span carrying it
+        // state, so that is what it contributes, and the cue carrying it
         // reports `Estimated` rather than `Exact`.
         w if w.starts_with("Wait") => wait(w, at, line[head.len()..].trim()),
 
@@ -255,15 +255,15 @@ pub fn classify(line: &str) -> Result<Line, LineError> {
                     )
                 })?,
             };
-            Ok(Line::Keys {
+            Ok(Command::Keys {
                 key: key.to_string(),
                 count,
                 speed: at,
             })
         }
 
-        HIDE => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Line::Hide),
-        SHOW => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Line::Show),
+        HIDE => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Command::Hide),
+        SHOW => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Command::Show),
 
         "Require" => {
             let Some(program) = parts.next() else {
@@ -278,15 +278,15 @@ pub fn classify(line: &str) -> Result<Line, LineError> {
                     "e.g. `Require flowrs`",
                 ));
             }
-            Ok(Line::Require(program.to_string()))
+            Ok(Command::Require(program.to_string()))
         }
 
         "Copy" => {
             let (text, tail) = quoted(cmd, line[head.len()..].trim())?;
             reject_trailing(cmd, tail)?;
-            Ok(Line::Copy(text))
+            Ok(Command::Copy(text))
         }
-        "Paste" => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Line::Paste),
+        "Paste" => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Command::Paste),
 
         // The environment belongs to the scene, not to the tape — the same
         // reason `Set Shell` does. A scene is a session: its blocks share
@@ -306,7 +306,7 @@ pub fn classify(line: &str) -> Result<Line, LineError> {
             "remove the line; every beat's last frame is already kept",
         )),
 
-        instant if INSTANT.contains(&instant) => Ok(Line::Nothing),
+        instant if INSTANT.contains(&instant) => Ok(Command::Nothing),
 
         other => Err(LineError::new(
             format!("unknown VHS command `{other}`"),
@@ -328,7 +328,7 @@ pub fn classify(line: &str) -> Result<Line, LineError> {
 /// not care about, and ignoring them keeps the adapter out of the way — but
 /// it cannot tell `Set Padding 20` from `Set TypingSped 10ms`, and the second
 /// is a tape that types at a speed its author did not choose.
-fn setting(name: Option<&str>, value: Option<&str>) -> Result<Line, LineError> {
+fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, LineError> {
     let (Some(name), Some(value)) = (name, value) else {
         return Err(match name {
             Some(name) => LineError::new(
@@ -341,7 +341,7 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Line, LineError> {
 
     let duration = |ms: fn(u64) -> Setting| {
         parse_duration_ms(value)
-            .map(|v| Line::Setting(ms(v)))
+            .map(|v| Command::Setting(ms(v)))
             .map_err(|m| {
                 LineError::new(
                     format!("`Set {name}`: {m}"),
@@ -367,17 +367,17 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Line, LineError> {
         "PlaybackSpeed" => Err(LineError::new(
             "`Set PlaybackSpeed` re-times the recording after the fact, which would slide the \
              narration out from under it",
-            "pace the span against its narration with `policy=stretch-action` on the fence",
+            "pace the cue against its narration with `policy=stretch-action` on the fence",
         )),
 
-        // A GIF-only setting, and a span inside a video never loops.
+        // A GIF-only setting, and a cue inside a video never loops.
         "LoopOffset" => Err(LineError::new(
-            "`Set LoopOffset` chooses which frame a looping GIF starts on, and a span inside a \
+            "`Set LoopOffset` chooses which frame a looping GIF starts on, and a cue inside a \
              video never loops",
             "remove the line",
         )),
 
-        n if COSMETIC_SETTINGS.contains(&n) => Ok(Line::Setting(Setting::Cosmetic)),
+        n if COSMETIC_SETTINGS.contains(&n) => Ok(Command::Setting(Setting::Cosmetic)),
 
         other => Err(LineError::new(
             format!("unknown setting `{other}`"),
@@ -386,13 +386,13 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Line, LineError> {
     }
 }
 
-/// `Wait`, `Wait+Screen`, or `Wait+Line`, with an optional `/regex/`.
-fn wait(cmd: &str, at: Option<u64>, rest: &str) -> Result<Line, LineError> {
+/// `Wait`, `Wait+Screen`, or `Wait+Command`, with an optional `/regex/`.
+fn wait(cmd: &str, at: Option<u64>, rest: &str) -> Result<Command, LineError> {
     let scope = &cmd["Wait".len()..];
-    if !matches!(scope, "" | "+Screen" | "+Line") {
+    if !matches!(scope, "" | "+Screen" | "+Command") {
         return Err(LineError::new(
             format!("`{cmd}` is not a scope `Wait` understands"),
-            "write `Wait`, `Wait+Screen`, or `Wait+Line`",
+            "write `Wait`, `Wait+Screen`, or `Wait+Command`",
         ));
     }
     // The `@` on a `Wait` is its timeout, not a typing speed — the one place
@@ -406,7 +406,7 @@ fn wait(cmd: &str, at: Option<u64>, rest: &str) -> Result<Line, LineError> {
             "e.g. `Wait+Screen /\\$ $/`",
         ));
     }
-    Ok(Line::Wait { timeout: at })
+    Ok(Command::Wait { timeout: at })
 }
 
 /// Whether `name` is a key press: a bare key name, or modifiers ending in a
@@ -523,7 +523,7 @@ fn reject_trailing(cmd: &str, tail: &str) -> Result<(), LineError> {
 fn has_content(chunk: &[&str]) -> bool {
     chunk
         .iter()
-        .any(|l| !matches!(classify(l), Ok(Line::Nothing | Line::Setting(_))))
+        .any(|l| !matches!(classify(l), Ok(Command::Nothing | Command::Setting(_))))
 }
 
 impl SceneCompiler for VhsScene {
@@ -535,17 +535,17 @@ impl SceneCompiler for VhsScene {
         validate_lines(src, classify)
     }
 
-    fn spans(&self, v: &Validated, block_id: &str) -> Result<Vec<Span>, Vec<Diagnostic>> {
+    fn cues(&self, v: &Validated, block_id: &str) -> Result<Vec<Cue>, Vec<Diagnostic>> {
         let lines: Vec<&str> = v.body.lines().collect();
         let mut settings: Vec<&str> = Vec::new();
-        let mut spans: Vec<Span> = Vec::new();
+        let mut cues: Vec<Cue> = Vec::new();
 
-        for chunk in lines.split(|l| matches!(classify(l), Ok(Line::Mark))) {
+        for chunk in lines.split(|l| matches!(classify(l), Ok(Command::Mark))) {
             // `Set` lines established before a mark still govern the tape
-            // after it, so each span carries the settings in force when it
-            // starts. That keeps `estimate` a pure function of `span.source`,
+            // after it, so each cue carries the settings in force when it
+            // starts. That keeps `estimate` a pure function of `cue.source`,
             // and puts the settings in the hash — so raising TypingSpeed
-            // invalidates exactly the later spans whose timing it changes.
+            // invalidates exactly the later cues whose timing it changes.
             let source = settings
                 .iter()
                 .chain(chunk.iter())
@@ -564,8 +564,8 @@ impl SceneCompiler for VhsScene {
                 continue;
             }
 
-            let index = spans.len();
-            spans.push(Span {
+            let index = cues.len();
+            cues.push(Cue {
                 id: format!("{block_id}#{index}"),
                 hash: Hash::of(source.trim().as_bytes()),
                 source,
@@ -573,23 +573,23 @@ impl SceneCompiler for VhsScene {
             });
         }
 
-        Ok(spans)
+        Ok(cues)
     }
 
-    /// Exact for a span whose timing the tape states in full, `Estimated` for
+    /// Exact for a cue whose timing the tape states in full, `Estimated` for
     /// one containing a `Wait`.
     ///
-    /// The distinction is per span rather than per adapter. `Sleep` and
-    /// `Set TypingSpeed` are exact, and a span built from those alone needs
+    /// The distinction is per cue rather than per adapter. `Sleep` and
+    /// `Set TypingSpeed` are exact, and a cue built from those alone needs
     /// no measuring pass — which is what lets `plan` and `diff` report a
     /// terminal scene's pacing offline, with no terminal anywhere. `Wait` is
     /// the exception: it blocks until the shell prompt returns, so its length
     /// is whatever `cargo build` takes, and that number is nowhere in the
-    /// tape. Its timeout is the bound the tape does state, so the span
+    /// tape. Its timeout is the bound the tape does state, so the cue
     /// contributes that and says `Estimated` — the honest signal that M1's
     /// measuring pass has something to improve here and nothing to improve on
-    /// the span next to it.
-    fn estimate(&self, span: &Span) -> Measured {
+    /// the cue next to it.
+    fn estimate(&self, cue: &Cue) -> Measured {
         let mut speed = DEFAULT_TYPING_SPEED_MS;
         let mut timeout = DEFAULT_WAIT_TIMEOUT_MS;
         let mut total: u64 = 0;
@@ -601,7 +601,7 @@ impl SceneCompiler for VhsScene {
         // through it.
         let mut hidden = false;
 
-        for line in span.source.lines() {
+        for line in cue.source.lines() {
             // Hidden commands run and cost the beat nothing, so every
             // duration below goes through `visible`.
             let mut visible = |ms: u64| {
@@ -610,35 +610,35 @@ impl SceneCompiler for VhsScene {
                 }
             };
             match classify(line) {
-                Ok(Line::Hide) => hidden = true,
-                Ok(Line::Show) => hidden = false,
-                Ok(Line::Sleep(ms)) => visible(ms),
-                Ok(Line::Setting(Setting::TypingSpeed(ms))) => speed = ms,
-                Ok(Line::Setting(Setting::WaitTimeout(ms))) => timeout = ms,
-                Ok(Line::Type { text, speed: at }) => {
+                Ok(Command::Hide) => hidden = true,
+                Ok(Command::Show) => hidden = false,
+                Ok(Command::Sleep(ms)) => visible(ms),
+                Ok(Command::Setting(Setting::TypingSpeed(ms))) => speed = ms,
+                Ok(Command::Setting(Setting::WaitTimeout(ms))) => timeout = ms,
+                Ok(Command::Type { text, speed: at }) => {
                     // A tape long enough to overflow this could not fit in
                     // memory, but `as` would wrap silently if one ever did.
                     let chars = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
                     visible(chars.saturating_mul(at.unwrap_or(speed)));
                 }
-                Ok(Line::Keys {
+                Ok(Command::Keys {
                     count, speed: at, ..
                 }) => visible(count.saturating_mul(at.unwrap_or(speed))),
                 // A paste arrives all at once, so it costs one keystroke
                 // rather than one per character.
-                Ok(Line::Paste) => visible(speed),
-                Ok(Line::Wait { timeout: at }) => {
+                Ok(Command::Paste) => visible(speed),
+                Ok(Command::Wait { timeout: at }) => {
                     waited = true;
                     visible(at.unwrap_or(timeout));
                 }
                 // Not a catch-all: a tape command added later must fail to
                 // compile here rather than silently estimate as zero.
                 Ok(
-                    Line::Nothing
-                    | Line::Mark
-                    | Line::Require(_)
-                    | Line::Copy(_)
-                    | Line::Setting(Setting::Cosmetic),
+                    Command::Nothing
+                    | Command::Mark
+                    | Command::Require(_)
+                    | Command::Copy(_)
+                    | Command::Setting(Setting::Cosmetic),
                 )
                 | Err(_) => {}
             }
@@ -654,7 +654,7 @@ impl SceneCompiler for VhsScene {
     /// Re-times a tape by scaling everything that takes time in it.
     ///
     /// Every `Sleep`, and the speed of every keystroke, moves by the same
-    /// factor, so a stretched span is the same performance played slower
+    /// factor, so a stretched cue is the same performance played slower
     /// rather than the same performance followed by a wait. That is what
     /// `stretch-action` means when it says the action fills the sentence
     /// above it, and the difference is visible: a tape that types at its
@@ -666,10 +666,10 @@ impl SceneCompiler for VhsScene {
     /// the target by a few milliseconds between them; the remainder becomes
     /// one trailing `Sleep`, which is the only line here that is not just
     /// the author's own, scaled.
-    fn retime(&self, span: &Span, target_ms: u64) -> Option<String> {
-        // Only a span that states its own timing can be promised to a
+    fn retime(&self, cue: &Cue, target_ms: u64) -> Option<String> {
+        // Only a cue that states its own timing can be promised to a
         // length. A `Wait` is as long as the command takes.
-        let current = match self.estimate(span) {
+        let current = match self.estimate(cue) {
             Measured::Exact(ms) => ms,
             _ => return None,
         };
@@ -682,11 +682,11 @@ impl SceneCompiler for VhsScene {
 
         let mut out: Vec<String> = Vec::new();
         let mut stated_speed = false;
-        for line in span.source.lines() {
+        for line in cue.source.lines() {
             let trimmed = line.trim();
             match classify(trimmed) {
-                Ok(Line::Sleep(ms)) => out.push(format!("Sleep {}ms", scale(ms))),
-                Ok(Line::Setting(Setting::TypingSpeed(ms))) => {
+                Ok(Command::Sleep(ms)) => out.push(format!("Sleep {}ms", scale(ms))),
+                Ok(Command::Setting(Setting::TypingSpeed(ms))) => {
                     stated_speed = true;
                     out.push(format!("Set TypingSpeed {}ms", scale(ms)));
                 }
@@ -694,10 +694,10 @@ impl SceneCompiler for VhsScene {
                 // which the tape states per command and which therefore
                 // scales per command.
                 Ok(
-                    Line::Type {
+                    Command::Type {
                         speed: Some(at), ..
                     }
-                    | Line::Keys {
+                    | Command::Keys {
                         speed: Some(at), ..
                     },
                 ) => {
@@ -721,11 +721,11 @@ impl SceneCompiler for VhsScene {
         let mut source = out.join("\n");
         source.push('\n');
 
-        let scaled = Span {
-            id: span.id.clone(),
+        let scaled = Cue {
+            id: cue.id.clone(),
             source: source.clone(),
-            hash: span.hash,
-            index: span.index,
+            hash: cue.hash,
+            index: cue.index,
         };
         if let Measured::Exact(reached) = self.estimate(&scaled) {
             if let Some(remainder) = target_ms.checked_sub(reached) {
@@ -734,7 +734,7 @@ impl SceneCompiler for VhsScene {
                 }
             } else {
                 // Overshot by rounding: take it back off the last sleep
-                // rather than leaving the span longer than it was promised.
+                // rather than leaving the cue longer than it was promised.
                 source = shorten_last_sleep(&source, reached - target_ms)?;
             }
         }
@@ -763,8 +763,8 @@ fn shorten_last_sleep(source: &str, excess: u64) -> Option<String> {
     let mut lines: Vec<String> = source.lines().map(str::to_string).collect();
     let last = lines
         .iter()
-        .rposition(|l| matches!(classify(l.trim()), Ok(Line::Sleep(ms)) if ms > excess))?;
-    if let Ok(Line::Sleep(ms)) = classify(lines[last].trim()) {
+        .rposition(|l| matches!(classify(l.trim()), Ok(Command::Sleep(ms)) if ms > excess))?;
+    if let Ok(Command::Sleep(ms)) = classify(lines[last].trim()) {
         lines[last] = format!("Sleep {}ms", ms - excess);
     }
     let mut out = lines.join("\n");

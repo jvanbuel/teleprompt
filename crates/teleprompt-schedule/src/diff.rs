@@ -20,7 +20,7 @@ pub struct ChangedBeat {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct StaleTake {
-    pub segment: String,
+    pub line: String,
     pub falls_back_to: String,
 }
 
@@ -202,7 +202,7 @@ impl TimelineDiff {
             for s in &self.stale_takes {
                 out.push_str(&format!(
                     "\n  {:<16} falls back to {}",
-                    s.segment, s.falls_back_to
+                    s.line, s.falls_back_to
                 ));
             }
         }
@@ -291,7 +291,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
             // downstream beat would bury the one the author actually edited.
             // The offset from the beat's own start is local — it moves only
             // when this beat's padding or alignment moved — so it catches a
-            // segment-level `lead_in=` retune that happens not to change the
+            // line-level `lead_in=` retune that happens not to change the
             // beat's overall length, without any cascade.
             if let (Some(on), Some(nn)) = (&o.narration, &n.narration) {
                 let offset_moved = on.start_ms.saturating_sub(o.start_ms)
@@ -309,7 +309,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                     || on.audio_hash != nn.audio_hash
                     || on.duration_ms != nn.duration_ms
                     || offset_moved
-                    // A segment whose audio was synthesized since the last
+                    // A line whose audio was synthesized since the last
                     // run reports as changed even when the measured length
                     // lands exactly on the estimate — which, with `null`, it
                     // always does. Without this the estimate-to-measurement
@@ -395,7 +395,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
         if let Some(nn) = &n.narration {
             if nn.voice_source != nn.voice_source_actual {
                 stale_takes.push(StaleTake {
-                    segment: nn.segment.clone(),
+                    line: nn.line.clone(),
                     falls_back_to: nn.voice_source_actual.clone(),
                 });
             }

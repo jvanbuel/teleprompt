@@ -8,7 +8,7 @@
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
 
-use crate::piece::{pieces, seconds, xfade_for, BACKGROUND};
+use crate::placement::{placements, seconds, xfade_for, BACKGROUND};
 use crate::{Picture, Progress, RenderError, RenderPlan, Rendered, Renderer};
 
 /// The narration bed's sample rate. Matches what the voice crates emit, so
@@ -21,23 +21,23 @@ pub(crate) const SAMPLE_RATE: u32 = 24_000;
 pub fn args(plan: &RenderPlan) -> Vec<String> {
     let mut args: Vec<String> = vec!["-hide_banner".into(), "-y".into()];
     let mut filters: Vec<String> = Vec::new();
-    let pieces = pieces(plan);
+    let placements = placements(plan);
 
-    // Picture inputs come first, one per piece, so a piece's input index is
+    // Picture inputs come first, one per placement, so a placement's input index is
     // its position.
-    for piece in &pieces {
-        match &piece.picture {
+    for placement in &placements {
+        match &placement.picture {
             Picture::Clip(path) => {
                 args.push("-i".into());
                 args.push(path.display().to_string());
             }
-            // `Hold` never reaches here: `pieces` folds it into the piece
+            // `Hold` never reaches here: `placements` folds it into the placement
             // before it, which is what holding means.
             Picture::Hold | Picture::Slate => {
                 args.push("-f".into());
                 args.push("lavfi".into());
                 args.push("-t".into());
-                args.push(seconds(piece.duration_ms));
+                args.push(seconds(placement.duration_ms));
                 args.push("-i".into());
                 args.push(format!(
                     "color=c={BACKGROUND}:s={}x{}:r={}",
@@ -49,7 +49,7 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
 
     // A silent bed the narration is mixed over, so the output has a
     // continuous audio stream even where nobody is speaking.
-    let bed = pieces.len();
+    let bed = placements.len();
     args.push("-f".into());
     args.push("lavfi".into());
     args.push("-t".into());
@@ -75,7 +75,7 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
     }
 
     // `normalize=0`: amix otherwise divides every input by the number of
-    // inputs, so a script's narration would get quieter the more segments
+    // inputs, so a script's narration would get quieter the more lines
     // it had.
     filters.push(format!(
         "{}amix=inputs={}:normalize=0:dropout_transition=0[a]",
@@ -83,13 +83,13 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
         mix.len()
     ));
 
-    // Every piece is normalized to the same size, rate, duration and
+    // Every placement is normalized to the same size, rate, duration and
     // timebase before anything is joined: `concat` requires matching
     // formats, and `xfade` additionally refuses two inputs whose timebases
-    // differ — which is what its own output does to the next piece in the
+    // differ — which is what its own output does to the next placement in the
     // chain unless everything is pinned to `AVTB` first.
-    for (i, piece) in pieces.iter().enumerate() {
-        let d = seconds(piece.duration_ms);
+    for (i, placement) in placements.iter().enumerate() {
+        let d = seconds(placement.duration_ms);
         // `tpad` clones the first and last frames rather than filling with
         // a colour, which is what makes a gap a freeze instead of a cut to
         // black. The stop padding is deliberately longer than needed and
@@ -103,25 +103,25 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
             w = plan.width,
             h = plan.height,
             fps = plan.fps,
-            lead = seconds(piece.lead_in_ms),
+            lead = seconds(placement.lead_in_ms),
         ));
     }
     // Joined pairwise rather than by one n-ary `concat`, because a blend
     // takes two streams and produces one: a chain handles both kinds of
     // join in one shape.
     let mut label = "[v0]".to_string();
-    for (i, piece) in pieces.iter().enumerate().skip(1) {
+    for (i, placement) in placements.iter().enumerate().skip(1) {
         let out = format!("[j{i}]");
-        match &piece.blend {
+        match &placement.blend {
             Some((kind, overlap)) => {
                 // `offset` is where the blend begins in the stream built so
-                // far, which starts at zero because the pieces tile the
+                // far, which starts at zero because the placements tile the
                 // timeline from zero.
                 filters.push(format!(
                     "{label}[v{i}]xfade=transition={}:duration={}:offset={}{out}",
                     xfade_for(kind),
                     seconds(*overlap),
-                    seconds(piece.start_ms),
+                    seconds(placement.start_ms),
                 ));
             }
             None => filters.push(format!("{label}[v{i}]concat=n=2:v=1:a=0{out}")),

@@ -42,7 +42,7 @@ pub enum CacheError {
 /// attributed to the script, and offered the author no way out.
 ///
 /// [`Unusable`](Self::Unusable) is separated from [`Miss`](Self::Miss) only
-/// so the caller can say *why* a segment it expected to be warm is about to
+/// so the caller can say *why* a line it expected to be warm is about to
 /// be synthesized again. Both re-synthesize, and the entry heals.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CacheRead<T> {
@@ -60,7 +60,7 @@ impl<T> CacheRead<T> {
         }
     }
 
-    /// Why a segment that should have been warm is about to be re-rendered.
+    /// Why a line that should have been warm is about to be re-rendered.
     /// `None` for an ordinary miss, which needs no explanation.
     pub fn warning(&self) -> Option<String> {
         match self {
@@ -73,8 +73,8 @@ impl<T> CacheRead<T> {
 }
 
 /// `Hash` (the trait) is derived so a caller can group entries that share
-/// a key — e.g. `dub` grouping narration segments before fan-out, so two
-/// segments with identical text render once instead of racing each other
+/// a key — e.g. `dub` grouping narration lines before fan-out, so two
+/// lines with identical text render once instead of racing each other
 /// to store the same key.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CacheKey(Hash);
@@ -89,9 +89,9 @@ impl fmt::Display for CacheKey {
 ///
 /// `backend_version` is the *backend's* version, never teleprompt's. An
 /// earlier design keyed on `CARGO_PKG_VERSION`, which meant every teleprompt
-/// release invalidated every cached segment and would have failed every
+/// release invalidated every cached line and would have failed every
 /// downstream consumer's next drift check with "audio changed" on every
-/// segment. A key turns over when the thing producing the audio changes.
+/// line. A key turns over when the thing producing the audio changes.
 pub fn key(backend_id: &str, backend_version: &str, req: &SynthRequest) -> CacheKey {
     // `-` for no voice, `+v` for `Some(v)`, tagged *before* length-prefixing
     // so `None` and `Some("-")` cannot collapse to the same field.

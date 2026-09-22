@@ -55,36 +55,36 @@ fn comments_and_blank_lines_are_ignored() {
 fn marks_split_the_block_into_spans() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nmark\nwait 300ms\n")).unwrap();
-    let spans = m.spans(&v, "a-1-a").unwrap();
-    assert_eq!(spans.len(), 2);
-    assert_eq!(spans[0].id, "a-1-a#0");
-    assert_eq!(spans[1].id, "a-1-a#1");
+    let cues = m.cues(&v, "a-1-a").unwrap();
+    assert_eq!(cues.len(), 2);
+    assert_eq!(cues[0].id, "a-1-a#0");
+    assert_eq!(cues[1].id, "a-1-a#1");
 }
 
 #[test]
 fn a_block_with_no_marks_is_one_span() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nwait 300ms\n")).unwrap();
-    assert_eq!(m.spans(&v, "b").unwrap().len(), 1);
+    assert_eq!(m.cues(&v, "b").unwrap().len(), 1);
 }
 
 #[test]
 fn estimate_sums_the_waits_exactly() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nwait 1s\n")).unwrap();
-    let spans = m.spans(&v, "b").unwrap();
-    assert_eq!(m.estimate(&spans[0]), Measured::Exact(1500));
+    let cues = m.cues(&v, "b").unwrap();
+    assert_eq!(m.estimate(&cues[0]), Measured::Exact(1500));
 }
 
 #[test]
 fn span_hashes_differ_by_content_and_repeat_for_identical_content() {
     let m = MockScene;
     let v1 = m.validate(&src("wait 500ms\nmark\nwait 500ms\n")).unwrap();
-    let s1 = m.spans(&v1, "b").unwrap();
-    assert_eq!(s1[0].hash, s1[1].hash, "identical spans hash identically");
+    let s1 = m.cues(&v1, "b").unwrap();
+    assert_eq!(s1[0].hash, s1[1].hash, "identical cues hash identically");
 
     let v2 = m.validate(&src("wait 501ms\n")).unwrap();
-    let s2 = m.spans(&v2, "b").unwrap();
+    let s2 = m.cues(&v2, "b").unwrap();
     assert_ne!(s1[0].hash, s2[0].hash);
 }
 
@@ -99,18 +99,18 @@ fn registry_resolves_builtin_adapters_and_rejects_unknown_ones() {
 fn a_body_ending_with_mark_yields_one_span_not_two() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nmark\n")).unwrap();
-    let spans = m.spans(&v, "c").unwrap();
-    assert_eq!(spans.len(), 1, "trailing mark does not create empty span");
-    assert_eq!(spans[0].index, 0, "surviving span has contiguous index 0");
+    let cues = m.cues(&v, "c").unwrap();
+    assert_eq!(cues.len(), 1, "trailing mark does not create empty cue");
+    assert_eq!(cues[0].index, 0, "surviving cue has contiguous index 0");
 }
 
 #[test]
 fn a_body_starting_with_mark_yields_one_span_not_two() {
     let m = MockScene;
     let v = m.validate(&src("mark\nwait 500ms\n")).unwrap();
-    let spans = m.spans(&v, "d").unwrap();
-    assert_eq!(spans.len(), 1, "leading mark does not create empty span");
-    assert_eq!(spans[0].index, 0, "surviving span has contiguous index 0");
+    let cues = m.cues(&v, "d").unwrap();
+    assert_eq!(cues.len(), 1, "leading mark does not create empty cue");
+    assert_eq!(cues[0].index, 0, "surviving cue has contiguous index 0");
 }
 
 #[test]
@@ -119,22 +119,22 @@ fn consecutive_marks_yield_contiguous_spans() {
     let v = m
         .validate(&src("wait 100ms\nmark\nmark\nwait 200ms\n"))
         .unwrap();
-    let spans = m.spans(&v, "e").unwrap();
+    let cues = m.cues(&v, "e").unwrap();
     assert_eq!(
-        spans.len(),
+        cues.len(),
         2,
-        "two consecutive marks create two spans, not three"
+        "two consecutive marks create two cues, not three"
     );
-    assert_eq!(spans[0].index, 0, "first span has index 0");
-    assert_eq!(spans[1].index, 1, "second span has index 1 (contiguous)");
+    assert_eq!(cues[0].index, 0, "first cue has index 0");
+    assert_eq!(cues[1].index, 1, "second cue has index 1 (contiguous)");
 }
 
 #[test]
 fn a_body_that_is_only_mark_yields_zero_spans() {
     let m = MockScene;
     let v = m.validate(&src("mark\n")).unwrap();
-    let spans = m.spans(&v, "f").unwrap();
-    assert_eq!(spans.len(), 0, "all-mark body yields no spans");
+    let cues = m.cues(&v, "f").unwrap();
+    assert_eq!(cues.len(), 0, "all-mark body yields no cues");
 }
 
 /// Final review, item 4, at the contract's own level: an included body's
@@ -176,12 +176,12 @@ fn an_inline_bodys_diagnostic_defers_to_the_callers_file() {
 // so a `check`-clean script could silently lose five seconds.
 // ---------------------------------------------------------------------------
 
-fn only_span(body: &str) -> teleprompt_scene::Span {
+fn only_span(body: &str) -> teleprompt_scene::Cue {
     let m = MockScene;
     let v = m.validate(&src(body)).expect("body must validate");
-    let spans = m.spans(&v, "b").unwrap();
-    assert_eq!(spans.len(), 1, "fixture is meant to be a single span");
-    spans.into_iter().next().unwrap()
+    let cues = m.cues(&v, "b").unwrap();
+    assert_eq!(cues.len(), 1, "fixture is meant to be a single cue");
+    cues.into_iter().next().unwrap()
 }
 
 /// `wait<TAB>5000ms` passed `check` and then contributed 0 ms.
@@ -230,17 +230,17 @@ fn a_comment_only_chunk_between_marks_produces_no_span() {
             "wait 100ms\nmark\n# just a comment\nmark\nwait 200ms\n",
         ))
         .unwrap();
-    let spans = m.spans(&v, "g").unwrap();
+    let cues = m.cues(&v, "g").unwrap();
     assert_eq!(
-        spans.len(),
+        cues.len(),
         2,
-        "the comment-only chunk is empty, not a zero-duration span: {:?}",
-        spans.iter().map(|s| &s.source).collect::<Vec<_>>()
+        "the comment-only chunk is empty, not a zero-duration cue: {:?}",
+        cues.iter().map(|s| &s.source).collect::<Vec<_>>()
     );
-    assert_eq!(spans[0].index, 0);
-    assert_eq!(spans[1].index, 1, "indices stay contiguous");
-    assert_eq!(m.estimate(&spans[0]), Measured::Exact(100));
-    assert_eq!(m.estimate(&spans[1]), Measured::Exact(200));
+    assert_eq!(cues[0].index, 0);
+    assert_eq!(cues[1].index, 1, "indices stay contiguous");
+    assert_eq!(m.estimate(&cues[0]), Measured::Exact(100));
+    assert_eq!(m.estimate(&cues[1]), Measured::Exact(200));
 }
 
 /// The property the three fixes above are really about: anything `validate`

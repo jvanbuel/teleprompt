@@ -31,7 +31,7 @@ pub fn render_plan(out: &CompileOutput) -> String {
         let narration = e
             .narration
             .as_ref()
-            .map(|n| format!("{:.1}s {}", n.duration_ms as f64 / 1000.0, n.segment))
+            .map(|n| format!("{:.1}s {}", n.duration_ms as f64 / 1000.0, n.line))
             .unwrap_or_else(|| "—".to_string());
         s.push_str(&format!(
             "  {:>8.1}s  {:<10} {}\n",

@@ -12,7 +12,7 @@ const SHELL: &[&str] = &["bash", "sh", "shell", "zsh", "console", "terminal"];
 /// Turns a Markdown document into a teleprompt script.
 ///
 /// `title` names the chapter that content before the document's own first
-/// heading belongs to — §3.2 requires every segment and action block to be
+/// heading belongs to — §3.2 requires every line and action block to be
 /// inside one, and a document that opens with prose has none. The caller
 /// knows a name worth using (the file it read); this function would have to
 /// invent one.
@@ -20,7 +20,7 @@ pub fn draft(markdown: &str, title: &str) -> String {
     let mut out = String::new();
     let mut paragraph: Vec<&str> = Vec::new();
     // Ids are the anchor for caching, translation and take binding, so two
-    // of them colliding would make two segments one. Counted rather than
+    // of them colliding would make two lines one. Counted rather than
     // hashed: `run-the-build-2` still tells a reader which paragraph it is.
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();
     let mut in_chapter = false;
@@ -73,7 +73,7 @@ fn open_chapter(out: &mut String, in_chapter: &mut bool, title: &str) {
     out.push_str(&format!("# {title}\n\n"));
 }
 
-/// Emits the paragraph gathered so far as a segment, with its id promoted.
+/// Emits the paragraph gathered so far as a line, with its id promoted.
 fn flush(out: &mut String, paragraph: &mut Vec<&str>, seen: &mut BTreeMap<String, usize>) {
     if paragraph.is_empty() {
         return;
@@ -114,7 +114,7 @@ fn escape(command: &str) -> String {
     command.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-/// A segment id derived from the paragraph's opening words.
+/// A line id derived from the paragraph's opening words.
 fn id_for(paragraph: &str) -> String {
     let opening: Vec<&str> = paragraph.split_whitespace().take(3).collect();
     slugify(&opening.join(" "))

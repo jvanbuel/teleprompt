@@ -74,9 +74,9 @@ fn dub_writes_a_manifest_and_one_wav_per_segment() {
     let m = read_manifest(&root);
     assert_eq!(m["manifest_version"], MANIFEST_VERSION);
     assert_eq!(m["locale"], "en");
-    assert_eq!(m["segments"].as_array().unwrap().len(), 2);
+    assert_eq!(m["lines"].as_array().unwrap().len(), 2);
 
-    for seg in m["segments"].as_array().unwrap() {
+    for seg in m["lines"].as_array().unwrap() {
         let rel = seg["audio"].as_str().unwrap();
         let wav = root.join("public/narration/en").join(rel);
         assert!(wav.exists(), "missing {rel}");
@@ -117,7 +117,7 @@ fn the_wav_length_matches_the_duration_the_manifest_claims() {
     );
 
     let m = read_manifest(&root);
-    for seg in m["segments"].as_array().unwrap() {
+    for seg in m["lines"].as_array().unwrap() {
         assert_eq!(
             wav_ms(&root, &m, seg),
             seg["duration_ms"].as_u64().unwrap(),
@@ -128,7 +128,7 @@ fn the_wav_length_matches_the_duration_the_manifest_claims() {
 }
 
 /// C1. `dub` used to build its own `SynthRequest` with `voice: None,
-/// speed: 1.0`, while the duration in the manifest came from the segment's
+/// speed: 1.0`, while the duration in the manifest came from the line's
 /// *resolved* config. With `speed: 2.0` the manifest published half the
 /// length of the file that sat beside it.
 #[test]
@@ -153,7 +153,7 @@ Every video in this repository is built from a script you can read.
     assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
 
     let m = read_manifest(&root);
-    let seg = &m["segments"][0];
+    let seg = &m["lines"][0];
     let claimed = seg["duration_ms"].as_u64().unwrap();
 
     // The speed actually took effect, so this is not passing by accident on
@@ -173,7 +173,7 @@ Every video in this repository is built from a script you can read.
 /// I4. The manifest's `audio_hash` must describe the file on disk, per spec
 /// §5.1 — that is what lets a consumer skip re-encoding a byte-identical
 /// render. It is a different quantity from the timeline's `audio_hash`,
-/// which identifies *which* audio a segment resolves to and correctly does
+/// which identifies *which* audio a line resolves to and correctly does
 /// not move when `dub` re-renders the same bytes. `manifest::build` can only
 /// seed this field with the timeline's value, so the overwrite in `dub` is
 /// what makes the published field mean what it says.
@@ -186,7 +186,7 @@ fn audio_hash_is_the_hash_of_the_bytes_on_disk() {
     );
 
     let m = read_manifest(&root);
-    for seg in m["segments"].as_array().unwrap() {
+    for seg in m["lines"].as_array().unwrap() {
         let bytes = wav_bytes(&root, seg);
         let expected = teleprompt_core::Hash::of(&bytes).to_string();
         assert_eq!(
@@ -205,7 +205,7 @@ fn audio_hash_is_identical_across_two_runs() {
         &root,
         &["dub", "scripts/test.md", "--out", "public/narration"],
     );
-    let first: Vec<String> = read_manifest(&root)["segments"]
+    let first: Vec<String> = read_manifest(&root)["lines"]
         .as_array()
         .unwrap()
         .iter()
@@ -216,7 +216,7 @@ fn audio_hash_is_identical_across_two_runs() {
         &root,
         &["dub", "scripts/test.md", "--out", "public/narration"],
     );
-    let second: Vec<String> = read_manifest(&root)["segments"]
+    let second: Vec<String> = read_manifest(&root)["lines"]
         .as_array()
         .unwrap()
         .iter()
@@ -227,7 +227,7 @@ fn audio_hash_is_identical_across_two_runs() {
     assert!(!first.is_empty());
 }
 
-/// I1. A segment id becomes `audio/<id>.wav`, so an explicit `..` id used to
+/// I1. A line id becomes `audio/<id>.wav`, so an explicit `..` id used to
 /// write outside `--out` and publish an escaping path in the manifest.
 #[test]
 fn an_id_that_escapes_the_output_directory_is_rejected_before_anything_is_written() {
@@ -253,7 +253,7 @@ fn an_id_that_escapes_the_output_directory_is_rejected_before_anything_is_writte
 
 /// The other side of I1: the hazard is traversal and control characters,
 /// not non-ASCII letters. teleprompt is localization-first, so a heading in
-/// a language it exists to dub must produce a working segment, a working
+/// a language it exists to dub must produce a working line, a working
 /// file, and a working manifest path — end to end, not just past
 /// `assign_ids`.
 #[test]
@@ -266,7 +266,7 @@ fn a_non_ascii_heading_dubs_to_a_real_file() {
     assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
 
     let m = read_manifest(&root);
-    let seg = &m["segments"][0];
+    let seg = &m["lines"][0];
     assert_eq!(seg["id"], "café-1");
     assert_eq!(seg["audio"], "audio/café-1.wav");
     assert_eq!(seg["chapter"], "café");
@@ -278,7 +278,7 @@ fn a_non_ascii_heading_dubs_to_a_real_file() {
     assert_eq!(&std::fs::read(&wav).unwrap()[0..4], b"RIFF");
     assert_eq!(wav_ms(&root, &m, seg), seg["duration_ms"].as_u64().unwrap());
 
-    // Still exactly one path segment below `audio/`.
+    // Still exactly one path line below `audio/`.
     assert!(wav.starts_with(root.join("public/narration/en/audio")));
 }
 
@@ -306,7 +306,7 @@ fn a_recorded_request_downgrades_and_the_manifest_says_so() {
     assert_eq!(code(&out), 0, "a downgrade is not fatal by default");
 
     let m = read_manifest(&root);
-    let seg = &m["segments"][0];
+    let seg = &m["lines"][0];
     assert_eq!(seg["voice_source"], "recorded");
     assert_eq!(seg["voice_source_actual"], "synthetic");
     assert!(
@@ -338,7 +338,7 @@ fn strict_voice_makes_a_downgrade_fatal() {
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("quick-start-1") && stderr.contains("recorded"),
-        "the report must name which segments downgraded and why: {stderr}"
+        "the report must name which lines downgraded and why: {stderr}"
     );
 }
 
@@ -550,7 +550,7 @@ fn a_corrupt_cache_entry_reads_as_a_miss_rather_than_bricking_check() {
     );
 }
 
-/// And the entry heals: `dub` re-renders the segment and publishes a
+/// And the entry heals: `dub` re-renders the line and publishes a
 /// measurement, rather than either failing or quietly shipping an estimate.
 #[test]
 fn a_corrupt_cache_entry_is_re_rendered_by_dub() {
@@ -575,10 +575,10 @@ fn a_corrupt_cache_entry_is_re_rendered_by_dub() {
     let after = read_manifest(&root);
     assert_eq!(
         before, after,
-        "a re-rendered segment must reproduce byte-identically — that is what \
+        "a re-rendered line must reproduce byte-identically — that is what \
          content-addressing buys"
     );
-    for seg in after["segments"].as_array().unwrap() {
+    for seg in after["lines"].as_array().unwrap() {
         assert_eq!(seg["duration_source"], "measured");
     }
 }
@@ -587,10 +587,10 @@ fn a_corrupt_cache_entry_is_re_rendered_by_dub() {
 /// semaphore admits one task at a time, and on the CLI's current-thread
 /// runtime that makes spawn order, poll order, acquire order, and
 /// completion order all the same chain. That chain must start in document
-/// order — segments are grouped by cache key before being spawned, and an
+/// order — lines are grouped by cache key before being spawned, and an
 /// earlier version of that grouping iterated a `HashMap`'s values, which is
 /// a fresh random permutation every process, so progress on the *default*
-/// backend printed a different, non-reproducible segment order on every
+/// backend printed a different, non-reproducible line order on every
 /// run. Real subprocess invocations, parsing the actual `[n/total] <id>
 /// done` lines emitted on stderr — not a single pass, and not an assertion
 /// on the *set* of ids, both of which would pass just as happily against a
@@ -601,7 +601,7 @@ fn null_path_progress_is_document_order_on_every_run() {
         "progressorder",
         "# Segments\n\nOne.\n\nTwo.\n\nThree.\n\nFour.\n\nFive.\n\nSix.\n",
     );
-    let expected: Vec<String> = (1..=6).map(|n| format!("segments-{n}")).collect();
+    let expected: Vec<String> = (1..=6).map(|n| format!("lines-{n}")).collect();
 
     for run in 0..20 {
         let out = tp(
@@ -637,7 +637,7 @@ fn null_path_progress_is_document_order_on_every_run() {
     }
 }
 
-// --- Spec §7: the voice list is checked once, before the first segment is
+// --- Spec §7: the voice list is checked once, before the first line is
 // synthesized. The tests below call `run_dub` in-process rather than through
 // `tp` (the `teleprompt` binary), because the whole point is to observe
 // network traffic (or its absence) mid-command — a subprocess only ever
@@ -745,7 +745,7 @@ async fn dub_with_the_null_backend_makes_no_network_call() {
         });
 }
 
-/// Spec §7: an unknown voice fails on segment zero, not after the
+/// Spec §7: an unknown voice fails on line zero, not after the
 /// twentieth. The stub's request count is the proof — one request for the
 /// voice list, and nothing for synthesis.
 #[tokio::test]
@@ -780,7 +780,7 @@ async fn an_unknown_kokoro_voice_fails_before_any_segment_is_synthesized() {
     assert_eq!(
         stub.request_count(),
         1,
-        "must fail before the first segment is rendered"
+        "must fail before the first line is rendered"
     );
 }
 
@@ -817,7 +817,7 @@ async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() 
     }
 }
 
-// --- Bounded concurrent synthesis (spec §7.2 / §15). `dub` fans segments
+// --- Bounded concurrent synthesis (spec §7.2 / §15). `dub` fans lines
 // out to the backend rather than rendering them one at a time; the tests
 // below exercise that against a stub that answers both `/v1/audio/voices`
 // (the one-shot check above) and `/v1/audio/speech` (actual synthesis).
@@ -834,7 +834,7 @@ struct KokoroSynthStub {
 }
 
 /// PCM bytes for `text`: one i16 sample per character (at least one), so
-/// different segment texts produce distinguishably different response
+/// different line texts produce distinguishably different response
 /// lengths without a hardcoded lookup table.
 fn speech_bytes_for(text: &str) -> Vec<u8> {
     (0..text.chars().count().max(1))
@@ -939,7 +939,7 @@ async fn write_status(socket: &mut tokio::net::TcpStream, code: u16, body: &str)
     let _ = socket.shutdown().await;
 }
 
-/// Three segments against a stub that answers each with a distinguishable
+/// Three lines against a stub that answers each with a distinguishable
 /// length. The manifest must list them in document order regardless of
 /// which reply lands first — and the stub's recorded peak in-flight count
 /// is the proof that they were actually dispatched concurrently, not that
@@ -953,7 +953,7 @@ async fn segments_are_synthesized_concurrently_but_collected_in_document_order()
              base_url = \"{}\"\nconcurrency = 3\n",
             stub.base_url
         ),
-        "# Segments\n\nFirst segment here.\n\nSecond segment here.\n\nThird segment here.\n",
+        "# Segments\n\nFirst line here.\n\nSecond line here.\n\nThird line here.\n",
     );
 
     run_dub(&p.project, &p.script, "en", &p.out, false)
@@ -965,14 +965,14 @@ async fn segments_are_synthesized_concurrently_but_collected_in_document_order()
 
     assert!(
         stub.peak_inflight.load(Ordering::SeqCst) > 1,
-        "three segments under concurrency 3 must overlap in flight; a serial \
+        "three lines under concurrency 3 must overlap in flight; a serial \
          render loop would never show more than one request in flight at once"
     );
 
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(manifest_path(&p.out, "en")).unwrap())
             .unwrap();
-    let ids: Vec<&str> = manifest["segments"]
+    let ids: Vec<&str> = manifest["lines"]
         .as_array()
         .unwrap()
         .iter()
@@ -985,10 +985,10 @@ async fn segments_are_synthesized_concurrently_but_collected_in_document_order()
         c.sort();
         c
     };
-    assert_eq!(ids, sorted, "segments must be in document order: {ids:?}");
+    assert_eq!(ids, sorted, "lines must be in document order: {ids:?}");
 }
 
-/// Spec §7.1: one segment's failure fails the run. With fan-out it would be
+/// Spec §7.1: one line's failure fails the run. With fan-out it would be
 /// easy to collect every task's result and carry on regardless — a
 /// half-dubbed output directory is worse than none. Siblings are given a
 /// long (600ms) delay so the test can also pin *how* the run ends: the
@@ -1011,7 +1011,7 @@ async fn a_failure_in_one_segment_fails_the_run() {
     let result = run_dub(&p.project, &p.script, "en", &p.out, false).await;
     let elapsed = start.elapsed();
     match result {
-        Ok(_) => panic!("a segment failure must fail the run"),
+        Ok(_) => panic!("a line failure must fail the run"),
         Err(DubError::Runtime(r)) => {
             assert!(
                 // Not a bare "500": the message also embeds the stub's
@@ -1038,13 +1038,13 @@ async fn a_failure_in_one_segment_fails_the_run() {
 }
 
 // --- `teleprompt_cache::key` hashes backend id/version, locale, voice,
-// speed, and the *text*, not the segment id — so two segments with
+// speed, and the *text*, not the line id — so two lines with
 // identical narration text collide on one `CacheKey` by design. Rendering
 // each occurrence independently would double-count synthesis work against
 // the exact bottleneck fan-out exists to relieve, and two concurrent
 // `cache.store` calls under the same key would race on `std::fs::write`'s
 // truncate-then-write. The tests below pin that `dub` renders each distinct
-// key once and fans the result out to every segment that shares it.
+// key once and fans the result out to every line that shares it.
 
 /// Answers `/v1/audio/voices` with `["af_heart"]` and `/v1/audio/speech`
 /// with PCM whose length depends on which call this is — the first
@@ -1106,9 +1106,9 @@ async fn kokoro_call_counting_stub() -> KokoroCallCountingStub {
 }
 
 /// A project whose config points at `stub` with `concurrency = 8`, and a
-/// script with two segments sharing the exact same narration text — the
+/// script with two lines sharing the exact same narration text — the
 /// reproduction the finding used. `concurrency` is set well above the
-/// segment count so a version that (incorrectly) renders per-occurrence
+/// line count so a version that (incorrectly) renders per-occurrence
 /// rather than per-key has every opportunity to fan the duplicate work out
 /// concurrently, rather than happening to serialize it back into one
 /// request by accident.
@@ -1137,16 +1137,16 @@ async fn identical_narration_text_synthesizes_once_not_once_per_segment() {
     assert_eq!(
         stub.speech_requests.load(Ordering::SeqCst),
         1,
-        "two segments with identical text share one cache key; rendering \
+        "two lines with identical text share one cache key; rendering \
          each occurrence independently duplicates work against the exact \
          bottleneck fan-out exists to relieve"
     );
 }
 
 /// The stub's two calls would answer with different-length audio; if `dub`
-/// issued one synthesis request per occurrence, one of the two segments
+/// issued one synthesis request per occurrence, one of the two lines
 /// would end up with a `rendered_ms` that disagrees with what the
-/// recompiled timeline publishes for it (both segments resolve to the same
+/// recompiled timeline publishes for it (both lines resolve to the same
 /// cache key, so the timeline can only publish one duration), and the
 /// length-mismatch guard would fail the run. Rendering by key rather than
 /// by occurrence means there is only ever one real answer to disagree with
@@ -1166,7 +1166,7 @@ async fn identical_narration_text_with_a_non_deterministic_backend_still_succeed
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(manifest_path(&p.out, "en")).unwrap())
             .unwrap();
-    let segs = manifest["segments"].as_array().unwrap();
+    let segs = manifest["lines"].as_array().unwrap();
     assert_eq!(segs.len(), 2);
     let durations: Vec<u64> = segs
         .iter()
@@ -1174,13 +1174,13 @@ async fn identical_narration_text_with_a_non_deterministic_backend_still_succeed
         .collect();
     assert_eq!(
         durations[0], durations[1],
-        "both segments resolve to one cache key and must publish the same \
+        "both lines resolve to one cache key and must publish the same \
          duration: {durations:?}"
     );
 }
 
-/// The other half of the finding: fanning identical-text segments into one
-/// task must not lose track of *which* segment is which. Both must still
+/// The other half of the finding: fanning identical-text lines into one
+/// task must not lose track of *which* line is which. Both must still
 /// land in their own document-ordered slot, and — since they share one
 /// cache key — both must carry the exact same audio bytes.
 #[tokio::test]
@@ -1198,11 +1198,11 @@ async fn identical_narration_text_still_lands_in_document_order_with_matching_au
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(manifest_path(&p.out, "en")).unwrap())
             .unwrap();
-    let segs = manifest["segments"].as_array().unwrap();
+    let segs = manifest["lines"].as_array().unwrap();
     assert_eq!(segs.len(), 2);
 
     let ids: Vec<&str> = segs.iter().map(|s| s["id"].as_str().unwrap()).collect();
-    assert_ne!(ids[0], ids[1], "two distinct segments sharing one render");
+    assert_ne!(ids[0], ids[1], "two distinct lines sharing one render");
     let sorted = {
         let mut c = ids.clone();
         c.sort();
@@ -1210,13 +1210,13 @@ async fn identical_narration_text_still_lands_in_document_order_with_matching_au
     };
     assert_eq!(
         ids, sorted,
-        "document order must hold even when segments share a render: {ids:?}"
+        "document order must hold even when lines share a render: {ids:?}"
     );
 
     let bytes: Vec<Vec<u8>> = segs.iter().map(|s| wav_bytes(&p.project.root, s)).collect();
     assert_eq!(
         bytes[0], bytes[1],
-        "both segments resolve to the same cache key, so both must carry \
+        "both lines resolve to the same cache key, so both must carry \
          the same audio bytes"
     );
 }
@@ -1225,7 +1225,7 @@ async fn identical_narration_text_still_lands_in_document_order_with_matching_au
 ///
 /// `dub` asks the server for its voice list before synthesizing, which is
 /// the right check when something is about to be synthesized and the wrong
-/// one when nothing is: a project whose every segment is cached failed
+/// one when nothing is: a project whose every line is cached failed
 /// outright with the server down. That is the difference between "build it
 /// once and let the cache make the next one cheap" being a workflow and
 /// being something you can only do while a GPU box answers.

@@ -6,7 +6,7 @@ use teleprompt_schedule::{schedule, ActionInput, Beat, DurationSource, Narration
 fn narration(id: &str, ms: u64) -> NarrationInput {
     let defaults = Config::default().timing;
     NarrationInput {
-        segment_id: id.into(),
+        line_id: id.into(),
         source_hash: Hash::of(id.as_bytes()),
         audio_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
@@ -24,10 +24,10 @@ fn action(id: &str, ms: u64) -> ActionInput {
         span_id: id.into(),
         scene: "mock".into(),
         adapter: "mock".into(),
-        span_hash: Hash::of(id.as_bytes()),
+        cue_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
-        cue_ms: None,
+        at_ms: None,
         session: None,
     }
 }
@@ -216,7 +216,7 @@ fn the_timeline_json_shape_is_stable() {
 /// 300 ms of the outgoing sentence with the incoming one.
 ///
 /// The cap is what makes spec §3's claim true that such a script's narration
-/// follows one segment after another. Asserted on the timeline, because that
+/// follows one line after another. Asserted on the timeline, because that
 /// is what both the manifest and the renderer read.
 #[test]
 fn narration_only_beats_never_talk_over_each_other() {
@@ -240,7 +240,7 @@ fn narration_only_beats_never_talk_over_each_other() {
         let (next_starts, _) = pair[1];
         assert!(
             ends <= next_starts,
-            "segment ending at {ends}ms overlaps the next, which starts at \
+            "line ending at {ends}ms overlaps the next, which starts at \
              {next_starts}ms — {}ms of two voices at once",
             ends - next_starts
         );

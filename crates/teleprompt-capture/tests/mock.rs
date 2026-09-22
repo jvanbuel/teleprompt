@@ -1,14 +1,14 @@
 //! The reference backend, against real ffmpeg.
 //!
 //! What it draws is not the interesting part. What it has to get right is
-//! everything a real backend has to get right: keep the wanted steps and
+//! everything a real backend has to get right: keep the wanted cues and
 //! only those, file each clip under its key, and make the slot.
 
 use std::path::Path;
 use std::process::Command;
 
 use teleprompt_capture::mock::MockCapture;
-use teleprompt_capture::{sessions, Beat, CaptureBackend, Frame};
+use teleprompt_capture::{sessions, CaptureBackend, Cue, Frame};
 use teleprompt_core::Hash;
 
 fn have_ffmpeg() -> bool {
@@ -32,13 +32,13 @@ fn workdir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-fn beat(span: &str, ms: u64) -> Beat {
-    Beat {
-        span: span.into(),
+fn cue(cue: &str, ms: u64) -> Cue {
+    Cue {
+        id: cue.into(),
         scene: "terminal".into(),
         adapter: "mock".into(),
         session: None,
-        key: Hash::of(span.as_bytes()),
+        key: Hash::of(cue.as_bytes()),
         source: "wait 1000ms".into(),
         duration_ms: ms,
         settings: Default::default(),
@@ -76,11 +76,11 @@ fn a_session_yields_one_clip_per_wanted_step_named_by_its_key() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let dir = workdir("mock-shots");
-    let beats = [beat("a#0", 1_000), beat("b#0", 2_000)];
-    let plan = sessions(&beats, &|_| false);
+    let dir = workdir("mock-clips");
+    let cues = [cue("a#0", 1_000), cue("b#0", 2_000)];
+    let plan = sessions(&cues, &|_| false);
 
-    let shots = MockCapture::default()
+    let clips = MockCapture::default()
         .capture(
             &plan[0],
             &Frame {
@@ -93,8 +93,8 @@ fn a_session_yields_one_clip_per_wanted_step_named_by_its_key() {
         )
         .expect("the reference backend captures");
 
-    assert_eq!(shots.len(), 2);
-    for (shot, b) in shots.iter().zip(&beats) {
+    assert_eq!(clips.len(), 2);
+    for (shot, b) in clips.iter().zip(&cues) {
         assert_eq!(shot.key, b.key);
         assert_eq!(
             shot.path,
@@ -105,13 +105,13 @@ fn a_session_yields_one_clip_per_wanted_step_named_by_its_key() {
         assert!(
             (seconds - b.duration_ms as f64 / 1000.0).abs() < 0.1,
             "`{}` was scheduled {}ms and captured {seconds}s",
-            b.span,
+            b.id,
             b.duration_ms
         );
     }
 }
 
-/// A step whose clip is in hand is run through and not kept. Writing it
+/// A cue whose clip is in hand is run through and not kept. Writing it
 /// again would be work the whole cache exists to avoid.
 #[test]
 fn a_step_nothing_wants_produces_no_clip() {
@@ -120,11 +120,11 @@ fn a_step_nothing_wants_produces_no_clip() {
         return;
     }
     let dir = workdir("mock-skip");
-    let beats = [beat("a#0", 1_000), beat("b#0", 1_000)];
-    let already = beats[0].key;
-    let plan = sessions(&beats, &|k| *k == already);
+    let cues = [cue("a#0", 1_000), cue("b#0", 1_000)];
+    let already = cues[0].key;
+    let plan = sessions(&cues, &|k| *k == already);
 
-    let shots = MockCapture::default()
+    let clips = MockCapture::default()
         .capture(
             &plan[0],
             &Frame {
@@ -137,12 +137,12 @@ fn a_step_nothing_wants_produces_no_clip() {
         )
         .expect("captures");
 
-    assert_eq!(shots.len(), 1);
-    assert_eq!(shots[0].key, beats[1].key);
+    assert_eq!(clips.len(), 1);
+    assert_eq!(clips[0].key, cues[1].key);
     assert!(!dir.join(format!("{already}.mp4")).exists());
 }
 
-/// Two steps are two pictures. A backend that drew the same frame for both
+/// Two cues are two pictures. A backend that drew the same frame for both
 /// would pass every timing assertion and produce a video nobody can follow.
 #[test]
 fn two_steps_do_not_look_the_same() {
@@ -151,9 +151,9 @@ fn two_steps_do_not_look_the_same() {
         return;
     }
     let dir = workdir("mock-distinct");
-    let beats = [beat("a#0", 500), beat("b#0", 500)];
-    let plan = sessions(&beats, &|_| false);
-    let shots = MockCapture::default()
+    let cues = [cue("a#0", 500), cue("b#0", 500)];
+    let plan = sessions(&cues, &|_| false);
+    let clips = MockCapture::default()
         .capture(
             &plan[0],
             &Frame {
@@ -190,7 +190,7 @@ fn two_steps_do_not_look_the_same() {
             .unwrap_or_else(|| panic!("no YAVG:\n{text}"))
     };
 
-    let (a, b) = (luma(&shots[0].path), luma(&shots[1].path));
+    let (a, b) = (luma(&clips[0].path), luma(&clips[1].path));
     assert!((a - b).abs() > 1.0, "both clips read {a} and {b}");
     assert!(a > 40.0 && b > 40.0, "a clip that renders black is a slate");
 }

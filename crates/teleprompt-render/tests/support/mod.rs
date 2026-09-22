@@ -131,7 +131,7 @@ pub fn luma_at(path: &std::path::Path, seconds: f64) -> f64 {
 
 /// A one-second clip of a flat colour, standing in for a capture. The
 /// colour is what makes two fixtures different *pictures* rather than two
-/// names for the same bytes — which the segment cache is entitled to
+/// names for the same bytes — which the line cache is entitled to
 /// notice, and does.
 pub fn colour_clip(dir: &std::path::Path, name: &str, colour: &str) -> PathBuf {
     let path = dir.join(name);

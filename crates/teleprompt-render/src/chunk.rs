@@ -13,7 +13,7 @@
 //! decoding them.
 //!
 //! Two shapes are enough to tile any plan. A **body** is a window of one
-//! piece. A **blend** is the overlap two pieces share, which is the one
+//! placement. A **blend** is the overlap two placements share, which is the one
 //! region that cannot belong to either of them.
 //!
 //! Everything here counts in *frames*, not milliseconds, and a chunk's
@@ -34,13 +34,13 @@ use std::path::{Path, PathBuf};
 
 use teleprompt_core::Hash;
 
-use crate::piece::{pieces, Piece};
+use crate::placement::{placements, Placement};
 use crate::{Picture, RenderPlan};
 
 /// What a window draws from.
 ///
 /// Deliberately not [`Picture`]: a window can never be a `Hold`, because
-/// holding is what [`crate::piece`] resolves before a piece exists. An
+/// holding is what [`crate::placement`] resolves before a placement exists. An
 /// enum that cannot express the impossible case needs no branch for it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Source {
@@ -48,7 +48,7 @@ pub enum Source {
     Slate,
 }
 
-/// `frames` frames of one piece, starting at `from_frame` of that piece's
+/// `frames` frames of one placement, starting at `from_frame` of that placement's
 /// own timeline — in which the first `lead_in_frames` are its first frame,
 /// frozen.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,7 +62,7 @@ pub struct Window {
 /// What a chunk draws.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Content {
-    /// A window of a single piece.
+    /// A window of a single placement.
     Body(Window),
     /// Two windows of equal length, blended. This is the whole of a
     /// transition: the frames either side of it are ordinary bodies, which
@@ -101,42 +101,42 @@ fn frames_of(ms: u64, fps: u32) -> u64 {
 /// it did before chunks existed.
 pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
     let fps = plan.fps;
-    let pieces = pieces(plan);
-    if pieces.is_empty() || fps == 0 {
+    let placements = placements(plan);
+    if placements.is_empty() || fps == 0 {
         return None;
     }
 
-    // How much each piece gives up at each end. A piece's `blend` is the
-    // overlap it shares with the piece *before* it, so the tail of piece i
-    // is the head of piece i+1.
-    let head = |i: usize| pieces[i].blend.as_ref().map_or(0, |(_, ms)| *ms);
-    let tail = |i: usize| pieces.get(i + 1).map_or(0, |_| head(i + 1));
-    if (0..pieces.len()).any(|i| head(i) + tail(i) > pieces[i].duration_ms) {
+    // How much each placement gives up at each end. A placement's `blend` is the
+    // overlap it shares with the placement *before* it, so the tail of placement i
+    // is the head of placement i+1.
+    let head = |i: usize| placements[i].blend.as_ref().map_or(0, |(_, ms)| *ms);
+    let tail = |i: usize| placements.get(i + 1).map_or(0, |_| head(i + 1));
+    if (0..placements.len()).any(|i| head(i) + tail(i) > placements[i].duration_ms) {
         return None;
     }
 
     let mut out = Vec::new();
     let mut cursor = 0u64;
-    for (i, piece) in pieces.iter().enumerate() {
-        if let Some((kind, overlap)) = &piece.blend {
-            let previous = &pieces[i - 1];
-            let (start, end) = (piece.start_ms, piece.start_ms + overlap);
+    for (i, placement) in placements.iter().enumerate() {
+        if let Some((kind, overlap)) = &placement.blend {
+            let previous = &placements[i - 1];
+            let (start, end) = (placement.start_ms, placement.start_ms + overlap);
             push(&mut out, &mut cursor, fps, end - start, |frames| {
                 Content::Blend {
                     kind: kind.clone(),
-                    // The tail of the piece being left…
+                    // The tail of the placement being left…
                     from: window(previous, start, frames, fps),
                     // …against the head of the one arriving.
-                    to: window(piece, start, frames, fps),
+                    to: window(placement, start, frames, fps),
                 }
             });
         }
         let (start, end) = (
-            piece.start_ms + head(i),
-            piece.start_ms + piece.duration_ms - tail(i),
+            placement.start_ms + head(i),
+            placement.start_ms + placement.duration_ms - tail(i),
         );
         push(&mut out, &mut cursor, fps, end - start, |frames| {
-            Content::Body(window(piece, start, frames, fps))
+            Content::Body(window(placement, start, frames, fps))
         });
     }
 
@@ -188,22 +188,22 @@ fn push(
     *cursor += frames;
 }
 
-/// `frames` frames of `piece`, starting at output time `start_ms`.
+/// `frames` frames of `placement`, starting at output time `start_ms`.
 ///
-/// Every number in here is a duration — how far into the piece the window
-/// begins, how long its lead-in is, how long it lasts — so a piece that
+/// Every number in here is a duration — how far into the placement the window
+/// begins, how long its lead-in is, how long it lasts — so a placement that
 /// slid along the timeline without otherwise changing produces the same
 /// window, and the same key.
-fn window(piece: &Piece, start_ms: u64, frames: u64, fps: u32) -> Window {
+fn window(placement: &Placement, start_ms: u64, frames: u64, fps: u32) -> Window {
     Window {
-        source: match &piece.picture {
+        source: match &placement.picture {
             Picture::Clip(path) => Source::Clip(path.clone()),
             // `Hold` cannot reach here: a held beat is folded into the
-            // piece before it, which is what holding means.
+            // placement before it, which is what holding means.
             Picture::Hold | Picture::Slate => Source::Slate,
         },
-        lead_in_frames: frames_of(piece.lead_in_ms, fps),
-        from_frame: frames_of(start_ms.saturating_sub(piece.start_ms), fps),
+        lead_in_frames: frames_of(placement.lead_in_ms, fps),
+        from_frame: frames_of(start_ms.saturating_sub(placement.start_ms), fps),
         frames,
     }
 }

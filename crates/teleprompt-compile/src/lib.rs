@@ -1,8 +1,8 @@
 //! Walks a resolved [`Program`] and assembles it into a scheduled
 //! [`Timeline`]: asks the scene registry to validate and split action
 //! blocks, takes each narration's duration from the synthesis cache when
-//! the segment is already rendered and from a [`DurationEstimator`] when it
-//! is not, pairs narration with the action span that follows it into beats,
+//! the line is already rendered and from a [`DurationEstimator`] when it
+//! is not, pairs narration with the action cue that follows it into beats,
 //! and hands the beats to the scheduler.
 //!
 //! It never asks a voice backend for anything. It cannot: [`VoiceContext`]
@@ -21,7 +21,7 @@ use teleprompt_core::config::{default_adapter, Config, OutputConfig, SceneConfig
 use teleprompt_core::program::{ChapterInfo, Item, Program};
 use teleprompt_core::voice::spoken;
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
-use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneRegistry, Span};
+use teleprompt_scene::{BlockSource, BodyOrigin, Cue, Measured, SceneRegistry};
 use teleprompt_schedule::{
     schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, Timeline,
 };
@@ -58,7 +58,7 @@ fn display_path(path: &Path) -> String {
 /// than making a second pass to recover what it already had.
 #[derive(Debug, Clone)]
 pub struct NarrationDetail {
-    pub segment_id: String,
+    pub line_id: String,
     pub text: String,
     /// The chapter's slug, for publication. Two chapters with the same
     /// title share one, so this is display identity, not a join key.
@@ -81,10 +81,10 @@ pub struct NarrationDetail {
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
-/// One action span's source, as the adapter split it.
+/// One action cue's source, as the adapter split it.
 ///
-/// The timeline identifies a span and says when it plays; it does not carry
-/// what the span *is*. Anything that has to draw the scene — a renderer, a
+/// The timeline identifies a cue and says when it plays; it does not carry
+/// what the cue *is*. Anything that has to draw the scene — a renderer, a
 /// preview — needs the source, and re-deriving it means re-running the
 /// parse, the `include=` resolution and the adapter's own splitting, which
 /// is this function's work done a second time and a second place for the
@@ -93,7 +93,7 @@ pub struct NarrationDetail {
 /// Deliberately not in the published manifest: this is adapter-native code,
 /// and a consumer drawing its own picture has no use for it.
 #[derive(Debug, Clone)]
-pub struct SpanSource {
+pub struct CueSource {
     pub id: String,
     pub scene: String,
     pub adapter: String,
@@ -106,8 +106,8 @@ pub struct CompileOutput {
     pub warnings: Vec<String>,
     /// One entry per narration item that synthesized, in document order.
     pub narration: Vec<NarrationDetail>,
-    /// Every action span's source, in document order.
-    pub spans: Vec<SpanSource>,
+    /// Every action cue's source, in document order.
+    pub cues: Vec<CueSource>,
     /// The script's chapters, in document order. Carried here because
     /// `compile` drops the `Program` and `cmd::check::compile_script` —
     /// the CLI's only route into compilation — returns just this struct.
@@ -140,7 +140,7 @@ pub struct CompileOutput {
 /// a sentence, which is the difference between typing a command while it is
 /// being named and typing it half a paragraph early. When a backend does
 /// publish word timings, this is the one place that has to change.
-fn cue_offset_ms(
+fn at_offset_ms(
     phrase: &str,
     text: &str,
     narration: Option<&NarrationInput>,
@@ -183,25 +183,25 @@ fn cue_offset_ms(
 /// `stretch-action` and `trim-action` change how long an action should
 /// take. Until this pass, that was a number on a timeline and nothing else:
 /// a capture would run the tape at its authored pace and whatever remained
-/// of the slot would be a held frame. Here the adapter re-writes the span
+/// of the slot would be a held frame. Here the adapter re-writes the cue
 /// to last exactly as long as it was scheduled for, and what is published
 /// is that tape.
 ///
-/// The span's hash moves with it, which is the point rather than a side
+/// The cue's hash moves with it, which is the point rather than a side
 /// effect: spec §5.1 puts slot duration in the video cache key, and hashing
 /// the tape that will actually be captured does that exactly. An adapter
 /// that cannot re-time says so, the source stands, and the renderer holds
 /// the last frame for the difference.
 fn retime_stretched_spans(
     timeline: &mut Timeline,
-    spans: &mut [SpanSource],
+    cues: &mut [CueSource],
     registry: &SceneRegistry,
 ) {
     for entry in &mut timeline.entries {
         let Some(action) = entry.action.as_mut() else {
             continue;
         };
-        let Some(published) = spans.iter_mut().find(|s| s.id == action.span) else {
+        let Some(published) = cues.iter_mut().find(|s| s.id == action.cue) else {
             continue;
         };
         let Some(adapter) = registry.get(&action.adapter) else {
@@ -210,18 +210,18 @@ fn retime_stretched_spans(
 
         // Nothing to do where the schedule took the adapter's own number,
         // which is every policy but the two that change it.
-        let span = Span {
+        let cue = Cue {
             id: published.id.clone(),
             source: published.source.clone(),
-            hash: action.span_hash,
+            hash: action.cue_hash,
             index: 0,
         };
-        if adapter.estimate(&span).duration_ms() == Some(action.duration_ms) {
+        if adapter.estimate(&cue).duration_ms() == Some(action.duration_ms) {
             continue;
         }
 
-        if let Some(source) = adapter.retime(&span, action.duration_ms) {
-            action.span_hash = Hash::of(source.as_bytes());
+        if let Some(source) = adapter.retime(&cue, action.duration_ms) {
+            action.cue_hash = Hash::of(source.as_bytes());
             action.duration_source = "exact".to_string();
             published.source = source;
         }
@@ -269,7 +269,7 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
 /// a paragraph changes every later beat's `start_ms` and no beat's key,
 /// because start time is not in one.
 ///
-/// Runs after [`retime_stretched_spans`], deliberately: a span re-written
+/// Runs after [`retime_stretched_spans`], deliberately: a cue re-written
 /// to fit its slot is a different tape, and the chain has to be built from
 /// the tape that will actually be captured. That is also how slot duration
 /// gets into the key (spec §5.1) without being a field in it.
@@ -284,11 +284,11 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
         // is in no chain. Putting it in one would make every beat after a
         // pause depend on how long the pause was.
         if action.scene == PAUSE_SCENE {
-            action.capture_key = action.span_hash;
+            action.capture_key = action.cue_hash;
             continue;
         }
 
-        // What this span is on its own: its tape, the adapter that will
+        // What this cue is on its own: its tape, the adapter that will
         // read it, and the scene settings that decide what the screen
         // looks like before anything is typed.
         let settings = config
@@ -300,7 +300,7 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
             CAPTURE_RECIPE,
             &action.adapter,
             &settings,
-            &action.span_hash.to_string(),
+            &action.cue_hash.to_string(),
         ]);
 
         // The session is keyed on (scene, name) rather than on an ordinal:
@@ -338,10 +338,10 @@ pub fn compile(
     let mut diags = Vec::new();
     let mut beats: Vec<Beat> = Vec::new();
     let mut narration_details: Vec<NarrationDetail> = Vec::new();
-    let mut span_sources: Vec<SpanSource> = Vec::new();
+    let mut span_sources: Vec<CueSource> = Vec::new();
     let mut cache_warnings: Vec<String> = Vec::new();
 
-    // The narration waiting to be joined with the first span of the next
+    // The narration waiting to be joined with the first cue of the next
     // action block. `id` and `config` travel alongside it because they
     // belong to the beat, not to the `NarrationInput` payload itself.
     let mut pending: Option<NarrationInput> = None;
@@ -424,16 +424,16 @@ pub fn compile(
                 let read = match voice_ctx.cache.lookup_meta(&cache_key) {
                     Ok(c) => c,
                     Err(e) => {
-                        diags.push(Diagnostic::error(format!("segment `{id}`: {e}")));
+                        diags.push(Diagnostic::error(format!("line `{id}`: {e}")));
                         continue;
                     }
                 };
                 // An unreadable entry is a miss, not an error — the cache is
                 // derived and self-healing. It is still worth saying out
-                // loud, because otherwise a segment silently reverts from
+                // loud, because otherwise a line silently reverts from
                 // `measured` to `estimated` with no explanation.
                 if let Some(w) = read.warning() {
-                    cache_warnings.push(format!("segment `{id}`: {w}"));
+                    cache_warnings.push(format!("line `{id}`: {w}"));
                 }
                 let (duration_ms, duration_source, word_timings) = match read.hit() {
                     Some(hit) => (hit.duration_ms, DurationSource::Measured, hit.word_timings),
@@ -445,7 +445,7 @@ pub fn compile(
                 };
 
                 narration_details.push(NarrationDetail {
-                    segment_id: id.clone(),
+                    line_id: id.clone(),
                     text: text.clone(),
                     chapter: chapter.clone(),
                     chapter_index: *chapter_index,
@@ -455,10 +455,10 @@ pub fn compile(
                 });
 
                 pending = Some(NarrationInput {
-                    segment_id: id.clone(),
+                    line_id: id.clone(),
                     source_hash: *source_hash,
                     // The cache key, not a synthesis result: this path never
-                    // synthesizes. It identifies the audio this segment
+                    // synthesizes. It identifies the audio this line
                     // resolves to, so it moves exactly when the audio would.
                     // The manifest's `audio_hash` is a different thing — a
                     // hash of the bytes `dub` actually wrote.
@@ -466,7 +466,7 @@ pub fn compile(
                     duration_ms,
                     duration_source,
                     // Read off the *narration item's* own resolved config,
-                    // which is the only place a segment-level `lead_in=` /
+                    // which is the only place a line-level `lead_in=` /
                     // `tail=` survives. The beat this narration ends up in
                     // may carry the following action block's config instead.
                     lead_in_ms: config.timing.lead_in_ms,
@@ -488,7 +488,7 @@ pub fn compile(
                 config,
                 policy,
                 align,
-                cue,
+                at,
                 session,
                 review,
                 span,
@@ -564,10 +564,10 @@ Read it, then remove the attribute."
                     None => (body.clone(), BodyOrigin::Inline { fence: *span }),
                 };
 
-                let cue_ms = match cue {
+                let at_ms = match at {
                     None => None,
                     Some(phrase) => {
-                        match cue_offset_ms(phrase, &pending_text, pending.as_ref(), policy) {
+                        match at_offset_ms(phrase, &pending_text, pending.as_ref(), policy) {
                             Ok(ms) => ms,
                             Err(d) => {
                                 diags.push(d.at(*span));
@@ -633,7 +633,7 @@ Read it, then remove the attribute."
                         continue;
                     }
                 };
-                let spans = match adapter.spans(&validated, block_id) {
+                let cues = match adapter.cues(&validated, block_id) {
                     Ok(s) => s,
                     Err(mut e) => {
                         diags.append(&mut e);
@@ -641,9 +641,9 @@ Read it, then remove the attribute."
                     }
                 };
 
-                if spans.is_empty() {
+                if cues.is_empty() {
                     // Task 6's F13 filter can reduce an all-`mark` block to
-                    // zero surviving spans. Pairing stays scoped to the
+                    // zero surviving cues. Pairing stays scoped to the
                     // *immediately* following action item, so a pending
                     // narration must be flushed as its own beat here rather
                     // than left to be picked up by a later action block.
@@ -651,28 +651,28 @@ Read it, then remove the attribute."
                     continue;
                 }
 
-                for (i, span) in spans.iter().enumerate() {
-                    span_sources.push(SpanSource {
-                        id: span.id.clone(),
+                for (i, cue) in cues.iter().enumerate() {
+                    span_sources.push(CueSource {
+                        id: cue.id.clone(),
                         scene: scene.clone(),
                         adapter: adapter_name.clone(),
-                        source: span.source.clone(),
+                        source: cue.source.clone(),
                     });
-                    let measured = adapter.estimate(span);
+                    let measured = adapter.estimate(cue);
                     let action = ActionInput {
-                        span_id: span.id.clone(),
+                        span_id: cue.id.clone(),
                         scene: scene.clone(),
                         adapter: adapter_name.clone(),
-                        span_hash: span.hash,
+                        cue_hash: cue.hash,
                         duration_ms: measured.duration_ms().unwrap_or(0),
                         duration_source: match measured {
                             Measured::Exact(_) => DurationSource::Exact,
                             Measured::Estimated(_) => DurationSource::Estimated,
                             Measured::Unknown => DurationSource::Estimated,
                         },
-                        // Only the span paired with the narration can be
+                        // Only the cue paired with the narration can be
                         // cued to a word in it; the rest follow it.
-                        cue_ms: if i == 0 { cue_ms } else { None },
+                        at_ms: if i == 0 { at_ms } else { None },
                         session: session.clone(),
                     };
 
@@ -686,7 +686,7 @@ Read it, then remove the attribute."
                         });
                     } else {
                         beats.push(Beat {
-                            id: span.id.clone(),
+                            id: cue.id.clone(),
                             narration: None,
                             action: Some(action),
                             policy: parsed_policy,
@@ -709,10 +709,10 @@ Read it, then remove the attribute."
                         span_id: id,
                         scene: "pause".into(),
                         adapter: "pause".into(),
-                        span_hash: Hash::of(ms.to_string().as_bytes()),
+                        cue_hash: Hash::of(ms.to_string().as_bytes()),
                         duration_ms: *ms,
                         duration_source: DurationSource::Exact,
-                        cue_ms: None,
+                        at_ms: None,
                         session: None,
                     }),
                     policy: Policy::Hold,
@@ -741,7 +741,7 @@ Read it, then remove the attribute."
         timeline,
         warnings,
         narration: narration_details,
-        spans: span_sources,
+        cues: span_sources,
         scenes: program.config.scenes.clone(),
         chapters: program.chapters.clone(),
         output: program.config.output.clone(),

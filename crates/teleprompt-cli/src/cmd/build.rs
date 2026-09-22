@@ -31,7 +31,7 @@ pub struct BuildOptions {
     /// integrator read, and a render that cannot be traced back to a
     /// manifest cannot be checked against one.
     pub narration_root: PathBuf,
-    /// Where captured clips are looked up, by span hash.
+    /// Where captured clips are looked up, by cue hash.
     pub clips_dir: PathBuf,
     /// A frame size from the command line, which overrides the script's
     /// own `output.resolution`. `None` — the usual case — leaves the
@@ -92,7 +92,7 @@ pub struct BuildReport {
     pub duration_ms: u64,
     /// Which renderer did the work, for a report that says how it was made.
     pub renderer: &'static str,
-    pub segments: usize,
+    pub lines: usize,
     pub beats: usize,
     /// Beats that rendered as a slate because nothing had captured them.
     pub slates: usize,
@@ -115,11 +115,11 @@ impl BuildReport {
             _ => String::new(),
         };
         format!(
-            "  {}\n  {} via {}{reused}\n  {} segment(s), {} beat(s), {} slate(s)\n",
+            "  {}\n  {} via {}{reused}\n  {} line(s), {} beat(s), {} slate(s)\n",
             self.output.display(),
             clock(self.duration_ms),
             self.renderer,
-            self.segments,
+            self.lines,
             self.beats,
             self.slates,
         )
@@ -238,7 +238,7 @@ pub async fn run_build_with_capture(
     let mut warnings = dubbed.warnings;
     let recorded = capture::run_capture(
         &dubbed.manifest,
-        &dubbed.spans,
+        &dubbed.cues,
         &dubbed.scenes,
         captures,
         &options.clips_dir,
@@ -293,7 +293,7 @@ pub async fn run_build_with_capture(
         output: rendered.path,
         duration_ms: rendered.duration_ms,
         renderer: renderer.id(),
-        segments: dubbed.manifest.segments.len(),
+        lines: dubbed.manifest.lines.len(),
         beats: dubbed.manifest.beats.len(),
         slates,
         captured,
