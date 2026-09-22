@@ -68,38 +68,38 @@ jobs:
           TELEPROMPT_REQUIRE_FFMPEG: "1"
           TELEPROMPT_REQUIRE_CAPTURE: "1"
 
-      # Before concluding anything about upstream: run the tape Charm
-      # themselves generate, with vhs's own defaults, at its own size.
-      # If `vhs new`'s example records, the fault is in the tape
-      # teleprompt writes — a frame size below what its padding needs, a
-      # setting in the wrong place — and that is ours to fix. If it does
-      # not, a 13-day-old release cannot record its own example here.
-      - name: Does vhs record its own example?
+      # One variable is left, and it is the only one teleprompt could act
+      # on. `vhs` drives whatever Chrome go-rod finds first — on this
+      # runner /usr/bin/google-chrome, whatever version the image ships.
+      # go-rod also pins a Chromium revision it downloads when it finds
+      # none. If the pinned one records and the system one does not, the
+      # incompatibility is with the browser, and teleprompt can point vhs
+      # at a working one when it invokes it.
+      #
+      # Everything else is already eliminated: not ttyd's version, not the
+      # page (the canvas is in the rendered DOM), not the encoder
+      # (`Screenshot` bypasses it and writes nothing), not the tape — vhs
+      # v0.12.0, thirteen days old, records nothing from its own `vhs new`
+      # example here.
+      - name: Is it the system Chrome?
         if: always()
         continue-on-error: true
         run: |
           set +e -x
-          cd /tmp && rm -rf own && mkdir own && cd own
-          vhs new demo.tape
-          cat demo.tape
-          vhs demo.tape 2>&1 | tail -5
-          ls -la /tmp/own/
-          # And the minimum: no Set at all, so every default is vhs's.
-          printf 'Output "/tmp/own/bare.gif"\nType "echo hi"\nEnter\nSleep 1s\n' > bare.tape
-          vhs bare.tape 2>&1 | tail -3
-          ls -la /tmp/own/bare.gif || echo "NO BARE GIF"
-          # An annotation as well as the log: a step's own output lives in
-          # a blob store this project's sandbox cannot fetch, and reading
-          # it has cost two rounds already.
-          for f in /tmp/own/demo.gif /tmp/own/bare.gif; do
-            if [ -s "$f" ]; then
-              echo "::notice title=vhs::RECORDED $f ($(wc -c < "$f") bytes)"
-            else
-              echo "::notice title=vhs::NOTHING at $f"
-            fi
+          google-chrome --version
+          for b in google-chrome chromium chromium-browser; do
+            sudo mv "/usr/bin/$b" "/usr/bin/$b.hidden" 2>/dev/null
           done
-
-
+          cd /tmp && rm -rf rodown && mkdir rodown && cd rodown
+          printf 'Output "/tmp/rodown/x.gif"\nType "echo hi"\nEnter\nSleep 1s\n' > x.tape
+          vhs x.tape 2>&1 | tail -6
+          ls -la /tmp/rodown/
+          ls -la "$HOME/.cache/rod/browser" 2>&1 | head -3
+          if [ -s /tmp/rodown/x.gif ]; then
+            echo "::notice title=vhs-chrome::RECORDED with go-rod's own chromium — the system Chrome is the problem"
+          else
+            echo "::notice title=vhs-chrome::NOTHING with go-rod's own chromium either"
+          fi
 
   msrv:
     runs-on: ubuntu-latest
