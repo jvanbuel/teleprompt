@@ -71,9 +71,18 @@ fn plan(dir: &Path, clip: &Path, shots: &[(u64, u64)], duration_ms: u64) -> Rend
 /// paths can no longer disagree about what the video should look like,
 /// only about how much of it had to be encoded.
 fn one_pass() -> IncrementalRenderer {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     IncrementalRenderer {
         program: "ffmpeg".into(),
-        cache_dir: std::env::temp_dir().join(format!("tp-onepass-{}", std::process::id())),
+        // A directory of its own per call. These run in parallel in one
+        // process, and a chunk key is content-addressed, so two tests
+        // rendering similar plans write the *same* filename — which is a
+        // half-written mp4 and `moov atom not found`.
+        cache_dir: std::env::temp_dir().join(format!(
+            "tp-onepass-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        )),
         reuse: false,
     }
 }

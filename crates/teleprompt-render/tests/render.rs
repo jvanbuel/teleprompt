@@ -20,9 +20,18 @@ use support::{bright_clip, duration_of, first_sound, have_ffmpeg, luma_at, tone}
 /// what these tests want: every frame encoded here, nothing served from a
 /// cache a previous test filled.
 fn one_pass() -> IncrementalRenderer {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     IncrementalRenderer {
         program: "ffmpeg".into(),
-        cache_dir: std::env::temp_dir().join(format!("tp-onepass-{}", std::process::id())),
+        // A directory of its own per call. These run in parallel in one
+        // process, and a chunk key is content-addressed, so two tests
+        // rendering similar plans write the *same* filename — which is a
+        // half-written mp4 and `moov atom not found`.
+        cache_dir: std::env::temp_dir().join(format!(
+            "tp-onepass-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        )),
         reuse: false,
     }
 }
