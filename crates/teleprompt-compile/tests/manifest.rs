@@ -418,7 +418,7 @@ fn the_manifest_json_shape_is_stable() {
 /// it exists to pin the chapter join — so on its own it would pin `items` as
 /// an empty array and let the published shape of a item change unnoticed.
 #[test]
-fn the_manifest_json_shape_with_beats_is_stable() {
+fn the_manifest_json_shape_with_items_is_stable() {
     insta::assert_json_snapshot!(manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK));
 }
 

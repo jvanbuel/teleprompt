@@ -7,4 +7,4 @@ build/
 # manual's own tapes leave behind.
 /demo
 /public
-/shot.tape
+shot.tape
