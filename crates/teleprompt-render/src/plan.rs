@@ -48,7 +48,7 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
 
     let mut uncaptured = 0usize;
     let shots: Vec<Shot> = manifest
-        .items
+        .shots
         .iter()
         .map(|shot| {
             // A pause is a shot during which the picture holds — that is

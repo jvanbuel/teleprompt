@@ -47,7 +47,7 @@ pub struct NarrationManifest {
     /// not the ones the adapter proposed, which is the difference between
     /// replaying a tape at its authored pace and replaying it at the pace
     /// its narration bought.
-    pub items: Vec<ItemEntry>,
+    pub shots: Vec<ShotEntry>,
 }
 
 /// Uniform across every line, so a consumer configures its player once
@@ -68,7 +68,7 @@ pub struct ChapterEntry {
 
 /// One scheduled action shot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ItemEntry {
+pub struct ShotEntry {
     /// The shot's id, `<block>#<index>`, as the adapter minted it.
     pub shot: String,
     /// The line spoken over this shot, or `null`.
@@ -244,12 +244,12 @@ pub fn build(
     // included rather than filtered: `scene: "pause"` is a item during which
     // the picture holds, and a consumer that skipped it would run the next
     // shot early.
-    let items: Vec<ItemEntry> = timeline
+    let shots: Vec<ShotEntry> = timeline
         .entries
         .iter()
         .filter_map(|entry| {
             let a = entry.action.as_ref()?;
-            Some(ItemEntry {
+            Some(ShotEntry {
                 shot: a.shot.clone(),
                 line: entry.narration.as_ref().map(|n| n.line.clone()),
                 scene: a.scene.clone(),
@@ -308,6 +308,6 @@ pub fn build(
         audio,
         chapters: chapter_entries,
         lines,
-        items,
+        shots,
     }
 }

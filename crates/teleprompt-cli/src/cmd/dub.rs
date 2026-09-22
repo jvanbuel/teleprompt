@@ -769,7 +769,7 @@ mod tests {
             },
             chapters: Vec::new(),
             lines,
-            items: Vec::new(),
+            shots: Vec::new(),
         }
     }
 

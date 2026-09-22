@@ -40,7 +40,7 @@ fn manifest(lines: Vec<LineEntry>) -> NarrationManifest {
         },
         chapters: Vec::new(),
         lines,
-        items: Vec::new(),
+        shots: Vec::new(),
     }
 }
 

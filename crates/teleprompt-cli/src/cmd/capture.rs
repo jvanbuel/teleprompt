@@ -30,7 +30,7 @@ pub fn cues_of(
     scenes: &BTreeMap<String, SceneConfig>,
 ) -> Vec<Shot> {
     manifest
-        .items
+        .shots
         .iter()
         .map(|item| Shot {
             id: item.shot.clone(),

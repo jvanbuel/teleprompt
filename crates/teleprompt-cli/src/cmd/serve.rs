@@ -198,15 +198,15 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
             }
         }
     }
-    for item in &after.items {
-        match before.items.iter().find(|b| b.shot == item.shot) {
-            None => out.push(item.shot.clone()),
+    for shot in &after.shots {
+        match before.shots.iter().find(|b| b.shot == shot.shot) {
+            None => out.push(shot.shot.clone()),
             Some(was) => {
-                if was.capture_key != item.capture_key
-                    || was.start_ms != item.start_ms
-                    || was.duration_ms != item.duration_ms
+                if was.capture_key != shot.capture_key
+                    || was.start_ms != shot.start_ms
+                    || was.duration_ms != shot.duration_ms
                 {
-                    out.push(item.shot.clone());
+                    out.push(shot.shot.clone());
                 }
             }
         }

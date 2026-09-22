@@ -294,7 +294,7 @@ pub async fn run_build_with_capture(
         duration_ms: rendered.duration_ms,
         renderer: renderer.id(),
         lines: dubbed.manifest.lines.len(),
-        items: dubbed.manifest.items.len(),
+        items: dubbed.manifest.shots.len(),
         slates,
         captured,
         reused_ms: rendered.reused_ms,

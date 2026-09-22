@@ -418,7 +418,7 @@ fn the_manifest_json_shape_is_stable() {
 /// it exists to pin the chapter join — so on its own it would pin `items` as
 /// an empty array and let the published shape of a item change unnoticed.
 #[test]
-fn the_manifest_json_shape_with_items_is_stable() {
+fn the_manifest_json_shape_with_shots_is_stable() {
     insta::assert_json_snapshot!(manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK));
 }
 
@@ -446,7 +446,7 @@ mod items {
     #[test]
     fn every_scheduled_span_is_published() {
         let m = manifest_for(TWO_BEATS);
-        let shots: Vec<&str> = m.items.iter().map(|b| b.shot.as_str()).collect();
+        let shots: Vec<&str> = m.shots.iter().map(|b| b.shot.as_str()).collect();
         assert_eq!(shots.len(), 3, "two blocks, one of them split by a mark");
         assert!(shots.iter().all(|s| s.contains('#')), "{shots:?}");
     }
@@ -457,7 +457,7 @@ mod items {
         // the two agree here — the point is that the published number comes
         // from the timeline, which is what `fit-action` would move.
         let (out, m) = compiled_and_manifest(TWO_BEATS);
-        for item in &m.items {
+        for item in &m.shots {
             let entry = out
                 .timeline
                 .entries
@@ -475,10 +475,10 @@ mod items {
     #[test]
     fn the_segment_spoken_over_a_span_is_named_and_unpaired_spans_say_null() {
         let m = manifest_for(TWO_BEATS);
-        assert_eq!(m.items[0].line.as_deref(), Some("one"));
-        assert_eq!(m.items[1].line.as_deref(), Some("two"));
+        assert_eq!(m.shots[0].line.as_deref(), Some("one"));
+        assert_eq!(m.shots[1].line.as_deref(), Some("two"));
         assert_eq!(
-            m.items[2].line, None,
+            m.shots[2].line, None,
             "a shot after a mark runs under what the policy left of the paragraph"
         );
     }
@@ -491,7 +491,7 @@ mod items {
              ```teleprompt scene=mock\nwait 200ms\n```\n",
         );
         let pause = m
-            .items
+            .shots
             .iter()
             .find(|b| b.scene == "pause")
             .expect("a pause directive is published as a item");
@@ -502,7 +502,7 @@ mod items {
     #[test]
     fn beats_and_segments_agree_about_the_scene_and_adapter() {
         let m = manifest_for(TWO_BEATS);
-        for item in m.items.iter().filter(|b| b.scene != "pause") {
+        for item in m.shots.iter().filter(|b| b.scene != "pause") {
             assert_eq!(item.scene, "mock");
             assert_eq!(item.adapter, "mock");
             assert_eq!(
