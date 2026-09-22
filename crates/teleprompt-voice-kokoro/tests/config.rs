@@ -42,27 +42,60 @@ fn zero_concurrency_is_rejected() {
 }
 
 // The load-bearing one. `teleprompt_cache::key` is built from `backend_id`,
-// `backend_version` and the SynthRequest — text, locale, voice, speed. A
-// Kokoro server's audio also depends on which server it is and which model
-// it loaded, and neither reaches the key except through this string.
+// `backend_version` and the SynthRequest — text, locale, voice, speed. What
+// a Kokoro server produces depends on the model it loaded, and that reaches
+// the key only through this string.
+//
+// The *machine* deliberately does not. A cache keyed on the server's
+// address is a cache that never crosses machines: the same model behind
+// `localhost` and behind `gpu-box` produces identical audio and two
+// different keys, so CI and every second contributor start cold. Worse,
+// `localhost` and `127.0.0.1` do it on one machine.
 #[test]
-fn the_version_string_separates_hosts_and_models() {
-    let a = KokoroConfig::from_value(&yaml("base_url: \"http://localhost:8880\"")).unwrap();
-    let b = KokoroConfig::from_value(&yaml("base_url: \"http://gpu-box:8880\"")).unwrap();
-    let c = KokoroConfig::from_value(&yaml(
+fn the_version_string_is_the_model_and_not_the_machine() {
+    let local = KokoroConfig::from_value(&yaml("base_url: \"http://localhost:8880\"")).unwrap();
+    let loopback = KokoroConfig::from_value(&yaml("base_url: \"http://127.0.0.1:8880\"")).unwrap();
+    let remote = KokoroConfig::from_value(&yaml("base_url: \"http://gpu-box:8880\"")).unwrap();
+    let other_model = KokoroConfig::from_value(&yaml(
         "base_url: \"http://localhost:8880\"\nmodel: kokoro-v1_1",
     ))
     .unwrap();
 
-    assert_ne!(
-        a.version_string(),
-        b.version_string(),
-        "host must be in the key"
+    assert_eq!(
+        local.version_string(),
+        loopback.version_string(),
+        "two spellings of the same machine are the same cache"
+    );
+    assert_eq!(
+        local.version_string(),
+        remote.version_string(),
+        "and so is somebody else's machine running the same model"
     );
     assert_ne!(
-        a.version_string(),
-        c.version_string(),
-        "model must be in the key"
+        local.version_string(),
+        other_model.version_string(),
+        "the model still has to be in the key"
+    );
+}
+
+// The trade this makes, stated as a test so it cannot be forgotten: two
+// servers serving different weights under one model name now collide. That
+// is why `doctor` reports the model alongside the address — the mismatch
+// has to be visible somewhere, and the cache key is no longer the place.
+#[test]
+fn nothing_about_the_server_address_survives_into_the_version() {
+    let plain = KokoroConfig::from_value(&yaml("base_url: \"http://host:8880\"")).unwrap();
+    let with_userinfo =
+        KokoroConfig::from_value(&yaml("base_url: \"http://user:pass@host:8880\"")).unwrap();
+    let elsewhere =
+        KokoroConfig::from_value(&yaml("base_url: \"https://kokoro.internal/api\"")).unwrap();
+
+    assert_eq!(plain.version_string(), with_userinfo.version_string());
+    assert_eq!(plain.version_string(), elsewhere.version_string());
+    assert!(
+        !plain.version_string().contains("host"),
+        "the address is not in it at all: {}",
+        plain.version_string()
     );
 }
 
@@ -73,20 +106,4 @@ fn settings_that_cannot_change_the_audio_stay_out_of_the_version() {
     let a = KokoroConfig::from_value(&yaml("timeout_ms: 30000\nconcurrency: 4")).unwrap();
     let b = KokoroConfig::from_value(&yaml("timeout_ms: 1000\nconcurrency: 16")).unwrap();
     assert_eq!(a.version_string(), b.version_string());
-}
-
-// `version_string` takes the host by splitting on "://", not by parsing a
-// URL, so userinfo in `base_url` rides along unexamined. That is safe for
-// key correctness only because it cannot go the wrong way: pins the "no
-// collision" half of that claim, not merely today's exact string.
-#[test]
-fn a_userinfo_bearing_base_url_stays_distinct_rather_than_colliding() {
-    let plain = KokoroConfig::from_value(&yaml("base_url: \"http://host:8880\"")).unwrap();
-    let with_userinfo =
-        KokoroConfig::from_value(&yaml("base_url: \"http://user:pass@host:8880\"")).unwrap();
-    assert_ne!(
-        plain.version_string(),
-        with_userinfo.version_string(),
-        "a userinfo-bearing base_url must never collide with the plain-host version"
-    );
 }

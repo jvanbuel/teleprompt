@@ -236,7 +236,15 @@ async fn probe_configured_backend(backends: &Backends, backend_id: &str) -> Opti
     let kokoro = backends.kokoro(backend_id)?;
     let url = kokoro.base_url().to_string();
     let detail = match tokio::time::timeout(PROBE_TIMEOUT, kokoro.voices()).await {
-        Ok(Ok(voices)) => format!("{url} — reachable, {} voices", voices.len()),
+        // The model, not only the address: the cache key is the model
+        // alone now, so two servers with different weights under one name
+        // are indistinguishable to it. This line is where that becomes
+        // visible.
+        Ok(Ok(voices)) => format!(
+            "{url} — reachable, model {}, {} voices",
+            teleprompt_voice::VoiceBackend::capabilities(kokoro.as_ref()).version,
+            voices.len()
+        ),
         Ok(Err(e)) => format!("{url} — unreachable ({e})"),
         Err(_) => format!(
             "{url} — unreachable (no response within {}ms)",

@@ -20,16 +20,16 @@ fn kokoro_takes_its_settings_from_the_backends_map() {
         &settings("base_url: \"http://gpu-box:8880\""),
         "teleprompt.toml",
     );
-    let k = b
-        .resolve("kokoro")
+    b.resolve("kokoro")
         .unwrap_or_else(|d| panic!("{}", d.message));
-    // The version string is what keys the cache, so this is the observable
-    // that proves the settings reached the backend rather than the default.
-    assert!(
-        k.capabilities().version.contains("gpu-box"),
-        "{}",
-        k.capabilities().version
-    );
+    // The address used to be observable through the version string, which
+    // is what keyed the cache. It is not any more — a key that names a
+    // machine is a cache that never leaves it — so the handle's own
+    // `base_url` is what proves the settings arrived.
+    let k = b
+        .kokoro("kokoro")
+        .expect("valid settings construct a handle");
+    assert_eq!(k.base_url(), "http://gpu-box:8880");
 }
 
 /// I2. A backend whose settings do not validate must still be *reported* —

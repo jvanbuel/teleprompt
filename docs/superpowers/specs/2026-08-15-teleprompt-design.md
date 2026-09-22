@@ -436,13 +436,18 @@ Cache entries are immutable and safe to delete at any time; deleting one costs
 recomputation, never correctness. `cache ls` reports size and age per class;
 `cache clean --unreferenced` prunes what no committed timeline points at.
 
-> **Decided, not yet implemented.** The backend version currently embeds the
-> server's address (`model@host`), so `localhost:8880` and `127.0.0.1:8880` are
-> different keys and a warm cache never crosses machines — which is what leaves
-> CI and every second contributor starting cold. The key drops the host and
-> keeps the model identity the server reports. The trade is real: two servers
-> serving different weights under one model name would collide, so `doctor`
-> reports the server's model identity to make that visible.
+The backend version is the **model**, not the server. Audio depends on the
+weights a server loaded, not on where that server is, and keying on the
+address gives a cache that never crosses a machine: CI starts cold, a second
+contributor starts cold, and on one machine `localhost` and `127.0.0.1` are
+two caches for one server. A key that travels is what makes a shared cache
+possible at all.
+
+The trade is real: two servers serving different weights under one model name
+now collide, and the cache cannot tell them apart. `doctor` reports the model
+beside the address so the mismatch is visible where somebody is already
+looking, and an author running two sets of weights distinguishes them by
+naming them.
 
 Two properties keep the store honest. Backend version participates in the key,
 so upgrading a TTS model invalidates its clips rather than silently mixing

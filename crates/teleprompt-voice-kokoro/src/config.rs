@@ -44,39 +44,25 @@ impl KokoroConfig {
         Ok(c)
     }
 
-    /// What `VoiceCapabilities::version` returns, and therefore part of every
-    /// cache key this backend's audio is stored under.
+    /// What `VoiceCapabilities::version` returns, and therefore part of
+    /// every cache key this backend's audio is stored under: the model, and
+    /// nothing else.
     ///
-    /// Host and model are both in it because both change the audio while
-    /// leaving the `SynthRequest` identical: two servers with different
-    /// checkpoints answer the same request differently, and nothing above
-    /// the cache could tell. The contract doc on
-    /// `VoiceCapabilities::version` names this exact hazard.
+    /// Not the server's address. Audio depends on the weights a server
+    /// loaded, not on where that server is, and keying on the address means
+    /// a cache that never crosses a machine: CI starts cold, a second
+    /// contributor starts cold, and on one machine `localhost` and
+    /// `127.0.0.1` are two caches for one server. A key that travels is
+    /// what makes a shared cache possible at all.
     ///
-    /// The cost is a real one and worth stating: `localhost` and `127.0.0.1`
-    /// are different strings, so pointing the same server at a different
-    /// name re-synthesizes the project once. That is the right trade —
-    /// a spurious miss is slow and visible, whereas a spurious hit serves
-    /// one voice's audio under another's name, permanently.
-    ///
-    /// The host is taken by splitting `base_url` on `"://"`, not by parsing
-    /// it as a URL — this is a key-construction shortcut, not a validation
-    /// of `base_url`. Anything the split doesn't understand rides along
-    /// into the string unexamined: a `base_url` with no `"://"` folds in
-    /// whole (`host` falls back to the full string), one with userinfo
-    /// (`http://user:pass@host:8880`) folds the credentials in along with
-    /// the host, and a trailing path or query string folds in too. None of
-    /// this threatens what this string exists for: every such variant is
-    /// *more* distinct as a string than a clean `host:port` would be, so it
-    /// can only turn a would-be cache hit into a miss, never the reverse —
-    /// and `teleprompt_cache::key` blake3-hashes this string before it
-    /// touches a path, so it is not written to disk or a log verbatim
-    /// either. What it does *not* do is confirm `base_url` is a well-formed
-    /// URL; that check, if any, belongs to whatever next parses `base_url`
-    /// to make requests with it (e.g. `reqwest`, which will reject a
-    /// malformed URL with its own error at request time).
+    /// The trade is real and deliberate, and it runs the other way from the
+    /// one this used to make: two servers serving different weights under
+    /// one model name now collide, and the cache cannot tell them apart.
+    /// `doctor` reports the model beside the address so the mismatch is
+    /// visible where somebody is already looking, and an author running two
+    /// sets of weights distinguishes them by naming them — `model:
+    /// kokoro-v1_1` — which is the field that exists for that.
     pub fn version_string(&self) -> String {
-        let host = self.base_url.split("://").nth(1).unwrap_or(&self.base_url);
-        format!("{}@{}", self.model, host)
+        self.model.clone()
     }
 }

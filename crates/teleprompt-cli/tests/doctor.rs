@@ -360,3 +360,26 @@ fn a_binary_that_is_not_there_probes_to_nothing() {
         None
     );
 }
+
+/// The cache key no longer distinguishes two servers running different
+/// weights under one model name — that is the price of a key that travels
+/// between machines. `doctor` is where the mismatch has to become visible,
+/// so the probe line names the model it is talking to, not only the
+/// address.
+#[tokio::test]
+async fn the_probe_line_names_the_model_the_cache_is_keyed_on() {
+    let stub = kokoro_stub_listing(&["af_heart", "am_adam"]).await;
+    let project = project_with_backend("kokoro", kokoro_backends(&stub.base_url));
+
+    let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
+    let probe = report
+        .voice_probe
+        .expect("a kokoro project probes its server");
+
+    assert!(
+        probe.detail.contains("kokoro"),
+        "the model belongs on the line: {}",
+        probe.detail
+    );
+    assert!(probe.detail.contains(&stub.base_url), "{}", probe.detail);
+}
