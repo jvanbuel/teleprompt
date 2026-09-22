@@ -159,8 +159,8 @@ fn policy_parses_from_attribute_strings() {
 ///
 /// `Layout` has no narration-duration field at all — narration is an input to
 /// `layout` and never an output — so the only way a policy could shorten
-/// speech is by leaving it no room in the beat. Every policy, at every ratio,
-/// must give the narration its full length inside the beat. `stretch` and
+/// speech is by leaving it no room in the item. Every policy, at every ratio,
+/// must give the narration its full length inside the item. `stretch` and
 /// `trim` adjust the *action*; the audio is played as the voice produced it.
 #[test]
 fn no_policy_ever_denies_the_narration_its_full_length() {
@@ -188,7 +188,7 @@ fn no_policy_ever_denies_the_narration_its_full_length() {
             assert!(
                 l.narration_start_ms + narration_ms <= l.beat_duration_ms,
                 "{} with narration {}ms / action {}ms starts narration at {}ms \
-                 in a {}ms beat, cutting {}ms of speech",
+                 in a {}ms item, cutting {}ms of speech",
                 policy.label(),
                 narration_ms,
                 action_ms,
@@ -267,7 +267,7 @@ fn a_cue_starts_the_action_where_the_words_are() {
     );
 }
 
-/// An action cued late enough to outlast the sentence extends the beat
+/// An action cued late enough to outlast the sentence extends the item
 /// rather than being cut off by it.
 #[test]
 fn a_cue_near_the_end_lengthens_the_beat_rather_than_clipping_the_action() {

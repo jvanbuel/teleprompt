@@ -20,11 +20,11 @@ pub struct NarrationInput {
     /// Silence before the clip, and silence after it.
     ///
     /// These travel with the narration rather than being read off the
-    /// [`Beat`]'s single `config` because a beat's two halves resolve from
+    /// [`Item`]'s single `config` because a item's two halves resolve from
     /// different configuration layers: the narration's padding comes from the
-    /// *line's* attributes (`{#a lead_in=1000ms}`), while the beat's
+    /// *line's* attributes (`{#a lead_in=1000ms}`), while the item's
     /// `config` is the following action block's. Reading padding off
-    /// `Beat::config` silently discarded every line-level `lead_in=` /
+    /// `Item::config` silently discarded every line-level `lead_in=` /
     /// `tail=` whenever an action block followed the paragraph — which, per
     /// spec §3.1, is the normal case.
     pub lead_in_ms: u64,
@@ -35,7 +35,7 @@ pub struct NarrationInput {
 }
 
 impl NarrationInput {
-    /// Total time this narration occupies in its beat: lead-in, clip, tail.
+    /// Total time this narration occupies in its item: lead-in, clip, tail.
     ///
     /// Saturating, not because any validated input can reach `u64::MAX` —
     /// `Config::problems` rejects the `voice.speed` that used to produce one
@@ -73,12 +73,12 @@ pub struct ActionInput {
     /// command is rarely the first one in the paragraph.
     pub at_ms: Option<u64>,
     /// Which run of the scene this action belongs to, from `session="…"`.
-    /// `None` is the scene's own, which is where most beats live.
+    /// `None` is the scene's own, which is where most items live.
     pub session: Option<String>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Beat {
+pub struct Item {
     pub id: String,
     pub narration: Option<NarrationInput>,
     pub action: Option<ActionInput>,

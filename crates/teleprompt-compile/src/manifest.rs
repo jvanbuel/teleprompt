@@ -19,11 +19,11 @@ use crate::NarrationDetail;
 /// manifest is a contract with third parties, and they will not move
 /// together.
 ///
-/// **2** added `beats`. A consumer could place speech and nothing else, so
+/// **2** added `items`. A consumer could place speech and nothing else, so
 /// anything wanting to show a picture had to read the timeline and join it
 /// to the manifest by document order — the exact fragility a published
 /// contract exists to remove. Adding a key is backward compatible for a
-/// consumer that ignores unknown fields, but silently missing the beats is
+/// consumer that ignores unknown fields, but silently missing the items is
 /// worse than failing: a v1 consumer that checks the version now stops and
 /// says so.
 pub const MANIFEST_VERSION: u32 = 2;
@@ -47,7 +47,7 @@ pub struct NarrationManifest {
     /// not the ones the adapter proposed, which is the difference between
     /// replaying a tape at its authored pace and replaying it at the pace
     /// its narration bought.
-    pub beats: Vec<BeatEntry>,
+    pub items: Vec<ItemEntry>,
 }
 
 /// Uniform across every line, so a consumer configures its player once
@@ -68,7 +68,7 @@ pub struct ChapterEntry {
 
 /// One scheduled action cue.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BeatEntry {
+pub struct ItemEntry {
     /// The cue's id, `<block>#<index>`, as the adapter minted it.
     pub cue: String,
     /// The line spoken over this cue, or `null`.
@@ -89,9 +89,9 @@ pub struct BeatEntry {
     pub duration_source: String,
     pub policy: String,
     /// The outgoing transition, as scheduled. Carried because a consumer
-    /// reproducing the video's shape needs the gaps between beats, and
+    /// reproducing the video's shape needs the gaps between items, and
     /// deriving them from neighbouring offsets is exactly the arithmetic
-    /// that goes wrong where beats overlap.
+    /// that goes wrong where items overlap.
     pub transition: TransitionOut,
     /// Identity of the cue's source, for a per-cue render cache. The
     /// counterpart of a line's `audio_hash`.
@@ -100,13 +100,13 @@ pub struct BeatEntry {
     /// it in the same session. What a captured clip is filed under.
     ///
     /// Not the same as `cue_hash`, and the difference is the point. A
-    /// scene is a session, so the screen a beat shows is the accumulation
-    /// of every beat before it; two blocks with the same steps — `j` twice
+    /// scene is a session, so the screen a item shows is the accumulation
+    /// of every item before it; two blocks with the same steps — `j` twice
     /// in one walkthrough — have one `cue_hash` and two pictures.
     pub capture_key: Hash,
     /// Which run of the scene, from `session="…"`. Published because it is
     /// the only part of the chain a reader cannot see in the script, and
-    /// because a capture stage needs it to know which beats share a screen.
+    /// because a capture stage needs it to know which items share a screen.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<String>,
 }
@@ -240,16 +240,16 @@ pub fn build(
         })
         .collect();
 
-    // One beat per scheduled cue, in the timeline's own order. A pause is
-    // included rather than filtered: `scene: "pause"` is a beat during which
+    // One item per scheduled cue, in the timeline's own order. A pause is
+    // included rather than filtered: `scene: "pause"` is a item during which
     // the picture holds, and a consumer that skipped it would run the next
     // cue early.
-    let beats: Vec<BeatEntry> = timeline
+    let items: Vec<ItemEntry> = timeline
         .entries
         .iter()
         .filter_map(|entry| {
             let a = entry.action.as_ref()?;
-            Some(BeatEntry {
+            Some(ItemEntry {
                 cue: a.cue.clone(),
                 line: entry.narration.as_ref().map(|n| n.line.clone()),
                 scene: a.scene.clone(),
@@ -308,6 +308,6 @@ pub fn build(
         audio,
         chapters: chapter_entries,
         lines,
-        beats,
+        items,
     }
 }

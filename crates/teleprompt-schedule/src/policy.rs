@@ -98,7 +98,7 @@ pub fn layout_at(
             action_start_ms: cue,
             action_duration_ms: action_ms,
             // An action cued late enough to outlast the sentence extends
-            // the beat; clipping it would drop the end of the very thing
+            // the item; clipping it would drop the end of the very thing
             // the cue exists to show.
             beat_duration_ms: narration_ms.max(cue.saturating_add(action_ms)),
             warnings: Vec::new(),
@@ -114,17 +114,17 @@ pub fn layout_at(
         },
 
         Policy::Concurrent(align) => {
-            let beat = narration_ms.max(action_ms);
+            let item = narration_ms.max(action_ms);
             let (n_start, a_start) = match align {
                 Align::Start => (0, 0),
-                Align::End => (beat - narration_ms, beat - action_ms),
-                Align::Center => ((beat - narration_ms) / 2, (beat - action_ms) / 2),
+                Align::End => (item - narration_ms, item - action_ms),
+                Align::Center => ((item - narration_ms) / 2, (item - action_ms) / 2),
             };
             Layout {
                 narration_start_ms: n_start,
                 action_start_ms: a_start,
                 action_duration_ms: action_ms,
-                beat_duration_ms: beat,
+                beat_duration_ms: item,
                 warnings: Vec::new(),
             }
         }
@@ -192,7 +192,7 @@ pub fn layout_at(
                 narration_start_ms: 0,
                 action_start_ms: 0,
                 action_duration_ms: adjusted,
-                // The beat is as long as whichever of the two is left:
+                // The item is as long as whichever of the two is left:
                 // normally the narration, and the action where there is no
                 // narration to trim against.
                 beat_duration_ms: narration_ms.max(adjusted),

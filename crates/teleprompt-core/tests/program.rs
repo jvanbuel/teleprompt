@@ -1,7 +1,7 @@
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Item, Program};
+use teleprompt_core::program::{resolve, Element, Program};
 use teleprompt_core::Hash;
 
 const SRC: &str = r#"---
@@ -58,12 +58,12 @@ fn program_for(src: &str) -> Program {
 fn chapters_flatten_into_one_ordered_item_list() {
     let p = program();
     let kinds: Vec<&str> = p
-        .items
+        .elements
         .iter()
         .map(|i| match i {
-            Item::Narration { .. } => "narration",
-            Item::Action { .. } => "action",
-            Item::Pause { .. } => "pause",
+            Element::Narration { .. } => "narration",
+            Element::Action { .. } => "action",
+            Element::Pause { .. } => "pause",
         })
         .collect();
     assert_eq!(kinds, ["narration", "action", "narration", "pause"]);
@@ -72,7 +72,7 @@ fn chapters_flatten_into_one_ordered_item_list() {
 #[test]
 fn front_matter_config_reaches_every_item() {
     let p = program();
-    let Item::Narration { config, .. } = &p.items[0] else {
+    let Element::Narration { config, .. } = &p.elements[0] else {
         panic!()
     };
     assert_eq!(config.timing.lead_in_ms, 200);
@@ -81,10 +81,10 @@ fn front_matter_config_reaches_every_item() {
 #[test]
 fn segment_attributes_override_front_matter_for_that_segment_only() {
     let p = program();
-    let Item::Narration { config: first, .. } = &p.items[0] else {
+    let Element::Narration { config: first, .. } = &p.elements[0] else {
         panic!()
     };
-    let Item::Narration { config: second, .. } = &p.items[2] else {
+    let Element::Narration { config: second, .. } = &p.elements[2] else {
         panic!()
     };
     assert_eq!(first.timing.lead_in_ms, 200);
@@ -97,7 +97,7 @@ fn cli_flags_beat_everything() {
     teleprompt_core::ident::assign_ids(&mut s);
     let cli = PartialConfig::from_yaml("timing:\n  lead_in_ms: 999\n").unwrap();
     let p = resolve(&s, "demo.md", "en", &PartialConfig::default(), &cli).unwrap();
-    let Item::Narration { config, .. } = &p.items[2] else {
+    let Element::Narration { config, .. } = &p.elements[2] else {
         panic!()
     };
     assert_eq!(
@@ -109,9 +109,9 @@ fn cli_flags_beat_everything() {
 #[test]
 fn source_hash_covers_the_normalised_text_only() {
     let p = program();
-    let Item::Narration {
+    let Element::Narration {
         source_hash, text, ..
-    } = &p.items[0]
+    } = &p.elements[0]
     else {
         panic!()
     };
@@ -130,7 +130,7 @@ fn block_policy_and_align_default_when_unset() {
         &PartialConfig::default(),
     )
     .unwrap();
-    let Item::Action { policy, align, .. } = &p.items[1] else {
+    let Element::Action { policy, align, .. } = &p.elements[1] else {
         panic!()
     };
     assert_eq!(policy, "hold");
@@ -167,7 +167,7 @@ fn unknown_attribute_keys_surface_as_errors() {
     assert!(e.0[0].message.contains("unknown attribute key `polcy`"));
 }
 
-/// Controller ruling F12: `Item` carries the source cue from the AST node it
+/// Controller ruling F12: `Element` carries the source cue from the AST node it
 /// was built from, so Task 11 can point an adapter validation error at the
 /// real line instead of a fabricated `line: 0`. This script puts the
 /// narration paragraph and the action fence on different lines, so the test
@@ -186,16 +186,16 @@ fn item_spans_match_their_source_node_not_a_fabricated_line() {
     )
     .unwrap();
 
-    let Item::Narration {
+    let Element::Narration {
         span: narration_span,
         ..
-    } = &p.items[0]
+    } = &p.elements[0]
     else {
         panic!("expected narration item")
     };
-    let Item::Action {
+    let Element::Action {
         span: action_span, ..
-    } = &p.items[1]
+    } = &p.elements[1]
     else {
         panic!("expected action item")
     };
@@ -243,10 +243,10 @@ The second paragraph.
     let program = program_for(src);
 
     let owners: Vec<&str> = program
-        .items
+        .elements
         .iter()
         .filter_map(|i| match i {
-            Item::Narration { chapter, .. } => Some(chapter.as_str()),
+            Element::Narration { chapter, .. } => Some(chapter.as_str()),
             _ => None,
         })
         .collect();

@@ -13,7 +13,7 @@ pub struct ChapterInfo {
 }
 
 /// A single locale's script, flattened from its chapter tree into one
-/// ordered list of items with configuration fully resolved per item.
+/// ordered list of elements with configuration fully resolved per item.
 #[derive(Debug, Clone)]
 pub struct Program {
     pub script_name: String,
@@ -22,11 +22,11 @@ pub struct Program {
     /// Every chapter in document order, whether or not it contains
     /// narration.
     pub chapters: Vec<ChapterInfo>,
-    pub items: Vec<Item>,
+    pub elements: Vec<Element>,
 }
 
 #[derive(Debug, Clone)]
-pub enum Item {
+pub enum Element {
     Narration {
         id: String,
         text: String,
@@ -86,7 +86,7 @@ pub enum Item {
     },
 }
 
-/// Flattens `script`'s chapters into one ordered [`Item`] list, applying the
+/// Flattens `script`'s chapters into one ordered [`Element`] list, applying the
 /// layered config merge (`[project, front matter, item attributes, cli]`)
 /// per item, and computes each narration's `source_hash` over its normalised
 /// text.
@@ -108,7 +108,7 @@ pub fn resolve(
     };
 
     let base = Config::merged(&[project.clone(), front.clone(), cli.clone()]);
-    let mut items = Vec::new();
+    let mut elements = Vec::new();
     let mut chapters = Vec::new();
 
     // Merged-config problems, keyed by message so one bad `voice.speed` in
@@ -152,7 +152,7 @@ pub fn resolve(
                         config_problems.entry(problem).or_insert(seg.span);
                     }
                     let text = seg.text.clone();
-                    items.push(Item::Narration {
+                    elements.push(Element::Narration {
                         id: seg.id.clone().unwrap_or_default(),
                         source_hash: Hash::of(text.as_bytes()),
                         chapter: chapter.slug.clone(),
@@ -180,7 +180,7 @@ pub fn resolve(
                         PartialConfig::from_attrs(&attrs),
                         cli.clone(),
                     ]);
-                    items.push(Item::Action {
+                    elements.push(Element::Action {
                         block_id: block.id.clone().unwrap_or_default(),
                         scene,
                         body: block.body.clone(),
@@ -194,7 +194,7 @@ pub fn resolve(
                         span: block.span,
                     });
                 }
-                Node::Directive(Directive::Pause(ms)) => items.push(Item::Pause { ms: *ms }),
+                Node::Directive(Directive::Pause(ms)) => elements.push(Element::Pause { ms: *ms }),
             }
         }
     }
@@ -229,6 +229,6 @@ pub fn resolve(
         locale: locale.to_string(),
         config: base,
         chapters,
-        items,
+        elements,
     })
 }

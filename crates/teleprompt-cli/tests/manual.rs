@@ -132,7 +132,7 @@ async fn the_manual_renders() {
     let (project, script) = manual();
     let options = BuildOptions {
         // Small and slow-framed: CI is checking that the pipeline runs and
-        // the arithmetic holds over 25 beats, not how a codec looks.
+        // the arithmetic holds over 25 items, not how a codec looks.
         resolution: Some((320, 180)),
         fps: Some(12),
         ..BuildOptions::defaults(&project, &script, "en")
@@ -143,7 +143,7 @@ async fn the_manual_renders() {
         .unwrap_or_else(|e| panic!("the manual must render: {}", build::render_error(&e)));
 
     assert_eq!(report.lines, 21);
-    assert_eq!(report.beats, 25);
+    assert_eq!(report.items, 25);
 
     // `TELEPROMPT_REQUIRE_CAPTURE` is CI saying it has a recorder and
     // expects it to have been used. Nothing read it until now, and the
@@ -154,9 +154,9 @@ async fn the_manual_renders() {
     if std::env::var_os("TELEPROMPT_REQUIRE_CAPTURE").is_some() {
         assert_eq!(
             report.slates, 0,
-            "TELEPROMPT_REQUIRE_CAPTURE is set and {} of {} beat(s) rendered \
+            "TELEPROMPT_REQUIRE_CAPTURE is set and {} of {} item(s) rendered \
              as slates: {:?}",
-            report.slates, report.beats, report.warnings
+            report.slates, report.items, report.warnings
         );
     }
 

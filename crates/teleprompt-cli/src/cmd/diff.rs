@@ -7,7 +7,7 @@ use crate::project::Project;
 
 /// Compiles the script fresh and compares it against the committed
 /// timeline. A missing committed timeline is not an error — it is a first
-/// run, and every beat in the freshly compiled timeline is reported as
+/// run, and every item in the freshly compiled timeline is reported as
 /// `added` so the author sees what they are about to commit. A committed
 /// timeline that exists but fails to parse is a real error.
 pub fn run_diff(

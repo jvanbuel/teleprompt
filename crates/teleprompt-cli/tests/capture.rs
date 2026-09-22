@@ -1,4 +1,4 @@
-//! `build`, with stage 5 in it: a beat shows what its scene did.
+//! `build`, with stage 5 in it: a item shows what its scene did.
 //!
 //! Against the reference scene and the reference capture backend, so the
 //! claim under test is the pipeline's rather than any one terminal's: a
@@ -82,8 +82,8 @@ async fn a_build_records_its_scenes_and_renders_no_slates() {
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
 
-    assert_eq!(report.beats, 2);
-    assert_eq!(report.captured, 2, "both beats were recorded");
+    assert_eq!(report.items, 2);
+    assert_eq!(report.captured, 2, "both items were recorded");
     assert_eq!(
         report.slates, 0,
         "nothing was left to hold its slot with a blank field: {:?}",
@@ -93,7 +93,7 @@ async fn a_build_records_its_scenes_and_renders_no_slates() {
 }
 
 /// And the second build. Capture is the expensive stage — a tape's sleeps
-/// are real seconds and nothing can beat realtime — so a script that has
+/// are real seconds and nothing can item realtime — so a script that has
 /// not changed must not be recorded again.
 #[tokio::test]
 async fn a_second_build_records_nothing_and_still_has_no_slates() {
@@ -116,8 +116,8 @@ async fn a_second_build_records_nothing_and_still_has_no_slates() {
     assert_eq!(warm.slates, 0);
 }
 
-/// Editing a beat re-records it — and, because a scene is a session,
-/// everything after it in that scene. A beat downstream of an edit really
+/// Editing a item re-records it — and, because a scene is a session,
+/// everything after it in that scene. A item downstream of an edit really
 /// does show a different screen.
 #[tokio::test]
 async fn editing_the_first_beat_re_records_the_second() {
@@ -140,7 +140,7 @@ async fn editing_the_first_beat_re_records_the_second() {
 
     assert_eq!(
         after.captured, 2,
-        "the edited beat and the one that opens on the screen it leaves"
+        "the edited item and the one that opens on the screen it leaves"
     );
     assert_eq!(after.slates, 0);
 }

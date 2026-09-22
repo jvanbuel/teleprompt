@@ -16,7 +16,7 @@ use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
 
 use teleprompt_scene::{
-    validate_lines, BlockSource, Cue, LineError, Measured, SceneCompiler, Validated,
+    validate_commands, BlockSource, CommandError, Cue, Measured, SceneCompiler, Validated,
 };
 
 /// The VHS adapter.
@@ -168,7 +168,7 @@ pub enum Command {
 /// Public because it is the lone place: the capture backend that runs a
 /// tape reads the same enum the compiler measures, so a line the two would
 /// disagree about cannot exist.
-pub fn classify(line: &str) -> Result<Command, LineError> {
+pub fn classify(line: &str) -> Result<Command, CommandError> {
     let line = line.trim();
 
     if line == MARK {
@@ -184,7 +184,8 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
     // `Type@100ms "hello"` — VHS hangs the per-command speed off the name.
     let (cmd, at) = match head.split_once('@') {
         Some((cmd, dur)) => {
-            let ms = parse_duration_ms(dur).map_err(|m| LineError::new(m, "e.g. `Type@100ms`"))?;
+            let ms =
+                parse_duration_ms(dur).map_err(|m| CommandError::new(m, "e.g. `Type@100ms`"))?;
             (cmd, Some(ms))
         }
         None => (head, None),
@@ -193,7 +194,7 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
     match cmd {
         "Sleep" => {
             let Some(value) = parts.next() else {
-                return Err(LineError::new(
+                return Err(CommandError::new(
                     "`Sleep` needs a duration",
                     "e.g. `Sleep 2s`",
                 ));
@@ -202,14 +203,14 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
             // reason `MockScene` gives: a line that passes `check` and then
             // contributes nothing is the worst of both outcomes.
             if let Some(extra) = parts.next() {
-                return Err(LineError::new(
+                return Err(CommandError::new(
                     format!("`Sleep` takes one duration, found trailing `{extra}`"),
                     "e.g. `Sleep 2s`",
                 ));
             }
             parse_duration_ms(value)
                 .map(Command::Sleep)
-                .map_err(|m| LineError::new(m, "e.g. `Sleep 2s`"))
+                .map_err(|m| CommandError::new(m, "e.g. `Sleep 2s`"))
         }
 
         "Type" => {
@@ -225,7 +226,7 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
         // teleprompt owns framing and encoding: a tape that writes its own
         // file would produce a second, unscheduled artifact beside the one
         // the timeline expects.
-        "Output" => Err(LineError::new(
+        "Output" => Err(CommandError::new(
             "`Output` is set by teleprompt, not by the tape",
             "remove the line; the compiler routes frames to the timeline",
         )),
@@ -233,7 +234,7 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
         // `Source` splices another tape in at run time, long after `cues`
         // has decided where the beats are — so any mark inside the sourced
         // tape is invisible to the split that was supposed to honour it.
-        "Source" => Err(LineError::new(
+        "Source" => Err(CommandError::new(
             "`Source` runs another tape inline, which hides its marks from the cue split",
             "load the other tape with the fence's `include=` attribute instead",
         )),
@@ -249,7 +250,7 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
             let count = match parts.next() {
                 None => 1,
                 Some(value) => value.parse::<u64>().map_err(|_| {
-                    LineError::new(
+                    CommandError::new(
                         format!("`{key}` takes an optional repeat count, found `{value}`"),
                         "e.g. `Enter 3`",
                     )
@@ -267,13 +268,13 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
 
         "Require" => {
             let Some(program) = parts.next() else {
-                return Err(LineError::new(
+                return Err(CommandError::new(
                     "`Require` needs a program name",
                     "e.g. `Require flowrs`",
                 ));
             };
             if let Some(extra) = parts.next() {
-                return Err(LineError::new(
+                return Err(CommandError::new(
                     format!("`Require` takes one program, found trailing `{extra}`"),
                     "e.g. `Require flowrs`",
                 ));
@@ -293,7 +294,7 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
         // one shell, and that shell's environment is settled before the
         // first of them runs, so a variable set halfway through a
         // walkthrough could not mean what it says.
-        "Env" => Err(LineError::new(
+        "Env" => Err(CommandError::new(
             "`Env` is set by teleprompt, not by the tape",
             "put it under `scene.<name>.env` in the project config",
         )),
@@ -301,14 +302,14 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
         // teleprompt owns what a capture writes, for the reason `Output`
         // gives: a tape that writes its own file produces a second,
         // unscheduled artifact beside the one the timeline expects.
-        "Screenshot" => Err(LineError::new(
+        "Screenshot" => Err(CommandError::new(
             "`Screenshot` is written by teleprompt, not by the tape",
             "remove the line; every beat's last frame is already kept",
         )),
 
         instant if INSTANT.contains(&instant) => Ok(Command::Nothing),
 
-        other => Err(LineError::new(
+        other => Err(CommandError::new(
             format!("unknown VHS command `{other}`"),
             match capitalisation_of(other) {
                 // By far the likeliest mistake, and "unknown VHS command
@@ -328,14 +329,14 @@ pub fn classify(line: &str) -> Result<Command, LineError> {
 /// not care about, and ignoring them keeps the adapter out of the way — but
 /// it cannot tell `Set Padding 20` from `Set TypingSped 10ms`, and the second
 /// is a tape that types at a speed its author did not choose.
-fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, LineError> {
+fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, CommandError> {
     let (Some(name), Some(value)) = (name, value) else {
         return Err(match name {
-            Some(name) => LineError::new(
+            Some(name) => CommandError::new(
                 format!("`Set {name}` needs a value"),
                 "e.g. `Set FontSize 32`",
             ),
-            None => LineError::new("`Set` needs a name and a value", "e.g. `Set FontSize 32`"),
+            None => CommandError::new("`Set` needs a name and a value", "e.g. `Set FontSize 32`"),
         });
     };
 
@@ -343,7 +344,7 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, LineError
         parse_duration_ms(value)
             .map(|v| Command::Setting(ms(v)))
             .map_err(|m| {
-                LineError::new(
+                CommandError::new(
                     format!("`Set {name}`: {m}"),
                     format!("e.g. `Set {name} 40ms`"),
                 )
@@ -356,7 +357,7 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, LineError
 
         // teleprompt executes the tape against its own PTY (§7.5), so a tape
         // that picks its own shell picks one teleprompt is not driving.
-        "Shell" => Err(LineError::new(
+        "Shell" => Err(CommandError::new(
             "`Set Shell` is set by teleprompt, not by the tape",
             "remove the line; configure the shell under `scene.terminal`",
         )),
@@ -364,14 +365,14 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, LineError
         // Re-timing the finished recording would slide the narration out from
         // under the action it was scheduled against — which is the one thing
         // the whole scheduler exists to prevent.
-        "PlaybackSpeed" => Err(LineError::new(
+        "PlaybackSpeed" => Err(CommandError::new(
             "`Set PlaybackSpeed` re-times the recording after the fact, which would slide the \
              narration out from under it",
             "pace the cue against its narration with `policy=stretch-action` on the fence",
         )),
 
         // A GIF-only setting, and a cue inside a video never loops.
-        "LoopOffset" => Err(LineError::new(
+        "LoopOffset" => Err(CommandError::new(
             "`Set LoopOffset` chooses which frame a looping GIF starts on, and a cue inside a \
              video never loops",
             "remove the line",
@@ -379,7 +380,7 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, LineError
 
         n if COSMETIC_SETTINGS.contains(&n) => Ok(Command::Setting(Setting::Cosmetic)),
 
-        other => Err(LineError::new(
+        other => Err(CommandError::new(
             format!("unknown setting `{other}`"),
             format!("teleprompt understands: {}", settings_list().join(", ")),
         )),
@@ -387,10 +388,10 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, LineError
 }
 
 /// `Wait`, `Wait+Screen`, or `Wait+Command`, with an optional `/regex/`.
-fn wait(cmd: &str, at: Option<u64>, rest: &str) -> Result<Command, LineError> {
+fn wait(cmd: &str, at: Option<u64>, rest: &str) -> Result<Command, CommandError> {
     let scope = &cmd["Wait".len()..];
     if !matches!(scope, "" | "+Screen" | "+Command") {
-        return Err(LineError::new(
+        return Err(CommandError::new(
             format!("`{cmd}` is not a scope `Wait` understands"),
             "write `Wait`, `Wait+Screen`, or `Wait+Command`",
         ));
@@ -401,7 +402,7 @@ fn wait(cmd: &str, at: Option<u64>, rest: &str) -> Result<Command, LineError> {
     let pattern_ok =
         rest.is_empty() || (rest.len() >= 2 && rest.starts_with('/') && rest.ends_with('/'));
     if !pattern_ok {
-        return Err(LineError::new(
+        return Err(CommandError::new(
             format!("`{cmd}`'s pattern must be a regular expression between slashes"),
             "e.g. `Wait+Screen /\\$ $/`",
         ));
@@ -455,17 +456,17 @@ fn capitalisation_of(other: &str) -> Option<&'static str> {
 /// closing quote from an escaped one, so `Type "say \"hi\""` measured two
 /// characters too many, and a trailing argument after the string was folded
 /// into it instead of being reported.
-fn quoted<'a>(cmd: &str, rest: &'a str) -> Result<(String, &'a str), LineError> {
+fn quoted<'a>(cmd: &str, rest: &'a str) -> Result<(String, &'a str), CommandError> {
     let help = format!("e.g. `{cmd} \"npm install\"`");
     let mut chars = rest.char_indices();
     let Some((_, open)) = chars.next() else {
-        return Err(LineError::new(
+        return Err(CommandError::new(
             format!("`{cmd}` needs a quoted string"),
             help,
         ));
     };
     if !matches!(open, '"' | '\'' | '`') {
-        return Err(LineError::new(
+        return Err(CommandError::new(
             format!("`{cmd}`'s argument must be quoted, found `{rest}`"),
             help,
         ));
@@ -497,17 +498,17 @@ fn quoted<'a>(cmd: &str, rest: &'a str) -> Result<(String, &'a str), LineError> 
         }
     }
 
-    Err(LineError::new(
+    Err(CommandError::new(
         format!("`{cmd}`'s string is never closed"),
         help,
     ))
 }
 
-fn reject_trailing(cmd: &str, tail: &str) -> Result<(), LineError> {
+fn reject_trailing(cmd: &str, tail: &str) -> Result<(), CommandError> {
     if tail.trim().is_empty() {
         return Ok(());
     }
-    Err(LineError::new(
+    Err(CommandError::new(
         format!("`{cmd}` has trailing `{}`", tail.trim()),
         "one command per line",
     ))
@@ -532,7 +533,7 @@ impl SceneCompiler for VhsScene {
     }
 
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
-        validate_lines(src, classify)
+        validate_commands(src, classify)
     }
 
     fn cues(&self, v: &Validated, block_id: &str) -> Result<Vec<Cue>, Vec<Diagnostic>> {

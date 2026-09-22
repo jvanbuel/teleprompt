@@ -137,8 +137,8 @@ fn secs(ms: u64) -> String {
 /// landed somewhere else because an earlier line's length changed
 /// upstream of it. `teleprompt-schedule/src/diff.rs:288-291` makes the same
 /// call for the timeline's own narration diff, deliberately excluding a
-/// beat's absolute `start_ms` from what triggers a report there, for the
-/// same reason: flagging every downstream beat would bury the one the
+/// item's absolute `start_ms` from what triggers a report there, for the
+/// same reason: flagging every downstream item would bury the one the
 /// author actually edited. The manifest must not contradict its sibling.
 fn reason_for(before: &LineEntry, after: &LineEntry) -> Option<String> {
     if before.source_hash != after.source_hash {

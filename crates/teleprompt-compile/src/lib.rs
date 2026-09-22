@@ -2,8 +2,8 @@
 //! [`Timeline`]: asks the scene registry to validate and split action
 //! blocks, takes each narration's duration from the synthesis cache when
 //! the line is already rendered and from a [`DurationEstimator`] when it
-//! is not, pairs narration with the action cue that follows it into beats,
-//! and hands the beats to the scheduler.
+//! is not, pairs narration with the action cue that follows it into items,
+//! and hands the items to the scheduler.
 //!
 //! It never asks a voice backend for anything. It cannot: [`VoiceContext`]
 //! offers no way to reach one, which is what keeps `check`, `plan`, and
@@ -18,12 +18,12 @@ use std::path::{Component, Path};
 
 use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::{default_adapter, Config, OutputConfig, SceneConfig};
-use teleprompt_core::program::{ChapterInfo, Item, Program};
+use teleprompt_core::program::{ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
 use teleprompt_scene::{BlockSource, BodyOrigin, Cue, Measured, SceneRegistry};
 use teleprompt_schedule::{
-    schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, Timeline,
+    schedule, ActionInput, DurationSource, Item, NarrationInput, Policy, Timeline,
 };
 use teleprompt_voice::{resolve_source, DurationEstimator, SynthRequest, VoiceSource, WordTiming};
 
@@ -233,7 +233,7 @@ const PAUSE_SCENE: &str = "pause";
 
 /// The capture recipe version: bumped when the picture a backend draws
 /// changes, so clips recorded by an older teleprompt are not served for
-/// beats a newer one would record differently.
+/// items a newer one would record differently.
 ///
 /// The adapter name cannot do this job. It names the scene *language* —
 /// `vhs` is the tape dialect, not the program that rasterises it — so two
@@ -243,12 +243,12 @@ const PAUSE_SCENE: &str = "pause";
 /// chrome.
 pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
 
-/// Names each beat's picture, which is not the same thing as naming its
+/// Names each item's picture, which is not the same thing as naming its
 /// tape.
 ///
-/// A scene is a session. The beats of a walkthrough continue one another —
-/// a running program, a selected row, an open log — so the screen at beat
-/// *N* is the accumulation of beats 1..*N* in that session, and a clip is
+/// A scene is a session. The items of a walkthrough continue one another —
+/// a running program, a selected row, an open log — so the screen at item
+/// *N* is the accumulation of items 1..*N* in that session, and a clip is
 /// identified by its own tape *and every tape before it*. Two blocks with
 /// the same steps are the commonest thing in a walkthrough (`Type "j"`
 /// twice), and naming them both by their tape would show one's picture for
@@ -262,11 +262,11 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
 /// ```
 ///
 /// Invalidation falls out of it rather than being a rule on top: editing a
-/// beat changes that beat's key and every key after it *in its session*,
+/// item changes that item's key and every key after it *in its session*,
 /// and nothing before it, and nothing in another scene. Where the analogy
 /// stops is position — a container rebuilds everything below a changed
-/// line, and this does not care where in the document a beat sits. Moving
-/// a paragraph changes every later beat's `start_ms` and no beat's key,
+/// line, and this does not care where in the document a item sits. Moving
+/// a paragraph changes every later item's `start_ms` and no item's key,
 /// because start time is not in one.
 ///
 /// Runs after [`retime_stretched_spans`], deliberately: a cue re-written
@@ -281,7 +281,7 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
             continue;
         };
         // A pause has no picture — it holds whatever is on screen — so it
-        // is in no chain. Putting it in one would make every beat after a
+        // is in no chain. Putting it in one would make every item after a
         // pause depend on how long the pause was.
         if action.scene == PAUSE_SCENE {
             action.capture_key = action.cue_hash;
@@ -336,14 +336,14 @@ pub fn compile(
     version: &str,
 ) -> Result<CompileOutput, Diagnostics> {
     let mut diags = Vec::new();
-    let mut beats: Vec<Beat> = Vec::new();
+    let mut items: Vec<Item> = Vec::new();
     let mut narration_details: Vec<NarrationDetail> = Vec::new();
     let mut span_sources: Vec<CueSource> = Vec::new();
     let mut cache_warnings: Vec<String> = Vec::new();
 
     // The narration waiting to be joined with the first cue of the next
     // action block. `id` and `config` travel alongside it because they
-    // belong to the beat, not to the `NarrationInput` payload itself.
+    // belong to the item, not to the `NarrationInput` payload itself.
     let mut pending: Option<NarrationInput> = None;
     let mut pending_id = String::new();
     // The words of the narration waiting for an action block, kept so an
@@ -351,12 +351,12 @@ pub fn compile(
     let mut pending_text = String::new();
     let mut pending_config = program.config.clone();
 
-    let flush = |beats: &mut Vec<Beat>,
+    let flush = |items: &mut Vec<Item>,
                  pending: &mut Option<NarrationInput>,
                  id: &mut String,
                  cfg: &teleprompt_core::config::Config| {
         if let Some(n) = pending.take() {
-            beats.push(Beat {
+            items.push(Item {
                 id: std::mem::take(id),
                 narration: Some(n),
                 action: None,
@@ -366,9 +366,9 @@ pub fn compile(
         }
     };
 
-    for item in &program.items {
+    for item in &program.elements {
         match item {
-            Item::Narration {
+            Element::Narration {
                 id,
                 text,
                 source_hash,
@@ -379,8 +379,8 @@ pub fn compile(
             } => {
                 // An action-less narration (no action block follows before
                 // the next narration, pause, or end of program) becomes its
-                // own beat; flush whatever was pending first.
-                flush(&mut beats, &mut pending, &mut pending_id, &pending_config);
+                // own item; flush whatever was pending first.
+                flush(&mut items, &mut pending, &mut pending_id, &pending_config);
 
                 let Some(requested) = VoiceSource::parse(&config.voice.source) else {
                     diags.push(
@@ -467,7 +467,7 @@ pub fn compile(
                     duration_source,
                     // Read off the *narration item's* own resolved config,
                     // which is the only place a line-level `lead_in=` /
-                    // `tail=` survives. The beat this narration ends up in
+                    // `tail=` survives. The item this narration ends up in
                     // may carry the following action block's config instead.
                     lead_in_ms: config.timing.lead_in_ms,
                     tail_ms: config.timing.tail_ms,
@@ -480,7 +480,7 @@ pub fn compile(
                 pending_config = config.clone();
             }
 
-            Item::Action {
+            Element::Action {
                 block_id,
                 scene,
                 body,
@@ -645,9 +645,9 @@ Read it, then remove the attribute."
                     // Task 6's F13 filter can reduce an all-`mark` block to
                     // zero surviving cues. Pairing stays scoped to the
                     // *immediately* following action item, so a pending
-                    // narration must be flushed as its own beat here rather
+                    // narration must be flushed as its own item here rather
                     // than left to be picked up by a later action block.
-                    flush(&mut beats, &mut pending, &mut pending_id, &pending_config);
+                    flush(&mut items, &mut pending, &mut pending_id, &pending_config);
                     continue;
                 }
 
@@ -677,7 +677,7 @@ Read it, then remove the attribute."
                     };
 
                     if i == 0 && pending.is_some() {
-                        beats.push(Beat {
+                        items.push(Item {
                             id: std::mem::take(&mut pending_id),
                             narration: pending.take(),
                             action: Some(action),
@@ -685,7 +685,7 @@ Read it, then remove the attribute."
                             config: config.clone(),
                         });
                     } else {
-                        beats.push(Beat {
+                        items.push(Item {
                             id: cue.id.clone(),
                             narration: None,
                             action: Some(action),
@@ -696,10 +696,10 @@ Read it, then remove the attribute."
                 }
             }
 
-            Item::Pause { ms } => {
-                flush(&mut beats, &mut pending, &mut pending_id, &pending_config);
-                let id = format!("pause-{}", beats.len());
-                beats.push(Beat {
+            Element::Pause { ms } => {
+                flush(&mut items, &mut pending, &mut pending_id, &pending_config);
+                let id = format!("pause-{}", items.len());
+                items.push(Item {
                     id: id.clone(),
                     narration: None,
                     // A pause carries its duration in the action slot, tagged
@@ -722,7 +722,7 @@ Read it, then remove the attribute."
         }
     }
 
-    flush(&mut beats, &mut pending, &mut pending_id, &pending_config);
+    flush(&mut items, &mut pending, &mut pending_id, &pending_config);
 
     let d = Diagnostics(diags);
     if d.has_errors() {
@@ -730,7 +730,7 @@ Read it, then remove the attribute."
     }
 
     let (mut timeline, scheduling_warnings) =
-        schedule(&beats, &program.script_name, &program.locale, version);
+        schedule(&items, &program.script_name, &program.locale, version);
     retime_stretched_spans(&mut timeline, &mut span_sources, registry);
     chain_capture_keys(&mut timeline, &program.config);
     // Cache warnings first: they explain why the numbers the scheduler then

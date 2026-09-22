@@ -1,7 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
 use teleprompt_core::VoiceSource;
-use teleprompt_schedule::{schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy};
+use teleprompt_schedule::{schedule, ActionInput, DurationSource, Item, NarrationInput, Policy};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
     let defaults = Config::default().timing;
@@ -32,8 +32,8 @@ fn action(id: &str, ms: u64) -> ActionInput {
     }
 }
 
-fn beat(id: &str, n: Option<u64>, a: Option<u64>, policy: Policy, cfg: Config) -> Beat {
-    Beat {
+fn item(id: &str, n: Option<u64>, a: Option<u64>, policy: Policy, cfg: Config) -> Item {
+    Item {
         id: id.into(),
         narration: n.map(|ms| narration(id, ms)),
         action: a.map(|ms| action(id, ms)),
@@ -42,10 +42,10 @@ fn beat(id: &str, n: Option<u64>, a: Option<u64>, policy: Policy, cfg: Config) -
     }
 }
 
-/// A hold beat carrying only narration, with the default transition config —
+/// A hold item carrying only narration, with the default transition config —
 /// the shape a script of plain paragraphs produces.
-fn narration_beat(id: &str, ms: u64) -> Beat {
-    beat(id, Some(ms), None, Policy::Hold, Config::default())
+fn narration_beat(id: &str, ms: u64) -> Item {
+    item(id, Some(ms), None, Policy::Hold, Config::default())
 }
 
 fn no_transition() -> Config {
@@ -57,7 +57,7 @@ fn no_transition() -> Config {
 #[test]
 fn narration_is_padded_with_lead_in_and_tail() {
     let t = schedule(
-        &[beat("b1", Some(1000), None, Policy::Hold, no_transition())],
+        &[item("b1", Some(1000), None, Policy::Hold, no_transition())],
         "s.md",
         "en",
         "0.1.0",
@@ -71,11 +71,11 @@ fn narration_is_padded_with_lead_in_and_tail() {
 #[test]
 fn beats_lay_out_sequentially_when_transitions_are_zero() {
     let cfg = no_transition();
-    let beats = vec![
-        beat("b1", Some(1000), None, Policy::Hold, cfg.clone()),
-        beat("b2", Some(2000), None, Policy::Hold, cfg),
+    let items = vec![
+        item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
+        item("b2", Some(2000), None, Policy::Hold, cfg),
     ];
-    let t = schedule(&beats, "s.md", "en", "0.1.0").0;
+    let t = schedule(&items, "s.md", "en", "0.1.0").0;
     assert_eq!(t.entries[0].start_ms, 0);
     assert_eq!(t.entries[1].start_ms, 1300);
     assert_eq!(t.duration_ms, 1300 + 2300);
@@ -85,11 +85,11 @@ fn beats_lay_out_sequentially_when_transitions_are_zero() {
 fn transitions_overlap_adjacent_beats() {
     let mut cfg = Config::default();
     cfg.transition.duration = TransitionDuration::Fixed(300);
-    let beats = vec![
-        beat("b1", Some(1000), None, Policy::Hold, cfg.clone()),
-        beat("b2", Some(1000), None, Policy::Hold, cfg),
+    let items = vec![
+        item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
+        item("b2", Some(1000), None, Policy::Hold, cfg),
     ];
-    let t = schedule(&beats, "s.md", "en", "0.1.0").0;
+    let t = schedule(&items, "s.md", "en", "0.1.0").0;
     assert_eq!(t.entries[0].duration_ms, 1300);
     assert_eq!(t.entries[1].start_ms, 1000, "1300 - 300 overlap");
     assert_eq!(t.duration_ms, 2300, "1300 + 1300 - 300");
@@ -100,7 +100,7 @@ fn the_last_beat_has_no_outgoing_transition() {
     let mut cfg = Config::default();
     cfg.transition.duration = TransitionDuration::Fixed(300);
     let t = schedule(
-        &[beat("b1", Some(1000), None, Policy::Hold, cfg)],
+        &[item("b1", Some(1000), None, Policy::Hold, cfg)],
         "s.md",
         "en",
         "0.1.0",
@@ -112,24 +112,24 @@ fn the_last_beat_has_no_outgoing_transition() {
 #[test]
 fn auto_transition_is_half_the_slack_clamped_to_the_maximum() {
     let cfg = Config::default(); // auto, min 0, max 600
-    let beats = vec![
-        beat(
+    let items = vec![
+        item(
             "b1",
             Some(5000),
             Some(200),
             Policy::Concurrent(teleprompt_schedule::Align::Start),
             cfg.clone(),
         ),
-        beat("b2", Some(1000), None, Policy::Hold, cfg),
+        item("b2", Some(1000), None, Policy::Hold, cfg),
     ];
-    let mut beats = beats;
+    let mut items = items;
     // A generous tail so the quiet window (§6.3) is wider than `max_ms` and
     // the maximum is genuinely what binds. With the default 150ms tail the
     // window is 300ms and the cap would bind instead — which is the subject
     // of `the_auto_transition_fills_the_quiet_window_exactly`, not this test.
-    beats[0].narration.as_mut().unwrap().tail_ms = 1000;
+    items[0].narration.as_mut().unwrap().tail_ms = 1000;
 
-    let t = schedule(&beats, "s.md", "en", "0.1.0").0;
+    let t = schedule(&items, "s.md", "en", "0.1.0").0;
     // slack = 6150 padded narration - 200 action = 5950; half is 2975,
     // clamped to max_ms 600. Quiet window is 1000 tail + 150 next lead_in,
     // so the cap does not bind.
@@ -139,17 +139,17 @@ fn auto_transition_is_half_the_slack_clamped_to_the_maximum() {
 #[test]
 fn auto_transition_is_zero_when_there_is_no_slack() {
     let cfg = Config::default();
-    let beats = vec![
-        beat(
+    let items = vec![
+        item(
             "b1",
             Some(1000),
             Some(5000),
             Policy::Concurrent(teleprompt_schedule::Align::Start),
             cfg.clone(),
         ),
-        beat("b2", Some(1000), None, Policy::Hold, cfg),
+        item("b2", Some(1000), None, Policy::Hold, cfg),
     ];
-    let t = schedule(&beats, "s.md", "en", "0.1.0").0;
+    let t = schedule(&items, "s.md", "en", "0.1.0").0;
     assert_eq!(
         t.entries[0].transition.duration_ms, 0,
         "action outlasts narration"
@@ -159,13 +159,13 @@ fn auto_transition_is_zero_when_there_is_no_slack() {
 #[test]
 fn action_offsets_are_absolute_not_beat_relative() {
     let cfg = no_transition();
-    let beats = vec![
-        beat("b1", Some(1000), None, Policy::Hold, cfg.clone()),
-        beat("b2", Some(1000), Some(500), Policy::Hold, cfg),
+    let items = vec![
+        item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
+        item("b2", Some(1000), Some(500), Policy::Hold, cfg),
     ];
-    let t = schedule(&beats, "s.md", "en", "0.1.0").0;
+    let t = schedule(&items, "s.md", "en", "0.1.0").0;
     let a = t.entries[1].action.as_ref().unwrap();
-    assert_eq!(a.start_ms, 1300 + 1300, "beat 2 start + narration");
+    assert_eq!(a.start_ms, 1300 + 1300, "item 2 start + narration");
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn policy_warnings_are_collected_with_the_beat_id() {
     let mut cfg = no_transition();
     cfg.timing.max_stretch = 2.0;
     let t = schedule(
-        &[beat("b1", Some(10_000), Some(500), Policy::Stretch, cfg)],
+        &[item("b1", Some(10_000), Some(500), Policy::Stretch, cfg)],
         "s.md",
         "en",
         "0.1.0",
@@ -185,7 +185,7 @@ fn policy_warnings_are_collected_with_the_beat_id() {
 #[test]
 fn an_action_only_beat_schedules_with_no_narration() {
     let t = schedule(
-        &[beat("b1", None, Some(800), Policy::Hold, no_transition())],
+        &[item("b1", None, Some(800), Policy::Hold, no_transition())],
         "s.md",
         "en",
         "0.1.0",
@@ -205,8 +205,8 @@ fn an_empty_program_produces_an_empty_timeline() {
 #[test]
 fn the_timeline_json_shape_is_stable() {
     let cfg = no_transition();
-    let beats = vec![beat("welcome", Some(1000), Some(500), Policy::Hold, cfg)];
-    let t = schedule(&beats, "script.md", "nl", "0.1.0").0;
+    let items = vec![item("welcome", Some(1000), Some(500), Policy::Hold, cfg)];
+    let t = schedule(&items, "script.md", "nl", "0.1.0").0;
     insta::assert_json_snapshot!(t);
 }
 
@@ -220,12 +220,12 @@ fn the_timeline_json_shape_is_stable() {
 /// is what both the manifest and the renderer read.
 #[test]
 fn narration_only_beats_never_talk_over_each_other() {
-    let beats = vec![
+    let items = vec![
         narration_beat("one", 6900),
         narration_beat("two", 5300),
         narration_beat("three", 4900),
     ];
-    let (timeline, _) = schedule(&beats, "tour.md", "en", "0.1.0");
+    let (timeline, _) = schedule(&items, "tour.md", "en", "0.1.0");
 
     let speech: Vec<(u64, u64)> = timeline
         .entries
@@ -251,10 +251,10 @@ fn narration_only_beats_never_talk_over_each_other() {
 /// as the silence allows, so a cap does not become "always cut".
 #[test]
 fn the_auto_transition_fills_the_quiet_window_exactly() {
-    let beats = vec![narration_beat("one", 6900), narration_beat("two", 5300)];
-    let (timeline, _) = schedule(&beats, "tour.md", "en", "0.1.0");
+    let items = vec![narration_beat("one", 6900), narration_beat("two", 5300)];
+    let (timeline, _) = schedule(&items, "tour.md", "en", "0.1.0");
 
-    // tail 150 leaving the first beat + lead_in 150 entering the second.
+    // tail 150 leaving the first item + lead_in 150 entering the second.
     assert_eq!(timeline.entries[0].transition.duration_ms, 300);
 }
 
@@ -263,11 +263,11 @@ fn the_auto_transition_fills_the_quiet_window_exactly() {
 /// which they should hear about.
 #[test]
 fn a_fixed_transition_wider_than_the_quiet_window_warns() {
-    let mut beats = vec![narration_beat("one", 6900), narration_beat("two", 5300)];
-    for b in &mut beats {
+    let mut items = vec![narration_beat("one", 6900), narration_beat("two", 5300)];
+    for b in &mut items {
         b.config.transition.duration = TransitionDuration::Fixed(2000);
     }
-    let (timeline, warnings) = schedule(&beats, "tour.md", "en", "0.1.0");
+    let (timeline, warnings) = schedule(&items, "tour.md", "en", "0.1.0");
 
     assert_eq!(
         timeline.entries[0].transition.duration_ms, 2000,
@@ -283,11 +283,11 @@ fn a_fixed_transition_wider_than_the_quiet_window_warns() {
 
 #[test]
 fn narration_entries_report_where_their_duration_came_from() {
-    let mut beats = vec![narration_beat("one", 5000), narration_beat("two", 3000)];
-    beats[0].narration.as_mut().unwrap().duration_source = DurationSource::Measured;
-    beats[1].narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
+    let mut items = vec![narration_beat("one", 5000), narration_beat("two", 3000)];
+    items[0].narration.as_mut().unwrap().duration_source = DurationSource::Measured;
+    items[1].narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
 
-    let (t, _) = schedule(&beats, "s.md", "en", "0.1.0");
+    let (t, _) = schedule(&items, "s.md", "en", "0.1.0");
     let sources: Vec<&str> = t
         .entries
         .iter()

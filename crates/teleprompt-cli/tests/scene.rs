@@ -66,7 +66,7 @@ async fn a_stretched_span_is_published_re_timed_to_its_scheduled_length() {
         .entries
         .iter()
         .find_map(|e| e.action.as_ref())
-        .expect("the beat has an action");
+        .expect("the item has an action");
     let published = compiled
         .cues
         .iter()

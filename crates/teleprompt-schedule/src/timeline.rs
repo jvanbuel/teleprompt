@@ -13,7 +13,7 @@ pub struct Timeline {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
-    pub beat: String,
+    pub item: String,
     pub start_ms: u64,
     pub duration_ms: u64,
     pub policy: String,
@@ -49,15 +49,15 @@ pub struct ActionEntry {
     /// Identity of the picture: this cue's source and every cue before
     /// it in the same session.
     ///
-    /// A scene is a session — the beats of a walkthrough continue one
-    /// another, and the screen at beat N is the accumulation of beats
+    /// A scene is a session — the items of a walkthrough continue one
+    /// another, and the screen at item N is the accumulation of items
     /// 1..N — so a clip is not named by its own tape. Two blocks with the
     /// same steps in the same session show different screens, and naming
     /// them both by `cue_hash` would serve one's picture for the other.
     ///
     /// The arithmetic is OCI's chain ID, for the same reason OCI has one:
     /// `chain(0) = H(name(0))`, `chain(n) = H(chain(n-1) ‖ name(n))`.
-    /// Invalidation falls out of it — editing a beat invalidates that beat
+    /// Invalidation falls out of it — editing a item invalidates that item
     /// and everything after it in its session, and nothing before it, and
     /// nothing in any other scene.
     pub capture_key: Hash,
@@ -77,7 +77,7 @@ pub struct TransitionEntry {
 }
 
 impl Timeline {
-    pub fn entry(&self, beat: &str) -> Option<&Entry> {
-        self.entries.iter().find(|e| e.beat == beat)
+    pub fn entry(&self, item: &str) -> Option<&Entry> {
+        self.entries.iter().find(|e| e.item == item)
     }
 }

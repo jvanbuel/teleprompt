@@ -133,21 +133,21 @@ fn the_preview_is_served_a_manifest_with_beats_in_it() {
 
     assert_eq!(
         m["manifest_version"], 2,
-        "the preview places the picture from `beats`, which is v2"
+        "the preview places the picture from `items`, which is v2"
     );
     assert_eq!(m["lines"].as_array().unwrap().len(), 2);
-    let beats = m["beats"].as_array().unwrap();
-    assert_eq!(beats.len(), 2, "one cue per action block");
-    assert_eq!(beats[0]["scene"], "terminal");
-    assert_eq!(beats[0]["policy"], "hold");
-    assert_eq!(beats[1]["policy"], "concurrent");
+    let items = m["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2, "one cue per action block");
+    assert_eq!(items[0]["scene"], "terminal");
+    assert_eq!(items[0]["policy"], "hold");
+    assert_eq!(items[1]["policy"], "concurrent");
 }
 
 #[test]
 fn a_span_source_is_served_so_the_scene_can_be_drawn() {
     let (_script, addr) = serving();
     let m = json(addr, "/manifest.json");
-    let cue = m["beats"][0]["cue"].as_str().unwrap().to_string();
+    let cue = m["items"][0]["cue"].as_str().unwrap().to_string();
 
     // A cue id carries a `#`, which a client must percent-encode or the
     // fragment split eats the rest of the path.
@@ -189,7 +189,7 @@ fn editing_a_paragraph_republishes_and_names_what_moved() {
     assert!(before["changed"].as_array().unwrap().is_empty());
     let was = before["duration_ms"].as_u64().unwrap();
 
-    // The second paragraph gets longer, which moves its own beat and
+    // The second paragraph gets longer, which moves its own item and
     // everything scheduled after it.
     let src = std::fs::read_to_string(&script).unwrap();
     std::fs::write(

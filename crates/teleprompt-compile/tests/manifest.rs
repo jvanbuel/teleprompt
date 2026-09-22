@@ -249,14 +249,14 @@ fn every_segment_names_the_chapter_it_was_spoken_in() {
     );
 }
 
-/// Pins current behaviour, deliberately. The scheduler subtracts a beat's
-/// transition window from that beat before advancing its cursor, and for a
-/// narration-only beat there is no action cue to absorb it, so the window
+/// Pins current behaviour, deliberately. The scheduler subtracts a item's
+/// transition window from that item before advancing its cursor, and for a
+/// narration-only item there is no action cue to absorb it, so the window
 /// eats into speech and consecutive lines overlap. See spec §5.2, which
 /// tells consumers to treat each line's own `duration_ms` as
 /// authoritative for exactly this reason.
 ///
-/// If the scheduler is ever changed so narration-only beats no longer
+/// If the scheduler is ever changed so narration-only items no longer
 /// overlap, this test must fail loudly rather than the overlap silently
 /// vanishing while §5.2 and the §7 consumer example still describe it.
 #[test]
@@ -415,8 +415,8 @@ fn the_manifest_json_shape_is_stable() {
 }
 
 /// The same contract with a scene in it. `TWO_CHAPTERS` is narration-only —
-/// it exists to pin the chapter join — so on its own it would pin `beats` as
-/// an empty array and let the published shape of a beat change unnoticed.
+/// it exists to pin the chapter join — so on its own it would pin `items` as
+/// an empty array and let the published shape of a item change unnoticed.
 #[test]
 fn the_manifest_json_shape_with_beats_is_stable() {
     insta::assert_json_snapshot!(manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK));
@@ -431,10 +431,10 @@ fn serialization_is_byte_stable() {
 
 /// The half of the manifest that lets a consumer place the *picture*.
 ///
-/// Before `beats`, a consumer could place speech and nothing else, so
+/// Before `items`, a consumer could place speech and nothing else, so
 /// anything drawing a scene had to read the timeline — an explicitly
 /// internal artifact — and join it to the manifest by document order.
-mod beats {
+mod items {
     use super::*;
 
     const TWO_BEATS: &str = "# Chapter\n\n\
@@ -446,7 +446,7 @@ mod beats {
     #[test]
     fn every_scheduled_span_is_published() {
         let m = manifest_for(TWO_BEATS);
-        let cues: Vec<&str> = m.beats.iter().map(|b| b.cue.as_str()).collect();
+        let cues: Vec<&str> = m.items.iter().map(|b| b.cue.as_str()).collect();
         assert_eq!(cues.len(), 3, "two blocks, one of them split by a mark");
         assert!(cues.iter().all(|s| s.contains('#')), "{cues:?}");
     }
@@ -457,28 +457,28 @@ mod beats {
         // the two agree here — the point is that the published number comes
         // from the timeline, which is what `fit-action` would move.
         let (out, m) = compiled_and_manifest(TWO_BEATS);
-        for beat in &m.beats {
+        for item in &m.items {
             let entry = out
                 .timeline
                 .entries
                 .iter()
-                .find(|e| e.action.as_ref().is_some_and(|a| a.cue == beat.cue))
-                .expect("every beat comes from a timeline entry");
+                .find(|e| e.action.as_ref().is_some_and(|a| a.cue == item.cue))
+                .expect("every item comes from a timeline entry");
             let action = entry.action.as_ref().unwrap();
-            assert_eq!(beat.start_ms, action.start_ms);
-            assert_eq!(beat.duration_ms, action.duration_ms);
-            assert_eq!(beat.policy, entry.policy);
-            assert_eq!(beat.cue_hash, action.cue_hash);
+            assert_eq!(item.start_ms, action.start_ms);
+            assert_eq!(item.duration_ms, action.duration_ms);
+            assert_eq!(item.policy, entry.policy);
+            assert_eq!(item.cue_hash, action.cue_hash);
         }
     }
 
     #[test]
     fn the_segment_spoken_over_a_span_is_named_and_unpaired_spans_say_null() {
         let m = manifest_for(TWO_BEATS);
-        assert_eq!(m.beats[0].line.as_deref(), Some("one"));
-        assert_eq!(m.beats[1].line.as_deref(), Some("two"));
+        assert_eq!(m.items[0].line.as_deref(), Some("one"));
+        assert_eq!(m.items[1].line.as_deref(), Some("two"));
         assert_eq!(
-            m.beats[2].line, None,
+            m.items[2].line, None,
             "a cue after a mark runs under what the policy left of the paragraph"
         );
     }
@@ -491,10 +491,10 @@ mod beats {
              ```teleprompt scene=mock\nwait 200ms\n```\n",
         );
         let pause = m
-            .beats
+            .items
             .iter()
             .find(|b| b.scene == "pause")
-            .expect("a pause directive is published as a beat");
+            .expect("a pause directive is published as a item");
         assert_eq!(pause.duration_ms, 600);
         assert_eq!(pause.line, None);
     }
@@ -502,11 +502,11 @@ mod beats {
     #[test]
     fn beats_and_segments_agree_about_the_scene_and_adapter() {
         let m = manifest_for(TWO_BEATS);
-        for beat in m.beats.iter().filter(|b| b.scene != "pause") {
-            assert_eq!(beat.scene, "mock");
-            assert_eq!(beat.adapter, "mock");
+        for item in m.items.iter().filter(|b| b.scene != "pause") {
+            assert_eq!(item.scene, "mock");
+            assert_eq!(item.adapter, "mock");
             assert_eq!(
-                beat.duration_source, "exact",
+                item.duration_source, "exact",
                 "the mock states its own timing"
             );
         }
@@ -516,7 +516,7 @@ mod beats {
     fn the_version_says_beats_are_there() {
         // A v1 consumer that checks the version stops rather than silently
         // rendering speech over a blank screen.
-        const _: () = assert!(MANIFEST_VERSION >= 2, "beats landed in v2");
+        const _: () = assert!(MANIFEST_VERSION >= 2, "items landed in v2");
         assert_eq!(manifest_for(TWO_BEATS).manifest_version, MANIFEST_VERSION);
     }
 }

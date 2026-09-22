@@ -2,7 +2,7 @@
 //!
 //! `diff` is a pure function: no I/O, no clock, no randomness. Given the
 //! same two `Timeline`s it always returns the same `TimelineDiff`, and
-//! iteration is always over `BTreeMap`s keyed by beat id so both the
+//! iteration is always over `BTreeMap`s keyed by item id so both the
 //! returned data and its rendered/JSON forms are byte-identical across
 //! runs.
 
@@ -12,7 +12,7 @@ use crate::timeline::{Entry, Timeline};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ChangedBeat {
-    pub beat: String,
+    pub item: String,
     pub before_ms: u64,
     pub after_ms: u64,
     pub reason: String,
@@ -24,22 +24,22 @@ pub struct StaleTake {
     pub falls_back_to: String,
 }
 
-/// A beat that exists on both sides but has moved in the entry sequence.
+/// A item that exists on both sides but has moved in the entry sequence.
 /// Reordering is reported apart from `added`/`removed` because a reordered
-/// beat is neither: nothing was written or deleted, the video just plays its
+/// item is neither: nothing was written or deleted, the video just plays its
 /// parts in a different order. Indices are 0-based positions in the full
 /// entry list; `render` prints them 1-based.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ReorderedBeat {
-    pub beat: String,
+    pub item: String,
     pub before_index: usize,
     pub after_index: usize,
 }
 
-/// A beat whose outgoing transition changed kind, length, or both.
+/// A item whose outgoing transition changed kind, length, or both.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ChangedTransition {
-    pub beat: String,
+    pub item: String,
     pub before_kind: String,
     pub after_kind: String,
     pub before_ms: u64,
@@ -67,9 +67,9 @@ impl TimelineDiff {
     /// this method skipped the three duration fields on the grounds that they
     /// were "derived summaries of `changed`, not independent facts". They are
     /// not: the total is `last.start_ms + last.duration_ms`, and plenty of
-    /// edits move it without touching any per-beat fact this diff inspects —
+    /// edits move it without touching any per-item fact this diff inspects —
     /// retuning `output.transition.max_ms`, for one, changes every gap
-    /// between beats while leaving each beat's own hashes and durations
+    /// between items while leaving each item's own hashes and durations
     /// alone. Treating the total as derived is exactly what let
     /// `diff --exit-code` report clean over a genuinely stale committed
     /// timeline, which is the one thing spec §13 asks it to catch.
@@ -124,18 +124,18 @@ impl TimelineDiff {
                 // can land on the same spoken duration. Writing
                 // "4.2s → 4.2s" there reads like a rendering bug, so an
                 // unchanged duration gets its own phrasing that still says
-                // plainly that this beat changed.
+                // plainly that this item changed.
                 if c.before_ms == c.after_ms {
                     out.push_str(&format!(
                         "\n  {:<16} {} (timing unchanged)  ({})",
-                        c.beat,
+                        c.item,
                         secs(c.before_ms),
                         c.reason
                     ));
                 } else {
                     out.push_str(&format!(
                         "\n  {:<16} {} \u{2192} {}  ({})",
-                        c.beat,
+                        c.item,
                         secs(c.before_ms),
                         secs(c.after_ms),
                         c.reason
@@ -146,15 +146,15 @@ impl TimelineDiff {
 
         if !self.added.is_empty() {
             out.push_str("\n\nadded:");
-            for beat in &self.added {
-                out.push_str(&format!("\n  {beat}"));
+            for item in &self.added {
+                out.push_str(&format!("\n  {item}"));
             }
         }
 
         if !self.removed.is_empty() {
             out.push_str("\n\nremoved:");
-            for beat in &self.removed {
-                out.push_str(&format!("\n  {beat}"));
+            for item in &self.removed {
+                out.push_str(&format!("\n  {item}"));
             }
         }
 
@@ -163,7 +163,7 @@ impl TimelineDiff {
             for r in &self.reordered {
                 out.push_str(&format!(
                     "\n  {:<16} position {} \u{2192} {}",
-                    r.beat,
+                    r.item,
                     r.before_index + 1,
                     r.after_index + 1
                 ));
@@ -174,12 +174,12 @@ impl TimelineDiff {
             out.push_str("\n\ntransitions:");
             for t in &self.transitions {
                 // Only name the kind twice when it actually changed; a
-                // max_ms retune touches every beat's transition, and
+                // max_ms retune touches every item's transition, and
                 // repeating "crossfade → crossfade" on each line is noise.
                 if t.before_kind == t.after_kind {
                     out.push_str(&format!(
                         "\n  {:<16} {} {} \u{2192} {}",
-                        t.beat,
+                        t.item,
                         t.before_kind,
                         secs(t.before_ms),
                         secs(t.after_ms)
@@ -187,7 +187,7 @@ impl TimelineDiff {
                 } else {
                     out.push_str(&format!(
                         "\n  {:<16} {} {} \u{2192} {} {}",
-                        t.beat,
+                        t.item,
                         t.before_kind,
                         secs(t.before_ms),
                         t.after_kind,
@@ -209,8 +209,8 @@ impl TimelineDiff {
 
         if !self.recapture.is_empty() {
             out.push_str("\n\nneeds recapture:");
-            for beat in &self.recapture {
-                out.push_str(&format!("\n  {beat}"));
+            for item in &self.recapture {
+                out.push_str(&format!("\n  {item}"));
             }
         }
 
@@ -246,14 +246,14 @@ fn render_signed_tenths(tenths: i64) -> String {
 
 /// Compare two committed timelines. Beats are matched by id; anything not
 /// present in `before` is `added`, anything not present in `after` is
-/// `removed`. Everything else below only runs for beats present in both.
+/// `removed`. Everything else below only runs for items present in both.
 pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
     let old: BTreeMap<&str, &Entry> = before
         .entries
         .iter()
-        .map(|e| (e.beat.as_str(), e))
+        .map(|e| (e.item.as_str(), e))
         .collect();
-    let new: BTreeMap<&str, &Entry> = after.entries.iter().map(|e| (e.beat.as_str(), e)).collect();
+    let new: BTreeMap<&str, &Entry> = after.entries.iter().map(|e| (e.item.as_str(), e)).collect();
 
     let mut changed = Vec::new();
     let mut recapture = Vec::new();
@@ -262,13 +262,13 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
 
     for (id, n) in &new {
         if let Some(o) = old.get(id) {
-            // A beat's outgoing transition is part of the committed timeline
+            // A item's outgoing transition is part of the committed timeline
             // and is not implied by any other field: retuning
             // `output.transition.max_ms` re-times every gap while leaving
-            // each beat's hashes and own duration untouched.
+            // each item's hashes and own duration untouched.
             if o.transition != n.transition {
                 transitions.push(ChangedTransition {
-                    beat: (*id).to_string(),
+                    item: (*id).to_string(),
                     before_kind: o.transition.kind.clone(),
                     after_kind: n.transition.kind.clone(),
                     before_ms: o.transition.duration_ms,
@@ -285,14 +285,14 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
             // stale. The two possible causes read very differently to the
             // author, so the reason still says which one happened.
             //
-            // The narration's placement *within its own beat* counts too.
+            // The narration's placement *within its own item* counts too.
             // Its absolute `start_ms` deliberately does not: that shifts
-            // whenever any earlier beat changes length, and flagging every
-            // downstream beat would bury the one the author actually edited.
-            // The offset from the beat's own start is local — it moves only
-            // when this beat's padding or alignment moved — so it catches a
+            // whenever any earlier item changes length, and flagging every
+            // downstream item would bury the one the author actually edited.
+            // The offset from the item's own start is local — it moves only
+            // when this item's padding or alignment moved — so it catches a
             // line-level `lead_in=` retune that happens not to change the
-            // beat's overall length, without any cascade.
+            // item's overall length, without any cascade.
             if let (Some(on), Some(nn)) = (&o.narration, &n.narration) {
                 let offset_moved = on.start_ms.saturating_sub(o.start_ms)
                     != nn.start_ms.saturating_sub(n.start_ms);
@@ -333,7 +333,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                         "padding changed"
                     };
                     changed.push(ChangedBeat {
-                        beat: (*id).to_string(),
+                        item: (*id).to_string(),
                         before_ms: on.duration_ms,
                         after_ms: nn.duration_ms,
                         reason: reason.to_string(),
@@ -341,26 +341,26 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                 }
             }
 
-            // A beat needs recapture when its picture changed
+            // A item needs recapture when its picture changed
             // (capture_key — its own steps, or any step before it in the
-            // same session, because the screen a beat shows is what the
-            // beats before it left behind),
+            // same session, because the screen a item shows is what the
+            // items before it left behind),
             // when its rendered action duration changed (e.g. a stretch/
-            // trim policy re-timed it), when the beat's own local duration
+            // trim policy re-timed it), when the item's own local duration
             // changed — which happens when narration got longer or shorter
             // even though the action's steps are identical, because Hold/
             // Concurrent/etc. reposition the action relative to narration
-            // within the beat — or when an action was added or removed
-            // outright. `duration_ms` here is each beat's own local
-            // duration, not the timeline total, so a beat whose *position*
-            // shifted only because an earlier, unrelated beat changed does
-            // NOT get flagged — only a beat whose own internal layout
+            // within the item — or when an action was added or removed
+            // outright. `duration_ms` here is each item's own local
+            // duration, not the timeline total, so a item whose *position*
+            // shifted only because an earlier, unrelated item changed does
+            // NOT get flagged — only a item whose own internal layout
             // actually moved does.
             //
             // The duration comparison runs whenever *either* side carries
             // an action — it is not gated on both sides carrying one, so a
-            // beat that gains or loses its action is still caught by it as
-            // well as by the explicit presence check below. A beat with no
+            // item that gains or loses its action is still caught by it as
+            // well as by the explicit presence check below. A item with no
             // action on either side has nothing to recapture, so it is
             // skipped entirely rather than flagged on narration timing
             // alone.
@@ -371,10 +371,10 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                         oa.capture_key != na.capture_key
                             || oa.duration_ms != na.duration_ms
                             // Same local-offset reasoning as narration above:
-                            // where in its beat the action sits is a fact of
-                            // this beat alone, so comparing it costs no
+                            // where in its item the action sits is a fact of
+                            // this item alone, so comparing it costs no
                             // cascade noise and catches an alignment change
-                            // that leaves the beat's length intact.
+                            // that leaves the item's length intact.
                             || oa.start_ms.saturating_sub(o.start_ms)
                                 != na.start_ms.saturating_sub(n.start_ms)
                     }
@@ -429,19 +429,19 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
 
 /// Beats that survive the edit but play in a different order.
 ///
-/// Only beats present on both sides take part: an added or removed beat
+/// Only items present on both sides take part: an added or removed item
 /// necessarily shifts everything after it, and reporting those shifts as
 /// "reordered" would double-count a change already named under
 /// `added`/`removed`. What is left is compared as two sequences, and the
-/// beats reported are those *outside* a longest common subsequence of the
+/// items reported are those *outside* a longest common subsequence of the
 /// two — the smallest set whose removal makes the orders agree. Swapping two
-/// paragraphs therefore names one beat, and moving a chapter's opening beat
-/// to the end names that beat rather than every beat it passed.
+/// paragraphs therefore names one item, and moving a chapter's opening item
+/// to the end names that item rather than every item it passed.
 fn reordered(before: &Timeline, after: &Timeline) -> Vec<ReorderedBeat> {
     let in_after: std::collections::BTreeSet<&str> =
-        after.entries.iter().map(|e| e.beat.as_str()).collect();
+        after.entries.iter().map(|e| e.item.as_str()).collect();
     let in_before: std::collections::BTreeSet<&str> =
-        before.entries.iter().map(|e| e.beat.as_str()).collect();
+        before.entries.iter().map(|e| e.item.as_str()).collect();
 
     // Position in the *full* entry list, so the rendered positions match what
     // an author counts in `teleprompt plan`.
@@ -449,25 +449,25 @@ fn reordered(before: &Timeline, after: &Timeline) -> Vec<ReorderedBeat> {
         .entries
         .iter()
         .enumerate()
-        .map(|(i, e)| (e.beat.as_str(), i))
+        .map(|(i, e)| (e.item.as_str(), i))
         .collect();
     let new_pos: BTreeMap<&str, usize> = after
         .entries
         .iter()
         .enumerate()
-        .map(|(i, e)| (e.beat.as_str(), i))
+        .map(|(i, e)| (e.item.as_str(), i))
         .collect();
 
     let a: Vec<&str> = before
         .entries
         .iter()
-        .map(|e| e.beat.as_str())
+        .map(|e| e.item.as_str())
         .filter(|id| in_after.contains(id))
         .collect();
     let b: Vec<&str> = after
         .entries
         .iter()
-        .map(|e| e.beat.as_str())
+        .map(|e| e.item.as_str())
         .filter(|id| in_before.contains(id))
         .collect();
 
@@ -479,17 +479,17 @@ fn reordered(before: &Timeline, after: &Timeline) -> Vec<ReorderedBeat> {
     b.iter()
         .filter(|id| !kept.contains(*id))
         .map(|id| ReorderedBeat {
-            beat: (*id).to_string(),
+            item: (*id).to_string(),
             before_index: old_pos[id],
             after_index: new_pos[id],
         })
         .collect()
 }
 
-/// Standard O(n·m) LCS over two id sequences, returned as a set. Beat ids are
+/// Standard O(n·m) LCS over two id sequences, returned as a set. Item ids are
 /// unique within a timeline, so membership is all the caller needs. Ties in
 /// the DP resolve toward `a`, which only decides *which* of two mutually
-/// swapped beats is named as having moved — deterministically either way.
+/// swapped items is named as having moved — deterministically either way.
 fn longest_common_subsequence<'a>(
     a: &[&'a str],
     b: &[&'a str],

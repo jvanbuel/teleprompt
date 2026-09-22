@@ -1,7 +1,7 @@
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Item};
+use teleprompt_core::program::{resolve, Element};
 
 const SRC: &str = r#"---
 timing:
@@ -22,7 +22,7 @@ timing:
 Two.
 "#;
 
-fn items() -> Vec<Item> {
+fn elements() -> Vec<Element> {
     let mut s = parse_script(SRC).unwrap();
     assign_ids(&mut s);
     resolve(
@@ -33,16 +33,16 @@ fn items() -> Vec<Item> {
         &PartialConfig::default(),
     )
     .unwrap()
-    .items
+    .elements
 }
 
 #[test]
 fn chapter_front_matter_overrides_script_front_matter() {
-    let it = items();
-    let Item::Narration { config: fast, .. } = &it[0] else {
+    let it = elements();
+    let Element::Narration { config: fast, .. } = &it[0] else {
         panic!()
     };
-    let Item::Narration { config: slow, .. } = &it[1] else {
+    let Element::Narration { config: slow, .. } = &it[1] else {
         panic!()
     };
     assert_eq!(fast.timing.lead_in_ms, 100);
@@ -51,7 +51,7 @@ fn chapter_front_matter_overrides_script_front_matter() {
 
 #[test]
 fn a_chapter_config_block_is_not_narration() {
-    assert_eq!(items().len(), 2, "the yaml block must not become a line");
+    assert_eq!(elements().len(), 2, "the yaml block must not become a line");
 }
 
 #[test]

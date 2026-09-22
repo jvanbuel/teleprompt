@@ -10,7 +10,7 @@ use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
 
 use crate::contract::{
-    validate_lines, BlockSource, Cue, LineError, Measured, SceneCompiler, Validated,
+    validate_commands, BlockSource, CommandError, Cue, Measured, SceneCompiler, Validated,
 };
 
 /// The mock adapter.
@@ -45,7 +45,7 @@ enum Command {
 }
 
 /// The lone place a mock body line is interpreted.
-fn classify(line: &str) -> Result<Command, LineError> {
+fn classify(line: &str) -> Result<Command, CommandError> {
     let line = line.trim();
     if line.is_empty() || line.starts_with('#') {
         return Ok(Command::Nothing);
@@ -60,14 +60,14 @@ fn classify(line: &str) -> Result<Command, LineError> {
     match head {
         "mark" => match parts.next() {
             None => Ok(Command::Mark),
-            Some(extra) => Err(LineError::new(
+            Some(extra) => Err(CommandError::new(
                 format!("`mark` takes no arguments, found `{extra}`"),
                 "write `mark` on a line of its own",
             )),
         },
         "wait" => {
             let Some(value) = parts.next() else {
-                return Err(LineError::new(
+                return Err(CommandError::new(
                     "`wait` needs a duration",
                     "e.g. `wait 500ms`",
                 ));
@@ -77,17 +77,17 @@ fn classify(line: &str) -> Result<Command, LineError> {
             // of both: the author is told the script is fine and the clock
             // disagrees.
             if let Some(extra) = parts.next() {
-                return Err(LineError::new(
+                return Err(CommandError::new(
                     format!("`wait` takes one duration, found trailing `{extra}`"),
                     "e.g. `wait 500ms`",
                 ));
             }
             match parse_duration_ms(value) {
                 Ok(ms) => Ok(Command::Wait(ms)),
-                Err(msg) => Err(LineError::new(msg, "e.g. `wait 500ms`")),
+                Err(msg) => Err(CommandError::new(msg, "e.g. `wait 500ms`")),
             }
         }
-        other => Err(LineError::new(
+        other => Err(CommandError::new(
             format!("unknown mock directive `{other}`"),
             "mock understands `wait <duration>` and `mark`",
         )),
@@ -108,7 +108,7 @@ impl SceneCompiler for MockScene {
     }
 
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
-        validate_lines(src, classify)
+        validate_commands(src, classify)
     }
 
     fn cues(&self, v: &Validated, block_id: &str) -> Result<Vec<Cue>, Vec<Diagnostic>> {

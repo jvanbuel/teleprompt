@@ -64,7 +64,7 @@ fn beats_never_overlap_and_never_gap() {
         assert_eq!(
             b.start_ms, expected,
             "gap or overlap between {} and {}",
-            a.beat, b.beat
+            a.item, b.item
         );
     }
 }
@@ -109,12 +109,12 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     let d = run_diff(&p, &s, "en").unwrap();
 
     assert_eq!(d.changed.len(), 1, "exactly one line changed");
-    assert_eq!(d.changed[0].beat, "deploy");
+    assert_eq!(d.changed[0].item, "deploy");
     assert!(d.changed[0].reason.contains("text edited"));
     assert!(d.shift_ms > 0, "a longer paragraph lengthens the video");
     assert!(
         !d.recapture.is_empty(),
-        "the stretched beat needs re-capture"
+        "the stretched item needs re-capture"
     );
 
     let rendered = d.render();
@@ -131,10 +131,10 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 /// `teleprompt_voice::null::estimate_ms`) rather than copied from program
 /// output.
 ///
-/// `rollback`'s beat uses `policy=trim-action`, whose layout sets the beat's
+/// `rollback`'s item uses `policy=trim-action`, whose layout sets the item's
 /// `duration_ms` to exactly the (padded) narration length regardless of the
 /// action's duration (`teleprompt_schedule::policy::layout`, `Policy::Trim`
-/// arm) — so this is also an exact assertion on the beat, not just the
+/// arm) — so this is also an exact assertion on the item, not just the
 /// narration slot.
 ///
 /// Line text (after soft-break-as-space joins the two source lines and
@@ -158,12 +158,12 @@ fn rollback_segment_has_the_hand_derived_exact_duration() {
     let entry = out
         .timeline
         .entry("rollback")
-        .expect("tour fixture has a `rollback` beat");
-    let narration = entry.narration.as_ref().expect("rollback beat narrates");
+        .expect("tour fixture has a `rollback` item");
+    let narration = entry.narration.as_ref().expect("rollback item narrates");
     assert_eq!(narration.duration_ms, 6_900, "unpadded narration length");
     assert_eq!(
         entry.duration_ms, 7_200,
-        "trim policy sets beat duration_ms to the padded narration length"
+        "trim policy sets item duration_ms to the padded narration length"
     );
 }
 

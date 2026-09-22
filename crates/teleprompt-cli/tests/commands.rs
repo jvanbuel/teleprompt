@@ -288,7 +288,7 @@ fn a_segment_level_backend_that_matches_the_resolved_backend_is_fine() {
 
 /// Fix round 1: a chapter-level `voice.backend` override with no line
 /// attribute must still be rejected (Delivery A supports one backend per
-/// compile, full stop), but `Item::Narration`'s config is already merged
+/// compile, full stop), but `Element::Narration`'s config is already merged
 /// and cannot say which layer produced the value. The diagnostic must
 /// therefore describe the effect ("resolves to") rather than accuse the
 /// line of writing an attribute it never wrote, and the help text must

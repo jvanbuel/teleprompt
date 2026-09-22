@@ -272,7 +272,7 @@ fn compilation_is_deterministic() {
     );
 }
 
-// Controller ruling F12 (second half): `Item::Action`'s `cue` must be
+// Controller ruling F12 (second half): `Element::Action`'s `cue` must be
 // threaded into `BlockSource` for real, not `SourceSpan { line: 0, .. }`.
 // The fence here opens on line 14 (verified against `parse_script`
 // independently), so the invalid `bogus` directive on the block's second
@@ -321,11 +321,11 @@ wait 400ms
     assert_eq!(out.timeline.entries.len(), 2);
     assert!(
         out.timeline.entries[0].narration.is_some(),
-        "the narration becomes its own beat"
+        "the narration becomes its own item"
     );
     assert!(
         out.timeline.entries[0].action.is_none(),
-        "the empty block produces no beat, so nothing attaches to the narration"
+        "the empty block produces no item, so nothing attaches to the narration"
     );
     assert!(
         out.timeline.entries[1].narration.is_none(),
@@ -338,7 +338,7 @@ wait 400ms
 }
 
 // Regression pin: a narration followed by an all-`mark` block at the end of
-// the program must still flush as a narration-only beat (this already
+// the program must still flush as a narration-only item (this already
 // worked before the fix above; pinned so it stays that way).
 #[test]
 fn a_narration_followed_by_an_empty_action_block_at_end_of_program_still_flushes() {
@@ -371,9 +371,9 @@ fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
     assert!(e.0[0].message.contains("recordedd"));
 }
 
-// Final review, item 2: a `Beat` carries one `Config`, but its two halves
+// Final review, item 2: a `Item` carries one `Config`, but its two halves
 // resolve from different layers — the narration's from the line's own
-// attributes, the beat's from the following action block's. `compile` used
+// attributes, the item's from the following action block's. `compile` used
 // to set `config: config.clone()` (the action block's) and read the
 // narration's padding off that, so an identical line produced different
 // narration timing depending on whether an action block happened to follow
@@ -409,7 +409,7 @@ fn a_segments_lead_in_survives_pairing_with_a_following_action_block() {
          not an action block follows"
     );
 
-    // The beat's own duration differs by exactly the action block's 100ms
+    // The item's own duration differs by exactly the action block's 100ms
     // under `hold`, and by nothing else: the 850ms that used to vanish with
     // the discarded lead-in is gone.
     assert_eq!(alone.timeline.entries[0].duration_ms, 2700);
@@ -836,7 +836,7 @@ fn an_action_cued_to_a_phrase_starts_when_that_phrase_is_spoken() {
     let out = compile_program(&program(src)).expect("compiles");
 
     let entry = &out.timeline.entries[0];
-    let narration = entry.narration.as_ref().expect("the beat is narrated");
+    let narration = entry.narration.as_ref().expect("the item is narrated");
     let action = entry.action.as_ref().expect("and has an action");
 
     // The phrase sits a little over halfway through the sentence, so the

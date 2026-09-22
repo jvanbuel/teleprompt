@@ -18,10 +18,10 @@ pub fn run_plan(
     compile_script(project, script, locale).map(|(out, _)| out)
 }
 
-/// Renders a `plan` result as a short prose report, one line per beat.
+/// Renders a `plan` result as a short prose report, one line per item.
 pub fn render_plan(out: &CompileOutput) -> String {
     let mut s = format!(
-        "{} ({}) — {:.1}s across {} beat(s)\n",
+        "{} ({}) — {:.1}s across {} item(s)\n",
         out.timeline.script,
         out.timeline.locale,
         out.timeline.duration_ms as f64 / 1000.0,

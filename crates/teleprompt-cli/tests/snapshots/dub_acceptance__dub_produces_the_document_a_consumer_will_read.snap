@@ -12,13 +12,13 @@ expression: manifest
     {
       "adapter": "mock",
       "capture_key": "f140cbc021d4e4f61981330bcb79052f3c05f5d38380a0ed1dc5aa93a90f722c",
+      "cue": "welcome-a#0",
+      "cue_hash": "82eac5a9331060be2e38e3ec2634ed2b26ac4ba2ab3b63f37dd97755ba617ba6",
       "duration_ms": 400,
       "duration_source": "exact",
+      "line": "welcome",
       "policy": "hold",
       "scene": "mock",
-      "segment": "welcome",
-      "span": "welcome-a#0",
-      "span_hash": "82eac5a9331060be2e38e3ec2634ed2b26ac4ba2ab3b63f37dd97755ba617ba6",
       "start_ms": 12500,
       "transition": {
         "duration_ms": 600,
@@ -28,13 +28,13 @@ expression: manifest
     {
       "adapter": "mock",
       "capture_key": "d3ddd0d6c2b916dbded324b3435f15e9b99e2bc501becc254f6a3686e7d4ef64",
+      "cue": "provenance-a#0",
+      "cue_hash": "353cb4515fc9d725784d2d85031b31a779f873808b86fbca9e959b512fb9d878",
       "duration_ms": 1200,
       "duration_source": "exact",
+      "line": "provenance",
       "policy": "concurrent",
       "scene": "mock",
-      "segment": "provenance",
-      "span": "provenance-a#0",
-      "span_hash": "353cb4515fc9d725784d2d85031b31a779f873808b86fbca9e959b512fb9d878",
       "start_ms": 12300,
       "transition": {
         "duration_ms": 150,
@@ -44,13 +44,13 @@ expression: manifest
     {
       "adapter": "mock",
       "capture_key": "7bb8bfb47667e3e28dd2f039cc9ebc90bf07eeced5ceaba269ef0df64aa36f19",
+      "cue": "provenance-a#1",
+      "cue_hash": "c107090c1b3d9bcaa00d804187d9216ca73ff02371dca7a54a2d8d40fe0a497e",
       "duration_ms": 600,
       "duration_source": "exact",
+      "line": null,
       "policy": "concurrent",
       "scene": "mock",
-      "segment": null,
-      "span": "provenance-a#1",
-      "span_hash": "c107090c1b3d9bcaa00d804187d9216ca73ff02371dca7a54a2d8d40fe0a497e",
       "start_ms": 21200,
       "transition": {
         "duration_ms": 0,
@@ -60,13 +60,13 @@ expression: manifest
     {
       "adapter": "mock",
       "capture_key": "3fe9b9eb32d741c4f45b8ca63a3499b81151ff1fb36f3b32300b2a5eee03be96",
+      "cue": "deploy-a#0",
+      "cue_hash": "119eafa3963016bb979bc7cf347a6ccd38aa4c5b7ee16421ae48781153dcf681",
       "duration_ms": 5200,
       "duration_source": "exact",
+      "line": "deploy",
       "policy": "stretch-action",
       "scene": "mock",
-      "segment": "deploy",
-      "span": "deploy-a#0",
-      "span_hash": "119eafa3963016bb979bc7cf347a6ccd38aa4c5b7ee16421ae48781153dcf681",
       "start_ms": 21800,
       "transition": {
         "duration_ms": 0,
@@ -76,13 +76,13 @@ expression: manifest
     {
       "adapter": "pause",
       "capture_key": "79c52ef482432f9f8fa76a1d5bad5e6944d469c4198efb315aed25aa5fef53ad",
+      "cue": "pause-4",
+      "cue_hash": "79c52ef482432f9f8fa76a1d5bad5e6944d469c4198efb315aed25aa5fef53ad",
       "duration_ms": 600,
       "duration_source": "exact",
+      "line": null,
       "policy": "hold",
       "scene": "pause",
-      "segment": null,
-      "span": "pause-4",
-      "span_hash": "79c52ef482432f9f8fa76a1d5bad5e6944d469c4198efb315aed25aa5fef53ad",
       "start_ms": 27000,
       "transition": {
         "duration_ms": 0,
@@ -92,13 +92,13 @@ expression: manifest
     {
       "adapter": "mock",
       "capture_key": "dc747ced05311e2e81f73c3feb571152a4df67a8479e36b8d793c3e8eace08a1",
+      "cue": "rollback-a#0",
+      "cue_hash": "7b541004f9f17f61f51ca2e97dffaa77c69cff4ba93e5b4630ba4e220dfd83c4",
       "duration_ms": 3000,
       "duration_source": "exact",
+      "line": "rollback",
       "policy": "trim-action",
       "scene": "mock",
-      "segment": "rollback",
-      "span": "rollback-a#0",
-      "span_hash": "7b541004f9f17f61f51ca2e97dffaa77c69cff4ba93e5b4630ba4e220dfd83c4",
       "start_ms": 27600,
       "transition": {
         "duration_ms": 0,
@@ -120,10 +120,7 @@ expression: manifest
   ],
   "duration_ms": 34800,
   "generated_by": "teleprompt 0.1.0",
-  "locale": "en",
-  "manifest_version": 2,
-  "script": "test.md",
-  "segments": [
+  "lines": [
     {
       "audio": "audio/welcome.wav",
       "audio_hash": "dbe7246bceb14adccedcb048514bbf7e9bf995adaeeeec339731ff8de2aef025",
@@ -180,5 +177,8 @@ expression: manifest
       "voice_source": "synthetic",
       "voice_source_actual": "synthetic"
     }
-  ]
+  ],
+  "locale": "en",
+  "manifest_version": 2,
+  "script": "test.md"
 }

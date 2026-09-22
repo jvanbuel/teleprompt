@@ -81,7 +81,7 @@ enum Command {
         #[arg(long)]
         exit_code: bool,
     },
-    /// Serve a live preview that opens on the beat that changed
+    /// Serve a live preview that opens on the item that changed
     ///
     /// Watches the script, recompiles on save, synthesizes only what the
     /// cache is missing, and serves a preview on loopback. The preview
@@ -125,8 +125,8 @@ enum Command {
     },
     /// Record the scenes a build will show
     ///
-    /// Runs each scene as one session — its beats continue one another —
-    /// and keeps a clip for every beat that has none. `build` does this on
+    /// Runs each scene as one session — its items continue one another —
+    /// and keeps a clip for every item that has none. `build` does this on
     /// the way past; this is the same work on its own, for filling a cache
     /// before a render or after editing a tape.
     Capture {

@@ -2,7 +2,7 @@ use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
 use teleprompt_core::VoiceSource;
 use teleprompt_schedule::{
-    diff, schedule, ActionInput, Beat, DurationSource, NarrationInput, Policy, TimelineDiff,
+    diff, schedule, ActionInput, DurationSource, Item, NarrationInput, Policy, TimelineDiff,
 };
 
 fn cfg() -> Config {
@@ -11,8 +11,8 @@ fn cfg() -> Config {
     c
 }
 
-fn beat(id: &str, narration_ms: u64, source: &str) -> Beat {
-    Beat {
+fn item(id: &str, narration_ms: u64, source: &str) -> Item {
+    Item {
         id: id.into(),
         narration: Some(NarrationInput {
             line_id: id.into(),
@@ -32,8 +32,8 @@ fn beat(id: &str, narration_ms: u64, source: &str) -> Beat {
     }
 }
 
-fn stale_beat(id: &str) -> Beat {
-    let mut b = beat(id, 1000, id);
+fn stale_beat(id: &str) -> Item {
+    let mut b = item(id, 1000, id);
     let n = b.narration.as_mut().unwrap();
     n.voice_source = VoiceSource::Recorded;
     n.voice_source_actual = VoiceSource::Cloned;
@@ -41,24 +41,24 @@ fn stale_beat(id: &str) -> Beat {
     b
 }
 
-fn timeline(beats: Vec<Beat>) -> teleprompt_schedule::Timeline {
-    schedule(&beats, "s.md", "en", "0.1.0").0
+fn timeline(items: Vec<Item>) -> teleprompt_schedule::Timeline {
+    schedule(&items, "s.md", "en", "0.1.0").0
 }
 
 #[test]
 fn identical_timelines_diff_to_nothing() {
-    let a = timeline(vec![beat("b1", 1000, "one")]);
-    let b = timeline(vec![beat("b1", 1000, "one")]);
+    let a = timeline(vec![item("b1", 1000, "one")]);
+    let b = timeline(vec![item("b1", 1000, "one")]);
     assert!(diff(&a, &b).is_empty());
 }
 
 #[test]
 fn a_longer_segment_is_reported_with_both_durations() {
-    let a = timeline(vec![beat("b1", 4200, "one")]);
-    let b = timeline(vec![beat("b1", 5800, "one but longer")]);
+    let a = timeline(vec![item("b1", 4200, "one")]);
+    let b = timeline(vec![item("b1", 5800, "one but longer")]);
     let d = diff(&a, &b);
     assert_eq!(d.changed.len(), 1);
-    assert_eq!(d.changed[0].beat, "b1");
+    assert_eq!(d.changed[0].item, "b1");
     assert_eq!(d.changed[0].before_ms, 4200);
     assert_eq!(d.changed[0].after_ms, 5800);
     assert!(d.changed[0].reason.contains("text edited"));
@@ -66,8 +66,8 @@ fn a_longer_segment_is_reported_with_both_durations() {
 
 #[test]
 fn a_duration_change_without_a_text_change_is_reported_differently() {
-    let a = timeline(vec![beat("b1", 4200, "same")]);
-    let mut changed = beat("b1", 5000, "same");
+    let a = timeline(vec![item("b1", 4200, "same")]);
+    let mut changed = item("b1", 5000, "same");
     changed.narration.as_mut().unwrap().audio_hash = Hash::of(b"different voice");
     let b = timeline(vec![changed]);
     let d = diff(&a, &b);
@@ -77,10 +77,10 @@ fn a_duration_change_without_a_text_change_is_reported_differently() {
 
 #[test]
 fn total_shift_is_the_difference_in_overall_duration() {
-    let a = timeline(vec![beat("b1", 4200, "one"), beat("b2", 1000, "two")]);
+    let a = timeline(vec![item("b1", 4200, "one"), item("b2", 1000, "two")]);
     let b = timeline(vec![
-        beat("b1", 5800, "one longer"),
-        beat("b2", 1000, "two"),
+        item("b1", 5800, "one longer"),
+        item("b2", 1000, "two"),
     ]);
     let d = diff(&a, &b);
     assert_eq!(d.shift_ms, 1600);
@@ -89,8 +89,8 @@ fn total_shift_is_the_difference_in_overall_duration() {
 
 #[test]
 fn added_and_removed_beats_are_listed_separately() {
-    let a = timeline(vec![beat("b1", 1000, "one")]);
-    let b = timeline(vec![beat("b1", 1000, "one"), beat("b2", 1000, "two")]);
+    let a = timeline(vec![item("b1", 1000, "one")]);
+    let b = timeline(vec![item("b1", 1000, "one"), item("b2", 1000, "two")]);
     let d = diff(&a, &b);
     assert_eq!(d.added, ["b2"]);
     assert!(d.removed.is_empty());
@@ -102,7 +102,7 @@ fn added_and_removed_beats_are_listed_separately() {
 
 #[test]
 fn stale_takes_are_reported_with_their_fallback_tier() {
-    let a = timeline(vec![beat("b1", 1000, "one")]);
+    let a = timeline(vec![item("b1", 1000, "one")]);
     let b = timeline(vec![stale_beat("b1")]);
     let d = diff(&a, &b);
     assert_eq!(d.stale_takes.len(), 1);
@@ -122,9 +122,9 @@ fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
         at_ms: None,
         session: None,
     };
-    let mut a1 = beat("b1", 1000, "one");
+    let mut a1 = item("b1", 1000, "one");
     a1.action = Some(action("s1", 500));
-    let mut b1 = beat("b1", 2000, "one longer");
+    let mut b1 = item("b1", 2000, "one longer");
     b1.action = Some(action("s1", 500));
 
     let d = diff(&timeline(vec![a1]), &timeline(vec![b1]));
@@ -142,12 +142,12 @@ fn beats_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
 /// baseline.
 #[test]
 fn a_text_edit_with_no_duration_change_is_still_reported() {
-    let a = timeline(vec![beat("b1", 1000, "one")]);
-    let b = timeline(vec![beat("b1", 1000, "one but reworded")]);
+    let a = timeline(vec![item("b1", 1000, "one")]);
+    let b = timeline(vec![item("b1", 1000, "one but reworded")]);
     let d = diff(&a, &b);
 
     assert_eq!(d.changed.len(), 1);
-    assert_eq!(d.changed[0].beat, "b1");
+    assert_eq!(d.changed[0].item, "b1");
     assert_eq!(d.changed[0].before_ms, 1000);
     assert_eq!(d.changed[0].after_ms, 1000);
     assert!(d.changed[0].reason.contains("text edited"));
@@ -175,13 +175,13 @@ fn mock_action(id: &str, ms: u64) -> ActionInput {
     }
 }
 
-/// Review round 1, finding 2: a beat's slot changed just as much by
+/// Review round 1, finding 2: a item's slot changed just as much by
 /// gaining or losing an action as by an existing action's cue or timing
 /// changing.
 #[test]
 fn a_beat_that_gains_an_action_needs_recapture() {
-    let a = timeline(vec![beat("b1", 1000, "one")]);
-    let mut gained = beat("b1", 1000, "one");
+    let a = timeline(vec![item("b1", 1000, "one")]);
+    let mut gained = item("b1", 1000, "one");
     gained.action = Some(mock_action("s1", 500));
     let b = timeline(vec![gained]);
 
@@ -191,10 +191,10 @@ fn a_beat_that_gains_an_action_needs_recapture() {
 
 #[test]
 fn a_beat_that_loses_an_action_needs_recapture() {
-    let mut had_action = beat("b1", 1000, "one");
+    let mut had_action = item("b1", 1000, "one");
     had_action.action = Some(mock_action("s1", 500));
     let a = timeline(vec![had_action]);
-    let b = timeline(vec![beat("b1", 1000, "one")]);
+    let b = timeline(vec![item("b1", 1000, "one")]);
 
     let d = diff(&a, &b);
     assert_eq!(d.recapture, ["b1"]);
@@ -203,12 +203,12 @@ fn a_beat_that_loses_an_action_needs_recapture() {
 #[test]
 fn rendered_output_names_the_script_change_and_the_shift() {
     let a = timeline(vec![
-        beat("welcome", 4200, "one"),
-        beat("next", 1000, "two"),
+        item("welcome", 4200, "one"),
+        item("next", 1000, "two"),
     ]);
     let b = timeline(vec![
-        beat("welcome", 5800, "one longer"),
-        beat("next", 1000, "two"),
+        item("welcome", 5800, "one longer"),
+        item("next", 1000, "two"),
     ]);
     let rendered = diff(&a, &b).render();
     assert!(rendered.contains("welcome"));
@@ -219,7 +219,7 @@ fn rendered_output_names_the_script_change_and_the_shift() {
 
 #[test]
 fn an_empty_diff_renders_a_single_reassuring_line() {
-    let a = timeline(vec![beat("b1", 1000, "one")]);
+    let a = timeline(vec![item("b1", 1000, "one")]);
     assert_eq!(diff(&a, &a).render(), "no timeline changes");
 }
 
@@ -230,7 +230,7 @@ fn an_empty_diff_renders_a_single_reassuring_line() {
 /// `None` on read rather than failing to deserialize.
 #[test]
 fn a_timeline_with_no_action_and_no_downgrade_reason_round_trips_through_json() {
-    let original = timeline(vec![beat("b1", 1000, "one")]);
+    let original = timeline(vec![item("b1", 1000, "one")]);
     let json = serde_json::to_string_pretty(&original).expect("serialize");
     let restored: teleprompt_schedule::Timeline = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(restored, original);
@@ -275,8 +275,8 @@ fn rendered_shift_reconciles_with_the_rounded_endpoints() {
 // ---------------------------------------------------------------------------
 // Final review, item 1: `diff` was blind to whole classes of drift.
 //
-// Every test above this line builds its beats with
-// `TransitionDuration::Fixed(0)` and none of them reorders beats, which is
+// Every test above this line builds its items with
+// `TransitionDuration::Fixed(0)` and none of them reorders items, which is
 // why 195 green tests said nothing about any of the following.
 // ---------------------------------------------------------------------------
 
@@ -288,7 +288,7 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
     let build = || {
         let mut auto = Config::default();
         auto.transition.duration = TransitionDuration::Auto;
-        let mut b1 = beat("b1", 4000, "one");
+        let mut b1 = item("b1", 4000, "one");
         b1.config = auto.clone();
         b1.action = Some(ActionInput {
             span_id: "s1".into(),
@@ -300,7 +300,7 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
             at_ms: None,
             session: None,
         });
-        let mut b2 = beat("b2", 2000, "two");
+        let mut b2 = item("b2", 2000, "two");
         b2.config = auto;
         timeline(vec![b1, b2])
     };
@@ -310,8 +310,8 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
 }
 
 /// Vector one, reproduced against the real binary as
-/// `output.transition.max_ms: 600 -> 0`: every gap between beats changes,
-/// the total moves, and yet not one per-beat hash or duration differs.
+/// `output.transition.max_ms: 600 -> 0`: every gap between items changes,
+/// the total moves, and yet not one per-item hash or duration differs.
 /// Before the fix this printed `no timeline changes` and exited 0.
 #[test]
 fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
@@ -319,7 +319,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
         let mut c = Config::default();
         c.transition.duration = TransitionDuration::Auto;
         c.transition.max_ms = max_ms;
-        let mut b1 = beat("b1", 4000, "one");
+        let mut b1 = item("b1", 4000, "one");
         b1.config = c.clone();
         b1.action = Some(ActionInput {
             span_id: "s1".into(),
@@ -332,7 +332,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
             session: None,
         });
         b1.policy = Policy::Concurrent(teleprompt_schedule::Align::Start);
-        let mut b2 = beat("b2", 2000, "two");
+        let mut b2 = item("b2", 2000, "two");
         b2.config = c;
         timeline(vec![b1, b2])
     };
@@ -346,15 +346,15 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
     let d = diff(&before, &after);
     assert!(!d.is_empty(), "a re-timed timeline is not a clean diff");
     assert_eq!(d.transitions.len(), 1, "only b1 has an outgoing transition");
-    assert_eq!(d.transitions[0].beat, "b1");
+    assert_eq!(d.transitions[0].item, "b1");
     // 300, not the configured 600: core spec §6.3 caps an `auto` transition
-    // at the quiet window, which here is this beat's 150ms tail plus the
-    // next beat's 150ms lead_in. What this test guards is unaffected —
-    // retuning `max_ms` still moves every gap and the total while no beat's
+    // at the quiet window, which here is this item's 150ms tail plus the
+    // next item's 150ms lead_in. What this test guards is unaffected —
+    // retuning `max_ms` still moves every gap and the total while no item's
     // own hash or duration changes, which is what `diff` used to miss.
     assert_eq!(d.transitions[0].before_ms, 300);
     assert_eq!(d.transitions[0].after_ms, 0);
-    assert!(d.changed.is_empty(), "no beat's own content changed");
+    assert!(d.changed.is_empty(), "no item's own content changed");
 
     let rendered = d.render();
     assert!(rendered.contains("transitions:"), "{rendered}");
@@ -362,27 +362,27 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
 }
 
 /// Vector two: two paragraphs that both carry an explicit `{#id}` swap
-/// places. Nothing is added, nothing is removed, no beat's content changes —
+/// places. Nothing is added, nothing is removed, no item's content changes —
 /// only the order the video plays them in. Before the fix this printed
 /// `no timeline changes`.
 #[test]
 fn swapping_two_beats_is_reported_as_reordering_not_as_add_remove() {
-    let before = timeline(vec![beat("alpha", 1000, "one"), beat("beta", 2000, "two")]);
-    let after = timeline(vec![beat("beta", 2000, "two"), beat("alpha", 1000, "one")]);
+    let before = timeline(vec![item("alpha", 1000, "one"), item("beta", 2000, "two")]);
+    let after = timeline(vec![item("beta", 2000, "two"), item("alpha", 1000, "one")]);
 
     let d = diff(&before, &after);
     assert!(!d.is_empty(), "a reordered timeline is not a clean diff");
-    assert!(d.added.is_empty(), "a reordered beat was not added");
-    assert!(d.removed.is_empty(), "a reordered beat was not removed");
+    assert!(d.added.is_empty(), "a reordered item was not added");
+    assert!(d.removed.is_empty(), "a reordered item was not removed");
     assert_eq!(
         d.reordered.len(),
         1,
-        "a two-beat swap names one moved beat, not both: {:?}",
+        "a two-item swap names one moved item, not both: {:?}",
         d.reordered
     );
     assert_ne!(
         d.reordered[0].before_index, d.reordered[0].after_index,
-        "a reported beat must actually have moved"
+        "a reported item must actually have moved"
     );
 
     let rendered = d.render();
@@ -390,16 +390,16 @@ fn swapping_two_beats_is_reported_as_reordering_not_as_add_remove() {
     assert!(rendered.contains("position"), "{rendered}");
 }
 
-/// Adding a beat in the middle shifts every later beat's index, but nothing
-/// was reordered — the surviving beats still play in the same relative
+/// Adding a item in the middle shifts every later item's index, but nothing
+/// was reordered — the surviving items still play in the same relative
 /// order. Reporting them would turn every insertion into a wall of noise.
 #[test]
 fn inserting_a_beat_shifts_indices_without_reporting_a_reorder() {
-    let before = timeline(vec![beat("b1", 1000, "one"), beat("b3", 1000, "three")]);
+    let before = timeline(vec![item("b1", 1000, "one"), item("b3", 1000, "three")]);
     let after = timeline(vec![
-        beat("b1", 1000, "one"),
-        beat("b2", 1000, "two"),
-        beat("b3", 1000, "three"),
+        item("b1", 1000, "one"),
+        item("b2", 1000, "two"),
+        item("b3", 1000, "three"),
     ]);
 
     let d = diff(&before, &after);
@@ -432,13 +432,13 @@ fn a_bare_total_duration_change_is_not_an_empty_diff() {
     assert!(d.render().contains("7.2s \u{2192} 8.4s"), "{}", d.render());
 }
 
-/// The narration's placement *within its own beat* is a local fact: a
-/// line-level `lead_in=` retune that leaves the beat's overall length
+/// The narration's placement *within its own item* is a local fact: a
+/// line-level `lead_in=` retune that leaves the item's overall length
 /// alone still moves the audio, and `diff` must say so.
 #[test]
 fn a_lead_in_retune_that_does_not_change_beat_length_is_still_reported() {
     let build = |lead_in: u64| {
-        let mut b = beat("b1", 1000, "one");
+        let mut b = item("b1", 1000, "one");
         {
             let n = b.narration.as_mut().unwrap();
             n.lead_in_ms = lead_in;
@@ -465,12 +465,12 @@ fn a_lead_in_retune_that_does_not_change_beat_length_is_still_reported() {
 #[test]
 fn an_estimate_becoming_a_measurement_is_named_as_such() {
     let before = {
-        let mut b = beat("b1", 4000, "one");
+        let mut b = item("b1", 4000, "one");
         b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
         timeline(vec![b])
     };
     let after = {
-        let mut b = beat("b1", 4300, "one");
+        let mut b = item("b1", 4300, "one");
         b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
         timeline(vec![b])
     };
@@ -480,7 +480,7 @@ fn an_estimate_becoming_a_measurement_is_named_as_such() {
     let changed = d
         .changed
         .iter()
-        .find(|c| c.beat == "b1")
+        .find(|c| c.item == "b1")
         .expect("b1 changed");
     assert_eq!(changed.reason, "now measured");
 
@@ -497,12 +497,12 @@ fn an_estimate_becoming_a_measurement_is_named_as_such() {
 #[test]
 fn a_measurement_that_matches_its_estimate_still_reports() {
     let before = {
-        let mut b = beat("b1", 4000, "one");
+        let mut b = item("b1", 4000, "one");
         b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
         timeline(vec![b])
     };
     let after = {
-        let mut b = beat("b1", 4000, "one");
+        let mut b = item("b1", 4000, "one");
         b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
         timeline(vec![b])
     };
@@ -527,12 +527,12 @@ fn a_measurement_that_matches_its_estimate_still_reports() {
 #[test]
 fn a_cleared_cache_is_not_drift() {
     let before = {
-        let mut b = beat("b1", 4000, "one");
+        let mut b = item("b1", 4000, "one");
         b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
         timeline(vec![b])
     };
     let after = {
-        let mut b = beat("b1", 4000, "one");
+        let mut b = item("b1", 4000, "one");
         b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
         timeline(vec![b])
     };
@@ -546,12 +546,12 @@ fn a_cleared_cache_is_not_drift() {
 #[test]
 fn a_text_edit_outranks_the_measurement_transition() {
     let before = {
-        let mut b = beat("b1", 4000, "one");
+        let mut b = item("b1", 4000, "one");
         b.narration.as_mut().unwrap().duration_source = DurationSource::Estimated;
         timeline(vec![b])
     };
     let after = {
-        let mut b = beat("b1", 4300, "two");
+        let mut b = item("b1", 4300, "two");
         b.narration.as_mut().unwrap().duration_source = DurationSource::Measured;
         timeline(vec![b])
     };

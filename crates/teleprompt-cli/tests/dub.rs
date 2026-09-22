@@ -599,7 +599,7 @@ fn a_corrupt_cache_entry_is_re_rendered_by_dub() {
 fn null_path_progress_is_document_order_on_every_run() {
     let root = project_with(
         "progressorder",
-        "# Segments\n\nOne.\n\nTwo.\n\nThree.\n\nFour.\n\nFive.\n\nSix.\n",
+        "# Lines\n\nOne.\n\nTwo.\n\nThree.\n\nFour.\n\nFive.\n\nSix.\n",
     );
     let expected: Vec<String> = (1..=6).map(|n| format!("lines-{n}")).collect();
 

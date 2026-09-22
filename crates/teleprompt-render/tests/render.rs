@@ -11,7 +11,7 @@
 use std::process::Command;
 
 use teleprompt_render::ffmpeg::FfmpegRenderer;
-use teleprompt_render::{Beat, Narration, Picture, RenderPlan, Renderer, Transition};
+use teleprompt_render::{Cue, Narration, Picture, RenderPlan, Renderer, Transition};
 
 mod support;
 use support::{bright_clip, duration_of, first_sound, have_ffmpeg, luma_at, tone};
@@ -32,15 +32,15 @@ fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
         height: 360,
         fps: 24,
         duration_ms: 3_000,
-        beats: vec![
-            Beat {
+        cues: vec![
+            Cue {
                 id: "a#0".into(),
                 start_ms: 0,
                 duration_ms: 1_500,
                 picture: Picture::Slate,
                 transition: Transition::cut(),
             },
-            Beat {
+            Cue {
                 id: "b#0".into(),
                 start_ms: 1_500,
                 duration_ms: 1_500,
@@ -88,7 +88,7 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
         height: 180,
         fps: 24,
         duration_ms: 4_000,
-        beats: vec![Beat {
+        cues: vec![Cue {
             id: "only#0".into(),
             start_ms: 0,
             duration_ms: 4_000,
@@ -115,8 +115,8 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
 }
 
 /// The picture does not begin at zero. Narration opens after a lead-in, and
-/// the first beat starts with it — so the head of the video is a gap that
-/// something has to hold, or every beat after it renders early against
+/// the first cue starts with it — so the head of the video is a gap that
+/// something has to hold, or every cue after it renders early against
 /// audio that is still correctly placed.
 #[test]
 fn a_gap_before_the_first_beat_is_held_rather_than_closed() {
@@ -134,7 +134,7 @@ fn a_gap_before_the_first_beat_is_held_rather_than_closed() {
         height: 180,
         fps: 24,
         duration_ms: 3_000,
-        beats: vec![Beat {
+        cues: vec![Cue {
             id: "late#0".into(),
             start_ms: 500,
             duration_ms: 1_000,
@@ -157,14 +157,14 @@ fn a_gap_before_the_first_beat_is_held_rather_than_closed() {
     assert!(
         (seconds - 3.0).abs() < 0.2,
         "the video runs as long as the plan, head gap and tail included, \
-         not just as long as its beats: {seconds}s"
+         not just as long as its cues: {seconds}s"
     );
 }
 
-/// A crossfade costs time: two beats joined by one occupy less of the
+/// A crossfade costs time: two cues joined by one occupy less of the
 /// timeline than they do apart, which is why the scheduler overlaps them.
 /// A renderer that concatenated them instead would run the same frames for
-/// half a second longer and put every later beat out of step with its
+/// half a second longer and put every later cue out of step with its
 /// narration.
 #[test]
 fn a_crossfade_overlaps_the_beats_it_joins() {
@@ -182,8 +182,8 @@ fn a_crossfade_overlaps_the_beats_it_joins() {
         height: 180,
         fps: 24,
         duration_ms: 3_500,
-        beats: vec![
-            Beat {
+        cues: vec![
+            Cue {
                 id: "a#0".into(),
                 start_ms: 0,
                 duration_ms: 2_000,
@@ -193,7 +193,7 @@ fn a_crossfade_overlaps_the_beats_it_joins() {
                     duration_ms: 500,
                 },
             },
-            Beat {
+            Cue {
                 id: "b#0".into(),
                 // 2_000 - 500: the scheduler already subtracted the fade.
                 start_ms: 1_500,
@@ -213,7 +213,7 @@ fn a_crossfade_overlaps_the_beats_it_joins() {
     let seconds = duration_of(&plan.output);
     assert!(
         (seconds - 3.5).abs() < 0.15,
-        "two 2s beats crossfaded by 0.5s make 3.5s of picture, not {seconds}s"
+        "two 2s cues crossfaded by 0.5s make 3.5s of picture, not {seconds}s"
     );
 }
 
@@ -234,7 +234,7 @@ fn a_plan_with_no_beats_at_all_still_renders_its_narration() {
         height: 180,
         fps: 24,
         duration_ms: 2_000,
-        beats: vec![],
+        cues: vec![],
         narration: vec![Narration {
             id: "alone".into(),
             path: tone(&dir, "alone.wav", 1_000),
@@ -249,7 +249,7 @@ fn a_plan_with_no_beats_at_all_still_renders_its_narration() {
     assert!((duration_of(&plan.output) - 2.0).abs() < 0.2);
 }
 
-/// A beat of no length is a beat there is nothing to show for, and
+/// A cue of no length is a cue there is nothing to show for, and
 /// `trim=duration=0` is not something ffmpeg will accept. It is dropped
 /// rather than rendered, which changes nothing about the timeline: the
 /// placement around it already covers those zero milliseconds.
@@ -268,15 +268,15 @@ fn a_beat_of_no_length_does_not_reach_the_graph() {
         height: 180,
         fps: 24,
         duration_ms: 2_000,
-        beats: vec![
-            Beat {
+        cues: vec![
+            Cue {
                 id: "empty#0".into(),
                 start_ms: 0,
                 duration_ms: 0,
                 picture: Picture::Slate,
                 transition: Transition::cut(),
             },
-            Beat {
+            Cue {
                 id: "real#0".into(),
                 start_ms: 0,
                 duration_ms: 2_000,
@@ -290,7 +290,7 @@ fn a_beat_of_no_length_does_not_reach_the_graph() {
 
     FfmpegRenderer::default()
         .render(&plan, &mut |_| {})
-        .expect("a zero-length beat is dropped, not rendered");
+        .expect("a zero-length cue is dropped, not rendered");
     assert!((duration_of(&plan.output) - 2.0).abs() < 0.2);
 }
 
@@ -334,15 +334,15 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
         height: 180,
         fps: 24,
         duration_ms: 3_000,
-        beats: vec![
-            Beat {
+        cues: vec![
+            Cue {
                 id: "short#0".into(),
                 start_ms: 0,
                 duration_ms: 2_000,
                 picture: Picture::Clip(clip.clone()),
                 transition: Transition::cut(),
             },
-            Beat {
+            Cue {
                 id: "long#0".into(),
                 start_ms: 2_000,
                 duration_ms: 500,
@@ -381,7 +381,7 @@ fn a_gap_after_a_beat_freezes_its_last_frame() {
         height: 180,
         fps: 24,
         duration_ms: 6_000,
-        beats: vec![Beat {
+        cues: vec![Cue {
             id: "only#0".into(),
             start_ms: 0,
             duration_ms: 1_000,
@@ -405,7 +405,7 @@ fn a_gap_after_a_beat_freezes_its_last_frame() {
     }
 }
 
-/// The same at the head. Narration opens after a lead-in and the first beat
+/// The same at the head. Narration opens after a lead-in and the first cue
 /// starts with it, so a video that cut to black until then would open on
 /// black every single time.
 #[test]
@@ -423,7 +423,7 @@ fn a_gap_before_the_first_beat_holds_its_first_frame() {
         height: 180,
         fps: 24,
         duration_ms: 4_000,
-        beats: vec![Beat {
+        cues: vec![Cue {
             id: "late#0".into(),
             start_ms: 2_000,
             duration_ms: 1_000,
@@ -441,13 +441,13 @@ fn a_gap_before_the_first_beat_holds_its_first_frame() {
     let luma = luma_at(&plan.output, 0.5);
     assert!(
         luma > 100.0,
-        "the video opened on black before its first beat: YAVG {luma}"
+        "the video opened on black before its first cue: YAVG {luma}"
     );
     assert!((duration_of(&plan.output) - 4.0).abs() < 0.2);
 }
 
-/// A beat that contributes no picture must not take the gap in front of it
-/// with it. Dropping a zero-length beat used to drop the hold that preceded
+/// A cue that contributes no picture must not take the gap in front of it
+/// with it. Dropping a zero-length cue used to drop the hold that preceded
 /// it, and the video came out a minute shorter than its own timeline.
 #[test]
 fn dropping_an_empty_beat_does_not_drop_the_time_before_it() {
@@ -464,15 +464,15 @@ fn dropping_an_empty_beat_does_not_drop_the_time_before_it() {
         height: 180,
         fps: 24,
         duration_ms: 6_000,
-        beats: vec![
-            Beat {
+        cues: vec![
+            Cue {
                 id: "real#0".into(),
                 start_ms: 0,
                 duration_ms: 1_000,
                 picture: Picture::Clip(bright_clip(&dir, "bright.mp4")),
                 transition: Transition::cut(),
             },
-            Beat {
+            Cue {
                 id: "empty#0".into(),
                 // Three seconds of narration sit between the two.
                 start_ms: 4_000,

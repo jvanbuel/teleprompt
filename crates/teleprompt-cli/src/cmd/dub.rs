@@ -34,7 +34,7 @@ pub struct Downgrade {
 pub struct DubOutput {
     pub manifest: NarrationManifest,
     /// Every cue's published source, which is what a capture backend
-    /// runs. The manifest names the beats; only this says what they do.
+    /// runs. The manifest names the items; only this says what they do.
     pub cues: Vec<teleprompt_compile::CueSource>,
     /// The scenes as configured. A capture backend has to know what
     /// terminal it is opening.
@@ -769,7 +769,7 @@ mod tests {
             },
             chapters: Vec::new(),
             lines,
-            beats: Vec::new(),
+            items: Vec::new(),
         }
     }
 

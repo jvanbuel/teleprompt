@@ -111,10 +111,10 @@ impl Measured {
 ///
 /// Deliberately not an `Error`: this never propagates as one. It is the half
 /// of a diagnostic an adapter knows — what is wrong and how to fix it — with
-/// the half only the caller knows, the location, left out. [`validate_lines`]
+/// the half only the caller knows, the location, left out. [`validate_commands`]
 /// joins the two.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LineError {
+pub struct CommandError {
     pub message: String,
     /// Owned rather than `&'static str`: the most useful help an adapter can
     /// give is often computed — the list of directives it understands, or the
@@ -123,7 +123,7 @@ pub struct LineError {
     pub help: Option<String>,
 }
 
-impl LineError {
+impl CommandError {
     /// A line error with a help line attached.
     pub fn new(message: impl Into<String>, help: impl Into<String>) -> Self {
         Self {
@@ -149,9 +149,9 @@ impl LineError {
 /// than the first, so one `check` fixes a whole block; and it routes every
 /// diagnostic through [`BodyOrigin::locate`], so an `include`d body names its
 /// own file at its own line numbers instead of an offset into the script.
-pub fn validate_lines<T>(
+pub fn validate_commands<T>(
     src: &BlockSource,
-    classify: impl Fn(&str) -> Result<T, LineError>,
+    classify: impl Fn(&str) -> Result<T, CommandError>,
 ) -> Result<Validated, Vec<Diagnostic>> {
     let diags: Vec<Diagnostic> = src
         .body

@@ -199,17 +199,17 @@ async fn the_binary_builds_a_video_and_reports_it_as_json() {
     assert!(json["duration_ms"].as_u64().unwrap() > 0);
     // Not `captured == 2`: this fixture's scenes are `terminal` ones, and
     // whether they record depends on the machine having a working `vhs`.
-    // What holds everywhere is that every beat is accounted for — one
+    // What holds everywhere is that every item is accounted for — one
     // recorded or one held with a slate, never neither and never both.
-    let beats = json["beats"].as_u64().unwrap();
+    let items = json["items"].as_u64().unwrap();
     let captured = json["captured"].as_u64().unwrap();
     let slates = json["slates"].as_u64().unwrap();
-    assert_eq!(beats, 2);
+    assert_eq!(items, 2);
     assert_eq!(
         captured + slates,
-        beats,
+        items,
         "{captured} recorded and {slates} slated does not account for \
-         {beats} beat(s)"
+         {items} item(s)"
     );
     assert!(out.exists());
 }
@@ -248,7 +248,7 @@ async fn front_matter_decides_the_frame_when_no_flag_does() {
     // frames and the duration it actually holds, so a video assembled from
     // captured clips comes back as 12.000321 rather than 12 — a number
     // that is right and is not the same `f64`. Asserting equality here
-    // passed for as long as every beat was a slate and started failing the
+    // passed for as long as every item was a slate and started failing the
     // day something recorded a real terminal.
     let (width, height, fps) = frame_shape(&report.output);
     assert_eq!((width, height), (480, 270));

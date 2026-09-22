@@ -1,7 +1,7 @@
-//! What names a beat's picture.
+//! What names a item's picture.
 //!
-//! A scene is a session: the beats of a walkthrough continue one another,
-//! and the screen at beat *N* is the accumulation of beats 1..*N*. So a
+//! A scene is a session: the items of a walkthrough continue one another,
+//! and the screen at item *N* is the accumulation of items 1..*N*. So a
 //! clip is not identified by its own tape — it is identified by its tape
 //! and every tape before it in that session. This is OCI's chain ID for
 //! the same reason OCI needs one.
@@ -54,7 +54,7 @@ fn run(src: &str) -> CompileOutput {
     .expect("fixture compiles")
 }
 
-/// Every action beat's capture key, in timeline order.
+/// Every action item's capture key, in timeline order.
 fn keys(out: &CompileOutput) -> Vec<Hash> {
     out.timeline
         .entries
@@ -94,7 +94,7 @@ const J: &str = "wait 1000ms\n";
 
 /// The bug this exists to stop. `cue_hash` is the hash of a tape and
 /// nothing else, so two blocks with the same steps collide — and the
-/// second beat would render the first beat's picture. One is "move down
+/// second item would render the first item's picture. One is "move down
 /// the DAG list", the other is "move down the task list".
 #[test]
 fn two_blocks_with_the_same_tape_do_not_share_a_picture() {
@@ -118,15 +118,15 @@ fn two_blocks_with_the_same_tape_do_not_share_a_picture() {
     );
 }
 
-/// The chain's shape. Editing a beat invalidates it and everything after
+/// The chain's shape. Editing a item invalidates it and everything after
 /// it in that session, and nothing before it.
 #[test]
 fn editing_a_beat_invalidates_it_and_what_follows_it() {
     let before = keys(&run(&twice(J, J)));
     let after = keys(&run(&twice(J, "wait 1500ms\n")));
 
-    assert_eq!(before[0], after[0], "the beat before the edit is untouched");
-    assert_ne!(before[1], after[1], "the edited beat is not");
+    assert_eq!(before[0], after[0], "the item before the edit is untouched");
+    assert_ne!(before[1], after[1], "the edited item is not");
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn editing_the_first_beat_invalidates_every_beat_after_it() {
     assert_ne!(before[0], after[0]);
     assert_ne!(
         before[1], after[1],
-        "the second beat's screen is what the first one left behind"
+        "the second item's screen is what the first one left behind"
     );
 }
 
@@ -157,12 +157,12 @@ fn a_named_session_starts_a_chain_of_its_own() {
     assert_eq!(
         keys(&split)[0],
         keys(&joined)[0],
-        "the first beat is in neither session's debt"
+        "the first item is in neither session's debt"
     );
     assert_ne!(
         keys(&split)[1],
         keys(&joined)[1],
-        "the second beat no longer follows the first"
+        "the second item no longer follows the first"
     );
     assert_eq!(
         keys(&split)[1],
@@ -172,7 +172,7 @@ fn a_named_session_starts_a_chain_of_its_own() {
     );
 }
 
-/// Two scenes are two screens. A beat in one is not downstream of a beat
+/// Two scenes are two screens. A item in one is not downstream of a item
 /// in the other, however they interleave in the document.
 #[test]
 fn a_beat_does_not_follow_a_beat_in_another_scene() {
@@ -189,13 +189,13 @@ fn a_beat_does_not_follow_a_beat_in_another_scene() {
 
     assert_eq!(
         keys[2], alone[1],
-        "the third beat is the second thing to happen in its own scene, \
-         and the beat in between belongs to another screen"
+        "the third item is the second thing to happen in its own scene, \
+         and the item in between belongs to another screen"
     );
 
-    // And the beat in between opens a screen of its own, which — same
+    // And the item in between opens a screen of its own, which — same
     // adapter, same settings, same tape — is the same picture as the one
-    // the first beat opened. That is deduplication, not a collision: two
+    // the first item opened. That is deduplication, not a collision: two
     // identically configured scenes really do show the same thing.
     assert_eq!(keys[0], keys[1]);
 }
@@ -216,7 +216,7 @@ fn the_spans_of_one_block_chain_like_blocks_do() {
 }
 
 /// A pause is not a picture, so it is not in any chain: it holds whatever
-/// is on screen. Chaining it would make every beat after a pause depend on
+/// is on screen. Chaining it would make every item after a pause depend on
 /// how long the pause was.
 #[test]
 fn a_pause_does_not_join_the_chain() {
@@ -232,7 +232,7 @@ fn a_pause_does_not_join_the_chain() {
     assert_eq!(
         keys(&with),
         keys(&without),
-        "a pause between two beats changed what the second one shows"
+        "a pause between two items changed what the second one shows"
     );
 }
 
@@ -265,7 +265,7 @@ fn a_capture_key_names_the_recipe_that_recorded_it() {
         .iter()
         .filter_map(|e| e.action.as_ref())
         .find(|a| a.scene != "pause")
-        .expect("the fixture has one action beat");
+        .expect("the fixture has one action item");
 
     let settings = out
         .scenes
@@ -282,7 +282,7 @@ fn a_capture_key_names_the_recipe_that_recorded_it() {
     assert_eq!(
         action.capture_key,
         Hash::of_fields(&[&name.to_string()]),
-        "the first beat of a session should be chain(0) = H(name(0)), \
+        "the first item of a session should be chain(0) = H(name(0)), \
          with the recipe inside name(0)"
     );
 }

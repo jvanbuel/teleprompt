@@ -24,7 +24,7 @@
 //! script shifts everything after it by some fraction of a frame, half the
 //! chunks downstream round the other way, and a rebuild re-encodes more
 //! than half a video in which nothing after paragraph two changed. Keyed
-//! on its own duration, a beat that did not change does not change.
+//! on its own duration, a cue that did not change does not change.
 //!
 //! The price is that rounded parts need not add up to the rounded whole,
 //! so the last chunk — a held frame at the end of the video, the most
@@ -66,7 +66,7 @@ pub enum Content {
     Body(Window),
     /// Two windows of equal length, blended. This is the whole of a
     /// transition: the frames either side of it are ordinary bodies, which
-    /// is what keeps a transition from invalidating the beats it joins.
+    /// is what keeps a transition from invalidating the cues it joins.
     Blend {
         kind: String,
         from: Window,
@@ -94,7 +94,7 @@ fn frames_of(ms: u64, fps: u32) -> u64 {
 
 /// `plan` as chunks, or `None` if it cannot be cut into any.
 ///
-/// The one plan that cannot is a beat shorter than the transitions either
+/// The one plan that cannot is a cue shorter than the transitions either
 /// side of it: the two blends would draw the same frames twice. That is
 /// rare enough to be worth reporting rather than engineering around —
 /// the caller renders the whole graph in one pass instead, which is what
@@ -167,7 +167,7 @@ fn settle(out: &mut [Chunk], target: u64) {
 }
 
 /// Append a chunk of `duration_ms`, unless it rounds to no frames at
-/// all — a beat too short to draw a frame of, which the chunks either
+/// all — a cue too short to draw a frame of, which the chunks either
 /// side of it already cover.
 fn push(
     out: &mut Vec<Chunk>,
@@ -198,7 +198,7 @@ fn window(placement: &Placement, start_ms: u64, frames: u64, fps: u32) -> Window
     Window {
         source: match &placement.picture {
             Picture::Clip(path) => Source::Clip(path.clone()),
-            // `Hold` cannot reach here: a held beat is folded into the
+            // `Hold` cannot reach here: a held cue is folded into the
             // placement before it, which is what holding means.
             Picture::Hold | Picture::Slate => Source::Slate,
         },
@@ -231,7 +231,7 @@ pub struct ChunkKey<'a> {
 impl<'a> ChunkKey<'a> {
     /// The key for `chunk` rendered under `plan`'s geometry.
     ///
-    /// Note what is *not* in it: the beat's name, its place in the script,
+    /// Note what is *not* in it: the cue's name, its place in the script,
     /// the script itself. Two scripts that put the same picture in the same
     /// place encode it once.
     pub fn for_chunk(plan: &'a RenderPlan, chunk: &'a Chunk) -> Self {

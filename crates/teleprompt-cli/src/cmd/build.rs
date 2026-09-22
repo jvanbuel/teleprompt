@@ -93,7 +93,7 @@ pub struct BuildReport {
     /// Which renderer did the work, for a report that says how it was made.
     pub renderer: &'static str,
     pub lines: usize,
-    pub beats: usize,
+    pub items: usize,
     /// Beats that rendered as a slate because nothing had captured them.
     pub slates: usize,
     /// Beats recorded on the way past. A warm project records none and
@@ -115,12 +115,12 @@ impl BuildReport {
             _ => String::new(),
         };
         format!(
-            "  {}\n  {} via {}{reused}\n  {} line(s), {} beat(s), {} slate(s)\n",
+            "  {}\n  {} via {}{reused}\n  {} line(s), {} item(s), {} slate(s)\n",
             self.output.display(),
             clock(self.duration_ms),
             self.renderer,
             self.lines,
-            self.beats,
+            self.items,
             self.slates,
         )
     }
@@ -181,7 +181,7 @@ pub fn renderer(options: &BuildOptions) -> Box<dyn Renderer> {
 ///
 /// The renderer is a parameter because there is to be more than one — the
 /// ffmpeg path handles everything, and a pure-Rust path can handle scripts
-/// whose beats are all hard cuts.
+/// whose items are all hard cuts.
 pub async fn run_build_with(
     renderer: &dyn Renderer,
     project: &Project,
@@ -260,7 +260,7 @@ pub async fn run_build_with_capture(
         },
     );
     let slates = render_plan
-        .beats
+        .cues
         .iter()
         .filter(|b| b.picture == Picture::Slate)
         .count();
@@ -294,7 +294,7 @@ pub async fn run_build_with_capture(
         duration_ms: rendered.duration_ms,
         renderer: renderer.id(),
         lines: dubbed.manifest.lines.len(),
-        beats: dubbed.manifest.beats.len(),
+        items: dubbed.manifest.items.len(),
         slates,
         captured,
         reused_ms: rendered.reused_ms,

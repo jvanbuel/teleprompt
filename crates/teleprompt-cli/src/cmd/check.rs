@@ -7,7 +7,7 @@ use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Item};
+use teleprompt_core::program::{resolve, Element};
 use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_voice::VoiceBackend;
 use teleprompt_voice_null::WpmEstimator;
@@ -144,7 +144,7 @@ pub fn compile_script_with(
     // carries a single `backend_id` for the whole program. A narration item
     // can resolve to a different backend than the program's overall
     // resolved backend two ways: a line attribute set it, or a
-    // chapter's front matter did. `Item::Narration` does not retain which
+    // chapter's front matter did. `Element::Narration` does not retain which
     // layer supplied the value — `config` is already the fully merged
     // result — so the diagnostic describes the *effect* ("this line
     // resolves to a backend other than the one in use") rather than
@@ -158,8 +158,8 @@ pub fn compile_script_with(
         String,
         Vec<(String, teleprompt_core::SourceSpan)>,
     > = std::collections::BTreeMap::new();
-    for item in &program.items {
-        if let Item::Narration {
+    for item in &program.elements {
+        if let Element::Narration {
             id, config, span, ..
         } = item
         {

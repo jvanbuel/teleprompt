@@ -4,11 +4,11 @@
 //! edit means hearing it, which cost a re-dub and a render — minutes, for a
 //! change you wanted to evaluate in seconds. `serve` closes that: it watches
 //! the script, recompiles on save, synthesizes only what changed, and hands a
-//! preview the beat that moved.
+//! preview the item that moved.
 //!
 //! **The preview is a manifest consumer.** It reads exactly what
 //! `docs/integrations/remotion.md` tells an outside integrator to read —
-//! `narration.json` with its `beats` — plus the cue sources it needs to draw
+//! `narration.json` with its `items` — plus the cue sources it needs to draw
 //! a scene. Nothing here has privileged access to the schedule, which is what
 //! keeps "looked fine in preview" from becoming a category of bug.
 //!
@@ -60,7 +60,7 @@ struct Preview {
     /// addressed by content, so this is the index from the name a consumer
     /// asks for to the file that answers it.
     audio_keys: BTreeMap<String, String>,
-    /// Ids of the beats and lines whose timing or content moved in the
+    /// Ids of the items and lines whose timing or content moved in the
     /// compile that produced this generation. Empty on the first one.
     changed: Vec<String>,
     /// Set when the last save failed to compile. The previous generation's
@@ -180,7 +180,7 @@ async fn warm(
 /// What moved between two manifests, as ids the preview can seek to.
 ///
 /// Deliberately coarser than `diff`: the preview only needs somewhere to
-/// jump, so a line whose text or timing changed and a beat whose schedule
+/// jump, so a line whose text or timing changed and a item whose schedule
 /// moved are both simply "changed". `diff` remains the surface for reading
 /// *what* changed.
 fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
@@ -198,15 +198,15 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
             }
         }
     }
-    for beat in &after.beats {
-        match before.beats.iter().find(|b| b.cue == beat.cue) {
-            None => out.push(beat.cue.clone()),
+    for item in &after.items {
+        match before.items.iter().find(|b| b.cue == item.cue) {
+            None => out.push(item.cue.clone()),
             Some(was) => {
-                if was.capture_key != beat.capture_key
-                    || was.start_ms != beat.start_ms
-                    || was.duration_ms != beat.duration_ms
+                if was.capture_key != item.capture_key
+                    || was.start_ms != item.start_ms
+                    || was.duration_ms != item.duration_ms
                 {
-                    out.push(beat.cue.clone());
+                    out.push(item.cue.clone());
                 }
             }
         }
@@ -476,7 +476,7 @@ async fn watch(state: Arc<Mutex<Preview>>, project: Project, script: PathBuf, lo
                 p.audio_keys = built.audio_keys;
                 p.changed = built.changed;
                 p.error = None;
-                eprintln!("  recompiled — {} beat(s) moved", p.changed.len());
+                eprintln!("  recompiled — {} item(s) moved", p.changed.len());
             }
             Err(ServeError::Validation(errors)) => {
                 // The preview keeps playing the last thing that compiled.

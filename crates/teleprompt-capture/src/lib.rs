@@ -141,7 +141,7 @@ pub fn sessions(cues: &[Cue], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
     }
 
     for session in &mut out {
-        // Steps after the last wanted one are not run. The prefix has to
+        // Cues after the last wanted one are not run. The prefix has to
         // be replayed to reach the screen a wanted cue opens on; the
         // suffix leads nowhere anybody is looking, and on a tape whose
         // sleeps are real seconds that is the difference between a capture

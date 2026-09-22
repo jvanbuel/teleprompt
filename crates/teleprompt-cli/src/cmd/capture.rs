@@ -30,22 +30,22 @@ pub fn cues_of(
     scenes: &BTreeMap<String, SceneConfig>,
 ) -> Vec<Cue> {
     manifest
-        .beats
+        .items
         .iter()
-        .map(|beat| Cue {
-            id: beat.cue.clone(),
-            scene: beat.scene.clone(),
-            adapter: beat.adapter.clone(),
-            session: beat.session.clone(),
-            key: beat.capture_key,
+        .map(|item| Cue {
+            id: item.cue.clone(),
+            scene: item.scene.clone(),
+            adapter: item.adapter.clone(),
+            session: item.session.clone(),
+            key: item.capture_key,
             source: cues
                 .iter()
-                .find(|s| s.id == beat.cue)
+                .find(|s| s.id == item.cue)
                 .map(|s| s.source.clone())
                 .unwrap_or_default(),
-            duration_ms: beat.duration_ms,
+            duration_ms: item.duration_ms,
             settings: scenes
-                .get(&beat.scene)
+                .get(&item.scene)
                 .map(|s| flatten(&s.settings))
                 .unwrap_or_default(),
         })
@@ -106,9 +106,9 @@ pub struct CaptureReport {
     /// Sessions that had something to record. A warm project has none.
     pub sessions: usize,
     pub captured: usize,
-    /// Beats whose clip was already in hand.
+    /// Cues whose clip was already in hand.
     pub reused: usize,
-    /// Beats nothing on this machine can record, which `build` will render
+    /// Cues nothing on this machine can record, which `build` will render
     /// as slates.
     pub uncaptured: usize,
     pub warnings: Vec<String>,
