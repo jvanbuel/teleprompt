@@ -1191,6 +1191,7 @@ dependencies = [
 name = "teleprompt-playwright"
 version = "0.1.0"
 dependencies = [
+ "teleprompt-capture",
  "teleprompt-core",
  "teleprompt-scene",
 ]

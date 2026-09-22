@@ -55,6 +55,14 @@ pub enum DurationSource {
     Exact,
     Estimated,
     Measured,
+    /// The adapter cannot say, and does not guess.
+    ///
+    /// A Playwright script states no duration: `await page.click(…)` takes
+    /// as long as the page takes. Calling that an estimate would be a
+    /// number nobody computed, and flattening it to zero — which this did
+    /// — is worse: a shot of no length whose picture never reaches the
+    /// video, while the build reports it as captured.
+    Unknown,
 }
 
 #[derive(Debug, Clone)]

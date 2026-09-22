@@ -664,11 +664,15 @@ Read it, then remove the attribute."
                         scene: scene.clone(),
                         adapter: adapter_name.clone(),
                         shot_hash: shot.hash,
+                        // Zero where the adapter cannot say, and the
+                        // scheduler replaces it with the sentence's length.
+                        // It must not be *called* an estimate: nobody
+                        // estimated it.
                         duration_ms: measured.duration_ms().unwrap_or(0),
                         duration_source: match measured {
                             Measured::Exact(_) => DurationSource::Exact,
                             Measured::Estimated(_) => DurationSource::Estimated,
-                            Measured::Unknown => DurationSource::Estimated,
+                            Measured::Unknown => DurationSource::Unknown,
                         },
                         // Only the shot paired with the narration can be
                         // cued to a word in it; the rest follow it.

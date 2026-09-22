@@ -36,7 +36,18 @@ pub fn schedule(
             .as_ref()
             .map(|n| n.padded_duration_ms())
             .unwrap_or(0);
-        let action_ms = item.action.as_ref().map(|a| a.duration_ms).unwrap_or(0);
+        // An action that cannot state its own length is given the
+        // sentence over it: the recorder is told how long to keep going,
+        // and the narration decides when the shot is over. Zero would mean
+        // "takes no time", which is a different claim and a wrong one.
+        let action_ms = item
+            .action
+            .as_ref()
+            .map(|a| match a.duration_source {
+                DurationSource::Unknown => narration_ms,
+                _ => a.duration_ms,
+            })
+            .unwrap_or(0);
 
         let cue_ms = item.action.as_ref().and_then(|a| a.cue_ms);
         let l = layout_at(item.policy, narration_ms, action_ms, cue_ms, timing);
@@ -131,6 +142,7 @@ pub fn schedule(
                     DurationSource::Exact => "exact",
                     DurationSource::Estimated => "estimated",
                     DurationSource::Measured => "measured",
+                    DurationSource::Unknown => "unknown",
                 }
                 .to_string(),
                 voice_source: n.voice_source.label().to_string(),
@@ -154,6 +166,7 @@ pub fn schedule(
                     DurationSource::Exact => "exact",
                     DurationSource::Estimated => "estimated",
                     DurationSource::Measured => "measured",
+                    DurationSource::Unknown => "unknown",
                 }
                 .to_string(),
             }),

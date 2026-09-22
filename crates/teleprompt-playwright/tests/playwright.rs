@@ -87,3 +87,87 @@ fn shots_are_identified_by_block_and_index() {
     assert_eq!(s[1].id, "b#1");
     assert_ne!(s[0].hash, s[1].hash);
 }
+
+mod capture {
+    use teleprompt_capture::{Frame, Session, SessionShot};
+    use teleprompt_core::Hash;
+    use teleprompt_playwright::capture::script_for;
+
+    fn shot(id: &str, source: &str, ms: u64) -> SessionShot {
+        SessionShot {
+            id: id.into(),
+            key: Hash::of(id.as_bytes()),
+            source: source.into(),
+            duration_ms: ms,
+            wanted: true,
+        }
+    }
+
+    fn session(shots: Vec<SessionShot>) -> Session {
+        Session {
+            scene: "ui".into(),
+            adapter: "playwright".into(),
+            name: None,
+            settings: Default::default(),
+            shots,
+        }
+    }
+
+    fn frame() -> Frame {
+        Frame {
+            width: 1280,
+            height: 720,
+            fps: 24,
+        }
+    }
+
+    /// The author's lines reach Playwright unaltered. teleprompt wraps
+    /// them; it does not rewrite them, because it does not parse them.
+    #[test]
+    fn the_script_carries_the_authors_lines_verbatim() {
+        let s = session(vec![shot("a#0", "await page.click('#run');", 2_000)]);
+        let js = script_for(&s, &frame(), "/tmp/v");
+        assert!(js.contains("await page.click('#run');"), "{js}");
+    }
+
+    /// A shot that finishes early holds the page until its slot is over,
+    /// so the reel's clock matches the windows cut from it. This is not
+    /// re-timing: the script is untouched, the wait comes after it.
+    #[test]
+    fn a_shot_is_held_open_for_the_slot_the_narration_gave_it() {
+        let s = session(vec![shot("a#0", "await page.click('#x');", 2_500)]);
+        let js = script_for(&s, &frame(), "/tmp/v");
+        assert!(
+            js.contains("const __left = 2500 - (Date.now() - __began);"),
+            "{js}"
+        );
+        assert!(js.contains("if (__left > 0) await page.waitForTimeout(__left);"));
+    }
+
+    /// Recording with a visible cursor is the whole reason to record a
+    /// browser: a click with no pointer on screen is a page that changes
+    /// for no visible reason.
+    #[test]
+    fn the_recording_shows_the_cursor_and_what_it_did() {
+        let js = script_for(
+            &session(vec![shot("a#0", "await page.click('#x');", 100)]),
+            &frame(),
+            "/tmp/v",
+        );
+        assert!(js.contains("showActions"), "{js}");
+        assert!(js.contains("cursor: 'pointer'"), "{js}");
+    }
+
+    /// Each shot runs in its own block, in order, in one context — the
+    /// page keeps its state across them.
+    #[test]
+    fn the_shots_run_in_order_in_one_browser() {
+        let s = session(vec![
+            shot("a#0", "await page.goto('/');", 1_000),
+            shot("a#1", "await page.click('#next');", 1_000),
+        ]);
+        let js = script_for(&s, &frame(), "/tmp/v");
+        assert_eq!(js.matches("newContext").count(), 1, "one context: {js}");
+        assert!(js.find("goto").unwrap() < js.find("#next").unwrap());
+    }
+}

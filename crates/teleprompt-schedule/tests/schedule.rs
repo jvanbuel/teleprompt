@@ -351,3 +351,34 @@ fn a_transition_leaves_room_for_the_one_that_arrived_before_it() {
         entries[1].duration_ms
     );
 }
+
+/// An action whose adapter cannot say how long it takes fills the slot the
+/// narration gives it.
+///
+/// A Playwright script states no duration — `await page.click(…)` takes as
+/// long as the page takes — so its adapter answers `Unknown`. That was
+/// flattened to `0`, which is not "unknown", it is "takes no time": the
+/// shot got zero length, its picture never reached the video, and the
+/// renderer held the neighbouring frame over the whole slot. The build
+/// reported `slates: 0, captured: 2` while showing neither.
+///
+/// Unknown means the recorder is told how long to keep going, which is the
+/// only useful reading: the script runs under the sentence, and the
+/// sentence decides when the shot is over.
+#[test]
+fn an_action_of_unknown_length_fills_the_sentence_over_it() {
+    let mut item = item("a", Some(6_000), Some(0), Policy::Hold, no_transition());
+    if let Some(action) = item.action.as_mut() {
+        action.duration_source = DurationSource::Unknown;
+    }
+    let t = schedule(&[item], "s.md", "en", "0.1.0").0;
+
+    let action = t.entries[0].action.as_ref().expect("an action");
+    // 6300, not 6000: the slot is the *padded* narration — lead-in and
+    // tail included — because the picture has to cover the silence either
+    // side of the speech as well as the speech.
+    assert_eq!(
+        action.duration_ms, 6_300,
+        "an unknown-length action takes the slot the narration gives it, not zero"
+    );
+}
