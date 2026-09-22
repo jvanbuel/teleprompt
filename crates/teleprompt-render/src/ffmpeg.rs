@@ -8,134 +8,12 @@
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
 
+use crate::piece::{pieces, seconds, xfade_for, BACKGROUND};
 use crate::{Picture, Progress, RenderError, RenderPlan, Rendered, Renderer};
-
-/// The colour a slate holds, and what a clip narrower than the frame is
-/// padded with.
-const BACKGROUND: &str = "0x0b0d10";
 
 /// The narration bed's sample rate. Matches what the voice crates emit, so
 /// mixing never resamples.
-const SAMPLE_RATE: u32 = 24_000;
-
-/// One beat's place on screen: what to draw, and for how long.
-///
-/// A piece is not the same thing as a beat. The plan's beats do not tile
-/// the timeline — narration opens after a lead-in, and most paragraphs have
-/// no action under them at all, which on a real script is the majority of
-/// the running time. Those gaps are picture too. They are folded into the
-/// neighbouring piece as frozen frames rather than becoming anything of
-/// their own, because the alternative is a video that cuts to a blank field
-/// every time somebody keeps talking.
-struct Piece {
-    /// Where this piece begins on the output timeline, lead-in included.
-    start_ms: u64,
-    /// Frozen first frame before the clip itself starts. Only the opening
-    /// piece has one: there is nothing earlier to hold.
-    lead_in_ms: u64,
-    /// Total time on screen — lead-in, the beat, and any gap after it,
-    /// which is held on the last frame.
-    duration_ms: u64,
-    picture: Picture,
-    /// How this piece is joined to the one before it, and by how much they
-    /// overlap. The overlap is the transition the scheduler granted, read
-    /// off the beats' own arithmetic rather than off the published
-    /// duration, so there is one source of truth for when a join happens.
-    blend: Option<(String, u64)>,
-}
-
-/// The plan's beats as pieces covering `[0, plan.duration_ms)` exactly.
-fn pieces(plan: &RenderPlan) -> Vec<Piece> {
-    let mut out: Vec<Piece> = Vec::new();
-    let mut cursor = 0u64;
-    let mut pending_lead = 0u64;
-
-    for (i, beat) in plan.beats.iter().enumerate() {
-        // A beat that starts before the one before it ended is a beat the
-        // scheduler granted a transition; the kind comes from the beat
-        // being left, which is the end the manifest publishes it on.
-        let overlap = cursor.saturating_sub(beat.start_ms);
-        let blend = match plan.beats[..i].iter().rev().find(|b| b.duration_ms > 0) {
-            Some(previous) if overlap > 0 => Some((previous.transition.kind.clone(), overlap)),
-            _ => None,
-        };
-
-        // Otherwise, whatever time sits between them is held: on the
-        // previous piece's last frame where there is one, and on this
-        // piece's first frame where there is not. This is settled before
-        // the beat itself is looked at, because a beat that contributes
-        // nothing still has a gap in front of it, and dropping the beat
-        // must not drop the time.
-        if overlap == 0 && beat.start_ms > cursor {
-            let gap = beat.start_ms - cursor;
-            match out.last_mut() {
-                Some(previous) => previous.duration_ms += gap,
-                None => pending_lead += gap,
-            }
-            cursor = beat.start_ms;
-        }
-
-        // A beat of no length is dropped rather than drawn. `-t 0` on a
-        // `color` source does not mean "no frames" — it means no limit, and
-        // ffmpeg renders until something stops it.
-        if beat.duration_ms == 0 {
-            continue;
-        }
-
-        // A beat with nothing of its own to show — a pause, or a scene the
-        // manifest says holds — extends whatever is already on screen.
-        if beat.picture == Picture::Hold {
-            match out.last_mut() {
-                Some(previous) => previous.duration_ms += beat.duration_ms,
-                None => pending_lead += beat.duration_ms,
-            }
-            cursor = beat.start_ms + beat.duration_ms;
-            continue;
-        }
-
-        let lead_in_ms = std::mem::take(&mut pending_lead);
-        out.push(Piece {
-            start_ms: beat.start_ms - lead_in_ms,
-            lead_in_ms,
-            duration_ms: beat.duration_ms + lead_in_ms,
-            picture: beat.picture.clone(),
-            blend,
-        });
-        cursor = beat.start_ms + beat.duration_ms;
-    }
-
-    match out.last_mut() {
-        // The tail is held too: a script that ends on a sentence should end
-        // on its last frame, not on a blank one.
-        Some(last) if plan.duration_ms > cursor => {
-            last.duration_ms += plan.duration_ms - cursor;
-        }
-        // Nothing was captured at all, and there is no frame to hold. This
-        // is the only case that draws a slate.
-        None if plan.duration_ms > 0 => out.push(Piece {
-            start_ms: 0,
-            lead_in_ms: 0,
-            duration_ms: plan.duration_ms,
-            picture: Picture::Slate,
-            blend: None,
-        }),
-        _ => {}
-    }
-    out
-}
-
-/// The `xfade` transition to use for a configured transition kind.
-///
-/// An unknown kind fades rather than failing the render: the scheduler has
-/// already granted it time on the timeline, so refusing to draw it would
-/// leave a hole, and a fade is the least surprising thing to put there.
-fn xfade_for(kind: &str) -> &'static str {
-    match kind {
-        "dissolve" => "dissolve",
-        "wipe" => "wiperight",
-        _ => "fade",
-    }
-}
+pub(crate) const SAMPLE_RATE: u32 = 24_000;
 
 /// The argument vector for `plan`, ffmpeg's own name excluded.
 ///
@@ -278,11 +156,6 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
     args
 }
 
-/// Milliseconds as seconds, which is the unit ffmpeg's `-t` takes.
-fn seconds(ms: u64) -> String {
-    format!("{}.{:03}", ms / 1000, ms % 1000)
-}
-
 /// Renders by invoking `ffmpeg`.
 #[derive(Debug, Clone)]
 pub struct FfmpegRenderer {
@@ -309,70 +182,13 @@ impl Renderer for FfmpegRenderer {
         plan: &RenderPlan,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Rendered, RenderError> {
-        if let Some(parent) = plan.output.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent).map_err(|source| RenderError::Io {
-                    path: parent.display().to_string(),
-                    source,
-                })?;
-            }
-        }
-
-        // `-progress pipe:1` writes machine-readable `key=value` lines to
-        // stdout, so nothing has to scrape the human-readable stderr — which
-        // is a log, not an interface, and changes between ffmpeg releases.
-        let mut command = Command::new(&self.program);
-        command
-            .args(["-nostdin", "-nostats", "-progress", "pipe:1"])
-            .args(args(plan))
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        let mut child = command.spawn().map_err(|source| RenderError::Unavailable {
-            program: self.program.clone(),
-            source,
-        })?;
-
-        // stderr is drained on its own thread. A render that fills the pipe
-        // buffer while nobody reads it deadlocks, and ffmpeg is verbose
-        // enough on a long script to do exactly that.
-        let mut err = child.stderr.take().expect("stderr was piped");
-        let draining = std::thread::spawn(move || {
-            let mut buf = String::new();
-            let _ = err.read_to_string(&mut buf);
-            buf
-        });
-
-        let out = child.stdout.take().expect("stdout was piped");
-        for line in BufReader::new(out).lines().map_while(Result::ok) {
-            // `out_time_us` is microseconds of output written so far. The
-            // older `out_time_ms` key is also microseconds despite its name,
-            // which is a trap worth not walking into.
-            if let Some(us) = line.strip_prefix("out_time_us=") {
-                if let Ok(us) = us.trim().parse::<u64>() {
-                    on_progress(Progress {
-                        rendered_ms: us / 1000,
-                        of_ms: plan.duration_ms,
-                    });
-                }
-            }
-        }
-
-        let status = child.wait().map_err(|source| RenderError::Io {
-            path: plan.output.display().to_string(),
-            source,
-        })?;
-        let stderr = draining.join().unwrap_or_default();
-
-        if !status.success() {
-            return Err(RenderError::Failed {
-                program: self.program.clone(),
-                status: status.to_string(),
-                stderr: tail(&stderr),
+        ensure_parent(&plan.output)?;
+        run(&self.program, &args(plan), &mut |rendered_ms| {
+            on_progress(Progress {
+                rendered_ms,
+                of_ms: plan.duration_ms,
             });
-        }
-
+        })?;
         on_progress(Progress {
             rendered_ms: plan.duration_ms,
             of_ms: plan.duration_ms,
@@ -380,8 +196,83 @@ impl Renderer for FfmpegRenderer {
         Ok(Rendered {
             path: plan.output.clone(),
             duration_ms: plan.duration_ms,
+            reused_ms: None,
         })
     }
+}
+
+/// Create the directory a render is about to write into.
+pub(crate) fn ensure_parent(path: &std::path::Path) -> Result<(), RenderError> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|source| RenderError::Io {
+                path: parent.display().to_string(),
+                source,
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// Run ffmpeg to completion, reporting output time as it goes.
+///
+/// Shared by both renderers, because getting this wrong is not a graph bug
+/// — it is a hang. ffmpeg is verbose enough on a long script to fill a pipe
+/// buffer, and a render nobody is draining stops there for ever.
+pub(crate) fn run(
+    program: &str,
+    args: &[String],
+    on_out_time_ms: &mut dyn FnMut(u64),
+) -> Result<(), RenderError> {
+    // `-progress pipe:1` writes machine-readable `key=value` lines to
+    // stdout, so nothing has to scrape the human-readable stderr — which
+    // is a log, not an interface, and changes between ffmpeg releases.
+    let mut child = Command::new(program)
+        .args(["-nostdin", "-nostats", "-progress", "pipe:1"])
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|source| RenderError::Unavailable {
+            program: program.to_string(),
+            source,
+        })?;
+
+    // stderr is drained on its own thread. A render that fills the pipe
+    // buffer while nobody reads it deadlocks.
+    let mut err = child.stderr.take().expect("stderr was piped");
+    let draining = std::thread::spawn(move || {
+        let mut buf = String::new();
+        let _ = err.read_to_string(&mut buf);
+        buf
+    });
+
+    let out = child.stdout.take().expect("stdout was piped");
+    for line in BufReader::new(out).lines().map_while(Result::ok) {
+        // `out_time_us` is microseconds of output written so far. The
+        // older `out_time_ms` key is also microseconds despite its name,
+        // which is a trap worth not walking into.
+        if let Some(us) = line.strip_prefix("out_time_us=") {
+            if let Ok(us) = us.trim().parse::<u64>() {
+                on_out_time_ms(us / 1000);
+            }
+        }
+    }
+
+    let status = child.wait().map_err(|source| RenderError::Io {
+        path: program.to_string(),
+        source,
+    })?;
+    let stderr = draining.join().unwrap_or_default();
+    if !status.success() {
+        return Err(RenderError::Failed {
+            program: program.to_string(),
+            status: status.to_string(),
+            stderr: tail(&stderr),
+        });
+    }
+    Ok(())
 }
 
 /// ffmpeg's last words. The interesting line of a failure is the last one;

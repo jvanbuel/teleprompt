@@ -8,76 +8,13 @@
 //! allowed to require one, and a silent skip is how a suite stops testing
 //! anything without telling you.
 
-use std::path::PathBuf;
 use std::process::Command;
 
 use teleprompt_render::ffmpeg::FfmpegRenderer;
 use teleprompt_render::{Beat, Narration, Picture, RenderPlan, Renderer, Transition};
 
-fn have_ffmpeg() -> bool {
-    let present = Command::new("ffmpeg")
-        .arg("-version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok();
-    // A skip that nobody sees is a test that stopped running. CI sets this
-    // and installs ffmpeg, so a missing one there is a broken workflow
-    // rather than a machine without a renderer.
-    assert!(
-        present || std::env::var_os("TELEPROMPT_REQUIRE_FFMPEG").is_none(),
-        "TELEPROMPT_REQUIRE_FFMPEG is set and there is no ffmpeg on PATH"
-    );
-    present
-}
-
-/// Seconds of **picture** in `path`, counted frame by frame.
-///
-/// Not `format=duration`: a container reports the longest stream it holds,
-/// so a one-second picture under a three-second audio bed reads back as
-/// three seconds and a video that stops early looks correct.
-fn duration_of(path: &std::path::Path) -> f64 {
-    let out = Command::new("ffprobe")
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-count_frames",
-            "-show_entries",
-            "stream=nb_read_frames,avg_frame_rate",
-            "-of",
-            "csv=p=0",
-        ])
-        .arg(path)
-        .output()
-        .expect("ffprobe runs");
-    let csv = String::from_utf8_lossy(&out.stdout);
-    let mut fields = csv.trim().split(',');
-    let rate = fields.next().expect("a frame rate");
-    let frames: f64 = fields
-        .next()
-        .expect("a frame count")
-        .parse()
-        .expect("a numeric frame count");
-    let (num, den) = rate.split_once('/').expect("a rational frame rate");
-    frames * den.parse::<f64>().unwrap() / num.parse::<f64>().unwrap()
-}
-
-/// A mono 24 kHz WAV of `ms` milliseconds of quiet tone, written by ffmpeg
-/// so the fixture does not depend on the voice crates.
-fn tone(dir: &std::path::Path, name: &str, ms: u64) -> PathBuf {
-    let path = dir.join(name);
-    let status = Command::new("ffmpeg")
-        .args(["-hide_banner", "-y", "-f", "lavfi", "-t"])
-        .arg(format!("{}.{:03}", ms / 1000, ms % 1000))
-        .args(["-i", "sine=frequency=220:sample_rate=24000", "-ac", "1"])
-        .arg(&path)
-        .status()
-        .expect("ffmpeg runs");
-    assert!(status.success());
-    path
-}
+mod support;
+use support::{bright_clip, duration_of, first_sound, have_ffmpeg, luma_at, tone};
 
 #[test]
 fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
@@ -175,23 +112,6 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
         (onset - 2.0).abs() < 0.15,
         "narration placed at 2.000s was first audible at {onset}s"
     );
-}
-
-/// Seconds at which `path` stops being silent, per ffmpeg's own
-/// `silencedetect`.
-fn first_sound(path: &std::path::Path) -> f64 {
-    let out = Command::new("ffmpeg")
-        .args(["-hide_banner", "-i"])
-        .arg(path)
-        .args(["-af", "silencedetect=noise=-50dB:d=0.1", "-f", "null", "-"])
-        .output()
-        .expect("ffmpeg runs");
-    let log = String::from_utf8_lossy(&out.stderr);
-    log.lines()
-        .find_map(|l| l.split("silence_end: ").nth(1))
-        .and_then(|rest| rest.split_whitespace().next())
-        .and_then(|n| n.parse().ok())
-        .unwrap_or_else(|| panic!("no sound at all in the render:\n{log}"))
 }
 
 /// The picture does not begin at zero. Narration opens after a lead-in, and
@@ -440,58 +360,6 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
 
     // 2s held + 0.5s cut + 0.5s of tail hold to the plan's length.
     assert!((duration_of(&plan.output) - 3.0).abs() < 0.15);
-}
-
-/// Mean luma of the frame at `seconds`, as ffmpeg measures it. A slate is
-/// the background colour and reads about 12; anything with a terminal on it
-/// reads far higher.
-fn luma_at(path: &std::path::Path, seconds: f64) -> f64 {
-    let out = Command::new("ffmpeg")
-        .args(["-hide_banner", "-v", "error", "-ss"])
-        .arg(format!("{seconds}"))
-        .arg("-i")
-        .arg(path)
-        .args([
-            "-frames:v",
-            "1",
-            "-vf",
-            "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-",
-            "-f",
-            "null",
-            "-",
-        ])
-        .output()
-        .expect("ffmpeg runs");
-    let text =
-        String::from_utf8_lossy(&out.stderr).into_owned() + &String::from_utf8_lossy(&out.stdout);
-    text.split("lavfi.signalstats.YAVG=")
-        .nth(1)
-        .and_then(|rest| rest.split_whitespace().next())
-        .and_then(|n| n.parse().ok())
-        .unwrap_or_else(|| panic!("no YAVG in ffmpeg's output:\n{text}"))
-}
-
-/// A one-second clip of something bright, standing in for a capture.
-fn bright_clip(dir: &std::path::Path, name: &str) -> PathBuf {
-    let path = dir.join(name);
-    let status = Command::new("ffmpeg")
-        .args([
-            "-hide_banner",
-            "-y",
-            "-f",
-            "lavfi",
-            "-t",
-            "1",
-            "-i",
-            "color=c=0x808080:s=320x180:r=24",
-            "-pix_fmt",
-            "yuv420p",
-        ])
-        .arg(&path)
-        .status()
-        .expect("ffmpeg runs");
-    assert!(status.success());
-    path
 }
 
 /// Narration keeps talking after the action stops — most of a script is

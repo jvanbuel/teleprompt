@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use teleprompt_render::ffmpeg::FfmpegRenderer;
+use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::{Picture, Progress, RenderError, Renderer};
 
@@ -36,6 +37,14 @@ pub struct BuildOptions {
     pub resolution: Option<(u32, u32)>,
     /// A frame rate from the command line, overriding `output.fps`.
     pub fps: Option<u32>,
+    /// Where already-encoded pieces of picture are kept between builds.
+    /// `None` re-encodes the whole video every time.
+    ///
+    /// The cache is what makes the second build of a script cheap: a
+    /// render is the one expensive step that is entirely derived, and an
+    /// author who reworded one sentence should not pay to re-encode the
+    /// other hundred and nineteen seconds of it.
+    pub compose_dir: Option<PathBuf>,
 }
 
 impl BuildOptions {
@@ -58,6 +67,7 @@ impl BuildOptions {
             clips_dir: cache_root(project).join("video"),
             resolution: None,
             fps: None,
+            compose_dir: Some(cache_root(project).join("compose")),
         }
     }
 }
@@ -76,6 +86,9 @@ pub struct BuildReport {
     pub beats: usize,
     /// Beats that rendered as a slate because nothing had captured them.
     pub slates: usize,
+    /// How much of the picture was copied from the compose cache instead
+    /// of encoded. `null` from a render that had no cache to draw on.
+    pub reused_ms: Option<u64>,
     pub warnings: Vec<String>,
 }
 
@@ -84,8 +97,12 @@ impl BuildReport {
     /// stderr for every command, and printing them here too said
     /// everything twice.
     pub fn render(&self) -> String {
+        let reused = match self.reused_ms {
+            Some(ms) if ms > 0 => format!(", {} reused", clock(ms)),
+            _ => String::new(),
+        };
         format!(
-            "  {}\n  {} via {}\n  {} segment(s), {} beat(s), {} slate(s)\n",
+            "  {}\n  {} via {}{reused}\n  {} segment(s), {} beat(s), {} slate(s)\n",
             self.output.display(),
             clock(self.duration_ms),
             self.renderer,
@@ -125,7 +142,7 @@ pub async fn run_build(
     options: &BuildOptions,
 ) -> Result<BuildReport, BuildError> {
     run_build_with(
-        &FfmpegRenderer::default(),
+        renderer(options).as_ref(),
         project,
         script,
         locale,
@@ -133,6 +150,17 @@ pub async fn run_build(
         &mut |_| {},
     )
     .await
+}
+
+/// The renderer a set of options asks for.
+pub fn renderer(options: &BuildOptions) -> Box<dyn Renderer> {
+    match &options.compose_dir {
+        Some(cache_dir) => Box::new(IncrementalRenderer {
+            program: "ffmpeg".into(),
+            cache_dir: cache_dir.clone(),
+        }),
+        None => Box::new(FfmpegRenderer::default()),
+    }
 }
 
 /// `run_build` with the renderer and the progress sink named.
@@ -191,6 +219,7 @@ pub async fn run_build_with(
         segments: dubbed.manifest.segments.len(),
         beats: dubbed.manifest.beats.len(),
         slates,
+        reused_ms: rendered.reused_ms,
         warnings: all,
     })
 }

@@ -13,7 +13,6 @@ use teleprompt_cli::cmd::plan;
 use teleprompt_cli::cmd::serve;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
-use teleprompt_render::ffmpeg::FfmpegRenderer;
 use teleprompt_render::Progress;
 
 #[derive(Parser)]
@@ -130,6 +129,9 @@ enum Command {
         /// Frames per second
         #[arg(long)]
         fps: Option<u32>,
+        /// Re-encode every frame instead of reusing cached ones
+        #[arg(long)]
+        no_cache: bool,
     },
 }
 
@@ -404,6 +406,7 @@ fn main() -> ExitCode {
             out,
             resolution,
             fps,
+            no_cache,
         } => match Project::for_script(&script) {
             Err(e) => {
                 eprintln!("error: {e}");
@@ -425,6 +428,9 @@ fn main() -> ExitCode {
                             options.resolution = Some(size);
                         }
                         options.fps = fps.or(options.fps);
+                        if no_cache {
+                            options.compose_dir = None;
+                        }
                         // Progress goes to stderr, and only to a terminal: a
                         // carriage-returned percentage is for a human
                         // watching, and in a CI log it is the same line a
@@ -433,8 +439,9 @@ fn main() -> ExitCode {
                         match runtime()
                             .map_err(build::BuildError::Runtime)
                             .and_then(|rt| {
+                                let renderer = build::renderer(&options);
                                 rt.block_on(build::run_build_with(
-                                    &FfmpegRenderer::default(),
+                                    renderer.as_ref(),
                                     &project,
                                     &script,
                                     &locale,

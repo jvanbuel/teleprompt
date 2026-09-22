@@ -184,7 +184,7 @@ async fn the_binary_builds_a_video_and_reports_it_as_json() {
         .expect("build --format json prints parseable JSON on stdout");
     assert_eq!(json["ok"], true);
     assert_eq!(json["output"], out.display().to_string());
-    assert_eq!(json["renderer"], "ffmpeg");
+    assert_eq!(json["renderer"], "ffmpeg-incremental");
     assert!(json["duration_ms"].as_u64().unwrap() > 0);
     assert_eq!(json["slates"], 2);
     assert!(out.exists());
@@ -306,4 +306,69 @@ fn the_default_output_is_inside_the_directory_the_scaffold_ignores() {
     assert_eq!(options.out, dir.join("build/tour.en.mp4"));
     let ignored = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
     assert!(ignored.contains("build/"), "{ignored}");
+}
+
+/// A render is the one expensive step in the pipeline that is entirely
+/// derived, so the second build of an unchanged script should not pay for
+/// it twice. This is the wiring test — the arithmetic is the render
+/// crate's business; what matters here is that `build` hands the renderer
+/// a cache at all, and says what it got from it.
+#[tokio::test]
+async fn a_second_build_of_an_unchanged_script_reuses_the_picture() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project_with_script("reuse");
+    let project = Project::discover(&dir).unwrap();
+    let options = BuildOptions {
+        resolution: Some((320, 180)),
+        fps: Some(24),
+        ..BuildOptions::defaults(&project, &script, "en")
+    };
+
+    let cold = build::run_build(&project, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    assert_eq!(cold.renderer, "ffmpeg-incremental");
+
+    let warm = build::run_build(&project, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    assert_eq!(
+        warm.reused_ms,
+        Some(warm.duration_ms),
+        "nothing about the script changed, so nothing needed encoding"
+    );
+    assert!(picture_seconds(&warm.output) > 0.0);
+}
+
+/// And the way out of it. A cache is a claim that two things are the same,
+/// and an author who suspects it of being wrong needs a build that makes
+/// no such claim — otherwise the only remedy is deleting a directory they
+/// have to be told about.
+#[tokio::test]
+async fn no_cache_re_encodes_everything_and_says_so() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project_with_script("nocache");
+    let project = Project::discover(&dir).unwrap();
+    let options = BuildOptions {
+        resolution: Some((320, 180)),
+        fps: Some(24),
+        compose_dir: None,
+        ..BuildOptions::defaults(&project, &script, "en")
+    };
+
+    let report = build::run_build(&project, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    assert_eq!(report.renderer, "ffmpeg");
+    assert_eq!(
+        report.reused_ms, None,
+        "a render with no cache reused nothing, which is not the same \
+         claim as a cold cache reusing none of it"
+    );
 }

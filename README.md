@@ -184,6 +184,17 @@ whether this machine has an ffmpeg to do it with.
 compiled, exactly as an outside integrator does. Two timing paths drift, and
 the one that drifts silently is the one nobody renders from.
 
+A build encodes the picture in pieces and keeps them. Each piece is keyed
+on everything that changes its frames — the clip's contents, its length,
+the frame size and rate, the encoder's own settings — and a rebuild copies
+the pieces that still match rather than encoding them again. Rewording one
+sentence of the manual re-encodes the picture around that sentence and
+copies the other five and a half minutes: 18.4s becomes 4.2s. A piece is
+keyed on its own duration rather than on where it falls, so a sentence that
+got longer moves everything after it without invalidating any of it.
+`--no-cache` encodes every frame, and `teleprompt doctor` says how much
+disk the cache is using.
+
 Rendering sits behind a trait. ffmpeg handles everything, transitions
 included; a pure-Rust path for scripts whose beats are all hard cuts —
 concat, mix, mux — is what would make a single static binary possible for

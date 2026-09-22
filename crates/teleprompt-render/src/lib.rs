@@ -7,7 +7,10 @@
 //! silently is the one nobody renders from.
 
 pub mod ffmpeg;
+pub mod incremental;
+mod piece;
 pub mod plan;
+pub mod segment;
 
 use std::path::PathBuf;
 
@@ -94,6 +97,10 @@ pub struct Rendered {
     /// What the renderer was asked to produce, not what the file measures.
     /// Probing the result is the caller's business, and needs a prober.
     pub duration_ms: u64,
+    /// How much of the picture came from a cache of already-encoded frames
+    /// rather than from the encoder. `None` from a renderer that has no
+    /// cache — which is not the same claim as `Some(0)`, a cold cache.
+    pub reused_ms: Option<u64>,
 }
 
 /// How far a render has got, reported as it goes rather than at the end.

@@ -73,6 +73,12 @@ pub struct DoctorReport {
     pub cache_root: String,
     pub cache_entries: usize,
     pub cache_bytes: u64,
+    /// The same for the compose cache — already-encoded pieces of picture,
+    /// which `build` copies rather than re-encoding. Reported separately
+    /// because it is the one that gets big: a minute of video is measured
+    /// in megabytes and a sentence of narration in kilobytes.
+    pub compose_entries: usize,
+    pub compose_bytes: u64,
     /// The renderer's own version line, or `None` when there is no ffmpeg
     /// to ask. A missing one leaves `ok` true for the same reason an
     /// unreachable server does: it is a fact about this machine, not about
@@ -123,6 +129,8 @@ pub async fn doctor_report_with(
         bytes: 0,
     });
 
+    let compose = dir_stats(&root.join("compose"));
+
     let backends = match project {
         Some(p) => crate::cmd::check::backends_of(p),
         None => Backends::defaults(),
@@ -166,6 +174,8 @@ pub async fn doctor_report_with(
         cache_root: root.display().to_string(),
         cache_entries: stats.entries,
         cache_bytes: stats.bytes,
+        compose_entries: compose.0,
+        compose_bytes: compose.1,
         ffmpeg: probe_ffmpeg("ffmpeg"),
         voice_probe,
         problems,
@@ -284,6 +294,10 @@ impl DoctorReport {
             self.cache_root, self.cache_entries, self.cache_bytes
         ));
         out.push_str(&format!(
+            "  cache            {}/compose — {} entries, {} bytes\n",
+            self.cache_root, self.compose_entries, self.compose_bytes
+        ));
+        out.push_str(&format!(
             "  ffmpeg           {}\n",
             self.ffmpeg
                 .as_deref()
@@ -297,4 +311,19 @@ impl DoctorReport {
         }
         out
     }
+}
+
+/// How many files a cache directory holds, and how much space they take.
+///
+/// A missing directory is an empty one: a project that has never built has
+/// no compose cache, and that is not a fault to report.
+fn dir_stats(dir: &std::path::Path) -> (usize, u64) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return (0, 0);
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter_map(|e| e.metadata().ok())
+        .filter(|m| m.is_file())
+        .fold((0, 0), |(n, bytes), m| (n + 1, bytes + m.len()))
 }

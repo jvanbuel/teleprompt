@@ -214,6 +214,8 @@ fn the_probe_line_names_the_backend_that_was_probed() {
         cache_root: ".teleprompt/cache".to_string(),
         cache_entries: 0,
         cache_bytes: 0,
+        compose_entries: 0,
+        compose_bytes: 0,
         ffmpeg: None,
         voice_probe: Some(teleprompt_cli::cmd::doctor::VoiceProbe {
             backend: "elevenlabs".to_string(),

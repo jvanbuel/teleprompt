@@ -8,6 +8,24 @@ impl Hash {
         Hash(*blake3::hash(bytes).as_bytes())
     }
 
+    /// A hash over several fields, length-prefixed so the encoding is
+    /// injective.
+    ///
+    /// Joining user-controlled fields with a separator is not: `locale =
+    /// "en/US"` with `voice = "af_heart"` and `locale = "en"` with `voice =
+    /// "US/af_heart"` produce the same string, and a collision in a cache
+    /// key silently serves one voice's audio for another. Every key in
+    /// teleprompt goes through here, so that argument is made once.
+    pub fn of_fields(fields: &[&str]) -> Self {
+        let mut canonical = String::new();
+        for field in fields {
+            canonical.push_str(&field.len().to_string());
+            canonical.push(':');
+            canonical.push_str(field);
+        }
+        Hash::of(canonical.as_bytes())
+    }
+
     pub fn short(&self) -> String {
         self.to_string()[..6].to_string()
     }

@@ -99,25 +99,14 @@ pub fn key(backend_id: &str, backend_version: &str, req: &SynthRequest) -> Cache
         Some(v) => format!("+{v}"),
         None => "-".to_string(),
     };
-    let canonical = [
-        field(backend_id),
-        field(backend_version),
-        field(&req.locale),
-        field(&voice),
-        field(&req.speed.to_string()),
-        field(&Hash::of(req.text.as_bytes()).to_string()),
-    ]
-    .concat();
-    CacheKey(Hash::of(canonical.as_bytes()))
-}
-
-/// Length-prefixed so the canonical string is injective. Joining
-/// user-controlled fields with a separator is not: `locale = "en/US"` with
-/// `voice = "af_heart"` and `locale = "en"` with `voice = "US/af_heart"`
-/// produce the same string, and a cache collision here silently serves one
-/// voice's audio for another.
-fn field(s: &str) -> String {
-    format!("{}:{}", s.len(), s)
+    CacheKey(Hash::of_fields(&[
+        backend_id,
+        backend_version,
+        &req.locale,
+        &voice,
+        &req.speed.to_string(),
+        &Hash::of(req.text.as_bytes()).to_string(),
+    ]))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
