@@ -104,7 +104,7 @@ async fn a_timeout_names_the_limit_not_a_generic_transport_error() {
 }
 
 #[tokio::test]
-async fn a_non_string_entry_is_rejected_not_silently_dropped() {
+async fn an_entry_that_is_not_a_voice_is_rejected_not_silently_dropped() {
     // Decision: reject rather than filter_map it away. A stray number or
     // null mixed into the array is much more likely to mean the server's
     // response shape changed under us than that it is an intentional
@@ -117,5 +117,30 @@ async fn a_non_string_entry_is_rejected_not_silently_dropped() {
     ))
     .await;
     let err = backend(&s.base_url).voices().await.unwrap_err();
-    assert!(err.to_string().contains("non-string"), "{err}");
+    assert!(err.to_string().contains("neither a name"), "{err}");
+}
+
+/// Kokoro-FastAPI's voice list became OpenAI-compatible: each entry is an
+/// object whose `id` is what `/v1/audio/speech` takes as `voice`. This is
+/// the shape a current server answers, verbatim apart from its length.
+#[tokio::test]
+async fn voices_listed_as_objects_are_read_by_their_id() {
+    let s = spawn(Reply::Ok(
+        br#"{"voices": [
+            {"id": "af_alloy", "name": "af_alloy", "overall_grade": "C", "target_quality": "B", "training_duration": "MM minutes"},
+            {"id": "af_heart", "name": "af_heart", "overall_grade": "A", "target_quality": "A", "training_duration": "HH hours"}
+        ]}"#
+        .to_vec(),
+    ))
+    .await;
+    let voices = backend(&s.base_url).voices().await.expect("voices");
+    assert_eq!(voices, vec!["af_alloy".to_string(), "af_heart".to_string()]);
+}
+
+/// An object with nothing to name the voice by is not a voice.
+#[tokio::test]
+async fn an_object_without_an_id_is_rejected() {
+    let s = spawn(Reply::Ok(br#"{"voices": [{"grade": "A"}]}"#.to_vec())).await;
+    let err = backend(&s.base_url).voices().await.unwrap_err();
+    assert!(err.to_string().contains("neither a name"), "{err}");
 }

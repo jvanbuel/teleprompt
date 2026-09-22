@@ -104,28 +104,31 @@ impl Client {
             .or_else(|| v.as_array())
             .ok_or_else(|| self.fail("voice list had no `voices` array"))?;
 
-        // A non-string entry means the server's shape is not what we
-        // parsed above; skipping it silently would hide that a real
-        // protocol change happened and hand back a list that looks fine.
-        // Same reasoning as `decode_pcm`'s rejection of an odd byte count.
+        // Two entry shapes are voices: a bare string, which Kokoro-FastAPI
+        // answered through 0.2.x, and an object with an `id`, which it
+        // answers since the list became OpenAI-compatible —
+        // `{"id": "af_heart", "name": "af_heart", "overall_grade": …}`.
+        // `id` is what `/v1/audio/speech` takes as `voice`; `name` is read
+        // only where there is no `id`.
         //
-        // Compatibility note for whoever revisits this: as of this writing
-        // there is an open, unmerged upstream proposal for Kokoro-FastAPI to
-        // return `{id, name}` objects here instead of bare strings, for
-        // OpenAI-client compatibility. Today's server returns bare strings,
-        // which is what this loop parses and what the error below rejects
-        // as "not a string" if it lands. If it does land, `voices()` needs
-        // to accept an object with an `id` (or `name`) field alongside the
-        // bare-string case — check upstream's release notes before assuming
-        // this rejection is still correct.
+        // Anything else is rejected rather than skipped: it means the
+        // server's shape changed again, and silently dropping it would hand
+        // back a list that looks fine. Same reasoning as `decode_pcm`'s
+        // rejection of an odd byte count.
         let mut names = Vec::with_capacity(arr.len());
         for item in arr {
-            match item.as_str() {
+            let name = item.as_str().or_else(|| {
+                item.get("id")
+                    .or_else(|| item.get("name"))
+                    .and_then(|v| v.as_str())
+            });
+            match name {
                 Some(name) => names.push(name.to_string()),
                 None => {
-                    return Err(
-                        self.fail(&format!("voice list contained a non-string entry: {item}"))
-                    );
+                    return Err(self.fail(&format!(
+                        "voice list contained an entry that is neither a name nor an \
+                         object with an `id`: {item}"
+                    )));
                 }
             }
         }
