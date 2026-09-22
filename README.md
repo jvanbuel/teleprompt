@@ -355,7 +355,7 @@ is between you and Remotion.
 ## Terminal scenes
 
 An action block whose `scene=terminal` is a [VHS](https://github.com/charmbracelet/vhs)
-tape — Charm's recording language, borrowed whole:
+tape — Charm's recording language, which teleprompt reads and runs itself:
 
 ```teleprompt scene=terminal
 Set TypingSpeed 35ms
@@ -374,11 +374,35 @@ a tape `vhs` itself will run — which is the whole reason to point a fence's
 `include=` at a real `.tape` file rather than at a dialect only teleprompt
 reads.
 
-teleprompt reads the tape language rather than shelling out to `vhs`, because
-VHS renders a whole tape to one finished file and cannot pause in the middle,
-and the middle is exactly where narration goes. M0 ships the reading half:
-`check` validates a tape, `plan` and `diff` schedule it. Running one — the PTY
-and the terminal capture — is M6.
+**teleprompt runs the tape itself rather than shelling out to `vhs`.** Two
+reasons, and the second is the one that decided it. A tape's beats continue
+one another — a running program, a selected row — so a scene is a session,
+and VHS has no notion of continuing a previous run: a block per invocation
+is a fresh shell per beat. And VHS draws by driving `ttyd` through headless
+Chromium, which is a browser in the dependency list of a tool whose whole
+pitch is not having one, and which does not start at all in a container.
+teleprompt drives a pty and draws with [`agg`](https://github.com/asciinema/agg).
+
+That means the language here is a **VHS-compatible subset that teleprompt
+interprets**, not VHS. A tape that runs here runs under `vhs`; the reverse
+is not guaranteed, and where it is not, `check` says so rather than
+recording something different. Known divergences:
+
+| | |
+|---|---|
+| `Wait /pattern/` | VHS matches the pattern; teleprompt waits for the screen to go still. Same intent, different rule. |
+| `Env`, `Screenshot` | refused — the environment belongs to the scene and the output belongs to teleprompt, for the reasons `Set Shell` and `Output` are refused. |
+| everything else | read and honoured, including `Hide`/`Show`, `Require`, `Copy`/`Paste`. |
+
+The rule is the one the adapter already applied to settings: a line `check`
+accepts and the capture ignores is a video that is *wrong* rather than
+missing, and that is worse.
+
+`Hide` stops the recording and `Show` resumes it, which is how a tape does
+its setup without every demo opening on somebody navigating to a directory.
+The commands still run. Their time is not the beat's — a beat lasts as long
+as something is on screen, and nothing hidden is — so hidden work costs the
+narration nothing and the recording closes up the gap it left.
 
 **A tape states its own timing, so its spans are timed exactly.** Every `Sleep`
 is written down and every keystroke costs `Set TypingSpeed` (50 ms by default,

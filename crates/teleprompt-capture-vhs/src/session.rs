@@ -20,6 +20,12 @@ pub struct Recording {
     pub events: Vec<(u64, Vec<u8>)>,
     /// Where each run of steps ended, in milliseconds. One per span.
     pub boundaries: Vec<u64>,
+    /// The stretches nobody was meant to watch: `[from, to)` per `Hide`.
+    ///
+    /// Not dropped, because the commands really ran and the screen really
+    /// changed — the cast folds them into the state a span opens on
+    /// instead, and closes the gap they left.
+    pub hidden: Vec<(u64, u64)>,
     pub cols: u16,
     pub rows: u16,
 }
@@ -95,6 +101,9 @@ pub fn record(terminal: &Terminal, spans: &[Vec<Step>]) -> std::io::Result<Recor
     let start = Instant::now();
     let mut events: Vec<(u64, Vec<u8>)> = Vec::new();
     let mut boundaries = Vec::new();
+    let mut hidden: Vec<(u64, u64)> = Vec::new();
+    let mut hiding: Option<u64> = None;
+    let mut clipboard = String::new();
 
     let mut ctx = Draining {
         start,
@@ -140,7 +149,24 @@ pub fn record(terminal: &Terminal, spans: &[Vec<Step>]) -> std::io::Result<Recor
                         }
                     }
                 }
-                Step::Mark => {}
+                // `Hide` is a gate on the recording, not on the terminal:
+                // the commands between it and `Show` run exactly as they
+                // would have, and are simply not watched running.
+                Step::Hide => {
+                    hiding.get_or_insert(start.elapsed().as_millis() as u64);
+                }
+                Step::Show => {
+                    if let Some(from) = hiding.take() {
+                        hidden.push((from, start.elapsed().as_millis() as u64));
+                    }
+                }
+                Step::Copy(text) => clipboard = text.clone(),
+                Step::Paste => {
+                    ctx.send(clipboard.as_bytes());
+                    ctx.for_ms(20);
+                }
+                // Checked before the terminal opened; nothing to do here.
+                Step::Require(_) | Step::Mark => {}
             }
         }
         boundaries.push(start.elapsed().as_millis() as u64);
@@ -150,6 +176,13 @@ pub fn record(terminal: &Terminal, spans: &[Vec<Step>]) -> std::io::Result<Recor
     // mid-redraw.
     ctx.for_ms(200);
     drop(ctx);
+
+    // A `Hide` with no `Show` after it runs to the end of the session,
+    // which is what VHS does and what an author who hides a teardown
+    // means.
+    if let Some(from) = hiding.take() {
+        hidden.push((from, start.elapsed().as_millis() as u64));
+    }
     if let Some(last) = boundaries.last_mut() {
         *last = start.elapsed().as_millis() as u64;
     }
@@ -162,6 +195,7 @@ pub fn record(terminal: &Terminal, spans: &[Vec<Step>]) -> std::io::Result<Recor
     Ok(Recording {
         events,
         boundaries,
+        hidden,
         cols: terminal.cols,
         rows: terminal.rows,
     })

@@ -462,3 +462,80 @@ fn a_span_can_be_re_timed_shorter_as_well_as_longer() {
         "{retimed}"
     );
 }
+
+/// `Hide` stops the recording; the commands keep running. So the time they
+/// take is not the beat's: a beat's duration is how long something is on
+/// screen, and nothing hidden is. Counting it would size the slot for work
+/// nobody sees and leave the narration waiting through it.
+#[test]
+fn hidden_commands_cost_the_beat_nothing() {
+    let shown = total_ms("Set TypingSpeed 10ms\nType \"ls\"\nSleep 500ms\n");
+    let with_setup = total_ms(
+        "Set TypingSpeed 10ms\n\
+         Hide\n\
+         Type \"cd project\"\n\
+         Enter\n\
+         Sleep 2s\n\
+         Show\n\
+         Type \"ls\"\n\
+         Sleep 500ms\n",
+    );
+    assert_eq!(
+        with_setup, shown,
+        "two seconds of hidden setup changed how long the beat lasts"
+    );
+}
+
+/// And `Show` gives the time back: what follows it is on screen and counts.
+#[test]
+fn what_is_shown_again_counts_again() {
+    let body = "Hide\nSleep 5s\nShow\nSleep 700ms\n";
+    assert_eq!(total_ms(body), 700);
+}
+
+/// The environment belongs to the scene, not the tape — the same reason
+/// `Set Shell` does. A scene is a session: its blocks share one shell,
+/// whose environment is settled before the first of them runs.
+#[test]
+fn env_is_refused_and_says_where_it_goes() {
+    let errors = VhsScene.validate(&src("Env FOO bar\n")).unwrap_err();
+    assert!(
+        errors[0].message.contains("`Env` is set by teleprompt"),
+        "{:?}",
+        errors[0]
+    );
+    assert!(
+        errors[0]
+            .help
+            .as_deref()
+            .is_some_and(|h| h.contains("scene.<name>.env")),
+        "{:?}",
+        errors[0]
+    );
+}
+
+/// teleprompt owns what a capture writes, for the reason `Output` gives.
+#[test]
+fn screenshot_is_refused_like_output_is() {
+    let errors = VhsScene
+        .validate(&src("Screenshot shot.png\n"))
+        .unwrap_err();
+    assert!(
+        errors[0].message.contains("written by teleprompt"),
+        "{:?}",
+        errors[0]
+    );
+}
+
+/// The rule the adapter already applied to `Set`, now applied to commands:
+/// a line `check` accepts and the capture drops is a video that is wrong
+/// rather than missing. These are read, so they compile.
+#[test]
+fn the_commands_a_capture_honours_all_compile() {
+    for body in ["Hide\nShow\n", "Require bash\n", "Copy \"text\"\nPaste\n"] {
+        assert!(
+            VhsScene.validate(&src(body)).is_ok(),
+            "`{body}` is honoured by the capture and must compile"
+        );
+    }
+}

@@ -194,3 +194,49 @@ fn the_scene_can_put_things_in_the_environment() {
         "the scene's environment did not reach the shell: {text:?}"
     );
 }
+
+/// End to end for the gate: hidden commands run, and the recording does
+/// not contain them.
+#[test]
+fn what_is_hidden_runs_and_is_not_recorded() {
+    if !shell_available() {
+        eprintln!("skipping: no bash");
+        return;
+    }
+    let beats = [beat(
+        "a#0",
+        "Set TypingSpeed 5ms\n\
+         Hide\n\
+         Type \"marker=setup-was-here\"\n\
+         Enter\n\
+         Sleep 300ms\n\
+         Show\n\
+         Type \"echo saw-$marker\"\n\
+         Enter\n\
+         Sleep 400ms\n",
+    )];
+    let plan = sessions(&beats, &|_| false);
+    let recording = run(&plan[0]);
+
+    let all = wrote(&recording, 0, u64::MAX);
+    assert!(
+        all.contains("saw-setup-was-here"),
+        "the hidden command did not run: {all:?}"
+    );
+    assert_eq!(
+        recording.hidden.len(),
+        1,
+        "one stretch was hidden: {:?}",
+        recording.hidden
+    );
+    let (from, to) = recording.hidden[0];
+    let inside = wrote(&recording, from, to);
+    assert!(
+        inside.contains("setup-was-here"),
+        "the setup was typed during the hidden stretch: {inside:?}"
+    );
+    assert!(
+        !wrote(&recording, to, u64::MAX).contains("marker=setup-was-here"),
+        "and not after it"
+    );
+}

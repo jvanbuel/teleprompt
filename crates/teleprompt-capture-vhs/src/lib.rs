@@ -130,6 +130,32 @@ impl CaptureBackend for VhsCapture {
 
         let terminal = terminal_for(session);
         let spans = steps_of(session);
+
+        // Before the terminal opens, not after: `Require` exists so that a
+        // missing tool is an error rather than a correctly-timed video of
+        // `command not found`.
+        let path = terminal
+            .env
+            .iter()
+            .find(|(k, _)| k == "PATH")
+            .map(|(_, v)| v.clone())
+            .or_else(|| std::env::var("PATH").ok())
+            .unwrap_or_default();
+        let missing = tape::missing(&spans, &path);
+        if !missing.is_empty() {
+            return Err(CaptureError::Failed {
+                backend: self.id().to_string(),
+                span: session
+                    .steps
+                    .first()
+                    .map(|s| s.span.clone())
+                    .unwrap_or_default(),
+                reason: format!(
+                    "the tape requires {}, which is not on the scene's PATH",
+                    missing.join(" and ")
+                ),
+            });
+        }
         let recording = record(&terminal, &spans).map_err(|e| CaptureError::Failed {
             backend: self.id().to_string(),
             span: session
@@ -160,6 +186,7 @@ impl CaptureBackend for VhsCapture {
                 cast::write(
                     &cast,
                     &recording.events,
+                    &recording.hidden,
                     recording.cols,
                     recording.rows,
                     from,

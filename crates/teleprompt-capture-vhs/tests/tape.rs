@@ -94,5 +94,54 @@ fn a_sleep_is_a_wait_and_a_wait_is_a_deadline() {
 /// because spans are already split by the time a capture runs.
 #[test]
 fn what_costs_nothing_to_do_sends_nothing() {
-    assert!(steps("Set FontSize 32\n# a comment\nHide\nShow\n").is_empty());
+    assert!(steps("Set FontSize 32\n# a comment\n").is_empty());
+}
+
+/// The bug this file grew for. `Hide` is a gate on the recording: the
+/// commands between it and `Show` run and are not watched running. For as
+/// long as it parsed as "contributes nothing", `check` accepted it and the
+/// capture dropped it — so a tape that hid its setup showed it. That is a
+/// wrong picture, not a missing one.
+#[test]
+fn hiding_is_something_to_do_rather_than_nothing() {
+    let out = steps("Hide\nType \"cd project\"\nEnter\nShow\nType \"ls\"\n");
+    assert_eq!(out.first(), Some(&Step::Hide));
+    assert!(
+        out.contains(&Step::Show),
+        "both ends of the gate reach the driver: {out:?}"
+    );
+    assert!(
+        out.iter()
+            .any(|s| matches!(s, Step::Type { text, .. } if text == "cd project")),
+        "and what is hidden still runs: {out:?}"
+    );
+}
+
+#[test]
+fn a_requirement_and_a_clipboard_reach_the_driver() {
+    let out = steps("Require flowrs\nCopy \"hello\"\nPaste\n");
+    assert_eq!(
+        out,
+        [
+            Step::Require("flowrs".into()),
+            Step::Copy("hello".into()),
+            Step::Paste,
+        ]
+    );
+}
+
+/// A tape that needs a tool this machine does not have is stopped before
+/// the terminal opens. Recording it anyway produces a correctly-timed
+/// video of `command not found`, which is worse than an error because it
+/// looks like a video.
+#[test]
+fn a_missing_requirement_is_found_before_anything_runs() {
+    let spans = [steps("Require definitely-not-a-real-program-9fa2\n")];
+    assert_eq!(
+        teleprompt_capture_vhs::tape::missing(&spans, "/usr/bin:/bin"),
+        vec!["definitely-not-a-real-program-9fa2".to_string()]
+    );
+    assert!(
+        teleprompt_capture_vhs::tape::missing(&[steps("Require sh\n")], "/usr/bin:/bin").is_empty()
+    );
 }

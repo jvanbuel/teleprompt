@@ -57,15 +57,13 @@ const KEYS: &[&str] = &[
 const MODIFIERS: &[&str] = &["Ctrl", "Alt", "Shift"];
 
 /// Commands that change the tape's state but consume no wall clock.
-const INSTANT: &[&str] = &[
-    "Require",
-    "Hide",
-    "Show",
-    "Screenshot",
-    "Env",
-    "Copy",
-    "Paste",
-];
+/// Commands that are real, cost no time, and teleprompt has nothing to do
+/// about. Deliberately short: every other VHS command is either read, or
+/// refused with a reason. A command accepted here and dropped by the
+/// capture is a video that is wrong rather than missing, which is the
+/// failure `Set`'s unknown-name rejection exists to prevent — and it was
+/// one for as long as nothing ran a tape.
+const INSTANT: &[&str] = &[];
 
 /// Settings teleprompt passes through without reading: they change what the
 /// terminal looks like, never how long it takes. Named all the same, so a
@@ -109,6 +107,13 @@ pub enum Setting {
     Cosmetic,
 }
 
+/// Commands that run but are not watched running. `Hide` stops the
+/// recording, `Show` resumes it; the shell keeps going either way. It is
+/// how a tape does its setup — `cd`, `export`, `clear` — without every
+/// demo opening on somebody navigating to a directory.
+const HIDE: &str = "Hide";
+const SHOW: &str = "Show";
+
 /// What one tape line contributes.
 ///
 /// This is the adapter's single notion of content, and all three trait
@@ -121,6 +126,16 @@ pub enum Line {
     /// Blank, a comment, or a command with no duration.
     Nothing,
     Mark,
+    /// Stop recording. What follows runs and is not seen, and — this is
+    /// the part that has to agree between measuring and capturing — costs
+    /// the beat no time, because nothing is on screen for it to cost.
+    Hide,
+    Show,
+    /// `Require <program>`: refuse to record unless it is there.
+    Require(String),
+    /// `Copy "text"`, and the `Paste` that sends it.
+    Copy(String),
+    Paste,
     Sleep(u64),
     /// `speed` is a `Type@<duration>` override; `None` means "whatever
     /// `Set TypingSpeed` last established".
@@ -246,6 +261,50 @@ pub fn classify(line: &str) -> Result<Line, LineError> {
                 speed: at,
             })
         }
+
+        HIDE => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Line::Hide),
+        SHOW => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Line::Show),
+
+        "Require" => {
+            let Some(program) = parts.next() else {
+                return Err(LineError::new(
+                    "`Require` needs a program name",
+                    "e.g. `Require flowrs`",
+                ));
+            };
+            if let Some(extra) = parts.next() {
+                return Err(LineError::new(
+                    format!("`Require` takes one program, found trailing `{extra}`"),
+                    "e.g. `Require flowrs`",
+                ));
+            }
+            Ok(Line::Require(program.to_string()))
+        }
+
+        "Copy" => {
+            let (text, tail) = quoted(cmd, line[head.len()..].trim())?;
+            reject_trailing(cmd, tail)?;
+            Ok(Line::Copy(text))
+        }
+        "Paste" => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Line::Paste),
+
+        // The environment belongs to the scene, not to the tape — the same
+        // reason `Set Shell` does. A scene is a session: its blocks share
+        // one shell, and that shell's environment is settled before the
+        // first of them runs, so a variable set halfway through a
+        // walkthrough could not mean what it says.
+        "Env" => Err(LineError::new(
+            "`Env` is set by teleprompt, not by the tape",
+            "put it under `scene.<name>.env` in the project config",
+        )),
+
+        // teleprompt owns what a capture writes, for the reason `Output`
+        // gives: a tape that writes its own file produces a second,
+        // unscheduled artifact beside the one the timeline expects.
+        "Screenshot" => Err(LineError::new(
+            "`Screenshot` is written by teleprompt, not by the tape",
+            "remove the line; every beat's last frame is already kept",
+        )),
 
         instant if INSTANT.contains(&instant) => Ok(Line::Nothing),
 
@@ -535,30 +594,53 @@ impl SceneCompiler for VhsScene {
         let mut timeout = DEFAULT_WAIT_TIMEOUT_MS;
         let mut total: u64 = 0;
         let mut waited = false;
+        // Hidden commands cost the beat nothing. They run — the `cd` really
+        // happens — but a beat's duration is how long something is *on
+        // screen*, and nothing hidden is. Counting them would size the slot
+        // for work the viewer never sees and leave the narration waiting
+        // through it.
+        let mut hidden = false;
 
         for line in span.source.lines() {
+            // Hidden commands run and cost the beat nothing, so every
+            // duration below goes through `visible`.
+            let mut visible = |ms: u64| {
+                if !hidden {
+                    total = total.saturating_add(ms);
+                }
+            };
             match classify(line) {
-                Ok(Line::Sleep(ms)) => total = total.saturating_add(ms),
+                Ok(Line::Hide) => hidden = true,
+                Ok(Line::Show) => hidden = false,
+                Ok(Line::Sleep(ms)) => visible(ms),
                 Ok(Line::Setting(Setting::TypingSpeed(ms))) => speed = ms,
                 Ok(Line::Setting(Setting::WaitTimeout(ms))) => timeout = ms,
                 Ok(Line::Type { text, speed: at }) => {
                     // A tape long enough to overflow this could not fit in
                     // memory, but `as` would wrap silently if one ever did.
                     let chars = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
-                    total = total.saturating_add(chars.saturating_mul(at.unwrap_or(speed)));
+                    visible(chars.saturating_mul(at.unwrap_or(speed)));
                 }
                 Ok(Line::Keys {
                     count, speed: at, ..
-                }) => {
-                    total = total.saturating_add(count.saturating_mul(at.unwrap_or(speed)));
-                }
+                }) => visible(count.saturating_mul(at.unwrap_or(speed))),
+                // A paste arrives all at once, so it costs one keystroke
+                // rather than one per character.
+                Ok(Line::Paste) => visible(speed),
                 Ok(Line::Wait { timeout: at }) => {
                     waited = true;
-                    total = total.saturating_add(at.unwrap_or(timeout));
+                    visible(at.unwrap_or(timeout));
                 }
                 // Not a catch-all: a tape command added later must fail to
                 // compile here rather than silently estimate as zero.
-                Ok(Line::Nothing | Line::Mark | Line::Setting(Setting::Cosmetic)) | Err(_) => {}
+                Ok(
+                    Line::Nothing
+                    | Line::Mark
+                    | Line::Require(_)
+                    | Line::Copy(_)
+                    | Line::Setting(Setting::Cosmetic),
+                )
+                | Err(_) => {}
             }
         }
 

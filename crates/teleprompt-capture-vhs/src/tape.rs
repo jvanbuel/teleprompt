@@ -20,7 +20,10 @@ pub const DEFAULT_WAIT_MS: u64 = 5_000;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Step {
     /// Send `text`, one character every `per_char_ms`.
-    Type { text: String, per_char_ms: u64 },
+    Type {
+        text: String,
+        per_char_ms: u64,
+    },
     /// Send `bytes` `count` times, `per_key_ms` apart.
     Keys {
         bytes: Vec<u8>,
@@ -36,9 +39,23 @@ pub enum Step {
     /// be applied without knowing what the prompt looks like — which
     /// teleprompt does not, because it does not own the shell's `PS1` any
     /// more than the tape does.
-    Quiet { timeout_ms: u64 },
+    Quiet {
+        timeout_ms: u64,
+    },
     /// The span boundary. The tape keeps running; the recording is cut.
     Mark,
+    /// Stop recording. What follows runs and is not watched running — a
+    /// `cd`, an `export`, a `clear` — and the recording closes over it as
+    /// if it had always been that way.
+    Hide,
+    Show,
+    /// Refuse to record unless `program` is there. A tape that needs a
+    /// tool and does not have it records a video of `command not found`,
+    /// which is worse than an error because it looks like a video.
+    Require(String),
+    /// `Copy "text"` holds it; `Paste` sends it.
+    Copy(String),
+    Paste,
 }
 
 /// What a tape asks to be sent, in order.
@@ -74,6 +91,11 @@ pub fn steps(source: &str) -> Vec<Step> {
             Ok(Line::Wait { timeout: at }) => out.push(Step::Quiet {
                 timeout_ms: at.unwrap_or(timeout),
             }),
+            Ok(Line::Hide) => out.push(Step::Hide),
+            Ok(Line::Show) => out.push(Step::Show),
+            Ok(Line::Require(program)) => out.push(Step::Require(program)),
+            Ok(Line::Copy(text)) => out.push(Step::Copy(text)),
+            Ok(Line::Paste) => out.push(Step::Paste),
             Ok(Line::Nothing) | Ok(Line::Setting(Setting::Cosmetic)) | Err(_) => {}
         }
     }
@@ -129,4 +151,30 @@ fn key_bytes(name: &str) -> Option<Vec<u8>> {
         _ => return None,
     };
     Some(literal.as_bytes().to_vec())
+}
+
+/// The programs a session's tapes say they need and this machine does not
+/// have.
+///
+/// Checked before the terminal opens. A tape that needs a tool it cannot
+/// find records a video of `command not found`, which is worse than an
+/// error because it looks like a video — it renders, it is the right
+/// length, and nothing reports a problem.
+pub fn missing(spans: &[Vec<Step>], path: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for step in spans.iter().flatten() {
+        let Step::Require(program) = step else {
+            continue;
+        };
+        let found = path.split(':').filter(|d| !d.is_empty()).any(|dir| {
+            std::path::Path::new(dir)
+                .join(program)
+                .metadata()
+                .is_ok_and(|m| m.is_file())
+        });
+        if !found && !out.iter().any(|p| p == program) {
+            out.push(program.clone());
+        }
+    }
+    out
 }
