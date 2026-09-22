@@ -275,7 +275,7 @@ fn a_beat_shorter_than_the_blends_around_it_does_not_split() {
 /// through a shift, or a one-word edit re-encodes half a video that nobody
 /// touched.
 #[test]
-fn a_beat_that_only_slid_along_the_timeline_keeps_its_key() {
+fn a_cue_that_only_slid_along_the_timeline_keeps_its_key() {
     // 1030ms at 25fps is 25.75 frames — not a whole number, which is what
     // makes it sensitive to where on the timeline it lands.
     // The cue under test is deliberately not the last one: the last

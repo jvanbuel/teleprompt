@@ -94,14 +94,14 @@ fn a_session_yields_one_clip_per_wanted_step_named_by_its_key() {
         .expect("the reference backend captures");
 
     assert_eq!(clips.len(), 2);
-    for (shot, b) in clips.iter().zip(&cues) {
-        assert_eq!(shot.key, b.key);
+    for (clip, b) in clips.iter().zip(&cues) {
+        assert_eq!(clip.key, b.key);
         assert_eq!(
-            shot.path,
+            clip.path,
             dir.join(format!("{}.mp4", b.key)),
             "a clip is filed under the capture key the manifest published"
         );
-        let seconds = seconds_of(&shot.path);
+        let seconds = seconds_of(&clip.path);
         assert!(
             (seconds - b.duration_ms as f64 / 1000.0).abs() < 0.1,
             "`{}` was scheduled {}ms and captured {seconds}s",

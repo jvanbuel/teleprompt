@@ -172,13 +172,13 @@ fn a_per_command_speed_overrides_the_tape_setting() {
 }
 
 /// The regression the cue preamble exists for: a setting established before
-/// a mark still governs the beats after it.
+/// a mark still governs the cues after it.
 #[test]
 fn a_setting_carries_across_a_mark() {
     assert_eq!(
         total_ms("Set TypingSpeed 10ms\nType \"abc\"\n# mark\nType \"abc\"\n"),
         60,
-        "the second beat should type at 10ms, not fall back to the 50ms default"
+        "the second cue should type at 10ms, not fall back to the 50ms default"
     );
 }
 
@@ -203,7 +203,7 @@ fn changing_a_setting_changes_the_hash_of_a_later_span() {
 }
 
 /// `Set TypingSpeed` carries a duration but spends none of it, so a chunk
-/// holding only settings is not a beat.
+/// holding only settings is not a cue.
 #[test]
 fn a_chunk_of_only_settings_is_not_a_span() {
     let v = validated("Sleep 1s\n# mark\nSet TypingSpeed 10ms\n# mark\nType \"abc\"\n");
@@ -213,7 +213,7 @@ fn a_chunk_of_only_settings_is_not_a_span() {
     assert_eq!(
         total_ms("Sleep 1s\n# mark\nSet TypingSpeed 10ms\n# mark\nType \"abc\"\n"),
         1030,
-        "the setting still governs the beat after it"
+        "the setting still governs the cue after it"
     );
 }
 
@@ -291,7 +291,7 @@ fn a_misspelled_setting_is_reported_rather_than_ignored() {
 }
 
 /// Sourcing another tape splices it in at run time, long after `cues` has
-/// decided where the beats are.
+/// decided where the cues are.
 #[test]
 fn source_points_at_the_include_attribute_instead() {
     let e = VhsScene
@@ -464,7 +464,7 @@ fn a_span_can_be_re_timed_shorter_as_well_as_longer() {
 }
 
 /// `Hide` stops the recording; the commands keep running. So the time they
-/// take is not the beat's: a beat's duration is how long something is on
+/// take is not the cue's: a cue's duration is how long something is on
 /// screen, and nothing hidden is. Counting it would size the slot for work
 /// nobody sees and leave the narration waiting through it.
 #[test]
@@ -482,7 +482,7 @@ fn hidden_commands_cost_the_beat_nothing() {
     );
     assert_eq!(
         with_setup, shown,
-        "two seconds of hidden setup changed how long the beat lasts"
+        "two seconds of hidden setup changed how long the cue lasts"
     );
 }
 

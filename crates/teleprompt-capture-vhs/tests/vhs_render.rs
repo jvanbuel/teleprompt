@@ -122,9 +122,9 @@ fn vhs_renders_the_session_and_the_beats_come_back_their_scheduled_length() {
     };
 
     assert_eq!(clips.len(), 2);
-    for (shot, b) in clips.iter().zip(&cues) {
-        assert_eq!(shot.key, b.key, "filed under the capture key");
-        let seconds = seconds_of(&shot.path);
+    for (clip, b) in clips.iter().zip(&cues) {
+        assert_eq!(clip.key, b.key, "filed under the capture key");
+        let seconds = seconds_of(&clip.path);
         assert!(
             (seconds - b.duration_ms as f64 / 1000.0).abs() < 0.2,
             "`{}` was scheduled {}ms and came back {seconds}s",

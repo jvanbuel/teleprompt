@@ -35,7 +35,7 @@ pub struct MockScene;
 #[derive(Debug)]
 enum Command {
     /// Blank or a `#` comment: no executable content whatsoever. Ruling F13
-    /// was written to keep these from becoming phantom beats; its wording
+    /// was written to keep these from becoming phantom cues; its wording
     /// said "whitespace-only" when it meant "no executable content", which
     /// is why a chunk of pure comments between two `mark`s still survived
     /// the filter as a zero-duration cue.
@@ -95,7 +95,7 @@ fn classify(line: &str) -> Result<Command, CommandError> {
 }
 
 /// True when a mark-separated chunk carries something to execute. A chunk of
-/// nothing but comments and blank lines is empty, not a zero-duration beat.
+/// nothing but comments and blank lines is empty, not a zero-duration cue.
 fn has_content(chunk: &str) -> bool {
     chunk
         .lines()

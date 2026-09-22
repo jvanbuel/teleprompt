@@ -35,7 +35,7 @@ const MANIFEST: &str = r#"{
       "audio_hash": "2222222222222222222222222222222222222222222222222222222222222222"
     }
   ],
-  "cues": [
+  "items": [
     {
       "cue": "plan#0",
       "line": "welcome",
@@ -97,7 +97,7 @@ fn the_plan_places_narration_where_the_manifest_placed_it() {
 }
 
 #[test]
-fn a_beat_with_no_captured_clip_is_a_slate_and_is_reported() {
+fn a_cue_with_no_captured_clip_is_a_slate_and_is_reported() {
     let dir = PathBuf::from("/project");
     let (plan, warnings) = plan::from_manifest(&manifest(), &inputs(&dir));
 
@@ -115,7 +115,7 @@ fn a_beat_with_no_captured_clip_is_a_slate_and_is_reported() {
 }
 
 #[test]
-fn a_captured_clip_is_used_where_one_exists_for_the_span() {
+fn a_captured_clip_is_used_where_one_exists_for_the_cue() {
     let dir = std::env::temp_dir().join(format!("tp-plan-{}", std::process::id()));
     let clips = dir.join("cache/video");
     std::fs::create_dir_all(&clips).unwrap();

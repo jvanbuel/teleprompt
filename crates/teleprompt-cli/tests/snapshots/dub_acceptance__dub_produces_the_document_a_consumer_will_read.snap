@@ -8,7 +8,21 @@ expression: manifest
     "format": "wav",
     "sample_rate": 48000
   },
-  "beats": [
+  "chapters": [
+    {
+      "id": "introduction",
+      "start_ms": 150,
+      "title": "Introduction"
+    },
+    {
+      "id": "deploying",
+      "start_ms": 21950,
+      "title": "Deploying"
+    }
+  ],
+  "duration_ms": 34800,
+  "generated_by": "teleprompt 0.1.0",
+  "items": [
     {
       "adapter": "mock",
       "capture_key": "f140cbc021d4e4f61981330bcb79052f3c05f5d38380a0ed1dc5aa93a90f722c",
@@ -106,20 +120,6 @@ expression: manifest
       }
     }
   ],
-  "chapters": [
-    {
-      "id": "introduction",
-      "start_ms": 150,
-      "title": "Introduction"
-    },
-    {
-      "id": "deploying",
-      "start_ms": 21950,
-      "title": "Deploying"
-    }
-  ],
-  "duration_ms": 34800,
-  "generated_by": "teleprompt 0.1.0",
   "lines": [
     {
       "audio": "audio/welcome.wav",

@@ -128,7 +128,7 @@ pub enum Command {
     Mark,
     /// Stop recording. What follows runs and is not seen, and — this is
     /// the part that has to agree between measuring and capturing — costs
-    /// the beat no time, because nothing is on screen for it to cost.
+    /// the cue no time, because nothing is on screen for it to cost.
     Hide,
     Show,
     /// `Require <program>`: refuse to record unless it is there.
@@ -232,7 +232,7 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
         )),
 
         // `Source` splices another tape in at run time, long after `cues`
-        // has decided where the beats are — so any mark inside the sourced
+        // has decided where the cues are — so any mark inside the sourced
         // tape is invisible to the split that was supposed to honour it.
         "Source" => Err(CommandError::new(
             "`Source` runs another tape inline, which hides its marks from the cue split",
@@ -304,7 +304,7 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
         // unscheduled artifact beside the one the timeline expects.
         "Screenshot" => Err(CommandError::new(
             "`Screenshot` is written by teleprompt, not by the tape",
-            "remove the line; every beat's last frame is already kept",
+            "remove the line; every cue's last frame is already kept",
         )),
 
         instant if INSTANT.contains(&instant) => Ok(Command::Nothing),
@@ -517,10 +517,10 @@ fn reject_trailing(cmd: &str, tail: &str) -> Result<(), CommandError> {
 /// True when a mark-separated chunk carries something to execute.
 ///
 /// A chunk of nothing but comments and `Set` lines is empty, not a
-/// zero-duration beat (ruling F13). `TypingSpeed` counts as a setting here
+/// zero-duration cue (ruling F13). `TypingSpeed` counts as a setting here
 /// even though it carries a duration: it configures later typing rather than
 /// spending any time itself, and a chunk holding only settings is exactly the
-/// phantom beat F13 rules out.
+/// phantom cue F13 rules out.
 fn has_content(chunk: &[&str]) -> bool {
     chunk
         .iter()
@@ -595,15 +595,15 @@ impl SceneCompiler for VhsScene {
         let mut timeout = DEFAULT_WAIT_TIMEOUT_MS;
         let mut total: u64 = 0;
         let mut waited = false;
-        // Hidden commands cost the beat nothing. They run — the `cd` really
-        // happens — but a beat's duration is how long something is *on
+        // Hidden commands cost the cue nothing. They run — the `cd` really
+        // happens — but a cue's duration is how long something is *on
         // screen*, and nothing hidden is. Counting them would size the slot
         // for work the viewer never sees and leave the narration waiting
         // through it.
         let mut hidden = false;
 
         for line in cue.source.lines() {
-            // Hidden commands run and cost the beat nothing, so every
+            // Hidden commands run and cost the cue nothing, so every
             // duration below goes through `visible`.
             let mut visible = |ms: u64| {
                 if !hidden {

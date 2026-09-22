@@ -220,7 +220,7 @@ fn trailing_garbage_after_mark_is_rejected_by_validate() {
 
 /// Ruling F13's wording said "whitespace-only" when it meant "no executable
 /// content", so a chunk of nothing but `#` comments between two `mark`s
-/// survived the filter and became a phantom zero-duration beat — exactly the
+/// survived the filter and became a phantom zero-duration cue — exactly the
 /// shape F13 was written to eliminate.
 #[test]
 fn a_comment_only_chunk_between_marks_produces_no_span() {
