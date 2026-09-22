@@ -231,7 +231,19 @@ async fn front_matter_decides_the_frame_when_no_flag_does() {
     .await
     .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
 
-    assert_eq!(frame_shape(&report.output), (480, 270, 12.0));
+    // The rate is compared with a tolerance, not for equality. A
+    // container reports `avg_frame_rate` as a rational computed from the
+    // frames and the duration it actually holds, so a video assembled from
+    // captured clips comes back as 12.000321 rather than 12 — a number
+    // that is right and is not the same `f64`. Asserting equality here
+    // passed for as long as every beat was a slate and started failing the
+    // day something recorded a real terminal.
+    let (width, height, fps) = frame_shape(&report.output);
+    assert_eq!((width, height), (480, 270));
+    assert!(
+        (fps - 12.0).abs() < 0.05,
+        "front matter asked for 12fps and the file reports {fps}"
+    );
 }
 
 /// Width, height and frame rate, as ffprobe reads them back.
