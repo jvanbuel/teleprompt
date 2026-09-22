@@ -38,10 +38,10 @@ Sleep 1s
 ```
 
 The terminal you are looking at is a VHS tape — Charm's recording format,
-borrowed whole. teleprompt reads the tape language rather than shelling out
-to VHS, because VHS renders a tape to one finished file and cannot pause in
-the middle of it, and pausing in the middle is exactly where narration
-goes. {#vhs}
+borrowed whole. teleprompt does not render it. It rewrites the tape's
+timings so that every span lasts exactly as long as the sentence over it,
+and hands that tape to VHS. Waiting for narration is a number in the input,
+not a renderer of our own. {#vhs}
 
 ```teleprompt scene=terminal
 # The tape teleprompt is reading to draw this very shot.
