@@ -39,27 +39,20 @@ jobs:
       # already knows how to draw a tape, and teleprompt's job is only to
       # write one that lasts as long as the narration over it.
       #
-      # Installed with Charm's own action, and deliberately not required:
-      # on this runner `vhs` v0.12 cannot record at all. Established by
-      # elimination rather than assumed —
+      # Pinned to v0.11.0. v0.12.0 is the latest release and cannot record
+      # here at all: it runs every tape command, prints "Creating …",
+      # prints the publish hint, exits 0 and writes no file — including
+      # from its own `vhs new` example. That is upstream issue #787,
+      # opened the day after v0.12.0 shipped and still open, which reports
+      # exactly this on ubuntu-24.04 runners and names v0.11.0 as the
+      # version that records the same tape.
       #
-      #   ttyd 1.7.4 (what vhs was built against) fails as 1.7.7 does;
-      #   ttyd serves `canvas.xterm-text-layer` and Chrome renders it,
-      #     confirmed by dumping the DOM, so the element vhs looks for
-      #     is there;
-      #   `Screenshot`, which writes a PNG straight from that canvas and
-      #     never invokes ffmpeg, writes nothing either.
-      #
-      # So it is not the encoder, not ttyd, not the page: `vhs` cannot
-      # photograph a canvas that demonstrably exists, and it does not
-      # check — `vhs.go:334` discards the element lookup's error — so it
-      # finishes a recording of no frames and exits 0.
-      #
-      # It stays installed because that is the configuration teleprompt has
-      # to survive: preferred backend present, tried, and failing. The
-      # capture tests cover the fallback that results.
+      # Found by reading the issue tracker, after eliminating ttyd's
+      # version, the page, the encoder and the tape by experiment. The
+      # issue tracker should have come first.
       - uses: charmbracelet/vhs-action@v2
         with:
+          version: v0.11.0
           install-fonts: true
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -67,39 +60,8 @@ jobs:
         env:
           TELEPROMPT_REQUIRE_FFMPEG: "1"
           TELEPROMPT_REQUIRE_CAPTURE: "1"
+          TELEPROMPT_REQUIRE_VHS: "1"
 
-      # One variable is left, and it is the only one teleprompt could act
-      # on. `vhs` drives whatever Chrome go-rod finds first — on this
-      # runner /usr/bin/google-chrome, whatever version the image ships.
-      # go-rod also pins a Chromium revision it downloads when it finds
-      # none. If the pinned one records and the system one does not, the
-      # incompatibility is with the browser, and teleprompt can point vhs
-      # at a working one when it invokes it.
-      #
-      # Everything else is already eliminated: not ttyd's version, not the
-      # page (the canvas is in the rendered DOM), not the encoder
-      # (`Screenshot` bypasses it and writes nothing), not the tape — vhs
-      # v0.12.0, thirteen days old, records nothing from its own `vhs new`
-      # example here.
-      - name: Is it the system Chrome?
-        if: always()
-        continue-on-error: true
-        run: |
-          set +e -x
-          google-chrome --version
-          for b in google-chrome chromium chromium-browser; do
-            sudo mv "/usr/bin/$b" "/usr/bin/$b.hidden" 2>/dev/null
-          done
-          cd /tmp && rm -rf rodown && mkdir rodown && cd rodown
-          printf 'Output "/tmp/rodown/x.gif"\nType "echo hi"\nEnter\nSleep 1s\n' > x.tape
-          vhs x.tape 2>&1 | tail -6
-          ls -la /tmp/rodown/
-          ls -la "$HOME/.cache/rod/browser" 2>&1 | head -3
-          if [ -s /tmp/rodown/x.gif ]; then
-            echo "::notice title=vhs-chrome::RECORDED with go-rod's own chromium — the system Chrome is the problem"
-          else
-            echo "::notice title=vhs-chrome::NOTHING with go-rod's own chromium either"
-          fi
 
   msrv:
     runs-on: ubuntu-latest
