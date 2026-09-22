@@ -61,6 +61,27 @@ jobs:
       - uses: charmbracelet/vhs-action@v2
         with:
           install-fonts: true
+      # Before concluding anything about upstream: run the tape Charm
+      # themselves generate, with vhs's own defaults, at its own size.
+      # If `vhs new`'s example records, the fault is in the tape
+      # teleprompt writes — a frame size below what its padding needs, a
+      # setting in the wrong place — and that is ours to fix. If it does
+      # not, a 13-day-old release cannot record its own example here.
+      - name: Does vhs record its own example?
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e -x
+          cd /tmp && rm -rf own && mkdir own && cd own
+          vhs new demo.tape
+          cat demo.tape
+          vhs demo.tape 2>&1 | tail -5
+          ls -la /tmp/own/
+          # And the minimum: no Set at all, so every default is vhs's.
+          printf 'Output "/tmp/own/bare.gif"\nType "echo hi"\nEnter\nSleep 1s\n' > bare.tape
+          vhs bare.tape 2>&1 | tail -3
+          ls -la /tmp/own/bare.gif || echo "NO BARE GIF"
+
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
