@@ -88,6 +88,7 @@ impl Renderer for IncrementalRenderer {
 
             if is_usable(&cached) {
                 reused_frames += segment.frames;
+                mark_used(&cached);
             } else {
                 // Encoded beside the entry and renamed into place, which is
                 // atomic on one filesystem. A render killed halfway through
@@ -162,6 +163,22 @@ fn identity(seen: &mut HashMap<PathBuf, Hash>, path: &Path) -> std::io::Result<H
     let hash = Hash::of(&std::fs::read(path)?);
     seen.insert(path.to_path_buf(), hash);
     Ok(hash)
+}
+
+/// Record that an entry was copied from, by setting its modification time.
+///
+/// This is the only thing that distinguishes a segment three builds have
+/// leaned on from one nothing has wanted since April, and a cache with a
+/// size cap has to evict the second. Best effort: a read-only cache
+/// directory is a reason to render more slowly next time, not a reason to
+/// fail a render that has already succeeded.
+fn mark_used(path: &Path) {
+    let _ = std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .and_then(|f| {
+            f.set_times(std::fs::FileTimes::new().set_modified(std::time::SystemTime::now()))
+        });
 }
 
 /// Whether a cache entry can be served. An empty file is a crashed encode,

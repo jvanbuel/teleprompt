@@ -3,6 +3,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use teleprompt_cli::cmd::build;
+use teleprompt_cli::cmd::cache;
 use teleprompt_cli::cmd::check::{self, CheckReport};
 use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
@@ -35,6 +36,17 @@ enum Command {
     New { path: PathBuf },
     /// Report the environment teleprompt can see
     Doctor,
+    /// Report what the project's caches hold, or shrink them
+    ///
+    /// Narration and encoded video are both entirely derived: every entry
+    /// can be remade from the key that names it, so throwing one away
+    /// costs time and nothing else.
+    Cache {
+        /// Shrink the encoded-video cache to this many megabytes, least
+        /// recently used first. 0 keeps nothing.
+        #[arg(long)]
+        prune_to_mb: Option<u64>,
+    },
     /// Draft a script from a Markdown document you already have
     ///
     /// Prose becomes narration segments with their ids promoted, shell code
@@ -132,6 +144,9 @@ enum Command {
         /// Re-encode every frame instead of reusing cached ones
         #[arg(long)]
         no_cache: bool,
+        /// Megabytes of encoded video to keep afterwards; 0 keeps nothing
+        #[arg(long)]
+        cache_max_mb: Option<u64>,
     },
 }
 
@@ -221,6 +236,27 @@ fn main() -> ExitCode {
                 eprintln!("error: {e}");
                 Outcome::RuntimeFailure(e.to_string())
             }
+        },
+        Command::Cache { prune_to_mb } => match Project::discover(std::path::Path::new(".")) {
+            Err(e) => {
+                eprintln!("error: {e}");
+                Outcome::RuntimeFailure(e.to_string())
+            }
+            Ok(project) => match cache::run_cache(&project, prune_to_mb) {
+                Ok(report) => {
+                    match cli.format {
+                        Format::Json => {
+                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                        }
+                        Format::Human => print!("{}", report.render()),
+                    }
+                    Outcome::Ok
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    Outcome::RuntimeFailure(e.to_string())
+                }
+            },
         },
         Command::Doctor => match runtime() {
             Ok(rt) => {
@@ -407,6 +443,7 @@ fn main() -> ExitCode {
             resolution,
             fps,
             no_cache,
+            cache_max_mb,
         } => match Project::for_script(&script) {
             Err(e) => {
                 eprintln!("error: {e}");
@@ -431,6 +468,7 @@ fn main() -> ExitCode {
                         if no_cache {
                             options.compose_dir = None;
                         }
+                        options.cache_max_mb = cache_max_mb.unwrap_or(options.cache_max_mb);
                         // Progress goes to stderr, and only to a terminal: a
                         // carriage-returned percentage is for a human
                         // watching, and in a CI log it is the same line a

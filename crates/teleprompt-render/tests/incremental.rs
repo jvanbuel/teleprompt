@@ -24,19 +24,20 @@ fn renderer(cache: &Path) -> IncrementalRenderer {
     }
 }
 
-/// Every cached segment, and when it was last written.
-fn cache_state(dir: &Path) -> Vec<(PathBuf, SystemTime)> {
+/// Every cached segment.
+fn cache_state(dir: &Path) -> Vec<PathBuf> {
     let mut entries: Vec<_> = std::fs::read_dir(dir)
         .expect("the cache directory exists")
-        .map(|e| e.expect("a readable entry"))
-        .filter(|e| e.path().extension().is_some_and(|x| x == "mp4"))
-        .map(|e| {
-            let modified = e.metadata().unwrap().modified().unwrap();
-            (e.path(), modified)
-        })
+        .map(|e| e.expect("a readable entry").path())
+        .filter(|p| p.extension().is_some_and(|x| x == "mp4"))
         .collect();
     entries.sort();
     entries
+}
+
+/// When a cached segment was last used.
+fn last_used(path: &Path) -> SystemTime {
+    std::fs::metadata(path).unwrap().modified().unwrap()
 }
 
 fn plan(dir: &Path, clip: &Path, beats: &[(u64, u64)], duration_ms: u64) -> RenderPlan {
@@ -173,7 +174,7 @@ fn a_second_render_of_the_same_plan_encodes_nothing() {
     assert_eq!(
         cache_state(&cache),
         before,
-        "a warm render rewrote a segment it already had"
+        "a warm render added or dropped a segment"
     );
     assert_eq!(
         rendered.reused_ms,
@@ -308,4 +309,41 @@ fn a_plan_that_cannot_be_cut_still_renders() {
         "a one-pass render reused nothing, and says so"
     );
     assert!((duration_of(&rendered.path) - 3.7).abs() < 0.15);
+}
+
+/// A cache with a size cap has to know which entries are still wanted. The
+/// only thing that distinguishes a segment three builds have leaned on
+/// from one nothing has asked for since April is that the renderer said so
+/// when it copied from it.
+#[test]
+fn copying_from_a_segment_marks_it_as_used() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = workdir("incr-used");
+    let clip = bright_clip(&dir, "clip.mp4");
+    let cache = dir.join("cache");
+    let plan = plan(&dir, &clip, &[(0, 1_000), (2_000, 1_000)], 4_000);
+
+    let renderer = renderer(&cache);
+    renderer.render(&plan, &mut |_| {}).expect("renders cold");
+    let segment = cache_state(&cache).remove(0);
+
+    // Backdated, as an entry from an earlier session would be.
+    let long_ago = SystemTime::now() - std::time::Duration::from_secs(86_400);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&segment)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(long_ago))
+        .unwrap();
+
+    renderer.render(&plan, &mut |_| {}).expect("renders warm");
+
+    assert!(
+        last_used(&segment) > long_ago,
+        "a segment this render copied from still looks a day stale, so a \
+         prune would throw away exactly what is being used"
+    );
 }

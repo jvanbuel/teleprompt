@@ -15,6 +15,7 @@ use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::{Picture, Progress, RenderError, Renderer};
 
+use crate::cmd::cache;
 use crate::cmd::check::cache_root;
 use crate::cmd::dub::{self, DubError};
 use crate::project::Project;
@@ -45,6 +46,13 @@ pub struct BuildOptions {
     /// author who reworded one sentence should not pay to re-encode the
     /// other hundred and nineteen seconds of it.
     pub compose_dir: Option<PathBuf>,
+    /// Megabytes of encoded video to keep afterwards, least recently used
+    /// evicted first.
+    ///
+    /// A build prunes rather than leaving it to a command somebody has to
+    /// remember: a cache that only shrinks when asked still grows without
+    /// bound, which is the thing a cap exists to stop.
+    pub cache_max_mb: u64,
 }
 
 impl BuildOptions {
@@ -68,6 +76,7 @@ impl BuildOptions {
             resolution: None,
             fps: None,
             compose_dir: Some(cache_root(project).join("compose")),
+            cache_max_mb: cache::DEFAULT_MAX_MB,
         }
     }
 }
@@ -209,7 +218,24 @@ pub async fn run_build_with(
         .render(&render_plan, on_progress)
         .map_err(|e| BuildError::Runtime(explain(&e)))?;
 
+    // Pruned after the render, never before: the entries this build just
+    // used are the newest, so they are the last things a cap would evict,
+    // and pruning first would throw away pieces this render was about to
+    // copy.
     let mut all = dubbed.warnings;
+    if let Some(dir) = &options.compose_dir {
+        let limit = options.cache_max_mb * 1_048_576;
+        match cache::prune(dir, limit) {
+            Ok(_) => {}
+            // A cache that will not shrink is a disk problem, not a reason
+            // to report a video that exists as a failure.
+            Err(e) => all.push(format!(
+                "could not prune the compose cache at {}: {e}",
+                dir.display()
+            )),
+        }
+    }
+
     all.append(&mut warnings);
     Ok(BuildReport {
         ok: true,

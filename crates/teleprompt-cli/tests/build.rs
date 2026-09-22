@@ -372,3 +372,100 @@ async fn no_cache_re_encodes_everything_and_says_so() {
          claim as a cold cache reusing none of it"
     );
 }
+
+/// The cache must not grow for ever. A build prunes it afterwards rather
+/// than leaving it to a command somebody has to remember — a cache that
+/// only shrinks when asked still grows without bound, which is the thing
+/// a cap is for.
+#[tokio::test]
+async fn a_build_leaves_the_cache_under_its_cap() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project_with_script("cap");
+    let project = Project::discover(&dir).unwrap();
+    let options = BuildOptions {
+        resolution: Some((320, 180)),
+        fps: Some(24),
+        // Nothing at all fits: every entry is evicted on the way out, and
+        // the next build is cold. That is exactly what a cap of zero says.
+        cache_max_mb: 0,
+        ..BuildOptions::defaults(&project, &script, "en")
+    };
+
+    let report = build::run_build(&project, &script, "en", &options)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    assert!(report.output.exists(), "the video is still produced");
+
+    let compose = teleprompt_cli::cmd::cache::compose_dir(&project);
+    assert_eq!(
+        teleprompt_cli::cmd::cache::stats(&compose).bytes,
+        0,
+        "a cap of nothing kept something"
+    );
+
+    // And the real case: a generous cap keeps what the build just made.
+    let kept = BuildOptions {
+        cache_max_mb: 1_024,
+        ..options
+    };
+    build::run_build(&project, &script, "en", &kept)
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    assert!(
+        teleprompt_cli::cmd::cache::stats(&compose).bytes > 0,
+        "a build under a cap it fits inside threw its own work away"
+    );
+}
+
+/// `teleprompt cache` is the way to get the disk back without being told
+/// which directory to delete.
+#[test]
+fn the_binary_reports_and_prunes_the_cache() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let (dir, script) = project_with_script("cachecmd");
+    let built = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["build"])
+        .arg(&script)
+        .args(["--resolution", "320x180", "--fps", "24"])
+        .output()
+        .unwrap();
+    assert!(
+        built.status.success(),
+        "build exited {}: {}",
+        built.status,
+        String::from_utf8_lossy(&built.stderr)
+    );
+
+    let report = |args: &[&str]| -> serde_json::Value {
+        let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+            .args(["--format", "json", "cache"])
+            .args(args)
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "cache exited {}: {}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr)
+        );
+        serde_json::from_slice(&out.stdout).expect("cache --format json prints JSON")
+    };
+
+    let before = report(&[]);
+    assert!(
+        before["compose"]["bytes"].as_u64().unwrap() > 0,
+        "the build left encoded video behind: {before}"
+    );
+    assert!(before["pruned"].is_null(), "looking is not pruning");
+
+    let after = report(&["--prune-to-mb", "0"]);
+    assert!(after["pruned"]["removed"].as_u64().unwrap() > 0);
+    assert_eq!(after["compose"]["bytes"], 0);
+}

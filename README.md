@@ -57,6 +57,7 @@ cargo run -- diff demo/scripts/demo.md
 | `serve <script>` | live preview that opens on the beat you just changed |
 | `build <script>` | render the video |
 | `doctor` | report the environment teleprompt can see |
+| `cache` | report what the project's caches hold, or shrink them |
 
 `doctor` also lists the scene adapters and voice backends this build ships.
 
@@ -192,8 +193,16 @@ sentence of the manual re-encodes the picture around that sentence and
 copies the other five and a half minutes: 18.4s becomes 4.2s. A piece is
 keyed on its own duration rather than on where it falls, so a sentence that
 got longer moves everything after it without invalidating any of it.
-`--no-cache` encodes every frame, and `teleprompt doctor` says how much
-disk the cache is using.
+`--no-cache` encodes every frame.
+
+The cache has a cap, because a cache of video does not stay small: every
+version of a script you iterate on leaves its picture behind. A build
+evicts the least recently used pieces until what is left fits in 1 GB —
+`--cache-max-mb` for a different budget, `0` to keep nothing. `teleprompt
+cache` reports what is there and `teleprompt cache --prune-to-mb N` shrinks
+it now, so getting the disk back does not mean being told which directory
+to delete. Everything in it is derived, so evicting costs time and nothing
+else.
 
 Rendering sits behind a trait. ffmpeg handles everything, transitions
 included; a pure-Rust path for scripts whose beats are all hard cuts —
