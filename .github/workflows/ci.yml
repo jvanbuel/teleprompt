@@ -85,33 +85,27 @@ jobs:
       # log — this sandbox cannot fetch the blob store a step's own output
       # lives in.
       #
-      # Two hypotheses are already dead. Not the encoder: a gif, which
-      # never touches ffmpeg, fails identically. Not ttyd's version: 1.7.4,
-      # which vhs v0.12 was built against, fails identically to 1.7.7.
+      # Eliminated so far. Not ttyd's version: 1.7.4, which vhs v0.12 was
+      # built against, fails identically to 1.7.7. Not the page: ttyd
+      # serves `canvas.xterm-text-layer` and Chrome renders it, confirmed
+      # by dumping the DOM, so the selector vhs looks up is there to find.
       #
-      # What is left is the page. `vhs` looks up `canvas.xterm-text-layer`
-      # and *discards the error* (vhs.go:334), so a page that does not have
-      # that element — because ttyd did not serve it, or because the
-      # renderer it chose does not draw into it — records zero frames and
-      # reports success. This asks the page directly.
-      - name: Why does vhs write nothing?
+      # That leaves vhs's own two halves: photographing the canvas, and
+      # turning the photographs into a file. `Screenshot` separates them —
+      # it writes a PNG straight from the canvas and never invokes ffmpeg.
+      # A PNG means capture works and the encode is at fault; no PNG means
+      # vhs cannot photograph a canvas that demonstrably exists.
+      - name: Can vhs photograph the canvas at all?
         if: always()
         continue-on-error: true
         run: |
           set +e -x
-          vhs --version; ttyd --version; google-chrome --version
-          ttyd -p 7681 -t rendererType=canvas -t disableResizeOverlay=true bash &
-          sleep 3
-          curl -s --max-time 5 http://localhost:7681 | head -c 400; echo
-          google-chrome --headless=new --no-sandbox --disable-dev-shm-usage \
-            --virtual-time-budget=4000 --dump-dom http://localhost:7681 > /tmp/dom.html
-          echo "dom bytes: $(wc -c < /tmp/dom.html)"
-          grep -o 'canvas[^>]*class="[^"]*"' /tmp/dom.html | head -5 || echo "NO CANVAS IN DOM"
-          grep -c "xterm-text-layer" /tmp/dom.html || echo "xterm-text-layer: 0"
-          kill %1 2>/dev/null
           cd /tmp
-          printf 'Output "/tmp/a.gif"\nSet Width 600\nSet Height 400\nType "echo hi"\nEnter\nSleep 500ms\n' > a.tape
-          vhs a.tape; ls -la /tmp/a.gif || echo "NO GIF"
+          printf 'Output "/tmp/out.gif"\nSet Width 600\nSet Height 400\nType "echo hi"\nEnter\nSleep 500ms\nScreenshot "/tmp/shot.png"\n' > s.tape
+          vhs s.tape 2>&1
+          ls -la /tmp/shot.png || echo "NO SCREENSHOT — vhs cannot photograph the canvas"
+          ls -la /tmp/out.gif  || echo "NO GIF"
+          file /tmp/shot.png 2>/dev/null
 
   msrv:
     runs-on: ubuntu-latest
