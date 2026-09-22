@@ -305,7 +305,7 @@ async fn a_render_reports_how_far_along_it_is() {
 
     let mut seen: Vec<u64> = Vec::new();
     let report = teleprompt_cli::cmd::build::run_build_with(
-        &teleprompt_render::ffmpeg::FfmpegRenderer::default(),
+        teleprompt_cli::cmd::build::renderer(&options).as_ref(),
         &project,
         &script,
         "en",

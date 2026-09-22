@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
 
 use crate::placement::{placements, seconds, xfade_for, BACKGROUND};
-use crate::{Picture, Progress, RenderError, RenderPlan, Rendered, Renderer};
+use crate::{Picture, RenderError, RenderPlan};
 
 /// The narration bed's sample rate. Matches what the voice crates emit, so
 /// mixing never resamples.
@@ -154,51 +154,6 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
     args.push("+faststart".into());
     args.push(plan.output.display().to_string());
     args
-}
-
-/// Renders by invoking `ffmpeg`.
-#[derive(Debug, Clone)]
-pub struct FfmpegRenderer {
-    /// The binary to invoke. Configurable because `doctor` may have found a
-    /// usable ffmpeg somewhere other than `PATH`.
-    pub program: String,
-}
-
-impl Default for FfmpegRenderer {
-    fn default() -> Self {
-        Self {
-            program: "ffmpeg".into(),
-        }
-    }
-}
-
-impl Renderer for FfmpegRenderer {
-    fn id(&self) -> &'static str {
-        "ffmpeg"
-    }
-
-    fn render(
-        &self,
-        plan: &RenderPlan,
-        on_progress: &mut dyn FnMut(Progress),
-    ) -> Result<Rendered, RenderError> {
-        ensure_parent(&plan.output)?;
-        run(&self.program, &args(plan), &mut |rendered_ms| {
-            on_progress(Progress {
-                rendered_ms,
-                of_ms: plan.duration_ms,
-            });
-        })?;
-        on_progress(Progress {
-            rendered_ms: plan.duration_ms,
-            of_ms: plan.duration_ms,
-        });
-        Ok(Rendered {
-            path: plan.output.clone(),
-            duration_ms: plan.duration_ms,
-            reused_ms: None,
-        })
-    }
 }
 
 /// Create the directory a render is about to write into.

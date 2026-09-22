@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use teleprompt_core::Hash;
 
 use crate::chunk::{self, Chunk, ChunkKey, Content, Source, Window};
-use crate::ffmpeg::{self, FfmpegRenderer};
+use crate::ffmpeg;
 use crate::placement::{xfade_for, BACKGROUND};
 use crate::{Progress, RenderError, RenderPlan, Rendered, Renderer};
 
@@ -33,6 +33,14 @@ pub struct IncrementalRenderer {
     /// it can be reproduced from the key that names it — so it belongs
     /// wherever the rest of the cache does.
     pub cache_dir: PathBuf,
+    /// Whether a chunk already in the cache may be used.
+    ///
+    /// `false` is `--no-cache`: re-encode everything. It still writes what
+    /// it encodes, because the point is to distrust what is there, not to
+    /// refuse to leave anything behind. This is a flag rather than a second
+    /// renderer so that `--no-cache` and an ordinary build come out of the
+    /// same code — two renderers agree until they do not.
+    pub reuse: bool,
 }
 
 impl Renderer for IncrementalRenderer {
@@ -45,14 +53,14 @@ impl Renderer for IncrementalRenderer {
         plan: &RenderPlan,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Rendered, RenderError> {
-        // A plan that cannot be cut is rendered the way it was before
-        // chunks existed. Falling back is not a failure: the output is
-        // identical, it just costs a full encode.
+        // The only plan that cannot be cut is a shot shorter than the
+        // transitions either side of it, and the scheduler caps a
+        // transition against what the item it arrives in has left, so this
+        // is unreachable from a real script. It used to hand the build to a
+        // second renderer without saying so; a fallback nobody can see is
+        // how two implementations drift apart.
         let Some(chunks) = chunk::chunks(plan) else {
-            return FfmpegRenderer {
-                program: self.program.clone(),
-            }
-            .render(plan, on_progress);
+            return Err(RenderError::Unchunkable);
         };
 
         ffmpeg::ensure_parent(&plan.output)?;
@@ -86,7 +94,7 @@ impl Renderer for IncrementalRenderer {
                 })?;
             let cached = self.cache_dir.join(format!("{key}.mp4"));
 
-            if is_usable(&cached) {
+            if self.reuse && is_usable(&cached) {
                 reused_frames += chunk.frames;
                 mark_used(&cached);
             } else {

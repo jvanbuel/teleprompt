@@ -18,6 +18,10 @@ pub fn schedule(
     let mut warnings = Vec::new();
     let mut cursor = 0u64;
 
+    // How much of this item the transition arriving into it already took.
+    // A transition overlaps *both* items it joins, so it is charged to each.
+    let mut carried_in = 0u64;
+
     for (i, item) in items.iter().enumerate() {
         let timing = &item.config.timing;
 
@@ -38,6 +42,20 @@ pub fn schedule(
         let l = layout_at(item.policy, narration_ms, action_ms, cue_ms, timing);
         for w in &l.warnings {
             warnings.push(format!("{}: {w}", item.id));
+        }
+
+        // The transition granted on the way out of the previous item was
+        // capped against *that* item. It also eats into this one, which may
+        // be shorter than the transition is long. Give the time back before
+        // this item is placed, rather than letting two blends draw the same
+        // frames twice.
+        if carried_in > l.item_duration_ms {
+            let excess = carried_in - l.item_duration_ms;
+            if let Some(previous) = entries.last_mut() {
+                previous.transition.duration_ms -= excess;
+            }
+            cursor += excess;
+            carried_in = l.item_duration_ms;
         }
 
         let slack = narration_ms.saturating_sub(l.action_duration_ms);
@@ -91,8 +109,12 @@ pub fn schedule(
                     .min(quiet_window_ms),
             }
         }
-        // A transition can never consume more than the item it leaves.
-        .min(l.item_duration_ms);
+        // A transition can never consume more than the item it leaves, nor
+        // more than that item has left after the transition that arrived
+        // into it. Without the second cap an item can be long enough for
+        // each transition alone and too short for both together — which is
+        // a plan that cannot be cut into chunks at all.
+        .min(l.item_duration_ms.saturating_sub(carried_in));
 
         entries.push(Entry {
             item: item.id.clone(),
@@ -141,6 +163,7 @@ pub fn schedule(
             },
         });
 
+        carried_in = transition_ms;
         cursor += l.item_duration_ms - transition_ms;
     }
 

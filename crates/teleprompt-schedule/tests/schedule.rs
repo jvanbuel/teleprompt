@@ -314,3 +314,40 @@ fn padded_duration_saturates_instead_of_overflowing() {
     n.tail_ms = u64::MAX;
     assert_eq!(n.padded_duration_ms(), u64::MAX);
 }
+
+/// A transition may not consume what the transition before it already took.
+///
+/// The scheduler capped each transition at the item it leaves, which is not
+/// enough: an item can be long enough for the transition arriving into it
+/// *and* for the one leaving it, and still too short for both together.
+/// When that happened the two blends drew the same frames twice, the
+/// incremental renderer could not cut the plan into chunks at all, and it
+/// silently handed the whole build to a second renderer.
+///
+/// Scheduling the constraint instead of detecting it downstream means every
+/// plan can be chunked, which is what lets there be one renderer.
+#[test]
+fn a_transition_leaves_room_for_the_one_that_arrived_before_it() {
+    let mut cfg = Config::default();
+    cfg.transition.duration = TransitionDuration::Fixed(400);
+    cfg.transition.min_ms = 0;
+
+    // A short item between two long ones: 400ms in, 400ms out, 500ms of item.
+    let items = vec![
+        item("a", Some(4000), None, Policy::Hold, cfg.clone()),
+        item("b", Some(200), None, Policy::Hold, cfg.clone()),
+        item("c", Some(4000), None, Policy::Hold, cfg.clone()),
+    ];
+    let t = schedule(&items, "s.md", "en", "0.1.0").0;
+
+    let entries = &t.entries;
+    let into_b = entries[0].transition.duration_ms;
+    let out_of_b = entries[1].transition.duration_ms;
+
+    assert!(
+        into_b + out_of_b <= entries[1].duration_ms,
+        "b is {}ms and hosts {into_b}ms in and {out_of_b}ms out; the two \
+         transitions overlap each other",
+        entries[1].duration_ms
+    );
+}

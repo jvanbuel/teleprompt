@@ -27,6 +27,17 @@ fn shot(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Shot {
     }
 }
 
+/// A shot that hands over with a crossfade rather than a cut.
+fn blended(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Shot {
+    Shot {
+        transition: Transition {
+            kind: "xfade".into(),
+            duration_ms: 400,
+        },
+        ..shot(id, start_ms, duration_ms, clip)
+    }
+}
+
 fn plan(shots: Vec<Shot>, duration_ms: u64) -> RenderPlan {
     RenderPlan {
         width: 640,
@@ -313,5 +324,30 @@ fn a_cue_that_only_slid_along_the_timeline_keeps_its_key() {
         ChunkKey::for_chunk(&after, &b[1]).hash(&mut same).unwrap(),
         "the second shot shows the same clip for the same length; only \
          everything before it moved"
+    );
+}
+
+/// The one plan that cannot be chunked is one the scheduler cannot make.
+///
+/// `chunks` returns `None` for a shot shorter than the transitions either
+/// side of it, because the two blends would draw the same frames twice.
+/// That used to send the whole build to a second renderer, silently. The
+/// scheduler now caps a transition against what the item it arrives in has
+/// left (see `a_transition_leaves_room_for_the_one_that_arrived_before_it`),
+/// so the case is unreachable from a real script — and the renderer reports
+/// it rather than rerouting around it.
+#[test]
+fn a_hand_built_plan_whose_transitions_overlap_cannot_be_chunked() {
+    let plan = plan(
+        vec![
+            blended("a", 0, 4_000, "a.mp4"),
+            blended("b", 3_600, 500, "b.mp4"),
+            blended("c", 3_700, 4_000, "c.mp4"),
+        ],
+        8_000,
+    );
+    assert!(
+        chunk::chunks(&plan).is_none(),
+        "the scheduler prevents this shape; chunking must not invent a cut for it"
     );
 }

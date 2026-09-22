@@ -10,7 +10,6 @@
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_render::ffmpeg::FfmpegRenderer;
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::{Picture, Progress, RenderError, Renderer};
@@ -167,14 +166,20 @@ pub async fn run_build(
 }
 
 /// The renderer a set of options asks for.
+///
+/// There is one. `--no-cache` clears `compose_dir`, which used to select a
+/// different renderer entirely; it now switches off reuse, so the two paths
+/// encode through the same code and cannot disagree about what the video
+/// should look like.
 pub fn renderer(options: &BuildOptions) -> Box<dyn Renderer> {
-    match &options.compose_dir {
-        Some(cache_dir) => Box::new(IncrementalRenderer {
-            program: "ffmpeg".into(),
-            cache_dir: cache_dir.clone(),
-        }),
-        None => Box::new(FfmpegRenderer::default()),
-    }
+    Box::new(IncrementalRenderer {
+        program: "ffmpeg".into(),
+        cache_dir: options
+            .compose_dir
+            .clone()
+            .unwrap_or_else(std::env::temp_dir),
+        reuse: options.compose_dir.is_some(),
+    })
 }
 
 /// `run_build` with the renderer and the progress sink named.

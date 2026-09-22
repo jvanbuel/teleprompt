@@ -112,6 +112,19 @@ pub struct Progress {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
+    /// A shot shorter than the transitions either side of it, so the two
+    /// blends would draw the same frames twice.
+    ///
+    /// The scheduler caps a transition against what the item it arrives in
+    /// has left, so a plan compiled from a script cannot be this shape. It
+    /// is reported rather than worked around: the alternative was a second
+    /// renderer nobody could see being used.
+    #[error(
+        "a shot is shorter than the transitions either side of it, so the \
+         plan cannot be cut into chunks; this should not be reachable from \
+         a script — please report it"
+    )]
+    Unchunkable,
     #[error("{program} is not available: {source}")]
     Unavailable {
         program: String,

@@ -10,11 +10,22 @@
 
 use std::process::Command;
 
-use teleprompt_render::ffmpeg::FfmpegRenderer;
+use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::{Narration, Picture, RenderPlan, Renderer, Shot, Transition};
 
 mod support;
 use support::{bright_clip, duration_of, first_sound, have_ffmpeg, luma_at, tone};
+
+/// The renderer with reuse switched off — what `--no-cache` asks for, and
+/// what these tests want: every frame encoded here, nothing served from a
+/// cache a previous test filled.
+fn one_pass() -> IncrementalRenderer {
+    IncrementalRenderer {
+        program: "ffmpeg".into(),
+        cache_dir: std::env::temp_dir().join(format!("tp-onepass-{}", std::process::id())),
+        reuse: false,
+    }
+}
 
 #[test]
 fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
@@ -56,7 +67,7 @@ fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
         output: dir.join("out.mp4"),
     };
 
-    let rendered = FfmpegRenderer::default()
+    let rendered = one_pass()
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -103,7 +114,7 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
         output: dir.join("late.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -149,7 +160,7 @@ fn a_gap_before_the_first_shot_is_held_rather_than_closed() {
         output: dir.join("gap.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -206,7 +217,7 @@ fn a_crossfade_overlaps_the_shots_it_joins() {
         output: dir.join("xfade.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -243,7 +254,7 @@ fn a_plan_with_no_shots_at_all_still_renders_its_narration() {
         output: dir.join("prose.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("a script with no action blocks is still a script");
     assert!((duration_of(&plan.output) - 2.0).abs() < 0.2);
@@ -288,7 +299,7 @@ fn a_shot_of_no_length_does_not_reach_the_graph() {
         output: dir.join("zero.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("a zero-length shot is dropped, not rendered");
     assert!((duration_of(&plan.output) - 2.0).abs() < 0.2);
@@ -354,7 +365,7 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
         output: dir.join("clips.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -392,7 +403,7 @@ fn a_gap_after_a_shot_freezes_its_last_frame() {
         output: dir.join("freeze.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -434,7 +445,7 @@ fn a_gap_before_the_first_shot_holds_its_first_frame() {
         output: dir.join("open.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -485,7 +496,7 @@ fn dropping_an_empty_shot_does_not_drop_the_time_before_it() {
         output: dir.join("empty.mp4"),
     };
 
-    FfmpegRenderer::default()
+    one_pass()
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 

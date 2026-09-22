@@ -10,7 +10,6 @@
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use teleprompt_render::ffmpeg::FfmpegRenderer;
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::{Narration, Picture, RenderPlan, Renderer, Shot, Transition};
 
@@ -21,6 +20,7 @@ fn renderer(cache: &Path) -> IncrementalRenderer {
     IncrementalRenderer {
         program: "ffmpeg".into(),
         cache_dir: cache.to_path_buf(),
+        reuse: true,
     }
 }
 
@@ -62,6 +62,22 @@ fn plan(dir: &Path, clip: &Path, shots: &[(u64, u64)], duration_ms: u64) -> Rend
     }
 }
 
+/// The renderer with reuse switched off — what `--no-cache` asks for, and
+/// what these tests want: every frame encoded here, nothing served from a
+/// cache a previous test filled.
+///
+/// Since the second renderer was deleted this is the *same* renderer with
+/// its cache ignored, which is a stronger comparison than before: the two
+/// paths can no longer disagree about what the video should look like,
+/// only about how much of it had to be encoded.
+fn one_pass() -> IncrementalRenderer {
+    IncrementalRenderer {
+        program: "ffmpeg".into(),
+        cache_dir: std::env::temp_dir().join(format!("tp-onepass-{}", std::process::id())),
+        reuse: false,
+    }
+}
+
 /// The whole point of the exercise: the incremental path and the one-pass
 /// path are the same video. A faster renderer that produces a different
 /// file is not a faster renderer.
@@ -76,7 +92,7 @@ fn an_incremental_render_is_the_same_length_as_a_one_pass_render() {
 
     let mut whole = plan(&dir, &clip, &[(0, 2_000), (2_000, 1_500)], 5_000);
     whole.output = dir.join("whole.mp4");
-    FfmpegRenderer::default()
+    one_pass()
         .render(&whole, &mut |_| {})
         .expect("the one-pass graph renders");
 
