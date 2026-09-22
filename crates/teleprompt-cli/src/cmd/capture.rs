@@ -223,6 +223,6 @@ fn record(
 /// that nothing else would.
 pub fn registry() -> CaptureRegistry {
     CaptureRegistry::new()
-        .with(Box::new(teleprompt_capture_vhs::VhsRender::default()))
+        .with(Box::new(teleprompt_vhs::VhsRender::default()))
         .with(Box::new(teleprompt_capture::mock::MockCapture::default()))
 }

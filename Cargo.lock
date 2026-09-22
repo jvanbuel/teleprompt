@@ -1136,14 +1136,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "teleprompt-capture-vhs"
-version = "0.1.0"
-dependencies = [
- "teleprompt-capture",
- "teleprompt-core",
-]
-
-[[package]]
 name = "teleprompt-cli"
 version = "0.1.0"
 dependencies = [
@@ -1154,14 +1146,13 @@ dependencies = [
  "serde_yaml",
  "teleprompt-cache",
  "teleprompt-capture",
- "teleprompt-capture-vhs",
  "teleprompt-compile",
  "teleprompt-core",
+ "teleprompt-playwright",
  "teleprompt-render",
  "teleprompt-scene",
- "teleprompt-scene-playwright",
- "teleprompt-scene-vhs",
  "teleprompt-schedule",
+ "teleprompt-vhs",
  "teleprompt-voice",
  "teleprompt-voice-kokoro",
  "teleprompt-voice-null",
@@ -1197,6 +1188,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-playwright"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-core",
+ "teleprompt-scene",
+]
+
+[[package]]
 name = "teleprompt-render"
 version = "0.1.0"
 dependencies = [
@@ -1215,22 +1214,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "teleprompt-scene-playwright"
-version = "0.1.0"
-dependencies = [
- "teleprompt-core",
- "teleprompt-scene",
-]
-
-[[package]]
-name = "teleprompt-scene-vhs"
-version = "0.1.0"
-dependencies = [
- "teleprompt-core",
- "teleprompt-scene",
-]
-
-[[package]]
 name = "teleprompt-schedule"
 version = "0.1.0"
 dependencies = [
@@ -1238,6 +1221,15 @@ dependencies = [
  "serde",
  "serde_json",
  "teleprompt-core",
+]
+
+[[package]]
+name = "teleprompt-vhs"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-capture",
+ "teleprompt-core",
+ "teleprompt-scene",
 ]
 
 [[package]]

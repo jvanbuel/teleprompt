@@ -7,8 +7,8 @@
 //! does, not how long it takes.
 
 use teleprompt_core::SourceSpan;
+use teleprompt_playwright::PlaywrightScene;
 use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler};
-use teleprompt_scene_playwright::PlaywrightScene;
 
 const SPAN: SourceSpan = SourceSpan {
     line: 1,

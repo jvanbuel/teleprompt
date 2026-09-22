@@ -2,9 +2,9 @@
 
 // Rust guideline compliant 2026-07-18
 
+use teleprompt_playwright::PlaywrightScene;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_scene_playwright::PlaywrightScene;
-use teleprompt_scene_vhs::VhsScene;
+use teleprompt_vhs::VhsScene;
 
 /// The scene registry every command compiles against.
 ///

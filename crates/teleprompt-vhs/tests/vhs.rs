@@ -1,6 +1,6 @@
 use teleprompt_core::SourceSpan;
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Validated};
-use teleprompt_scene_vhs::VhsScene;
+use teleprompt_vhs::VhsScene;
 
 /// A fence opening on line 1. Body line `i` is therefore at absolute line `1 + i + 1`.
 const SPAN: SourceSpan = SourceSpan {

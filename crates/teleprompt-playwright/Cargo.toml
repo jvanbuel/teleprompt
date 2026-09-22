@@ -1,5 +1,5 @@
 [package]
-name = "teleprompt-scene-vhs"
+name = "teleprompt-playwright"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true

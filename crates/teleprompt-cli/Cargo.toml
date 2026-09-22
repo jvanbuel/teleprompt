@@ -16,13 +16,12 @@ path = "src/main.rs"
 [dependencies]
 teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-capture = { path = "../teleprompt-capture" }
-teleprompt-capture-vhs = { path = "../teleprompt-capture-vhs" }
 teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-render = { path = "../teleprompt-render" }
-teleprompt-scene-playwright = { path = "../teleprompt-scene-playwright" }
-teleprompt-scene-vhs = { path = "../teleprompt-scene-vhs" }
+teleprompt-playwright = { path = "../teleprompt-playwright" }
+teleprompt-vhs = { path = "../teleprompt-vhs" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
