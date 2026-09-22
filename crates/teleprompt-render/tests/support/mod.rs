@@ -100,6 +100,39 @@ pub fn first_sound(path: &std::path::Path) -> f64 {
         .unwrap_or_else(|| panic!("no sound at all in the render:\n{log}"))
 }
 
+/// The rendered file's audio track, as `(sample_rate, channels)`.
+///
+/// What a player is handed, which is not what the mix ran at.
+pub fn audio_track(path: &std::path::Path) -> (u32, u32) {
+    let out = Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=sample_rate,channels",
+            "-of",
+            "csv=p=0",
+        ])
+        .arg(path)
+        .output()
+        .expect("ffprobe runs");
+    let csv = String::from_utf8_lossy(&out.stdout);
+    let mut fields = csv.trim().split(',');
+    let rate = fields
+        .next()
+        .unwrap_or_default()
+        .parse()
+        .unwrap_or_else(|_| panic!("no audio stream in {}", path.display()));
+    let channels = fields
+        .next()
+        .expect("a channel count")
+        .parse()
+        .expect("a numeric channel count");
+    (rate, channels)
+}
+
 /// Mean luma of the frame at `seconds`, as ffmpeg measures it. A slate is
 /// the background colour and reads about 12; anything with a terminal on it
 /// reads far higher.

@@ -373,13 +373,8 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         "copy".into(),
         "-map".into(),
         "[a]".into(),
-        "-c:a".into(),
-        "aac".into(),
-        "-b:a".into(),
-        "128k".into(),
-        "-movflags".into(),
-        "+faststart".into(),
     ]);
+    ffmpeg::audio_encode(&mut args);
     args.push(plan.output.display().to_string());
     args
 }
