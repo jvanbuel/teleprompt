@@ -169,20 +169,45 @@ impl CaptureBackend for VhsRender {
             source,
         })?;
 
-        let status = Command::new(&self.vhs)
+        // stderr is kept rather than inherited, because the failure worth
+        // reporting is the one with nothing in it — and when there *is*
+        // something, it is the only clue there will be.
+        let ran = Command::new(&self.vhs)
             .arg(&tape)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .status()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
             .map_err(|e| failed(&first, format!("{} could not be run: {e}", self.vhs)))?;
-        if !status.success() {
-            return Err(failed(&first, format!("{} exited {status}", self.vhs)));
+        let said = |ran: &std::process::Output| {
+            let text = String::from_utf8_lossy(&ran.stderr).into_owned()
+                + &String::from_utf8_lossy(&ran.stdout);
+            let tail: Vec<&str> = text
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .collect();
+            let from = tail.len().saturating_sub(4);
+            tail[from..].join(" / ")
+        };
+        if !ran.status.success() {
+            return Err(failed(
+                &first,
+                format!("{} exited {}: {}", self.vhs, ran.status, said(&ran)),
+            ));
         }
-        // The failure that has no error in it: exit 0, no file.
+        // The failure that has no error in it: exit 0, no file. Seen in a
+        // container and on a stock CI runner, both times after `vhs`
+        // printed its usual "Creating …" and its usual closing advert.
         if !video.metadata().is_ok_and(|m| m.len() > 0) {
             return Err(failed(
                 &first,
-                format!("{} wrote no video and reported no error", self.vhs),
+                format!(
+                    "{} exited 0 and wrote no video to {}; it said: {}",
+                    self.vhs,
+                    video.display(),
+                    said(&ran)
+                ),
             ));
         }
 
