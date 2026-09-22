@@ -235,3 +235,54 @@ fn a_pause_does_not_join_the_chain() {
         "a pause between two beats changed what the second one shows"
     );
 }
+
+/// A clip is served from the cache on its key alone, so the key has to
+/// name whatever drew it. It did not. `adapter` says `vhs`, and every
+/// renderer teleprompt has ever pointed at a `vhs` scene also said `vhs`:
+/// the name identifies the *scene language*, not the program that turns it
+/// into pixels.
+///
+/// That is not hypothetical. Deleting the pty renderer left its clips in
+/// the cache under exactly the keys its replacement asks for, and the next
+/// build served twenty-four of them — a video assembled from a renderer
+/// that no longer exists, reported as fully captured.
+///
+/// So the key carries a recipe, for the same reason the compose cache's
+/// chunk key does: bump it and yesterday's pictures stop answering to
+/// today's names.
+#[test]
+fn a_capture_key_names_the_recipe_that_recorded_it() {
+    use teleprompt_compile::CAPTURE_RECIPE;
+    use teleprompt_core::config::SceneConfig;
+
+    let out = run(&format!(
+        "{HEAD}One. {{#one}}\n\n\
+         ```teleprompt scene=terminal\n{J}```\n"
+    ));
+    let action = out
+        .timeline
+        .entries
+        .iter()
+        .filter_map(|e| e.action.as_ref())
+        .find(|a| a.scene != "pause")
+        .expect("the fixture has one action beat");
+
+    let settings = out
+        .scenes
+        .get(&action.scene)
+        .map(SceneConfig::settings_fingerprint)
+        .unwrap_or_default();
+    let name = Hash::of_fields(&[
+        CAPTURE_RECIPE,
+        &action.adapter,
+        &settings,
+        &action.span_hash.to_string(),
+    ]);
+
+    assert_eq!(
+        action.capture_key,
+        Hash::of_fields(&[&name.to_string()]),
+        "the first beat of a session should be chain(0) = H(name(0)), \
+         with the recipe inside name(0)"
+    );
+}

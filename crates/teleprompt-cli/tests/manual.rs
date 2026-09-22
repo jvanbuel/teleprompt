@@ -145,6 +145,21 @@ async fn the_manual_renders() {
     assert_eq!(report.segments, 21);
     assert_eq!(report.beats, 25);
 
+    // `TELEPROMPT_REQUIRE_CAPTURE` is CI saying it has a recorder and
+    // expects it to have been used. Nothing read it until now, and the
+    // silence was load-bearing: capture is infallible by design, so a
+    // tape VHS refuses to parse costs a warning and nothing else, and
+    // this test passed on a manual rendered as twenty-five slates. That
+    // is how an unparseable tape reached main and stayed there.
+    if std::env::var_os("TELEPROMPT_REQUIRE_CAPTURE").is_some() {
+        assert_eq!(
+            report.slates, 0,
+            "TELEPROMPT_REQUIRE_CAPTURE is set and {} of {} beat(s) rendered \
+             as slates: {:?}",
+            report.slates, report.beats, report.warnings
+        );
+    }
+
     let seconds = picture_seconds(&report.output);
     let expected = report.duration_ms as f64 / 1000.0;
     assert!(
@@ -195,4 +210,82 @@ fn picture_seconds(path: &Path) -> f64 {
     let frames: f64 = fields.next().unwrap().parse().unwrap();
     let (num, den) = rate.split_once('/').expect("a rational frame rate");
     frames * den.parse::<f64>().unwrap() / num.parse::<f64>().unwrap()
+}
+
+/// The manual says, of the mark it writes as a comment, that "VHS ignores
+/// it, so the file stays a tape VHS itself will run — which is the whole
+/// reason to keep a demo in a real tape file rather than in a dialect only
+/// teleprompt reads."
+///
+/// That claim went untested for as long as teleprompt owned a renderer of
+/// its own, and it was false. `Type "Type \"teleprompt plan\""` parses
+/// under teleprompt and not under VHS, which has no backslash escapes — so
+/// the manual demonstrated a dialect only teleprompt reads, in the very
+/// paragraph promising it had not invented one.
+///
+/// `check` cannot catch this: it validates teleprompt's reading of a tape.
+/// Only VHS can say what VHS will run, so this asks it.
+#[test]
+fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
+    use std::io::Write;
+    use std::process::Command;
+
+    let vhs_missing = Command::new("vhs")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_err();
+    if vhs_missing {
+        assert!(
+            std::env::var_os("TELEPROMPT_REQUIRE_VHS").is_none(),
+            "TELEPROMPT_REQUIRE_VHS is set and there is no vhs on PATH"
+        );
+        eprintln!("skipping: no vhs on PATH");
+        return;
+    }
+
+    let (p, s) = manual();
+    let (out, _) = teleprompt_cli::cmd::check::compile_script(&p, &s, "en")
+        .unwrap_or_else(|e| panic!("the manual compiles: {e:?}"));
+
+    let dir = std::env::temp_dir().join(format!("tp-manual-tapes-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let mut bad = Vec::new();
+    for span in &out.spans {
+        // An `Output` line is the one thing a span never carries and a
+        // tape may not omit; everything after it is the manual's own.
+        let path = dir.join(format!("{}.tape", span.id.replace(['/', '#'], "_")));
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "Output \"{}.mp4\"", path.display()).unwrap();
+        f.write_all(span.source.as_bytes()).unwrap();
+        drop(f);
+
+        let said = Command::new("vhs")
+            .arg("validate")
+            .arg(&path)
+            .output()
+            .expect("vhs validate runs");
+        if !said.status.success() {
+            bad.push(format!(
+                "  {}: {}",
+                span.id,
+                String::from_utf8_lossy(&said.stdout)
+                    .lines()
+                    .chain(String::from_utf8_lossy(&said.stderr).lines())
+                    .filter(|l| l.contains("Invalid") || l.contains("error"))
+                    .collect::<Vec<_>>()
+                    .join(" / ")
+            ));
+        }
+    }
+
+    assert!(
+        bad.is_empty(),
+        "the manual holds {} tape(s) VHS will not run:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }

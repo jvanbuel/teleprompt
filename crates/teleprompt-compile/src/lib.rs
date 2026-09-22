@@ -231,6 +231,18 @@ fn retime_stretched_spans(
 /// The scene name a pause wears, which is not a scene and has no picture.
 const PAUSE_SCENE: &str = "pause";
 
+/// The capture recipe version: bumped when the picture a backend draws
+/// changes, so clips recorded by an older teleprompt are not served for
+/// beats a newer one would record differently.
+///
+/// The adapter name cannot do this job. It names the scene *language* —
+/// `vhs` is the tape dialect, not the program that rasterises it — so two
+/// different renderers pointed at the same scene produce the same key and
+/// silently share a cache. Bump this when the renderer changes, when the
+/// tape teleprompt writes changes, or when an upgrade moves the window
+/// chrome.
+pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
+
 /// Names each beat's picture, which is not the same thing as naming its
 /// tape.
 ///
@@ -284,7 +296,12 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
             .get(&action.scene)
             .map(SceneConfig::settings_fingerprint)
             .unwrap_or_default();
-        let name = Hash::of_fields(&[&action.adapter, &settings, &action.span_hash.to_string()]);
+        let name = Hash::of_fields(&[
+            CAPTURE_RECIPE,
+            &action.adapter,
+            &settings,
+            &action.span_hash.to_string(),
+        ]);
 
         // The session is keyed on (scene, name) rather than on an ordinal:
         // a session that opens with the same tape opens on the same screen,

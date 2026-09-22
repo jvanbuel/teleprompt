@@ -44,12 +44,17 @@ and hands that tape to VHS. Waiting for narration is a number in the input,
 not a renderer of our own. {#vhs}
 
 ```teleprompt scene=terminal
-# The tape teleprompt is reading to draw this very shot.
+# The tape teleprompt is reading to draw this very shot. It is written
+# into a file rather than typed at the prompt, because the shell would
+# only tell you that `Set` is not a command.
 Set TypingSpeed 60ms
-Type "Set TypingSpeed 60ms"
+Type "cat > shot.tape"
 Enter
-Type "Type \"teleprompt plan\""
+Type 'Set TypingSpeed 60ms'
 Enter
+Type 'Type "teleprompt plan"'
+Enter
+Ctrl+D
 Sleep 1500ms
 ```
 
