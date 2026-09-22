@@ -1220,3 +1220,50 @@ async fn identical_narration_text_still_lands_in_document_order_with_matching_au
          the same audio bytes"
     );
 }
+
+/// A cache that is already warm should not need the server that filled it.
+///
+/// `dub` asks the server for its voice list before synthesizing, which is
+/// the right check when something is about to be synthesized and the wrong
+/// one when nothing is: a project whose every segment is cached failed
+/// outright with the server down. That is the difference between "build it
+/// once and let the cache make the next one cheap" being a workflow and
+/// being something you can only do while a GPU box answers.
+#[tokio::test]
+async fn a_fully_cached_script_dubs_with_the_server_gone() {
+    let stub = kokoro_synth_stub(None).await;
+    let p = project_with_config_and_script(
+        &format!(
+            "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
+             base_url = \"{}\"\n",
+            stub.base_url
+        ),
+        "# Warm\n\nOne paragraph, synthesized once. {#one}\n",
+    );
+
+    // Fill the cache while the server is up.
+    run_dub(&p.project, &p.script, "en", &p.out, false)
+        .await
+        .unwrap_or_else(|e| match e {
+            DubError::Validation(v) => panic!("validation: {v:?}"),
+            DubError::Runtime(r) => panic!("runtime: {r}"),
+        });
+
+    // The same project on the same machine the next morning: the cache is
+    // where it was, the server is not. Nothing is missing, so nothing
+    // should need it.
+    std::fs::write(
+        p.project.root.join("teleprompt.toml"),
+        "[voice]\nbackend = \"kokoro\"\nvoice = \"af_heart\"\n\n[backends.kokoro]\n\
+         base_url = \"http://127.0.0.1:9\"\n",
+    )
+    .unwrap();
+    let gone = Project::discover(&p.project.root).unwrap();
+
+    run_dub(&gone, &p.script, "en", &p.out, false)
+        .await
+        .unwrap_or_else(|e| match e {
+            DubError::Validation(v) => panic!("validation: {v:?}"),
+            DubError::Runtime(r) => panic!("a warm cache must not need the server: {r}"),
+        });
+}

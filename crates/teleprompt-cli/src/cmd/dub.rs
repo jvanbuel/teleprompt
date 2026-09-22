@@ -303,6 +303,20 @@ pub async fn run_dub_with(
     let (compiled, backend) =
         compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
 
+    let cache = Arc::new(VoiceCache::new(cache_root(project)));
+
+    // Whether this run has anything to ask a server for. A project whose
+    // every segment is already cached needs no server at all, and saying so
+    // is what makes "build it once, then iterate on the cache" a workflow
+    // rather than something you can only do while a GPU box answers. A
+    // corrupt entry counts as missing: it is about to be re-synthesized.
+    let anything_to_synthesize = compiled.narration.iter().any(|detail| {
+        !matches!(
+            cache.lookup_meta(&detail.cache_key),
+            Ok(teleprompt_cache::CacheRead::Hit(_))
+        )
+    });
+
     // Spec §7: the voice list is checked once here, not at `check` time.
     // `check` must stay offline and synchronous, and a gate that only works
     // when a server happens to be running is worse than no gate — the same
@@ -317,7 +331,10 @@ pub async fn run_dub_with(
     // for that handle by the resolved backend's id is the same information
     // a downcast on `backend` would recover, without needing `backend` to
     // carry its own concrete type at runtime.
-    if let Some(kokoro) = backends.kokoro(backend.id()) {
+    if let Some(kokoro) = backends
+        .kokoro(backend.id())
+        .filter(|_| anything_to_synthesize)
+    {
         let wanted = compiled
             .narration
             .iter()
@@ -360,8 +377,6 @@ pub async fn run_dub_with(
     // spawned task, and `tokio::task::spawn` requires its future to be
     // `'static`, which a borrow of this local cannot be. `VoiceCache` is
     // just a `PathBuf` underneath, so the wrapping costs nothing.
-    let cache = Arc::new(VoiceCache::new(cache_root(project)));
-
     // Bounded rather than unbounded: a local model server is the
     // bottleneck, and fanning out wider than it can serve makes the whole
     // run slower while making its failure modes worse. `concurrency` is a
