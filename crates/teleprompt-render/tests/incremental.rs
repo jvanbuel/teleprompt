@@ -287,18 +287,30 @@ fn a_crossfade_survives_being_a_chunk_of_its_own() {
     }
 }
 
-/// A plan the segmenter cannot cut is still a plan. It renders in one
-/// pass — slower, identical output — rather than failing.
+/// A plan that cannot be cut is reported, not rerouted.
+///
+/// This used to render in one pass through a second renderer — slower,
+/// and silently: the report still named the incremental path while the
+/// other one did the work. A fallback nobody can see is how two
+/// implementations drift apart, which this project has now paid for more
+/// than once.
+///
+/// The shape is unreachable from a script. A shot shorter than the
+/// transitions either side of it means the two blends would draw the same
+/// frames twice, and the scheduler caps a transition against what the item
+/// it arrives in has left, so it cannot arise (see
+/// `a_transition_leaves_room_for_the_one_that_arrived_before_it`). Only a
+/// hand-built plan can be this shape, and the right answer for one is to
+/// say so.
 #[test]
-fn a_plan_that_cannot_be_cut_still_renders() {
+fn a_plan_that_cannot_be_cut_is_reported_rather_than_rerouted() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let dir = workdir("incr-fallback");
+    let dir = workdir("incr-unchunkable");
     let clip = bright_clip(&dir, "clip.mp4");
-    // A 500ms shot with 400ms of blend at each end: the two joins would
-    // draw the same frames twice.
+    // A 500ms shot with 400ms of blend at each end.
     let mut plan = plan(
         &dir,
         &clip,
@@ -312,14 +324,14 @@ fn a_plan_that_cannot_be_cut_still_renders() {
         };
     }
 
-    let rendered = renderer(&dir.join("cache"))
+    let why = renderer(&dir.join("cache"))
         .render(&plan, &mut |_| {})
-        .expect("the fallback renders");
-    assert_eq!(
-        rendered.reused_ms, None,
-        "a one-pass render reused nothing, and says so"
+        .expect_err("a plan that cannot be cut is an error, not a detour");
+    let said = why.to_string();
+    assert!(
+        said.contains("shorter than the transitions"),
+        "the error should say what is wrong with the plan: {said}"
     );
-    assert!((duration_of(&rendered.path) - 3.7).abs() < 0.15);
 }
 
 /// A cache with a size cap has to know which entries are still wanted. The
