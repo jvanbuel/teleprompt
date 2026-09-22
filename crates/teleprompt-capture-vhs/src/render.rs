@@ -51,6 +51,15 @@ pub fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
         // `Env` is refused in an authored tape — the environment belongs to
         // the scene — which is precisely why it is set here, from the
         // scene, in the one tape teleprompt writes itself.
+        //
+        // Mind what `Env PATH` does. VHS applies `Env` to its *own*
+        // process, not only to the shell it records, and VHS finds the
+        // browser it screenshots through by searching PATH. So a scene
+        // that sets PATH so its terminal can find the program being
+        // demonstrated also decides which Chromium VHS launches — and if
+        // that PATH has no usable browser on it, capture fails talking
+        // about a debug URL rather than about a path. A scene's PATH
+        // wants a browser on it as well as the program.
         out.push_str(&format!("Env {key} \"{value}\"\n"));
     }
     out.push_str(&format!(
