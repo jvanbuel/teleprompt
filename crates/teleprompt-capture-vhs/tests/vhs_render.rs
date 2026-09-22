@@ -177,13 +177,17 @@ fn the_tape_and_the_session_video_do_not_survive() {
 /// which is a sentence about stream specifiers for a problem about a
 /// truncated recording. Observed on the manual: beats 0-17 exact to
 /// within 0.03s, beat 18 cut off mid-way, beats 19-23 empty.
+///
+/// The line is drawn at a beat that gets nothing, not at a beat that is
+/// short. Drawing it at "short" turned 80ms of encoder rounding on a
+/// two-second tape into a red build.
 #[test]
 fn a_recording_that_stops_early_is_refused_rather_than_cut_into_empty_clips() {
     let dir = workdir("short");
     let video = dir.join("session.mp4");
 
-    // Three beats of one second each; a recording that holds only the
-    // first two. `windows` would place the third at 2000..3000ms.
+    // Three beats of one second each; a recording holding only two of
+    // them. `windows` would place the third at 2000..3000ms.
     let session = teleprompt_capture::Session {
         scene: "terminal".into(),
         adapter: "vhs".into(),
@@ -196,36 +200,36 @@ fn a_recording_that_stops_early_is_refused_rather_than_cut_into_empty_clips() {
         ],
     };
 
-    assert_eq!(
-        super_windows_end(&session),
-        3000,
-        "the session asks for three seconds of video"
-    );
-
     if !make_silent_video(&video, 2.0) {
         eprintln!("skipping: no ffmpeg to build a fixture with");
         return;
     }
 
-    let why = teleprompt_capture_vhs::render::too_short(&video, 3000)
-        .expect("a 2s video cannot satisfy 3s of windows");
+    let why = teleprompt_capture_vhs::render::starved(&video, &session)
+        .expect("beat `c` begins at 2.00s, which is where the video ends");
     assert!(
         why.contains('c'),
-        "the complaint should name the beat that falls off the end: {why}"
+        "the complaint should name the beat that gets nothing: {why}"
     );
 
-    // And the honest case is silent.
+    // A recording that merely falls a few frames short of the last beat
+    // is not starved: every beat still opens on real footage, and the
+    // renderer holds the last frame to fill the slot. This is the case
+    // that turned CI red.
+    let nearly = dir.join("nearly.mp4");
+    assert!(make_silent_video(&nearly, 2.92));
     assert!(
-        teleprompt_capture_vhs::render::too_short(&video, 2000).is_none(),
+        teleprompt_capture_vhs::render::starved(&nearly, &session).is_none(),
+        "80ms short of three seconds is rounding, not a missing beat"
+    );
+
+    // And a recording that covers everything is silent.
+    let whole = dir.join("whole.mp4");
+    assert!(make_silent_video(&whole, 3.0));
+    assert!(
+        teleprompt_capture_vhs::render::starved(&whole, &session).is_none(),
         "a recording that covers its windows is not a failure"
     );
-}
-
-fn super_windows_end(session: &teleprompt_capture::Session) -> u64 {
-    teleprompt_capture_vhs::render::windows(session)
-        .last()
-        .map(|(from, len)| from + len)
-        .unwrap_or(0)
 }
 
 fn a_step(span: &str, source: &str, ms: u64) -> teleprompt_capture::Step {

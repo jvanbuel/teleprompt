@@ -247,19 +247,8 @@ impl CaptureBackend for VhsRender {
 
         // The windows are a prediction about how long the tape would take
         // to run. Check it against what was recorded before cutting to it.
-        let needs_ms = windows(session)
-            .last()
-            .map(|(from, len)| from + len)
-            .unwrap_or(0);
-        if let Some(why) = too_short(&video, needs_ms) {
-            let late = session
-                .steps
-                .iter()
-                .zip(windows(session))
-                .find(|(_, (from, _))| duration_ms(&video).is_some_and(|have| *from >= have))
-                .map(|(step, _)| step.span.clone())
-                .unwrap_or_else(|| first.clone());
-            return Err(failed(&late, why));
+        if let Some(why) = starved(&video, session) {
+            return Err(failed(&first, why));
         }
 
         let wanted = session.wanted();
@@ -288,34 +277,39 @@ impl CaptureBackend for VhsRender {
     }
 }
 
-/// Whether the recording is too short for the windows cut from it.
+/// Any beat the recording stops short of entirely.
 ///
 /// `windows` places every beat at an offset accumulated from what the
 /// tape was *scheduled* to take. That is a prediction about the recorder,
 /// and a prediction nothing checks is the bug this crate keeps finding:
 /// when `vhs` stops early — exits 0, writes a valid but truncated video —
-/// the beats past its end are cut anyway, and ffmpeg emits a container
+/// the beats past its end are cut anyway, and ffmpeg writes a container
 /// with no video stream rather than an error. The build then dies much
-/// later, in compose, saying
-///
-/// ```text
-/// Stream specifier ':v' in filtergraph description … matches no streams
-/// ```
-///
+/// later, in compose, on `Stream specifier ':v' … matches no streams`,
 /// which points at the filtergraph rather than at the recording.
 ///
-/// A frame of tolerance, because the last window ends on a boundary the
-/// encoder rounds.
-pub fn too_short(video: &Path, needs_ms: u64) -> Option<String> {
+/// Too short means a beat that gets *nothing* — one whose window begins
+/// at or after the last recorded frame. A final beat merely clipped by a
+/// few frames is not a failure: ffmpeg returns the footage that exists,
+/// the renderer holds the last frame to fill the slot, and the picture is
+/// right. Refusing those cost a red build over 80ms of encoder rounding
+/// on a two-second tape.
+pub fn starved(video: &Path, session: &Session) -> Option<String> {
     let have_ms = duration_ms(video)?;
-    (have_ms + 40 < needs_ms).then(|| {
+    let empty: Vec<&str> = session
+        .steps
+        .iter()
+        .zip(windows(session))
+        .filter(|(step, (from_ms, _))| step.wanted && *from_ms >= have_ms)
+        .map(|(step, _)| step.span.as_str())
+        .collect();
+    (!empty.is_empty()).then(|| {
         format!(
-            "the recording is {:.2}s but its beats need {:.2}s; \
-             {:.2}s of it was never recorded, so the last beat(s) would be \
-             cut from frames that do not exist",
+            "the recording is {:.2}s and {} beat(s) begin after it ends ({}), \
+             so they would be cut from frames that do not exist",
             have_ms as f64 / 1000.0,
-            needs_ms as f64 / 1000.0,
-            (needs_ms - have_ms) as f64 / 1000.0,
+            empty.len(),
+            empty.join(", "),
         )
     })
 }
