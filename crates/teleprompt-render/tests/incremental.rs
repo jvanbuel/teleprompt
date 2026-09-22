@@ -1,7 +1,7 @@
 //! The incremental renderer against real ffmpeg.
 //!
 //! Two claims to hold down. The first is that cutting a video into cached
-//! segments and copying them back together produces the same video — same
+//! chunks and copying them back together produces the same video — same
 //! length, same picture, narration in the same place. The second is that
 //! the cache actually skips work: a rebuild after a small edit has to
 //! re-encode the part that moved and nothing else, and the only honest way
@@ -24,7 +24,7 @@ fn renderer(cache: &Path) -> IncrementalRenderer {
     }
 }
 
-/// Every cached segment.
+/// Every cached chunk.
 fn cache_state(dir: &Path) -> Vec<PathBuf> {
     let mut entries: Vec<_> = std::fs::read_dir(dir)
         .expect("the cache directory exists")
@@ -35,7 +35,7 @@ fn cache_state(dir: &Path) -> Vec<PathBuf> {
     entries
 }
 
-/// When a cached segment was last used.
+/// When a cached chunk was last used.
 fn last_used(path: &Path) -> SystemTime {
     std::fs::metadata(path).unwrap().modified().unwrap()
 }
@@ -89,7 +89,7 @@ fn an_incremental_render_is_the_same_length_as_a_one_pass_render() {
     let (a, b) = (duration_of(&whole.output), duration_of(&rendered.path));
     assert!(
         (a - b).abs() < 0.05,
-        "one pass rendered {a}s and segments rendered {b}s"
+        "one pass rendered {a}s and chunks rendered {b}s"
     );
     assert!((b - 5.0).abs() < 0.1, "a 5s plan rendered {b}s");
     assert_eq!(
@@ -100,10 +100,10 @@ fn an_incremental_render_is_the_same_length_as_a_one_pass_render() {
 }
 
 /// A gap between beats is held on the last frame, and it is held through
-/// the concat too — the seam between two segments must not be a flash of
+/// the concat too — the seam between two chunks must not be a flash of
 /// black.
 #[test]
-fn the_picture_holds_across_the_seam_between_segments() {
+fn the_picture_holds_across_the_seam_between_chunks() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -174,7 +174,7 @@ fn a_second_render_of_the_same_plan_encodes_nothing() {
     assert_eq!(
         cache_state(&cache),
         before,
-        "a warm render added or dropped a segment"
+        "a warm render added or dropped a chunk"
     );
     assert_eq!(
         rendered.reused_ms,
@@ -188,14 +188,14 @@ fn a_second_render_of_the_same_plan_encodes_nothing() {
 /// of the video is copied rather than encoded. This is what a rebuild after
 /// an edit looks like.
 #[test]
-fn changing_one_beat_re_encodes_only_the_segments_that_moved() {
+fn changing_one_beat_re_encodes_only_the_chunks_that_moved() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
     let dir = workdir("incr-edit");
     // Three different pictures, because two beats showing the same frames
-    // for the same length *are* the same segment — the cache is entitled
+    // for the same length *are* the same chunk — the cache is entitled
     // to encode them once, and does.
     let a = support::colour_clip(&dir, "a.mp4", "0x808080");
     let b = support::colour_clip(&dir, "b.mp4", "0x909090");
@@ -215,11 +215,11 @@ fn changing_one_beat_re_encodes_only_the_segments_that_moved() {
 
     renderer.render(&plan, &mut |_| {}).expect("renders cold");
     let before = cache_state(&cache);
-    assert_eq!(before.len(), 3, "one segment per beat: {before:#?}");
+    assert_eq!(before.len(), 3, "one chunk per beat: {before:#?}");
 
     // The middle beat now shows something else. The beats either side of
     // it did not move — same clip, same slot, same held tail — so their
-    // segments are still exactly the frames already on disk.
+    // chunks are still exactly the frames already on disk.
     plan.beats[1].picture = Picture::Clip(edited);
     let rendered = renderer
         .render(&plan, &mut |_| {})
@@ -232,23 +232,18 @@ fn changing_one_beat_re_encodes_only_the_segments_that_moved() {
          from the cache"
     );
     let after = cache_state(&cache);
-    assert_eq!(
-        after.len(),
-        4,
-        "one segment encoded, three kept: {after:#?}"
-    );
-    assert_eq!(
-        after.iter().filter(|e| before.contains(e)).count(),
-        3,
-        "a segment that did not change was written again:\n{before:#?}\n{after:#?}"
+    assert_eq!(after.len(), 4, "one chunk encoded, three kept: {after:#?}");
+    assert!(
+        before.iter().all(|e| after.contains(e)),
+        "a chunk that did not change was dropped:\n{before:#?}\n{after:#?}"
     );
     assert!((duration_of(&rendered.path) - 6.0).abs() < 0.1);
 }
 
-/// A transition is a segment of its own, so a plan that has one still has
+/// A transition is a chunk of its own, so a plan that has one still has
 /// to come out the length the scheduler planned for it.
 #[test]
-fn a_crossfade_survives_being_a_segment_of_its_own() {
+fn a_crossfade_survives_being_a_chunk_of_its_own() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -312,11 +307,11 @@ fn a_plan_that_cannot_be_cut_still_renders() {
 }
 
 /// A cache with a size cap has to know which entries are still wanted. The
-/// only thing that distinguishes a segment three builds have leaned on
+/// only thing that distinguishes a chunk three builds have leaned on
 /// from one nothing has asked for since April is that the renderer said so
 /// when it copied from it.
 #[test]
-fn copying_from_a_segment_marks_it_as_used() {
+fn copying_from_a_chunk_marks_it_as_used() {
     if !have_ffmpeg() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
@@ -328,13 +323,13 @@ fn copying_from_a_segment_marks_it_as_used() {
 
     let renderer = renderer(&cache);
     renderer.render(&plan, &mut |_| {}).expect("renders cold");
-    let segment = cache_state(&cache).remove(0);
+    let chunk = cache_state(&cache).remove(0);
 
     // Backdated, as an entry from an earlier session would be.
     let long_ago = SystemTime::now() - std::time::Duration::from_secs(86_400);
     std::fs::OpenOptions::new()
         .write(true)
-        .open(&segment)
+        .open(&chunk)
         .unwrap()
         .set_times(std::fs::FileTimes::new().set_modified(long_ago))
         .unwrap();
@@ -342,8 +337,8 @@ fn copying_from_a_segment_marks_it_as_used() {
     renderer.render(&plan, &mut |_| {}).expect("renders warm");
 
     assert!(
-        last_used(&segment) > long_ago,
-        "a segment this render copied from still looks a day stale, so a \
+        last_used(&chunk) > long_ago,
+        "a chunk this render copied from still looks a day stale, so a \
          prune would throw away exactly what is being used"
     );
 }

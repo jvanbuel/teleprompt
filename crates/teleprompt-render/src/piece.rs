@@ -2,7 +2,7 @@
 //!
 //! Shared by both renderers: the monolithic graph builds one filter chain
 //! per piece, and the incremental one cuts the same pieces into cacheable
-//! segments. Deriving the geometry twice would mean two videos that agree
+//! chunks. Deriving the geometry twice would mean two videos that agree
 //! until they do not.
 
 use crate::{Picture, RenderPlan};

@@ -1,4 +1,4 @@
-//! The output cut into independently encodable segments.
+//! The output cut into independently encodable chunks.
 //!
 //! A monolithic render re-encodes every frame of a video to change one
 //! sentence of it. Most of those frames are identical to the ones already
@@ -6,7 +6,7 @@
 //! paragraph two was reworded — and the only thing standing between an
 //! author and a one-second rebuild is that nothing names the parts.
 //!
-//! A segment is that name. It is a contiguous run of output frames that
+//! A chunk is that name. It is a contiguous run of output frames that
 //! depends on nothing outside itself, so it can be encoded once, cached
 //! under a key covering everything that changes its bytes, and stitched
 //! back with `concat -c copy`, which copies compressed frames rather than
@@ -16,18 +16,18 @@
 //! piece. A **blend** is the overlap two pieces share, which is the one
 //! region that cannot belong to either of them.
 //!
-//! Everything here counts in *frames*, not milliseconds, and a segment's
+//! Everything here counts in *frames*, not milliseconds, and a chunk's
 //! length is rounded from its **own duration** rather than read off the
 //! global timeline. That choice is the whole of the cache's usefulness.
 //! Reading boundaries off the timeline is more obviously exact, and it was
 //! how this worked first — but then a sentence reworded at the top of a
 //! script shifts everything after it by some fraction of a frame, half the
-//! segments downstream round the other way, and a rebuild re-encodes more
+//! chunks downstream round the other way, and a rebuild re-encodes more
 //! than half a video in which nothing after paragraph two changed. Keyed
 //! on its own duration, a beat that did not change does not change.
 //!
 //! The price is that rounded parts need not add up to the rounded whole,
-//! so the last segment — a held frame at the end of the video, the most
+//! so the last chunk — a held frame at the end of the video, the most
 //! forgiving place there is — absorbs the difference.
 
 use std::path::{Path, PathBuf};
@@ -59,7 +59,7 @@ pub struct Window {
     pub frames: u64,
 }
 
-/// What a segment draws.
+/// What a chunk draws.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Content {
     /// A window of a single piece.
@@ -76,8 +76,8 @@ pub enum Content {
 
 /// A contiguous run of output frames that can be encoded on its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Segment {
-    /// Where this segment begins in the output, in frames. The segments
+pub struct Chunk {
+    /// Where this chunk begins in the output, in frames. The chunks
     /// tile `[0, frames_of(plan))` with no gap and no overlap.
     pub start_frame: u64,
     pub frames: u64,
@@ -92,14 +92,14 @@ fn frames_of(ms: u64, fps: u32) -> u64 {
     (ms * u64::from(fps) + 500) / 1000
 }
 
-/// `plan` as segments, or `None` if it cannot be cut into any.
+/// `plan` as chunks, or `None` if it cannot be cut into any.
 ///
 /// The one plan that cannot is a beat shorter than the transitions either
 /// side of it: the two blends would draw the same frames twice. That is
 /// rare enough to be worth reporting rather than engineering around —
 /// the caller renders the whole graph in one pass instead, which is what
-/// it did before segments existed.
-pub fn segments(plan: &RenderPlan) -> Option<Vec<Segment>> {
+/// it did before chunks existed.
+pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
     let fps = plan.fps;
     let pieces = pieces(plan);
     if pieces.is_empty() || fps == 0 {
@@ -140,17 +140,17 @@ pub fn segments(plan: &RenderPlan) -> Option<Vec<Segment>> {
         });
     }
 
-    // Rounded parts need not add up to the rounded whole. The last segment
+    // Rounded parts need not add up to the rounded whole. The last chunk
     // holds a frame at the end of the video, so it is where a few
     // thousandths of a second cost the least — and putting the whole
-    // correction in one place is what keeps every other segment's key
+    // correction in one place is what keeps every other chunk's key
     // independent of what happened earlier in the script.
     settle(&mut out, frames_of(plan.duration_ms, fps));
     Some(out)
 }
 
-/// Stretch or shorten the last segment so the segments total `target`.
-fn settle(out: &mut [Segment], target: u64) {
+/// Stretch or shorten the last chunk so the chunks total `target`.
+fn settle(out: &mut [Chunk], target: u64) {
     let Some(last) = out.last_mut() else {
         return;
     };
@@ -166,11 +166,11 @@ fn settle(out: &mut [Segment], target: u64) {
     }
 }
 
-/// Append a segment of `duration_ms`, unless it rounds to no frames at
-/// all — a beat too short to draw a frame of, which the segments either
+/// Append a chunk of `duration_ms`, unless it rounds to no frames at
+/// all — a beat too short to draw a frame of, which the chunks either
 /// side of it already cover.
 fn push(
-    out: &mut Vec<Segment>,
+    out: &mut Vec<Chunk>,
     cursor: &mut u64,
     fps: u32,
     duration_ms: u64,
@@ -180,7 +180,7 @@ fn push(
     if frames == 0 {
         return;
     }
-    out.push(Segment {
+    out.push(Chunk {
         start_frame: *cursor,
         frames,
         content: content(frames),
@@ -213,14 +213,14 @@ fn window(piece: &Piece, start_ms: u64, frames: u64, fps: u32) -> Window {
 /// for frames a newer one would encode differently.
 pub const RECIPE: &str = "x264-crf23-medium-v1";
 
-/// Everything that changes a segment's bytes, and nothing that does not.
+/// Everything that changes a chunk's bytes, and nothing that does not.
 ///
 /// The whole risk of an input-addressed key is the input somebody forgot:
 /// it does not fail, it serves the wrong frames. So this is one struct,
-/// and [`SegmentKey::hash`] destructures it exhaustively — a field added
+/// and [`ChunkKey::hash`] destructures it exhaustively — a field added
 /// here is a compile error there rather than something to remember.
 #[derive(Debug, Clone, Copy)]
-pub struct SegmentKey<'a> {
+pub struct ChunkKey<'a> {
     pub recipe: &'a str,
     pub width: u32,
     pub height: u32,
@@ -228,19 +228,19 @@ pub struct SegmentKey<'a> {
     pub content: &'a Content,
 }
 
-impl<'a> SegmentKey<'a> {
-    /// The key for `segment` rendered under `plan`'s geometry.
+impl<'a> ChunkKey<'a> {
+    /// The key for `chunk` rendered under `plan`'s geometry.
     ///
     /// Note what is *not* in it: the beat's name, its place in the script,
     /// the script itself. Two scripts that put the same picture in the same
     /// place encode it once.
-    pub fn for_segment(plan: &'a RenderPlan, segment: &'a Segment) -> Self {
+    pub fn for_chunk(plan: &'a RenderPlan, chunk: &'a Chunk) -> Self {
         Self {
             recipe: RECIPE,
             width: plan.width,
             height: plan.height,
             fps: plan.fps,
-            content: &segment.content,
+            content: &chunk.content,
         }
     }
 
@@ -254,7 +254,7 @@ impl<'a> SegmentKey<'a> {
         &self,
         clip: &mut dyn FnMut(&Path) -> std::io::Result<Hash>,
     ) -> std::io::Result<Hash> {
-        let SegmentKey {
+        let ChunkKey {
             recipe,
             width,
             height,

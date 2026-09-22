@@ -2,7 +2,7 @@
 //!
 //! The monolithic renderer re-encodes every frame of a video to change one
 //! sentence of it, which on a two-minute script is most of a warm build.
-//! This one encodes [`segments`](crate::segment) separately, caches each
+//! This one encodes [`chunks`](crate::chunk) separately, caches each
 //! under a key covering everything that changes its bytes, and stitches
 //! them with the `concat` demuxer and `-c copy` — which copies compressed
 //! frames rather than decoding and re-encoding them, and costs roughly
@@ -18,18 +18,18 @@ use std::path::{Path, PathBuf};
 
 use teleprompt_core::Hash;
 
+use crate::chunk::{self, Chunk, ChunkKey, Content, Source, Window};
 use crate::ffmpeg::{self, FfmpegRenderer};
 use crate::piece::{xfade_for, BACKGROUND};
-use crate::segment::{self, Content, Segment, SegmentKey, Source, Window};
 use crate::{Progress, RenderError, RenderPlan, Rendered, Renderer};
 
-/// Renders through a cache of encoded segments.
+/// Renders through a cache of encoded chunks.
 #[derive(Debug, Clone)]
 pub struct IncrementalRenderer {
     /// The binary to invoke. Configurable because `doctor` may have found a
     /// usable ffmpeg somewhere other than `PATH`.
     pub program: String,
-    /// Where encoded segments are kept. Entirely derived — everything in
+    /// Where encoded chunks are kept. Entirely derived — everything in
     /// it can be reproduced from the key that names it — so it belongs
     /// wherever the rest of the cache does.
     pub cache_dir: PathBuf,
@@ -46,9 +46,9 @@ impl Renderer for IncrementalRenderer {
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Rendered, RenderError> {
         // A plan that cannot be cut is rendered the way it was before
-        // segments existed. Falling back is not a failure: the output is
+        // chunks existed. Falling back is not a failure: the output is
         // identical, it just costs a full encode.
-        let Some(segments) = segment::segments(plan) else {
+        let Some(chunks) = chunk::chunks(plan) else {
             return FfmpegRenderer {
                 program: self.program.clone(),
             }
@@ -61,14 +61,14 @@ impl Renderer for IncrementalRenderer {
             source,
         })?;
 
-        // One read per distinct clip, however many segments draw on it: a
+        // One read per distinct clip, however many chunks draw on it: a
         // transition alone puts the same file in three of them.
         let mut identities: HashMap<PathBuf, Hash> = HashMap::new();
 
         // Reuse is reported against the output's own clock rather than in
         // frames: "five and a half minutes of this came from the cache" is
         // a thing an author can check against the video in front of them.
-        let total_frames: u64 = segments.iter().map(|s| s.frames).sum();
+        let total_frames: u64 = chunks.iter().map(|s| s.frames).sum();
         let on_the_clock = |frames: u64| match total_frames {
             0 => 0,
             total => frames * plan.duration_ms / total,
@@ -77,8 +77,8 @@ impl Renderer for IncrementalRenderer {
         let mut list = String::new();
         let mut done_frames = 0u64;
         let mut reused_frames = 0u64;
-        for segment in &segments {
-            let key = SegmentKey::for_segment(plan, segment)
+        for chunk in &chunks {
+            let key = ChunkKey::for_chunk(plan, chunk)
                 .hash(&mut |path| identity(&mut identities, path))
                 .map_err(|source| RenderError::Io {
                     path: "a captured clip".into(),
@@ -87,7 +87,7 @@ impl Renderer for IncrementalRenderer {
             let cached = self.cache_dir.join(format!("{key}.mp4"));
 
             if is_usable(&cached) {
-                reused_frames += segment.frames;
+                reused_frames += chunk.frames;
                 mark_used(&cached);
             } else {
                 // Encoded beside the entry and renamed into place, which is
@@ -97,7 +97,7 @@ impl Renderer for IncrementalRenderer {
                 let partial = self.cache_dir.join(format!(".{key}.partial.mp4"));
                 ffmpeg::run(
                     &self.program,
-                    &encode_args(plan, segment, &partial),
+                    &encode_args(plan, chunk, &partial),
                     &mut |_| {},
                 )?;
                 std::fs::rename(&partial, &cached).map_err(|source| RenderError::Io {
@@ -114,7 +114,7 @@ impl Renderer for IncrementalRenderer {
                 cached.display().to_string().replace('\'', r"'\''")
             ));
 
-            done_frames += segment.frames;
+            done_frames += chunk.frames;
             on_progress(Progress {
                 rendered_ms: on_the_clock(done_frames),
                 of_ms: plan.duration_ms,
@@ -167,7 +167,7 @@ fn identity(seen: &mut HashMap<PathBuf, Hash>, path: &Path) -> std::io::Result<H
 
 /// Record that an entry was copied from, by setting its modification time.
 ///
-/// This is the only thing that distinguishes a segment three builds have
+/// This is the only thing that distinguishes a chunk three builds have
 /// leaned on from one nothing has wanted since April, and a cache with a
 /// size cap has to evict the second. Best effort: a read-only cache
 /// directory is a reason to render more slowly next time, not a reason to
@@ -182,7 +182,7 @@ fn mark_used(path: &Path) {
 }
 
 /// Whether a cache entry can be served. An empty file is a crashed encode,
-/// not a segment of no frames — those are never written.
+/// not a chunk of no frames — those are never written.
 fn is_usable(path: &Path) -> bool {
     std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() > 0)
 }
@@ -193,12 +193,12 @@ fn seconds_of(frames: u64, fps: u32) -> String {
     format!("{:.6}", frames as f64 / f64::from(fps))
 }
 
-/// The argv that encodes one segment to a video-only file.
-fn encode_args(plan: &RenderPlan, segment: &Segment, out: &Path) -> Vec<String> {
+/// The argv that encodes one chunk to a video-only file.
+fn encode_args(plan: &RenderPlan, chunk: &Chunk, out: &Path) -> Vec<String> {
     let mut args: Vec<String> = vec!["-hide_banner".into(), "-y".into()];
     let mut filters: Vec<String> = Vec::new();
 
-    match &segment.content {
+    match &chunk.content {
         Content::Body(window) => {
             window_input(plan, window, 0, "v", &mut args, &mut filters);
         }
@@ -207,14 +207,14 @@ fn encode_args(plan: &RenderPlan, segment: &Segment, out: &Path) -> Vec<String> 
             window_input(plan, to, 1, "b", &mut args, &mut filters);
             // Half a frame short of the full window so the blend can never
             // ask for more than either input holds, and trimmed back to the
-            // exact frame count after — the segment's length is arithmetic
+            // exact frame count after — the chunk's length is arithmetic
             // the concat depends on, not something to leave to rounding.
-            let blend = format!("{:.6}", (segment.frames as f64 - 0.5) / f64::from(plan.fps));
+            let blend = format!("{:.6}", (chunk.frames as f64 - 0.5) / f64::from(plan.fps));
             filters.push(format!(
                 "[a][b]xfade=transition={}:duration={blend}:offset=0[x];\
                  [x]trim=end_frame={},setpts=PTS-STARTPTS,settb=AVTB[v]",
                 xfade_for(kind),
-                segment.frames,
+                chunk.frames,
             ));
         }
     }
@@ -223,7 +223,7 @@ fn encode_args(plan: &RenderPlan, segment: &Segment, out: &Path) -> Vec<String> 
     args.push(filters.join(";"));
     args.extend(["-map".into(), "[v]".into(), "-an".into()]);
     args.extend(encoder(plan.fps));
-    args.extend(["-frames:v".into(), segment.frames.to_string()]);
+    args.extend(["-frames:v".into(), chunk.frames.to_string()]);
     args.push(out.display().to_string());
     args
 }
@@ -277,7 +277,7 @@ fn window_input(
     ));
 }
 
-/// The encoder settings, in one place: [`segment::RECIPE`] names this, and
+/// The encoder settings, in one place: [`chunk::RECIPE`] names this, and
 /// a change here that is not a change there serves stale frames.
 fn encoder(fps: u32) -> Vec<String> {
     let mut out: Vec<String> = [
@@ -290,7 +290,7 @@ fn encoder(fps: u32) -> Vec<String> {
     out
 }
 
-/// The argv that concatenates the encoded segments and mixes the narration
+/// The argv that concatenates the encoded chunks and mixes the narration
 /// over them.
 ///
 /// The picture is copied, not re-encoded: `-c:v copy` on the concat
@@ -338,7 +338,7 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         mix.push(format!("[a{input}]"));
     }
     // `normalize=0`: amix otherwise divides every input by the number of
-    // inputs, so a script's narration would get quieter the more segments
+    // inputs, so a script's narration would get quieter the more chunks
     // it had.
     filters.push(format!(
         "{}amix=inputs={}:normalize=0:dropout_transition=0[a]",

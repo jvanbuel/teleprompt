@@ -1,14 +1,14 @@
-//! The output cut into independently encodable segments.
+//! The output cut into independently encodable chunks.
 //!
-//! This is the whole of the incremental render: if the segments tile the
-//! timeline exactly, concatenating them is the same video; if a segment's
+//! This is the whole of the incremental render: if the chunks tile the
+//! timeline exactly, concatenating them is the same video; if a chunk's
 //! key covers everything that changes its bytes, a re-render only pays for
 //! what moved. Both are arithmetic, so both are tested without ffmpeg.
 
 use std::path::{Path, PathBuf};
 
 use teleprompt_core::Hash;
-use teleprompt_render::segment::{self, Content, Segment, SegmentKey, Source};
+use teleprompt_render::chunk::{self, Chunk, ChunkKey, Content, Source};
 use teleprompt_render::{Beat, Picture, RenderPlan, Transition};
 
 /// A resolver that gives every clip the same identity, for the tests that
@@ -39,18 +39,18 @@ fn plan(beats: Vec<Beat>, duration_ms: u64) -> RenderPlan {
     }
 }
 
-/// The property everything else rests on. A segment list that does not
+/// The property everything else rests on. A chunk list that does not
 /// tile the timeline produces a video of the wrong length, and it does it
 /// silently — the frames are all there, just not all of them.
 #[track_caller]
-fn tiles(segments: &[Segment], plan: &RenderPlan) {
+fn tiles(chunks: &[Chunk], plan: &RenderPlan) {
     let mut frame = 0u64;
-    for segment in segments {
+    for chunk in chunks {
         assert_eq!(
-            segment.start_frame, frame,
-            "a gap or an overlap between segments: {segments:#?}"
+            chunk.start_frame, frame,
+            "a gap or an overlap between chunks: {chunks:#?}"
         );
-        frame += segment.frames;
+        frame += chunk.frames;
     }
     let expected = (plan.duration_ms * u64::from(plan.fps) + 500) / 1000;
     assert_eq!(
@@ -61,7 +61,7 @@ fn tiles(segments: &[Segment], plan: &RenderPlan) {
 }
 
 #[test]
-fn a_plan_of_hard_cuts_is_one_segment_per_beat() {
+fn a_plan_of_hard_cuts_is_one_chunk_per_beat() {
     let plan = plan(
         vec![
             beat("a#0", 0, 2_000, "/clips/a.mp4"),
@@ -69,17 +69,15 @@ fn a_plan_of_hard_cuts_is_one_segment_per_beat() {
         ],
         4_000,
     );
-    let segments = segment::segments(&plan).expect("a plan of cuts splits");
+    let chunks = chunk::chunks(&plan).expect("a plan of cuts splits");
 
-    assert_eq!(segments.len(), 2);
-    assert!(segments
-        .iter()
-        .all(|s| matches!(s.content, Content::Body(_))));
-    tiles(&segments, &plan);
+    assert_eq!(chunks.len(), 2);
+    assert!(chunks.iter().all(|s| matches!(s.content, Content::Body(_))));
+    tiles(&chunks, &plan);
 }
 
 /// A gap between beats is held on the previous beat's last frame, which
-/// makes it part of that beat's segment rather than a segment of its own.
+/// makes it part of that beat's chunk rather than a chunk of its own.
 /// Two renders of the same beat with a different amount of silence after it
 /// are genuinely different pictures, and the key has to say so.
 #[test]
@@ -87,19 +85,15 @@ fn a_held_gap_belongs_to_the_beat_that_holds_it() {
     let short = plan(vec![beat("a#0", 0, 1_000, "/clips/a.mp4")], 2_000);
     let long = plan(vec![beat("a#0", 0, 1_000, "/clips/a.mp4")], 5_000);
 
-    let a = segment::segments(&short).expect("splits");
-    let b = segment::segments(&long).expect("splits");
+    let a = chunk::chunks(&short).expect("splits");
+    let b = chunk::chunks(&long).expect("splits");
 
     assert_eq!(a.len(), 1);
     assert_eq!(b.len(), 1);
-    assert!(b[0].frames > a[0].frames, "the held tail is in the segment");
+    assert!(b[0].frames > a[0].frames, "the held tail is in the chunk");
     assert_ne!(
-        SegmentKey::for_segment(&short, &a[0])
-            .hash(&mut same)
-            .unwrap(),
-        SegmentKey::for_segment(&long, &b[0])
-            .hash(&mut same)
-            .unwrap(),
+        ChunkKey::for_chunk(&short, &a[0]).hash(&mut same).unwrap(),
+        ChunkKey::for_chunk(&long, &b[0]).hash(&mut same).unwrap(),
         "holding a frame for four seconds is not the same picture as \
          holding it for one"
     );
@@ -108,9 +102,9 @@ fn a_held_gap_belongs_to_the_beat_that_holds_it() {
 }
 
 /// A transition is the one join that two beats share, so it cannot live in
-/// either of them. It is a segment: body, blend, body.
+/// either of them. It is a chunk: body, blend, body.
 #[test]
-fn a_transition_becomes_a_segment_of_its_own() {
+fn a_transition_becomes_a_chunk_of_its_own() {
     let mut beats = vec![
         beat("a#0", 0, 2_000, "/clips/a.mp4"),
         // 400ms of overlap: the scheduler starts the next beat before this
@@ -122,14 +116,14 @@ fn a_transition_becomes_a_segment_of_its_own() {
         duration_ms: 400,
     };
     let plan = plan(beats, 3_600);
-    let segments = segment::segments(&plan).expect("splits");
+    let chunks = chunk::chunks(&plan).expect("splits");
 
-    assert_eq!(segments.len(), 3, "body, blend, body: {segments:#?}");
-    let Content::Blend { kind, from, to } = &segments[1].content else {
-        panic!("the middle segment is the blend: {segments:#?}");
+    assert_eq!(chunks.len(), 3, "body, blend, body: {chunks:#?}");
+    let Content::Blend { kind, from, to } = &chunks[1].content else {
+        panic!("the middle chunk is the blend: {chunks:#?}");
     };
     assert_eq!(kind, "dissolve");
-    assert_eq!(segments[1].frames, 10, "400ms at 25fps");
+    assert_eq!(chunks[1].frames, 10, "400ms at 25fps");
     assert_eq!(from.frames, 10);
     assert_eq!(to.frames, 10);
     assert_eq!(
@@ -141,7 +135,7 @@ fn a_transition_becomes_a_segment_of_its_own() {
         Source::Clip(PathBuf::from("/clips/a.mp4")),
         "and the tail of the one it leaves"
     );
-    tiles(&segments, &plan);
+    tiles(&chunks, &plan);
 }
 
 /// Two beats that share a blend must not also each render the frames the
@@ -158,44 +152,40 @@ fn the_beats_either_side_of_a_blend_give_up_the_frames_it_uses() {
         duration_ms: 400,
     };
     let plan = plan(beats, 3_600);
-    let segments = segment::segments(&plan).expect("splits");
+    let chunks = chunk::chunks(&plan).expect("splits");
 
-    assert_eq!(segments[0].frames, 40, "2000ms less the 400ms blend");
-    assert_eq!(segments[2].frames, 40, "and the same at the other end");
-    tiles(&segments, &plan);
+    assert_eq!(chunks[0].frames, 40, "2000ms less the 400ms blend");
+    assert_eq!(chunks[2].frames, 40, "and the same at the other end");
+    tiles(&chunks, &plan);
 }
 
-/// Nothing captured at all is still a render, and still a segment.
+/// Nothing captured at all is still a render, and still a chunk.
 #[test]
-fn an_uncaptured_plan_is_a_slate_segment() {
+fn an_uncaptured_plan_is_a_slate_chunk() {
     let mut beats = vec![beat("a#0", 0, 2_000, "/clips/a.mp4")];
     beats[0].picture = Picture::Slate;
     let plan = plan(beats, 2_000);
-    let segments = segment::segments(&plan).expect("splits");
+    let chunks = chunk::chunks(&plan).expect("splits");
 
-    let Content::Body(window) = &segments[0].content else {
+    let Content::Body(window) = &chunks[0].content else {
         panic!("a slate is a body");
     };
     assert_eq!(window.source, Source::Slate);
-    tiles(&segments, &plan);
+    tiles(&chunks, &plan);
 }
 
 /// The reason the cache exists: the same picture in the same place is the
 /// same bytes, whichever script asked for it.
 #[test]
-fn two_identical_segments_share_a_key() {
+fn two_identical_chunks_share_a_key() {
     let one = plan(vec![beat("a#0", 0, 2_000, "/clips/a.mp4")], 2_000);
     let two = plan(vec![beat("elsewhere#7", 0, 2_000, "/clips/a.mp4")], 2_000);
 
-    let a = segment::segments(&one).expect("splits");
-    let b = segment::segments(&two).expect("splits");
+    let a = chunk::chunks(&one).expect("splits");
+    let b = chunk::chunks(&two).expect("splits");
     assert_eq!(
-        SegmentKey::for_segment(&one, &a[0])
-            .hash(&mut same)
-            .unwrap(),
-        SegmentKey::for_segment(&two, &b[0])
-            .hash(&mut same)
-            .unwrap(),
+        ChunkKey::for_chunk(&one, &a[0]).hash(&mut same).unwrap(),
+        ChunkKey::for_chunk(&two, &b[0]).hash(&mut same).unwrap(),
         "a beat's name is not part of its picture"
     );
 }
@@ -206,14 +196,12 @@ fn two_identical_segments_share_a_key() {
 #[test]
 fn everything_that_changes_the_bytes_changes_the_key() {
     let base = plan(vec![beat("a#0", 0, 2_000, "/clips/a.mp4")], 2_000);
-    let segments = segment::segments(&base).expect("splits");
+    let chunks = chunk::chunks(&base).expect("splits");
     let key_of = |plan: &RenderPlan, resolve: &mut dyn FnMut(&Path) -> std::io::Result<Hash>| {
-        let segments = segment::segments(plan).expect("splits");
-        SegmentKey::for_segment(plan, &segments[0])
-            .hash(resolve)
-            .unwrap()
+        let chunks = chunk::chunks(plan).expect("splits");
+        ChunkKey::for_chunk(plan, &chunks[0]).hash(resolve).unwrap()
     };
-    let original = SegmentKey::for_segment(&base, &segments[0])
+    let original = ChunkKey::for_chunk(&base, &chunks[0])
         .hash(&mut same)
         .unwrap();
 
@@ -248,8 +236,8 @@ fn everything_that_changes_the_bytes_changes_the_key() {
 #[test]
 fn a_clip_that_cannot_be_read_fails_the_key_rather_than_guessing_one() {
     let base = plan(vec![beat("a#0", 0, 2_000, "/clips/gone.mp4")], 2_000);
-    let segments = segment::segments(&base).expect("splits");
-    let result = SegmentKey::for_segment(&base, &segments[0]).hash(&mut |path| {
+    let chunks = chunk::chunks(&base).expect("splits");
+    let result = ChunkKey::for_chunk(&base, &chunks[0]).hash(&mut |path| {
         Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             path.display().to_string(),
@@ -259,7 +247,7 @@ fn a_clip_that_cannot_be_read_fails_the_key_rather_than_guessing_one() {
 }
 
 /// Blends that eat more of a beat than the beat has cannot be cut into
-/// independent segments — the two joins would draw the same frames twice.
+/// independent chunks — the two joins would draw the same frames twice.
 /// Reporting that honestly is what lets the caller fall back to rendering
 /// the whole graph in one pass.
 #[test]
@@ -277,14 +265,14 @@ fn a_beat_shorter_than_the_blends_around_it_does_not_split() {
     }
     let plan = plan(beats, 3_700);
     assert!(
-        segment::segments(&plan).is_none(),
+        chunk::chunks(&plan).is_none(),
         "400ms in and 400ms out of a 500ms beat overlap"
     );
 }
 
 /// The property that makes a rebuild cheap, and the one that is easy to
 /// lose. Rewording a sentence at the top of a script moves everything
-/// after it, usually by some fraction of a frame — and a segment whose
+/// after it, usually by some fraction of a frame — and a chunk whose
 /// length was read off the global timeline rounds the other way when that
 /// happens. A beat that did not otherwise change has to keep its key
 /// through a shift, or a one-word edit re-encodes half a video that nobody
@@ -294,8 +282,8 @@ fn a_beat_that_only_slid_along_the_timeline_keeps_its_key() {
     // 1030ms at 25fps is 25.75 frames — not a whole number, which is what
     // makes it sensitive to where on the timeline it lands.
     // The beat under test is deliberately not the last one: the last
-    // segment is where the rounding of the whole video is settled, so it
-    // is the one segment that does depend on everything before it.
+    // chunk is where the rounding of the whole video is settled, so it
+    // is the one chunk that does depend on everything before it.
     let before = plan(
         vec![
             beat("a#0", 0, 1_000, "/clips/a.mp4"),
@@ -315,18 +303,14 @@ fn a_beat_that_only_slid_along_the_timeline_keeps_its_key() {
     );
 
     let (a, b) = (
-        segment::segments(&before).expect("splits"),
-        segment::segments(&after).expect("splits"),
+        chunk::chunks(&before).expect("splits"),
+        chunk::chunks(&after).expect("splits"),
     );
     tiles(&a, &before);
     tiles(&b, &after);
     assert_eq!(
-        SegmentKey::for_segment(&before, &a[1])
-            .hash(&mut same)
-            .unwrap(),
-        SegmentKey::for_segment(&after, &b[1])
-            .hash(&mut same)
-            .unwrap(),
+        ChunkKey::for_chunk(&before, &a[1]).hash(&mut same).unwrap(),
+        ChunkKey::for_chunk(&after, &b[1]).hash(&mut same).unwrap(),
         "the second beat shows the same clip for the same length; only \
          everything before it moved"
     );

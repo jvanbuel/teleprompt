@@ -6,11 +6,11 @@
 //! in-process `Timeline`: two timing paths drift, and the one that drifts
 //! silently is the one nobody renders from.
 
+pub mod chunk;
 pub mod ffmpeg;
 pub mod incremental;
 mod piece;
 pub mod plan;
-pub mod segment;
 
 use std::path::PathBuf;
 
