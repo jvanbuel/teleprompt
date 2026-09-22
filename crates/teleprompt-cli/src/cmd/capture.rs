@@ -176,11 +176,7 @@ pub fn run_capture(
     }
 }
 
-/// Record a session with the best backend that manages it.
-///
-/// Tried in order and fallen back on failure, because whether a backend
-/// can work here is not answerable in advance: `vhs` can be installed,
-/// pass every check, and record nothing. The failure is the test.
+/// Record a session, or say why it will be slates.
 fn record(
     registry: &CaptureRegistry,
     session: &Session,
@@ -188,8 +184,7 @@ fn record(
     clips_dir: &Path,
     on_progress: &mut dyn FnMut(Progress),
 ) -> Result<usize, String> {
-    let candidates = registry.candidates(&session.adapter);
-    if candidates.is_empty() {
+    let Some(backend) = registry.for_adapter(&session.adapter) else {
         return Err(format!(
             "nothing in this build can record `{}` scenes (adapter `{}`), so \
              its {} beat(s) will render as slates",
@@ -197,58 +192,37 @@ fn record(
             session.adapter,
             session.wanted()
         ));
+    };
+    if let Some(reason) = backend.unavailable() {
+        return Err(format!(
+            "`{}` cannot record `{}` scenes here: {reason}; its {} beat(s) \
+             will render as slates",
+            backend.id(),
+            session.scene,
+            session.wanted()
+        ));
     }
-
-    let mut refused = Vec::new();
-    for backend in candidates {
-        if let Some(reason) = backend.unavailable() {
-            refused.push(format!("`{}` {reason}", backend.id()));
-            continue;
-        }
-        match backend.capture(session, frame, clips_dir, on_progress) {
-            Ok(shots) => {
-                if !refused.is_empty() {
-                    // Worth saying: the scene was recorded, and not by the
-                    // renderer that would have drawn it best.
-                    eprintln!(
-                        "warning: recorded `{}` with `{}` — {}",
-                        session.scene,
-                        backend.id(),
-                        refused.join("; ")
-                    );
-                }
-                return Ok(shots.len());
-            }
-            Err(e) => refused.push(format!("`{}` failed: {e}", backend.id())),
-        }
-    }
-
-    Err(format!(
-        "nothing could record `{}` here, so its {} beat(s) will render as \
-         slates: {}",
-        session.scene,
-        session.wanted(),
-        refused.join("; ")
-    ))
+    backend
+        .capture(session, frame, clips_dir, on_progress)
+        .map(|shots| shots.len())
+        .map_err(|e| {
+            format!(
+                "recording `{}` failed, so its {} beat(s) will render as \
+                 slates: {e}",
+                session.scene,
+                session.wanted()
+            )
+        })
 }
 
-/// The backends this build ships, best first.
+/// The backends this build ships: one per scene adapter.
 ///
-/// `vhs` renders a terminal scene where it can: teleprompt already
-/// re-times every tape to its slot, so handing that tape to the program
-/// that was built to record tapes is the whole job, and it draws the
-/// window, the theme and the padding that a plain terminal does not.
-///
-/// It needs `ttyd` and a browser, though, and where those are missing it
-/// does not fail loudly — it has been seen to exit 0 having recorded
-/// nothing. So the registry asks each backend whether it can work here and
-/// takes the first that says yes; the pty renderer is the fallback for
-/// everywhere else, which is most containers.
+/// `vhs` renders terminal scenes. teleprompt already re-times every tape
+/// to its slot, so handing that tape to the program built to record tapes
+/// is the whole job — and it draws the window, the theme and the padding
+/// that nothing else would.
 pub fn registry() -> CaptureRegistry {
     CaptureRegistry::new()
-        .with(Box::new(
-            teleprompt_capture_vhs::render::VhsRender::default(),
-        ))
-        .with(Box::new(teleprompt_capture_vhs::VhsCapture::default()))
+        .with(Box::new(teleprompt_capture_vhs::VhsRender::default()))
         .with(Box::new(teleprompt_capture::mock::MockCapture::default()))
 }

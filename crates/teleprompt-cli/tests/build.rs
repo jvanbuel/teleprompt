@@ -197,8 +197,20 @@ async fn the_binary_builds_a_video_and_reports_it_as_json() {
     assert_eq!(json["output"], out.display().to_string());
     assert_eq!(json["renderer"], "ffmpeg-incremental");
     assert!(json["duration_ms"].as_u64().unwrap() > 0);
-    assert_eq!(json["slates"], 0, "the binary records the scenes it can");
-    assert_eq!(json["captured"], 2);
+    // Not `captured == 2`: this fixture's scenes are `terminal` ones, and
+    // whether they record depends on the machine having a working `vhs`.
+    // What holds everywhere is that every beat is accounted for — one
+    // recorded or one held with a slate, never neither and never both.
+    let beats = json["beats"].as_u64().unwrap();
+    let captured = json["captured"].as_u64().unwrap();
+    let slates = json["slates"].as_u64().unwrap();
+    assert_eq!(beats, 2);
+    assert_eq!(
+        captured + slates,
+        beats,
+        "{captured} recorded and {slates} slated does not account for \
+         {beats} beat(s)"
+    );
     assert!(out.exists());
 }
 

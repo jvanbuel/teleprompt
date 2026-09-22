@@ -19,26 +19,6 @@ jobs:
       # TELEPROMPT_REQUIRE_FFMPEG — which turns a skip into a failure, so a
       # workflow that stops installing it cannot go quietly green.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      # `capture` draws a terminal recording with `agg`, asciinema's
-      # renderer. A released binary rather than `cargo install agg`: the
-      # `agg` on crates.io is an unrelated library and installing it fails
-      # with "no binaries", which is how this workflow first went red.
-      # Pinned rather than `latest` so a release upstream cannot change what
-      # the frames look like without a commit here saying so.
-      # TELEPROMPT_REQUIRE_CAPTURE turns the capture tests' skip into a
-      # failure for the same reason TELEPROMPT_REQUIRE_FFMPEG does: a stage
-      # nothing exercises is a stage that rots.
-      - name: Install agg
-        run: |
-          curl -fsSL -o /tmp/agg \
-            https://github.com/asciinema/agg/releases/download/v1.9.0/agg-x86_64-unknown-linux-gnu
-          chmod +x /tmp/agg
-          sudo mv /tmp/agg /usr/local/bin/agg
-          agg --version
-      # `vhs` is the renderer teleprompt prefers for terminal scenes: it
-      # already knows how to draw a tape, and teleprompt's job is only to
-      # write one that lasts as long as the narration over it.
-      #
       # Pinned to v0.11.0. v0.12.0 is the latest release and cannot record
       # here at all: it runs every tape command, prints "Creating …",
       # prints the publish hint, exits 0 and writes no file — including
@@ -59,6 +39,9 @@ jobs:
       - run: cargo test --workspace
         env:
           TELEPROMPT_REQUIRE_FFMPEG: "1"
+          # A stage nothing exercises is a stage that rots: these turn the
+          # capture tests' skips into failures, so a runner that stops
+          # being able to record cannot go quietly green.
           TELEPROMPT_REQUIRE_CAPTURE: "1"
           TELEPROMPT_REQUIRE_VHS: "1"
 

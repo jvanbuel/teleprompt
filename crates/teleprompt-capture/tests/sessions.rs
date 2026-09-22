@@ -145,31 +145,24 @@ fn a_pause_is_not_captured() {
     assert!(out[0].steps.iter().all(|s| s.span != "pause-1"));
 }
 
-/// A machine may have more than one way to record a scene, and they are not
-/// equally good: `vhs` draws the window and the theme, and needs a browser
-/// to do it. Registered best first, and the ones that cannot work here are
-/// put last rather than dropped — the caller needs one to name a reason
-/// from when nothing can run.
+/// A scene kind this build records, and one it does not. The difference
+/// matters to the caller: "nothing here can record that" is worth
+/// installing something about, and it is not the same as a backend that
+/// tried and failed.
 #[test]
-fn the_backends_that_can_work_here_come_first() {
+fn a_scene_kind_with_no_backend_has_none_rather_than_a_broken_one() {
     use std::path::Path;
     use teleprompt_capture::{
         CaptureBackend, CaptureError, CaptureRegistry, Frame, Progress, Session, Shot,
     };
 
-    struct Fake {
-        id: &'static str,
-        why_not: Option<&'static str>,
-    }
+    struct Fake;
     impl CaptureBackend for Fake {
         fn id(&self) -> &'static str {
-            self.id
+            "fake"
         }
         fn adapter(&self) -> &'static str {
             "vhs"
-        }
-        fn unavailable(&self) -> Option<String> {
-            self.why_not.map(str::to_string)
         }
         fn capture(
             &self,
@@ -182,23 +175,7 @@ fn the_backends_that_can_work_here_come_first() {
         }
     }
 
-    let registry = CaptureRegistry::new()
-        .with(Box::new(Fake {
-            id: "best",
-            why_not: Some("no browser here"),
-        }))
-        .with(Box::new(Fake {
-            id: "fallback",
-            why_not: None,
-        }));
-    let ids: Vec<&str> = registry.candidates("vhs").iter().map(|b| b.id()).collect();
-    assert_eq!(
-        ids,
-        vec!["fallback", "best"],
-        "the one that cannot work here is tried last, not dropped"
-    );
-
-    // Nothing of this kind at all is a different answer from "there is,
-    // but not here": only one of them is worth installing something about.
-    assert!(registry.candidates("playwright").is_empty());
+    let registry = CaptureRegistry::new().with(Box::new(Fake));
+    assert_eq!(registry.for_adapter("vhs").map(|b| b.id()), Some("fake"));
+    assert!(registry.for_adapter("playwright").is_none());
 }

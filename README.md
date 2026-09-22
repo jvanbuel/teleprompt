@@ -194,15 +194,8 @@ than no video. `teleprompt doctor` lists what can record what.
 
 ### Terminals
 
-`terminal` scenes are recorded by `vhs` where it runs, and by a pty and
-[`agg`](https://github.com/asciinema/agg) where it does not — see
-**Terminal scenes** below for which and why.
-
-Two details that a real TUI makes matter to the pty fallback. A program
-asks the terminal what colour it is (OSC 10/11) and what it can do (DA1)
-before drawing, and waits out its own timeout when nobody replies; one
-that turns on focus reporting may skip its refresh until told it has
-focus. The driver answers all three.
+`terminal` scenes are recorded by [VHS](https://github.com/charmbracelet/vhs)
+— see **Terminal scenes** below for how the tape gets to it.
 
 The terminal is the scene's, not the tape's — the same reason `Set Shell`
 is refused at compile time:
@@ -210,17 +203,15 @@ is refused at compile time:
 ```toml
 [scene.terminal]
 adapter = "vhs"
-columns = 100
-rows = 28
 
 [scene.terminal.env]
 PATH = "target/release:/usr/local/bin:/usr/bin:/bin"
 ```
 
-`columns`, `rows`, `shell`, `cwd`, `settle_ms`, `font_size`, `theme` and
-anything under `env` are read here; the tape says only what to type. All
-of it is in the capture key, so changing the terminal re-records the
-scenes it changed.
+`settle_ms`, `font_size`, `theme` and anything under `env` are read here;
+the frame comes from `output.resolution`, and the tape says only what to
+type. All of it is in the capture key, so changing the terminal re-records
+the scenes it changed.
 
 **A capture runs the commands.** There is no sandbox and no dry run: a
 tape that types `teleprompt new demo` scaffolds a project, and one that
@@ -372,49 +363,32 @@ the tape handed to `vhs` *is* the schedule: run it, and the video's
 timeline is the timeline. One run per session — the spans are
 concatenated in order so the program stays running across beats — and the
 beats are then windows onto the one video, at the offsets the tape was
-written to produce. Nothing is estimated and nothing is reimplemented.
+written to produce. Nothing is estimated and nothing is reimplemented:
+`vhs` was built to run tapes, and the only thing teleprompt has to know is
+how to write one.
 
-`vhs` needs `ttyd` and a browser, and where they are missing it does not
-fail loudly: it has been seen to exit 0 having recorded nothing. So the
-backends are tried in order and fallen back on *failure* rather than on a
-guess made in advance, and a fallback says so:
-
-```
-warning: recorded `terminal` with `pty` — `vhs` failed: vhs exited 1
-```
-
-The fallback drives a pty and draws with
-[`agg`](https://github.com/asciinema/agg), asciinema's renderer. It needs
-no browser, which is why it exists — most containers are one — and it
-draws a plain terminal where `vhs` draws a window, a theme and padding.
-`teleprompt doctor` lists which backends this machine has.
-
-The tape language is therefore read twice over: once by the compiler, to
-time it, and once by the pty fallback, to run it. Both go through the same
-parse — one asks how long a line takes, the other what it sends — so a
-line the two would disagree about cannot exist. What the fallback runs is
-a **VHS-compatible subset**: a tape that runs there runs under `vhs`, and
-where the reverse does not hold, `check` says so rather than recording
-something different. Known divergences:
-
-| | |
-|---|---|
-| `Wait /pattern/` | VHS matches the pattern; the fallback waits for the screen to go still. Same intent, different rule. |
-| `Env`, `Screenshot` | refused — the environment belongs to the scene and the output belongs to teleprompt, for the reasons `Set Shell` and `Output` are refused. |
-| everything else | read and honoured, including `Hide`/`Show`, `Require`, `Copy`/`Paste`. |
-
-The rule is the one the adapter already applied to settings: a line
-`check` accepts and the capture ignores is a video that is *wrong* rather
-than missing, and that is worse.
+The tape language is still read twice, by the compiler that times it and
+by `vhs` that runs it — so `check` refuses two commands rather than let
+them mean different things in the two places. `Env` belongs to the scene,
+because a scene is a session whose shell is settled before its first block
+runs; `Screenshot` belongs to teleprompt, because it owns what a capture
+writes. Both are refused for the reasons `Set Shell` and `Output` are.
 
 `Hide` stops the recording and `Show` resumes it, which is how a tape does
 its setup without every demo opening on somebody navigating to a
 directory. The commands still run. Their time is not the beat's — a beat
 lasts as long as something is on screen, and nothing hidden is — so hidden
-work costs the narration nothing and the recording closes up the gap it
-left. It is also how teleprompt hides the shell's own startup: the tape it
-writes for `vhs` opens with a hidden settle, so no beat begins on a prompt
-being drawn.
+work costs the narration nothing. It is also how teleprompt hides the
+shell's own startup: the tape it writes opens with a hidden settle, so no
+beat begins on a prompt being drawn.
+
+**Pin your `vhs`.** v0.12.0 runs every command of a tape, prints
+`Creating <file>.gif…`, exits 0 and writes no file — including from its
+own `vhs new` example ([#787](https://github.com/charmbracelet/vhs/issues/787),
+open at time of writing; v0.11.0 records the same tape). teleprompt checks
+for the output rather than trusting the exit code, so this surfaces as a
+capture error naming the file that never appeared instead of a video of
+slates.
 
 **A tape states its own timing, so its spans are timed exactly.** Every `Sleep`
 is written down and every keystroke costs `Set TypingSpeed` (50 ms by default,
