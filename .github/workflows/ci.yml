@@ -39,48 +39,28 @@ jobs:
       # already knows how to draw a tape, and teleprompt's job is only to
       # write one that lasts as long as the narration over it.
       #
-      # Set up the way `charmbracelet/vhs-action` does it, because the
-      # first attempt — apt's ttyd, apt's ffmpeg, nothing else — got a
-      # `vhs` that exits 0, prints its usual "Creating …" and its usual
-      # closing advert, and leaves an empty file. That is what zero
-      # captured frames looks like from the outside. The action installs
-      # ttyd from its own releases, installs fonts, unsets CI (Charm's
-      # termenv drops ANSI when it is set) and asks for true colour.
-      - run: sudo apt-get install -y --no-install-recommends fonts-jetbrains-mono
-      - name: Install ttyd
-        run: |
-          curl -fsSL -o /tmp/ttyd \
-            https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64
-          chmod +x /tmp/ttyd
-          sudo mv /tmp/ttyd /usr/local/bin/ttyd
-          ttyd --version
-      - run: go install github.com/charmbracelet/vhs@latest
-      - run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
-      # What this machine actually has, and what `vhs` actually does with
-      # a three-line tape. Never fails the build: it is here to be read.
-      - name: Can vhs record here?
-        run: |
-          echo "ttyd:    $(ttyd --version 2>&1 | head -1)"
-          echo "chrome:  $(command -v google-chrome chromium chromium-browser | head -1)"
-          echo "ffmpeg:  $(ffmpeg -version 2>&1 | head -1)"
-          printf 'Output "/tmp/probe.gif"\nSet Width 600\nSet Height 400\nType "echo hi"\nEnter\nSleep 500ms\n' > /tmp/probe.tape
-          vhs /tmp/probe.tape || echo "vhs exited $?"
-          ls -la /tmp/probe.gif || echo "no /tmp/probe.gif"
-        env:
-          CI: ''
-          COLORTERM: truecolor
-        continue-on-error: true
+      # Charm's own action rather than a hand-rolled install. The first
+      # attempt here used apt's ttyd and nothing else, and got a `vhs` that
+      # exits 0, prints its usual "Creating …" and its usual closing
+      # advert, and leaves an empty file — which is what zero captured
+      # frames looks like from outside. The action installs ttyd from its
+      # own releases, installs fonts, unsets CI (Charm's termenv drops ANSI
+      # when it is set, and a terminal recording with no colour in it is
+      # not the one the author wrote) and asks for true colour.
+      #
+      # TELEPROMPT_REQUIRE_VHS turns the capture tests' skip into a
+      # failure, so the renderer teleprompt prefers cannot quietly stop
+      # being exercised.
+      - uses: charmbracelet/vhs-action@v2
+        with:
+          install-fonts: true
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
         env:
           TELEPROMPT_REQUIRE_FFMPEG: "1"
           TELEPROMPT_REQUIRE_CAPTURE: "1"
-          # Charm's termenv drops ANSI when CI is set, and `vhs` records a
-          # terminal — a recording with no colour in it is not the one the
-          # author wrote.
-          CI: ''
-          COLORTERM: truecolor
+          TELEPROMPT_REQUIRE_VHS: "1"
 
   msrv:
     runs-on: ubuntu-latest
