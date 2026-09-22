@@ -54,6 +54,25 @@ jobs:
       - uses: charmbracelet/vhs-action@v2
         with:
           install-fonts: true
+      # …with ttyd pinned back.
+      #
+      # `vhs` screenshots the CSS selectors `canvas.xterm-text-layer` and
+      # `canvas.xterm-cursor-layer`, which are xterm.js 4's canvas
+      # renderer. ttyd 1.7.7 ships xterm.js 5, whose default renderer draws
+      # into different elements — so the selectors match nothing, every
+      # screenshot is empty, and `vhs` finishes a recording of no frames
+      # without noticing. The action installs ttyd `latest`, so it walks
+      # into this too.
+      #
+      # 1.7.4 is what `vhs` v0.12 was built against, and what the sandbox
+      # this was developed in happens to have.
+      - name: Pin ttyd to what vhs 0.12 can screenshot
+        run: |
+          curl -fsSL -o /tmp/ttyd \
+            https://github.com/tsl0922/ttyd/releases/download/1.7.4/ttyd.x86_64
+          chmod +x /tmp/ttyd
+          sudo mv /tmp/ttyd "$(command -v ttyd)"
+          ttyd --version
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
