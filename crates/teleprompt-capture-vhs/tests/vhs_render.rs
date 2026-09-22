@@ -162,3 +162,90 @@ fn the_tape_and_the_session_video_do_not_survive() {
         .collect();
     assert!(left.is_empty(), "left behind: {left:?}");
 }
+
+/// What a short recording does to the beats past its end.
+///
+/// `windows` cuts the session video at offsets accumulated from the
+/// *scheduled* durations — what the tape ought to take. Nothing compared
+/// that against what `vhs` actually produced, so a session that stopped
+/// early was cut into clips for frames that were never recorded. ffmpeg
+/// writes a 262-byte container with no video stream for those, and the
+/// build survived all the way to compose before dying on
+///
+///     Stream specifier ':v' in filtergraph description … matches no streams
+///
+/// which is a sentence about stream specifiers for a problem about a
+/// truncated recording. Observed on the manual: beats 0-17 exact to
+/// within 0.03s, beat 18 cut off mid-way, beats 19-23 empty.
+#[test]
+fn a_recording_that_stops_early_is_refused_rather_than_cut_into_empty_clips() {
+    let dir = workdir("short");
+    let video = dir.join("session.mp4");
+
+    // Three beats of one second each; a recording that holds only the
+    // first two. `windows` would place the third at 2000..3000ms.
+    let session = teleprompt_capture::Session {
+        scene: "terminal".into(),
+        adapter: "vhs".into(),
+        name: Some("short".into()),
+        settings: Default::default(),
+        steps: vec![
+            a_step("a", "Sleep 1s", 1000),
+            a_step("b", "Sleep 1s", 1000),
+            a_step("c", "Sleep 1s", 1000),
+        ],
+    };
+
+    assert_eq!(
+        super_windows_end(&session),
+        3000,
+        "the session asks for three seconds of video"
+    );
+
+    if !make_silent_video(&video, 2.0) {
+        eprintln!("skipping: no ffmpeg to build a fixture with");
+        return;
+    }
+
+    let why = teleprompt_capture_vhs::render::too_short(&video, 3000)
+        .expect("a 2s video cannot satisfy 3s of windows");
+    assert!(
+        why.contains('c'),
+        "the complaint should name the beat that falls off the end: {why}"
+    );
+
+    // And the honest case is silent.
+    assert!(
+        teleprompt_capture_vhs::render::too_short(&video, 2000).is_none(),
+        "a recording that covers its windows is not a failure"
+    );
+}
+
+fn super_windows_end(session: &teleprompt_capture::Session) -> u64 {
+    teleprompt_capture_vhs::render::windows(session)
+        .last()
+        .map(|(from, len)| from + len)
+        .unwrap_or(0)
+}
+
+fn a_step(span: &str, source: &str, ms: u64) -> teleprompt_capture::Step {
+    teleprompt_capture::Step {
+        span: span.into(),
+        key: Hash::of(span.as_bytes()),
+        source: source.into(),
+        duration_ms: ms,
+        wanted: true,
+    }
+}
+
+/// A real mp4 of a given length, so the check is exercised against a file
+/// ffprobe can actually read rather than against a mock.
+fn make_silent_video(at: &Path, seconds: f64) -> bool {
+    std::process::Command::new("ffmpeg")
+        .args(["-v", "error", "-y", "-f", "lavfi", "-i"])
+        .arg(format!("color=c=black:s=64x64:d={seconds}"))
+        .args(["-r", "30", "-pix_fmt", "yuv420p"])
+        .arg(at)
+        .status()
+        .is_ok_and(|s| s.success())
+}
