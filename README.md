@@ -192,25 +192,17 @@ A scene this build cannot record is a warning and a slate, not a failed
 build: the timing is still real, and a video with a hole in it is more use
 than no video. `teleprompt doctor` lists what can record what.
 
-### Terminals, without a browser
+### Terminals
 
-`terminal` scenes are recorded by running their tape against a pty and
-drawing the result with [`agg`](https://github.com/asciinema/agg),
-asciinema's renderer. VHS itself is deliberately not shelled out to: it
-drives a terminal through `ttyd` and screenshots xterm.js canvases in
-headless Chromium, which in a container captures zero frames, invokes no
-encoder and exits 0 — a failure with no error in it — and it puts a
-browser behind a tool whose README says it needs none.
+`terminal` scenes are recorded by `vhs` where it runs, and by a pty and
+[`agg`](https://github.com/asciinema/agg) where it does not — see
+**Terminal scenes** below for which and why.
 
-The tape is parsed by the same function the compiler measures it with, so
-a line the two would disagree about cannot exist: one asks how long a line
-takes, the other what it sends.
-
-Two details that a real TUI makes matter. A program asks the terminal what
-colour it is (OSC 10/11) and what it can do (DA1) before drawing, and
-waits out its own timeout when nobody replies; one that turns on focus
-reporting may skip its refresh until told it has focus. The driver answers
-all three.
+Two details that a real TUI makes matter to the pty fallback. A program
+asks the terminal what colour it is (OSC 10/11) and what it can do (DA1)
+before drawing, and waits out its own timeout when nobody replies; one
+that turns on focus reporting may skip its refresh until told it has
+focus. The driver answers all three.
 
 The terminal is the scene's, not the tape's — the same reason `Set Shell`
 is refused at compile time:
@@ -374,35 +366,55 @@ a tape `vhs` itself will run — which is the whole reason to point a fence's
 `include=` at a real `.tape` file rather than at a dialect only teleprompt
 reads.
 
-**teleprompt runs the tape itself rather than shelling out to `vhs`.** Two
-reasons, and the second is the one that decided it. A tape's beats continue
-one another — a running program, a selected row — so a scene is a session,
-and VHS has no notion of continuing a previous run: a block per invocation
-is a fresh shell per beat. And VHS draws by driving `ttyd` through headless
-Chromium, which is a browser in the dependency list of a tool whose whole
-pitch is not having one, and which does not start at all in a container.
-teleprompt drives a pty and draws with [`agg`](https://github.com/asciinema/agg).
+**`vhs` renders it.** teleprompt already re-times every tape so a span
+lasts exactly as long as the sentence over it (see `policy=` below), so
+the tape handed to `vhs` *is* the schedule: run it, and the video's
+timeline is the timeline. One run per session — the spans are
+concatenated in order so the program stays running across beats — and the
+beats are then windows onto the one video, at the offsets the tape was
+written to produce. Nothing is estimated and nothing is reimplemented.
 
-That means the language here is a **VHS-compatible subset that teleprompt
-interprets**, not VHS. A tape that runs here runs under `vhs`; the reverse
-is not guaranteed, and where it is not, `check` says so rather than
-recording something different. Known divergences:
+`vhs` needs `ttyd` and a browser, and where they are missing it does not
+fail loudly: it has been seen to exit 0 having recorded nothing. So the
+backends are tried in order and fallen back on *failure* rather than on a
+guess made in advance, and a fallback says so:
+
+```
+warning: recorded `terminal` with `pty` — `vhs` failed: vhs exited 1
+```
+
+The fallback drives a pty and draws with
+[`agg`](https://github.com/asciinema/agg), asciinema's renderer. It needs
+no browser, which is why it exists — most containers are one — and it
+draws a plain terminal where `vhs` draws a window, a theme and padding.
+`teleprompt doctor` lists which backends this machine has.
+
+The tape language is therefore read twice over: once by the compiler, to
+time it, and once by the pty fallback, to run it. Both go through the same
+parse — one asks how long a line takes, the other what it sends — so a
+line the two would disagree about cannot exist. What the fallback runs is
+a **VHS-compatible subset**: a tape that runs there runs under `vhs`, and
+where the reverse does not hold, `check` says so rather than recording
+something different. Known divergences:
 
 | | |
 |---|---|
-| `Wait /pattern/` | VHS matches the pattern; teleprompt waits for the screen to go still. Same intent, different rule. |
+| `Wait /pattern/` | VHS matches the pattern; the fallback waits for the screen to go still. Same intent, different rule. |
 | `Env`, `Screenshot` | refused — the environment belongs to the scene and the output belongs to teleprompt, for the reasons `Set Shell` and `Output` are refused. |
 | everything else | read and honoured, including `Hide`/`Show`, `Require`, `Copy`/`Paste`. |
 
-The rule is the one the adapter already applied to settings: a line `check`
-accepts and the capture ignores is a video that is *wrong* rather than
-missing, and that is worse.
+The rule is the one the adapter already applied to settings: a line
+`check` accepts and the capture ignores is a video that is *wrong* rather
+than missing, and that is worse.
 
 `Hide` stops the recording and `Show` resumes it, which is how a tape does
-its setup without every demo opening on somebody navigating to a directory.
-The commands still run. Their time is not the beat's — a beat lasts as long
-as something is on screen, and nothing hidden is — so hidden work costs the
-narration nothing and the recording closes up the gap it left.
+its setup without every demo opening on somebody navigating to a
+directory. The commands still run. Their time is not the beat's — a beat
+lasts as long as something is on screen, and nothing hidden is — so hidden
+work costs the narration nothing and the recording closes up the gap it
+left. It is also how teleprompt hides the shell's own startup: the tape it
+writes for `vhs` opens with a hidden settle, so no beat begins on a prompt
+being drawn.
 
 **A tape states its own timing, so its spans are timed exactly.** Every `Sleep`
 is written down and every keystroke costs `Set TypingSpeed` (50 ms by default,

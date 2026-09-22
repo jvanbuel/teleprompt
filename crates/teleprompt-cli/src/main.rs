@@ -596,7 +596,7 @@ fn main() -> ExitCode {
                                     height,
                                     fps: fps.unwrap_or(dubbed.output.fps),
                                 };
-                                match capture_cmd::run_capture(
+                                let report = capture_cmd::run_capture(
                                     &dubbed.manifest,
                                     &dubbed.spans,
                                     &dubbed.scenes,
@@ -611,25 +611,18 @@ fn main() -> ExitCode {
                                             );
                                         }
                                     },
-                                ) {
-                                    Ok(report) => {
-                                        for w in &report.warnings {
-                                            eprintln!("warning: {w}");
-                                        }
-                                        match cli.format {
-                                            Format::Json => println!(
-                                                "{}",
-                                                serde_json::to_string_pretty(&report).unwrap()
-                                            ),
-                                            Format::Human => print!("{}", report.render()),
-                                        }
-                                        Outcome::Ok
-                                    }
-                                    Err(e) => {
-                                        eprintln!("error: {e}");
-                                        Outcome::RuntimeFailure(e.to_string())
-                                    }
+                                );
+                                for w in &report.warnings {
+                                    eprintln!("warning: {w}");
                                 }
+                                match cli.format {
+                                    Format::Json => println!(
+                                        "{}",
+                                        serde_json::to_string_pretty(&report).unwrap()
+                                    ),
+                                    Format::Human => print!("{}", report.render()),
+                                }
+                                Outcome::Ok
                             }
                         }
                     }

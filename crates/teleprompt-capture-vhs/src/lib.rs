@@ -13,6 +13,7 @@
 //! a tool whose README says it needs none.
 
 mod cast;
+pub mod render;
 mod session;
 pub mod tape;
 
@@ -84,7 +85,7 @@ impl Default for VhsCapture {
     }
 }
 
-fn on_path(program: &str) -> bool {
+pub(crate) fn on_path(program: &str) -> bool {
     Command::new(program)
         .arg("--version")
         .stdout(Stdio::null())

@@ -35,12 +35,23 @@ jobs:
           chmod +x /tmp/agg
           sudo mv /tmp/agg /usr/local/bin/agg
           agg --version
+      # `vhs` is the renderer teleprompt prefers for terminal scenes: it
+      # already knows how to draw a tape, and teleprompt's job is only to
+      # write one that lasts as long as the narration over it. It needs
+      # `ttyd` and a browser, and fails quietly without them, so CI
+      # installs both and sets TELEPROMPT_REQUIRE_VHS — if the preferred
+      # path stops working on a stock runner, that is worth a red build
+      # rather than a silent fallback.
+      - run: sudo apt-get install -y --no-install-recommends ttyd
+      - run: go install github.com/charmbracelet/vhs@latest
+      - run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
         env:
           TELEPROMPT_REQUIRE_FFMPEG: "1"
           TELEPROMPT_REQUIRE_CAPTURE: "1"
+          TELEPROMPT_REQUIRE_VHS: "1"
 
   msrv:
     runs-on: ubuntu-latest

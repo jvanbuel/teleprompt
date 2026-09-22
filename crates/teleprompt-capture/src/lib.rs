@@ -244,12 +244,33 @@ impl CaptureRegistry {
         self
     }
 
-    /// The backend for an adapter, or `None` where this build ships none.
-    pub fn for_adapter(&self, adapter: &str) -> Option<&dyn CaptureBackend> {
-        self.backends
-            .iter()
-            .map(|b| b.as_ref())
-            .find(|b| b.adapter() == adapter)
+    /// Every backend that could record `adapter` here, best first.
+    ///
+    /// A list rather than a choice, because "can this work here" is not
+    /// answerable in advance: `vhs` can be installed, pass every check,
+    /// and record nothing — exit 0, no frames, no error. So the caller
+    /// tries them in order and falls back on a failure, which is the only
+    /// test that actually settles it.
+    ///
+    /// Empty means this build records nothing of that kind, which is a
+    /// different answer from "it does, but not here" — only one of them is
+    /// worth installing something about.
+    pub fn candidates(&self, adapter: &str) -> Vec<&dyn CaptureBackend> {
+        let mut usable: Vec<&dyn CaptureBackend> = Vec::new();
+        let mut blocked: Vec<&dyn CaptureBackend> = Vec::new();
+        for backend in self.backends.iter().map(|b| b.as_ref()) {
+            if backend.adapter() != adapter {
+                continue;
+            }
+            match backend.unavailable() {
+                None => usable.push(backend),
+                Some(_) => blocked.push(backend),
+            }
+        }
+        // A blocked one is kept at the end so the caller has something to
+        // name a reason from when nothing can run.
+        usable.extend(blocked);
+        usable
     }
 
     pub fn ids(&self) -> Vec<&'static str> {

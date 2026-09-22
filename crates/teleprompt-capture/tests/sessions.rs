@@ -144,3 +144,61 @@ fn a_pause_is_not_captured() {
     assert_eq!(out[0].steps.len(), 2);
     assert!(out[0].steps.iter().all(|s| s.span != "pause-1"));
 }
+
+/// A machine may have more than one way to record a scene, and they are not
+/// equally good: `vhs` draws the window and the theme, and needs a browser
+/// to do it. Registered best first, and the ones that cannot work here are
+/// put last rather than dropped — the caller needs one to name a reason
+/// from when nothing can run.
+#[test]
+fn the_backends_that_can_work_here_come_first() {
+    use std::path::Path;
+    use teleprompt_capture::{
+        CaptureBackend, CaptureError, CaptureRegistry, Frame, Progress, Session, Shot,
+    };
+
+    struct Fake {
+        id: &'static str,
+        why_not: Option<&'static str>,
+    }
+    impl CaptureBackend for Fake {
+        fn id(&self) -> &'static str {
+            self.id
+        }
+        fn adapter(&self) -> &'static str {
+            "vhs"
+        }
+        fn unavailable(&self) -> Option<String> {
+            self.why_not.map(str::to_string)
+        }
+        fn capture(
+            &self,
+            _: &Session,
+            _: &Frame,
+            _: &Path,
+            _: &mut dyn FnMut(Progress),
+        ) -> Result<Vec<Shot>, CaptureError> {
+            Ok(Vec::new())
+        }
+    }
+
+    let registry = CaptureRegistry::new()
+        .with(Box::new(Fake {
+            id: "best",
+            why_not: Some("no browser here"),
+        }))
+        .with(Box::new(Fake {
+            id: "fallback",
+            why_not: None,
+        }));
+    let ids: Vec<&str> = registry.candidates("vhs").iter().map(|b| b.id()).collect();
+    assert_eq!(
+        ids,
+        vec!["fallback", "best"],
+        "the one that cannot work here is tried last, not dropped"
+    );
+
+    // Nothing of this kind at all is a different answer from "there is,
+    // but not here": only one of them is worth installing something about.
+    assert!(registry.candidates("playwright").is_empty());
+}

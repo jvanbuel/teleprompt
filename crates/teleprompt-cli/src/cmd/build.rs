@@ -236,7 +236,7 @@ pub async fn run_build_with_capture(
     // timing is still real, and a video with a hole in it is more use than
     // no video.
     let mut warnings = dubbed.warnings;
-    let captured = match capture::run_capture(
+    let recorded = capture::run_capture(
         &dubbed.manifest,
         &dubbed.spans,
         &dubbed.scenes,
@@ -244,16 +244,10 @@ pub async fn run_build_with_capture(
         &options.clips_dir,
         teleprompt_capture::Frame { width, height, fps },
         &mut |_| {},
-    ) {
-        Ok(report) => {
-            warnings.extend(report.warnings);
-            report.captured
-        }
-        Err(e) => {
-            warnings.push(format!("capture failed, rendering slates instead: {e}"));
-            0
-        }
-    };
+    );
+    warnings.extend(recorded.warnings);
+    let captured = recorded.captured;
+
     let (render_plan, mut plan_warnings) = plan::from_manifest(
         &dubbed.manifest,
         &Inputs {
