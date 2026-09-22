@@ -120,6 +120,12 @@ pub fn schedule(
                 scene: a.scene.clone(),
                 adapter: a.adapter.clone(),
                 span_hash: a.span_hash,
+                // Filled by `compile`'s chaining pass, which runs after
+                // re-timing: a span that was re-written to fit its slot is
+                // a different tape, and the chain has to be built from the
+                // tape that will actually be captured.
+                capture_key: a.span_hash,
+                session: a.session.clone(),
                 start_ms: cursor + l.action_start_ms,
                 duration_ms: l.action_duration_ms,
                 duration_source: match a.duration_source {

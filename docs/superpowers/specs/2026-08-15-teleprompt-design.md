@@ -429,12 +429,45 @@ canonical description of the inputs:
 |---|---|
 | audio clip | segment text, locale, backend ID, voice, speed, backend version |
 | span measurement | span source, scene kind, scene config, adapter version |
-| video segment | span source, scene kind, viewport, scene config, slot duration |
+| video segment | the span's **capture key** — see below |
 | composed output | timeline hash, all member artifact hashes, output settings |
 
 Cache entries are immutable and safe to delete at any time; deleting one costs
-recomputation, never correctness. `cache ls` reports size and age per class;
-`cache clean --unreferenced` prunes what no committed timeline points at.
+recomputation, never correctness. `teleprompt cache` reports size per class and
+`teleprompt cache --prune-to-mb N` shrinks the encoded-video cache, least
+recently used first; a build prunes to its own cap on the way out.
+
+**A scene is a session, so a clip is a layer.** The beats of a walkthrough
+continue one another — a running program, a selected row, an open log — so the
+screen at beat *N* is the accumulation of beats 1..*N* in that session. A clip
+is therefore not identified by its own span source: two blocks with the same
+steps (`j` twice in one walkthrough) have one span hash and two pictures.
+
+The identity is OCI's chain ID, for the reason OCI has one:
+
+```
+name(n)  = H(adapter, scene config, span source)
+chain(0) = H(name(0))
+chain(n) = H(chain(n-1) ‖ name(n))
+```
+
+published per beat as `capture_key`. Invalidation falls out of the arithmetic
+rather than being a rule on top: editing a beat invalidates that beat and
+everything after it *in its session*, nothing before it, and nothing in another
+scene. Slot duration is in the key without being a field in it — a `fit-action`
+beat is re-written to its slot before the chain is built, so the source hashed
+is the tape that will actually be captured.
+
+Where the OCI analogy stops is position. A container rebuilds everything below a
+changed line of its Dockerfile; teleprompt does not care where in the document a
+beat sits. Moving a paragraph changes every later beat's `start_ms` and no
+beat's capture key, because start time is not in one.
+
+A session is a scene's run. Blocks naming a scene continue it, which is what
+naming a scene means; `session="…"` on a block names a different run, for a
+script that quits a program and starts it again. The session's *name* is not in
+the key — a run that opens with the same tape opens on the same screen, and
+deserves the same clip.
 
 The backend version is the **model**, not the server. Audio depends on the
 weights a server loaded, not on where that server is, and keying on the
@@ -575,6 +608,7 @@ an explicit silent beat. Both participate in slack.
         "start_ms": 5670,
         "duration_ms": 150,
         "span_hash": "77bd...",
+        "capture_key": "0c41...",
         "duration_source": "measured"
       },
       "transition": { "kind": "crossfade", "duration_ms": 300 }

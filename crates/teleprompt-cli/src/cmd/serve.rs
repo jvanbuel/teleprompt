@@ -206,7 +206,7 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
         match before.beats.iter().find(|b| b.span == beat.span) {
             None => out.push(beat.span.clone()),
             Some(was) => {
-                if was.span_hash != beat.span_hash
+                if was.capture_key != beat.capture_key
                     || was.start_ms != beat.start_ms
                     || was.duration_ms != beat.duration_ms
                 {

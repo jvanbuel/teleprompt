@@ -28,6 +28,7 @@ fn action(id: &str, ms: u64) -> ActionInput {
         duration_ms: ms,
         duration_source: DurationSource::Exact,
         cue_ms: None,
+        session: None,
     }
 }
 

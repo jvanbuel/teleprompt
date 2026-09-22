@@ -61,6 +61,12 @@ pub enum Item {
         align: String,
         /// `at="…"`: the phrase in the narration this action starts on.
         cue: Option<String>,
+        /// `session="…"`: which run of the scene this block belongs to.
+        ///
+        /// `None` is the scene's own session, which is the ordinary case:
+        /// blocks naming a scene continue the screen the previous one left
+        /// behind. A name here starts — or rejoins — a different run.
+        session: Option<String>,
         /// Source location of the fence this action block came from
         /// (controller ruling F12) — Task 11 passes it to the scene adapter
         /// for validation instead of inventing `line: 0`.
@@ -179,6 +185,7 @@ pub fn resolve(
                         policy: attrs.get("policy").unwrap_or("hold").to_string(),
                         align: attrs.get("align").unwrap_or("start").to_string(),
                         cue: attrs.get("at").map(str::to_string),
+                        session: attrs.get("session").map(str::to_string),
                         config,
                         span: block.span,
                     });

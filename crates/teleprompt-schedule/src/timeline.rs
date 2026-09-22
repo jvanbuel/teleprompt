@@ -43,7 +43,28 @@ pub struct ActionEntry {
     pub span: String,
     pub scene: String,
     pub adapter: String,
+    /// Identity of this span's own source — what the author wrote, and
+    /// nothing else. What `diff` reads to say *this block changed*.
     pub span_hash: Hash,
+    /// Identity of the picture: this span's source and every span before
+    /// it in the same session.
+    ///
+    /// A scene is a session — the beats of a walkthrough continue one
+    /// another, and the screen at beat N is the accumulation of beats
+    /// 1..N — so a clip is not named by its own tape. Two blocks with the
+    /// same steps in the same session show different screens, and naming
+    /// them both by `span_hash` would serve one's picture for the other.
+    ///
+    /// The arithmetic is OCI's chain ID, for the same reason OCI has one:
+    /// `chain(0) = H(name(0))`, `chain(n) = H(chain(n-1) ‖ name(n))`.
+    /// Invalidation falls out of it — editing a beat invalidates that beat
+    /// and everything after it in its session, and nothing before it, and
+    /// nothing in any other scene.
+    pub capture_key: Hash,
+    /// Which run of the scene, from `session="…"`. Published because it is
+    /// the only part of the chain a reader cannot see in the script.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session: Option<String>,
     pub start_ms: u64,
     pub duration_ms: u64,
     pub duration_source: String,

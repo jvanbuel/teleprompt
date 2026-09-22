@@ -46,7 +46,8 @@ const MANIFEST: &str = r#"{
       "duration_source": "exact",
       "policy": "hold",
       "transition": { "kind": "cut", "duration_ms": 0 },
-      "span_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+      "span_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "capture_key": "5555555555555555555555555555555555555555555555555555555555555555"
     },
     {
       "span": "plan#1",
@@ -58,7 +59,8 @@ const MANIFEST: &str = r#"{
       "duration_source": "exact",
       "policy": "concurrent",
       "transition": { "kind": "cut", "duration_ms": 0 },
-      "span_hash": "4444444444444444444444444444444444444444444444444444444444444444"
+      "span_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "capture_key": "6666666666666666666666666666666666666666666666666666666666666666"
     }
   ]
 }"#;
@@ -117,7 +119,7 @@ fn a_captured_clip_is_used_where_one_exists_for_the_span() {
     let dir = std::env::temp_dir().join(format!("tp-plan-{}", std::process::id()));
     let clips = dir.join("cache/video");
     std::fs::create_dir_all(&clips).unwrap();
-    let hash = "3333333333333333333333333333333333333333333333333333333333333333";
+    let hash = "5555555555555555555555555555555555555555555555555555555555555555";
     let clip = clips.join(format!("{hash}.mp4"));
     std::fs::write(&clip, b"not really an mp4").unwrap();
 
@@ -126,7 +128,7 @@ fn a_captured_clip_is_used_where_one_exists_for_the_span() {
     assert_eq!(
         plan.beats[0].picture,
         Picture::Clip(clip),
-        "a clip is found by the span hash the manifest published"
+        "a clip is found by the capture key the manifest published"
     );
     assert_eq!(plan.beats[1].picture, Picture::Slate);
     assert!(

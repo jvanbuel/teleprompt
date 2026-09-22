@@ -13,10 +13,11 @@
 //! `teleprompt-voice`, and `teleprompt-schedule` meet, so that they never
 //! have to depend on one another.
 
+use std::collections::BTreeMap;
 use std::path::{Component, Path};
 
 use teleprompt_cache::{CacheKey, VoiceCache};
-use teleprompt_core::config::{default_adapter, OutputConfig};
+use teleprompt_core::config::{default_adapter, Config, OutputConfig, SceneConfig};
 use teleprompt_core::program::{ChapterInfo, Item, Program};
 use teleprompt_core::voice::spoken;
 use teleprompt_core::{Diagnostic, Diagnostics, Hash};
@@ -220,6 +221,82 @@ fn retime_stretched_spans(
     }
 }
 
+/// The scene name a pause wears, which is not a scene and has no picture.
+const PAUSE_SCENE: &str = "pause";
+
+/// Names each beat's picture, which is not the same thing as naming its
+/// tape.
+///
+/// A scene is a session. The beats of a walkthrough continue one another —
+/// a running program, a selected row, an open log — so the screen at beat
+/// *N* is the accumulation of beats 1..*N* in that session, and a clip is
+/// identified by its own tape *and every tape before it*. Two blocks with
+/// the same steps are the commonest thing in a walkthrough (`Type "j"`
+/// twice), and naming them both by their tape would show one's picture for
+/// the other.
+///
+/// The arithmetic is OCI's chain ID, which exists for the same reason:
+///
+/// ```text
+/// chain(0) = H(name(0))
+/// chain(n) = H(chain(n-1) ‖ name(n))
+/// ```
+///
+/// Invalidation falls out of it rather than being a rule on top: editing a
+/// beat changes that beat's key and every key after it *in its session*,
+/// and nothing before it, and nothing in another scene. Where the analogy
+/// stops is position — a container rebuilds everything below a changed
+/// line, and this does not care where in the document a beat sits. Moving
+/// a paragraph changes every later beat's `start_ms` and no beat's key,
+/// because start time is not in one.
+///
+/// Runs after [`retime_stretched_spans`], deliberately: a span re-written
+/// to fit its slot is a different tape, and the chain has to be built from
+/// the tape that will actually be captured. That is also how slot duration
+/// gets into the key (spec §5.1) without being a field in it.
+fn chain_capture_keys(timeline: &mut Timeline, config: &Config) {
+    let mut chains: BTreeMap<(String, String), Hash> = BTreeMap::new();
+
+    for entry in &mut timeline.entries {
+        let Some(action) = entry.action.as_mut() else {
+            continue;
+        };
+        // A pause has no picture — it holds whatever is on screen — so it
+        // is in no chain. Putting it in one would make every beat after a
+        // pause depend on how long the pause was.
+        if action.scene == PAUSE_SCENE {
+            action.capture_key = action.span_hash;
+            continue;
+        }
+
+        // What this span is on its own: its tape, the adapter that will
+        // read it, and the scene settings that decide what the screen
+        // looks like before anything is typed.
+        let settings = config
+            .scenes
+            .get(&action.scene)
+            .map(SceneConfig::settings_fingerprint)
+            .unwrap_or_default();
+        let name = Hash::of_fields(&[&action.adapter, &settings, &action.span_hash.to_string()]);
+
+        // The session is keyed on (scene, name) rather than on an ordinal:
+        // a session that opens with the same tape opens on the same screen,
+        // so it is the same picture and deserves the same clip. What the
+        // session name buys is the *break* — two runs of a scene that
+        // diverge later stop sharing a chain at the point they diverge.
+        let key = (
+            action.scene.clone(),
+            action.session.clone().unwrap_or_default(),
+        );
+        let chain = match chains.get(&key) {
+            None => Hash::of_fields(&[&name.to_string()]),
+            Some(previous) => Hash::of_fields(&[&previous.to_string(), &name.to_string()]),
+        };
+        chains.insert(key, chain);
+        action.capture_key = chain;
+    }
+}
+
 /// Compiles `program` into a scheduled [`Timeline`].
 ///
 /// Pure given its inputs: the same program, registry, and voice context
@@ -388,6 +465,7 @@ pub fn compile(
                 policy,
                 align,
                 cue,
+                session,
                 review,
                 span,
             } => {
@@ -571,6 +649,7 @@ Read it, then remove the attribute."
                         // Only the span paired with the narration can be
                         // cued to a word in it; the rest follow it.
                         cue_ms: if i == 0 { cue_ms } else { None },
+                        session: session.clone(),
                     };
 
                     if i == 0 && pending.is_some() {
@@ -610,6 +689,7 @@ Read it, then remove the attribute."
                         duration_ms: *ms,
                         duration_source: DurationSource::Exact,
                         cue_ms: None,
+                        session: None,
                     }),
                     policy: Policy::Hold,
                     config: program.config.clone(),
@@ -628,6 +708,7 @@ Read it, then remove the attribute."
     let (mut timeline, scheduling_warnings) =
         schedule(&beats, &program.script_name, &program.locale, version);
     retime_stretched_spans(&mut timeline, &mut span_sources, registry);
+    chain_capture_keys(&mut timeline, &program.config);
     // Cache warnings first: they explain why the numbers the scheduler then
     // warns about are what they are.
     let mut warnings = cache_warnings;

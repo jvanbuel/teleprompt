@@ -119,6 +119,17 @@ pub struct SceneConfig {
     pub settings: BTreeMap<String, serde_yaml::Value>,
 }
 
+impl SceneConfig {
+    /// A stable string for the settings, for hashing into a key.
+    ///
+    /// Here rather than at the call site because this is the type that
+    /// knows what its settings are: YAML of a `BTreeMap` is ordered and
+    /// round-trips, where `{:?}` is a debug format nothing promises to keep.
+    pub fn settings_fingerprint(&self) -> String {
+        serde_yaml::to_string(&self.settings).unwrap_or_default()
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {

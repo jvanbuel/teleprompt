@@ -21,7 +21,7 @@ pub struct Inputs {
     /// The directory holding the manifest. A segment's `audio` is relative
     /// to it.
     pub narration_dir: PathBuf,
-    /// Where captured clips are looked up, by span hash.
+    /// Where captured clips are looked up, by capture key.
     pub clips_dir: PathBuf,
     pub output: PathBuf,
     pub width: u32,
@@ -54,7 +54,10 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
             // A pause is a beat during which the picture holds — that is
             // what a pause is. Looking for a clip under its hash would find
             // nothing and report a capture that was never owed.
-            let clip = inputs.clips_dir.join(format!("{}.mp4", beat.span_hash));
+            // Filed under the capture key, not the span hash: the same
+            // tape in two places in a walkthrough is two pictures, because
+            // the screen each one starts from is different.
+            let clip = inputs.clips_dir.join(format!("{}.mp4", beat.capture_key));
             let picture = if beat.scene == PAUSE {
                 Picture::Hold
             } else if clip.exists() {

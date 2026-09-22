@@ -341,7 +341,10 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                 }
             }
 
-            // A beat needs recapture when its steps changed (span_hash),
+            // A beat needs recapture when its picture changed
+            // (capture_key — its own steps, or any step before it in the
+            // same session, because the screen a beat shows is what the
+            // beats before it left behind),
             // when its rendered action duration changed (e.g. a stretch/
             // trim policy re-timed it), when the beat's own local duration
             // changed — which happens when narration got longer or shorter
@@ -365,7 +368,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                 let action_appeared_or_vanished = o.action.is_some() != n.action.is_some();
                 let action_itself_changed = match (&o.action, &n.action) {
                     (Some(oa), Some(na)) => {
-                        oa.span_hash != na.span_hash
+                        oa.capture_key != na.capture_key
                             || oa.duration_ms != na.duration_ms
                             // Same local-offset reasoning as narration above:
                             // where in its beat the action sits is a fact of

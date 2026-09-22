@@ -96,6 +96,14 @@ pub struct BeatEntry {
     /// Identity of the span's source, for a per-span render cache. The
     /// counterpart of a segment's `audio_hash`.
     pub span_hash: Hash,
+    /// Identity of the *picture*: this span's source and every span before
+    /// it in the same session. What a captured clip is filed under.
+    ///
+    /// Not the same as `span_hash`, and the difference is the point. A
+    /// scene is a session, so the screen a beat shows is the accumulation
+    /// of every beat before it; two blocks with the same steps — `j` twice
+    /// in one walkthrough — have one `span_hash` and two pictures.
+    pub capture_key: Hash,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -250,6 +258,7 @@ pub fn build(
                     duration_ms: entry.transition.duration_ms,
                 },
                 span_hash: a.span_hash,
+                capture_key: a.capture_key,
             })
         })
         .collect();

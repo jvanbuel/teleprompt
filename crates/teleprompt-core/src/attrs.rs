@@ -23,6 +23,12 @@ pub const BLOCK_KEYS: &[&str] = &[
     "align",
     // The phrase in the narration this action should start on.
     "at",
+    // Which run of the scene this block belongs to. Blocks naming the same
+    // scene continue one session by default — that is what naming a scene
+    // means, and it is why a walkthrough's beats show a running program
+    // rather than six fresh shells. A `session=` names a different run, for
+    // a script that quits something and starts it again.
+    "session",
     "id",
     "max_speedup",
     "max_stretch",

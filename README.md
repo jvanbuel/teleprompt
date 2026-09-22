@@ -341,6 +341,40 @@ Settings persist across a `Mark` but not across a fence: each action block is
 validated and split on its own, so a block that wants a non-default typing
 speed says so itself.
 
+## A scene is a session
+
+The beats of a walkthrough continue one another — a running program, a
+selected row, an open log — so blocks naming the same scene run in the same
+session. That is what naming a scene means: the screen a beat leaves behind
+is the screen the next one starts from, and a walkthrough with six narrated
+steps is six blocks sharing one terminal, not six fresh shells.
+
+It follows that a clip is not named by its own tape. `Type "j"` appears
+twice in most walkthroughs — once to move down a list of pipelines, once to
+move down a list of tasks — and those are one tape and two pictures. So
+each beat publishes a `capture_key` alongside its `span_hash`: the hash of
+its own source and every source before it in the session, which is OCI's
+chain ID, arrived at for the reason OCI needed one.
+
+Invalidation is then arithmetic rather than a rule. Editing a beat changes
+that beat's key and every key after it in its session; nothing before it,
+and nothing in another scene. Moving a paragraph changes every later beat's
+start time and no beat's key, because start time is not in one — a
+container rebuilds by position, and this does not.
+
+`session="…"` on a block names a different run of the scene, for a script
+that quits a program and starts it again:
+
+````markdown
+```teleprompt scene=terminal session=retry
+Type "flowrs"
+Enter
+```
+````
+
+The name is not in the key: a run that opens with the same tape opens on the
+same screen, so it is the same picture and the same clip.
+
 ## The manual narrates itself
 
 `manual/` is a teleprompt project whose script is this tool's command-line

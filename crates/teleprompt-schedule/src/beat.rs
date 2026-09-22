@@ -72,6 +72,9 @@ pub struct ActionInput {
     /// no policy can work out on its own — the sentence that names a
     /// command is rarely the first one in the paragraph.
     pub cue_ms: Option<u64>,
+    /// Which run of the scene this action belongs to, from `session="…"`.
+    /// `None` is the scene's own, which is where most beats live.
+    pub session: Option<String>,
 }
 
 #[derive(Debug, Clone)]
