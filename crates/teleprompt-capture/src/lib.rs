@@ -17,6 +17,7 @@
 //! on it.
 
 pub mod mock;
+pub mod reel;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

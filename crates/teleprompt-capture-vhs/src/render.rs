@@ -18,6 +18,7 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use teleprompt_capture::reel::{cut, starved, windows};
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
 /// The tape `vhs` should run for a whole session.
@@ -98,24 +99,6 @@ fn path_with_fallback(scene: &str, inherited: Option<&str>) -> String {
         }
     }
     out.join(":")
-}
-
-/// Where each shot begins and ends in the session's video.
-///
-/// The scheduled durations, accumulated. Not a guess: the tape was
-/// re-written to last exactly this long, so these are the numbers the video
-/// was made from rather than numbers inferred about it afterwards.
-pub fn windows(session: &Session) -> Vec<(u64, u64)> {
-    let mut at = 0;
-    session
-        .shots
-        .iter()
-        .map(|shot| {
-            let from = at;
-            at += shot.duration_ms;
-            (from, shot.duration_ms)
-        })
-        .collect()
 }
 
 /// Records `terminal` scenes by handing a re-timed tape to `vhs`.
@@ -275,86 +258,6 @@ impl CaptureBackend for VhsRender {
         let _ = std::fs::remove_dir_all(&work);
         Ok(clips)
     }
-}
-
-/// Any shot the recording stops short of entirely.
-///
-/// `windows` places every shot at an offset accumulated from what the
-/// tape was *scheduled* to take. That is a prediction about the recorder,
-/// and a prediction nothing checks is the bug this crate keeps finding:
-/// when `vhs` stops early — exits 0, writes a valid but truncated video —
-/// the shots past its end are cut anyway, and ffmpeg writes a container
-/// with no video stream rather than an error. The build then dies much
-/// later, in compose, on `Stream specifier ':v' … matches no streams`,
-/// which points at the filtergraph rather than at the recording.
-///
-/// Too short means a shot that gets *nothing* — one whose window begins
-/// at or after the last recorded frame. A final shot merely clipped by a
-/// few frames is not a failure: ffmpeg returns the footage that exists,
-/// the renderer holds the last frame to fill the slot, and the picture is
-/// right. Refusing those cost a red build over 80ms of encoder rounding
-/// on a two-second tape.
-pub fn starved(video: &Path, session: &Session) -> Option<String> {
-    let have_ms = duration_ms(video)?;
-    let empty: Vec<&str> = session
-        .shots
-        .iter()
-        .zip(windows(session))
-        .filter(|(shot, (from_ms, _))| shot.wanted && *from_ms >= have_ms)
-        .map(|(shot, _)| shot.id.as_str())
-        .collect();
-    (!empty.is_empty()).then(|| {
-        format!(
-            "the recording is {:.2}s and {} shot(s) begin after it ends ({}), \
-             so they would be cut from frames that do not exist",
-            have_ms as f64 / 1000.0,
-            empty.len(),
-            empty.join(", "),
-        )
-    })
-}
-
-/// How long `ffprobe` says a file runs, in milliseconds.
-///
-/// `None` where it cannot say — no ffprobe, or a file it will not read.
-/// A check that cannot run must not invent a failure.
-fn duration_ms(video: &Path) -> Option<u64> {
-    let out = Command::new("ffprobe")
-        .args(["-v", "error", "-show_entries", "format=duration"])
-        .args(["-of", "default=nw=1:nk=1"])
-        .arg(video)
-        .output()
-        .ok()?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    let seconds: f64 = text.trim().parse().ok()?;
-    Some((seconds * 1000.0).round() as u64)
-}
-
-/// One shot out of the session's video.
-fn cut(
-    ffmpeg: &str,
-    video: &Path,
-    clip: &Path,
-    from_ms: u64,
-    duration_ms: u64,
-) -> Result<(), String> {
-    let seconds = |ms: u64| format!("{}.{:03}", ms / 1000, ms % 1000);
-    let status = Command::new(ffmpeg)
-        .args(["-hide_banner", "-loglevel", "error", "-y", "-ss"])
-        .arg(seconds(from_ms))
-        .arg("-t")
-        .arg(seconds(duration_ms))
-        .arg("-i")
-        .arg(video)
-        .args(["-pix_fmt", "yuv420p"])
-        .arg(clip)
-        .stdin(Stdio::null())
-        .status()
-        .map_err(|e| format!("{ffmpeg} could not be run: {e}"))?;
-    status
-        .success()
-        .then_some(())
-        .ok_or_else(|| format!("{ffmpeg} exited {status}"))
 }
 
 #[cfg(test)]
