@@ -239,9 +239,15 @@ const PAUSE_SCENE: &str = "pause";
 /// `vhs` is the tape dialect, not the program that rasterises it — so two
 /// different renderers pointed at the same scene produce the same key and
 /// silently share a cache. Bump this when the renderer changes, when the
-/// tape teleprompt writes changes, or when an upgrade moves the window
-/// chrome.
-pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
+/// tape or script teleprompt writes changes, or when an upgrade moves the
+/// window chrome.
+///
+/// Settings cannot do this job either, and for a sharper reason: they are
+/// what the *author* wrote. A default that changes — the browser
+/// annotation that used to flash for 500ms and now holds for 2500 — moves
+/// no setting and leaves every key identical, so a cache full of clips
+/// nobody would record today is served as if it were current.
+pub const CAPTURE_RECIPE: &str = "vhs-0.11-pw-1.63-v2";
 
 /// Names each item's picture, which is not the same thing as naming its
 /// tape.

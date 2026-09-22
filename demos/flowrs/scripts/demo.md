@@ -25,7 +25,6 @@ await page.fill('#username', 'airflow');
 await page.fill('#password', 'airflow');
 await page.click('input[type="submit"]');
 await page.waitForLoadState('networkidle');
-await page.waitForTimeout(1500);
 ```
 
 From there, one task's log is a search and three clicks: narrow the DAG
@@ -35,14 +34,11 @@ lines of output. {#clicking}
 
 ```teleprompt scene=ui policy=concurrent
 await page.fill('input[placeholder*="Search"]', 'example_bash_operator');
-await page.waitForTimeout(1500);
 await page.click('a:has-text("example_bash_operator")');
 await page.waitForLoadState('networkidle');
-await page.waitForTimeout(2500);
 await page.locator('[data-testid="task-instance"]').first().click();
-await page.waitForTimeout(2500);
 await page.getByRole('tab', { name: /Logs/i }).click();
-await page.waitForTimeout(3000);
+await page.waitForTimeout(2500);
 ```
 
 ## In the terminal

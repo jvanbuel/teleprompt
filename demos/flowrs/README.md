@@ -117,8 +117,25 @@ of the sentence spoken over it. The script does its work inside that window
 and the last frame holds if it finishes early. If it overruns, the clip is
 cut at the window and the log line says so.
 
-That is why the script is full of `waitForTimeout`: it is pacing for a
-viewer, not waiting for the page.
+**The pacing comes from the annotations.** Playwright draws a pointer, a
+click ripple and a title for each action, and holds the page for as long
+as that annotation is up — 1200ms here, so half a dozen clicks fit under
+one sentence and each of them is on screen for about thirty frames. The
+script therefore has almost no `waitForTimeout` in it: the one at the end
+is there to rest on the log, not to pace the clicking.
+
+A scene that clicks more often than a sentence has room for should say so
+rather than overrun its slot and be cut:
+
+```yaml
+scene:
+  ui:
+    adapter: playwright
+    annotation_ms: 600     # per action, and spent from the shot's budget
+    annotation_size: 24    # the action title, in pixels
+    cursor: pointer        # or `none`
+    labels: bottom-right   # where the action title sits
+```
 
 **Chromium** comes from the `playwright` package. On a machine where that
 binary does not work, point the scene at another one:
