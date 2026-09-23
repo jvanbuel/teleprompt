@@ -115,7 +115,7 @@ not a separator
 
     #[test]
     fn notes_become_paragraphs_and_clicks_become_steps() {
-        let d = draft_slidev(DECK, "deck/slides.md");
+        let d = draft_slidev(DECK, "deck/slides.md", &|_| None);
         let s = &d.script;
         assert!(
             s.contains("    adapter: slidev\n    deck: deck/slides.md\n"),
@@ -135,7 +135,7 @@ not a separator
     /// with no sentence would last no time at all.
     #[test]
     fn a_slide_without_notes_is_left_out_and_said_so() {
-        let d = draft_slidev(DECK, "slides.md");
+        let d = draft_slidev(DECK, "slides.md", &|_| None);
         assert_eq!(d.silent, vec![3]);
         assert!(!d.script.contains("No notes here"));
     }
@@ -145,7 +145,7 @@ not a separator
     /// does this.
     #[test]
     fn code_fences_hide_separators_and_comments() {
-        let d = draft_slidev(DECK, "slides.md");
+        let d = draft_slidev(DECK, "slides.md", &|_| None);
         assert!(d
             .script
             .contains("A slide whose code block holds a separator."));
@@ -160,12 +160,82 @@ not a separator
     /// Frontmatter `title:` names the chapter; otherwise the first heading.
     #[test]
     fn a_slide_is_titled_like_slidev_titles_it() {
-        let d = draft_slidev(DECK, "slides.md");
+        let d = draft_slidev(DECK, "slides.md", &|_| None);
         assert!(d.script.contains("# Your deck stays a deck\n"));
         assert!(
             d.script.contains("# Slide 4\n"),
             "no heading, no title: {}",
             d.script
         );
+    }
+
+    /// The slide number each paragraph's block names, in order.
+    fn numbers(script: &str) -> Vec<String> {
+        script
+            .split("```teleprompt scene=slides policy=concurrent\n")
+            .skip(1)
+            .map(|b| b.lines().next().unwrap_or("").to_string())
+            .collect()
+    }
+
+    /// Slidev drops a hidden or disabled slide from its numbering — found
+    /// by exporting a deck whose fourth slide came out as slide 2 — so the
+    /// slides after one are numbered as if it were not there.
+    #[test]
+    fn hidden_and_disabled_slides_have_no_number() {
+        let deck = "# One\n\n<!-- one -->\n\n---\nhide: true\n---\n\n# Two\n\n<!-- two -->\n\n\
+                    ---\ndisabled: true\n---\n\n# Three\n\n---\n\n# Four\n\n<!-- four -->\n";
+        let d = draft_slidev(deck, "slides.md", &|_| None);
+        assert_eq!(numbers(&d.script), ["1", "2"], "{}", d.script);
+        assert!(d
+            .script
+            .contains("four {#four}\n\n```teleprompt scene=slides policy=concurrent\n2\n"));
+        assert!(!d.script.contains("two {#two}"));
+        assert_eq!(
+            d.warnings.len(),
+            1,
+            "a hidden slide's notes are dropped, and said so: {:?}",
+            d.warnings
+        );
+        assert!(
+            d.warnings[0].contains("`Two` is hidden"),
+            "{:?}",
+            d.warnings
+        );
+    }
+
+    /// `src:` contributes every slide of the file it names, relative to the
+    /// importing file, and `#2-3` selects some of them.
+    #[test]
+    fn an_import_contributes_its_slides_to_the_numbering() {
+        let deck = "# One\n\n<!-- one -->\n\n---\nsrc: ./pages/part.md#2-3\n---\n\n---\n\n# Last\n\n<!-- last -->\n";
+        let part =
+            "# A\n\n<!-- a -->\n\n---\n\n# B\n\n<!-- b -->\n\n---\nsrc: ../pages/inner.md\n---\n";
+        let inner = "# C\n\n<!-- c -->\n";
+        let read = |path: &str| match path {
+            "pages/part.md" => Some(part.to_string()),
+            "pages/inner.md" => Some(inner.to_string()),
+            _ => None,
+        };
+        let d = draft_slidev(deck, "slides.md", &read);
+        // one, then part's slides 2 (B) and 3 (the import of inner: C), then last.
+        assert_eq!(numbers(&d.script), ["1", "2", "3", "4"], "{}", d.script);
+        assert!(d.script.contains("# B\n"));
+        assert!(d.script.contains("# C\n"));
+        assert!(!d.script.contains("# A\n"), "outside the range");
+        assert!(d.warnings.is_empty(), "{:?}", d.warnings);
+    }
+
+    /// An import that cannot be read, or that imports itself, is a warning:
+    /// every number after it may be wrong, and the author should know.
+    #[test]
+    fn an_unreadable_or_circular_import_is_said_so() {
+        let deck = "---\nsrc: missing.md\n---\n\n---\nsrc: loop.md\n---\n";
+        let read =
+            |path: &str| (path == "loop.md").then(|| "---\nsrc: ./loop.md\n---\n".to_string());
+        let d = draft_slidev(deck, "slides.md", &read);
+        assert_eq!(d.warnings.len(), 2, "{:?}", d.warnings);
+        assert!(d.warnings[0].contains("could not be read"));
+        assert!(d.warnings[1].contains("imports itself"));
     }
 }

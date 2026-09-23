@@ -129,6 +129,13 @@ deck in its own front matter, relative to where you ran `from`, which is
 where the build will run. A slide with no notes has nothing to be said
 over it, so it is left out and `from` names it.
 
+Slides are numbered as Slidev numbers them, since that number is what a
+block shows: a `hide: true` or `disabled: true` slide has no number (and
+its notes are dropped, with a warning), and a `src:` import contributes
+every slide of the file it names, or the `#2-3` range of them. An import
+that cannot be read is a warning, because every number after it may be
+wrong.
+
 As with any draft, the script is the source of truth from here on: `from`
 will not overwrite it, and the notes and the script are free to part ways.
 

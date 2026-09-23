@@ -23,6 +23,9 @@ pub struct FromReport {
     /// over them, and so not in the draft.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub silent_slides: Vec<u32>,
+    /// What the draft could not follow, one sentence each.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 impl FromReport {
@@ -45,6 +48,9 @@ impl FromReport {
                  are not in the draft\n",
                 list.join(", ")
             ));
+        }
+        for w in &self.warnings {
+            s.push_str(&format!("  warning: {w}\n"));
         }
         s
     }
@@ -90,11 +96,14 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>, slidev: bool) -> std::io::Resu
 
     // A deck is named in the draft's scene config as it was named here:
     // relative to where teleprompt runs, which is where the build will run.
-    let (script, silent_slides) = if slidev {
-        let d = draft_slidev(&source, &doc.display().to_string());
-        (d.script, d.silent)
+    let (script, silent_slides, warnings) = if slidev {
+        // Imports are read relative to the deck's own directory.
+        let dir = doc.parent().unwrap_or(Path::new(""));
+        let read = |path: &str| std::fs::read_to_string(dir.join(path)).ok();
+        let d = draft_slidev(&source, &doc.display().to_string(), &read);
+        (d.script, d.silent, d.warnings)
     } else {
-        (draft(&source, &title_of(doc)), Vec::new())
+        (draft(&source, &title_of(doc)), Vec::new(), Vec::new())
     };
     if let Some(parent) = created.parent() {
         if !parent.as_os_str().is_empty() {
@@ -108,5 +117,6 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>, slidev: bool) -> std::io::Resu
         created,
         unreviewed: script.matches("review=pending").count(),
         silent_slides,
+        warnings,
     })
 }

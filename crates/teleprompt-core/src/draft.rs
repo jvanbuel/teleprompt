@@ -127,6 +127,9 @@ pub struct SlidevDraft {
     /// 1-based numbers of slides with no notes, so nothing to say over
     /// them, and so not in the draft.
     pub silent: Vec<u32>,
+    /// What else the draft could not follow — a hidden slide's notes, an
+    /// import that could not be read — one sentence each.
+    pub warnings: Vec<String>,
 }
 
 /// Drafts a script from a Slidev deck: each slide's speaker notes become
@@ -134,19 +137,32 @@ pub struct SlidevDraft {
 /// paragraph per click step, each followed by a block showing that step.
 ///
 /// `deck` is the path the scene config should name, as the build will
-/// see it. The deck is read the way Slidev's own parser reads it: slides
-/// are separated by `---` outside code fences and HTML comments, a
-/// separator followed by YAML up to the next `---` is that slide's
-/// frontmatter, and the notes are the slide's last comment, when nothing
-/// comes after it. `[click]` adds one click and `[click:3]` adds three.
-pub fn draft_slidev(deck_source: &str, deck: &str) -> SlidevDraft {
+/// see it. The deck is read the way Slidev reads it: slides are separated
+/// by `---` outside code fences and HTML comments, a separator followed by
+/// YAML up to the next `---` is that slide's frontmatter, and the notes
+/// are the slide's last comment, when nothing comes after it. `[click]`
+/// adds one click and `[click:3]` adds three.
+///
+/// Slides are numbered as Slidev numbers them, because a block names a
+/// slide by that number: a `hide`den or `disabled` slide has none, and a
+/// `src:` import contributes every slide of the file it names. `read` is
+/// given an import's path relative to the deck's directory and returns
+/// its contents, which keeps this function free of IO.
+pub fn draft_slidev(
+    deck_source: &str,
+    deck: &str,
+    read: &dyn Fn(&str) -> Option<String>,
+) -> SlidevDraft {
+    let mut loaded = Vec::new();
+    let mut warnings = Vec::new();
+    load(deck_source, "", None, &[], read, &mut loaded, &mut warnings);
+
     let mut out = format!(
         "---\nteleprompt: 1\nscene:\n  slides:\n    adapter: slidev\n    deck: {deck}\n---\n\n"
     );
     let mut seen = BTreeMap::new();
     let mut silent = Vec::new();
-
-    for (index, slide) in slides(deck_source).iter().enumerate() {
+    for (index, slide) in loaded.iter().enumerate() {
         let number = index as u32 + 1;
         let steps = note_steps(slide.note.as_deref().unwrap_or(""));
         if steps.is_empty() {
@@ -173,13 +189,133 @@ pub fn draft_slidev(deck_source: &str, deck: &str) -> SlidevDraft {
     SlidevDraft {
         script: out,
         silent,
+        warnings,
     }
+}
+
+/// The slides of one file, in the order Slidev shows them, appended to
+/// `into`. `file` is its path relative to the deck's directory (empty for
+/// the deck itself), `range` the 1-based slides an import selected, and
+/// `chain` the files importing it, for refusing a cycle.
+fn load(
+    source: &str,
+    file: &str,
+    range: Option<&[usize]>,
+    chain: &[String],
+    read: &dyn Fn(&str) -> Option<String>,
+    into: &mut Vec<Slide>,
+    warnings: &mut Vec<String>,
+) {
+    let named = |slide: &Slide, n: usize| {
+        slide.title.clone().map_or_else(
+            || format!("slide {n} of {}", or_deck(file)),
+            |t| format!("`{t}`"),
+        )
+    };
+    for (i, slide) in slides(source).into_iter().enumerate() {
+        let n = i + 1;
+        if range.is_some_and(|r| !r.contains(&n)) {
+            continue;
+        }
+        if slide.hidden {
+            if slide.note.is_some() {
+                warnings.push(format!(
+                    "{} is hidden, so it has no slide number, and its notes are not in the draft",
+                    named(&slide, n)
+                ));
+            }
+            continue;
+        }
+        let Some(src) = &slide.src else {
+            into.push(slide);
+            continue;
+        };
+        let (raw, selection) = src.split_once('#').unwrap_or((src.as_str(), ""));
+        let path = resolve(file, raw);
+        if path == file || chain.contains(&path) {
+            warnings.push(format!(
+                "`src: {src}` in {} imports itself; left out",
+                or_deck(file)
+            ));
+            continue;
+        }
+        let Some(imported) = read(&path) else {
+            warnings.push(format!(
+                "`src: {src}` in {} could not be read, so every slide number after it may be wrong",
+                or_deck(file)
+            ));
+            continue;
+        };
+        let selection = (!selection.is_empty()).then(|| parse_range(selection));
+        let mut chain = chain.to_vec();
+        chain.push(file.to_string());
+        load(
+            &imported,
+            &path,
+            selection.as_deref(),
+            &chain,
+            read,
+            into,
+            warnings,
+        );
+    }
+}
+
+fn or_deck(file: &str) -> &str {
+    if file.is_empty() {
+        "the deck"
+    } else {
+        file
+    }
+}
+
+/// An import's path relative to the deck's directory: `/x.md` is rooted
+/// there, anything else is relative to the importing file.
+fn resolve(importer: &str, raw: &str) -> String {
+    let joined = match raw.strip_prefix('/') {
+        Some(rooted) => rooted.to_string(),
+        None => match importer.rsplit_once('/') {
+            Some((dir, _)) => format!("{dir}/{raw}"),
+            None => raw.to_string(),
+        },
+    };
+    let mut parts: Vec<&str> = Vec::new();
+    for part in joined.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            p => parts.push(p),
+        }
+    }
+    parts.join("/")
+}
+
+/// Slidev's range syntax, `2`, `1-3`, `1,4-5`, as 1-based slide numbers.
+fn parse_range(s: &str) -> Vec<usize> {
+    let mut out = Vec::new();
+    for part in s.split(',') {
+        match part.split_once('-') {
+            Some((a, b)) => {
+                if let (Ok(a), Ok(b)) = (a.trim().parse::<usize>(), b.trim().parse::<usize>()) {
+                    out.extend(a..=b);
+                }
+            }
+            None => out.extend(part.trim().parse::<usize>()),
+        }
+    }
+    out
 }
 
 /// One slide of a deck, as far as a draft needs it.
 struct Slide {
     title: Option<String>,
     note: Option<String>,
+    /// `hide: true` or `disabled: true`: Slidev drops it, number and all.
+    hidden: bool,
+    /// `src:` — the slide is the file it names.
+    src: Option<String>,
 }
 
 /// The deck split into slides, by Slidev's rules.
@@ -228,9 +364,9 @@ fn slides(source: &str) -> Vec<Slide> {
     out
 }
 
-/// A slide's title and notes, from its lines.
+/// A slide's title, notes and the frontmatter that decides its number.
 fn slide(lines: &[&str]) -> Slide {
-    let mut frontmatter_title = None;
+    let mut frontmatter: BTreeMap<&str, String> = BTreeMap::new();
     let mut body = lines;
     if lines
         .first()
@@ -238,11 +374,11 @@ fn slide(lines: &[&str]) -> Slide {
     {
         if let Some(end) = lines[1..].iter().position(|l| l.trim_end() == "---") {
             for line in &lines[1..=end] {
-                if let Some(v) = line
-                    .strip_prefix("title:")
-                    .or_else(|| line.strip_prefix("name:"))
-                {
-                    frontmatter_title = Some(v.trim().trim_matches(['"', '\'']).to_string());
+                if let Some((key, value)) = line.split_once(':') {
+                    if !key.starts_with(char::is_whitespace) {
+                        let value = value.trim().trim_matches(['"', '\'']).to_string();
+                        frontmatter.insert(key.trim(), value);
+                    }
                 }
             }
             body = &lines[end + 2..];
@@ -258,20 +394,31 @@ fn slide(lines: &[&str]) -> Slide {
         })
         .map(|at| content[at + 4..content.len() - 3].trim().to_string());
 
-    let title = frontmatter_title.filter(|t| !t.is_empty()).or_else(|| {
-        let mut in_code = false;
-        content.lines().find_map(|l| {
-            if l.trim_start().starts_with("```") {
-                in_code = !in_code;
-            }
-            if in_code {
-                return None;
-            }
-            let hashes = l.chars().take_while(|c| *c == '#').count();
-            (hashes > 0 && l[hashes..].starts_with(' ')).then(|| l[hashes..].trim().to_string())
-        })
-    });
-    Slide { title, note }
+    let title = frontmatter
+        .get("title")
+        .or_else(|| frontmatter.get("name"))
+        .filter(|t| !t.is_empty())
+        .cloned()
+        .or_else(|| {
+            let mut in_code = false;
+            content.lines().find_map(|l| {
+                if l.trim_start().starts_with("```") {
+                    in_code = !in_code;
+                }
+                if in_code {
+                    return None;
+                }
+                let hashes = l.chars().take_while(|c| *c == '#').count();
+                (hashes > 0 && l[hashes..].starts_with(' ')).then(|| l[hashes..].trim().to_string())
+            })
+        });
+    let flag = |key: &str| frontmatter.get(key).is_some_and(|v| v == "true");
+    Slide {
+        title,
+        note,
+        hidden: flag("hide") || flag("disabled"),
+        src: frontmatter.get("src").filter(|s| !s.is_empty()).cloned(),
+    }
 }
 
 /// Notes split at `[click]` markers into `(clicks, text)` steps, each
