@@ -92,3 +92,24 @@ fn timed_audio_is_cached_apart() {
     };
     assert_ne!(off.version_string(), on.version_string());
 }
+
+/// A word the server did not time is left out, not placed at 0 ms: a cue
+/// on it then falls back to where it sits in the sentence, instead of
+/// firing as the sentence starts.
+#[tokio::test]
+async fn a_word_without_times_is_left_out_rather_than_put_at_the_start() {
+    let pcm: Vec<u8> = (0..2400i16).flat_map(i16::to_le_bytes).collect();
+    let body = serde_json::json!({
+        "audio": base64::engine::general_purpose::STANDARD.encode(pcm),
+        "timestamps": [
+            {"word": "Hello", "start_time": 0.0228, "end_time": 0.3478},
+            {"word": "from"},
+            {"word": "teleprompt", "start_time": "soon", "end_time": 1.3228}
+        ]
+    });
+    let s = spawn(Reply::Ok(body.to_string().into_bytes())).await;
+    let out = backend(&s.base_url, true).synthesize(&req()).await.unwrap();
+    let words = out.word_timings.expect("timed");
+    let said: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();
+    assert_eq!(said, ["Hello"]);
+}

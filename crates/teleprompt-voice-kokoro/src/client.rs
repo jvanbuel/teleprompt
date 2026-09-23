@@ -190,19 +190,21 @@ impl Client {
 }
 
 /// Word timings from a captioned response, in milliseconds, without the
-/// punctuation Kokoro times as words of its own.
+/// punctuation Kokoro times as words of its own, and without any word it
+/// gave no times for: an untimed word is interpolated by the caller.
 pub fn words(timestamps: &serde_json::Value) -> Vec<WordTiming> {
-    let ms = |v: &serde_json::Value| (v.as_f64().unwrap_or(0.0) * 1000.0).round() as u64;
+    let ms = |v: &serde_json::Value| v.as_f64().map(|s| (s * 1000.0).round() as u64);
     timestamps
         .as_array()
         .map(|a| {
             a.iter()
                 .filter_map(|t| {
                     let word = t["word"].as_str()?;
-                    word.chars().any(char::is_alphanumeric).then(|| WordTiming {
+                    word.chars().any(char::is_alphanumeric).then_some(())?;
+                    Some(WordTiming {
                         word: word.to_string(),
-                        start_ms: ms(&t["start_time"]),
-                        end_ms: ms(&t["end_time"]),
+                        start_ms: ms(&t["start_time"])?,
+                        end_ms: ms(&t["end_time"])?,
                     })
                 })
                 .collect()
