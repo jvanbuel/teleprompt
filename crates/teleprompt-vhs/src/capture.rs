@@ -19,7 +19,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use teleprompt_capture::reel::{cut, starved, windows};
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
+use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
 
 /// The tape `vhs` should run for a whole session.
 ///
@@ -158,9 +158,8 @@ impl CaptureBackend for VhsRender {
             path: out_dir.display().to_string(),
             source,
         })?;
-        let work = out_dir.join(format!(".vhs-{}", std::process::id()));
-        std::fs::create_dir_all(&work).map_err(|source| CaptureError::Io {
-            path: work.display().to_string(),
+        let work = WorkDir::create(out_dir, "vhs").map_err(|source| CaptureError::Io {
+            path: out_dir.display().to_string(),
             source,
         })?;
 
@@ -255,7 +254,6 @@ impl CaptureBackend for VhsRender {
             });
         }
 
-        let _ = std::fs::remove_dir_all(&work);
         Ok(clips)
     }
 }

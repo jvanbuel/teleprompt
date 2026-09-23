@@ -10,11 +10,11 @@
 //! Playwright scripts; the only thing teleprompt has to know is how to
 //! wrap one.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use teleprompt_capture::reel::{cut, starved, windows};
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
+use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
 
 /// How long an action annotation — the pointer, the click ripple, the
 /// title overlay — stays on screen, unless the scene says otherwise.
@@ -184,9 +184,8 @@ impl CaptureBackend for PlaywrightRender {
             reason: why,
         };
 
-        let work = out_dir.join(format!(".pw-{}", std::process::id()));
-        std::fs::create_dir_all(&work)
-            .map_err(|e| failed(&first, format!("{}: {e}", work.display())))?;
+        let work = WorkDir::create(out_dir, "pw")
+            .map_err(|e| failed(&first, format!("{}: {e}", out_dir.display())))?;
         let video_dir = work.join("video");
         let script = work.join("session.mjs");
         std::fs::write(
@@ -261,12 +260,6 @@ impl CaptureBackend for PlaywrightRender {
             });
         }
 
-        let _ = std::fs::remove_dir_all(&work);
         Ok(clips)
     }
-}
-
-/// Where a recording is kept while it is being cut up.
-pub fn workdir(out_dir: &Path) -> PathBuf {
-    out_dir.join(format!(".pw-{}", std::process::id()))
 }

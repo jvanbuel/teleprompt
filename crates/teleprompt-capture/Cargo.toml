@@ -9,5 +9,8 @@ license.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
 thiserror.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true

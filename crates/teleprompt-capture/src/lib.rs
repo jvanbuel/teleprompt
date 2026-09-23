@@ -171,6 +171,42 @@ pub struct Frame {
     pub fps: u32,
 }
 
+/// A scratch directory a backend records into, removed when dropped.
+///
+/// A capture that fails partway still drops it, so a half-made recording
+/// is never left among the clips it was being cut into.
+#[derive(Debug)]
+pub struct WorkDir(PathBuf);
+
+impl WorkDir {
+    /// Creates `parent/.{name}-{pid}`.
+    pub fn create(parent: &Path, name: &str) -> std::io::Result<WorkDir> {
+        let path = parent.join(format!(".{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&path)?;
+        Ok(WorkDir(path))
+    }
+}
+
+impl std::ops::Deref for WorkDir {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for WorkDir {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for WorkDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// How far a capture has got. Reported per shot, because a shot is the
 /// unit an author recognises and a session can be minutes long.
 #[derive(Debug, Clone, PartialEq, Eq)]

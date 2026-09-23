@@ -10,5 +10,8 @@ teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true

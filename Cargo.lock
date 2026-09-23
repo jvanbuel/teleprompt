@@ -1142,6 +1142,7 @@ name = "teleprompt-capture"
 version = "0.1.0"
 dependencies = [
  "teleprompt-core",
+ "tempfile",
  "thiserror 1.0.69",
 ]
 
@@ -1218,6 +1219,7 @@ dependencies = [
  "teleprompt-capture",
  "teleprompt-core",
  "teleprompt-scene",
+ "tempfile",
 ]
 
 [[package]]
@@ -1274,6 +1276,7 @@ dependencies = [
  "teleprompt-capture",
  "teleprompt-core",
  "teleprompt-scene",
+ "tempfile",
 ]
 
 [[package]]
