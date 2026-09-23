@@ -232,65 +232,58 @@ shell starts in the directory the build was run from unless the scene says
 
 ### Motion graphics
 
-A scene whose adapter is `remotion` is JSX, drawn by
-[Remotion](https://www.remotion.dev) — titles, diagrams, charts, anything
-a React component can draw:
+A scene whose adapter is `remotion` renders compositions from an ordinary
+[Remotion](https://www.remotion.dev) project — the one you already have,
+unchanged. A shot names a composition and its props, which is what
+`npx remotion render <id> --props=…` takes:
 
 ````markdown
 The words decide the timing. {#timing}
 
 ```teleprompt scene=motion policy=concurrent
-<Backdrop />
-<Pipeline steps={["Markdown", "Kokoro", "Timeline", "Remotion", "Video"]} />
-{/* mark */}
-<Title title="Rebuild" />
+Pipeline {"steps": ["Markdown", "Kokoro", "Timeline", "Video"]}
+# mark
+Title {"title": "Rebuild"}
 ```
 ````
 
-The block is the children of a full-frame composition, and the capitalised
-names in it are looked up in the module `components` names, then in
-`remotion` itself. `{/* mark */}` splits it into shots — the JSX spelling
-of a comment, because `// mark` inside JSX children is text and would be
-drawn, which is why `check` refuses it.
+Props are a JSON object and may span lines; `#` lines are comments, and
+`# mark` splits a block into shots. `check` refuses props that are not
+JSON; a composition the project does not register fails at capture, with
+Remotion's own error.
 
 ```toml
 [scene.motion]
 adapter = "remotion"
-project = "motion"                  # where Remotion is installed
-components = "src/components.tsx"   # relative to `project`
-background = "#0b0d10"
+project = "motion"          # the Remotion project, with node_modules installed
+# entry = "src/index.ts"    # its registerRoot file; Remotion's default
 # browser = "/path/to/chrome-headless-shell"
 ```
 
-**A composition is as long as it is told to be.** A tape states its own
-length and a Playwright script takes as long as the page does; a
-composition's `durationInFrames` is an argument. So the block states no
-length, the scheduler gives each shot the sentence spoken over it, and the
-shot is rendered at exactly that length — a component that animates
-against `useVideoConfig().durationInFrames` fills a two-second slot and a
-fifteen-second one alike. The length is written into the published source
-as a JSX comment, so a reworded sentence re-renders the shot beneath it
-rather than reusing a clip made for the old length.
+**teleprompt owns the length and the frame; the composition owns the
+rest.** Each shot is rendered with `durationInFrames` set to the sentence
+spoken over it and the script's resolution and fps, whatever the
+composition registered. A component that animates against
+`useVideoConfig().durationInFrames` fills a two-second slot and a
+fifteen-second one alike. The length is written into the published source,
+so a reworded sentence re-renders the shot beneath it.
 
 **A shot does not continue the one before it.** A terminal shot opens on
 the screen its predecessor left, so its key chains through every shot
 before it. A composition draws the same frames whatever preceded it, so
-each shot is named by itself: editing one paragraph re-renders one shot,
-and a cached shot is not rendered at all.
+each shot is named by itself: editing one paragraph re-renders one shot.
 
-One Node process bundles the session once and renders each missing shot
-to its clip, with the project's own `node_modules` — teleprompt installs
-nothing. Remotion downloads a headless Chrome the first time it renders
-unless the scene names a `browser` or `TELEPROMPT_REMOTION_BROWSER` does;
-the variable is for a machine, where a path does not belong in a committed
-`teleprompt.toml`.
+One Node process bundles the project's entry once and renders each missing
+shot to its clip, using the project's own `node_modules`. Remotion
+downloads a headless Chrome on first render unless `browser` or
+`TELEPROMPT_REMOTION_BROWSER` names one.
 
 The key covers the block and the scene's settings, not the project's
 source: editing a component re-renders nothing on its own. Delete
-`.teleprompt/cache/video` after changing what a component draws.
+`.teleprompt/cache/video` after changing what a composition draws.
 
 `examples/remotion` is a complete project — a script narrated by Kokoro
-whose every picture is a motion scene:
+whose every picture is a composition:
 
 ```bash
 (cd examples/remotion/motion && npm install)

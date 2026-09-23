@@ -1,37 +1,93 @@
-//! A motion scene: JSX, rendered by Remotion.
+//! A motion scene: a composition from an existing Remotion project.
 //!
-//! The block *is* JSX — the children of a full-frame composition, written
-//! with whatever components the project's Remotion code exports. There is
-//! no dialect here: what an author writes is what Remotion renders, and
-//! everything Remotion can draw is available without this crate knowing
-//! about it.
+//! A shot names one of the project's compositions and the props to render
+//! it with — what `npx remotion render <id> --props=…` takes, and nothing
+//! else. The project is an ordinary Remotion project; teleprompt reads none
+//! of its code.
 //!
-//! What makes Remotion different from the other adapters is who decides
-//! the length. A tape states its own timing; a Playwright script takes as
-//! long as the page takes. A composition takes as long as it is *told* to:
-//! `durationInFrames` is an argument, and a component that animates
-//! against `useVideoConfig().durationInFrames` fills whatever it is given.
-//! So `estimate` is [`Measured::Unknown`] — the block states no length —
-//! and `retime` always succeeds, because rendering at the scheduled length
-//! is not an approximation of the slot but the definition of it.
+//! ```text
+//! Title {"title": "Hello"}
+//! # mark
+//! Pipeline {"steps": ["a", "b"]}
+//! ```
+//!
+//! A composition takes as long as it is told to, so `estimate` is
+//! [`Measured::Unknown`] and the scheduler gives each shot its sentence.
+//! `retime` always succeeds: rendering at the scheduled length is not an
+//! approximation of the slot but the definition of it.
 
 use teleprompt_core::{Diagnostic, Hash};
-use teleprompt_scene::contract::{
-    validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
-};
+use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 
-/// The mark, spelled as a JSX comment.
-///
-/// A comment for the reason every adapter's mark is one: the block has to
-/// stay something a person can paste into a Remotion composition
-/// unchanged. In JSX that means the braced form — a `//` line inside
-/// children is not a comment but text, and would be drawn on screen.
-pub const MARK: &str = "{/* mark */}";
+/// The mark, and `#` comments generally — the shell's spelling, since a
+/// shot reads like the arguments to `remotion render`.
+pub const MARK: &str = "# mark";
 
-/// How a re-timed shot states its length: a JSX comment, so the source
-/// stays renderable, carrying the number that makes its hash move.
-const LENGTH_PREFIX: &str = "{/* teleprompt: ";
-const LENGTH_SUFFIX: &str = "ms */}";
+/// How a re-timed shot states its length, so the length is in its hash.
+const LENGTH_PREFIX: &str = "# teleprompt: ";
+const LENGTH_SUFFIX: &str = "ms";
+
+/// A shot, read: which composition, and its props as a JSON object.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Invocation {
+    pub composition: String,
+    pub props: serde_json::Value,
+}
+
+/// Read one shot's source. `Ok(None)` for a shot of only comments.
+pub fn parse(source: &str) -> Result<Option<Invocation>, String> {
+    let text: String = source
+        .lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let (composition, props) = text
+        .split_once(char::is_whitespace)
+        .map_or((text, ""), |(id, rest)| (id, rest.trim()));
+    // Remotion's own rule for a composition id.
+    if !composition.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        return Err(format!(
+            "`{composition}` is not a composition id: Remotion allows letters, digits and `-`"
+        ));
+    }
+    let props = if props.is_empty() {
+        serde_json::json!({})
+    } else {
+        match serde_json::from_str::<serde_json::Value>(props) {
+            Ok(v) if v.is_object() => v,
+            Ok(_) => return Err("props must be a JSON object".into()),
+            Err(e) => {
+                return Err(format!(
+                    "props for `{composition}` are not JSON: {e} (one composition per shot; \
+                     separate shots with `{MARK}`)"
+                ))
+            }
+        }
+    };
+    Ok(Some(Invocation {
+        composition: composition.to_string(),
+        props,
+    }))
+}
+
+/// The block split at its marks, each chunk with the index of its first line.
+fn chunks(body: &str) -> Vec<(usize, String)> {
+    let mut out = vec![(0, String::new())];
+    for (i, line) in body.lines().enumerate() {
+        if line.trim() == MARK {
+            out.push((i + 1, String::new()));
+        } else {
+            let chunk = &mut out.last_mut().expect("seeded").1;
+            chunk.push_str(line);
+            chunk.push('\n');
+        }
+    }
+    out
+}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RemotionScene;
@@ -41,41 +97,35 @@ impl SceneCompiler for RemotionScene {
         "remotion"
     }
 
-    /// Refuses one thing: a mark spelled the way the Playwright adapter
-    /// spells it.
-    ///
-    /// Everything else is JSX this crate does not parse, and a wrong line
-    /// fails when Remotion bundles it, with the bundler's own error. But
-    /// `// mark` is worse than wrong: it is valid JSX that means the text
-    /// "// mark", so the block would compile as one shot and render the
-    /// author's intended split as a caption.
+    /// Every shot must name a composition and give props as JSON. Whether
+    /// the composition exists is the project's business, and Remotion says
+    /// so when it is asked to render it.
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
-        validate_commands(src, |line| {
-            if line.trim() == "// mark" {
-                Err(CommandError::new(
-                    "`// mark` is text in JSX, not a comment, and would be drawn on screen",
-                    format!("a remotion block marks a shot with `{MARK}`"),
-                ))
-            } else {
-                Ok(())
-            }
-        })
+        let diags: Vec<Diagnostic> = chunks(&src.body)
+            .into_iter()
+            .filter_map(|(first, chunk)| {
+                let why = parse(&chunk).err()?;
+                let at = chunk
+                    .lines()
+                    .position(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
+                    .unwrap_or(0);
+                Some(src.origin.locate(Diagnostic::error(why), first + at, 0))
+            })
+            .collect();
+        if diags.is_empty() {
+            Ok(Validated {
+                scene: src.scene.clone(),
+                body: src.body.clone(),
+            })
+        } else {
+            Err(diags)
+        }
     }
 
     fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let mut out = Vec::new();
-        for chunk in v.body.split('\n').fold(vec![Vec::new()], |mut acc, line| {
-            if line.trim() == MARK {
-                acc.push(Vec::new());
-            } else {
-                acc.last_mut().expect("seeded with one").push(line);
-            }
-            acc
-        }) {
-            let source = chunk.join("\n");
-            // A chunk of only comments and blank lines draws nothing, and
-            // a shot that draws nothing is a picture nobody asked for.
-            if !has_markup(&source) {
+        for (_, source) in chunks(&v.body) {
+            if !matches!(parse(&source), Ok(Some(_))) {
                 continue;
             }
             let index = out.len();
@@ -89,61 +139,29 @@ impl SceneCompiler for RemotionScene {
         Ok(out)
     }
 
-    /// A composition is as long as it is told to be, so the block itself
-    /// says nothing about it. The scheduler gives the shot the sentence
-    /// spoken over it.
     fn estimate(&self, _shot: &Shot) -> Measured {
         Measured::Unknown
     }
 
+    /// The same shot, stating the length it will be rendered at. The
+    /// length has to be in the source because the source is what the
+    /// capture key is built from: a composition that animates across its
+    /// duration is a different picture at four seconds than at six.
+    fn retime(&self, shot: &Shot, target_ms: u64) -> Option<String> {
+        let body = match shot.source.split_once('\n') {
+            Some((first, rest))
+                if first.starts_with(LENGTH_PREFIX) && first.ends_with(LENGTH_SUFFIX) =>
+            {
+                rest
+            }
+            _ => &shot.source,
+        };
+        Some(format!("{LENGTH_PREFIX}{target_ms}{LENGTH_SUFFIX}\n{body}"))
+    }
+
     /// A composition draws the same frames whatever was on screen before
-    /// it, so a shot is named by its own source and editing one re-renders
-    /// that one.
+    /// it, so each shot is named by itself and editing one re-renders one.
     fn continues(&self) -> bool {
         false
     }
-
-    /// The same JSX, stating the length it will be rendered at.
-    ///
-    /// Nothing about the markup changes — Remotion is told the length, the
-    /// markup is not — but the length has to be *in the source*, because
-    /// the source is what the capture key is built from. A composition
-    /// that animates across its whole duration is a different picture at
-    /// four seconds than at six, and without this line a reworded sentence
-    /// would reuse the clip rendered for the old one.
-    fn retime(&self, shot: &Shot, target_ms: u64) -> Option<String> {
-        Some(format!(
-            "{LENGTH_PREFIX}{target_ms}{LENGTH_SUFFIX}\n{}",
-            strip_length(&shot.source)
-        ))
-    }
-}
-
-/// A source without the length line a previous `retime` put on it, so
-/// re-timing twice states one length rather than two.
-fn strip_length(source: &str) -> &str {
-    match source.split_once('\n') {
-        Some((first, rest))
-            if first.starts_with(LENGTH_PREFIX) && first.ends_with(LENGTH_SUFFIX) =>
-        {
-            rest
-        }
-        _ => source,
-    }
-}
-
-/// Whether a chunk holds anything that would be drawn.
-fn has_markup(source: &str) -> bool {
-    source
-        .lines()
-        .map(str::trim)
-        .any(|l| !l.is_empty() && !is_comment(l))
-}
-
-/// Whether a trimmed line is exactly one JSX comment, `{/* … */}`.
-fn is_comment(line: &str) -> bool {
-    line.len() >= 6
-        && line.starts_with("{/*")
-        && line.ends_with("*/}")
-        && !line[3..line.len() - 3].contains("*/")
 }

@@ -18,19 +18,13 @@ backend = "kokoro"
 voice = "af_heart"
 speed = 1.0
 
-[voice.pronounce]
-JSX = "jay ess ex"
-
 [backends.kokoro]
 base_url = "http://localhost:8880"
 timeout_ms = 60000
 concurrency = 2
 
-# `project` is where Remotion is installed, and `components` is the module,
-# relative to it, whose exports a block's JSX can name. Both are relative
-# to the directory the build runs from, as a terminal scene's PATH is.
+# `project` is an ordinary Remotion project, relative to the directory the
+# build runs from; `entry` (default `src/index.ts`) is relative to it.
 [scene.motion]
 adapter = "remotion"
 project = "examples/remotion/motion"
-components = "src/components.tsx"
-background = "#0b0d10"
