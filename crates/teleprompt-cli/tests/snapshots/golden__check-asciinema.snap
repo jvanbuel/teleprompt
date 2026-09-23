@@ -1,0 +1,17 @@
+---
+source: crates/teleprompt-cli/tests/golden.rs
+expression: transcript(&out)
+---
+{
+  "exit": 0,
+  "stderr": [
+    "warning: doctor: action needs 3.06x stretch to fill narration, above max_stretch 3.00; clamped"
+  ],
+  "stdout": {
+    "errors": [],
+    "ok": true,
+    "warnings": [
+      "doctor: action needs 3.06x stretch to fill narration, above max_stretch 3.00; clamped"
+    ]
+  }
+}

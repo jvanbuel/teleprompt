@@ -1170,6 +1170,7 @@ dependencies = [
  "teleprompt-voice",
  "teleprompt-voice-kokoro",
  "teleprompt-voice-null",
+ "tempfile",
  "tokio",
 ]
 

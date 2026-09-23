@@ -1,0 +1,372 @@
+---
+source: crates/teleprompt-cli/tests/golden.rs
+expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
+---
+{
+  "manifest": {
+    "audio": {
+      "channels": 1,
+      "format": "wav",
+      "sample_rate": 48000
+    },
+    "chapters": [
+      {
+        "id": "in-the-browser",
+        "start_ms": 150,
+        "title": "In the browser"
+      },
+      {
+        "id": "in-the-terminal",
+        "start_ms": 27100,
+        "title": "In the terminal"
+      }
+    ],
+    "duration_ms": 56800,
+    "generated_by": "teleprompt 0.1.0",
+    "lines": [
+      {
+        "audio": "audio/signin.wav",
+        "audio_hash": "a9eefd60397870096460c466299826e571f25730a97c75c03b4c3c59da3de2e4",
+        "chapter": "in-the-browser",
+        "downgrade_reason": null,
+        "duration_ms": 5050,
+        "duration_source": "measured",
+        "id": "signin",
+        "source_hash": "13c8169b184110bf8ef44126989f03c8074d78fdd23d529b00901c254484bd97",
+        "start_ms": 150,
+        "text": "Airflow's web interface starts, like most of them, with a sign-in.",
+        "voice_source": "synthetic",
+        "voice_source_actual": "synthetic"
+      },
+      {
+        "audio": "audio/clicking.wav",
+        "audio_hash": "40cee15c5c4b4a50f5f82b1c8417b5bc4acb08988d93849497bad31da538ac5d",
+        "chapter": "in-the-browser",
+        "downgrade_reason": null,
+        "duration_ms": 21300,
+        "duration_source": "measured",
+        "id": "clicking",
+        "source_hash": "05e3bb5ddb1d13289c39090e304b97d7c9b4990ed9b085bb999df298ab93f3d9",
+        "start_ms": 5500,
+        "text": "From there, one task's log is a search and three clicks: narrow the DAG list, open the DAG, pick the task out of the grid, and switch to its log tab. Each click waits on the server, and what you get at the end is seven lines of output.",
+        "voice_source": "synthetic",
+        "voice_source_actual": "synthetic"
+      },
+      {
+        "audio": "audio/flowrs.wav",
+        "audio_hash": "705dd4d6104a57c5d091317dbc21a3c44025c8787ff951353b495d5cf2d6d520",
+        "chapter": "in-the-terminal",
+        "downgrade_reason": null,
+        "duration_ms": 9400,
+        "duration_source": "measured",
+        "id": "flowrs",
+        "source_hash": "411dc5cb5b6ddb0439acd6ad348cc89003be7a3c12b40bd09348ed82556d3fd0",
+        "start_ms": 27100,
+        "text": "Flowrs reads the same REST API from a terminal. One command, no sign-in, and the DAG list is already on screen.",
+        "voice_source": "synthetic",
+        "voice_source_actual": "synthetic"
+      },
+      {
+        "audio": "audio/filter.wav",
+        "audio_hash": "a3bfe9b68c1e8d6116e6b107cea3fc1050a2ae574ec66689a58ca26927898eef",
+        "chapter": "in-the-terminal",
+        "downgrade_reason": null,
+        "duration_ms": 5950,
+        "duration_source": "measured",
+        "id": "filter",
+        "source_hash": "dd47f9c83e204f83d142d73efd2c8af6ac13406f54a0d7bc78a28cacd0b44fd0",
+        "start_ms": 36500,
+        "text": "Filtering is a slash and as much of the name as you can remember.",
+        "voice_source": "synthetic",
+        "voice_source_actual": "synthetic"
+      },
+      {
+        "audio": "audio/drill.wav",
+        "audio_hash": "f9787a8cc021d5b5fccf86553e1b9efb2894500069d3089572b63152008d9a53",
+        "chapter": "in-the-terminal",
+        "downgrade_reason": null,
+        "duration_ms": 14200,
+        "duration_source": "measured",
+        "id": "drill",
+        "source_hash": "5a479fd63519c7540edcd1cc12fd2fde1e0de5cd2f04504151163996d1a250a8",
+        "start_ms": 42450,
+        "text": "Enter walks down the hierarchy — the DAG, its runs, the tasks in a run, and finally the log. Escape walks back up. Same answer, no page loads, and nothing to click.",
+        "voice_source": "synthetic",
+        "voice_source_actual": "synthetic"
+      }
+    ],
+    "locale": "en",
+    "manifest_version": 2,
+    "script": "demo.md",
+    "shots": [
+      {
+        "adapter": "playwright",
+        "capture_key": "2903544fdf8a0315291ae25fd6a91f92c64e835e1c4cedc748b69915dc49d6f3",
+        "duration_ms": 5350,
+        "duration_source": "unknown",
+        "line": "signin",
+        "policy": "concurrent",
+        "scene": "ui",
+        "shot": "signin-a#0",
+        "shot_hash": "7302179c469b1b899d66a5b399440729d26245e004e227040ff7275862f56c5e",
+        "start_ms": 0,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "adapter": "playwright",
+        "capture_key": "45bd916e668c7ba68099b66b63e381cd5e439146a1012e38c502e62eb1b7a526",
+        "duration_ms": 21600,
+        "duration_source": "unknown",
+        "line": "clicking",
+        "policy": "concurrent",
+        "scene": "ui",
+        "shot": "clicking-a#0",
+        "shot_hash": "46cd59d1c7a703274e7f2c8c5779d75159d7a9d5f984be9b6529b85fb5881849",
+        "start_ms": 5350,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "adapter": "vhs",
+        "capture_key": "8b05ebbd3476dca99f2ed1f4554d309fe63038e372bcb6707769d5cd7bf84bed",
+        "duration_ms": 5440,
+        "duration_source": "exact",
+        "line": "flowrs",
+        "policy": "concurrent",
+        "scene": "terminal",
+        "shot": "flowrs-a#0",
+        "shot_hash": "8d7b4eb062b042d69aa07f9d66aad3f95fc68c4ceb3b8ce39aba191b3318f0b0",
+        "start_ms": 26950,
+        "transition": {
+          "duration_ms": 300,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "adapter": "vhs",
+        "capture_key": "fe722e6e47f03d4c0eee7aea07f15559e771e57100a0fd0fdcc161438c7301ed",
+        "duration_ms": 4650,
+        "duration_source": "exact",
+        "line": "filter",
+        "policy": "concurrent",
+        "scene": "terminal",
+        "shot": "filter-a#0",
+        "shot_hash": "ed32f7fd319cebef58149fdaa98ec1b4341cf78333a06e3a60d8757c608532a2",
+        "start_ms": 36350,
+        "transition": {
+          "duration_ms": 300,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "adapter": "vhs",
+        "capture_key": "80e9cee2380d489c6259b3ae65238584b265353f449af92b9fc19f0a5aed95f2",
+        "duration_ms": 10300,
+        "duration_source": "exact",
+        "line": "drill",
+        "policy": "concurrent",
+        "scene": "terminal",
+        "shot": "drill-a#0",
+        "shot_hash": "0adec7078b12279fbd93ca520313fe0493a3dde273263ea379623851cceaf246",
+        "start_ms": 42300,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      }
+    ]
+  },
+  "run": {
+    "exit": 0,
+    "stderr": [
+      "  [1/5] signin done",
+      "  [2/5] clicking done",
+      "  [3/5] flowrs done",
+      "  [4/5] filter done",
+      "  [5/5] drill done"
+    ],
+    "stdout": {
+      "audio": {
+        "channels": 1,
+        "format": "wav",
+        "sample_rate": 48000
+      },
+      "chapters": [
+        {
+          "id": "in-the-browser",
+          "start_ms": 150,
+          "title": "In the browser"
+        },
+        {
+          "id": "in-the-terminal",
+          "start_ms": 27100,
+          "title": "In the terminal"
+        }
+      ],
+      "duration_ms": 56800,
+      "generated_by": "teleprompt 0.1.0",
+      "lines": [
+        {
+          "audio": "audio/signin.wav",
+          "audio_hash": "a9eefd60397870096460c466299826e571f25730a97c75c03b4c3c59da3de2e4",
+          "chapter": "in-the-browser",
+          "downgrade_reason": null,
+          "duration_ms": 5050,
+          "duration_source": "measured",
+          "id": "signin",
+          "source_hash": "13c8169b184110bf8ef44126989f03c8074d78fdd23d529b00901c254484bd97",
+          "start_ms": 150,
+          "text": "Airflow's web interface starts, like most of them, with a sign-in.",
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        {
+          "audio": "audio/clicking.wav",
+          "audio_hash": "40cee15c5c4b4a50f5f82b1c8417b5bc4acb08988d93849497bad31da538ac5d",
+          "chapter": "in-the-browser",
+          "downgrade_reason": null,
+          "duration_ms": 21300,
+          "duration_source": "measured",
+          "id": "clicking",
+          "source_hash": "05e3bb5ddb1d13289c39090e304b97d7c9b4990ed9b085bb999df298ab93f3d9",
+          "start_ms": 5500,
+          "text": "From there, one task's log is a search and three clicks: narrow the DAG list, open the DAG, pick the task out of the grid, and switch to its log tab. Each click waits on the server, and what you get at the end is seven lines of output.",
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        {
+          "audio": "audio/flowrs.wav",
+          "audio_hash": "705dd4d6104a57c5d091317dbc21a3c44025c8787ff951353b495d5cf2d6d520",
+          "chapter": "in-the-terminal",
+          "downgrade_reason": null,
+          "duration_ms": 9400,
+          "duration_source": "measured",
+          "id": "flowrs",
+          "source_hash": "411dc5cb5b6ddb0439acd6ad348cc89003be7a3c12b40bd09348ed82556d3fd0",
+          "start_ms": 27100,
+          "text": "Flowrs reads the same REST API from a terminal. One command, no sign-in, and the DAG list is already on screen.",
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        {
+          "audio": "audio/filter.wav",
+          "audio_hash": "a3bfe9b68c1e8d6116e6b107cea3fc1050a2ae574ec66689a58ca26927898eef",
+          "chapter": "in-the-terminal",
+          "downgrade_reason": null,
+          "duration_ms": 5950,
+          "duration_source": "measured",
+          "id": "filter",
+          "source_hash": "dd47f9c83e204f83d142d73efd2c8af6ac13406f54a0d7bc78a28cacd0b44fd0",
+          "start_ms": 36500,
+          "text": "Filtering is a slash and as much of the name as you can remember.",
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        {
+          "audio": "audio/drill.wav",
+          "audio_hash": "f9787a8cc021d5b5fccf86553e1b9efb2894500069d3089572b63152008d9a53",
+          "chapter": "in-the-terminal",
+          "downgrade_reason": null,
+          "duration_ms": 14200,
+          "duration_source": "measured",
+          "id": "drill",
+          "source_hash": "5a479fd63519c7540edcd1cc12fd2fde1e0de5cd2f04504151163996d1a250a8",
+          "start_ms": 42450,
+          "text": "Enter walks down the hierarchy — the DAG, its runs, the tasks in a run, and finally the log. Escape walks back up. Same answer, no page loads, and nothing to click.",
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        }
+      ],
+      "locale": "en",
+      "manifest_version": 2,
+      "script": "demo.md",
+      "shots": [
+        {
+          "adapter": "playwright",
+          "capture_key": "2903544fdf8a0315291ae25fd6a91f92c64e835e1c4cedc748b69915dc49d6f3",
+          "duration_ms": 5350,
+          "duration_source": "unknown",
+          "line": "signin",
+          "policy": "concurrent",
+          "scene": "ui",
+          "shot": "signin-a#0",
+          "shot_hash": "7302179c469b1b899d66a5b399440729d26245e004e227040ff7275862f56c5e",
+          "start_ms": 0,
+          "transition": {
+            "duration_ms": 0,
+            "kind": "crossfade"
+          }
+        },
+        {
+          "adapter": "playwright",
+          "capture_key": "45bd916e668c7ba68099b66b63e381cd5e439146a1012e38c502e62eb1b7a526",
+          "duration_ms": 21600,
+          "duration_source": "unknown",
+          "line": "clicking",
+          "policy": "concurrent",
+          "scene": "ui",
+          "shot": "clicking-a#0",
+          "shot_hash": "46cd59d1c7a703274e7f2c8c5779d75159d7a9d5f984be9b6529b85fb5881849",
+          "start_ms": 5350,
+          "transition": {
+            "duration_ms": 0,
+            "kind": "crossfade"
+          }
+        },
+        {
+          "adapter": "vhs",
+          "capture_key": "8b05ebbd3476dca99f2ed1f4554d309fe63038e372bcb6707769d5cd7bf84bed",
+          "duration_ms": 5440,
+          "duration_source": "exact",
+          "line": "flowrs",
+          "policy": "concurrent",
+          "scene": "terminal",
+          "shot": "flowrs-a#0",
+          "shot_hash": "8d7b4eb062b042d69aa07f9d66aad3f95fc68c4ceb3b8ce39aba191b3318f0b0",
+          "start_ms": 26950,
+          "transition": {
+            "duration_ms": 300,
+            "kind": "crossfade"
+          }
+        },
+        {
+          "adapter": "vhs",
+          "capture_key": "fe722e6e47f03d4c0eee7aea07f15559e771e57100a0fd0fdcc161438c7301ed",
+          "duration_ms": 4650,
+          "duration_source": "exact",
+          "line": "filter",
+          "policy": "concurrent",
+          "scene": "terminal",
+          "shot": "filter-a#0",
+          "shot_hash": "ed32f7fd319cebef58149fdaa98ec1b4341cf78333a06e3a60d8757c608532a2",
+          "start_ms": 36350,
+          "transition": {
+            "duration_ms": 300,
+            "kind": "crossfade"
+          }
+        },
+        {
+          "adapter": "vhs",
+          "capture_key": "80e9cee2380d489c6259b3ae65238584b265353f449af92b9fc19f0a5aed95f2",
+          "duration_ms": 10300,
+          "duration_source": "exact",
+          "line": "drill",
+          "policy": "concurrent",
+          "scene": "terminal",
+          "shot": "drill-a#0",
+          "shot_hash": "0adec7078b12279fbd93ca520313fe0493a3dde273263ea379623851cceaf246",
+          "start_ms": 42300,
+          "transition": {
+            "duration_ms": 0,
+            "kind": "crossfade"
+          }
+        }
+      ]
+    }
+  }
+}

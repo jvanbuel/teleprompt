@@ -1,0 +1,109 @@
+---
+source: crates/teleprompt-cli/tests/golden.rs
+expression: transcript(&out)
+---
+{
+  "exit": 0,
+  "stderr": [
+    "warning: 3 of 3 narration durations are estimated; run `teleprompt dub` to measure them before committing this timeline"
+  ],
+  "stdout": {
+    "duration_ms": 38200,
+    "entries": [
+      {
+        "action": {
+          "adapter": "asciinema",
+          "capture_key": "d70a6aa9c45ab359382dbc5e55ed085266e1b234604f3467c24010b728995be2",
+          "duration_ms": 11600,
+          "duration_source": "exact",
+          "scene": "recording",
+          "shot": "check-a#0",
+          "shot_hash": "e906e3fd76c3105ac3ac634f0a6809036ea0d383dd841ad8123ffa98d6ab377b",
+          "start_ms": 0
+        },
+        "duration_ms": 11600,
+        "item": "check",
+        "narration": {
+          "audio_hash": "3c8179a92788949e8d2057f070636191b0133fe2e0cb0ca06de852e555bf6052",
+          "duration_ms": 11300,
+          "duration_source": "estimated",
+          "line": "check",
+          "source_hash": "f384193045eb23f735799667d0fcf54ff3b7c5694539465ffb8527f8ee7eb86a",
+          "start_ms": 150,
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        "policy": "stretch-action",
+        "start_ms": 0,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "adapter": "asciinema",
+          "capture_key": "8bd9818f0d70d5c5012a77b19c80875cbcea9ec75ae148271cdda151e9290096",
+          "duration_ms": 13950,
+          "duration_source": "exact",
+          "scene": "recording",
+          "shot": "plan-a#0",
+          "shot_hash": "9a4543d602d1094f5941f2f680474f20efa576e1c474c5776beac3cd7ba56367",
+          "start_ms": 11600
+        },
+        "duration_ms": 13950,
+        "item": "plan",
+        "narration": {
+          "audio_hash": "5d32babb86b69bef65fd4bfc86e8e3ee388b18270ebf4c0a0eefebf1dbf1eeaa",
+          "duration_ms": 13650,
+          "duration_source": "estimated",
+          "line": "plan",
+          "source_hash": "b3671f54fa42578c09b68aeec59373a59f3ee2f33eeac5030626893b5ed9f46b",
+          "start_ms": 11750,
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        "policy": "stretch-action",
+        "start_ms": 11600,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "adapter": "asciinema",
+          "capture_key": "a1ba18099551fe173365b0f3d7b82d724ac620e59524c1643f8f5303aa0acbb1",
+          "duration_ms": 12402,
+          "duration_source": "exact",
+          "scene": "recording",
+          "shot": "doctor-a#0",
+          "shot_hash": "aa443a38f71ec512af38593f3c1cb858e7b9eb5e1544e7ab9e83db0910d0d6a7",
+          "start_ms": 25550
+        },
+        "duration_ms": 12650,
+        "item": "doctor",
+        "narration": {
+          "audio_hash": "ae1b2cc44b5bf2b583f4866a2e46112c32c5f553285c506b0322088159212d49",
+          "duration_ms": 12350,
+          "duration_source": "estimated",
+          "line": "doctor",
+          "source_hash": "2a332b9427bfd3338ab357b517934826d15382ac78b3a8c723286146707dfbda",
+          "start_ms": 25700,
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        "policy": "stretch-action",
+        "start_ms": 25550,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      }
+    ],
+    "generated_by": "teleprompt 0.1.0",
+    "locale": "en",
+    "script": "recording.md",
+    "version": 1
+  }
+}

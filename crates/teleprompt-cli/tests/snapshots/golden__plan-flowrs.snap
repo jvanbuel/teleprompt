@@ -1,0 +1,169 @@
+---
+source: crates/teleprompt-cli/tests/golden.rs
+expression: transcript(&out)
+---
+{
+  "exit": 0,
+  "stderr": [
+    "warning: 5 of 5 narration durations are estimated; run `teleprompt dub` to measure them before committing this timeline"
+  ],
+  "stdout": {
+    "duration_ms": 56800,
+    "entries": [
+      {
+        "action": {
+          "adapter": "playwright",
+          "capture_key": "2903544fdf8a0315291ae25fd6a91f92c64e835e1c4cedc748b69915dc49d6f3",
+          "duration_ms": 5350,
+          "duration_source": "unknown",
+          "scene": "ui",
+          "shot": "signin-a#0",
+          "shot_hash": "7302179c469b1b899d66a5b399440729d26245e004e227040ff7275862f56c5e",
+          "start_ms": 0
+        },
+        "duration_ms": 5350,
+        "item": "signin",
+        "narration": {
+          "audio_hash": "492acd672d3ab1614eed32f7e4ab4d0be430b9e1bcb541077bd1e6c2fe3a0dd3",
+          "duration_ms": 5050,
+          "duration_source": "estimated",
+          "line": "signin",
+          "source_hash": "13c8169b184110bf8ef44126989f03c8074d78fdd23d529b00901c254484bd97",
+          "start_ms": 150,
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        "policy": "concurrent",
+        "start_ms": 0,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "adapter": "playwright",
+          "capture_key": "45bd916e668c7ba68099b66b63e381cd5e439146a1012e38c502e62eb1b7a526",
+          "duration_ms": 21600,
+          "duration_source": "unknown",
+          "scene": "ui",
+          "shot": "clicking-a#0",
+          "shot_hash": "46cd59d1c7a703274e7f2c8c5779d75159d7a9d5f984be9b6529b85fb5881849",
+          "start_ms": 5350
+        },
+        "duration_ms": 21600,
+        "item": "clicking",
+        "narration": {
+          "audio_hash": "2572b1e4775bcf9b668b407768d8fc650cc8554de2e56caccc727f11bc1f17dc",
+          "duration_ms": 21300,
+          "duration_source": "estimated",
+          "line": "clicking",
+          "source_hash": "05e3bb5ddb1d13289c39090e304b97d7c9b4990ed9b085bb999df298ab93f3d9",
+          "start_ms": 5500,
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        "policy": "concurrent",
+        "start_ms": 5350,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "adapter": "vhs",
+          "capture_key": "8b05ebbd3476dca99f2ed1f4554d309fe63038e372bcb6707769d5cd7bf84bed",
+          "duration_ms": 5440,
+          "duration_source": "exact",
+          "scene": "terminal",
+          "shot": "flowrs-a#0",
+          "shot_hash": "8d7b4eb062b042d69aa07f9d66aad3f95fc68c4ceb3b8ce39aba191b3318f0b0",
+          "start_ms": 26950
+        },
+        "duration_ms": 9700,
+        "item": "flowrs",
+        "narration": {
+          "audio_hash": "e1c07454e07694a2886b03cbca9c80ba50b925047675038b113901c6a828789c",
+          "duration_ms": 9400,
+          "duration_source": "estimated",
+          "line": "flowrs",
+          "source_hash": "411dc5cb5b6ddb0439acd6ad348cc89003be7a3c12b40bd09348ed82556d3fd0",
+          "start_ms": 27100,
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        "policy": "concurrent",
+        "start_ms": 26950,
+        "transition": {
+          "duration_ms": 300,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "adapter": "vhs",
+          "capture_key": "fe722e6e47f03d4c0eee7aea07f15559e771e57100a0fd0fdcc161438c7301ed",
+          "duration_ms": 4650,
+          "duration_source": "exact",
+          "scene": "terminal",
+          "shot": "filter-a#0",
+          "shot_hash": "ed32f7fd319cebef58149fdaa98ec1b4341cf78333a06e3a60d8757c608532a2",
+          "start_ms": 36350
+        },
+        "duration_ms": 6250,
+        "item": "filter",
+        "narration": {
+          "audio_hash": "7f0b0980c7637baae77596bbd7d5d72dfed3ee97471cf5c98234ab2c2f683ca7",
+          "duration_ms": 5950,
+          "duration_source": "estimated",
+          "line": "filter",
+          "source_hash": "dd47f9c83e204f83d142d73efd2c8af6ac13406f54a0d7bc78a28cacd0b44fd0",
+          "start_ms": 36500,
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        "policy": "concurrent",
+        "start_ms": 36350,
+        "transition": {
+          "duration_ms": 300,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "adapter": "vhs",
+          "capture_key": "80e9cee2380d489c6259b3ae65238584b265353f449af92b9fc19f0a5aed95f2",
+          "duration_ms": 10300,
+          "duration_source": "exact",
+          "scene": "terminal",
+          "shot": "drill-a#0",
+          "shot_hash": "0adec7078b12279fbd93ca520313fe0493a3dde273263ea379623851cceaf246",
+          "start_ms": 42300
+        },
+        "duration_ms": 14500,
+        "item": "drill",
+        "narration": {
+          "audio_hash": "95e0c96098e33652f240fd59033d7b08ab0b791c6ab999b0e0e09d8ea977828d",
+          "duration_ms": 14200,
+          "duration_source": "estimated",
+          "line": "drill",
+          "source_hash": "5a479fd63519c7540edcd1cc12fd2fde1e0de5cd2f04504151163996d1a250a8",
+          "start_ms": 42450,
+          "voice_source": "synthetic",
+          "voice_source_actual": "synthetic"
+        },
+        "policy": "concurrent",
+        "start_ms": 42300,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      }
+    ],
+    "generated_by": "teleprompt 0.1.0",
+    "locale": "en",
+    "script": "demo.md",
+    "version": 1
+  }
+}

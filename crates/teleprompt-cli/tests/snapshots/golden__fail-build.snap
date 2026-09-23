@@ -1,0 +1,60 @@
+---
+source: crates/teleprompt-cli/tests/golden.rs
+expression: runs
+---
+{
+  "invalid human": {
+    "exit": 2,
+    "stderr": [
+      "error: error: content appears before the first heading",
+      "  --> proj/scripts/bad.md:1:1",
+      "  help: every line and action block must belong to a chapter",
+      "error: error: content appears before the first heading",
+      "  --> proj/scripts/bad.md:3:1",
+      "  help: every line and action block must belong to a chapter"
+    ],
+    "stdout": ""
+  },
+  "invalid json": {
+    "exit": 2,
+    "stderr": [],
+    "stdout": {
+      "errors": [
+        "error: content appears before the first heading\n  --> proj/scripts/bad.md:1:1\n  help: every line and action block must belong to a chapter",
+        "error: content appears before the first heading\n  --> proj/scripts/bad.md:3:1\n  help: every line and action block must belong to a chapter"
+      ],
+      "ok": false
+    }
+  },
+  "missing human": {
+    "exit": 2,
+    "stderr": [
+      "error: cannot read proj/scripts/missing.md: No such file or directory (os error 2)"
+    ],
+    "stdout": ""
+  },
+  "missing json": {
+    "exit": 2,
+    "stderr": [],
+    "stdout": {
+      "errors": [
+        "cannot read proj/scripts/missing.md: No such file or directory (os error 2)"
+      ],
+      "ok": false
+    }
+  },
+  "orphan human": {
+    "exit": 1,
+    "stderr": [
+      "error: cannot locate a project for loose/orphan.md: no teleprompt.toml found in this directory or any parent"
+    ],
+    "stdout": ""
+  },
+  "orphan json": {
+    "exit": 1,
+    "stderr": [
+      "error: cannot locate a project for loose/orphan.md: no teleprompt.toml found in this directory or any parent"
+    ],
+    "stdout": ""
+  }
+}
