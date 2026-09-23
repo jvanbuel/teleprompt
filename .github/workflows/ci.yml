@@ -8,6 +8,14 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Full debug info made the workspace's test build 5.6 GB, and with
+    # clippy's output, vhs's browser and the cache beside it the runner ran
+    # out of disk mid-recording: vhs stopped at 69.8s of a longer tape and
+    # every shot after it became a slate. Line tables keep file:line in a
+    # panic's backtrace at 2.0 GB; incremental state is never reused here.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
