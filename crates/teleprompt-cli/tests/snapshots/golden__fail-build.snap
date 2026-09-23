@@ -6,10 +6,10 @@ expression: runs
   "invalid human": {
     "exit": 2,
     "stderr": [
-      "error: error: content appears before the first heading",
+      "error: content appears before the first heading",
       "  --> proj/scripts/bad.md:1:1",
       "  help: every line and action block must belong to a chapter",
-      "error: error: content appears before the first heading",
+      "error: content appears before the first heading",
       "  --> proj/scripts/bad.md:3:1",
       "  help: every line and action block must belong to a chapter"
     ],
@@ -52,9 +52,12 @@ expression: runs
   },
   "orphan json": {
     "exit": 1,
-    "stderr": [
-      "error: cannot locate a project for loose/orphan.md: no teleprompt.toml found in this directory or any parent"
-    ],
-    "stdout": ""
+    "stderr": [],
+    "stdout": {
+      "errors": [
+        "cannot locate a project for loose/orphan.md: no teleprompt.toml found in this directory or any parent"
+      ],
+      "ok": false
+    }
   }
 }

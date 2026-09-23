@@ -30,7 +30,7 @@ expression: runs
   "missing human": {
     "exit": 2,
     "stderr": [
-      "cannot read proj/scripts/missing.md: No such file or directory (os error 2)"
+      "error: cannot read proj/scripts/missing.md: No such file or directory (os error 2)"
     ],
     "stdout": ""
   },
@@ -54,9 +54,12 @@ expression: runs
   },
   "orphan json": {
     "exit": 1,
-    "stderr": [
-      "error: cannot locate a project for loose/orphan.md: no teleprompt.toml found in this directory or any parent"
-    ],
-    "stdout": ""
+    "stderr": [],
+    "stdout": {
+      "errors": [
+        "cannot locate a project for loose/orphan.md: no teleprompt.toml found in this directory or any parent"
+      ],
+      "ok": false
+    }
   }
 }

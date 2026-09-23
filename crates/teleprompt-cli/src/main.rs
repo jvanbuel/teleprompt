@@ -222,6 +222,33 @@ fn runtime() -> Result<tokio::runtime::Runtime, String> {
         .map_err(|e| format!("cannot start the async runtime: {e}"))
 }
 
+/// Reports a failed command the same way whichever command it was: an
+/// [`ErrorReport`] on stdout for `--format json`, otherwise each error on
+/// stderr.
+fn fail(format: Format, outcome: Outcome) -> Outcome {
+    let errors = match &outcome {
+        Outcome::RuntimeFailure(message) => std::slice::from_ref(message),
+        Outcome::ValidationError(errors) => errors.as_slice(),
+        _ => &[],
+    };
+    match format {
+        Format::Json => {
+            let report = ErrorReport::new(errors.to_vec());
+            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+        }
+        Format::Human => print_errors(errors),
+    }
+    outcome
+}
+
+/// Each error on stderr behind one `error: `: a rendered diagnostic already
+/// carries it, and a bare message does not.
+fn print_errors(errors: &[String]) {
+    for e in errors {
+        eprintln!("error: {}", e.strip_prefix("error: ").unwrap_or(e));
+    }
+}
+
 /// Synchronous on purpose. `#[tokio::main]` started a multi-thread runtime
 /// — a worker thread per core — for every subcommand, including
 /// `check`/`plan`/`diff`/`new`, none of which ever await. `dub` and
@@ -241,10 +268,7 @@ fn main() -> ExitCode {
                 }
                 Outcome::Ok
             }
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
         },
         Command::From { doc, out, slidev } => match from::run_from(&doc, out, slidev) {
             Ok(report) => {
@@ -254,16 +278,10 @@ fn main() -> ExitCode {
                 }
                 Outcome::Ok
             }
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
         },
         Command::Cache { prune_to_mb } => match Project::discover(std::path::Path::new(".")) {
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             Ok(project) => match cache::run_cache(&project, prune_to_mb) {
                 Ok(report) => {
                     match cli.format {
@@ -274,10 +292,7 @@ fn main() -> ExitCode {
                     }
                     Outcome::Ok
                 }
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    Outcome::RuntimeFailure(e.to_string())
-                }
+                Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             },
         },
         Command::Doctor => match runtime() {
@@ -291,16 +306,10 @@ fn main() -> ExitCode {
                 }
                 Outcome::Ok
             }
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e)
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e)),
         },
         Command::Check { script, locale } => match Project::for_script(&script) {
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             Ok(project) => match check::run_check(&project, &script, &locale) {
                 Ok(warnings) => {
                     for w in &warnings {
@@ -329,21 +338,14 @@ fn main() -> ExitCode {
                             };
                             println!("{}", serde_json::to_string_pretty(&report).unwrap())
                         }
-                        Format::Human => {
-                            for e in &errors {
-                                eprintln!("{e}");
-                            }
-                        }
+                        Format::Human => print_errors(&errors),
                     }
                     Outcome::ValidationError(errors)
                 }
             },
         },
         Command::Plan { script, locale } => match Project::for_script(&script) {
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             Ok(project) => match plan::run_plan(&project, &script, &locale) {
                 Ok(out) => {
                     match cli.format {
@@ -377,20 +379,7 @@ fn main() -> ExitCode {
                     }
                     Outcome::Ok
                 }
-                Err(errors) => {
-                    match cli.format {
-                        Format::Json => {
-                            let report = ErrorReport::new(errors.clone());
-                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
-                        }
-                        Format::Human => {
-                            for e in &errors {
-                                eprintln!("{e}");
-                            }
-                        }
-                    }
-                    Outcome::ValidationError(errors)
-                }
+                Err(errors) => fail(cli.format, Outcome::ValidationError(errors)),
             },
         },
         Command::Diff {
@@ -398,10 +387,7 @@ fn main() -> ExitCode {
             locale,
             exit_code,
         } => match Project::for_script(&script) {
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             Ok(project) => match diff_cmd::run_diff(&project, &script, &locale) {
                 Ok(d) => {
                     match cli.format {
@@ -414,20 +400,7 @@ fn main() -> ExitCode {
                         Outcome::Ok
                     }
                 }
-                Err(errors) => {
-                    match cli.format {
-                        Format::Json => {
-                            let report = ErrorReport::new(errors.clone());
-                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
-                        }
-                        Format::Human => {
-                            for e in &errors {
-                                eprintln!("{e}");
-                            }
-                        }
-                    }
-                    Outcome::ValidationError(errors)
-                }
+                Err(errors) => fail(cli.format, Outcome::ValidationError(errors)),
             },
         },
         Command::Serve {
@@ -435,10 +408,7 @@ fn main() -> ExitCode {
             locale,
             port,
         } => match Project::for_script(&script) {
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             Ok(project) => {
                 match runtime()
                     .map_err(serve::ServeError::Runtime)
@@ -446,14 +416,10 @@ fn main() -> ExitCode {
                 {
                     Ok(()) => Outcome::Ok,
                     Err(serve::ServeError::Validation(errors)) => {
-                        for e in &errors {
-                            eprintln!("{e}");
-                        }
-                        Outcome::ValidationError(errors)
+                        fail(cli.format, Outcome::ValidationError(errors))
                     }
                     Err(serve::ServeError::Runtime(e)) => {
-                        eprintln!("error: {e}");
-                        Outcome::RuntimeFailure(e)
+                        fail(cli.format, Outcome::RuntimeFailure(e))
                     }
                 }
             }
@@ -467,17 +433,11 @@ fn main() -> ExitCode {
             no_cache,
             cache_max_mb,
         } => match Project::for_script(&script) {
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             Ok(project) => {
                 let size = resolution.as_deref().map(build::parse_resolution);
                 match size {
-                    Some(Err(e)) => {
-                        eprintln!("error: {e}");
-                        Outcome::RuntimeFailure(e)
-                    }
+                    Some(Err(e)) => fail(cli.format, Outcome::RuntimeFailure(e)),
                     size => {
                         let mut options = build::BuildOptions::defaults(&project, &script, &locale);
                         if let Some(path) = out {
@@ -523,24 +483,10 @@ fn main() -> ExitCode {
                                 Outcome::Ok
                             }
                             Err(build::BuildError::Validation(errors)) => {
-                                if cli.format == Format::Json {
-                                    let report = ErrorReport::new(errors.clone());
-                                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
-                                } else {
-                                    for e in &errors {
-                                        eprintln!("error: {e}");
-                                    }
-                                }
-                                Outcome::ValidationError(errors)
+                                fail(cli.format, Outcome::ValidationError(errors))
                             }
                             Err(build::BuildError::Runtime(message)) => {
-                                if cli.format == Format::Json {
-                                    let report = ErrorReport::new(vec![message.clone()]);
-                                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
-                                } else {
-                                    eprintln!("error: {message}");
-                                }
-                                Outcome::RuntimeFailure(message)
+                                fail(cli.format, Outcome::RuntimeFailure(message))
                             }
                         }
                     }
@@ -553,20 +499,14 @@ fn main() -> ExitCode {
             resolution,
             fps,
         } => match Project::for_script(&script) {
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             Ok(project) => {
                 match resolution
                     .as_deref()
                     .map(build::parse_resolution)
                     .transpose()
                 {
-                    Err(e) => {
-                        eprintln!("error: {e}");
-                        Outcome::RuntimeFailure(e)
-                    }
+                    Err(e) => fail(cli.format, Outcome::RuntimeFailure(e)),
                     Ok(size) => {
                         let options = build::BuildOptions::defaults(&project, &script, &locale);
                         // Capture needs the manifest, and publishing it is
@@ -585,13 +525,11 @@ fn main() -> ExitCode {
                             ))
                         });
                         match dubbed {
-                            Err(e) => {
-                                let message = match e {
-                                    dub::DubError::Validation(d) => d.join("\n"),
-                                    dub::DubError::Runtime(m) => m,
-                                };
-                                eprintln!("error: {message}");
-                                Outcome::RuntimeFailure(message)
+                            Err(dub::DubError::Validation(errors)) => {
+                                fail(cli.format, Outcome::ValidationError(errors))
+                            }
+                            Err(dub::DubError::Runtime(message)) => {
+                                fail(cli.format, Outcome::RuntimeFailure(message))
                             }
                             Ok(dubbed) => {
                                 let (width, height) = size.unwrap_or(dubbed.output.resolution);
@@ -640,10 +578,7 @@ fn main() -> ExitCode {
             check,
             strict_voice,
         } => match Project::for_script(&script) {
-            Err(e) => {
-                eprintln!("error: {e}");
-                Outcome::RuntimeFailure(e.to_string())
-            }
+            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
             Ok(project) => match runtime()
                 .map_err(dub::DubError::Runtime)
                 .and_then(|rt| rt.block_on(dub::run_dub(&project, &script, &locale, &out, check)))
@@ -686,23 +621,9 @@ fn main() -> ExitCode {
                     }
                 }
                 Err(dub::DubError::Validation(errors)) => {
-                    match cli.format {
-                        Format::Json => {
-                            let report = ErrorReport::new(errors.clone());
-                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
-                        }
-                        Format::Human => {
-                            for e in &errors {
-                                eprintln!("{e}");
-                            }
-                        }
-                    }
-                    Outcome::ValidationError(errors)
+                    fail(cli.format, Outcome::ValidationError(errors))
                 }
-                Err(dub::DubError::Runtime(e)) => {
-                    eprintln!("error: {e}");
-                    Outcome::RuntimeFailure(e)
-                }
+                Err(dub::DubError::Runtime(e)) => fail(cli.format, Outcome::RuntimeFailure(e)),
             },
         },
     };

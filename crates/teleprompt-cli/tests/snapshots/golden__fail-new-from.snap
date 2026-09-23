@@ -12,10 +12,13 @@ expression: runs
   },
   "from missing json": {
     "exit": 1,
-    "stderr": [
-      "error: cannot read proj/nothing.md: No such file or directory (os error 2)"
-    ],
-    "stdout": ""
+    "stderr": [],
+    "stdout": {
+      "errors": [
+        "cannot read proj/nothing.md: No such file or directory (os error 2)"
+      ],
+      "ok": false
+    }
   },
   "new existing human": {
     "exit": 1,
@@ -26,9 +29,12 @@ expression: runs
   },
   "new existing json": {
     "exit": 1,
-    "stderr": [
-      "error: proj already contains a teleprompt project"
-    ],
-    "stdout": ""
+    "stderr": [],
+    "stdout": {
+      "errors": [
+        "proj already contains a teleprompt project"
+      ],
+      "ok": false
+    }
   }
 }
