@@ -27,15 +27,12 @@ Pipeline {"steps": ["Markdown", "Kokoro", "Timeline", "Remotion", "Video"]}
 ```
 
 A Remotion block names a composition your project already registers, and
-the props to render it with. A comment reading mark splits it into shots,
-one for each sentence. {#blocks}
+the props to render it with. Each paragraph gets a block of its own. {#blocks}
 
 ```teleprompt scene=motion policy=concurrent
 Code {"lines": [
   "```teleprompt scene=motion",
   "Title {\"title\": \"Hello\"}",
-  "# mark",
-  "Pipeline {\"steps\": [\"a\", \"b\"]}",
   "```"
 ]}
 ```

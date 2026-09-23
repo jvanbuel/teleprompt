@@ -7,8 +7,6 @@
 //!
 //! ```text
 //! Title {"title": "Hello"}
-//! # mark
-//! Pipeline {"steps": ["a", "b"]}
 //! ```
 //!
 //! A composition takes as long as it is told to, so `estimate` is
@@ -23,7 +21,8 @@ use teleprompt_core::{Diagnostic, Hash};
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 
 /// The mark, and `#` comments generally — the shell's spelling, since a
-/// shot reads like the arguments to `remotion render`.
+/// shot reads like the arguments to `remotion render`. A shot after a mark
+/// has no sentence to take its length from, and `check` refuses it.
 pub const MARK: &str = "# mark";
 
 /// How a re-timed shot states its length, so the length is in its hash.
@@ -65,8 +64,8 @@ pub fn parse(source: &str) -> Result<Option<Invocation>, String> {
             Ok(_) => return Err("props must be a JSON object".into()),
             Err(e) => {
                 return Err(format!(
-                    "props for `{composition}` are not JSON: {e} (one composition per shot; \
-                     separate shots with `{MARK}`)"
+                    "props for `{composition}` are not JSON: {e} (one composition per \
+                     shot: give the next its own paragraph and block)"
                 ))
             }
         }

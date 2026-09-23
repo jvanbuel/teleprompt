@@ -722,6 +722,30 @@ Read it, then remove the attribute."
                         source: shot.source.clone(),
                     });
                     let measured = adapter.estimate(shot);
+                    // A shot that states no length is given the length of
+                    // its sentence. One with no sentence — after a mark, or
+                    // under no paragraph — would be given nothing, and
+                    // vanish from the video with no word said about it.
+                    let narrated = i == 0 && pending.is_some();
+                    if measured == Measured::Unknown && !narrated {
+                        diags.push(
+                            origin.locate(
+                                Diagnostic::error(format!(
+                                    "`{}` has no sentence and states no length of its own, \
+                                     so it would last no time at all",
+                                    shot.id
+                                ))
+                                .with_help(format!(
+                                    "a `{adapter_name}` shot lasts as long as the paragraph \
+                                     it follows: give it a paragraph and a block of its own \
+                                     rather than a mark"
+                                )),
+                                0,
+                                0,
+                            ),
+                        );
+                        continue;
+                    }
                     let action = ActionInput {
                         shot_id: shot.id.clone(),
                         scene: scene.clone(),

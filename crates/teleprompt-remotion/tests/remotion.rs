@@ -56,7 +56,7 @@ fn marks_split_a_block_into_one_shot_each() {
 }
 
 /// Props that are not JSON are refused at `check`, on the line that names
-/// the composition — which is also what two compositions in one shot look
+/// the composition — which is also what two compositions in one block look
 /// like, so the message says how to separate them.
 #[test]
 fn props_that_are_not_json_are_refused_where_they_are() {
@@ -66,7 +66,7 @@ fn props_that_are_not_json_are_refused_where_they_are() {
     assert_eq!(diags.len(), 1, "{diags:#?}");
     assert_eq!(diags[0].span.expect("located").line, 13);
     assert!(diags[0].message.contains("not JSON"), "{diags:#?}");
-    assert!(diags[0].message.contains("# mark"), "{diags:#?}");
+    assert!(diags[0].message.contains("own paragraph"), "{diags:#?}");
 }
 
 #[test]
