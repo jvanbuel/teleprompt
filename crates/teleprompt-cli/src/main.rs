@@ -154,7 +154,7 @@ enum Command {
         script: PathBuf,
         #[arg(long, default_value = "en")]
         locale: String,
-        /// Where to write the video; defaults to out/<locale>/<script>.mp4
+        /// Where to write the video; defaults to build/<script>.<locale>.mp4 in the project
         #[arg(long)]
         out: Option<PathBuf>,
         /// Frame size, as WIDTHxHEIGHT
