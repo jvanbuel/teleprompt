@@ -242,15 +242,15 @@ The words decide the timing. {#timing}
 
 ```teleprompt scene=motion policy=concurrent
 Pipeline {"steps": ["Markdown", "Kokoro", "Timeline", "Video"]}
-# mark
-Title {"title": "Rebuild"}
 ```
 ````
 
-Props are a JSON object and may span lines; `#` lines are comments, and
-`# mark` splits a block into shots. `check` refuses props that are not
-JSON; a composition the project does not register fails at capture, with
-Remotion's own error.
+Props are a JSON object and may span lines, and `#` lines are comments.
+`check` refuses props that are not JSON; a composition the project does
+not register fails at capture, with Remotion's own error. A shot lasts as
+long as the paragraph above it, so each composition gets a paragraph and
+a block of its own: a shot after a `# mark` has no sentence to take its
+length from, and `check` refuses it rather than let it last no time.
 
 ```toml
 [scene.motion]
@@ -292,6 +292,59 @@ whose every picture is a composition:
 ```bash
 (cd examples/remotion/motion && npm install)
 cargo run -- build examples/remotion/scripts/remotion.md
+```
+
+### Slides
+
+A scene whose adapter is `slidev` shows slides from an ordinary
+[Slidev](https://sli.dev) deck. A shot names a slide the way Slidev's own
+URLs do: `3` is slide three as it opens, `3?clicks=2` is slide three after
+two of its `v-click`s. So a list can be revealed a sentence at a time, one
+paragraph and one block per click:
+
+````markdown
+You can still present it with Slidev. {#present}
+
+```teleprompt scene=slides policy=concurrent
+2?clicks=1
+```
+
+You can still export it. {#export}
+
+```teleprompt scene=slides policy=concurrent
+2?clicks=2
+```
+````
+
+```toml
+[scene.slides]
+adapter = "slidev"
+deck = "talk/slides.md"     # the Slidev entry; Slidev is found in a node_modules beside or above it
+# dark = true               # export with the dark theme
+# browser = "/path/to/chrome"
+```
+
+Capture is one `slidev export --with-clicks` per session, of just the
+slides it needs, and each still becomes a clip the renderer holds for the
+sentence. **A still is the same picture at any length**, so the length is
+not in the key: rewording a sentence reuses the slide it was spoken over.
+The key does cover the deck and what Slidev reads beside it —
+`components/`, `layouts/`, `public/`, `styles/`, `setup/`, `pages/`,
+`snippets/` and the package manifests — so editing the deck re-exports.
+
+What a still cannot show is motion: Slidev's own slide transitions and
+`v-motion` animations are not in the picture, and the cut between two
+blocks is teleprompt's transition. `check` refuses a shot that is not a
+slide; one the deck does not have fails at capture, naming the slide and
+how many clicks it does have. Slidev drives a browser to export, found by
+its own Playwright unless `browser` or `TELEPROMPT_SLIDEV_BROWSER` names
+one.
+
+`examples/slidev` is a complete project:
+
+```bash
+(cd examples/slidev/deck && npm install)
+cargo run -- build examples/slidev/scripts/slides.md
 ```
 
 ## Rendering

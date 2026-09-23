@@ -22,7 +22,11 @@ fn the_registry_serves_every_adapter_this_build_ships() {
         Some("playwright")
     );
     assert_eq!(r.get("remotion").map(SceneCompiler::kind), Some("remotion"));
-    assert_eq!(r.available(), vec!["mock", "playwright", "remotion", "vhs"]);
+    assert_eq!(r.get("slidev").map(SceneCompiler::kind), Some("slidev"));
+    assert_eq!(
+        r.available(),
+        vec!["mock", "playwright", "remotion", "slidev", "vhs"]
+    );
 }
 
 #[test]

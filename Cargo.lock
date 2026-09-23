@@ -1153,6 +1153,7 @@ dependencies = [
  "teleprompt-render",
  "teleprompt-scene",
  "teleprompt-schedule",
+ "teleprompt-slidev",
  "teleprompt-vhs",
  "teleprompt-voice",
  "teleprompt-voice-kokoro",
@@ -1233,6 +1234,15 @@ dependencies = [
  "serde",
  "serde_json",
  "teleprompt-core",
+]
+
+[[package]]
+name = "teleprompt-slidev"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-capture",
+ "teleprompt-core",
+ "teleprompt-scene",
 ]
 
 [[package]]

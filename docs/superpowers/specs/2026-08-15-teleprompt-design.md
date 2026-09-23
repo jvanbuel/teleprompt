@@ -894,6 +894,14 @@ files its picture is drawn from — which the compiler hashes into the
 capture key. Those two are the additions it made to the contract, both
 properties of an adapter, neither naming one.
 
+**`slidev`** — shipped. A shot names a slide of an existing Slidev deck at
+a click step, `3?clicks=2`, and is exported as a still. It declares no
+`retime`: a still is the same picture at any length, so the length stays
+out of the key and a reworded sentence reuses its slide.
+
+A shot that states no length takes its sentence's; one after a mark has no
+sentence, and `check` refuses it rather than schedule it at zero.
+
 Adding an adapter touches no other crate. That is the property the contract
 exists to protect.
 
