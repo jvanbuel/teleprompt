@@ -49,7 +49,15 @@ pub fn schedule(
             })
             .unwrap_or(0);
 
-        let cue_ms = item.action.as_ref().and_then(|a| a.cue_ms);
+        // A cue is measured from the first word, and the narration's
+        // padded length starts with its lead-in: the word is said that
+        // much later than the item begins.
+        let lead_in_ms = item.narration.as_ref().map_or(0, |n| n.lead_in_ms);
+        let cue_ms = item
+            .action
+            .as_ref()
+            .and_then(|a| a.cue_ms)
+            .map(|c| c + lead_in_ms);
         let l = layout_at(item.policy, narration_ms, action_ms, cue_ms, timing);
         for w in &l.warnings {
             warnings.push(format!("{}: {w}", item.id));

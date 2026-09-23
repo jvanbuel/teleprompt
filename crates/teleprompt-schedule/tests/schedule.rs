@@ -382,3 +382,26 @@ fn an_action_of_unknown_length_fills_the_sentence_over_it() {
         "an unknown-length action takes the slot the narration gives it, not zero"
     );
 }
+
+/// A cue is measured from the narration's first word, which is said one
+/// lead-in after the item begins. Placing the action at the bare offset
+/// started every cued action a lead-in early — 150 ms by default — which
+/// went unseen while cues were interpolated and was plain once they came
+/// from word timings.
+#[test]
+fn a_cue_lands_on_the_word_not_a_lead_in_before_it() {
+    let mut it = item(
+        "b1",
+        Some(3000),
+        Some(500),
+        Policy::Concurrent(teleprompt_schedule::Align::Start),
+        no_transition(),
+    );
+    it.action.as_mut().unwrap().cue_ms = Some(1000);
+    let lead_in = it.narration.as_ref().unwrap().lead_in_ms;
+    let t = schedule(&[it], "s.md", "en", "0.1.0").0;
+    assert_eq!(
+        t.entries[0].action.as_ref().unwrap().start_ms,
+        lead_in + 1000
+    );
+}
