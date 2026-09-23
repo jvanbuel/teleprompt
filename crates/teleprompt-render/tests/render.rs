@@ -134,6 +134,57 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
     );
 }
 
+/// The voice's rate is not the video's. Kokoro speaks mono at 24 kHz —
+/// as `tone` does — and AAC at that rate is valid and silent in more than
+/// one player, which is a video with a picture and none of its words. What
+/// ships is 48 kHz stereo, whatever went in.
+#[test]
+fn the_audio_is_48_khz_stereo_whatever_the_voice_spoke() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+
+    let dir = std::env::temp_dir().join(format!("tp-render-rate-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let plan = RenderPlan {
+        width: 320,
+        height: 180,
+        fps: 24,
+        duration_ms: 1_000,
+        shots: vec![Shot {
+            id: "only#0".into(),
+            start_ms: 0,
+            duration_ms: 1_000,
+            picture: Picture::Slate,
+            transition: Transition::cut(),
+        }],
+        narration: vec![Narration {
+            id: "voice".into(),
+            path: tone(&dir, "voice.wav", 500),
+            start_ms: 0,
+        }],
+        output: dir.join("rate.mp4"),
+    };
+
+    one_pass()
+        .render(&plan, &mut |_| {})
+        .expect("the graph is one ffmpeg accepts");
+
+    let out = Command::new("ffprobe")
+        .args(["-v", "error", "-select_streams", "a:0"])
+        .args(["-show_entries", "stream=sample_rate,channels"])
+        .args(["-of", "default=nw=1"])
+        .arg(&plan.output)
+        .output()
+        .expect("ffprobe runs");
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(said.contains("sample_rate=48000"), "{said}");
+    assert!(said.contains("channels=2"), "{said}");
+}
+
 /// The picture does not begin at zero. Narration opens after a lead-in, and
 /// the first shot starts with it — so the head of the video is a gap that
 /// something has to hold, or every shot after it renders early against

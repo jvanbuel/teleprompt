@@ -150,6 +150,14 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
     args.push("aac".into());
     args.push("-b:a".into());
     args.push("128k".into());
+    // The voice's own rate is not a delivery format. Kokoro speaks mono at
+    // 24 kHz, and AAC at 24 kHz mono is valid and yet silent in more than
+    // one player — a video that plays its picture and none of its words.
+    // 48 kHz stereo is what every player expects, so that is what ships.
+    args.push("-ar".into());
+    args.push("48000".into());
+    args.push("-ac".into());
+    args.push("2".into());
     args.push("-movflags".into());
     args.push("+faststart".into());
     args.push(plan.output.display().to_string());
