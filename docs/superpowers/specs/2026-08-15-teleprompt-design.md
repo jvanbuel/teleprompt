@@ -889,8 +889,10 @@ project's own entry point is bundled unchanged. It is the one adapter
 whose shots are exactly as long as they are told to be: `estimate` is
 `Unknown`, `retime` always succeeds by stating the length in the source,
 and `continues` is `false`, because a composition does not open on the
-screen its predecessor left. That last is the one addition it made to the
-contract — a property of the adapter, which names no adapter.
+screen its predecessor left. It also names its `inputs` — the project
+files its picture is drawn from — which the compiler hashes into the
+capture key. Those two are the additions it made to the contract, both
+properties of an adapter, neither naming one.
 
 Adding an adapter touches no other crate. That is the property the contract
 exists to protect.

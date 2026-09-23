@@ -314,6 +314,15 @@ impl teleprompt_scene::contract::SceneCompiler for Still {
     fn continues(&self) -> bool {
         false
     }
+    fn inputs(&self, scene: &teleprompt_core::config::SceneConfig) -> Vec<std::path::PathBuf> {
+        scene
+            .settings
+            .get("project")
+            .and_then(|v| v.as_str())
+            .map(std::path::PathBuf::from)
+            .into_iter()
+            .collect()
+    }
 }
 
 fn stills(first: &str, second: &str) -> Vec<Hash> {
@@ -341,4 +350,39 @@ fn a_scene_that_does_not_continue_names_each_shot_by_itself() {
 fn identical_shots_of_a_scene_that_does_not_continue_share_a_clip() {
     let keys = stills(J, J);
     assert_eq!(keys[0], keys[1]);
+}
+
+/// Keys for two shots in a scene drawn from `project`.
+fn drawn_from(project: &std::path::Path) -> Vec<Hash> {
+    let mut registry = SceneRegistry::with_builtins();
+    registry.register(Box::new(Still));
+    let src = twice(J, J).replace(
+        "adapter: mock\n  other",
+        &format!(
+            "adapter: still\n    project: {}\n  other",
+            project.display()
+        ),
+    );
+    keys(&run_with(&src, &registry))
+}
+
+/// A scene drawn by a project of its own is named by what the project
+/// holds: editing a component re-captures the shots that draw with it,
+/// and a file the scene does not read — its dependencies — does not.
+#[test]
+fn editing_a_file_the_scene_draws_from_re_captures_it() {
+    let dir = std::env::temp_dir().join(format!("tp-inputs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::create_dir_all(dir.join("node_modules")).unwrap();
+    std::fs::write(dir.join("src/Title.tsx"), "red").unwrap();
+
+    let before = drawn_from(&dir);
+    std::fs::write(dir.join("node_modules/dep.js"), "ignored").unwrap();
+    assert_eq!(before, drawn_from(&dir), "node_modules is not an input");
+
+    std::fs::write(dir.join("src/Title.tsx"), "blue").unwrap();
+    let after = drawn_from(&dir);
+    assert_ne!(before[0], after[0], "the edit re-captures the first shot");
+    assert_ne!(before[1], after[1], "and the second");
 }

@@ -16,6 +16,9 @@
 //! `retime` always succeeds: rendering at the scheduled length is not an
 //! approximation of the slot but the definition of it.
 
+use std::path::{Path, PathBuf};
+
+use teleprompt_core::config::SceneConfig;
 use teleprompt_core::{Diagnostic, Hash};
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 
@@ -157,6 +160,36 @@ impl SceneCompiler for RemotionScene {
             _ => &shot.source,
         };
         Some(format!("{LENGTH_PREFIX}{target_ms}{LENGTH_SUFFIX}\n{body}"))
+    }
+
+    /// What Remotion's bundler reads, by Remotion's own layout: the
+    /// directory holding the entry point, `public/` for `staticFile`, the
+    /// package manifests that pin its dependencies, and its config. Not
+    /// the whole project, which defaults to `.` and would be the whole
+    /// repository.
+    fn inputs(&self, scene: &SceneConfig) -> Vec<PathBuf> {
+        let setting = |key: &str, default: &str| {
+            scene
+                .settings
+                .get(key)
+                .and_then(|v| v.as_str())
+                .unwrap_or(default)
+                .to_string()
+        };
+        let project = PathBuf::from(setting("project", "."));
+        let entry = project.join(setting("entry", "src/index.ts"));
+        let mut out: Vec<PathBuf> = entry.parent().map(Path::to_path_buf).into_iter().collect();
+        out.extend(
+            [
+                "public",
+                "package.json",
+                "package-lock.json",
+                "remotion.config.ts",
+            ]
+            .iter()
+            .map(|p| project.join(p)),
+        );
+        out
     }
 
     /// A composition draws the same frames whatever was on screen before

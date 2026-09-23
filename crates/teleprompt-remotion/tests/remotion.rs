@@ -107,6 +107,33 @@ fn a_shot_is_re_timed_by_stating_its_length_once() {
     assert_eq!(parse(&again).unwrap().unwrap().composition, "Title");
 }
 
+/// The files the key covers are what Remotion's bundler reads, by its
+/// own layout — not the whole project, which defaults to `.`.
+#[test]
+fn the_inputs_are_what_the_bundler_reads() {
+    let scene: teleprompt_core::config::SceneConfig = teleprompt_core::config::SceneConfig {
+        adapter: "remotion".into(),
+        settings: [
+            ("project".to_string(), "motion".into()),
+            ("entry".to_string(), "app/main.ts".into()),
+        ]
+        .into_iter()
+        .collect(),
+    };
+    let inputs = RemotionScene.inputs(&scene);
+    let names: Vec<String> = inputs.iter().map(|p| p.display().to_string()).collect();
+    assert_eq!(
+        names,
+        [
+            "motion/app",
+            "motion/public",
+            "motion/package.json",
+            "motion/package-lock.json",
+            "motion/remotion.config.ts",
+        ]
+    );
+}
+
 /// A composition does not open on the screen before it, so the compiler
 /// names each shot by itself.
 #[test]

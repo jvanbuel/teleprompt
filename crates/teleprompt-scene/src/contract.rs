@@ -218,4 +218,18 @@ pub trait SceneCompiler: Send + Sync {
     fn continues(&self) -> bool {
         true
     }
+
+    /// Files outside the block that this scene's picture is drawn from.
+    ///
+    /// A tape is the whole of what a terminal shows, so the default is
+    /// none. A scene drawn by a project of its own — a component library,
+    /// a stylesheet — names that project's files here, and the compiler
+    /// hashes their contents into every shot's capture key, so editing one
+    /// re-captures what it draws. Paths only: the adapter names them, the
+    /// compiler reads them, and `SceneCompiler` stays free of IO. A
+    /// directory is read recursively, skipping `node_modules` and entries
+    /// whose names begin with `.`; a path that does not exist is skipped.
+    fn inputs(&self, _scene: &teleprompt_core::config::SceneConfig) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
 }

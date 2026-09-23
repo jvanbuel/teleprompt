@@ -275,6 +275,7 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-v1";
 /// gets into the key (spec §5.1) without being a field in it.
 fn chain_capture_keys(timeline: &mut Timeline, config: &Config, registry: &SceneRegistry) {
     let mut chains: BTreeMap<(String, String), Hash> = BTreeMap::new();
+    let mut inputs: BTreeMap<String, String> = BTreeMap::new();
 
     for entry in &mut timeline.entries {
         let Some(action) = entry.action.as_mut() else {
@@ -291,17 +292,27 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config, registry: &Scene
         // What this shot is on its own: its tape, the adapter that will
         // read it, and the scene settings that decide what the screen
         // looks like before anything is typed.
-        let settings = config
-            .scenes
-            .get(&action.scene)
+        let scene = config.scenes.get(&action.scene);
+        let settings = scene
             .map(SceneConfig::settings_fingerprint)
             .unwrap_or_default();
-        let name = Hash::of_fields(&[
-            CAPTURE_RECIPE,
-            &action.adapter,
-            &settings,
-            &action.shot_hash.to_string(),
-        ]);
+        // The files the scene draws from, read once per scene.
+        let inputs = inputs
+            .entry(action.scene.clone())
+            .or_insert_with(|| match (scene, registry.get(&action.adapter)) {
+                (Some(scene), Some(adapter)) => fingerprint(&adapter.inputs(scene)),
+                _ => String::new(),
+            })
+            .clone();
+        let shot_hash = action.shot_hash.to_string();
+        let mut fields = vec![CAPTURE_RECIPE, &action.adapter, &settings];
+        // Only where there is something: a scene with no inputs keeps the
+        // key it had before inputs existed, and so keeps its clips.
+        if !inputs.is_empty() {
+            fields.push(&inputs);
+        }
+        fields.push(&shot_hash);
+        let name = Hash::of_fields(&fields);
 
         // A shot that does not open on its predecessor's screen is named
         // by itself alone, and is no link in anybody's chain.
@@ -329,6 +340,42 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config, registry: &Scene
         chains.insert(key, chain);
         action.capture_key = chain;
     }
+}
+
+/// A hash of the contents of `paths`, as [`SceneCompiler::inputs`]
+/// describes them: directories recursively, in a stable order, without
+/// `node_modules` or dot-entries; missing paths contribute nothing. Empty
+/// when there is nothing to read, so a scene with no inputs keeps the key
+/// it had before inputs existed.
+///
+/// [`SceneCompiler::inputs`]: teleprompt_scene::SceneCompiler::inputs
+fn fingerprint(paths: &[std::path::PathBuf]) -> String {
+    fn walk(path: &Path, out: &mut Vec<String>) {
+        if path.is_dir() {
+            let Ok(entries) = std::fs::read_dir(path) else {
+                return;
+            };
+            let mut children: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+            children.sort();
+            for child in children {
+                let name = child.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name != "node_modules" && !name.starts_with('.') {
+                    walk(&child, out);
+                }
+            }
+        } else if let Ok(bytes) = std::fs::read(path) {
+            out.push(format!("{}:{}", path.display(), Hash::of(&bytes)));
+        }
+    }
+    let mut files = Vec::new();
+    for path in paths {
+        walk(path, &mut files);
+    }
+    if files.is_empty() {
+        return String::new();
+    }
+    let fields: Vec<&str> = files.iter().map(String::as_str).collect();
+    Hash::of_fields(&fields).to_string()
 }
 
 /// Compiles `program` into a scheduled [`Timeline`].

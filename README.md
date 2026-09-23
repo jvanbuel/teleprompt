@@ -278,9 +278,13 @@ shot to its clip, using the project's own `node_modules`. Remotion
 downloads a headless Chrome on first render unless `browser` or
 `TELEPROMPT_REMOTION_BROWSER` names one.
 
-The key covers the block and the scene's settings, not the project's
-source: editing a component re-renders nothing on its own. Delete
-`.teleprompt/cache/video` after changing what a composition draws.
+The key also covers what the bundler reads: the entry point's directory,
+`public/`, `package.json`, `package-lock.json` and `remotion.config.ts`,
+hashed by content (`node_modules` and dot-files aside). Editing a component
+re-renders the scene's shots; reverting the edit finds the old clips again.
+The granularity is the scene, not the composition — teleprompt does not
+read the bundle's import graph, so changing one component re-renders shots
+that never used it.
 
 `examples/remotion` is a complete project — a script narrated by Kokoro
 whose every picture is a composition:
