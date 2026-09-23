@@ -70,14 +70,13 @@ pub enum Element {
         /// blocks naming a scene continue the screen the previous one left
         /// behind. A name here starts — or rejoins — a different run.
         session: Option<String>,
-        /// Source location of the fence this action block came from
-        /// (controller ruling F12) — Task 11 passes it to the scene adapter
-        /// for validation instead of inventing `line: 0`.
         /// `review=pending` on a block `from` generated: the command in
         /// it came out of someone else's document and has been read by
         /// nobody. Carried to `compile`, which is where `check`'s warnings
         /// are collected.
         review: Option<String>,
+        /// Source location of the fence this action block came from, so a
+        /// scene adapter's diagnostics point at the real line.
         span: SourceSpan,
     },
     Pause {
