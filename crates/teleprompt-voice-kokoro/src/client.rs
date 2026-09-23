@@ -1,4 +1,5 @@
-use teleprompt_voice::{Pcm, VoiceError};
+use base64::Engine;
+use teleprompt_voice::{Pcm, VoiceError, WordTiming};
 
 use crate::config::{KokoroConfig, KOKORO_SAMPLE_RATE};
 
@@ -75,6 +76,58 @@ impl Client {
         decode_pcm(&bytes).map_err(|what| self.fail(&what))
     }
 
+    /// Speech and when each word of it is said, from
+    /// `/dev/captioned_speech`. Punctuation comes back as words of its own
+    /// and is dropped: a cue names words.
+    pub async fn captioned(
+        &self,
+        text: &str,
+        voice: Option<&str>,
+        speed: f64,
+    ) -> Result<(Pcm, Vec<WordTiming>), VoiceError> {
+        let url = format!("{}/dev/captioned_speech", self.cfg.base_url);
+        let mut body = serde_json::json!({
+            "model": self.cfg.model,
+            "input": text,
+            "response_format": "pcm",
+            "speed": speed,
+            "stream": false,
+            "return_timestamps": true,
+        });
+        if let Some(v) = voice {
+            body["voice"] = serde_json::Value::String(v.to_string());
+        }
+        let resp = self.http.post(&url).json(&body).send().await.map_err(|e| {
+            if e.is_timeout() {
+                self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
+            } else {
+                self.fail(&format!("request failed: {e}"))
+            }
+        })?;
+        let status = resp.status();
+        if status.as_u16() == 404 {
+            return Err(self.fail(
+                "has no /dev/captioned_speech, so it cannot time words; \
+                 set `backends.kokoro.word_timings = false`",
+            ));
+        }
+        if !status.is_success() {
+            return Err(self.fail(&format!("captioned speech returned {}", status.as_u16())));
+        }
+        let v: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| self.fail(&format!("captioned speech was not JSON: {e}")))?;
+        let audio = v["audio"]
+            .as_str()
+            .ok_or_else(|| self.fail("captioned speech had no `audio`"))?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(audio)
+            .map_err(|e| self.fail(&format!("captioned audio was not base64: {e}")))?;
+        let pcm = decode_pcm(&bytes).map_err(|what| self.fail(&what))?;
+        Ok((pcm, words(&v["timestamps"])))
+    }
+
     pub async fn voices(&self) -> Result<Vec<String>, VoiceError> {
         let url = format!("{}/v1/audio/voices", self.cfg.base_url);
         let resp = self.http.get(&url).send().await.map_err(|e| {
@@ -134,6 +187,27 @@ impl Client {
         }
         Ok(names)
     }
+}
+
+/// Word timings from a captioned response, in milliseconds, without the
+/// punctuation Kokoro times as words of its own.
+pub fn words(timestamps: &serde_json::Value) -> Vec<WordTiming> {
+    let ms = |v: &serde_json::Value| (v.as_f64().unwrap_or(0.0) * 1000.0).round() as u64;
+    timestamps
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|t| {
+                    let word = t["word"].as_str()?;
+                    word.chars().any(char::is_alphanumeric).then(|| WordTiming {
+                        word: word.to_string(),
+                        start_ms: ms(&t["start_time"]),
+                        end_ms: ms(&t["end_time"]),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn truncate(s: &str, n: usize) -> String {

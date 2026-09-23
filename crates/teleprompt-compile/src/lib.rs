@@ -133,18 +133,19 @@ pub struct CompileOutput {
 
 /// Where in a narration a cued action should start.
 ///
-/// With no word timings from the backend — which is every backend today —
-/// the offset is interpolated from where the phrase sits in the sentence.
-/// That is an approximation and says so: speech is not uniform, and a long
-/// word takes longer than a short one. It lands within a syllable or two on
-/// a sentence, which is the difference between typing a command while it is
-/// being named and typing it half a paragraph early. When a backend does
-/// publish word timings, this is the one place that has to change.
+/// Where the backend timed the words, it is when the phrase's first word is
+/// said: see [`word_offset_ms`]. Otherwise the offset is interpolated from
+/// where the phrase sits in the sentence. That is an approximation and says
+/// so: speech is not uniform, and a long word takes longer than a short
+/// one. It lands within a syllable or two on a sentence, which is the
+/// difference between typing a command while it is being named and typing
+/// it half a paragraph early.
 fn at_offset_ms(
     phrase: &str,
     text: &str,
     narration: Option<&NarrationInput>,
     policy: &str,
+    timed: Option<(&[WordTiming], &BTreeMap<String, String>)>,
 ) -> Result<Option<u64>, Diagnostic> {
     if policy != "concurrent" {
         return Err(Diagnostic::error(format!(
@@ -172,10 +173,60 @@ fn at_offset_ms(
     if text.is_empty() {
         return Ok(None);
     }
+    if let Some((words, pronounce)) = timed {
+        if let Some(ms) =
+            word_offset_ms(&spoken(phrase, pronounce), &spoken(text, pronounce), words)
+        {
+            return Ok(Some(ms));
+        }
+    }
     let fraction = at as f64 / text.chars().count() as f64;
     Ok(Some(
         (narration.duration_ms as f64 * fraction).round() as u64
     ))
+}
+
+/// When the first word of `phrase` is said, from the backend's timings of
+/// `text` — both as the voice was given them, pronunciations applied.
+///
+/// Words are compared lowercased and without punctuation. Where the timed
+/// words line up one for one with the text's, the phrase's word is taken by
+/// position. Where they do not — a backend that reads `0:12` as three
+/// words — it is the timed occurrence of that word nearest the same
+/// relative position. `None` when the word was not timed at all, and the
+/// caller interpolates.
+pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<u64> {
+    fn norm(w: &str) -> String {
+        w.chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect()
+    }
+    let said: Vec<String> = text
+        .split_whitespace()
+        .map(norm)
+        .filter(|w| !w.is_empty())
+        .collect();
+    let wanted: Vec<String> = phrase
+        .split_whitespace()
+        .map(norm)
+        .filter(|w| !w.is_empty())
+        .collect();
+    let first = wanted.first()?;
+    let at = (0..said.len()).find(|i| said[*i..].starts_with(&wanted))?;
+    let timed: Vec<String> = words.iter().map(|w| norm(&w.word)).collect();
+
+    if timed.len() == said.len() && timed[at] == *first {
+        return Some(words[at].start_ms);
+    }
+    let relative = at as f64 / said.len().max(1) as f64;
+    (0..timed.len())
+        .filter(|j| timed[*j] == *first)
+        .min_by(|a, b| {
+            let d = |j: &usize| (*j as f64 / timed.len() as f64 - relative).abs();
+            d(a).total_cmp(&d(b))
+        })
+        .map(|j| words[j].start_ms)
 }
 
 /// Puts the scheduler's decision back into the adapter's own language.
@@ -653,7 +704,16 @@ Read it, then remove the attribute."
                 let cue_ms = match cue {
                     None => None,
                     Some(phrase) => {
-                        match at_offset_ms(phrase, &pending_text, pending.as_ref(), policy) {
+                        // The pending narration's own timings, when its
+                        // backend published them: it is the detail pushed
+                        // with it.
+                        let timed = pending.as_ref().and_then(|_| {
+                            narration_details
+                                .last()
+                                .and_then(|d| d.word_timings.as_deref())
+                                .map(|w| (w, &pending_config.voice.pronounce))
+                        });
+                        match at_offset_ms(phrase, &pending_text, pending.as_ref(), policy, timed) {
                             Ok(ms) => ms,
                             Err(d) => {
                                 diags.push(d.at(*span));

@@ -50,11 +50,9 @@ impl VoiceBackend for KokoroVoice {
             languages: LanguageSupport::Any,
             cloning: false,
             cross_lingual: false,
-            // Available only on POST /dev/captioned_speech. A `/dev/` path
-            // is not a stable interface to build a published manifest field
-            // on. Revisit when it stabilises; the manifest already omits
-            // `words` when absent.
-            word_timings: false,
+            // Only on POST /dev/captioned_speech, which is a `/dev/` path
+            // and so not a stable interface: opt-in, per project.
+            word_timings: self.client.config().word_timings,
             ssml: false,
             speed_control: true,
             version: self.version.clone(),
@@ -62,6 +60,16 @@ impl VoiceBackend for KokoroVoice {
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
+        if self.client.config().word_timings {
+            let (pcm, words) = self
+                .client
+                .captioned(&req.text, req.voice.as_deref(), req.speed)
+                .await?;
+            return Ok(Synthesized {
+                pcm,
+                word_timings: Some(words),
+            });
+        }
         let pcm = self
             .client
             .speech(&req.text, req.voice.as_deref(), req.speed)

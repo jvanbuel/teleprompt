@@ -15,6 +15,12 @@ pub struct KokoroConfig {
     pub concurrency: usize,
     /// Sent as the request's `model` field and folded into the cache key.
     pub model: String,
+    /// Ask for per-word timings, which make `cue=` exact and fill the
+    /// manifest's `words`. They come from Kokoro-FastAPI's
+    /// `/dev/captioned_speech`, a `/dev/` path and so not a stable
+    /// interface, which is why this is opt-in: a server without it fails
+    /// the dub, naming this setting.
+    pub word_timings: bool,
 }
 
 impl Default for KokoroConfig {
@@ -24,6 +30,7 @@ impl Default for KokoroConfig {
             timeout_ms: 30_000,
             concurrency: 4,
             model: "kokoro".to_string(),
+            word_timings: false,
         }
     }
 }
@@ -62,7 +69,15 @@ impl KokoroConfig {
     /// visible where somebody is already looking, and an author running two
     /// sets of weights distinguishes them by naming them — `model:
     /// kokoro-v1_1` — which is the field that exists for that.
+    ///
+    /// With `word_timings` on, `+words` is added: the audio is the same,
+    /// but an entry cached without timings would keep answering without
+    /// them, so turning them on re-synthesizes each line once.
     pub fn version_string(&self) -> String {
-        self.model.clone()
+        if self.word_timings {
+            format!("{}+words", self.model)
+        } else {
+            self.model.clone()
+        }
     }
 }

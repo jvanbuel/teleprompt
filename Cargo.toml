@@ -29,6 +29,7 @@ unexpected_cfgs = "warn"
 
 [workspace.dependencies]
 async-trait = "0.1"
+base64 = "0.22"
 blake3 = "1"
 clap = { version = "4", features = ["derive"] }
 insta = { version = "1", features = ["json"] }

@@ -183,11 +183,15 @@ something the paragraph does not say is an error, not a silent no-op, and a
 cue only means something under `policy=concurrent` — `hold` puts the action
 after the narration and the stretch policies size it to fit.
 
-Where a backend publishes word timings the offset is exact. Where none does
-— which is every backend today — it is interpolated from where the phrase
-sits in the sentence, which lands within a syllable or two and is the
-difference between typing a command while it is named and typing it half a
-paragraph early.
+Where the backend timed the words, the action starts when the phrase's
+first word is said — Kokoro does, with `word_timings = true` (see **Voice
+backends**), and the manifest then publishes every word's `start_ms` and
+`end_ms`. The words are matched as the voice was given them, pronunciations
+applied, and a voice that reads `1200` as two words is matched by position.
+Until a line is dubbed, or with a backend that does not time words, the
+offset is interpolated from where the phrase sits in the sentence, which
+lands within a syllable or two and is the difference between typing a
+command while it is named and typing it half a paragraph early.
 
 ## Saying it the way it is said
 
@@ -770,6 +774,7 @@ base_url = "http://localhost:8880"
 timeout_ms = 30000
 concurrency = 4
 model = "kokoro"
+word_timings = false
 ```
 
 `base_url` is the server's address; teleprompt does not start or manage it.
@@ -778,6 +783,15 @@ model = "kokoro"
 server is the bottleneck, so unbounded fan-out only makes it slower.
 `model` (default `"kokoro"`) is sent as the request's `model` field, for
 servers hosting more than one checkpoint.
+
+`word_timings` (default off) asks for when each word is said, which makes
+`cue=` exact and fills the manifest's `words`. Kokoro-FastAPI serves them
+from `/dev/captioned_speech`, which is a `/dev/` path and so not a stable
+interface — hence opt-in. A server without it fails `dub` with a message
+naming this setting rather than quietly losing the timings. Turning it on
+changes the cache key once (`kokoro+words`), so each line is synthesized
+again with its timings instead of answering from an entry made without
+them.
 
 **Kokoro only has to be running for `dub` to succeed.** `check`, `plan`, and
 `diff` read durations out of the cache — a real measurement once a segment
