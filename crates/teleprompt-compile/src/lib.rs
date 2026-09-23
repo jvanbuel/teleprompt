@@ -180,7 +180,7 @@ fn at_offset_ms(
             return Ok(Some(ms));
         }
     }
-    let fraction = at as f64 / text.chars().count() as f64;
+    let fraction = text[..at].chars().count() as f64 / text.chars().count() as f64;
     Ok(Some(
         (narration.duration_ms as f64 * fraction).round() as u64
     ))

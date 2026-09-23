@@ -849,6 +849,27 @@ fn an_action_cued_to_a_phrase_starts_when_that_phrase_is_spoken() {
     );
 }
 
+/// Where the phrase sits is measured in characters: Greek letters are two
+/// bytes each, and counting bytes put this cue past the end of the speech.
+#[test]
+fn a_cue_after_non_ascii_text_starts_where_the_phrase_is_spoken() {
+    let src = "# Config\n\n\
+               Καλημέρα κόσμε, καλησπέρα κόσμε, and then the cue. {#c}\n\n\
+               ```teleprompt scene=mock policy=concurrent cue=\"the cue\"\n\
+               wait 500ms\n\
+               ```\n";
+    let out = compile_program(&program(src)).expect("compiles");
+
+    let entry = &out.timeline.entries[0];
+    let narration = entry.narration.as_ref().expect("the item is narrated");
+    let action = entry.action.as_ref().expect("and has an action");
+    let fraction = (action.start_ms - narration.start_ms) as f64 / narration.duration_ms as f64;
+    assert!(
+        (0.6..0.95).contains(&fraction),
+        "cued {fraction:.2} of the way through, not near the phrase"
+    );
+}
+
 /// A shot that names something the paragraph does not say is a typo, and a
 /// typo that silently does nothing is the kind that ships.
 #[test]
