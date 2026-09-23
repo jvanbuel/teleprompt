@@ -16,6 +16,30 @@ use std::process::{Command, Stdio};
 use teleprompt_capture::reel::{cut, starved, windows};
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
+/// How long an action annotation — the pointer, the click ripple, the
+/// title overlay — stays on screen, unless the scene says otherwise.
+///
+/// Playwright's own default is 500ms: twelve frames at 24fps, right for a
+/// trace somebody scrubs through and far too short for a shot watched once
+/// at speed with a sentence spoken over it. The whole reason to record a
+/// browser rather than screenshot it is to show the clicking, and at 500ms
+/// a viewer who blinks sees a page that changed by itself.
+///
+/// **The annotation is not free.** Playwright holds each action for this
+/// long before the next one runs — measured, not assumed: four clicks take
+/// 1.4s at 300ms and 10.2s at 2500ms. So this is a pacing knob that
+/// spends the shot's budget, and the budget is the narration's length. At
+/// 1200ms a click is about thirty frames, plainly visible, and a shot can
+/// still fit half a dozen of them under one sentence. A scene that clicks
+/// more often than that should say so with `annotation_ms` rather than
+/// overrun its slot and be cut.
+const DEFAULT_ANNOTATION_MS: u32 = 1_200;
+
+/// The action title's font size. Playwright's default of 24px is sized for
+/// a trace viewer on a desktop; a 1280-wide video gets scaled down on its
+/// way to wherever it is watched.
+const DEFAULT_ANNOTATION_SIZE: u32 = 32;
+
 /// The script teleprompt writes around a session's shots.
 ///
 /// Each shot is wrapped in a block that pads it out to its scheduled
@@ -46,7 +70,22 @@ pub fn script_for(session: &Session, frame: &Frame, video_dir: &str) -> String {
     ));
     // The cursor is the point of recording a browser at all: a click with
     // no pointer on screen is a page that changes for no visible reason.
+    // `DEFAULT_ANNOTATION_MS` explains what `duration` costs.
     out.push_str("    showActions: {\n");
+    out.push_str(&format!(
+        "      duration: {},\n",
+        session
+            .settings
+            .get("annotation_ms")
+            .map_or(DEFAULT_ANNOTATION_MS.to_string(), String::clone)
+    ));
+    out.push_str(&format!(
+        "      fontSize: {},\n",
+        session
+            .settings
+            .get("annotation_size")
+            .map_or(DEFAULT_ANNOTATION_SIZE.to_string(), String::clone)
+    ));
     out.push_str(&format!(
         "      cursor: {},\n",
         quote(

@@ -158,6 +158,50 @@ mod capture {
         assert!(js.contains("cursor: 'pointer'"), "{js}");
     }
 
+    /// The annotation outlasts a blink.
+    ///
+    /// Playwright's default is 500ms, which is twelve frames at 24fps and
+    /// right for a trace somebody scrubs. A narrated shot is watched once,
+    /// at speed, and a viewer who looks away misses the only evidence that
+    /// anything was clicked — which is how a recording of a browser ends up
+    /// indistinguishable from a page changing by itself. The exact number
+    /// is a judgement call; that it is not Playwright's is not.
+    #[test]
+    fn an_action_stays_on_screen_long_enough_to_be_seen() {
+        let js = script_for(
+            &session(vec![shot("a#0", "await page.click('#x');", 8_000)]),
+            &frame(),
+            "/tmp/v",
+        );
+        let ms: u64 = js
+            .lines()
+            .find_map(|l| {
+                l.trim()
+                    .strip_prefix("duration: ")?
+                    .trim_end_matches(',')
+                    .parse()
+                    .ok()
+            })
+            .expect("the script sets an annotation duration");
+        assert!(ms >= 1_000, "{ms}ms is a blink: {js}");
+        // And not so long that a handful of clicks cannot fit under one
+        // sentence: Playwright holds each action for `duration` before
+        // running the next, so this is spent out of the shot's slot.
+        assert!(ms <= 2_000, "{ms}ms per action spends the whole shot: {js}");
+    }
+
+    /// And a scene can say otherwise — a shot that clicks ten times in
+    /// four seconds wants a shorter one than the default.
+    #[test]
+    fn a_scene_sets_its_own_annotation_length() {
+        let mut s = session(vec![shot("a#0", "await page.click('#x');", 4_000)]);
+        s.settings.insert("annotation_ms".into(), "700".into());
+        s.settings.insert("annotation_size".into(), "18".into());
+        let js = script_for(&s, &frame(), "/tmp/v");
+        assert!(js.contains("duration: 700,"), "{js}");
+        assert!(js.contains("fontSize: 18,"), "{js}");
+    }
+
     /// Each shot runs in its own block, in order, in one context — the
     /// page keeps its state across them.
     #[test]

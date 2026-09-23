@@ -15,6 +15,39 @@ use crate::{Picture, RenderError, RenderPlan};
 /// mixing never resamples.
 pub(crate) const SAMPLE_RATE: u32 = 24_000;
 
+/// What the finished file's audio track is, which is not what the bed is.
+///
+/// Mixing runs at whatever the voice backend emitted so nothing resamples
+/// on the way through, and that rate has no business deciding what comes
+/// out the other end. A render is a file people play — in a browser, on a
+/// phone, in whatever preview a review tool embeds — and 48 kHz stereo is
+/// what those players are built for. 24 kHz mono is legal AAC and a
+/// smaller file, and it is also the shape a player is most free to handle
+/// badly: the track is there, the container says so, and nothing comes
+/// out. One resample at the encode ends the argument, and costs a few
+/// hundred kilobytes.
+pub(crate) const DELIVERY_SAMPLE_RATE: u32 = 48_000;
+
+/// Stereo, for the same reason.
+pub(crate) const DELIVERY_CHANNELS: u8 = 2;
+
+/// The audio half of an output encode, shared by both callers so a file
+/// cannot play in one render path and not the other.
+pub(crate) fn audio_encode(args: &mut Vec<String>) {
+    args.extend([
+        "-c:a".into(),
+        "aac".into(),
+        "-b:a".into(),
+        "128k".into(),
+        "-ar".into(),
+        DELIVERY_SAMPLE_RATE.to_string(),
+        "-ac".into(),
+        DELIVERY_CHANNELS.to_string(),
+        "-movflags".into(),
+        "+faststart".into(),
+    ]);
+}
+
 /// The argument vector for `plan`, ffmpeg's own name excluded.
 ///
 /// Pure, so the graph can be asserted on without ffmpeg installed.
@@ -146,20 +179,7 @@ pub fn args(plan: &RenderPlan) -> Vec<String> {
     args.push("yuv420p".into());
     args.push("-r".into());
     args.push(plan.fps.to_string());
-    args.push("-c:a".into());
-    args.push("aac".into());
-    args.push("-b:a".into());
-    args.push("128k".into());
-    // The voice's own rate is not a delivery format. Kokoro speaks mono at
-    // 24 kHz, and AAC at 24 kHz mono is valid and yet silent in more than
-    // one player — a video that plays its picture and none of its words.
-    // 48 kHz stereo is what every player expects, so that is what ships.
-    args.push("-ar".into());
-    args.push("48000".into());
-    args.push("-ac".into());
-    args.push("2".into());
-    args.push("-movflags".into());
-    args.push("+faststart".into());
+    audio_encode(&mut args);
     args.push(plan.output.display().to_string());
     args
 }

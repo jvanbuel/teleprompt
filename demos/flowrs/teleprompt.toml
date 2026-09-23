@@ -1,0 +1,14 @@
+[locales]
+source = "en"
+targets = []
+
+[voice]
+source = "synthetic"
+# `null` renders silence of the estimated length: timing is real, there is
+# nothing to hear. Point this at a voice server to hear it — see README.md.
+backend = "null"
+
+[backends.kokoro]
+# `model` is the whole cache key for synthesized audio, so name whatever is
+# actually answering on `base_url`. Two servers under one name share a cache.
+model = "kokoro"

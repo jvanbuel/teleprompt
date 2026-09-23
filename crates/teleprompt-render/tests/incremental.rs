@@ -176,6 +176,42 @@ fn narration_lands_where_it_was_placed_through_the_concat() {
     );
 }
 
+/// The file a person plays carries an audio track a player is expecting.
+///
+/// This is not the same claim as "the mix has sound in it", which
+/// `narration_lands_where_it_was_placed_through_the_concat` already makes,
+/// and it is the one that was wrong: the mix ran at the voice backend's
+/// own 24 kHz mono and the encode shipped it out unchanged, so every
+/// render carried a legal, small, and unusual audio track. The symptom is
+/// not an error anywhere — the track is present, the container declares
+/// it, `volumedetect` reads it back at a healthy level, and the person
+/// watching hears nothing.
+#[test]
+fn the_rendered_file_carries_a_track_a_player_expects() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = workdir("incr-delivery");
+    let clip = bright_clip(&dir, "clip.mp4");
+    let mut plan = plan(&dir, &clip, &[(0, 1_000), (1_000, 1_000)], 2_000);
+    plan.narration = vec![Narration {
+        id: "line".into(),
+        path: support::tone(&dir, "line.wav", 1_000),
+        start_ms: 0,
+    }];
+
+    renderer(&dir.join("cache"))
+        .render(&plan, &mut |_| {})
+        .expect("renders");
+
+    assert_eq!(
+        support::audio_track(&plan.output),
+        (48_000, 2),
+        "the bed mixes at 24 kHz mono; what comes out is for playing"
+    );
+}
+
 /// The reason any of this exists. Re-rendering an unchanged plan must
 /// encode nothing at all.
 #[test]

@@ -1,0 +1,9 @@
+{
+  "name": "teleprompt-demo-flowrs",
+  "private": true,
+  "type": "module",
+  "description": "Playwright is the browser scene's runtime; teleprompt writes the script and runs it with node.",
+  "dependencies": {
+    "playwright": "^1.63.0"
+  }
+}

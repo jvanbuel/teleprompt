@@ -373,19 +373,8 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         "copy".into(),
         "-map".into(),
         "[a]".into(),
-        "-c:a".into(),
-        "aac".into(),
-        "-b:a".into(),
-        "128k".into(),
-        // See `ffmpeg::args`: 48 kHz stereo, whatever the voice
-        // produced, because that is what every player plays.
-        "-ar".into(),
-        "48000".into(),
-        "-ac".into(),
-        "2".into(),
-        "-movflags".into(),
-        "+faststart".into(),
     ]);
+    ffmpeg::audio_encode(&mut args);
     args.push(plan.output.display().to_string());
     args
 }
