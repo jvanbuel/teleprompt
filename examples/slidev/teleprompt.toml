@@ -1,8 +1,11 @@
 # A narrated video made from an ordinary Slidev deck, spoken by Kokoro.
 #
-# Run from the repository root:
+# Run from the repository root. The script is drafted from the deck's
+# speaker notes, and names the deck in its own front matter:
 #
 #   (cd examples/slidev/deck && npm install)
+#   cargo run -- from examples/slidev/deck/slides.md --slidev \
+#       --out examples/slidev/scripts/slides.md
 #   cargo run -- build examples/slidev/scripts/slides.md
 #
 # Kokoro-FastAPI has to be listening on base_url for `dub` and `build`;
@@ -24,9 +27,3 @@ Slidev = "slide dev"
 base_url = "http://localhost:8880"
 timeout_ms = 60000
 concurrency = 2
-
-# `deck` is the Slidev entry, relative to the directory the build runs
-# from; Slidev itself is found in a node_modules beside it or above it.
-[scene.slides]
-adapter = "slidev"
-deck = "examples/slidev/deck/slides.md"

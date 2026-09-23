@@ -9,7 +9,7 @@ use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_core::draft::draft;
+use teleprompt_core::draft::{draft, draft_slidev};
 
 /// The stable, typed shape of `from`'s output in both formats.
 #[derive(Debug, Serialize)]
@@ -19,6 +19,10 @@ pub struct FromReport {
     /// Action blocks written as `review=pending`, which `check` will warn
     /// about until a human has read them.
     pub unreviewed: usize,
+    /// Slides of a Slidev deck with no speaker notes, so nothing to say
+    /// over them, and so not in the draft.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub silent_slides: Vec<u32>,
 }
 
 impl FromReport {
@@ -32,6 +36,14 @@ impl FromReport {
             s.push_str(&format!(
                 "  {} tape(s) marked `review=pending` — read them before dubbing\n",
                 self.unreviewed
+            ));
+        }
+        if !self.silent_slides.is_empty() {
+            let list: Vec<String> = self.silent_slides.iter().map(u32::to_string).collect();
+            s.push_str(&format!(
+                "  slide(s) {} have no speaker notes, so nothing is said over them and they \
+                 are not in the draft\n",
+                list.join(", ")
             ));
         }
         s
@@ -60,7 +72,7 @@ fn default_out(doc: &Path) -> PathBuf {
     doc.with_extension("teleprompt.md")
 }
 
-pub fn run_from(doc: &Path, out: Option<PathBuf>) -> std::io::Result<FromReport> {
+pub fn run_from(doc: &Path, out: Option<PathBuf>, slidev: bool) -> std::io::Result<FromReport> {
     let source = std::fs::read_to_string(doc)
         .map_err(|e| Error::new(e.kind(), format!("cannot read {}: {e}", doc.display())))?;
 
@@ -76,7 +88,14 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>) -> std::io::Result<FromReport>
         ));
     }
 
-    let script = draft(&source, &title_of(doc));
+    // A deck is named in the draft's scene config as it was named here:
+    // relative to where teleprompt runs, which is where the build will run.
+    let (script, silent_slides) = if slidev {
+        let d = draft_slidev(&source, &doc.display().to_string());
+        (d.script, d.silent)
+    } else {
+        (draft(&source, &title_of(doc)), Vec::new())
+    };
     if let Some(parent) = created.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
@@ -88,5 +107,6 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>) -> std::io::Result<FromReport>
         source: doc.to_path_buf(),
         created,
         unreviewed: script.matches("review=pending").count(),
+        silent_slides,
     })
 }

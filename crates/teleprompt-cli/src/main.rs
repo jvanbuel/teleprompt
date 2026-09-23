@@ -59,6 +59,10 @@ enum Command {
         /// Where to write the draft; defaults to <doc>.teleprompt.md
         #[arg(long)]
         out: Option<PathBuf>,
+        /// Read <doc> as a Slidev deck: its speaker notes become the
+        /// narration, a paragraph per `[click]` step
+        #[arg(long)]
+        slidev: bool,
     },
     /// Parse and validate; no side effects, no cost
     Check {
@@ -242,7 +246,7 @@ fn main() -> ExitCode {
                 Outcome::RuntimeFailure(e.to_string())
             }
         },
-        Command::From { doc, out } => match from::run_from(&doc, out) {
+        Command::From { doc, out, slidev } => match from::run_from(&doc, out, slidev) {
             Ok(report) => {
                 match cli.format {
                     Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),

@@ -102,6 +102,36 @@ The result is a draft, not a script: no pacing is inferred, every block gets
 the default policy, and choosing `concurrent` over `hold` is exactly the
 judgement you are there to make.
 
+### From a Slidev deck
+
+```bash
+teleprompt from talk/slides.md --slidev --out scripts/talk.md
+```
+
+A deck's speaker notes are already the thing a script is: what is said
+over each slide. `--slidev` reads them the way Slidev does — a slide's
+notes are its last HTML comment — and turns each into a paragraph followed
+by a block showing that slide. Slidev's own `[click]` markers split a note
+into one paragraph per click step, so a list revealed on click is
+narrated a point at a time:
+
+```md
+<!--
+The deck does not change to be narrated.
+[click] You can still present it with Slidev.
+[click] You can still export it.
+-->
+```
+
+becomes three paragraphs over `2`, `2?clicks=1` and `2?clicks=2`.
+`[click:3]` adds three clicks, as it does in Slidev. The draft names the
+deck in its own front matter, relative to where you ran `from`, which is
+where the build will run. A slide with no notes has nothing to be said
+over it, so it is left out and `from` names it.
+
+As with any draft, the script is the source of truth from here on: `from`
+will not overwrite it, and the notes and the script are free to part ways.
+
 ## Watching what an edit costs
 
 `plan` and `diff` answer in milliseconds, and they answer in numbers. Judging
@@ -340,7 +370,8 @@ how many clicks it does have. Slidev drives a browser to export, found by
 its own Playwright unless `browser` or `TELEPROMPT_SLIDEV_BROWSER` names
 one.
 
-`examples/slidev` is a complete project:
+`examples/slidev` is a complete project, whose script was drafted from
+its deck's speaker notes (see **From a Slidev deck** above):
 
 ```bash
 (cd examples/slidev/deck && npm install)
