@@ -31,6 +31,7 @@ fn the_registry_serves_every_adapter_this_build_ships() {
         r.available(),
         vec![
             "asciinema",
+            "media",
             "mock",
             "playwright",
             "remotion",

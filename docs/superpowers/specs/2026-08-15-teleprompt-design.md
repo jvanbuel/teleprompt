@@ -906,6 +906,12 @@ out of the key and a reworded sentence reuses its slide.
 A shot that states no length takes its sentence's; one after a mark has no
 sentence, and `check` refuses it rather than schedule it at zero.
 
+**`media`** (§7.3) — shipped. `image` and `title` are stills and take their
+sentence's length; a ranged `clip` is exact and not re-timed. It added
+`shot_inputs` to the contract: the files one shot is drawn from, hashed
+into that shot's key alone, so replacing an image re-captures the shots
+that show it and nothing else.
+
 Adding an adapter touches no other crate. That is the property the contract
 exists to protect.
 

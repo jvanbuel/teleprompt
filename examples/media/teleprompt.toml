@@ -1,0 +1,26 @@
+# Images, a clip and title cards, drawn with nothing but ffmpeg, spoken
+# by Kokoro. Run from the repository root:
+#
+#   cargo run -- build examples/media/scripts/tour.md
+[locales]
+source = "en"
+targets = []
+
+[voice]
+source = "synthetic"
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 60000
+concurrency = 2
+
+# `dir` is relative to the directory the build runs from, and its
+# contents are in every shot's capture key.
+[scene.media]
+adapter = "media"
+dir = "examples/media/scripts/media"
+background = "#0b0d10"
+color = "#eef3f8"

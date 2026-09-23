@@ -228,5 +228,6 @@ pub fn registry() -> CaptureRegistry {
         .with(Box::new(teleprompt_remotion::RemotionRender::default()))
         .with(Box::new(teleprompt_slidev::SlidevRender::default()))
         .with(Box::new(teleprompt_asciinema::AsciinemaRender::default()))
+        .with(Box::new(teleprompt_media::MediaRender::default()))
         .with(Box::new(teleprompt_capture::mock::MockCapture::default()))
 }

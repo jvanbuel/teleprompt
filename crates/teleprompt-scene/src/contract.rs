@@ -233,6 +233,21 @@ pub trait SceneCompiler: Send + Sync {
         Vec::new()
     }
 
+    /// Files one shot is drawn from, beyond the scene's [`inputs`]: the
+    /// image a media shot shows. Hashed into that shot's key alone, so
+    /// replacing the file re-captures the shots that show it and nothing
+    /// else — and `plan` reads only the files shots name. Paths only, as
+    /// with `inputs`; `source` is the shot's published source.
+    ///
+    /// [`inputs`]: SceneCompiler::inputs
+    fn shot_inputs(
+        &self,
+        _scene: &teleprompt_core::config::SceneConfig,
+        _source: &str,
+    ) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+
     /// The part of an included body that `include=file#fragment` names.
     ///
     /// A whole file is one block, and one block is one paragraph; a

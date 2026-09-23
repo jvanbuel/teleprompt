@@ -3,6 +3,7 @@
 // Rust guideline compliant 2026-07-18
 
 use teleprompt_asciinema::AsciinemaScene;
+use teleprompt_media::MediaScene;
 use teleprompt_playwright::PlaywrightScene;
 use teleprompt_remotion::RemotionScene;
 use teleprompt_scene::SceneRegistry;
@@ -29,5 +30,6 @@ pub fn scenes() -> SceneRegistry {
     registry.register(Box::new(RemotionScene));
     registry.register(Box::new(SlidevScene));
     registry.register(Box::new(AsciinemaScene));
+    registry.register(Box::new(MediaScene));
     registry
 }

@@ -1159,6 +1159,7 @@ dependencies = [
  "teleprompt-capture",
  "teleprompt-compile",
  "teleprompt-core",
+ "teleprompt-media",
  "teleprompt-playwright",
  "teleprompt-remotion",
  "teleprompt-render",
@@ -1198,6 +1199,15 @@ dependencies = [
  "serde_yaml",
  "thiserror 1.0.69",
  "toml",
+]
+
+[[package]]
+name = "teleprompt-media"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-capture",
+ "teleprompt-core",
+ "teleprompt-scene",
 ]
 
 [[package]]

@@ -435,6 +435,44 @@ asciinema's own renderer, then cuts it into a clip per shot.
 cargo run -- build examples/asciinema/scripts/recording.md
 ```
 
+### Images, clips and title cards
+
+A scene whose adapter is `media` needs nothing but ffmpeg. One directive
+per shot:
+
+```teleprompt scene=media
+image src=arch.png fit=contain
+```
+
+| directive | draws | length |
+|---|---|---|
+| `image src=… fit=contain\|cover` | a still, letterboxed or cropped to fill | its sentence's |
+| `clip src=… from=0:12 to=0:19 fit=…` | that range, without its sound | exact, `to - from`; without `to`, its sentence's |
+| `title text="…" subtitle="…"` | text on a colour | its sentence's |
+
+A clip that ends before its sentence holds its last frame; one is never
+re-timed, since that would change its speed. Times are written `0:12`,
+`12.5s` or `250ms`, and `check` suggests the nearest spelling of a
+mistyped key. A title's text is drawn as written — quotes, colons and `%`
+included.
+
+```toml
+[scene.media]
+adapter = "media"
+dir = "media"            # what `src` is relative to, from where the build runs
+background = "#0b0d10"   # behind letterboxing, and a title's colour
+color = "#eef3f8"        # a title's text
+# font = "Sans"
+```
+
+Each shot's key covers the one file it shows, by content: replacing an
+image re-draws the shots that show it and nothing else, and `plan` reads
+only the files shots name. `examples/media`:
+
+```bash
+cargo run -- build examples/media/scripts/tour.md
+```
+
 ## Rendering
 
 ```bash

@@ -20,6 +20,7 @@ teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-render = { path = "../teleprompt-render" }
+teleprompt-media = { path = "../teleprompt-media" }
 teleprompt-playwright = { path = "../teleprompt-playwright" }
 teleprompt-asciinema = { path = "../teleprompt-asciinema" }
 teleprompt-remotion = { path = "../teleprompt-remotion" }

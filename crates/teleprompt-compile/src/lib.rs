@@ -279,7 +279,12 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-pw-1.63-v2";
 /// to fit its slot is a different tape, and the chain has to be built from
 /// the tape that will actually be captured. That is also how slot duration
 /// gets into the key (spec §5.1) without being a field in it.
-fn chain_capture_keys(timeline: &mut Timeline, config: &Config, registry: &SceneRegistry) {
+fn chain_capture_keys(
+    timeline: &mut Timeline,
+    config: &Config,
+    registry: &SceneRegistry,
+    shots: &[ShotSource],
+) {
     let mut chains: BTreeMap<(String, String), Hash> = BTreeMap::new();
     let mut inputs: BTreeMap<String, String> = BTreeMap::new();
 
@@ -310,12 +315,24 @@ fn chain_capture_keys(timeline: &mut Timeline, config: &Config, registry: &Scene
                 _ => String::new(),
             })
             .clone();
+        // And the files this one shot names, read for this shot alone.
+        let own = match (scene, registry.get(&action.adapter)) {
+            (Some(scene), Some(adapter)) => shots
+                .iter()
+                .find(|s| s.id == action.shot)
+                .map(|s| fingerprint(&adapter.shot_inputs(scene, &s.source)))
+                .unwrap_or_default(),
+            _ => String::new(),
+        };
         let shot_hash = action.shot_hash.to_string();
         let mut fields = vec![CAPTURE_RECIPE, &action.adapter, &settings];
         // Only where there is something: a scene with no inputs keeps the
         // key it had before inputs existed, and so keeps its clips.
         if !inputs.is_empty() {
             fields.push(&inputs);
+        }
+        if !own.is_empty() {
+            fields.push(&own);
         }
         fields.push(&shot_hash);
         let name = Hash::of_fields(&fields);
@@ -838,7 +855,7 @@ Read it, then remove the attribute."
     let (mut timeline, scheduling_warnings) =
         schedule(&items, &program.script_name, &program.locale, version);
     retime_stretched_shots(&mut timeline, &mut shot_sources, registry);
-    chain_capture_keys(&mut timeline, &program.config, registry);
+    chain_capture_keys(&mut timeline, &program.config, registry, &shot_sources);
     // Cache warnings first: they explain why the numbers the scheduler then
     // warns about are what they are.
     let mut warnings = cache_warnings;

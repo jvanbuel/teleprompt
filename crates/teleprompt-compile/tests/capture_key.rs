@@ -386,3 +386,78 @@ fn editing_a_file_the_scene_draws_from_re_captures_it() {
     assert_ne!(before[0], after[0], "the edit re-captures the first shot");
     assert_ne!(before[1], after[1], "and the second");
 }
+
+/// A stateless adapter each of whose shots shows one file of its own: the
+/// mock's `wait 1000ms` shows `one`, anything else `two`.
+struct Pictured;
+
+impl teleprompt_scene::contract::SceneCompiler for Pictured {
+    fn kind(&self) -> &'static str {
+        "pictured"
+    }
+    fn validate(
+        &self,
+        src: &teleprompt_scene::contract::BlockSource,
+    ) -> Result<teleprompt_scene::contract::Validated, Vec<teleprompt_core::Diagnostic>> {
+        teleprompt_scene::mock::MockScene.validate(src)
+    }
+    fn shots(
+        &self,
+        v: &teleprompt_scene::contract::Validated,
+        block_id: &str,
+    ) -> Result<Vec<teleprompt_scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>> {
+        teleprompt_scene::mock::MockScene.shots(v, block_id)
+    }
+    fn estimate(
+        &self,
+        shot: &teleprompt_scene::contract::Shot,
+    ) -> teleprompt_scene::contract::Measured {
+        teleprompt_scene::mock::MockScene.estimate(shot)
+    }
+    fn continues(&self) -> bool {
+        false
+    }
+    fn shot_inputs(
+        &self,
+        scene: &teleprompt_core::config::SceneConfig,
+        source: &str,
+    ) -> Vec<std::path::PathBuf> {
+        let dir = scene.settings["project"].as_str().unwrap().to_string();
+        let file = if source.contains("1000ms") {
+            "one"
+        } else {
+            "two"
+        };
+        vec![std::path::Path::new(&dir).join(file)]
+    }
+}
+
+fn pictured(project: &std::path::Path) -> Vec<Hash> {
+    let mut registry = SceneRegistry::with_builtins();
+    registry.register(Box::new(Pictured));
+    let src = twice(J, "wait 2000ms\n").replace(
+        "adapter: mock\n  other",
+        &format!(
+            "adapter: pictured\n    project: {}\n  other",
+            project.display()
+        ),
+    );
+    keys(&run_with(&src, &registry))
+}
+
+/// A shot is named by the file it shows, and only by that one: replacing
+/// it re-captures the shots that show it, and nothing else.
+#[test]
+fn replacing_a_file_re_captures_only_the_shots_that_show_it() {
+    let dir = std::env::temp_dir().join(format!("tp-shot-inputs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("one"), "red").unwrap();
+    std::fs::write(dir.join("two"), "green").unwrap();
+
+    let before = pictured(&dir);
+    std::fs::write(dir.join("one"), "blue").unwrap();
+    let after = pictured(&dir);
+    assert_ne!(before[0], after[0], "the shot showing `one` is re-captured");
+    assert_eq!(before[1], after[1], "the shot showing `two` is not");
+}
