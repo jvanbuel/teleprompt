@@ -576,7 +576,13 @@ Read it, then remove the attribute."
                 // absolute path outright) is what actually stops traversal;
                 // canonicalising first would follow symlinks out of the
                 // project and let a malicious symlink pass the check.
-                let (body, origin) = match include {
+                // `include=file#fragment`: the path is read like any
+                // include, and the fragment is the adapter's to interpret.
+                let (include, fragment) = match include.as_deref().map(|i| i.split_once('#')) {
+                    Some(Some((path, frag))) => (Some(path.to_string()), Some(frag.to_string())),
+                    _ => (include.clone(), None),
+                };
+                let (body, origin) = match &include {
                     Some(rel) => {
                         let p = Path::new(rel);
                         if p.is_absolute()
@@ -689,13 +695,22 @@ Read it, then remove the attribute."
                     body: body.clone(),
                     origin: origin.clone(),
                 };
-                let validated = match adapter.validate(&src) {
+                let mut validated = match adapter.validate(&src) {
                     Ok(v) => v,
                     Err(mut e) => {
                         diags.append(&mut e);
                         continue;
                     }
                 };
+                if let Some(fragment) = &fragment {
+                    match adapter.select(&validated.body, fragment) {
+                        Ok(part) => validated.body = part,
+                        Err(why) => {
+                            diags.push(Diagnostic::error(why).at(*span));
+                            continue;
+                        }
+                    }
+                }
                 let shots = match adapter.shots(&validated, block_id) {
                     Ok(s) => s,
                     Err(mut e) => {

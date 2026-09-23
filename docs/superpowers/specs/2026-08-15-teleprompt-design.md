@@ -880,8 +880,12 @@ different door.
 it satisfies the contract as an opaque span with a declared duration and
 explicit marks. Not a v1 commitment.
 
-**`asciinema`** — cast files are a recorded format rather than an authored one,
-which makes them a natural import source (§8) more than a scene.
+**`asciinema`** — shipped, as a scene after all: a cast is exact about its
+timing, and its own marker events are marks. It is the scene for a session
+that should not run again at capture time. `include=file#fragment`, added
+for it, lets each paragraph's block select one marked part of the same
+recording; the fragment is the adapter's to interpret (`select`), and an
+adapter that does not take one refuses it by name.
 
 **`remotion`** — shipped. A shot names a composition from an existing
 Remotion project and its props, as `remotion render` takes them; the

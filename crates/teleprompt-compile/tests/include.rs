@@ -187,3 +187,36 @@ fn an_inline_body_still_reports_the_scripts_own_path_and_offset_line() {
         errs[0]
     );
 }
+
+/// `include=file#fragment` reads the file and leaves the fragment to the
+/// adapter. One that does not take fragments says so, naming itself,
+/// rather than reading the whole file as if the fragment were not there.
+#[test]
+fn a_fragment_is_the_adapters_to_take_or_refuse() {
+    let dir = workspace();
+    std::fs::write(dir.join("steps.mock"), "wait 700ms\n").unwrap();
+    let e = run(
+        &dir,
+        "# A\n\nOne. {#a}\n\n```teleprompt scene=mock include=steps.mock#2\n```\n",
+    )
+    .unwrap_err();
+    assert!(
+        e[0].contains("`mock` blocks do not take an `include=…#2`"),
+        "{e:?}"
+    );
+}
+
+/// The path before the `#` is checked like any include path.
+#[test]
+fn a_fragment_does_not_hide_an_escaping_path() {
+    let dir = workspace();
+    let e = run(
+        &dir,
+        "# A\n\nOne. {#a}\n\n```teleprompt scene=mock include=../outside.mock#1\n```\n",
+    )
+    .unwrap_err();
+    assert!(
+        e[0].contains("`../outside.mock` resolves outside the project"),
+        "{e:?}"
+    );
+}

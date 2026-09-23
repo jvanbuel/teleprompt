@@ -232,4 +232,19 @@ pub trait SceneCompiler: Send + Sync {
     fn inputs(&self, _scene: &teleprompt_core::config::SceneConfig) -> Vec<std::path::PathBuf> {
         Vec::new()
     }
+
+    /// The part of an included body that `include=file#fragment` names.
+    ///
+    /// A whole file is one block, and one block is one paragraph; a
+    /// recording narrated a step at a time needs each paragraph's block to
+    /// show one step of the same file. What a fragment means is the
+    /// adapter's — a marker in a recording, a range of slides — so the
+    /// compiler only splits it off the path, validates the whole file, and
+    /// asks here for the part. The default refuses, naming the adapter.
+    fn select(&self, _body: &str, fragment: &str) -> Result<String, String> {
+        Err(format!(
+            "`{}` blocks do not take an `include=…#{fragment}`",
+            self.kind()
+        ))
+    }
 }

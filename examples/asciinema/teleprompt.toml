@@ -1,0 +1,32 @@
+# A narrated video of a terminal session that was recorded once and is
+# never run again: an asciinema cast, spoken over by Kokoro.
+#
+# Run from the repository root, with `agg` on PATH
+# (https://github.com/asciinema/agg):
+#
+#   cargo run -- build examples/asciinema/scripts/recording.md
+#
+# Kokoro-FastAPI has to be listening on base_url for `dub` and `build`;
+# `check`, `plan` and `diff` need neither it nor agg.
+[locales]
+source = "en"
+targets = []
+
+[voice]
+source = "synthetic"
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[voice.pronounce]
+asciinema = "askey nema"
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 60000
+concurrency = 2
+
+[scene.recording]
+adapter = "asciinema"
+theme = "dracula"
+font_size = 32

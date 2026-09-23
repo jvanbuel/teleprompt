@@ -1117,6 +1117,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-asciinema"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "teleprompt-capture",
+ "teleprompt-core",
+ "teleprompt-scene",
+]
+
+[[package]]
 name = "teleprompt-cache"
 version = "0.1.0"
 dependencies = [
@@ -1144,6 +1154,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "teleprompt-asciinema",
  "teleprompt-cache",
  "teleprompt-capture",
  "teleprompt-compile",

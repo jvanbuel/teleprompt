@@ -1,0 +1,15 @@
+[package]
+name = "teleprompt-asciinema"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+teleprompt-capture = { path = "../teleprompt-capture" }
+teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-scene = { path = "../teleprompt-scene" }
+
+[lints]
+workspace = true

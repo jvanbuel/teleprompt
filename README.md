@@ -385,6 +385,56 @@ its deck's speaker notes (see **From a Slidev deck** above):
 cargo run -- build examples/slidev/scripts/slides.md
 ```
 
+### Recordings
+
+Some sessions should not run again at capture time: a deploy, a
+migration, a build that takes twenty minutes on a cold machine. A scene
+whose adapter is `asciinema` plays back a cast that
+[`asciinema rec`](https://asciinema.org) already made, instead of running
+anything:
+
+````markdown
+First, it checks a script, which costs nothing and changes nothing. {#check}
+
+```teleprompt scene=recording policy=stretch-action include=casts/tour.cast#check
+```
+
+Then it plans the script. {#plan}
+
+```teleprompt scene=recording policy=stretch-action include=casts/tour.cast#plan
+```
+````
+
+The block is the cast, v2 or v3, and **its own markers split it**: the
+`[12.5, "m", "plan"]` events `asciinema play` pauses at. `include=
+file#fragment` selects part of it — `#2` is the part after the first
+marker, `#2-3` a range, `#plan` the part a marker labelled `plan` begins —
+so each paragraph can show its own step of one recording. Blocks of one
+scene are one session, and the terminal carries on from one to the next.
+
+A cast states its timing in full, so every shot is `exact`, with the
+recording's `idle_time_limit` applied as `asciinema play` applies it.
+`policy=stretch-action` re-times a shot to its sentence by moving its
+pauses and never its keystrokes; a shot whose pauses cannot absorb a trim
+keeps its length. `check` reads the cast and reports a bad line in the
+cast file, at its own line number.
+
+```toml
+[scene.recording]
+adapter = "asciinema"
+theme = "dracula"   # any agg theme
+font_size = 32
+```
+
+Capture lays the session's shots end to end at their scheduled offsets in
+one cast and renders it with [`agg`](https://github.com/asciinema/agg),
+asciinema's own renderer, then cuts it into a clip per shot.
+`examples/asciinema` is a recorded session of teleprompt itself:
+
+```bash
+cargo run -- build examples/asciinema/scripts/recording.md
+```
+
 ## Rendering
 
 ```bash
