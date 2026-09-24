@@ -32,16 +32,9 @@ impl Policy {
         }
     }
 
-    /// The current spelling of a policy that used to be called something else.
-    ///
-    /// `stretch` and `trim` named an operation without naming its object, so
-    /// both read as though the *speech* were being adjusted — the first
-    /// question anyone asked of this design was whether teleprompt
-    /// time-stretches a voice. It does not: these policies only ever change
-    /// how long the action takes. The old spellings are rejected rather than
-    /// aliased, so the corpus converges on one name, but an author who writes
-    /// an old one is told what to write instead of getting a bare "unknown
-    /// policy".
+    /// The replacement for a retired policy name. Old names are errors, not
+    /// aliases, and this lets the error name the fix
+    /// (`docs/design.md#policies`).
     pub fn renamed_hint(policy: &str) -> Option<&'static str> {
         match policy {
             "stretch" => Some("stretch-action"),
@@ -73,18 +66,9 @@ pub fn layout(policy: Policy, narration_ms: u64, action_ms: u64, timing: &Timing
     layout_at(policy, narration_ms, action_ms, None, timing)
 }
 
-/// [`layout`] with a shot: the offset into the narration at which the action
-/// should start.
-///
-/// A shot is how an author says "type the command while the voice is saying
-/// it". Without one, a concurrent action starts with the paragraph — which
-/// is right when the paragraph is about the action from its first word, and
-/// wrong the moment the sentence that names the command is the third one.
-///
-/// It only applies where the two run together. `hold` puts the action after
-/// the narration and the stretch policies size it to the narration, so a
-/// shot there would contradict the policy rather than refine it; the caller
-/// rejects that pairing before this is reached.
+/// [`layout`] with a cue: the offset into the item at which the action
+/// starts. Only `concurrent` honours it; the compiler rejects a cue on any
+/// other policy (`docs/design.md#cues`).
 pub fn layout_at(
     policy: Policy,
     narration_ms: u64,
@@ -97,9 +81,7 @@ pub fn layout_at(
             narration_start_ms: 0,
             action_start_ms: shot,
             action_duration_ms: action_ms,
-            // An action cued late enough to outlast the sentence extends
-            // the item; clipping it would drop the end of the very thing
-            // the shot exists to show.
+            // A late cue extends the item rather than clip the action.
             item_duration_ms: narration_ms.max(shot.saturating_add(action_ms)),
             warnings: Vec::new(),
         };
@@ -134,13 +116,9 @@ pub fn layout_at(
             let adjusted = if action_ms == 0 {
                 0
             } else if narration_ms == 0 {
-                // A shot after a mark has no narration of its own — the
-                // paragraph belongs to the block's first shot, and the rest
-                // run under whatever the policy left of it. There is
-                // nothing here to fill, so the tape keeps its own length.
-                // Falling through would compute a factor of zero and clamp
-                // it to `min_stretch`, which is the scheduler rewriting a
-                // tape it was never asked about.
+                // A shot after a mark has no narration of its own, so
+                // there is nothing to fill: keep its length rather than
+                // clamp a zero factor to `min_stretch`.
                 action_ms
             } else {
                 let wanted = narration_ms as f64 / action_ms as f64;
@@ -173,8 +151,8 @@ pub fn layout_at(
         Policy::Trim => {
             let mut warnings = Vec::new();
             let adjusted = if narration_ms == 0 {
-                // Nothing to trim against, for the same reason as above.
-                // Trimming to zero deleted the action from the video.
+                // Nothing to trim against; trimming to zero would delete
+                // the action.
                 action_ms
             } else if action_ms <= narration_ms {
                 action_ms
@@ -192,9 +170,6 @@ pub fn layout_at(
                 narration_start_ms: 0,
                 action_start_ms: 0,
                 action_duration_ms: adjusted,
-                // The item is as long as whichever of the two is left:
-                // normally the narration, and the action where there is no
-                // narration to trim against.
                 item_duration_ms: narration_ms.max(adjusted),
                 warnings,
             }

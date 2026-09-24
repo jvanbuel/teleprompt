@@ -6,8 +6,7 @@ use crate::timeline::{ActionEntry, Entry, NarrationEntry, Timeline, TransitionEn
 
 pub const TIMELINE_VERSION: u32 = 1;
 
-/// Pure: same inputs always produce the same timeline.
-/// Returns the timeline plus any policy warnings, tagged with their item.
+/// Pure. Returns the timeline and its warnings, each prefixed with its item.
 pub fn schedule(
     items: &[Item],
     script: &str,
@@ -18,28 +17,22 @@ pub fn schedule(
     let mut warnings = Vec::new();
     let mut cursor = 0u64;
 
-    // How much of this item the transition arriving into it already took.
-    // A transition overlaps *both* items it joins, so it is charged to each.
+    // Time the incoming transition already took from this item; a
+    // transition overlaps both items it joins.
     let mut carried_in = 0u64;
 
     for (i, item) in items.iter().enumerate() {
         let timing = &item.config.timing;
 
-        // Padding comes from the narration itself, not from `item.config`:
-        // the item's config is the action block's layer, and a line's own
-        // `lead_in=`/`tail=` attributes would otherwise be discarded whenever
-        // an action block followed the paragraph. `timing` below is still the
-        // action block's, which is correct — `max_stretch`/`max_speedup`
-        // govern the action.
+        // Padding comes from the narration (see `NarrationInput::lead_in_ms`);
+        // `timing` is the action block's, which is right for the action's
+        // stretch and speedup bounds.
         let narration_ms = item
             .narration
             .as_ref()
             .map(|n| n.padded_duration_ms())
             .unwrap_or(0);
-        // An action that cannot state its own length is given the
-        // sentence over it: the recorder is told how long to keep going,
-        // and the narration decides when the shot is over. Zero would mean
-        // "takes no time", which is a different claim and a wrong one.
+        // An `Unknown` action takes the length of its narration.
         let action_ms = item
             .action
             .as_ref()
@@ -49,9 +42,7 @@ pub fn schedule(
             })
             .unwrap_or(0);
 
-        // A cue is measured from the first word, and the narration's
-        // padded length starts with its lead-in: the word is said that
-        // much later than the item begins.
+        // A cue counts from the first word, which comes after the lead-in.
         let lead_in_ms = item.narration.as_ref().map_or(0, |n| n.lead_in_ms);
         let cue_ms = item
             .action
@@ -63,11 +54,9 @@ pub fn schedule(
             warnings.push(format!("{}: {w}", item.id));
         }
 
-        // The transition granted on the way out of the previous item was
-        // capped against *that* item. It also eats into this one, which may
-        // be shorter than the transition is long. Give the time back before
-        // this item is placed, rather than letting two blends draw the same
-        // frames twice.
+        // The previous item's outgoing transition was capped against that
+        // item only; if this item is shorter, give back the excess so two
+        // blends never draw the same frames.
         if carried_in > l.item_duration_ms {
             let excess = carried_in - l.item_duration_ms;
             if let Some(previous) = entries.last_mut() {
@@ -80,15 +69,8 @@ pub fn schedule(
         let slack = narration_ms.saturating_sub(l.action_duration_ms);
         let is_last = i + 1 == items.len();
 
-        // The quiet window (docs/design.md#quiet-window): a transition overlaps
-        // the item it leaves, so it may only consume time when nobody is
-        // speaking. That is this item's trailing silence — from where its
-        // narration ends to where the item ends, normally `tail` — plus the
-        // next item's `lead_in`.
-        //
-        // Without this, a script of plain paragraphs derives `slack` from the
-        // whole narration, because there is no action to subtract, and every
-        // transition runs to `max_ms` and eats real speech.
+        // docs/design.md#quiet-window: this item's trailing silence plus the
+        // next item's lead-in.
         let speech_end_ms = item
             .narration
             .as_ref()
@@ -105,9 +87,7 @@ pub fn schedule(
             0
         } else {
             match item.config.transition.duration {
-                // Honoured as written: the author asked for this length by
-                // name. But a fixed transition wider than the quiet window
-                // does produce two voices at once, so say so.
+                // Honoured as written, with a warning if it overlaps speech.
                 TransitionDuration::Fixed(ms) => {
                     if ms > quiet_window_ms {
                         warnings.push(format!(
@@ -120,19 +100,15 @@ pub fn schedule(
                     }
                     ms
                 }
-                // The cap deliberately overrides `min_ms`: a shorter
-                // transition than configured, or none at all, is better than
-                // one that talks over the narration.
+                // The quiet-window cap overrides `min_ms` on purpose.
                 TransitionDuration::Auto => (slack / 2)
                     .clamp(item.config.transition.min_ms, item.config.transition.max_ms)
                     .min(quiet_window_ms),
             }
         }
-        // A transition can never consume more than the item it leaves, nor
-        // more than that item has left after the transition that arrived
-        // into it. Without the second cap an item can be long enough for
-        // each transition alone and too short for both together — which is
-        // a plan that cannot be cut into chunks at all.
+        // Never more than the item has left after its incoming transition;
+        // otherwise an item could fit each transition but not both, and the
+        // plan could not be cut into chunks.
         .min(l.item_duration_ms.saturating_sub(carried_in));
 
         entries.push(Entry {
@@ -162,10 +138,8 @@ pub fn schedule(
                 scene: a.scene.clone(),
                 adapter: a.adapter.clone(),
                 shot_hash: a.shot_hash,
-                // Filled by `compile`'s chaining pass, which runs after
-                // re-timing: a shot that was re-written to fit its slot is
-                // a different tape, and the chain has to be built from the
-                // tape that will actually be captured.
+                // Placeholder: `compile` chains the real key after re-timing,
+                // from the source that will actually be captured.
                 capture_key: a.shot_hash,
                 session: a.session.clone(),
                 start_ms: cursor + l.action_start_ms,

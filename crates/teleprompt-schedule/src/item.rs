@@ -10,22 +10,12 @@ pub struct NarrationInput {
     pub audio_hash: Hash,
     /// Clip duration excluding lead-in and tail padding.
     pub duration_ms: u64,
-    /// Whether `duration_ms` was measured from real audio or predicted.
-    ///
-    /// `plan` and `diff` never synthesize, so a line not yet in the cache
-    /// carries an estimate. Publishing which is which is the difference
-    /// between a timeline a reader can trust and one that quietly conflates
-    /// a prediction with a measurement.
+    /// Measured from audio, or predicted on a cache miss; see
+    /// `docs/design.md#estimated-and-measured`.
     pub duration_source: DurationSource,
-    /// Silence before the clip, and silence after it.
-    ///
-    /// These travel with the narration rather than being read off the
-    /// [`Item`]'s single `config` because an item's two halves resolve from
-    /// different configuration layers: the narration's padding comes from the
-    /// *line's* attributes (`{#a lead_in=1000ms}`), while the item's `config`
-    /// is the following action block's. Reading padding off `Item::config`
-    /// silently discarded every line-level `lead_in=` / `tail=` whenever an
-    /// action block followed the paragraph — which is the normal case.
+    /// Silence before and after the clip. Carried here, not read from
+    /// [`Item::config`], because that is the action block's configuration
+    /// layer and would drop the line's own `lead_in=` / `tail=`.
     pub lead_in_ms: u64,
     pub tail_ms: u64,
     pub voice_source: VoiceSource,
@@ -34,14 +24,9 @@ pub struct NarrationInput {
 }
 
 impl NarrationInput {
-    /// Total time this narration occupies in its item: lead-in, clip, tail.
-    ///
-    /// Saturating, not because any validated input can reach `u64::MAX` —
-    /// `Config::problems` rejects the `voice.speed` that used to produce one
-    /// — but because the scheduler must not panic on an arithmetic edge for
-    /// *any* `u64` triple it is handed. A plain add panics in a debug build
-    /// and, worse, wraps silently in a release one: a saturated timeline is
-    /// visibly absurd, a wrapped one is quietly wrong.
+    /// Lead-in, clip and tail. Saturating so that no `u64` input can panic
+    /// (debug) or silently wrap (release): a saturated timeline is visibly
+    /// absurd, a wrapped one is quietly wrong.
     pub fn padded_duration_ms(&self) -> u64 {
         self.lead_in_ms
             .saturating_add(self.duration_ms)
@@ -54,13 +39,8 @@ pub enum DurationSource {
     Exact,
     Estimated,
     Measured,
-    /// The adapter cannot say, and does not guess.
-    ///
-    /// A Playwright script states no duration: `await page.click(…)` takes
-    /// as long as the page takes. Calling that an estimate would be a
-    /// number nobody computed, and flattening it to zero — which this did
-    /// — is worse: a shot of no length whose picture never reaches the
-    /// video, while the build reports it as captured.
+    /// The adapter cannot say (a Playwright script). Neither an estimate nor
+    /// zero: the scheduler gives the shot its line's length.
     Unknown,
 }
 
@@ -72,15 +52,10 @@ pub struct ActionInput {
     pub shot_hash: Hash,
     pub duration_ms: u64,
     pub duration_source: DurationSource,
-    /// Where inside the narration this action should start, from `cue="…"`.
-    ///
-    /// `None` is the ordinary case: the policy decides. A shot is how an
-    /// author says "type the command while the voice is saying it", which
-    /// no policy can work out on its own — the sentence that names a
-    /// command is rarely the first one in the paragraph.
+    /// Offset from the narration's first word at which the action starts,
+    /// from `cue="…"`. `None` lets the policy decide.
     pub cue_ms: Option<u64>,
-    /// Which run of the scene this action belongs to, from `session="…"`.
-    /// `None` is the scene's own, which is where most items live.
+    /// From `session="…"`; `None` is the scene's default session.
     pub session: Option<String>,
 }
 

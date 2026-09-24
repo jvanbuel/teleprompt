@@ -1,10 +1,5 @@
-//! Comparing two committed timelines and rendering the result as prose.
-//!
-//! `diff` is a pure function: no I/O, no clock, no randomness. Given the
-//! same two `Timeline`s it always returns the same `TimelineDiff`, and
-//! iteration is always over `BTreeMap`s keyed by item id so both the
-//! returned data and its rendered/JSON forms are byte-identical across
-//! runs.
+//! Comparing two timelines and rendering the result as prose. Pure, and
+//! iterates `BTreeMap`s keyed by item id, so output is byte-stable.
 
 use std::collections::BTreeMap;
 
@@ -24,11 +19,8 @@ pub struct StaleTake {
     pub falls_back_to: String,
 }
 
-/// A item that exists on both sides but has moved in the entry sequence.
-/// Reordering is reported apart from `added`/`removed` because a reordered
-/// item is neither: nothing was written or deleted, the video just plays its
-/// parts in a different order. Indices are 0-based positions in the full
-/// entry list; `render` prints them 1-based.
+/// An item on both sides that moved in the entry sequence. Indices are
+/// 0-based positions in the full entry list; `render` prints them 1-based.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ReorderedBeat {
     pub item: String,
@@ -36,7 +28,7 @@ pub struct ReorderedBeat {
     pub after_index: usize,
 }
 
-/// A item whose outgoing transition changed kind, length, or both.
+/// An item whose outgoing transition changed kind, length, or both.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ChangedTransition {
     pub item: String,
@@ -61,18 +53,10 @@ pub struct TimelineDiff {
 }
 
 impl TimelineDiff {
-    /// True when nothing an author needs to look at changed.
-    ///
-    /// Every field participates, `shift_ms` included. An earlier version of
-    /// this method skipped the three duration fields on the grounds that they
-    /// were "derived summaries of `changed`, not independent facts". They are
-    /// not: the total is `last.start_ms + last.duration_ms`, and plenty of
-    /// edits move it without touching any per-item fact this diff inspects —
-    /// retuning `output.transition.max_ms`, for one, changes every gap between
-    /// items while leaving each item's own hashes and durations alone. Treating
-    /// the total as derived is exactly what let `diff --exit-code` report clean
-    /// over a genuinely stale committed timeline, which is the one thing it
-    /// exists to catch.
+    /// True when nothing an author needs to look at changed. `shift_ms`
+    /// counts too: edits such as retuning `output.transition.max_ms` move the
+    /// total without changing any per-item fact, and `diff --exit-code` must
+    /// still catch them.
     pub fn is_empty(&self) -> bool {
         self.shift_ms == 0
             && self.changed.is_empty()
@@ -84,28 +68,17 @@ impl TimelineDiff {
             && self.recapture.is_empty()
     }
 
-    /// Render the diff as a short prose report, suitable for a terminal or
-    /// a PR comment. Sections are omitted when empty, so a diff that only
-    /// touched narration timing doesn't show blank "added"/"removed"
-    /// headers.
+    /// A prose report for a terminal or a PR comment; empty sections are
+    /// omitted.
     pub fn render(&self) -> String {
         if self.is_empty() {
             return "no timeline changes".to_string();
         }
 
-        // The header's three numbers must reconcile: before + shift == after,
-        // as printed. Rounding `before_ms`, `after_ms`, and the raw
-        // millisecond `shift_ms` independently to one decimal is not
-        // guaranteed to agree, because rounding to tenths isn't linear —
-        // e.g. before_ms=1 rounds to 0.0s and after_ms=50 rounds to 0.1s,
-        // but the exact 49ms difference between them rounds to 0.0s on its
-        // own, which would print "0.0s → 0.1s (+0.0s)": a header that
-        // visibly doesn't add up. So the displayed shift is derived from
-        // the two already-rounded endpoints instead of from the raw delta:
-        // round both endpoints to tenths of a second first, then subtract
-        // those integers. `self.shift_ms` itself stays exact in the struct
-        // and in JSON for machine consumers; only this prose line is
-        // affected.
+        // The printed shift is the difference of the rounded endpoints, not
+        // the rounded `shift_ms`, so the header always adds up (1 ms → 50 ms
+        // would otherwise print "0.0s → 0.1s (+0.0s)"). JSON keeps the
+        // exact `shift_ms`.
         let before_tenths = round_to_tenths(self.before_ms);
         let after_tenths = round_to_tenths(self.after_ms);
         let shift_tenths = after_tenths - before_tenths;
@@ -120,11 +93,8 @@ impl TimelineDiff {
         if !self.changed.is_empty() {
             out.push_str("\n\nchanged:");
             for c in &self.changed {
-                // A text edit doesn't have to move the clock: two phrasings
-                // can land on the same spoken duration. Writing
-                // "4.2s → 4.2s" there reads like a rendering bug, so an
-                // unchanged duration gets its own phrasing that still says
-                // plainly that this item changed.
+                // A rewording can keep the same duration; "4.2s → 4.2s"
+                // would read like a bug.
                 if c.before_ms == c.after_ms {
                     out.push_str(&format!(
                         "\n  {:<16} {} (timing unchanged)  ({})",
@@ -173,9 +143,7 @@ impl TimelineDiff {
         if !self.transitions.is_empty() {
             out.push_str("\n\ntransitions:");
             for t in &self.transitions {
-                // Only name the kind twice when it actually changed; a
-                // max_ms retune touches every item's transition, and
-                // repeating "crossfade → crossfade" on each line is noise.
+                // Name the kind once unless it changed.
                 if t.before_kind == t.after_kind {
                     out.push_str(&format!(
                         "\n  {:<16} {} {} \u{2192} {}",
@@ -222,31 +190,22 @@ fn secs(ms: u64) -> String {
     format!("{:.1}s", ms as f64 / 1000.0)
 }
 
-/// Rounds a millisecond count to the nearest tenth of a second, returned as
-/// an integer count of tenths (e.g. 8949 -> 89, 15499 -> 155). Kept as an
-/// integer rather than a float so two roundings can be subtracted exactly,
-/// with no risk of the subtraction itself reintroducing float rounding
-/// error.
+/// Nearest tenth of a second, as an integer so two can be subtracted
+/// exactly (8949 -> 89).
 fn round_to_tenths(ms: u64) -> i64 {
     ((ms as f64) / 100.0).round() as i64
 }
 
-/// Renders an already-rounded tenths-of-a-second count (see
-/// `round_to_tenths`) back out as `"12.3s"`.
 fn render_tenths(tenths: i64) -> String {
     format!("{:.1}s", tenths as f64 / 10.0)
 }
 
-/// Renders an already-rounded, signed tenths-of-a-second count as
-/// `"+12.3s"` / `"-4.5s"`.
 fn render_signed_tenths(tenths: i64) -> String {
     let sign = if tenths >= 0 { "+" } else { "-" };
     format!("{sign}{:.1}s", tenths.unsigned_abs() as f64 / 10.0)
 }
 
-/// Compare two committed timelines. Items are matched by id; anything not
-/// present in `before` is `added`, anything not present in `after` is
-/// `removed`. Everything else below only runs for items present in both.
+/// Compare two timelines, matching items by id.
 pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
     let old: BTreeMap<&str, &Entry> = before
         .entries
@@ -262,10 +221,6 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
 
     for (id, n) in &new {
         if let Some(o) = old.get(id) {
-            // A item's outgoing transition is part of the committed timeline
-            // and is not implied by any other field: retuning
-            // `output.transition.max_ms` re-times every gap while leaving
-            // each item's hashes and own duration untouched.
             if o.transition != n.transition {
                 transitions.push(ChangedTransition {
                     item: (*id).to_string(),
@@ -276,55 +231,30 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                 });
             }
 
-            // A narration change is reported whenever *any* of the three
-            // narration facts differ, not only when duration does: a
-            // reworded sentence of identical spoken length still leaves a
-            // committed `source_hash` that disagrees with the script, and
-            // a silent `diff` there is worse than a missing line — it lets
-            // `--exit-code` report clean while the committed timeline is
-            // stale. The two possible causes read very differently to the
-            // author, so the reason still says which one happened.
-            //
-            // The narration's placement *within its own item* counts too.
-            // Its absolute `start_ms` deliberately does not: that shifts
-            // whenever any earlier item changes length, and flagging every
-            // downstream item would bury the one the author actually edited.
-            // The offset from the item's own start is local — it moves only
-            // when this item's padding or alignment moved — so it catches a
-            // line-level `lead_in=` retune that happens not to change the
-            // item's overall length, without any cascade.
+            // Any hash or duration change counts, so a same-length
+            // rewording still fails `--exit-code`. Placement is compared
+            // relative to the item's start: absolute `start_ms` shifts with
+            // every earlier edit and would bury the one that matters.
             if let (Some(on), Some(nn)) = (&o.narration, &n.narration) {
                 let offset_moved = on.start_ms.saturating_sub(o.start_ms)
                     != nn.start_ms.saturating_sub(n.start_ms);
-                // Hoisted so the guard and the reason arm below cannot drift
-                // apart. It has to be *this* condition and not a bare
-                // `duration_source` inequality: the reverse transition
-                // (measured -> estimated, i.e. a cleared cache) would then
-                // enter the block and fall through to "padding changed",
-                // which is a lie. A cleared cache is not a change to the
-                // program, so it stays clean.
+                // Only estimated -> measured: a cleared cache (the reverse)
+                // changes nothing and must not read as "padding changed".
                 let now_measured =
                     on.duration_source != nn.duration_source && nn.duration_source == "measured";
                 if on.source_hash != nn.source_hash
                     || on.audio_hash != nn.audio_hash
                     || on.duration_ms != nn.duration_ms
                     || offset_moved
-                    // A line whose audio was synthesized since the last
-                    // run reports as changed even when the measured length
-                    // lands exactly on the estimate — which, with `null`, it
-                    // always does. Without this the estimate-to-measurement
-                    // transition is invisible to `teleprompt diff`, while
-                    // `manifest_diff` reports it.
+                    // Even when the measurement equals the estimate, as
+                    // it always does with the `null` voice.
                     || now_measured
                 {
                     let reason = if on.source_hash != nn.source_hash {
                         "text edited"
-                    // Ordered after `text edited` deliberately: an author's
-                    // edit is the cause they can act on, and it explains the
-                    // duration change by itself. Ordered before the audio and
-                    // duration checks because those would otherwise absorb
-                    // this and report a cause that sends the reader to the
-                    // wrong place.
+                    // After `text edited`, which explains a duration change
+                    // on its own; before the audio checks, which would
+                    // otherwise report the wrong cause.
                     } else if now_measured {
                         "now measured"
                     } else if on.audio_hash != nn.audio_hash || on.duration_ms != nn.duration_ms {
@@ -341,40 +271,17 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                 }
             }
 
-            // A item needs recapture when its picture changed
-            // (capture_key — its own steps, or any step before it in the
-            // same session, because the screen an item shows is what the
-            // items before it left behind),
-            // when its rendered action duration changed (e.g. a stretch/
-            // trim policy re-timed it), when the item's own local duration
-            // changed — which happens when narration got longer or shorter
-            // even though the action's steps are identical, because Hold/
-            // Concurrent/etc. reposition the action relative to narration
-            // within the item — or when an action was added or removed
-            // outright. `duration_ms` here is each item's own local
-            // duration, not the timeline total, so an item whose *position*
-            // shifted only because an earlier, unrelated item changed does
-            // NOT get flagged — only an item whose own internal layout
-            // actually moved does.
-            //
-            // The duration comparison runs whenever *either* side carries
-            // an action — it is not gated on both sides carrying one, so a
-            // item that gains or loses its action is still caught by it as
-            // well as by the explicit presence check below. A item with no
-            // action on either side has nothing to recapture, so it is
-            // skipped entirely rather than flagged on narration timing
-            // alone.
+            // Recapture when an action appeared or vanished, or its capture
+            // key, duration or offset within the item changed, or the item's
+            // own length changed (the policy re-places the action). Only
+            // local facts, so an item merely shifted by an earlier edit is
+            // not flagged. Items with no action on either side are skipped.
             if o.action.is_some() || n.action.is_some() {
                 let action_appeared_or_vanished = o.action.is_some() != n.action.is_some();
                 let action_itself_changed = match (&o.action, &n.action) {
                     (Some(oa), Some(na)) => {
                         oa.capture_key != na.capture_key
                             || oa.duration_ms != na.duration_ms
-                            // Same local-offset reasoning as narration above:
-                            // where in its item the action sits is a fact of
-                            // this item alone, so comparing it costs no
-                            // cascade noise and catches an alignment change
-                            // that leaves the item's length intact.
                             || oa.start_ms.saturating_sub(o.start_ms)
                                 != na.start_ms.saturating_sub(n.start_ms)
                     }
@@ -389,9 +296,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
             }
         }
 
-        // Stale takes are a property of the new timeline alone: whatever
-        // voice source was requested no longer matches what actually got
-        // used, regardless of whether anything else changed this diff.
+        // A property of the new timeline alone, whatever else changed.
         if let Some(nn) = &n.narration {
             if nn.voice_source != nn.voice_source_actual {
                 stale_takes.push(StaleTake {
@@ -427,24 +332,18 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
     }
 }
 
-/// Items that survive the edit but play in a different order.
-///
-/// Only items present on both sides take part: an added or removed item
-/// necessarily shifts everything after it, and reporting those shifts as
-/// "reordered" would double-count a change already named under
-/// `added`/`removed`. What is left is compared as two sequences, and the
-/// items reported are those *outside* a longest common subsequence of the
-/// two — the smallest set whose removal makes the orders agree. Swapping two
-/// paragraphs therefore names one item, and moving a chapter's opening item
-/// to the end names that item rather than every item it passed.
+/// Items on both sides that play in a different order: those outside a
+/// longest common subsequence, the smallest set whose removal makes the
+/// orders agree. Swapping two paragraphs names one item, not every item
+/// between them. Added and removed items are excluded so they are not
+/// counted twice.
 fn reordered(before: &Timeline, after: &Timeline) -> Vec<ReorderedBeat> {
     let in_after: std::collections::BTreeSet<&str> =
         after.entries.iter().map(|e| e.item.as_str()).collect();
     let in_before: std::collections::BTreeSet<&str> =
         before.entries.iter().map(|e| e.item.as_str()).collect();
 
-    // Position in the *full* entry list, so the rendered positions match what
-    // an author counts in `teleprompt plan`.
+    // Positions in the full list, matching what `teleprompt plan` shows.
     let old_pos: BTreeMap<&str, usize> = before
         .entries
         .iter()
@@ -486,10 +385,8 @@ fn reordered(before: &Timeline, after: &Timeline) -> Vec<ReorderedBeat> {
         .collect()
 }
 
-/// Standard O(n·m) LCS over two id sequences, returned as a set. Item ids are
-/// unique within a timeline, so membership is all the caller needs. Ties in
-/// the DP resolve toward `a`, which only decides *which* of two mutually
-/// swapped items is named as having moved — deterministically either way.
+/// O(n·m) LCS, returned as a set because item ids are unique. Ties only
+/// decide which of two swapped items is named, deterministically.
 fn longest_common_subsequence<'a>(
     a: &[&'a str],
     b: &[&'a str],

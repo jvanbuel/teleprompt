@@ -1,24 +1,17 @@
 use teleprompt_core::{Diagnostic, Hash, SourceSpan};
 
-/// Where an action block's body text actually lives.
-///
-/// A fence's position is right for a body written inline and meaningless for
-/// one loaded with `include=`, whose line 3 is line 3 of that file. So
-/// diagnostics are positioned from an origin — which file, starting at which
-/// line — rather than from the fence.
+/// Where an action block's body lives, so diagnostics point at the right file
+/// and line: an `include=`d body's line 3 is line 3 of that file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BodyOrigin {
-    /// Written inline in the script, inside the fence at `fence`. Body line
-    /// `i` (0-based) is script line `fence.line + i + 1`; the `+ 1` skips the
-    /// opening ```` ``` ```` line itself.
+    /// Inside the fence at `fence`; body line `i` (0-based) is script line
+    /// `fence.line + i + 1`, skipping the opening fence line.
     Inline { fence: SourceSpan },
-    /// Loaded from another file. Body line `i` is line `i + 1` of `path`, and
-    /// diagnostics name `path` rather than the script.
+    /// Body line `i` is line `i + 1` of `path`.
     Included { path: String },
 }
 
 impl BodyOrigin {
-    /// Source location of 0-based body line `i`, `len` characters wide.
     pub(crate) fn span_of(&self, i: usize, len: usize) -> SourceSpan {
         let line = match self {
             BodyOrigin::Inline { fence } => fence.line + i + 1,
@@ -31,8 +24,7 @@ impl BodyOrigin {
         }
     }
 
-    /// The file diagnostics about this body should name, or `None` when the
-    /// script the caller is already rendering is the right answer.
+    /// The file to name in diagnostics, or `None` for the script itself.
     pub fn file(&self) -> Option<&str> {
         match self {
             BodyOrigin::Inline { .. } => None,
@@ -40,9 +32,8 @@ impl BodyOrigin {
         }
     }
 
-    /// Point `d` at 0-based body line `i`, in whichever file that line is
-    /// really in. Adapters should route every body diagnostic through this
-    /// rather than doing their own arithmetic.
+    /// Point `d` at 0-based body line `i` in whichever file holds it.
+    /// Adapters route every body diagnostic through this.
     pub fn locate(&self, d: Diagnostic, i: usize, len: usize) -> Diagnostic {
         let d = d.at(self.span_of(i, len));
         match self.file() {
@@ -73,11 +64,7 @@ pub struct Shot {
     pub index: usize,
 }
 
-/// Duration of a shot, in milliseconds.
-///
-/// `Exact` comes from a declarative language that states its own timing.
-/// `Estimated` is a bound, such as a `Wait`'s timeout. `Unknown` means the
-/// adapter cannot say; the shot then takes its line's length.
+/// A shot's duration in milliseconds; see `docs/design.md#scene-contract`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Measured {
     Exact(u64),
@@ -94,24 +81,17 @@ impl Measured {
     }
 }
 
-/// One uninterpretable line, as its adapter's line classifier saw it.
-///
-/// Deliberately not an `Error`: this never propagates as one. It is the half
-/// of a diagnostic an adapter knows — what is wrong and how to fix it — with
-/// the half only the caller knows, the location, left out. [`validate_commands`]
-/// joins the two.
+/// What is wrong with one body line, without its location, which
+/// [`validate_commands`] adds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandError {
     pub message: String,
-    /// Owned rather than `&'static str`: the most useful help an adapter can
-    /// give is often computed — the list of directives it understands, or the
-    /// correct spelling of the one that was nearly right — and a borrowed
-    /// help line forces those to be dropped or leaked.
+    /// Owned, because useful help is often computed (the directives an
+    /// adapter understands, the nearest correct spelling).
     pub help: Option<String>,
 }
 
 impl CommandError {
-    /// A line error with a help line attached.
     pub fn new(message: impl Into<String>, help: impl Into<String>) -> Self {
         Self {
             message: message.into(),
@@ -120,14 +100,8 @@ impl CommandError {
     }
 }
 
-/// Validate a body one line at a time, reporting every bad line.
-///
-/// Adapters whose language is line-oriented implement `classify` and call
-/// this rather than writing the loop again. Two things it gets right that a
-/// hand-written loop has twice gotten wrong: it reports *all* failures rather
-/// than the first, so one `check` fixes a whole block; and it routes every
-/// diagnostic through [`BodyOrigin::locate`], so an `include`d body names its
-/// own file at its own line numbers instead of an offset into the script.
+/// Validate a line-oriented body with `classify`, reporting every bad line
+/// (not just the first) positioned through [`BodyOrigin::locate`].
 pub fn validate_commands<T>(
     src: &BlockSource,
     classify: impl Fn(&str) -> Result<T, CommandError>,
@@ -156,67 +130,43 @@ pub fn validate_commands<T>(
     }
 }
 
+/// The compile-time half of a scene adapter: synchronous and free of IO.
+/// Rationale for each method is in `docs/design.md#scene-contract`.
 pub trait SceneCompiler: Send + Sync {
     fn kind(&self) -> &'static str;
+    /// Report every bad line, positioned through [`BodyOrigin::locate`].
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>>;
+    /// Split at marks; a block without marks is one shot.
     fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>>;
+    /// `Exact` when the source states its timing, `Estimated` for a bound,
+    /// `Unknown` otherwise (the shot then takes its line's length).
     fn estimate(&self, shot: &Shot) -> Measured;
 
-    /// The same shot, re-written to last `target_ms`, or `None` when this
-    /// adapter cannot promise that.
-    ///
-    /// This is the other half of `stretch-action` and `trim-action`. The
-    /// scheduler decides how long an action *should* take — usually as long
-    /// as the sentence over it — but the number alone changes nothing about
-    /// what a capture records: the tape still runs at its authored pace, and
-    /// whatever is left of the slot is a frozen frame. Re-timing puts the
-    /// scheduler's decision back into the adapter's own language, so what is
-    /// captured lasts as long as the schedule says.
-    ///
-    /// Returning `None` is the honest answer wherever the source does not
-    /// state its own timing — a tape that waits for a prompt is as long as
-    /// the command takes, and no arithmetic here changes that. The default
-    /// is `None`, so an adapter that cannot re-time says nothing and the
-    /// renderer holds a frame instead.
+    /// The shot's source rewritten to last exactly `target_ms`, or `None`
+    /// when the source does not state its own timing (a tape waiting on a
+    /// prompt). With `None` the renderer holds the last frame for the slot.
     fn retime(&self, _span: &Shot, _target_ms: u64) -> Option<String> {
         None
     }
 
-    /// Whether a shot opens on the screen the shot before it left behind.
-    ///
-    /// True of a terminal and a browser — a running program, a selected
-    /// row, a signed-in page — and so true by default: a shot's picture is
-    /// then named by its own source *and every source before it* in its
-    /// session, and editing one re-captures everything after it.
-    ///
-    /// An adapter whose shots are functions of their own source alone —
-    /// a composition that draws the same frames whatever preceded it —
-    /// returns `false`, and each of its shots is named by itself. Editing
-    /// one then re-captures that one, which is the whole point of saying
-    /// so: chaining a stateless scene is correct and needlessly expensive.
+    /// Whether a shot opens on the screen the previous shot left, so its
+    /// capture key chains every earlier shot in the session. Return `false`
+    /// only when a shot's picture depends on its own source alone.
     fn continues(&self) -> bool {
         true
     }
 
-    /// Files outside the block that this scene's picture is drawn from.
-    ///
-    /// A tape is the whole of what a terminal shows, so the default is
-    /// none. A scene drawn by a project of its own — a component library,
-    /// a stylesheet — names that project's files here, and the compiler
-    /// hashes their contents into every shot's capture key, so editing one
-    /// re-captures what it draws. Paths only: the adapter names them, the
-    /// compiler reads them, and `SceneCompiler` stays free of IO. A
-    /// directory is read recursively, skipping `node_modules` and entries
-    /// whose names begin with `.`; a path that does not exist is skipped.
+    /// Files outside the block the scene's picture is drawn from, hashed into
+    /// every shot's capture key. Return paths only; the compiler reads them,
+    /// recursing into directories, skipping `node_modules` and entries
+    /// starting with `.`, and ignoring paths that do not exist.
     fn inputs(&self, _scene: &teleprompt_core::config::SceneConfig) -> Vec<std::path::PathBuf> {
         Vec::new()
     }
 
-    /// Files one shot is drawn from, beyond the scene's [`inputs`]: the
-    /// image a media shot shows. Hashed into that shot's key alone, so
-    /// replacing the file re-captures the shots that show it and nothing
-    /// else — and `plan` reads only the files shots name. Paths only, as
-    /// with `inputs`; `source` is the shot's published source.
+    /// Files one shot is drawn from beyond [`inputs`] (a media shot's image),
+    /// hashed into that shot's key alone. `source` is the shot's published
+    /// source; paths only, as with `inputs`.
     ///
     /// [`inputs`]: SceneCompiler::inputs
     fn shot_inputs(
@@ -227,14 +177,9 @@ pub trait SceneCompiler: Send + Sync {
         Vec::new()
     }
 
-    /// The part of an included body that `include=file#fragment` names.
-    ///
-    /// A whole file is one block, and one block is one paragraph; a
-    /// recording narrated a step at a time needs each paragraph's block to
-    /// show one step of the same file. What a fragment means is the
-    /// adapter's — a marker in a recording, a range of slides — so the
-    /// compiler only splits it off the path, validates the whole file, and
-    /// asks here for the part. The default refuses, naming the adapter.
+    /// The part of an included body that `include=file#fragment` names. The
+    /// compiler has already validated the whole file; the fragment's meaning
+    /// is the adapter's. The default refuses, naming the adapter.
     fn select(&self, _body: &str, fragment: &str) -> Result<String, String> {
         Err(format!(
             "`{}` blocks do not take an `include=…#{fragment}`",
