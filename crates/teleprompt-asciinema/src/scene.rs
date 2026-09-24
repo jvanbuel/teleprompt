@@ -321,10 +321,7 @@ impl SceneCompiler for AsciinemaScene {
 
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
         match parse(&src.body) {
-            Ok(_) => Ok(Validated {
-                scene: src.scene.clone(),
-                body: src.body.clone(),
-            }),
+            Ok(_) => Ok(Validated::from(src)),
             Err(errors) => Err(errors
                 .into_iter()
                 .map(|(line, why)| src.origin.locate(Diagnostic::error(why), line, 0))
@@ -339,12 +336,8 @@ impl SceneCompiler for AsciinemaScene {
             .enumerate()
             .map(|(index, part)| {
                 let source = write(part);
-                Shot {
-                    id: format!("{block_id}#{index}"),
-                    hash: Hash::of(source.as_bytes()),
-                    source,
-                    index,
-                }
+                let hash = Hash::of(source.as_bytes());
+                Shot::numbered(block_id, index, source, hash)
             })
             .collect())
     }

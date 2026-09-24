@@ -490,12 +490,8 @@ impl SceneCompiler for VhsScene {
             }
 
             let index = shots.len();
-            shots.push(Shot {
-                id: format!("{block_id}#{index}"),
-                hash: Hash::of(source.trim().as_bytes()),
-                source,
-                index,
-            });
+            let hash = Hash::of(source.trim().as_bytes());
+            shots.push(Shot::numbered(block_id, index, source, hash));
         }
 
         Ok(shots)

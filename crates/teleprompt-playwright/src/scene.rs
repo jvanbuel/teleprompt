@@ -23,10 +23,7 @@ impl SceneCompiler for PlaywrightScene {
     /// Accepts any body. This crate does not parse JavaScript, and a wrong
     /// script fails when it runs with Playwright's own, better, error.
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
-        Ok(Validated {
-            scene: src.scene.clone(),
-            body: src.body.clone(),
-        })
+        Ok(Validated::from(src))
     }
 
     fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
@@ -45,12 +42,8 @@ impl SceneCompiler for PlaywrightScene {
                 continue;
             }
             let index = out.len();
-            out.push(Shot {
-                id: format!("{block_id}#{index}"),
-                hash: Hash::of(source.as_bytes()),
-                source,
-                index,
-            });
+            let hash = Hash::of(source.as_bytes());
+            out.push(Shot::numbered(block_id, index, source, hash));
         }
         Ok(out)
     }

@@ -100,6 +100,72 @@ impl CommandError {
     }
 }
 
+impl From<&BlockSource> for Validated {
+    /// A block accepted as written.
+    fn from(src: &BlockSource) -> Self {
+        Validated {
+            scene: src.scene.clone(),
+            body: src.body.clone(),
+        }
+    }
+}
+
+impl Shot {
+    /// The `index`th shot of `block_id`, named `<block>#<index>`. `hash` is
+    /// the adapter's to choose: whatever identifies the shot's picture.
+    pub fn numbered(block_id: &str, index: usize, source: String, hash: Hash) -> Self {
+        Shot {
+            id: format!("{block_id}#{index}"),
+            source,
+            hash,
+            index,
+        }
+    }
+}
+
+/// Whether a line says something: not blank, and not a `#` comment.
+pub fn is_content(line: &str) -> bool {
+    !line.trim().is_empty() && !line.trim_start().starts_with('#')
+}
+
+/// A body split at lines that are exactly `mark`: each part, with the
+/// 0-based body line it starts on.
+pub fn split_at_mark(body: &str, mark: &str) -> Vec<(usize, String)> {
+    let mut out = vec![(0, String::new())];
+    for (i, line) in body.lines().enumerate() {
+        if line.trim() == mark {
+            out.push((i + 1, String::new()));
+        } else {
+            let part = &mut out.last_mut().expect("seeded").1;
+            part.push_str(line);
+            part.push('\n');
+        }
+    }
+    out
+}
+
+/// Validates each part of a body between marks with `check`, reporting a
+/// part's failure at its first line of content.
+pub fn validate_parts(
+    src: &BlockSource,
+    mark: &str,
+    check: impl Fn(&str) -> Result<(), String>,
+) -> Result<Validated, Vec<Diagnostic>> {
+    let diags: Vec<Diagnostic> = split_at_mark(&src.body, mark)
+        .into_iter()
+        .filter_map(|(first, part)| {
+            let why = check(&part).err()?;
+            let at = part.lines().position(is_content).unwrap_or(0);
+            Some(src.origin.locate(Diagnostic::error(why), first + at, 0))
+        })
+        .collect();
+    if diags.is_empty() {
+        Ok(Validated::from(src))
+    } else {
+        Err(diags)
+    }
+}
+
 /// Validate a line-oriented body with `classify`, reporting every bad line
 /// (not just the first) positioned through [`BodyOrigin::locate`].
 pub fn validate_commands<T>(
@@ -121,10 +187,7 @@ pub fn validate_commands<T>(
         .collect();
 
     if diags.is_empty() {
-        Ok(Validated {
-            scene: src.scene.clone(),
-            body: src.body.clone(),
-        })
+        Ok(Validated::from(src))
     } else {
         Err(diags)
     }

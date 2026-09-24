@@ -15,7 +15,9 @@ use std::path::PathBuf;
 use teleprompt_core::attrs::parse_attrs;
 use teleprompt_core::config::SceneConfig;
 use teleprompt_core::{Diagnostic, Hash, SourceSpan};
-use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
+use teleprompt_scene::contract::{
+    is_content, BlockSource, Measured, SceneCompiler, Shot, Validated,
+};
 
 /// The mark, and `#` comments generally.
 pub const MARK: &str = "# mark";
@@ -151,7 +153,7 @@ fn chunks(body: &str) -> Vec<(usize, Vec<(usize, &str)>)> {
     for (i, line) in body.lines().enumerate() {
         if line.trim() == MARK {
             out.push((i + 1, Vec::new()));
-        } else if !line.trim().is_empty() && !line.trim_start().starts_with('#') {
+        } else if is_content(line) {
             out.last_mut().expect("seeded").1.push((i, line));
         }
     }
@@ -184,10 +186,7 @@ impl SceneCompiler for MediaScene {
             }
         }
         if diags.is_empty() {
-            Ok(Validated {
-                scene: src.scene.clone(),
-                body: src.body.clone(),
-            })
+            Ok(Validated::from(src))
         } else {
             Err(diags)
         }
@@ -201,12 +200,8 @@ impl SceneCompiler for MediaScene {
             };
             let source = line.trim().to_string();
             let index = out.len();
-            out.push(Shot {
-                id: format!("{block_id}#{index}"),
-                hash: Hash::of(source.as_bytes()),
-                source,
-                index,
-            });
+            let hash = Hash::of(source.as_bytes());
+            out.push(Shot::numbered(block_id, index, source, hash));
         }
         Ok(out)
     }

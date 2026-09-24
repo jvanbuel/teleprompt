@@ -15,7 +15,9 @@ use std::path::{Path, PathBuf};
 
 use teleprompt_core::config::SceneConfig;
 use teleprompt_core::{Diagnostic, Hash};
-use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
+use teleprompt_scene::contract::{
+    split_at_mark, validate_parts, BlockSource, Measured, SceneCompiler, Shot, Validated,
+};
 
 /// The mark, and `#` comments generally — the shell's spelling, since a
 /// shot reads like the arguments to `remotion render`. A shot after a mark
@@ -73,21 +75,6 @@ pub fn parse(source: &str) -> Result<Option<Invocation>, String> {
     }))
 }
 
-/// The block split at its marks, each chunk with the index of its first line.
-fn chunks(body: &str) -> Vec<(usize, String)> {
-    let mut out = vec![(0, String::new())];
-    for (i, line) in body.lines().enumerate() {
-        if line.trim() == MARK {
-            out.push((i + 1, String::new()));
-        } else {
-            let chunk = &mut out.last_mut().expect("seeded").1;
-            chunk.push_str(line);
-            chunk.push('\n');
-        }
-    }
-    out
-}
-
 #[derive(Debug, Default, Clone, Copy)]
 pub struct RemotionScene;
 
@@ -100,40 +87,18 @@ impl SceneCompiler for RemotionScene {
     /// the composition exists is the project's business, and Remotion says
     /// so when it is asked to render it.
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
-        let diags: Vec<Diagnostic> = chunks(&src.body)
-            .into_iter()
-            .filter_map(|(first, chunk)| {
-                let why = parse(&chunk).err()?;
-                let at = chunk
-                    .lines()
-                    .position(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
-                    .unwrap_or(0);
-                Some(src.origin.locate(Diagnostic::error(why), first + at, 0))
-            })
-            .collect();
-        if diags.is_empty() {
-            Ok(Validated {
-                scene: src.scene.clone(),
-                body: src.body.clone(),
-            })
-        } else {
-            Err(diags)
-        }
+        validate_parts(src, MARK, |part| parse(part).map(|_| ()))
     }
 
     fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let mut out = Vec::new();
-        for (_, source) in chunks(&v.body) {
+        for (_, source) in split_at_mark(&v.body, MARK) {
             if !matches!(parse(&source), Ok(Some(_))) {
                 continue;
             }
             let index = out.len();
-            out.push(Shot {
-                id: format!("{block_id}#{index}"),
-                hash: Hash::of(source.as_bytes()),
-                source,
-                index,
-            });
+            let hash = Hash::of(source.as_bytes());
+            out.push(Shot::numbered(block_id, index, source, hash));
         }
         Ok(out)
     }
