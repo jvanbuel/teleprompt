@@ -1,20 +1,10 @@
-//! Stage 5: running a scene and keeping what it showed.
+//! Stage 5: running a scene and keeping what it showed
+//! (`docs/design.md#capture`).
 //!
-//! Everything before this decided *when* each thing happens; the renderer
-//! turns that into a file. This is the stage that makes the file worth
-//! watching — without it a build is a correctly-paced video of nothing,
-//! every shot holding its slot with a slate.
-//!
-//! The organising idea is that **a scene is a session**. The shots of a
-//! walkthrough continue one another — a running program, a selected row,
-//! an open log — so a backend is not handed a shot, it is handed a session
-//! and told which of its shots to keep. Handing it shots one at a time
-//! would restart the program once per shot, which is six fresh shells in a
-//! two-minute video.
-//!
-//! That is also why a shot that is already cached still *runs*. Its clip is
-//! not needed; the screen it leaves behind is, because the next shot opens
-//! on it.
+//! A backend is handed a session, not a shot, and told which shots to keep:
+//! the shots of a walkthrough continue one another, so running them one at
+//! a time would restart the program per shot. That is also why a cached
+//! shot still runs: the next shot opens on the screen it leaves.
 
 pub mod mock;
 pub mod reel;
@@ -32,19 +22,17 @@ pub struct Shot {
     pub adapter: String,
     /// `session="…"`, naming a different run of the scene.
     pub session: Option<String>,
-    /// What the clip will be filed under — the chain, not the shot hash.
+    /// What the clip is filed under: the chain, not the shot hash
+    /// (`docs/design.md#capture-key`).
     pub key: Hash,
     /// The adapter's own source for this shot, as re-timed and published.
     pub source: String,
-    /// How long the schedule gave this shot. A backend may not take
-    /// longer; whether it may take less is the backend's business, since
-    /// the renderer holds the last frame either way.
+    /// How long the schedule gave this shot. A backend may not take longer;
+    /// if it takes less, the renderer holds the last frame.
     pub duration_ms: u64,
-    /// The scene's own settings, flattened to strings — what terminal to
-    /// open, how big, in what shell. Strings because a backend reads the
-    /// handful of keys it understands and the planner reads none of them;
-    /// the same settings are in the capture key, so changing one
-    /// invalidates the clips it changed.
+    /// The scene's settings, flattened to strings: a backend reads the keys
+    /// it understands and the planner reads none. They are part of the
+    /// capture key, so changing one invalidates the clips it affects.
     pub settings: BTreeMap<String, String>,
 }
 
@@ -65,10 +53,8 @@ pub struct SessionShot {
     pub key: Hash,
     pub source: String,
     pub duration_ms: u64,
-    /// Whether a clip is wanted for this shot.
-    ///
-    /// `false` where one is already cached. The shot still runs — the next
-    /// shot opens on the screen it leaves behind — it just is not kept.
+    /// Whether a clip is wanted: `false` where one is already cached. The
+    /// shot still runs either way.
     pub wanted: bool,
 }
 
@@ -83,8 +69,8 @@ impl Session {
         self.settings.get(key).map_or(default, String::as_str)
     }
 
-    /// The settings under one nested key, as `prefix.name` pairs are
-    /// flattened — `env:` being the one that matters.
+    /// The `prefix.name` settings as `(name, value)` pairs, such as the
+    /// scene's `env`.
     pub fn nested<'a>(&'a self, prefix: &str) -> impl Iterator<Item = (&'a str, &'a str)> {
         let prefix = format!("{prefix}.");
         self.settings
@@ -105,17 +91,13 @@ impl Session {
 const PAUSE: &str = "pause";
 
 /// Group `shots` into the sessions a backend can run, dropping what is
-/// already captured.
-///
-/// `have` answers whether a clip for a key is in hand. It is a predicate
-/// rather than a directory because the planner has no business reading the
-/// filesystem, and a test has no business writing to one.
+/// already captured. `have` is a predicate rather than a directory, so the
+/// planner reads no filesystem and a test writes none.
 pub fn sessions(shots: &[Shot], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
     let mut out: Vec<Session> = Vec::new();
 
     for shot in shots {
-        // A pause has no picture: it holds whatever is on screen. There is
-        // nothing to run and nothing to keep.
+        // A pause has no picture: nothing to run and nothing to keep.
         if shot.scene == PAUSE {
             continue;
         }
@@ -142,11 +124,8 @@ pub fn sessions(shots: &[Shot], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
     }
 
     for session in &mut out {
-        // Cues after the last wanted one are not run. The prefix has to
-        // be replayed to reach the screen a wanted shot opens on; the
-        // suffix leads nowhere anybody is looking, and on a tape whose
-        // sleeps are real seconds that is the difference between a capture
-        // that stops early and one that sits there.
+        // Shots after the last wanted one are not run: they lead nowhere
+        // anyone is looking, and a tape's sleeps are real seconds.
         if let Some(last) = session.shots.iter().rposition(|s| s.wanted) {
             session.shots.truncate(last + 1);
         }
@@ -171,10 +150,8 @@ pub struct Frame {
     pub fps: u32,
 }
 
-/// A scratch directory a backend records into, removed when dropped.
-///
-/// A capture that fails partway still drops it, so a half-made recording
-/// is never left among the clips it was being cut into.
+/// A scratch directory a backend records into, removed when dropped, so a
+/// failed capture leaves no half-made recording among the clips.
 #[derive(Debug)]
 pub struct WorkDir(PathBuf);
 
@@ -207,8 +184,7 @@ impl Drop for WorkDir {
     }
 }
 
-/// How far a capture has got. Reported per shot, because a shot is the
-/// unit an author recognises and a session can be minutes long.
+/// How far a capture has got, per shot: the unit an author recognises.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Progress {
     pub scene: String,
@@ -219,10 +195,8 @@ pub struct Progress {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CaptureError {
-    /// The backend cannot run here — nothing to run a tape with, no
-    /// terminal, no display.
-    /// Not a failure of the script, and `build` turns it into a slate and
-    /// a warning rather than an error.
+    /// The backend cannot run here (no tool, terminal or display). Not a
+    /// script error: `build` renders its shots as slates, with a warning.
     #[error("{backend} cannot capture here: {reason}")]
     Unavailable { backend: String, reason: String },
     #[error("{backend} failed to capture `{shot}`: {reason}")]
@@ -247,11 +221,8 @@ pub trait CaptureBackend {
     /// The scene adapter whose shots this backend speaks.
     fn adapter(&self) -> &'static str;
 
-    /// Why this backend cannot run on this machine, if it cannot.
-    ///
-    /// Asked before anything is run, so `build` can say "no clips for
-    /// `terminal`, and here is why" instead of failing halfway through a
-    /// session that was never going to work.
+    /// Why this backend cannot run on this machine, if it cannot. Asked
+    /// first, so `build` reports it instead of failing mid-session.
     fn unavailable(&self) -> Option<String> {
         None
     }
@@ -282,9 +253,9 @@ impl CaptureRegistry {
         self
     }
 
-    /// The backend for an adapter, or `None` where this build records
-    /// nothing of that kind — which is a different answer from "it does,
-    /// but not on this machine", and the caller reports them differently.
+    /// The backend for an adapter. `None` where this build records nothing of
+    /// that kind, which the caller reports differently from
+    /// [`CaptureBackend::unavailable`].
     pub fn for_adapter(&self, adapter: &str) -> Option<&dyn CaptureBackend> {
         self.backends
             .iter()

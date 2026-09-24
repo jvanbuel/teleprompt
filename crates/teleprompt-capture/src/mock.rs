@@ -1,16 +1,9 @@
 //! The reference capture backend: a flat field of colour per shot.
 //!
-//! The counterpart of [`teleprompt_scene::mock`] at the other end of the
-//! pipeline, and it exists for the same reason. A mock scene's source says
-//! how long things take and nothing about what is on screen, so the honest
-//! picture for one is a field that is *identifiably this shot* and claims
-//! nothing else: the colour is taken from the shot's capture key, so two
-//! shots look different exactly when they are different.
-//!
-//! It is also what makes the rest of the stage testable. Everything a real
-//! backend has to get right — running a session in order, keeping only the
-//! wanted shots, filing a clip under its key, fitting the slot — is
-//! exercised here without a terminal, a display or a font.
+//! The counterpart of the `mock` scene adapter. A mock shot says nothing
+//! about what is on screen, so its picture is a colour taken from its
+//! capture key: two shots look different exactly when they are different.
+//! It lets the rest of the stage be tested without a terminal or display.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -21,9 +14,7 @@ use crate::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
 #[derive(Debug, Clone)]
 pub struct MockCapture {
-    /// The binary that draws the frames. ffmpeg, because a flat field at a
-    /// given size and rate is one `color` source and there is no reason to
-    /// link an encoder to produce one.
+    /// The binary that draws the frames: a flat field is one `color` source.
     pub program: String,
 }
 
@@ -81,10 +72,7 @@ impl CaptureBackend for MockCapture {
         let wanted = session.wanted();
         let mut clips = Vec::new();
         for shot in &session.shots {
-            // A shot nothing wants is still a shot the session ran
-            // through; there is simply nothing to keep. A real backend
-            // replays it to reach the screen the next one opens on, and
-            // this one keeps the shape so that difference stays visible.
+            // Nothing to keep. A real backend still replays this shot.
             if !shot.wanted {
                 continue;
             }
