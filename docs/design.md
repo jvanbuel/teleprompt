@@ -528,10 +528,10 @@ players handle reliably.
 | `.teleprompt/cache/video/` | captured clips | [capture key](#capture-key) |
 | `.teleprompt/cache/compose/` | encoded chunks | [compose cache](#compose-cache) |
 
-All three are derived and gitignored. Voice and compose entries are
-written to a temporary path and renamed into place, so a partial write is
-never read as a hit. Capture backends write clips in place, so an
-interrupted capture can leave a partial clip behind.
+All three are derived and gitignored. Entries are written to a temporary
+path and renamed into place, so a partial write is never read as a hit. A
+capture backend writes into a staging directory, and its clips are renamed
+into the cache only once its whole session has succeeded.
 
 ## CLI
 

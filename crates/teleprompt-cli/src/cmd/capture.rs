@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_capture::{sessions, CaptureRegistry, Frame, Progress, Session, Shot};
+use teleprompt_capture::{sessions, CaptureRegistry, Frame, Progress, Session, Shot, WorkDir};
 use teleprompt_compile::manifest::NarrationManifest;
 use teleprompt_compile::ShotSource;
 use teleprompt_core::config::SceneConfig;
@@ -188,17 +188,30 @@ fn record(
             session.wanted()
         ));
     }
-    backend
-        .capture(session, frame, clips_dir, on_progress)
-        .map(|clips| clips.len())
-        .map_err(|e| {
-            format!(
-                "recording `{}` failed, so its {} shot(s) will render as \
-                 slates: {e}",
-                session.scene,
-                session.wanted()
-            )
-        })
+    // The backend writes into a staging directory beside the cache, and a
+    // clip is renamed into place only once the session has succeeded: a
+    // clip in the cache is taken as captured, so a partial one must never
+    // land there. Dropping the staging directory discards a failed run.
+    let failed = |e: String| {
+        format!(
+            "recording `{}` failed, so its {} shot(s) will render as \
+             slates: {e}",
+            session.scene,
+            session.wanted()
+        )
+    };
+    let staging = std::fs::create_dir_all(clips_dir)
+        .and_then(|()| WorkDir::create(clips_dir, "staging"))
+        .map_err(|e| failed(format!("{}: {e}", clips_dir.display())))?;
+    let clips = backend
+        .capture(session, frame, &staging, on_progress)
+        .map_err(|e| failed(e.to_string()))?;
+    for clip in &clips {
+        let into = clips_dir.join(format!("{}.mp4", clip.key));
+        std::fs::rename(&clip.path, &into)
+            .map_err(|e| failed(format!("cannot file {}: {e}", into.display())))?;
+    }
+    Ok(clips.len())
 }
 
 /// The capture backends this build ships, one per scene adapter.
@@ -245,4 +258,111 @@ pub async fn capture_script(
         frame,
         on_progress,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use teleprompt_capture::{CaptureBackend, CaptureError, Clip, SessionShot};
+    use teleprompt_core::Hash;
+
+    /// Writes each wanted shot's clip, then fails if told to.
+    struct Writes {
+        then_fail: bool,
+    }
+
+    impl CaptureBackend for Writes {
+        fn id(&self) -> &'static str {
+            "writes"
+        }
+        fn adapter(&self) -> &'static str {
+            "writes"
+        }
+        fn capture(
+            &self,
+            session: &Session,
+            _frame: &Frame,
+            out_dir: &Path,
+            _on_progress: &mut dyn FnMut(Progress),
+        ) -> Result<Vec<Clip>, CaptureError> {
+            std::fs::create_dir_all(out_dir).unwrap();
+            let mut clips = Vec::new();
+            for shot in session.shots.iter().filter(|s| s.wanted) {
+                let path = out_dir.join(format!("{}.mp4", shot.key));
+                std::fs::write(&path, b"half a clip").unwrap();
+                clips.push(Clip {
+                    key: shot.key,
+                    path,
+                });
+            }
+            if self.then_fail {
+                return Err(CaptureError::Failed {
+                    backend: "writes".into(),
+                    shot: session.shots[0].id.clone(),
+                    reason: "interrupted".into(),
+                });
+            }
+            Ok(clips)
+        }
+    }
+
+    fn session() -> Session {
+        Session {
+            scene: "terminal".into(),
+            adapter: "writes".into(),
+            name: None,
+            settings: BTreeMap::new(),
+            shots: vec![SessionShot {
+                id: "a#0".into(),
+                key: Hash::of(b"a#0"),
+                source: String::new(),
+                duration_ms: 1000,
+                wanted: true,
+            }],
+        }
+    }
+
+    fn clips_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("tp-record-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    fn frame() -> Frame {
+        Frame {
+            width: 64,
+            height: 36,
+            fps: 30,
+        }
+    }
+
+    /// A clip is in the cache only once its backend has finished: a failed
+    /// session leaves nothing behind that a later build would take as
+    /// captured.
+    #[test]
+    fn a_failed_session_leaves_no_clip_in_the_cache() {
+        let dir = clips_dir("fail");
+        let registry = CaptureRegistry::new().with(Box::new(Writes { then_fail: true }));
+        let s = session();
+        assert!(record(&registry, &s, &frame(), &dir, &mut |_| {}).is_err());
+        let clip = dir.join(format!("{}.mp4", s.shots[0].key));
+        assert!(!clip.exists(), "a failed session left {}", clip.display());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_finished_session_files_its_clips_under_their_keys() {
+        let dir = clips_dir("ok");
+        let registry = CaptureRegistry::new().with(Box::new(Writes { then_fail: false }));
+        let s = session();
+        assert_eq!(record(&registry, &s, &frame(), &dir, &mut |_| {}), Ok(1));
+        assert!(dir.join(format!("{}.mp4", s.shots[0].key)).is_file());
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with('.'))
+            .collect();
+        assert!(leftovers.is_empty(), "staging left behind: {leftovers:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
