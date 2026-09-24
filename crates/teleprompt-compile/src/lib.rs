@@ -1,17 +1,9 @@
-//! Walks a resolved [`Program`] and assembles it into a scheduled
-//! [`Timeline`]: asks the scene registry to validate and split action
-//! blocks, takes each narration's duration from the synthesis cache when
-//! the line is already rendered and from a [`DurationEstimator`] when it
-//! is not, pairs narration with the action shot that follows it into items,
-//! and hands the items to the scheduler.
-//!
-//! It never asks a voice backend for anything. It cannot: [`VoiceContext`]
-//! offers no way to reach one, which is what keeps `check`, `plan`, and
-//! `diff` synchronous and offline.
-//!
-//! This crate is the seam where `teleprompt-core`, `teleprompt-scene`,
-//! `teleprompt-voice`, and `teleprompt-schedule` meet, so that they never
-//! have to depend on one another.
+//! Where core, scene, voice and schedule meet (docs/design.md#crates):
+//! walks a resolved [`Program`], has the adapters validate and split action
+//! blocks, takes each line's duration from the voice cache or a
+//! [`DurationEstimator`], pairs lines with the shots that follow them, and
+//! schedules the items into a [`Timeline`]. It never reaches a voice
+//! backend; see [`VoiceContext`].
 
 use std::collections::BTreeMap;
 use std::path::{Component, Path};
@@ -30,12 +22,8 @@ use teleprompt_voice::{resolve_source, DurationEstimator, SynthRequest, VoiceSou
 pub mod manifest;
 pub mod manifest_diff;
 
-/// Everything `compile` needs about voice — and deliberately not a backend.
-///
-/// `compile` runs on the inner loop: `check`, `plan`, and `diff` call it on
-/// every run and must stay sub-second and offline. Passing a `VoiceBackend`
-/// here is what would make that impossible, so the type simply does not
-/// offer one. Audio is `dub`'s and `build`'s business.
+/// Everything `compile` needs about voice, and deliberately no backend, so
+/// the inner loop cannot synthesize (docs/design.md#async-boundary).
 pub struct VoiceContext<'a> {
     pub backend_id: &'a str,
     pub backend_version: &'a str,
@@ -43,55 +31,36 @@ pub struct VoiceContext<'a> {
     pub estimator: &'a dyn DurationEstimator,
 }
 
-/// How an included file is spelled in a diagnostic: the way an author would
-/// find it from where they invoked teleprompt, with a `./` prefix trimmed so
-/// a script in the current directory yields `steps.mock`, not `./steps.mock`.
+/// An included file as an author would find it from where they invoked
+/// teleprompt: `steps.mock`, not `./steps.mock`.
 fn display_path(path: &Path) -> String {
     let s = path.display().to_string();
     s.strip_prefix("./").unwrap_or(&s).to_string()
 }
 
-/// What the `Timeline` deliberately does not carry. The timeline is a
-/// review surface — a reader scanning a pacing diff does not want the
-/// prose inlined in it, and word timings would dwarf everything else. The
-/// narration manifest needs all of it, so `compile` keeps it here rather
-/// than making a second pass to recover what it already had.
+/// Per-line detail the manifest needs and the [`Timeline`], a review
+/// surface, deliberately leaves out: the prose and word timings.
 #[derive(Debug, Clone)]
 pub struct NarrationDetail {
     pub line_id: String,
     pub text: String,
-    /// The chapter's slug, for publication. Two chapters with the same
-    /// title share one, so this is display identity, not a join key.
+    /// The chapter's slug, for display. Two chapters with the same title
+    /// share one, so it is not a join key.
     pub chapter: String,
-    /// The chapter's position in `CompileOutput::chapters`. This is the
-    /// join key: joining on the slug silently merged two identically-titled
-    /// chapters into one marker and lost the second one's real start.
+    /// The chapter's position in [`CompileOutput::chapters`]: the join key.
     pub chapter_index: usize,
-    /// The exact request the duration in the timeline was measured from.
-    ///
-    /// Carried rather than reconstructed because a caller that needs audio
-    /// (`dub`) must render from the *same* request `compile` measured. When
-    /// `dub` built its own `SynthRequest` it dropped `voice` and `speed`, so
-    /// a script with `voice: { speed: 2.0 }` published a 3250 ms duration
-    /// alongside a 6500 ms file. One source, one request, no drift.
+    /// The request the timeline's duration came from. `dub` synthesizes
+    /// from this rather than building its own, so the published duration
+    /// and the audio file cannot disagree.
     pub synth_request: SynthRequest,
-    /// The cache key `compile` looked up `synth_request` under. `dub` stores
-    /// its render under this same key, so the two never drift apart.
+    /// The key `synth_request` was looked up under, and that `dub` stores
+    /// its audio under.
     pub cache_key: CacheKey,
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
-/// One action shot's source, as the adapter split it.
-///
-/// The timeline identifies a shot and says when it plays; it does not carry
-/// what the shot *is*. Anything that has to draw the scene — a renderer, a
-/// preview — needs the source, and re-deriving it means re-running the
-/// parse, the `include=` resolution and the adapter's own splitting, which
-/// is this function's work done a second time and a second place for the
-/// two to disagree.
-///
-/// Deliberately not in the published manifest: this is adapter-native code,
-/// and a consumer drawing its own picture has no use for it.
+/// One action shot's source, as the adapter split it (and re-timed it), for
+/// whatever draws the scene. Not in the manifest: it is adapter-native code.
 #[derive(Debug, Clone)]
 pub struct ShotSource {
     pub id: String,
@@ -104,42 +73,24 @@ pub struct ShotSource {
 pub struct CompileOutput {
     pub timeline: Timeline,
     pub warnings: Vec<String>,
-    /// One entry per narration item that synthesized, in document order.
+    /// One entry per narration line, in document order.
     pub narration: Vec<NarrationDetail>,
     /// Every action shot's source, in document order.
     pub shots: Vec<ShotSource>,
-    /// The script's chapters, in document order. Carried here because
-    /// `compile` drops the `Program` and `cmd::check::compile_script` —
-    /// the CLI's only route into compilation — returns just this struct.
-    /// Without it the manifest's chapter markers are unreachable from the
-    /// command that has to write them.
+    // `chapters`, `output` and `scenes` are carried because `compile` drops
+    // the `Program` and callers have no other route to them. `output` and
+    // `scenes` stay out of the manifest: they are not timing facts.
+    /// The script's chapters, in document order.
     pub chapters: Vec<ChapterInfo>,
     /// The frame the script asked for, resolved through every layer.
-    ///
-    /// Here for the same reason `chapters` is: `compile` drops the
-    /// `Program`, and a render has no other route to the script's own
-    /// `output:` block. It is deliberately not in the narration manifest —
-    /// that publishes when things are spoken, and the size of the picture
-    /// is not a timing fact.
     pub output: OutputConfig,
     /// The scenes as configured, resolved through every layer.
-    ///
-    /// Here for the reason `output` is: a capture backend has to know what
-    /// terminal it is opening — its size, its shell, what colours it wears
-    /// — and `compile` drops the `Program` that held it. Not in the
-    /// narration manifest, which publishes when things are spoken.
     pub scenes: BTreeMap<String, SceneConfig>,
 }
 
-/// Where in a narration a cued action should start.
-///
-/// Where the backend timed the words, it is when the phrase's first word is
-/// said: see [`word_offset_ms`]. Otherwise the offset is interpolated from
-/// where the phrase sits in the sentence. That is an approximation and says
-/// so: speech is not uniform, and a long word takes longer than a short
-/// one. It lands within a syllable or two on a sentence, which is the
-/// difference between typing a command while it is being named and typing
-/// it half a paragraph early.
+/// Where in a narration a cued action starts: from word timings when the
+/// backend gave them ([`word_offset_ms`]), otherwise interpolated by
+/// characters (docs/design.md#cues).
 fn at_offset_ms(
     phrase: &str,
     text: &str,
@@ -187,14 +138,12 @@ fn at_offset_ms(
 }
 
 /// When the first word of `phrase` is said, from the backend's timings of
-/// `text` — both as the voice was given them, pronunciations applied.
+/// `text`, both as the voice was given them (pronunciations applied).
 ///
-/// Words are compared lowercased and without punctuation. Where the timed
-/// words line up one for one with the text's, the phrase's word is taken by
-/// position. Where they do not — a backend that reads `0:12` as three
-/// words — it is the timed occurrence of that word nearest the same
-/// relative position. `None` when the word was not timed at all, and the
-/// caller interpolates.
+/// Words compare lowercased without punctuation. If the timed words match
+/// the text's one for one, the word is taken by position; otherwise (a
+/// backend that reads `0:12` as three words) it is the timed occurrence
+/// nearest the same relative position. `None` when the word was not timed.
 pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<u64> {
     fn norm(w: &str) -> String {
         w.chars()
@@ -229,20 +178,12 @@ pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<
         .map(|j| words[j].start_ms)
 }
 
-/// Puts the scheduler's decision back into the adapter's own language.
+/// Has each adapter rewrite a shot whose scheduled length differs from its
+/// own estimate, so the source captured is the one that fits its slot.
 ///
-/// `stretch-action` and `trim-action` change how long an action should
-/// take. Until this pass, that was a number on a timeline and nothing else:
-/// a capture would run the tape at its authored pace and whatever remained
-/// of the slot would be a held frame. Here the adapter re-writes the shot
-/// to last exactly as long as it was scheduled for, and what is published
-/// is that tape.
-///
-/// The shot's hash moves with it, which is the point rather than a side effect:
-/// slot duration belongs in the capture key (docs/design.md#capture-key), and
-/// hashing the tape that will actually be captured puts it there. An adapter
-/// that cannot re-time says so, the source stands, and the renderer holds the
-/// last frame for the difference.
+/// The shot's hash moves with the source, which is how slot length reaches
+/// the capture key (docs/design.md#capture-key). Where an adapter cannot
+/// re-time, the source stands and the renderer holds the last frame.
 fn retime_stretched_shots(
     timeline: &mut Timeline,
     shots: &mut [ShotSource],
@@ -259,8 +200,7 @@ fn retime_stretched_shots(
             continue;
         };
 
-        // Nothing to do where the schedule took the adapter's own number,
-        // which is every policy but the two that change it.
+        // Only `stretch-action` and `trim-action` change the number.
         let shot = Shot {
             id: published.id.clone(),
             source: published.source.clone(),
@@ -282,54 +222,22 @@ fn retime_stretched_shots(
 /// The scene name a pause wears, which is not a scene and has no picture.
 const PAUSE_SCENE: &str = "pause";
 
-/// The capture recipe version: bumped when the picture a backend draws
-/// changes, so clips recorded by an older teleprompt are not served for
-/// items a newer one would record differently.
+/// The capture recipe version, part of every capture key. Bump it whenever
+/// the picture a backend draws changes for the same script: a new renderer
+/// version, a change to the tape or script teleprompt writes, new window
+/// chrome, or a changed default.
 ///
-/// The adapter name cannot do this job. It names the scene *language* —
-/// `vhs` is the tape dialect, not the program that rasterises it — so two
-/// different renderers pointed at the same scene produce the same key and
-/// silently share a cache. Bump this when the renderer changes, when the
-/// tape or script teleprompt writes changes, or when an upgrade moves the
-/// window chrome.
-///
-/// Settings cannot do this job either, and for a sharper reason: they are
-/// what the *author* wrote. A default that changes — the browser
-/// annotation that used to flash for 500ms and now holds for 2500 — moves
-/// no setting and leaves every key identical, so a cache full of clips
-/// nobody would record today is served as if it were current.
+/// Neither the adapter name nor the settings cover this. The adapter names
+/// the scene language, not the program that rasterises it, and settings are
+/// only what the author wrote, so a changed default moves neither and stale
+/// clips would be served as current.
 pub const CAPTURE_RECIPE: &str = "vhs-0.11-pw-1.63-v2";
 
-/// Names each item's picture, which is not the same thing as naming its
-/// tape.
+/// Names each shot's picture, which is its own source chained to every shot
+/// before it in its session (docs/design.md#capture-key).
 ///
-/// A scene is a session. The items of a walkthrough continue one another —
-/// a running program, a selected row, an open log — so the screen at item
-/// *N* is the accumulation of items 1..*N* in that session, and a clip is
-/// identified by its own tape *and every tape before it*. Two blocks with
-/// the same steps are the commonest thing in a walkthrough (`Type "j"`
-/// twice), and naming them both by their tape would show one's picture for
-/// the other.
-///
-/// The arithmetic is OCI's chain ID, which exists for the same reason:
-///
-/// ```text
-/// chain(0) = H(name(0))
-/// chain(n) = H(chain(n-1) ‖ name(n))
-/// ```
-///
-/// Invalidation falls out of it rather than being a rule on top: editing a
-/// item changes that item's key and every key after it *in its session*,
-/// and nothing before it, and nothing in another scene. Where the analogy
-/// stops is position — a container rebuilds everything below a changed
-/// line, and this does not care where in the document an item sits. Moving
-/// a paragraph changes every later item's `start_ms` and no item's key,
-/// because start time is not in one.
-///
-/// Runs after [`retime_stretched_shots`], deliberately: a shot re-written to
-/// fit its slot is a different tape, and the chain has to be built from the
-/// tape that will actually be captured. That is also how slot duration gets
-/// into the key without being a field in it (docs/design.md#capture-key).
+/// Runs after [`retime_stretched_shots`], so the chain is built from the
+/// source that will actually be captured.
 fn chain_capture_keys(
     timeline: &mut Timeline,
     config: &Config,
@@ -343,22 +251,19 @@ fn chain_capture_keys(
         let Some(action) = entry.action.as_mut() else {
             continue;
         };
-        // A pause has no picture — it holds whatever is on screen — so it
-        // is in no chain. Putting it in one would make every item after a
-        // pause depend on how long the pause was.
+        // A pause holds whatever is on screen, so it joins no chain: later
+        // keys must not depend on how long it was.
         if action.scene == PAUSE_SCENE {
             action.capture_key = action.shot_hash;
             continue;
         }
 
-        // What this shot is on its own: its tape, the adapter that will
-        // read it, and the scene settings that decide what the screen
-        // looks like before anything is typed.
+        // name(n): recipe, adapter, scene settings, inputs, shot source.
         let scene = config.scenes.get(&action.scene);
         let settings = scene
             .map(SceneConfig::settings_fingerprint)
             .unwrap_or_default();
-        // The files the scene draws from, read once per scene.
+        // Scene-wide inputs are read once per scene.
         let inputs = inputs
             .entry(action.scene.clone())
             .or_insert_with(|| match (scene, registry.get(&action.adapter)) {
@@ -366,7 +271,6 @@ fn chain_capture_keys(
                 _ => String::new(),
             })
             .clone();
-        // And the files this one shot names, read for this shot alone.
         let own = match (scene, registry.get(&action.adapter)) {
             (Some(scene), Some(adapter)) => shots
                 .iter()
@@ -377,8 +281,7 @@ fn chain_capture_keys(
         };
         let shot_hash = action.shot_hash.to_string();
         let mut fields = vec![CAPTURE_RECIPE, &action.adapter, &settings];
-        // Only where there is something: a scene with no inputs keeps the
-        // key it had before inputs existed, and so keeps its clips.
+        // Empty inputs are left out, so they do not change the key.
         if !inputs.is_empty() {
             fields.push(&inputs);
         }
@@ -388,8 +291,7 @@ fn chain_capture_keys(
         fields.push(&shot_hash);
         let name = Hash::of_fields(&fields);
 
-        // A shot that does not open on its predecessor's screen is named
-        // by itself alone, and is no link in anybody's chain.
+        // An adapter whose shots do not continue is keyed by name(n) alone.
         if registry
             .get(&action.adapter)
             .is_some_and(|adapter| !adapter.continues())
@@ -398,11 +300,9 @@ fn chain_capture_keys(
             continue;
         }
 
-        // The session is keyed on (scene, name) rather than on an ordinal:
-        // a session that opens with the same tape opens on the same screen,
-        // so it is the same picture and deserves the same clip. What the
-        // session name buys is the *break* — two runs of a scene that
-        // diverge later stop sharing a chain at the point they diverge.
+        // One chain per (scene, session). The session name is not hashed:
+        // two sessions that open with the same shots share clips until
+        // they diverge.
         let key = (
             action.scene.clone(),
             action.session.clone().unwrap_or_default(),
@@ -417,10 +317,8 @@ fn chain_capture_keys(
 }
 
 /// A hash of the contents of `paths`, as [`SceneCompiler::inputs`]
-/// describes them: directories recursively, in a stable order, without
-/// `node_modules` or dot-entries; missing paths contribute nothing. Empty
-/// when there is nothing to read, so a scene with no inputs keeps the key
-/// it had before inputs existed.
+/// describes them: directories recursively in a stable order, skipping
+/// `node_modules` and dot-entries. Empty when there is nothing to read.
 ///
 /// [`SceneCompiler::inputs`]: teleprompt_scene::SceneCompiler::inputs
 fn fingerprint(paths: &[std::path::PathBuf]) -> String {
@@ -454,11 +352,9 @@ fn fingerprint(paths: &[std::path::PathBuf]) -> String {
 
 /// Compiles `program` into a scheduled [`Timeline`].
 ///
-/// Pure given its inputs: the same program, registry, and voice context
-/// always produce byte-identical timeline JSON. It never synthesizes —
-/// durations come from `voice_ctx.cache` on a hit and `voice_ctx.estimator`
-/// on a miss — which is what keeps this on the sub-second, offline path
-/// `check`, `plan`, and `diff` run on every edit.
+/// Deterministic: the same inputs produce byte-identical timeline JSON.
+/// Durations come from the voice cache on a hit and the estimator on a
+/// miss (docs/design.md#estimated-and-measured).
 pub fn compile(
     program: &Program,
     registry: &SceneRegistry,
@@ -472,13 +368,10 @@ pub fn compile(
     let mut shot_sources: Vec<ShotSource> = Vec::new();
     let mut cache_warnings: Vec<String> = Vec::new();
 
-    // The narration waiting to be joined with the first shot of the next
-    // action block. `id` and `config` travel alongside it because they
-    // belong to the item, not to the `NarrationInput` payload itself.
+    // The narration waiting to pair with the first shot of the next action
+    // block, with the item-level fields and the text a `cue=` searches.
     let mut pending: Option<NarrationInput> = None;
     let mut pending_id = String::new();
-    // The words of the narration waiting for an action block, kept so an
-    // `cue="…"` shot can be found in them.
     let mut pending_text = String::new();
     let mut pending_config = program.config.clone();
 
@@ -508,9 +401,7 @@ pub fn compile(
                 config,
                 ..
             } => {
-                // An action-less narration (no action block follows before
-                // the next narration, pause, or end of program) becomes its
-                // own item; flush whatever was pending first.
+                // A narration no action block claimed becomes its own item.
                 flush(&mut items, &mut pending, &mut pending_id, &pending_config);
 
                 let Some(requested) = VoiceSource::parse(&config.voice.source) else {
@@ -538,10 +429,8 @@ pub fn compile(
                 };
 
                 let req = SynthRequest {
-                    // The voice is given the pronunciation; everything
-                    // published keeps the spelling. The mapped text is in
-                    // the cache key by construction, so correcting how a
-                    // word is said re-renders the audio that said it wrong.
+                    // docs/design.md#word-timings: the voice gets the
+                    // pronunciation, and it is in the cache key.
                     text: spoken(text, &config.voice.pronounce),
                     locale: program.locale.clone(),
                     voice: config.voice.voice.clone(),
@@ -550,10 +439,8 @@ pub fn compile(
                 let cache_key =
                     teleprompt_cache::key(voice_ctx.backend_id, voice_ctx.backend_version, &req);
 
-                // Metadata only: `compile` never touches the audio itself,
-                // and reading the WAV back on every warm hit only to drop it
-                // would put the whole cache's audio through `plan` on every
-                // run.
+                // Metadata only: reading the WAV on every hit would put the
+                // whole cache's audio through `plan` on every run.
                 let read = match voice_ctx.cache.lookup_meta(&cache_key) {
                     Ok(c) => c,
                     Err(e) => {
@@ -561,10 +448,8 @@ pub fn compile(
                         continue;
                     }
                 };
-                // An unreadable entry is a miss, not an error — the cache is
-                // derived and self-healing. It is still worth saying out
-                // loud, because otherwise a line silently reverts from
-                // `measured` to `estimated` with no explanation.
+                // An unreadable entry is a miss, but say so: otherwise the
+                // line silently reverts to `estimated`.
                 if let Some(w) = read.warning() {
                     cache_warnings.push(format!("line `{id}`: {w}"));
                 }
@@ -590,18 +475,14 @@ pub fn compile(
                 pending = Some(NarrationInput {
                     line_id: id.clone(),
                     source_hash: *source_hash,
-                    // The cache key, not a synthesis result: this path never
-                    // synthesizes. It identifies the audio this line
-                    // resolves to, so it moves exactly when the audio would.
-                    // The manifest's `audio_hash` is a different thing — a
-                    // hash of the bytes `dub` actually wrote.
+                    // Identifies the audio this line resolves to, via its
+                    // cache key; not the manifest's hash of the WAV bytes.
                     audio_hash: Hash::of(cache_key.to_string().as_bytes()),
                     duration_ms,
                     duration_source,
-                    // Read off the *narration item's* own resolved config,
-                    // which is the only place a line-level `lead_in=` /
-                    // `tail=` survives. The item this narration ends up in
-                    // may carry the following action block's config instead.
+                    // From the line's own config: the item it joins may
+                    // carry the action block's config, which lacks a
+                    // line-level `lead_in=` or `tail=`.
                     lead_in_ms: config.timing.lead_in_ms,
                     tail_ms: config.timing.tail_ms,
                     voice_source: resolution.requested,
@@ -626,10 +507,8 @@ pub fn compile(
                 review,
                 span,
             } => {
-                // A tape `from` generated types a command lifted out of
-                // someone else's document. `check` says so on every run
-                // until a human has read it and removed the attribute —
-                // the draft is a draft until somebody says otherwise.
+                // A block `from` drafted runs commands lifted from another
+                // document; warn until a human removes the attribute.
                 if review.as_deref() == Some("pending") {
                     cache_warnings.push(format!(
                         "action block `{block_id}` is marked `review=pending`: \
@@ -637,22 +516,18 @@ it was drafted from another document and has not been reviewed. \
 Read it, then remove the attribute."
                     ));
                 }
-                // An `include=` path is inspected *before* anything is joined
-                // to `base_dir`. `Path::join` followed by `starts_with` never
-                // rejects `..` — `..` is just another component, so the joined
-                // path's prefix is always `base_dir`'s components regardless of
-                // how many `..` follow. Checking the raw components (and
-                // rejecting an absolute path outright) is what actually stops
-                // traversal; canonicalising first would follow symlinks out of
-                // the project and let a malicious symlink pass the check.
-                // `include=file#fragment`: the path is read like any include,
-                // and the fragment is the adapter's to interpret.
+                // `include=file#fragment`: the fragment is the adapter's to
+                // interpret (see `select` below).
                 let (include, fragment) = match include.as_deref().map(|i| i.split_once('#')) {
                     Some(Some((path, frag))) => (Some(path.to_string()), Some(frag.to_string())),
                     _ => (include.clone(), None),
                 };
                 let (body, origin) = match &include {
                     Some(rel) => {
+                        // Path traversal: check the raw components before
+                        // joining. `base_dir.join(p).starts_with(base_dir)`
+                        // never rejects `..`, and canonicalising would
+                        // follow a symlink out of the project.
                         let p = Path::new(rel);
                         if p.is_absolute()
                             || p.components().any(|c| matches!(c, Component::ParentDir))
@@ -672,20 +547,14 @@ Read it, then remove the attribute."
                         match std::fs::read_to_string(&path) {
                             Ok(s) => (
                                 s,
-                                // Diagnostics about this body name the
-                                // included file, spelled the way an author
-                                // would find it from where they invoked
-                                // teleprompt — `scripts/steps.mock`, not the
-                                // script's own path with an invented line.
+                                // Adapter diagnostics then name this file.
                                 BodyOrigin::Included {
                                     path: display_path(&path),
                                 },
                             ),
                             Err(e) => {
-                                // Name the attribute as the author wrote it
-                                // *and* where it resolved to, when those
-                                // differ — the first is what they search for,
-                                // the second is what actually went missing.
+                                // Name the path as written and, if it
+                                // differs, as resolved.
                                 let resolved = display_path(&path);
                                 let at = if resolved == *rel {
                                     String::new()
@@ -705,9 +574,8 @@ Read it, then remove the attribute."
                 let cue_ms = match cue {
                     None => None,
                     Some(phrase) => {
-                        // The pending narration's own timings, when its
-                        // backend published them: it is the detail pushed
-                        // with it.
+                        // The pending narration's detail is the last one
+                        // pushed.
                         let timed = pending.as_ref().and_then(|_| {
                             narration_details
                                 .last()
@@ -725,10 +593,8 @@ Read it, then remove the attribute."
                 };
 
                 let Some(parsed_policy) = Policy::parse(policy, align) else {
-                    // A policy renamed since the author last wrote a script
-                    // gets the new spelling rather than the generic list —
-                    // "unknown policy `trim`" is a puzzle when `trim-action`
-                    // is sitting right there.
+                    // An old policy spelling names its replacement
+                    // (docs/design.md#policies).
                     let d = match Policy::renamed_hint(policy) {
                         Some(current) => Diagnostic::error(format!(
                             "policy `{policy}` was renamed to `{current}`"
@@ -764,9 +630,6 @@ Read it, then remove the attribute."
                     continue;
                 };
 
-                // Pass the body's real origin so adapter diagnostics point at
-                // the true file and line, not a fabricated `line: 0` and not
-                // the script's own path when the body came from somewhere else.
                 let src = BlockSource {
                     scene: scene.clone(),
                     body: body.clone(),
@@ -797,11 +660,8 @@ Read it, then remove the attribute."
                 };
 
                 if shots.is_empty() {
-                    // Dropping empty shots can reduce an all-`mark` block to
-                    // zero surviving shots. Pairing stays scoped to the
-                    // *immediately* following action item, so a pending
-                    // narration must be flushed as its own item here rather
-                    // than left to be picked up by a later action block.
+                    // An all-`mark` block has no shots. A line pairs only
+                    // with the block immediately after it, so flush it.
                     flush(&mut items, &mut pending, &mut pending_id, &pending_config);
                     continue;
                 }
@@ -814,10 +674,8 @@ Read it, then remove the attribute."
                         source: shot.source.clone(),
                     });
                     let measured = adapter.estimate(shot);
-                    // A shot that states no length is given the length of
-                    // its sentence. One with no sentence — after a mark, or
-                    // under no paragraph — would be given nothing, and
-                    // vanish from the video with no word said about it.
+                    // An `Unknown` shot takes its line's length, so one
+                    // with no line would silently last no time at all.
                     let narrated = i == 0 && pending.is_some();
                     if measured == Measured::Unknown && !narrated {
                         diags.push(
@@ -843,18 +701,15 @@ Read it, then remove the attribute."
                         scene: scene.clone(),
                         adapter: adapter_name.clone(),
                         shot_hash: shot.hash,
-                        // Zero where the adapter cannot say, and the
-                        // scheduler replaces it with the sentence's length.
-                        // It must not be *called* an estimate: nobody
-                        // estimated it.
+                        // Zero for `Unknown`: the scheduler substitutes the
+                        // line's length.
                         duration_ms: measured.duration_ms().unwrap_or(0),
                         duration_source: match measured {
                             Measured::Exact(_) => DurationSource::Exact,
                             Measured::Estimated(_) => DurationSource::Estimated,
                             Measured::Unknown => DurationSource::Unknown,
                         },
-                        // Only the shot paired with the narration can be
-                        // cued to a word in it; the rest follow it.
+                        // Only the shot paired with the line can be cued.
                         cue_ms: if i == 0 { cue_ms } else { None },
                         session: session.clone(),
                     };
@@ -885,9 +740,8 @@ Read it, then remove the attribute."
                 items.push(Item {
                     id: id.clone(),
                     narration: None,
-                    // A pause carries its duration in the action slot, tagged
-                    // `scene: "pause"`, so the scheduler's existing hold
-                    // arithmetic applies unchanged with no third case.
+                    // A pause rides in the action slot, so the scheduler
+                    // needs no third case.
                     action: Some(ActionInput {
                         shot_id: id,
                         scene: "pause".into(),
@@ -916,8 +770,7 @@ Read it, then remove the attribute."
         schedule(&items, &program.script_name, &program.locale, version);
     retime_stretched_shots(&mut timeline, &mut shot_sources, registry);
     chain_capture_keys(&mut timeline, &program.config, registry, &shot_sources);
-    // Cache warnings first: they explain why the numbers the scheduler then
-    // warns about are what they are.
+    // Cache warnings first: they explain the scheduler's numbers.
     let mut warnings = cache_warnings;
     warnings.extend(scheduling_warnings);
     Ok(CompileOutput {

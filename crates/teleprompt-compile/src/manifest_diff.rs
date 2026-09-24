@@ -1,9 +1,5 @@
-//! Drift detection for a committed narration manifest.
-//!
-//! This is what keeps teleprompt's central claim working when the picture
-//! is rendered by something teleprompt does not control: a pull request
-//! that edits prose without regenerating fails, exactly as one with a
-//! stale timeline does.
+//! Drift detection for a committed narration manifest, behind
+//! `dub --check` (docs/design.md#drift).
 
 use serde::Serialize;
 
@@ -24,13 +20,11 @@ pub struct ChangedSegment {
 pub struct ManifestDiff {
     pub duration_before_ms: u64,
     pub duration_after_ms: u64,
-    /// `AudioInfo` (format, sample rate, channels) differs. A consumer's
-    /// player is configured from this once, uniformly, so a change here is
-    /// real drift even when every line's own fields are untouched.
+    /// Drift even when every line is untouched: a consumer configures its
+    /// player from `AudioInfo` once.
     pub audio_changed: bool,
-    /// `chapters` differs. A title edit that slugifies identically — "Quick
-    /// start" → "Quick Start" — changes nothing in any `LineEntry`, so
-    /// this has to be its own flag or that edit is invisible to `diff`.
+    /// Its own flag because a retitle that slugifies identically changes no
+    /// `LineEntry`.
     pub chapters_changed: bool,
     pub added: Vec<String>,
     pub removed: Vec<String>,
@@ -99,11 +93,7 @@ impl ManifestDiff {
             out.push_str("\nreordered: line order changed\n");
         }
 
-        // A line that only `"shifted"` has byte-identical audio — it
-        // landed at a new `start_ms` because an earlier line's length
-        // changed, not because anything about this line did. Listing it
-        // here would ask for a re-render nothing needs and bury the one
-        // line the author actually touched. See `reason_for` below.
+        // A `shifted` line's audio is unchanged, so it needs no re-render.
         let mut stale: Vec<&str> = self
             .changed
             .iter()
@@ -126,38 +116,18 @@ fn secs(ms: u64) -> String {
     format!("{:.1}s", ms as f64 / 1000.0)
 }
 
-/// Why a line differs, in the order that makes the report most useful:
-/// a text edit is the author's own doing and explains everything
-/// downstream, so it is named even when the audio and position also moved.
+/// Why a line differs, naming the most actionable cause first: a text edit
+/// explains everything downstream of it. `shifted` means only `start_ms`
+/// moved, because an earlier line changed length.
 ///
-/// `duration_ms` changing is reported as `"audio changed"`, not
-/// `"shifted"`: nothing moved when only this line's own length changed.
-/// `"shifted"` is reserved for the case where `start_ms` is the *only*
-/// thing that differs — that line's audio is byte-identical, it simply
-/// landed somewhere else because an earlier line's length changed
-/// upstream of it. `teleprompt-schedule/src/diff.rs:288-291` makes the same
-/// call for the timeline's own narration diff, deliberately excluding a
-/// item's absolute `start_ms` from what triggers a report there, for the
-/// same reason: flagging every downstream item would bury the one the
-/// author actually edited. The manifest must not contradict its sibling.
+/// The first three reasons are ordered as in the timeline's narration diff
+/// (`teleprompt-schedule/src/diff.rs`); the two must not contradict.
 fn reason_for(before: &LineEntry, after: &LineEntry) -> Option<String> {
     if before.source_hash != after.source_hash {
         Some("text edited".to_string())
-    // Ordered exactly as the timeline's own narration diff orders it
-    // (`teleprompt-schedule/src/diff.rs`): after `text edited`, because an
-    // author's edit is the cause they can act on and explains the duration
-    // change by itself; before the audio and duration checks, which would
-    // otherwise absorb this and send the reader looking for a content
-    // change that did not happen. The manifest must not contradict its
-    // sibling.
-    //
-    // The reverse transition — measured back to estimated, a cleared cache
-    // — deliberately does not claim something was just measured.
-    //
-    // Inert while `dub`'s recompile means every published manifest says
-    // `measured`. Without it the field carries no information at all, and
-    // with `null`, where the estimate and the render always coincide,
-    // `--check` would call an estimated-to-measured transition clean.
+    // Before the audio checks, which would otherwise absorb it. Only the
+    // move to `measured` counts; with `null`, estimate and audio coincide,
+    // so nothing else would report it.
     } else if before.duration_source != after.duration_source && after.duration_source == "measured"
     {
         Some("now measured".to_string())
@@ -207,9 +177,7 @@ pub fn diff(before: &NarrationManifest, after: &NarrationManifest) -> ManifestDi
         })
         .collect();
 
-    // Order is part of the contract: a consumer iterating `lines` builds
-    // its own sequence from them, so two identical lines that swapped
-    // places are drift even though neither one changed.
+    // Order is part of the contract: two lines that swapped are drift.
     let before_order: Vec<&str> = before.lines.iter().map(|s| s.id.as_str()).collect();
     let after_order: Vec<&str> = after.lines.iter().map(|s| s.id.as_str()).collect();
     let common_before: Vec<&str> = before_order

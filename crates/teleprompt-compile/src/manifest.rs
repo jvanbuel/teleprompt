@@ -1,11 +1,8 @@
-//! The narration manifest: teleprompt's published output for pipelines that
-//! render themselves.
+//! The narration manifest (docs/design.md#manifest).
 //!
-//! This is a **join**, not a projection. Timings come from the [`Timeline`],
-//! but `text` and `chapters` live in the `Program` and `words` lives in the
-//! `SynthResult` the scheduler discards. This crate is the only one holding
-//! all three, which is why the type lives here rather than beside
-//! `Timeline`.
+//! It is a join, not a projection: timings come from the [`Timeline`], while
+//! text, chapters and word timings come from what `compile` kept in
+//! [`NarrationDetail`]. Only this crate holds both.
 
 use serde::{Deserialize, Serialize};
 use teleprompt_core::program::ChapterInfo;
@@ -14,18 +11,10 @@ use teleprompt_schedule::Timeline;
 
 use crate::NarrationDetail;
 
-/// Incremented on any breaking change to the shape below. Independent of
-/// `TIMELINE_VERSION`: the timeline is an internal review surface, the
-/// manifest is a contract with third parties, and they will not move
-/// together.
-///
-/// **2** added `items`. A consumer could place speech and nothing else, so
-/// anything wanting to show a picture had to read the timeline and join it
-/// to the manifest by document order — the exact fragility a published
-/// contract exists to remove. Adding a key is backward compatible for a
-/// consumer that ignores unknown fields, but silently missing the items is
-/// worse than failing: a v1 consumer that checks the version now stops and
-/// says so.
+/// Incremented on any change a consumer must not silently miss, including
+/// an added key it would otherwise ignore. Independent of
+/// `TIMELINE_VERSION`: the manifest is a third-party contract, the timeline
+/// an internal review surface.
 pub const MANIFEST_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -38,15 +27,8 @@ pub struct NarrationManifest {
     pub audio: AudioInfo,
     pub chapters: Vec<ChapterEntry>,
     pub lines: Vec<LineEntry>,
-    /// One entry per scheduled action shot, in document order.
-    ///
-    /// `lines` says when each sentence is spoken; without this, that is
-    /// all a consumer knows, and every pacing decision the scheduler made —
-    /// `hold`, `concurrent`, `fit-action`, `trim-action` — stops at the
-    /// boundary. The numbers here are the ones the scheduler arrived at,
-    /// not the ones the adapter proposed, which is the difference between
-    /// replaying a tape at its authored pace and replaying it at the pace
-    /// its narration bought.
+    /// One entry per scheduled action shot, in document order, with the
+    /// timings the scheduler arrived at rather than the adapter's own.
     pub shots: Vec<ShotEntry>,
 }
 
@@ -71,42 +53,29 @@ pub struct ChapterEntry {
 pub struct ShotEntry {
     /// The shot's id, `<block>#<index>`, as the adapter minted it.
     pub shot: String,
-    /// The line spoken over this shot, or `null`.
-    ///
-    /// Always serialized. A shot is paired with narration only when it is
-    /// the first shot of the block that followed a paragraph; every shot
-    /// after a mark runs under whatever the policy left of that paragraph,
-    /// and a pause has no narration at all. A consumer should not have to
-    /// tell "absent" from "unpaired".
+    /// The line paired with this shot, or `null` (always serialized). Only
+    /// the first shot of a block that follows a paragraph is paired.
     pub line: Option<String>,
     pub scene: String,
     pub adapter: String,
     pub start_ms: u64,
     pub duration_ms: u64,
-    /// `exact` when the adapter's language states the shot's timing in full,
-    /// `measured` from a measuring pass, `estimated` from a model. Same
-    /// vocabulary as a line's, applied to an action.
+    /// `exact` when the source states its timing in full, `estimated` for a
+    /// bound, `unknown` when the adapter cannot say and the shot took its
+    /// line's length.
     pub duration_source: String,
     pub policy: String,
-    /// The outgoing transition, as scheduled. Carried because a consumer
-    /// reproducing the video's shape needs the gaps between items, and
-    /// deriving them from neighbouring offsets is exactly the arithmetic
-    /// that goes wrong where items overlap.
+    /// The outgoing transition, as scheduled. Deriving it from neighbouring
+    /// offsets goes wrong where items overlap.
     pub transition: TransitionOut,
-    /// Identity of the shot's source, for a per-shot render cache. The
-    /// counterpart of a line's `audio_hash`.
+    /// Identity of the shot's source.
     pub shot_hash: Hash,
-    /// Identity of the *picture*: this shot's source and every shot before
-    /// it in the same session. What a captured clip is filed under.
-    ///
-    /// Not the same as `shot_hash`, and the difference is the point. A
-    /// scene is a session, so the screen an item shows is the accumulation
-    /// of every item before it; two blocks with the same steps — `j` twice
-    /// in one walkthrough — have one `shot_hash` and two pictures.
+    /// Identity of the picture, chained over the session
+    /// (docs/design.md#capture-key). Two identical shots share a
+    /// `shot_hash` but not a `capture_key`.
     pub capture_key: Hash,
-    /// Which run of the scene, from `session="…"`. Published because it is
-    /// the only part of the chain a reader cannot see in the script, and
-    /// because a capture stage needs it to know which items share a screen.
+    /// Which run of the scene, from `session="…"`: tells a capture stage
+    /// which shots share a screen.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<String>,
 }
@@ -121,54 +90,26 @@ pub struct TransitionOut {
 pub struct LineEntry {
     pub id: String,
     pub text: String,
-    /// Slug of the chapter this line was spoken in. Always serialized,
-    /// including when that chapter has no entry in `chapters` — a chapter
-    /// is only omitted there when nothing in it is spoken, which cannot be
-    /// true of a chapter that owns a line, but a consumer must not have
-    /// to reason about that to answer "which chapter is this?".
-    ///
-    /// Published because the alternative is reconstruction from timestamps
-    /// against a `chapters` list that deliberately omits silent chapters,
-    /// which is lossy.
+    /// Slug of the chapter this line was spoken in, so a consumer need not
+    /// reconstruct it from timestamps.
     pub chapter: String,
     pub start_ms: u64,
     pub duration_ms: u64,
-    /// `measured` when this came from real audio, `estimated` when it is the
-    /// duration model's prediction. A consumer building a player can show the
-    /// difference; one committing the manifest should know a re-dub will move
-    /// every estimated line.
+    /// `measured` from real audio, `estimated` from the estimator
+    /// (docs/design.md#estimated-and-measured).
     pub duration_source: String,
     pub audio: String,
     pub voice_source: String,
     pub voice_source_actual: String,
-    /// Always serialized. `null` when the requested tier was delivered —
-    /// a consumer should not have to tell "absent" from "no downgrade".
+    /// `null` when the requested tier was delivered (always serialized).
     pub downgrade_reason: Option<String>,
     pub source_hash: Hash,
-    /// Hash of the **encoded audio file** named by `audio`, so a consumer
-    /// can cache renders and skip re-encoding.
-    ///
-    /// [`build`] cannot fill this in: it runs before anything is encoded.
-    /// The only hash it has in hand is the `Timeline`'s `audio_hash`, which
-    /// is a deliberately *different* quantity — the identity of the audio a
-    /// line resolves to, derived from its synthesis cache key, which is
-    /// why it does not move when `dub` re-renders byte-identical audio.
-    /// This field describes the file: the bytes, and nothing else. `build`
-    /// seeds it with the timeline's value and `teleprompt dub` overwrites
-    /// it with `Hash::of(&wav_bytes)` after encoding. See [`build`]'s note.
-    ///
-    /// **Repeated values are not a bug.** This hashes content, so audio
-    /// that is byte-identical hashes identically — which is the whole
-    /// point, since that is exactly when a consumer may reuse a cached
-    /// render. It is conspicuous with the `null` backend in particular:
-    /// `null` emits pure silence, so every line of the same duration
-    /// produces the same bytes and therefore the same hash, and a manifest
-    /// full of repeated hashes is the correct output. Real speech differs
-    /// per line and the repetition disappears. Line identity for
-    /// drift purposes comes from `source_hash`, which does not collide.
+    /// Hash of the audio file's bytes, set by `dub` after encoding; see
+    /// [`build`]. Byte-identical audio repeats a hash (every same-length
+    /// line of `null` silence does), and that is correct: line identity is
+    /// `source_hash`.
     pub audio_hash: Hash,
-    /// Omitted entirely when the backend has no word timings, so absence is
-    /// unambiguous and never confused with an empty list.
+    /// Omitted when the backend gave no word timings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub words: Option<Vec<WordEntry>>,
 }
@@ -185,23 +126,14 @@ pub fn audio_path(line_id: &str, format: &str) -> String {
     format!("audio/{line_id}.{format}")
 }
 
-/// Join a scheduled [`Timeline`] with the narration detail `compile`
-/// retained, producing the published manifest.
+/// Joins a scheduled [`Timeline`] with the [`NarrationDetail`] `compile`
+/// kept. Unmatched entries on either side are dropped; a single `compile`
+/// call cannot produce them.
 ///
-/// A `NarrationDetail` with no matching timeline entry is dropped, and a
-/// timeline narration entry with no matching detail is dropped: both are
-/// impossible for output from a single `compile` call, and neither is worth
-/// a fallible signature that every caller would then `unwrap`.
-///
-/// **`audio_hash` is seeded, not final.** Nothing here has encoded any
-/// audio, so each line's `audio_hash` is set to the `Timeline`'s value —
-/// which answers a different question: *which* audio this line resolves
-/// to, rather than what the file on disk contains. `teleprompt dub`
-/// replaces it with the hash of the bytes it actually wrote. The
-/// alternative — taking a `&[(String, Hash)]` of byte hashes here — was
-/// rejected because it would force every non-rendering caller (`build`'s
-/// own tests, and any future consumer that wants the manifest shape
-/// without paying for synthesis) to invent hashes for audio it never made.
+/// `audio_hash` is seeded with the timeline's value, which identifies the
+/// audio a line resolves to, not the file's bytes. Nothing here has
+/// encoded audio, so `dub` overwrites it with the hash of what it wrote,
+/// and callers that never synthesize need not invent one.
 pub fn build(
     timeline: &Timeline,
     chapters: &[ChapterInfo],
@@ -240,10 +172,8 @@ pub fn build(
         })
         .collect();
 
-    // One item per scheduled shot, in the timeline's own order. A pause is
-    // included rather than filtered: `scene: "pause"` is an item during which
-    // the picture holds, and a consumer that skipped it would run the next
-    // shot early.
+    // Pauses stay in: a consumer that skipped one would run the next shot
+    // early.
     let shots: Vec<ShotEntry> = timeline
         .entries
         .iter()
@@ -269,18 +199,9 @@ pub fn build(
         })
         .collect();
 
-    // A chapter's start is its first spoken line's start. A chapter with
-    // nothing spoken in it has no defensible time and is omitted rather
-    // than given a guessed one.
-    //
-    // The join is **positional**, not by slug. Slugs derive from titles
-    // (`teleprompt_core::ast::slugify`), cannot be pinned, and are never
-    // deduplicated, so two `# Setup` chapters share the slug `setup`.
-    // Joining on it made `min()` run across both chapters' lines: the
-    // two markers came out with the same `start_ms` and the second
-    // chapter's real start was lost. `ChapterEntry.id` stays the slug —
-    // that is what a consumer wants to see — but the join behind it is the
-    // index.
+    // A chapter starts at its first spoken line; one with nothing spoken
+    // has no defensible time and is omitted. The join is by index, not by
+    // slug: slugs are not deduplicated, so two `# Setup` chapters share one.
     let chapter_entries = chapters
         .iter()
         .enumerate()
