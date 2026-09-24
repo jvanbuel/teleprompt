@@ -73,7 +73,7 @@ pub fn build(
                 start_ms: a.start_ms,
                 duration_ms: a.duration_ms,
                 duration_source: a.duration_source,
-                policy: entry.policy.clone(),
+                policy: entry.policy,
                 transition: TransitionOut {
                     kind: entry.transition.kind.clone(),
                     duration_ms: entry.transition.duration_ms,

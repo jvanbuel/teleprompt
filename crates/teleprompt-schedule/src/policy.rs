@@ -1,4 +1,5 @@
 use teleprompt_core::config::TimingConfig;
+use teleprompt_core::PolicyKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Align {
@@ -43,13 +44,17 @@ impl Policy {
         }
     }
 
-    pub fn label(&self) -> &'static str {
+    pub fn kind(&self) -> PolicyKind {
         match self {
-            Policy::Hold => "hold",
-            Policy::Concurrent(_) => "concurrent",
-            Policy::Stretch => "stretch-action",
-            Policy::Trim => "trim-action",
+            Policy::Hold => PolicyKind::Hold,
+            Policy::Concurrent(_) => PolicyKind::Concurrent,
+            Policy::Stretch => PolicyKind::StretchAction,
+            Policy::Trim => PolicyKind::TrimAction,
         }
+    }
+
+    pub fn label(&self) -> &'static str {
+        self.kind().label()
     }
 }
 

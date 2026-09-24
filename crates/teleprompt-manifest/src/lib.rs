@@ -3,7 +3,7 @@
 //! the preview and outside consumers read it.
 
 use serde::{Deserialize, Serialize};
-use teleprompt_core::{DurationSource, Hash, VoiceSource};
+use teleprompt_core::{DurationSource, Hash, PolicyKind, VoiceSource};
 
 /// Incremented on any change a consumer must not silently miss, including
 /// an added key it would otherwise ignore. Independent of
@@ -58,7 +58,7 @@ pub struct ShotEntry {
     /// bound, `unknown` when the adapter cannot say and the shot took its
     /// line's length.
     pub duration_source: DurationSource,
-    pub policy: String,
+    pub policy: PolicyKind,
     /// The outgoing transition, as scheduled. Deriving it from neighbouring
     /// offsets goes wrong where items overlap.
     pub transition: TransitionOut,

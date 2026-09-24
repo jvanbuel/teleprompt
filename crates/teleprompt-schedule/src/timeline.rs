@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use teleprompt_core::{DurationSource, Hash, VoiceSource};
+use teleprompt_core::{DurationSource, Hash, PolicyKind, VoiceSource};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Timeline {
@@ -16,7 +16,7 @@ pub struct Entry {
     pub item: String,
     pub start_ms: u64,
     pub duration_ms: u64,
-    pub policy: String,
+    pub policy: PolicyKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub narration: Option<NarrationEntry>,
     #[serde(skip_serializing_if = "Option::is_none")]

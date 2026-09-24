@@ -47,7 +47,7 @@ fn every_policy_appears_in_the_compiled_timeline() {
         .timeline
         .entries
         .iter()
-        .map(|e| e.policy.as_str())
+        .map(|e| e.policy.label())
         .collect();
     for expected in ["hold", "concurrent", "stretch-action", "trim-action"] {
         assert!(policies.contains(expected), "missing policy {expected}");

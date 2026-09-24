@@ -163,7 +163,7 @@ fn build_entry(item: &Item, start_ms: u64, l: &Layout, transition_ms: u64) -> En
         item: item.id.clone(),
         start_ms,
         duration_ms: l.item_duration_ms,
-        policy: item.policy.label().to_string(),
+        policy: item.policy.kind(),
         narration: item
             .narration
             .as_ref()
