@@ -35,6 +35,9 @@ CI checks it with `cargo +1.85 check --workspace --locked`.
 - **Keep one theme per commit.** A refactor keeps behaviour identical, and
   a fix changes it on purpose and says so. Don't mix the two.
 - **Every fix comes with a test that fails without it.**
+- **Keep functions small**: at most 100 lines and seven arguments. Clippy
+  enforces both (`too_many_lines`, `too_many_arguments`), so split along
+  the steps a function performs rather than raising the limit.
 - **Keep pull requests small**: roughly 500 changed lines, deletions aside.
 - **Measure structural changes.** `python3 tools/metrics.py` prints lines,
   comment ratio, longest function, `pub` items and test count per crate. A

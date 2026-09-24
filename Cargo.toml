@@ -22,6 +22,10 @@ suspicious = { level = "warn", priority = -1 }
 complexity = { level = "warn", priority = -1 }
 perf = { level = "warn", priority = -1 }
 style = { level = "warn", priority = -1 }
+# Size limits, so a function cannot quietly grow back past what a reader
+# can hold: 100 lines (clippy.toml) and seven arguments.
+too_many_lines = "deny"
+too_many_arguments = "deny"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

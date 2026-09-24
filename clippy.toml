@@ -1,0 +1,2 @@
+# Enforced by `too_many_lines = "deny"` in the workspace's [lints].
+too-many-lines-threshold = 100
