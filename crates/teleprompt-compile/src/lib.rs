@@ -524,7 +524,9 @@ pub fn compile(
                     continue;
                 };
                 let resolution = match resolve_source(requested, &|tier| match tier {
-                    VoiceSource::Recorded => Err("no takes recorded (M0 has no recorder)".into()),
+                    VoiceSource::Recorded => {
+                        Err("no takes recorded; teleprompt has no recorder yet".into())
+                    }
                     VoiceSource::Cloned => Err("no voice profile enrolled".into()),
                     VoiceSource::Synthetic => Ok(()),
                 }) {
