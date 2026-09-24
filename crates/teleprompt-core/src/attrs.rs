@@ -70,7 +70,7 @@ pub fn parse_duration_ms(v: &str) -> Result<u64, String> {
         if secs < 0.0 {
             return Err(err());
         }
-        return Ok((secs * 1000.0).round() as u64);
+        return Ok(crate::time::ms_from_seconds(secs));
     }
     v.parse::<u64>().map_err(|_| err())
 }

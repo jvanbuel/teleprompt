@@ -62,7 +62,7 @@ pub fn duration_ms(video: &Path) -> Option<u64> {
         .ok()?;
     let text = String::from_utf8_lossy(&out.stdout);
     let seconds: f64 = text.trim().parse().ok()?;
-    Some((seconds * 1000.0).round() as u64)
+    Some(teleprompt_core::time::ms_from_seconds(seconds))
 }
 
 /// One shot out of the session's reel.
@@ -73,7 +73,7 @@ pub fn cut(
     from_ms: u64,
     duration_ms: u64,
 ) -> Result<(), String> {
-    let seconds = |ms: u64| format!("{}.{:03}", ms / 1000, ms % 1000);
+    let seconds = teleprompt_core::time::ffmpeg_seconds;
     let status = Command::new(ffmpeg)
         .args(["-hide_banner", "-loglevel", "error", "-y", "-ss"])
         .arg(seconds(from_ms))

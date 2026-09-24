@@ -49,7 +49,7 @@ pub fn args(
     let color = session.setting("color", "#eef3f8");
     let font = session.setting("font", "Sans");
     let fps = frame.fps.to_string();
-    let seconds = |ms: u64| format!("{}.{:03}", ms / 1000, ms % 1000);
+    let seconds = teleprompt_core::time::ffmpeg_seconds;
     let mut a: Vec<String> = ["-hide_banner", "-loglevel", "error", "-y"]
         .map(String::from)
         .to_vec();

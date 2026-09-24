@@ -9,6 +9,7 @@
 //! not add up to the whole; the last chunk absorbs the difference.
 
 use std::path::{Path, PathBuf};
+use teleprompt_core::time;
 
 use teleprompt_core::Hash;
 
@@ -55,11 +56,6 @@ pub struct Chunk {
     pub content: Content,
 }
 
-/// Only ever applied to a duration, never an offset (see the module docs).
-fn frames_of(ms: u64, fps: u32) -> u64 {
-    (ms * u64::from(fps) + 500) / 1000
-}
-
 /// `None` when uncuttable: see [`crate::RenderError::Unchunkable`].
 pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
     let fps = plan.fps;
@@ -103,7 +99,7 @@ pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
 
     // The whole rounding correction goes on the last chunk, a held frame,
     // so no other chunk's key depends on what came before it.
-    settle(&mut out, frames_of(plan.duration_ms, fps));
+    settle(&mut out, time::frames(plan.duration_ms, fps));
     Some(out)
 }
 
@@ -131,7 +127,7 @@ fn push(
     duration_ms: u64,
     content: impl FnOnce(u64) -> Content,
 ) {
-    let frames = frames_of(duration_ms, fps);
+    let frames = time::frames(duration_ms, fps);
     if frames == 0 {
         return;
     }
@@ -152,8 +148,8 @@ fn window(placement: &Placement, start_ms: u64, frames: u64, fps: u32) -> Window
             // `Hold` never reaches here; placements fold it away.
             Picture::Hold | Picture::Slate => Source::Slate,
         },
-        lead_in_frames: frames_of(placement.lead_in_ms, fps),
-        from_frame: frames_of(start_ms.saturating_sub(placement.start_ms), fps),
+        lead_in_frames: time::frames(placement.lead_in_ms, fps),
+        from_frame: time::frames(start_ms.saturating_sub(placement.start_ms), fps),
         frames,
     }
 }

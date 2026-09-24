@@ -102,8 +102,3 @@ pub(crate) fn xfade_for(kind: &str) -> &'static str {
         _ => "fade",
     }
 }
-
-/// Seconds, for ffmpeg's `-t`.
-pub(crate) fn seconds(ms: u64) -> String {
-    format!("{}.{:03}", ms / 1000, ms % 1000)
-}

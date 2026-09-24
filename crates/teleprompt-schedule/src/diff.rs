@@ -2,6 +2,7 @@
 //! iterates `BTreeMap`s keyed by item id, so output is byte-stable.
 
 use std::collections::BTreeMap;
+use teleprompt_core::time::short;
 
 use crate::timeline::{Entry, Timeline};
 
@@ -99,15 +100,15 @@ impl TimelineDiff {
                     out.push_str(&format!(
                         "\n  {:<16} {} (timing unchanged)  ({})",
                         c.item,
-                        secs(c.before_ms),
+                        short(c.before_ms),
                         c.reason
                     ));
                 } else {
                     out.push_str(&format!(
                         "\n  {:<16} {} \u{2192} {}  ({})",
                         c.item,
-                        secs(c.before_ms),
-                        secs(c.after_ms),
+                        short(c.before_ms),
+                        short(c.after_ms),
                         c.reason
                     ));
                 }
@@ -149,17 +150,17 @@ impl TimelineDiff {
                         "\n  {:<16} {} {} \u{2192} {}",
                         t.item,
                         t.before_kind,
-                        secs(t.before_ms),
-                        secs(t.after_ms)
+                        short(t.before_ms),
+                        short(t.after_ms)
                     ));
                 } else {
                     out.push_str(&format!(
                         "\n  {:<16} {} {} \u{2192} {} {}",
                         t.item,
                         t.before_kind,
-                        secs(t.before_ms),
+                        short(t.before_ms),
                         t.after_kind,
-                        secs(t.after_ms)
+                        short(t.after_ms)
                     ));
                 }
             }
@@ -184,10 +185,6 @@ impl TimelineDiff {
 
         out
     }
-}
-
-fn secs(ms: u64) -> String {
-    format!("{:.1}s", ms as f64 / 1000.0)
 }
 
 /// Nearest tenth of a second, as an integer so two can be subtracted

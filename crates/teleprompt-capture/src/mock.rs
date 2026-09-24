@@ -74,11 +74,7 @@ impl CaptureBackend for MockCapture {
             let status = Command::new(&self.program)
                 .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi"])
                 .arg("-t")
-                .arg(format!(
-                    "{}.{:03}",
-                    shot.duration_ms / 1000,
-                    shot.duration_ms % 1000
-                ))
+                .arg(teleprompt_core::time::ffmpeg_seconds(shot.duration_ms))
                 .arg("-i")
                 .arg(format!(
                     "color=c={}:s={}x{}:r={}",

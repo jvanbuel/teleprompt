@@ -16,7 +16,7 @@ const RENDER_SCRIPT: &str = include_str!("render.mjs");
 
 /// How many frames `ms` is at `fps`, rounded, and never none.
 pub fn frames(ms: u64, fps: u32) -> u64 {
-    ((ms * u64::from(fps) + 500) / 1000).max(1)
+    teleprompt_core::time::frames(ms, fps).max(1)
 }
 
 /// The job `render.mjs` reads: what to bundle, and each wanted shot's

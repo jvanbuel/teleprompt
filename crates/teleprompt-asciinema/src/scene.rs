@@ -344,7 +344,7 @@ impl SceneCompiler for AsciinemaScene {
 
     fn estimate(&self, shot: &Shot) -> Measured {
         parse(&shot.source).map_or(Measured::Unknown, |c| {
-            Measured::Exact((c.duration * 1000.0).round() as u64)
+            Measured::Exact(teleprompt_core::time::ms_from_seconds(c.duration))
         })
     }
 

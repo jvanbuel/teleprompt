@@ -278,7 +278,7 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         "-f".into(),
         "lavfi".into(),
         "-t".into(),
-        crate::placement::seconds(plan.duration_ms),
+        teleprompt_core::time::ffmpeg_seconds(plan.duration_ms),
         "-i".into(),
         format!(
             "anullsrc=channel_layout=mono:sample_rate={}",

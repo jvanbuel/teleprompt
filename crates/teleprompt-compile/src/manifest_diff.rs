@@ -2,6 +2,7 @@
 //! `dub --check` (docs/design.md#drift).
 
 use serde::Serialize;
+use teleprompt_core::time::short;
 
 use crate::manifest::{LineEntry, NarrationManifest};
 
@@ -52,10 +53,10 @@ impl ManifestDiff {
         let delta = self.duration_after_ms as i64 - self.duration_before_ms as i64;
         out.push_str(&format!(
             "narration: {} → {} ({}{})\n",
-            secs(self.duration_before_ms),
-            secs(self.duration_after_ms),
+            short(self.duration_before_ms),
+            short(self.duration_after_ms),
             if delta >= 0 { "+" } else { "-" },
-            secs(delta.unsigned_abs()),
+            short(delta.unsigned_abs()),
         ));
 
         if self.chapters_changed {
@@ -83,8 +84,8 @@ impl ManifestDiff {
                 out.push_str(&format!(
                     "  {:<16} {} → {}  ({})\n",
                     c.id,
-                    secs(c.before_ms),
-                    secs(c.after_ms),
+                    short(c.before_ms),
+                    short(c.after_ms),
                     c.reason
                 ));
             }
@@ -110,10 +111,6 @@ impl ManifestDiff {
 
         out
     }
-}
-
-fn secs(ms: u64) -> String {
-    format!("{:.1}s", ms as f64 / 1000.0)
 }
 
 /// Why a line differs, naming the most actionable cause first: a text edit
