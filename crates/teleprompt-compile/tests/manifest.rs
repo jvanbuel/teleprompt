@@ -1,12 +1,13 @@
 use std::path::Path;
 
 use teleprompt_cache::VoiceCache;
-use teleprompt_compile::manifest::{self, AudioInfo, MANIFEST_VERSION};
+use teleprompt_compile::manifest;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
+use teleprompt_manifest::{AudioInfo, MANIFEST_VERSION};
 use teleprompt_scene::SceneRegistry;
 use teleprompt_voice::{Pcm, WordTiming};
 use teleprompt_voice_null::WpmEstimator;
@@ -40,7 +41,7 @@ fn throwaway_cache() -> VoiceCache {
     )))
 }
 
-fn compiled_and_manifest(src: &str) -> (CompileOutput, manifest::NarrationManifest) {
+fn compiled_and_manifest(src: &str) -> (CompileOutput, teleprompt_manifest::NarrationManifest) {
     let program = program_for(src);
     let cache = throwaway_cache();
     let estimator = WpmEstimator::default();
@@ -71,7 +72,7 @@ fn compiled_and_manifest(src: &str) -> (CompileOutput, manifest::NarrationManife
     (out, m)
 }
 
-fn manifest_for(src: &str) -> manifest::NarrationManifest {
+fn manifest_for(src: &str) -> teleprompt_manifest::NarrationManifest {
     compiled_and_manifest(src).1
 }
 
@@ -83,7 +84,7 @@ fn manifest_for(src: &str) -> manifest::NarrationManifest {
 fn manifest_for_with_words(
     src: &str,
     word_timings: Vec<WordTiming>,
-) -> manifest::NarrationManifest {
+) -> teleprompt_manifest::NarrationManifest {
     let program = program_for(src);
     let cache = throwaway_cache();
     let estimator = WpmEstimator::default();

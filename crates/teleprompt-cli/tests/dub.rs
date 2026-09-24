@@ -8,7 +8,7 @@ use tokio::net::TcpListener;
 
 use teleprompt_cli::cmd::dub::{manifest_path, run_dub, DubError};
 use teleprompt_cli::project::Project;
-use teleprompt_compile::manifest::MANIFEST_VERSION;
+use teleprompt_manifest::MANIFEST_VERSION;
 
 const SCRIPT: &str = "\
 # Quick start

@@ -2,11 +2,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use teleprompt_cache::{CachedAudio, VoiceCache};
-use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
-use teleprompt_compile::manifest_diff::{self, ManifestDiff};
+use teleprompt_compile::manifest;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
 use teleprompt_core::Hash;
+use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
+use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::check::compile_script_with;
@@ -578,7 +579,7 @@ fn write_output(
 
     let mut written = Vec::new();
     for (line_id, bytes, _) in &audio.lines {
-        let path = dir.join(manifest::audio_path(line_id, "wav"));
+        let path = dir.join(audio_path(line_id, "wav"));
         std::fs::write(&path, bytes)
             .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
         written.push(path);
@@ -619,8 +620,8 @@ impl From<DubError> for crate::output::Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_compile::manifest::LineEntry;
     use teleprompt_core::Hash;
+    use teleprompt_manifest::LineEntry;
 
     #[test]
     fn matching_lengths_pass_the_guard() {

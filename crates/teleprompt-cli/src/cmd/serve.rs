@@ -19,8 +19,9 @@ use std::time::Duration;
 
 use serde::Serialize;
 use teleprompt_cache::VoiceCache;
-use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest};
+use teleprompt_compile::manifest;
 use teleprompt_core::Hash;
+use teleprompt_manifest::{AudioInfo, NarrationManifest};
 use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::check::{backends_of, compile_script_with};

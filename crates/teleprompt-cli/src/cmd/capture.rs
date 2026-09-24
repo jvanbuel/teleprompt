@@ -11,9 +11,9 @@ use serde::Serialize;
 use teleprompt_capture::{
     sessions, CaptureRegistry, Frame, PlannedShot, Progress, Session, WorkDir,
 };
-use teleprompt_compile::manifest::NarrationManifest;
 use teleprompt_compile::ShotSource;
 use teleprompt_core::config::SceneConfig;
+use teleprompt_manifest::NarrationManifest;
 
 /// The shots of a published manifest, as the planner needs them.
 ///

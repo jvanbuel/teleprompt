@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use teleprompt_compile::manifest::NarrationManifest;
+use teleprompt_manifest::NarrationManifest;
 use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::Picture;
 

@@ -22,7 +22,6 @@ use teleprompt_voice::{
 };
 
 pub mod manifest;
-pub mod manifest_diff;
 
 /// Everything `compile` needs about voice, and deliberately no backend, so
 /// the inner loop cannot synthesize (docs/design.md#async-boundary).

@@ -152,8 +152,9 @@ reading the manifest it just published.
 | `teleprompt-cache` | the content-addressed voice cache |
 | `teleprompt-scene` | the `SceneCompiler` contract and the `mock` adapter |
 | `teleprompt-capture` | the `CaptureBackend` contract and the mock backend |
-| `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items and the manifest |
-| `teleprompt-render` | the ffmpeg renderer and its chunk cache |
+| `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest |
+| `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
+| `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler and capture backend |
 | `teleprompt-cli` | the `teleprompt` binary, and the registries every adapter and backend is composed into |
 

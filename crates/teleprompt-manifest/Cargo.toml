@@ -1,17 +1,16 @@
 [package]
-name = "teleprompt-render"
+name = "teleprompt-manifest"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-core = { path = "../teleprompt-core" }
-thiserror.workspace = true
-
-[lints]
-workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+
+[lints]
+workspace = true

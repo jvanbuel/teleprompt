@@ -4,7 +4,7 @@
 use serde::Serialize;
 use teleprompt_core::time::short;
 
-use crate::manifest::{LineEntry, NarrationManifest};
+use crate::{LineEntry, NarrationManifest};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChangedSegment {

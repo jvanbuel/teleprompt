@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use serde::Serialize;
-use teleprompt_compile::manifest::MANIFEST_VERSION;
+use teleprompt_manifest::MANIFEST_VERSION;
 use teleprompt_scene::SceneRegistry;
 
 use crate::project::{CacheDirs, Project};

@@ -18,6 +18,7 @@ teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-render = { path = "../teleprompt-render" }
 teleprompt-media = { path = "../teleprompt-media" }

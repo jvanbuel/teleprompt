@@ -1,8 +1,8 @@
-use teleprompt_compile::manifest::{
+use teleprompt_core::Hash;
+use teleprompt_manifest::diff::diff;
+use teleprompt_manifest::{
     AudioInfo, ChapterEntry, LineEntry, NarrationManifest, MANIFEST_VERSION,
 };
-use teleprompt_compile::manifest_diff::diff;
-use teleprompt_core::Hash;
 
 fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) -> LineEntry {
     LineEntry {

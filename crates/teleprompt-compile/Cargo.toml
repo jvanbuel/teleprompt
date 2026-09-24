@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }

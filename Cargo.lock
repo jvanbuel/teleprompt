@@ -1160,6 +1160,7 @@ dependencies = [
  "teleprompt-capture",
  "teleprompt-compile",
  "teleprompt-core",
+ "teleprompt-manifest",
  "teleprompt-media",
  "teleprompt-playwright",
  "teleprompt-remotion",
@@ -1184,6 +1185,7 @@ dependencies = [
  "serde_json",
  "teleprompt-cache",
  "teleprompt-core",
+ "teleprompt-manifest",
  "teleprompt-scene",
  "teleprompt-schedule",
  "teleprompt-voice",
@@ -1201,6 +1203,15 @@ dependencies = [
  "serde_yaml",
  "thiserror 1.0.69",
  "toml",
+]
+
+[[package]]
+name = "teleprompt-manifest"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "teleprompt-core",
 ]
 
 [[package]]
@@ -1237,8 +1248,8 @@ name = "teleprompt-render"
 version = "0.1.0"
 dependencies = [
  "serde_json",
- "teleprompt-compile",
  "teleprompt-core",
+ "teleprompt-manifest",
  "thiserror 1.0.69",
 ]
 

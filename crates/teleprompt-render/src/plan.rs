@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use teleprompt_compile::manifest::NarrationManifest;
+use teleprompt_manifest::NarrationManifest;
 
 use crate::{Narration, Picture, RenderPlan, Shot, Transition};
 
