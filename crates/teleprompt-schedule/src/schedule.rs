@@ -1,7 +1,7 @@
 use teleprompt_core::config::TransitionDuration;
 
-use crate::item::{DurationSource, Item};
-use crate::policy::layout_at;
+use crate::item::{ActionInput, DurationSource, Item, NarrationInput};
+use crate::policy::{layout_at, Layout};
 use crate::timeline::{ActionEntry, Entry, NarrationEntry, Timeline, TransitionEntry};
 
 pub const TIMELINE_VERSION: u32 = 1;
@@ -22,34 +22,7 @@ pub fn schedule(
     let mut carried_in = 0u64;
 
     for (i, item) in items.iter().enumerate() {
-        let timing = &item.config.timing;
-
-        // Padding comes from the narration (see `NarrationInput::lead_in_ms`);
-        // `timing` is the action block's, which is right for the action's
-        // stretch and speedup bounds.
-        let narration_ms = item
-            .narration
-            .as_ref()
-            .map(|n| n.padded_duration_ms())
-            .unwrap_or(0);
-        // An `Unknown` action takes the length of its narration.
-        let action_ms = item
-            .action
-            .as_ref()
-            .map(|a| match a.duration_source {
-                DurationSource::Unknown => narration_ms,
-                _ => a.duration_ms,
-            })
-            .unwrap_or(0);
-
-        // A cue counts from the first word, which comes after the lead-in.
-        let lead_in_ms = item.narration.as_ref().map_or(0, |n| n.lead_in_ms);
-        let cue_ms = item
-            .action
-            .as_ref()
-            .and_then(|a| a.cue_ms)
-            .map(|c| c + lead_in_ms);
-        let l = layout_at(item.policy, narration_ms, action_ms, cue_ms, timing);
+        let (narration_ms, l) = lay_out_item(item);
         for w in &l.warnings {
             warnings.push(format!("{}: {w}", item.id));
         }
@@ -66,44 +39,12 @@ pub fn schedule(
             carried_in = l.item_duration_ms;
         }
 
-        let slack = narration_ms.saturating_sub(l.action_duration_ms);
-        let is_last = i + 1 == items.len();
-
-        // docs/design.md#quiet-window: this item's trailing silence plus the
-        // next item's lead-in.
-        let speech_end_ms = item
-            .narration
-            .as_ref()
-            .map(|n| l.narration_start_ms + n.lead_in_ms + n.duration_ms)
-            .unwrap_or(0);
-        let next_lead_in_ms = items
-            .get(i + 1)
-            .and_then(|b| b.narration.as_ref())
-            .map(|n| n.lead_in_ms)
-            .unwrap_or(0);
-        let quiet_window_ms = l.item_duration_ms.saturating_sub(speech_end_ms) + next_lead_in_ms;
-
-        let transition_ms = if is_last {
-            0
-        } else {
-            match item.config.transition.duration {
-                // Honoured as written, with a warning if it overlaps speech.
-                TransitionDuration::Fixed(ms) => {
-                    if ms > quiet_window_ms {
-                        warnings.push(format!(
-                            "{}: fixed {kind} of {ms}ms exceeds the {quiet_window_ms}ms quiet \
-                             window; narration will overlap by {}ms",
-                            item.id,
-                            ms - quiet_window_ms,
-                            kind = item.config.transition.kind,
-                        ));
-                    }
-                    ms
-                }
-                // The quiet-window cap overrides `min_ms` on purpose.
-                TransitionDuration::Auto => (slack / 2)
-                    .clamp(item.config.transition.min_ms, item.config.transition.max_ms)
-                    .min(quiet_window_ms),
+        let transition_ms = match items.get(i + 1) {
+            None => 0,
+            Some(next) => {
+                let slack = narration_ms.saturating_sub(l.action_duration_ms);
+                let quiet_window_ms = quiet_window_ms(item, next, &l);
+                size_transition(item, slack, quiet_window_ms, &mut warnings)
             }
         }
         // Never more than the item has left after its incoming transition;
@@ -111,53 +52,7 @@ pub fn schedule(
         // plan could not be cut into chunks.
         .min(l.item_duration_ms.saturating_sub(carried_in));
 
-        entries.push(Entry {
-            item: item.id.clone(),
-            start_ms: cursor,
-            duration_ms: l.item_duration_ms,
-            policy: item.policy.label().to_string(),
-            narration: item.narration.as_ref().map(|n| NarrationEntry {
-                line: n.line_id.clone(),
-                source_hash: n.source_hash,
-                audio_hash: n.audio_hash,
-                start_ms: cursor + l.narration_start_ms + n.lead_in_ms,
-                duration_ms: n.duration_ms,
-                duration_source: match n.duration_source {
-                    DurationSource::Exact => "exact",
-                    DurationSource::Estimated => "estimated",
-                    DurationSource::Measured => "measured",
-                    DurationSource::Unknown => "unknown",
-                }
-                .to_string(),
-                voice_source: n.voice_source.label().to_string(),
-                voice_source_actual: n.voice_source_actual.label().to_string(),
-                downgrade_reason: n.downgrade_reason.clone(),
-            }),
-            action: item.action.as_ref().map(|a| ActionEntry {
-                shot: a.shot_id.clone(),
-                scene: a.scene.clone(),
-                adapter: a.adapter.clone(),
-                shot_hash: a.shot_hash,
-                // Placeholder: `compile` chains the real key after re-timing,
-                // from the source that will actually be captured.
-                capture_key: a.shot_hash,
-                session: a.session.clone(),
-                start_ms: cursor + l.action_start_ms,
-                duration_ms: l.action_duration_ms,
-                duration_source: match a.duration_source {
-                    DurationSource::Exact => "exact",
-                    DurationSource::Estimated => "estimated",
-                    DurationSource::Measured => "measured",
-                    DurationSource::Unknown => "unknown",
-                }
-                .to_string(),
-            }),
-            transition: TransitionEntry {
-                kind: item.config.transition.kind.clone(),
-                duration_ms: transition_ms,
-            },
-        });
-
+        entries.push(build_entry(item, cursor, &l, transition_ms));
         carried_in = transition_ms;
         cursor += l.item_duration_ms - transition_ms;
     }
@@ -178,4 +73,144 @@ pub fn schedule(
         },
         warnings,
     )
+}
+
+/// Lays out one item under its policy. Returns the padded narration length
+/// alongside the layout, since transition slack is measured against it.
+fn lay_out_item(item: &Item) -> (u64, Layout) {
+    // Padding comes from the narration (see `NarrationInput::lead_in_ms`);
+    // `item.config.timing` is the action block's, which is right for the
+    // action's stretch and speedup bounds.
+    let narration_ms = item
+        .narration
+        .as_ref()
+        .map(|n| n.padded_duration_ms())
+        .unwrap_or(0);
+    // An `Unknown` action takes the length of its narration.
+    let action_ms = item
+        .action
+        .as_ref()
+        .map(|a| match a.duration_source {
+            DurationSource::Unknown => narration_ms,
+            _ => a.duration_ms,
+        })
+        .unwrap_or(0);
+
+    // A cue counts from the first word, which comes after the lead-in.
+    let lead_in_ms = item.narration.as_ref().map_or(0, |n| n.lead_in_ms);
+    let cue_ms = item
+        .action
+        .as_ref()
+        .and_then(|a| a.cue_ms)
+        .map(|c| c + lead_in_ms);
+    let l = layout_at(
+        item.policy,
+        narration_ms,
+        action_ms,
+        cue_ms,
+        &item.config.timing,
+    );
+    (narration_ms, l)
+}
+
+/// docs/design.md#quiet-window: this item's trailing silence plus the next
+/// item's lead-in.
+fn quiet_window_ms(item: &Item, next: &Item, l: &Layout) -> u64 {
+    let speech_end_ms = item
+        .narration
+        .as_ref()
+        .map(|n| l.narration_start_ms + n.lead_in_ms + n.duration_ms)
+        .unwrap_or(0);
+    let next_lead_in_ms = next.narration.as_ref().map_or(0, |n| n.lead_in_ms);
+    l.item_duration_ms.saturating_sub(speech_end_ms) + next_lead_in_ms
+}
+
+/// The configured duration of the transition out of `item`, before it is
+/// capped by what the item has left.
+fn size_transition(
+    item: &Item,
+    slack_ms: u64,
+    quiet_window_ms: u64,
+    warnings: &mut Vec<String>,
+) -> u64 {
+    let transition = &item.config.transition;
+    match transition.duration {
+        // Honoured as written, with a warning if it overlaps speech.
+        TransitionDuration::Fixed(ms) => {
+            if ms > quiet_window_ms {
+                warnings.push(format!(
+                    "{}: fixed {kind} of {ms}ms exceeds the {quiet_window_ms}ms quiet \
+                     window; narration will overlap by {}ms",
+                    item.id,
+                    ms - quiet_window_ms,
+                    kind = transition.kind,
+                ));
+            }
+            ms
+        }
+        // The quiet-window cap overrides `min_ms` on purpose.
+        TransitionDuration::Auto => (slack_ms / 2)
+            .clamp(transition.min_ms, transition.max_ms)
+            .min(quiet_window_ms),
+    }
+}
+
+/// The timeline entry for an item laid out as `l` and starting at `start_ms`.
+fn build_entry(item: &Item, start_ms: u64, l: &Layout, transition_ms: u64) -> Entry {
+    Entry {
+        item: item.id.clone(),
+        start_ms,
+        duration_ms: l.item_duration_ms,
+        policy: item.policy.label().to_string(),
+        narration: item
+            .narration
+            .as_ref()
+            .map(|n| narration_entry(n, start_ms + l.narration_start_ms)),
+        action: item.action.as_ref().map(|a| action_entry(a, start_ms, l)),
+        transition: TransitionEntry {
+            kind: item.config.transition.kind.clone(),
+            duration_ms: transition_ms,
+        },
+    }
+}
+
+/// `slot_start_ms` is where the padded line begins; the entry records the
+/// first word, after the lead-in.
+fn narration_entry(n: &NarrationInput, slot_start_ms: u64) -> NarrationEntry {
+    NarrationEntry {
+        line: n.line_id.clone(),
+        source_hash: n.source_hash,
+        audio_hash: n.audio_hash,
+        start_ms: slot_start_ms + n.lead_in_ms,
+        duration_ms: n.duration_ms,
+        duration_source: duration_source_label(n.duration_source).to_string(),
+        voice_source: n.voice_source.label().to_string(),
+        voice_source_actual: n.voice_source_actual.label().to_string(),
+        downgrade_reason: n.downgrade_reason.clone(),
+    }
+}
+
+fn action_entry(a: &ActionInput, item_start_ms: u64, l: &Layout) -> ActionEntry {
+    ActionEntry {
+        shot: a.shot_id.clone(),
+        scene: a.scene.clone(),
+        adapter: a.adapter.clone(),
+        shot_hash: a.shot_hash,
+        // Placeholder: `compile` chains the real key after re-timing,
+        // from the source that will actually be captured.
+        capture_key: a.shot_hash,
+        session: a.session.clone(),
+        start_ms: item_start_ms + l.action_start_ms,
+        duration_ms: l.action_duration_ms,
+        duration_source: duration_source_label(a.duration_source).to_string(),
+    }
+}
+
+fn duration_source_label(source: DurationSource) -> &'static str {
+    match source {
+        DurationSource::Exact => "exact",
+        DurationSource::Estimated => "estimated",
+        DurationSource::Measured => "measured",
+        DurationSource::Unknown => "unknown",
+    }
 }
