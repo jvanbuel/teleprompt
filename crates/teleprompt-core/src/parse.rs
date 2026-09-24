@@ -54,15 +54,15 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
     let parser = Parser::new_ext(body, opts).into_offset_iter();
-
-    let mut chapters: Vec<Chapter> = Vec::new();
-    let mut chapter_configured: Vec<bool> = Vec::new();
-    let mut state = State::Idle;
-    let mut text = String::new();
-    let mut fence_info = String::new();
-    // Byte offset in `text` just past the most recent inline code span of the
-    // paragraph being accumulated. See `split_attr_suffix`.
-    let mut code_span_end: Option<usize> = None;
+    let mut b = BodyBuilder {
+        chapters: Vec::new(),
+        chapter_configured: Vec::new(),
+        state: State::Idle,
+        text: String::new(),
+        fence_info: String::new(),
+        code_span_end: None,
+        diags,
+    };
 
     for (event, range) in parser {
         let line = line_offset + body[..range.start].lines().count() + 1;
@@ -73,107 +73,18 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
         };
 
         match event {
-            Event::Start(Tag::Heading { .. }) => {
-                state = State::Heading;
-                text.clear();
-            }
-            Event::End(TagEnd::Heading(_)) => {
-                let title = text.trim().to_string();
-                chapters.push(Chapter {
-                    slug: slugify(&title),
-                    title,
-                    nodes: Vec::new(),
-                    front_matter: String::new(),
-                });
-                chapter_configured.push(false);
-                state = State::Idle;
-                text.clear();
-            }
+            Event::Start(Tag::Heading { .. }) => b.begin(State::Heading),
+            Event::End(TagEnd::Heading(_)) => b.end_heading(),
             Event::Start(Tag::Paragraph) => {
-                state = State::Paragraph;
-                text.clear();
-                code_span_end = None;
+                b.begin(State::Paragraph);
+                b.code_span_end = None;
             }
-            Event::End(TagEnd::Paragraph) => {
-                // Does the paragraph's last inline code span run all the way
-                // to its end? If so, a trailing `}` belongs to that code
-                // span, not to an attribute suffix.
-                let ends_in_code = code_span_end == Some(text.trim_end().len());
-                let raw = text.trim().to_string();
-                if !raw.is_empty() {
-                    let node = paragraph_node(&raw, ends_in_code, span, diags);
-                    push_node(&mut chapters, node, span, diags);
-                }
-                state = State::Idle;
-                text.clear();
-                code_span_end = None;
-            }
-            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => {
-                fence_info = info.to_string();
-                let words: Vec<&str> = fence_info.split_whitespace().collect();
-                state = if words.first() == Some(&"yaml") && words.get(1) == Some(&FENCE_TAG) {
-                    State::ChapterConfig
-                } else if words.first() == Some(&FENCE_TAG) {
-                    State::ActionBlock
-                } else {
-                    State::Idle
-                };
-                text.clear();
-            }
-            Event::End(TagEnd::CodeBlock) => {
-                if matches!(state, State::ChapterConfig) {
-                    let already_configured = chapter_configured.last().copied().unwrap_or(false);
-                    match chapters.last_mut() {
-                        Some(ch) if already_configured => diags.push(
-                            Diagnostic::error(format!(
-                                "chapter `{}` already has front matter; a second `yaml teleprompt` block is not allowed",
-                                ch.slug
-                            ))
-                            .at(span),
-                        ),
-                        Some(ch) if ch.nodes.is_empty() => {
-                            ch.front_matter = text.clone();
-                            if let Some(flag) = chapter_configured.last_mut() {
-                                *flag = true;
-                            }
-                        }
-                        Some(_) => diags.push(
-                            Diagnostic::error(
-                                "chapter configuration must come directly after the heading",
-                            )
-                            .at(span),
-                        ),
-                        None => diags.push(
-                            Diagnostic::error(
-                                "chapter configuration appears before the first heading",
-                            )
-                            .at(span),
-                        ),
-                    }
-                    state = State::Idle;
-                    text.clear();
-                    continue;
-                }
-                if matches!(state, State::ActionBlock) {
-                    let info = fence_info
-                        .strip_prefix(FENCE_TAG)
-                        .unwrap_or_default()
-                        .trim()
-                        .to_string();
-                    let node = Node::ActionBlock(ActionBlock {
-                        id: None,
-                        info,
-                        body: text.clone(),
-                        span,
-                    });
-                    push_node(&mut chapters, Some(node), span, diags);
-                }
-                state = State::Idle;
-                text.clear();
-            }
+            Event::End(TagEnd::Paragraph) => b.end_paragraph(span),
+            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => b.start_fence(&info),
+            Event::End(TagEnd::CodeBlock) => b.end_code_block(span),
             Event::Text(t) => {
-                if !matches!(state, State::Idle) {
-                    text.push_str(&t);
+                if !matches!(b.state, State::Idle) {
+                    b.text.push_str(&t);
                 }
             }
             // An inline code span contributes its text like any other run —
@@ -182,31 +93,31 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
             // distinguishes `` `{ fps: 30 }` `` from a `{key=value}` suffix
             // once the backticks are gone.
             Event::Code(t) => {
-                if !matches!(state, State::Idle) {
-                    text.push_str(&t);
-                    if matches!(state, State::Paragraph) {
-                        code_span_end = Some(text.len());
+                if !matches!(b.state, State::Idle) {
+                    b.text.push_str(&t);
+                    if matches!(b.state, State::Paragraph) {
+                        b.code_span_end = Some(b.text.len());
                     }
                 }
             }
             Event::SoftBreak | Event::HardBreak => {
-                if !matches!(state, State::Idle)
-                    && !text.is_empty()
-                    && !text.ends_with(char::is_whitespace)
+                if !matches!(b.state, State::Idle)
+                    && !b.text.is_empty()
+                    && !b.text.ends_with(char::is_whitespace)
                 {
-                    text.push(' ');
+                    b.text.push(' ');
                 }
             }
             Event::Html(h) | Event::InlineHtml(h) => match directive_from_html(&h) {
-                Ok(Some(node)) => push_node(&mut chapters, Some(node), span, diags),
+                Ok(Some(node)) => push_node(&mut b.chapters, Some(node), span, b.diags),
                 Ok(None) => {}
-                Err(message) => diags.push(Diagnostic::error(message).at(span)),
+                Err(message) => b.diags.push(Diagnostic::error(message).at(span)),
             },
             _ => {}
         }
     }
 
-    chapters
+    b.chapters
 }
 
 enum State {
@@ -215,6 +126,124 @@ enum State {
     Paragraph,
     ActionBlock,
     ChapterConfig,
+}
+
+/// The chapters built so far plus the block currently being read: `state`
+/// says what kind of block it is and `text` holds its content.
+struct BodyBuilder<'d> {
+    chapters: Vec<Chapter>,
+    /// Parallel to `chapters`: whether that chapter has taken its
+    /// `yaml teleprompt` block.
+    chapter_configured: Vec<bool>,
+    state: State,
+    text: String,
+    fence_info: String,
+    /// Byte offset in `text` just past the most recent inline code span of
+    /// the paragraph being accumulated. See `split_attr_suffix`.
+    code_span_end: Option<usize>,
+    diags: &'d mut Vec<Diagnostic>,
+}
+
+impl BodyBuilder<'_> {
+    fn begin(&mut self, state: State) {
+        self.state = state;
+        self.text.clear();
+    }
+
+    /// Opens a new chapter titled by the heading just read.
+    fn end_heading(&mut self) {
+        let title = self.text.trim().to_string();
+        self.chapters.push(Chapter {
+            slug: slugify(&title),
+            title,
+            nodes: Vec::new(),
+            front_matter: String::new(),
+        });
+        self.chapter_configured.push(false);
+        self.begin(State::Idle);
+    }
+
+    fn end_paragraph(&mut self, span: SourceSpan) {
+        // Does the paragraph's last inline code span run all the way to its
+        // end? If so, a trailing `}` belongs to that code span, not to an
+        // attribute suffix.
+        let ends_in_code = self.code_span_end == Some(self.text.trim_end().len());
+        let raw = self.text.trim().to_string();
+        if !raw.is_empty() {
+            let node = paragraph_node(&raw, ends_in_code, span, self.diags);
+            push_node(&mut self.chapters, node, span, self.diags);
+        }
+        self.begin(State::Idle);
+        self.code_span_end = None;
+    }
+
+    /// Classifies a fenced block by its info string: ` ```yaml teleprompt `
+    /// is chapter config, ` ```teleprompt ` an action block, anything else
+    /// is ignored.
+    fn start_fence(&mut self, info: &str) {
+        self.fence_info = info.to_string();
+        let words: Vec<&str> = self.fence_info.split_whitespace().collect();
+        let state = if words.first() == Some(&"yaml") && words.get(1) == Some(&FENCE_TAG) {
+            State::ChapterConfig
+        } else if words.first() == Some(&FENCE_TAG) {
+            State::ActionBlock
+        } else {
+            State::Idle
+        };
+        self.begin(state);
+    }
+
+    fn end_code_block(&mut self, span: SourceSpan) {
+        match self.state {
+            State::ChapterConfig => self.attach_chapter_config(span),
+            State::ActionBlock => {
+                let info = self
+                    .fence_info
+                    .strip_prefix(FENCE_TAG)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                let node = Node::ActionBlock(ActionBlock {
+                    id: None,
+                    info,
+                    body: self.text.clone(),
+                    span,
+                });
+                push_node(&mut self.chapters, Some(node), span, self.diags);
+            }
+            _ => {}
+        }
+        self.begin(State::Idle);
+    }
+
+    /// Stores a `yaml teleprompt` block as the current chapter's front
+    /// matter, provided it is the first one and nothing precedes it.
+    fn attach_chapter_config(&mut self, span: SourceSpan) {
+        let already_configured = self.chapter_configured.last().copied().unwrap_or(false);
+        match self.chapters.last_mut() {
+            Some(ch) if already_configured => self.diags.push(
+                Diagnostic::error(format!(
+                    "chapter `{}` already has front matter; a second `yaml teleprompt` block is not allowed",
+                    ch.slug
+                ))
+                .at(span),
+            ),
+            Some(ch) if ch.nodes.is_empty() => {
+                ch.front_matter = self.text.clone();
+                if let Some(flag) = self.chapter_configured.last_mut() {
+                    *flag = true;
+                }
+            }
+            Some(_) => self.diags.push(
+                Diagnostic::error("chapter configuration must come directly after the heading")
+                    .at(span),
+            ),
+            None => self.diags.push(
+                Diagnostic::error("chapter configuration appears before the first heading")
+                    .at(span),
+            ),
+        }
+    }
 }
 
 fn paragraph_node(

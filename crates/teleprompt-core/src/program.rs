@@ -1,4 +1,6 @@
-use crate::ast::{Directive, Node, Script};
+use std::collections::BTreeMap;
+
+use crate::ast::{ActionBlock, Chapter, Directive, Line, Node, Script};
 use crate::attrs::{parse_attrs, BLOCK_KEYS, SEGMENT_KEYS};
 use crate::config::{Config, PartialConfig};
 use crate::{Diagnostic, Diagnostics, Hash, SourceSpan};
@@ -96,126 +98,46 @@ pub fn resolve(
     cli: &PartialConfig,
 ) -> Result<Program, Diagnostics> {
     let mut diags = Vec::new();
-
-    let front = match PartialConfig::from_yaml(&script.front_matter) {
-        Ok(f) => f,
-        Err(e) => {
-            diags.push(Diagnostic::error(format!("front matter: {e}")));
-            PartialConfig::default()
-        }
-    };
-
+    let front = config_layer(&script.front_matter, "front matter", &mut diags);
     let base = Config::merged(&[project.clone(), front.clone(), cli.clone()]);
-    let mut elements = Vec::new();
+    let mut r = Resolver {
+        project,
+        front,
+        cli,
+        diags,
+        config_problems: BTreeMap::new(),
+        elements: Vec::new(),
+    };
     let mut chapters = Vec::new();
-
-    // Merged-config problems, keyed by message so one bad `voice.speed` in
-    // front matter produces one diagnostic rather than one per paragraph.
-    // The span is the first line that resolved to the offending value —
-    // the merge has already flattened the layers, so which layer supplied it
-    // is not recoverable here, but the line it reaches is.
-    let mut config_problems: std::collections::BTreeMap<String, SourceSpan> =
-        std::collections::BTreeMap::new();
 
     for (chapter_index, chapter) in script.chapters.iter().enumerate() {
         chapters.push(ChapterInfo {
             slug: chapter.slug.clone(),
             title: chapter.title.clone(),
         });
-
-        let chapter_cfg = match PartialConfig::from_yaml(&chapter.front_matter) {
-            Ok(c) => c,
-            Err(e) => {
-                diags.push(Diagnostic::error(format!(
-                    "chapter `{}` front matter: {e}",
-                    chapter.slug
-                )));
-                PartialConfig::default()
-            }
-        };
-
+        let chapter_cfg = config_layer(
+            &chapter.front_matter,
+            &format!("chapter `{}` front matter", chapter.slug),
+            &mut r.diags,
+        );
         for node in &chapter.nodes {
             match node {
-                Node::Line(seg) => {
-                    let (attrs, mut d) = parse_attrs(&seg.raw_attrs, SEGMENT_KEYS, seg.span);
-                    diags.append(&mut d);
-                    let config = Config::merged(&[
-                        project.clone(),
-                        front.clone(),
-                        chapter_cfg.clone(),
-                        PartialConfig::from_attrs(&attrs),
-                        cli.clone(),
-                    ]);
-                    for problem in config.problems() {
-                        config_problems.entry(problem).or_insert(seg.span);
-                    }
-                    let text = seg.text.clone();
-                    elements.push(Element::Narration {
-                        id: seg.id.clone().unwrap_or_default(),
-                        source_hash: Hash::of(text.as_bytes()),
-                        chapter: chapter.slug.clone(),
-                        chapter_index,
-                        text,
-                        config,
-                        span: seg.span,
-                    });
+                Node::Line(seg) => r.resolve_line(seg, chapter, chapter_index, &chapter_cfg),
+                Node::ActionBlock(block) => r.resolve_action_block(block, &chapter_cfg),
+                Node::Directive(Directive::Pause(ms)) => {
+                    r.elements.push(Element::Pause { ms: *ms });
                 }
-                Node::ActionBlock(block) => {
-                    let (attrs, mut d) = parse_attrs(&block.info, BLOCK_KEYS, block.span);
-                    diags.append(&mut d);
-                    let Some(scene) = attrs.get("scene").map(str::to_string) else {
-                        diags.push(
-                            Diagnostic::error("action block has no `scene`")
-                                .at(block.span)
-                                .with_help("write ```teleprompt scene=browser"),
-                        );
-                        continue;
-                    };
-                    let config = Config::merged(&[
-                        project.clone(),
-                        front.clone(),
-                        chapter_cfg.clone(),
-                        PartialConfig::from_attrs(&attrs),
-                        cli.clone(),
-                    ]);
-                    elements.push(Element::Action {
-                        block_id: block.id.clone().unwrap_or_default(),
-                        scene,
-                        body: block.body.clone(),
-                        include: attrs.get("include").map(str::to_string),
-                        review: attrs.get("review").map(str::to_string),
-                        policy: attrs.get("policy").unwrap_or("hold").to_string(),
-                        align: attrs.get("align").unwrap_or("start").to_string(),
-                        cue: attrs.get("cue").map(str::to_string),
-                        session: attrs.get("session").map(str::to_string),
-                        config,
-                        span: block.span,
-                    });
-                }
-                Node::Directive(Directive::Pause(ms)) => elements.push(Element::Pause { ms: *ms }),
             }
         }
     }
 
-    // The script-level merge too, so a value nothing narrates against is
-    // still reported rather than sitting in the config unread. Only added
-    // when no line already carries the same message, so the spanned
-    // version wins when both apply.
-    for problem in base.problems() {
-        if !config_problems.contains_key(&problem) {
-            diags.push(
-                Diagnostic::error(problem)
-                    .with_help("voice.speed scales narration duration; 1.0 is unmodified"),
-            );
-        }
-    }
-    for (problem, span) in config_problems {
-        diags.push(
-            Diagnostic::error(problem)
-                .at(span)
-                .with_help("voice.speed scales narration duration; 1.0 is unmodified"),
-        );
-    }
+    let Resolver {
+        mut diags,
+        config_problems,
+        elements,
+        ..
+    } = r;
+    report_config_problems(&base, config_problems, &mut diags);
 
     let d = Diagnostics(diags);
     if d.has_errors() {
@@ -229,4 +151,116 @@ pub fn resolve(
         chapters,
         elements,
     })
+}
+
+/// Parses one YAML config layer, reporting a parse failure under `what`
+/// and falling back to an empty layer.
+fn config_layer(yaml: &str, what: &str, diags: &mut Vec<Diagnostic>) -> PartialConfig {
+    match PartialConfig::from_yaml(yaml) {
+        Ok(c) => c,
+        Err(e) => {
+            diags.push(Diagnostic::error(format!("{what}: {e}")));
+            PartialConfig::default()
+        }
+    }
+}
+
+/// The script-wide config layers and everything `resolve` collects while
+/// walking the chapters.
+struct Resolver<'a> {
+    project: &'a PartialConfig,
+    front: PartialConfig,
+    cli: &'a PartialConfig,
+    diags: Vec<Diagnostic>,
+    /// Merged-config problems, keyed by message so one bad `voice.speed` in
+    /// front matter produces one diagnostic rather than one per paragraph.
+    /// The span is the first line that resolved to the offending value —
+    /// the merge has already flattened the layers, so which layer supplied
+    /// it is not recoverable here, but the line it reaches is.
+    config_problems: BTreeMap<String, SourceSpan>,
+    elements: Vec<Element>,
+}
+
+impl Resolver<'_> {
+    fn merged(&self, chapter_cfg: &PartialConfig, item: PartialConfig) -> Config {
+        Config::merged(&[
+            self.project.clone(),
+            self.front.clone(),
+            chapter_cfg.clone(),
+            item,
+            self.cli.clone(),
+        ])
+    }
+
+    fn resolve_line(
+        &mut self,
+        seg: &Line,
+        chapter: &Chapter,
+        chapter_index: usize,
+        chapter_cfg: &PartialConfig,
+    ) {
+        let (attrs, mut d) = parse_attrs(&seg.raw_attrs, SEGMENT_KEYS, seg.span);
+        self.diags.append(&mut d);
+        let config = self.merged(chapter_cfg, PartialConfig::from_attrs(&attrs));
+        for problem in config.problems() {
+            self.config_problems.entry(problem).or_insert(seg.span);
+        }
+        let text = seg.text.clone();
+        self.elements.push(Element::Narration {
+            id: seg.id.clone().unwrap_or_default(),
+            source_hash: Hash::of(text.as_bytes()),
+            chapter: chapter.slug.clone(),
+            chapter_index,
+            text,
+            config,
+            span: seg.span,
+        });
+    }
+
+    fn resolve_action_block(&mut self, block: &ActionBlock, chapter_cfg: &PartialConfig) {
+        let (attrs, mut d) = parse_attrs(&block.info, BLOCK_KEYS, block.span);
+        self.diags.append(&mut d);
+        let Some(scene) = attrs.get("scene").map(str::to_string) else {
+            self.diags.push(
+                Diagnostic::error("action block has no `scene`")
+                    .at(block.span)
+                    .with_help("write ```teleprompt scene=browser"),
+            );
+            return;
+        };
+        let config = self.merged(chapter_cfg, PartialConfig::from_attrs(&attrs));
+        self.elements.push(Element::Action {
+            block_id: block.id.clone().unwrap_or_default(),
+            scene,
+            body: block.body.clone(),
+            include: attrs.get("include").map(str::to_string),
+            review: attrs.get("review").map(str::to_string),
+            policy: attrs.get("policy").unwrap_or("hold").to_string(),
+            align: attrs.get("align").unwrap_or("start").to_string(),
+            cue: attrs.get("cue").map(str::to_string),
+            session: attrs.get("session").map(str::to_string),
+            config,
+            span: block.span,
+        });
+    }
+}
+
+/// Reports each config problem once: at the first line it reached, or, for
+/// a problem only the script-level merge has, unspanned so a value nothing
+/// narrates against is still reported rather than sitting in the config
+/// unread. Unspanned ones come first.
+fn report_config_problems(
+    base: &Config,
+    config_problems: BTreeMap<String, SourceSpan>,
+    diags: &mut Vec<Diagnostic>,
+) {
+    const HELP: &str = "voice.speed scales narration duration; 1.0 is unmodified";
+    for problem in base.problems() {
+        if !config_problems.contains_key(&problem) {
+            diags.push(Diagnostic::error(problem).with_help(HELP));
+        }
+    }
+    for (problem, span) in config_problems {
+        diags.push(Diagnostic::error(problem).at(span).with_help(HELP));
+    }
 }
