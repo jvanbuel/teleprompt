@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -14,12 +14,6 @@ use teleprompt_voice_null::WpmEstimator;
 
 use crate::project::Project;
 use crate::voice::Backends;
-
-/// Where a project's caches live. Every command roots its cache here, so
-/// the one `compile_script` reads is the one `dub` fills.
-pub fn cache_root(project: &Project) -> PathBuf {
-    project.root.join(".teleprompt").join("cache")
-}
 
 /// Shared front half of every command: read, parse, identify, resolve,
 /// compile. Writes nothing.
@@ -164,7 +158,7 @@ pub(crate) fn compile_script_with(
     // `Some("")` for a parent, which is not the current directory.
     let base_dir = crate::project::script_dir(script);
 
-    let cache = VoiceCache::new(cache_root(project));
+    let cache = VoiceCache::new(project.caches().root);
     let estimator = WpmEstimator::default();
     let capabilities = backend.capabilities();
     let ctx = VoiceContext {

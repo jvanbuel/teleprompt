@@ -22,7 +22,43 @@ pub(crate) fn script_dir(script: &Path) -> &Path {
     }
 }
 
+/// Where a project's derived artifacts live (docs/design.md#caches).
+#[derive(Debug, Clone)]
+pub struct CacheDirs {
+    pub root: PathBuf,
+}
+
+impl CacheDirs {
+    /// The caches of the project rooted at `project_root`.
+    pub fn under(project_root: &Path) -> Self {
+        Self {
+            root: project_root.join(".teleprompt").join("cache"),
+        }
+    }
+
+    /// Synthesized lines.
+    pub fn voice(&self) -> PathBuf {
+        self.root.join("voice")
+    }
+
+    /// Captured clips, by capture key.
+    pub fn clips(&self) -> PathBuf {
+        self.root.join("video")
+    }
+
+    /// Encoded chunks of rendered picture.
+    pub fn compose(&self) -> PathBuf {
+        self.root.join("compose")
+    }
+}
+
 impl Project {
+    /// This project's caches. Every command roots its caches here, so the
+    /// cache `check` reads is the one `dub` fills.
+    pub fn caches(&self) -> CacheDirs {
+        CacheDirs::under(&self.root)
+    }
+
     /// Finds the project a `script` belongs to, naming the script on failure.
     pub fn for_script(script: &Path) -> std::io::Result<Project> {
         Project::discover(script_dir(script)).map_err(|e| {

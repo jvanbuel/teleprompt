@@ -23,7 +23,7 @@ use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest};
 use teleprompt_core::Hash;
 use teleprompt_voice::VoiceBackend;
 
-use crate::cmd::check::{backends_of, cache_root, compile_script_with};
+use crate::cmd::check::{backends_of, compile_script_with};
 use crate::project::Project;
 
 /// How often the watcher reads the script. Polling rather than an OS watcher
@@ -85,7 +85,7 @@ async fn rebuild(
     let (compiled, backend) =
         compile_script_with(&backends, project, script, locale).map_err(ServeError::Validation)?;
 
-    let cache = VoiceCache::new(cache_root(project));
+    let cache = VoiceCache::new(project.caches().root);
     let audio = warm(&backend, &cache, &compiled).await?;
 
     // Compiled again, as `dub` does: the first pass read durations from a
@@ -136,14 +136,10 @@ async fn warm(
         let (rate, channels) = match hit {
             Some(meta) => (meta.sample_rate, meta.channels),
             None => {
-                let s = backend
-                    .synthesize(&detail.synth_request)
+                let stored = crate::cmd::dub::synthesize_and_store(backend, cache, detail)
                     .await
-                    .map_err(|e| ServeError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
-                cache
-                    .store(&detail.cache_key, &s.pcm, s.word_timings.as_deref())
-                    .map_err(|e| ServeError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
-                (s.pcm.sample_rate, s.pcm.channels)
+                    .map_err(ServeError::Runtime)?;
+                (stored.sample_rate, stored.channels)
             }
         };
         shape.get_or_insert((rate, channels));
@@ -259,7 +255,7 @@ fn handle(
     stream: &mut TcpStream,
     state: &Mutex<Preview>,
     script_name: &str,
-    cache_dir: &Path,
+    voice_dir: &Path,
 ) -> std::io::Result<()> {
     let mut line = String::new();
     BufReader::new(&*stream).read_line(&mut line)?;
@@ -325,7 +321,7 @@ fn handle(
             let Some(key) = key else {
                 return respond(stream, "404 Not Found", "text/plain", b"no such line");
             };
-            match std::fs::read(cache_dir.join("voice").join(format!("{key}.wav"))) {
+            match std::fs::read(voice_dir.join(format!("{key}.wav"))) {
                 Ok(bytes) => respond(stream, "200 OK", "audio/wav", &bytes),
                 Err(_) => respond(stream, "404 Not Found", "text/plain", b"no audio yet"),
             }
@@ -365,7 +361,7 @@ pub async fn serve_on(
     // differs from the baseline instead of becoming it.
     let compiled = fingerprint(script);
     let built = rebuild(project, script, locale, None).await?;
-    let cache_dir = cache_root(project);
+    let voice_dir = project.caches().voice();
 
     let state = Arc::new(Mutex::new(Preview {
         generation: 1,
@@ -390,7 +386,7 @@ pub async fn serve_on(
     {
         let state = state.clone();
         let script_name = script_name.clone();
-        let cache_dir = cache_dir.clone();
+        let voice_dir = voice_dir.clone();
         std::thread::spawn(move || {
             for incoming in listener.incoming() {
                 let mut stream = match incoming {
@@ -400,7 +396,7 @@ pub async fn serve_on(
                         continue;
                     }
                 };
-                if let Err(e) = handle(&mut stream, &state, &script_name, &cache_dir) {
+                if let Err(e) = handle(&mut stream, &state, &script_name, &voice_dir) {
                     eprintln!("warning: {e}");
                 }
             }

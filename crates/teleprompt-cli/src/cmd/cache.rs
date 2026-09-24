@@ -13,7 +13,6 @@ use std::time::SystemTime;
 
 use serde::Serialize;
 
-use crate::cmd::check::cache_root;
 use crate::project::Project;
 
 /// How much encoded video a project keeps when nobody says otherwise.
@@ -136,15 +135,6 @@ pub fn prune(dir: &Path, max_bytes: u64) -> std::io::Result<Pruned> {
     })
 }
 
-/// Where each cache lives for a project.
-pub fn voice_dir(project: &Project) -> PathBuf {
-    cache_root(project).join("voice")
-}
-
-pub fn compose_dir(project: &Project) -> PathBuf {
-    cache_root(project).join("compose")
-}
-
 #[derive(Debug, Serialize)]
 pub struct CacheReport {
     pub ok: bool,
@@ -193,14 +183,14 @@ fn size(bytes: u64) -> String {
 /// one was asked for.
 pub fn run_cache(project: &Project, max_mb: Option<u64>) -> std::io::Result<CacheReport> {
     let pruned = match max_mb {
-        Some(mb) => Some(prune(&compose_dir(project), mb * 1_048_576)?),
+        Some(mb) => Some(prune(&project.caches().compose(), mb * 1_048_576)?),
         None => None,
     };
     Ok(CacheReport {
         ok: true,
-        root: cache_root(project),
-        voice: stats(&voice_dir(project)),
-        compose: stats(&compose_dir(project)),
+        root: project.caches().root,
+        voice: stats(&project.caches().voice()),
+        compose: stats(&project.caches().compose()),
         pruned,
     })
 }

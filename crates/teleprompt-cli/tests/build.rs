@@ -438,7 +438,7 @@ async fn a_build_leaves_the_cache_under_its_cap() {
         .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
     assert!(report.output.exists(), "the video is still produced");
 
-    let compose = teleprompt_cli::cmd::cache::compose_dir(&project);
+    let compose = project.caches().compose();
     assert_eq!(
         teleprompt_cli::cmd::cache::stats(&compose).bytes,
         0,

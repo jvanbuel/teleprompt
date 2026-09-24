@@ -11,7 +11,6 @@ use teleprompt_render::{Picture, Progress, RenderError};
 
 use crate::cmd::cache;
 use crate::cmd::capture;
-use crate::cmd::check::cache_root;
 use crate::cmd::dub::{self, DubError};
 use crate::project::Project;
 
@@ -53,10 +52,10 @@ impl BuildOptions {
                 .join("build")
                 .join(format!("{stem}.{locale}.mp4")),
             narration_root: project.root.join("build").join("narration"),
-            clips_dir: cache_root(project).join("video"),
+            clips_dir: project.caches().clips(),
             resolution: None,
             fps: None,
-            compose_dir: Some(cache_root(project).join("compose")),
+            compose_dir: Some(project.caches().compose()),
             cache_max_mb: cache::DEFAULT_MAX_MB,
         }
     }

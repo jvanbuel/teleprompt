@@ -1,19 +1,19 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::Serialize;
 use teleprompt_compile::manifest::MANIFEST_VERSION;
 use teleprompt_scene::SceneRegistry;
 
-use crate::project::Project;
+use crate::project::{CacheDirs, Project};
 use crate::voice::Backends;
 
 /// The cache `doctor` reports on: the project's, rooted as `check` and `dub`
 /// root theirs, so a subdirectory does not report an empty cache. Outside a
 /// project `doctor` still runs, and falls back to the relative default.
-fn cache_root(project: Option<&Project>) -> PathBuf {
+fn caches(project: Option<&Project>) -> CacheDirs {
     match project {
-        Some(project) => project.root.join(".teleprompt").join("cache"),
-        None => PathBuf::from(".teleprompt/cache"),
+        Some(project) => project.caches(),
+        None => CacheDirs::under(Path::new("")),
     }
 }
 
@@ -89,14 +89,15 @@ pub async fn doctor_report_with(
     registry: &SceneRegistry,
     project: Option<&Project>,
 ) -> DoctorReport {
-    let root = cache_root(project);
+    let caches = caches(project);
+    let root = caches.root.clone();
     let cache = teleprompt_cache::VoiceCache::new(&root);
     let stats = cache.stats().unwrap_or(teleprompt_cache::CacheStats {
         entries: 0,
         bytes: 0,
     });
 
-    let compose = crate::cmd::cache::stats(&root.join("compose"));
+    let compose = crate::cmd::cache::stats(&caches.compose());
 
     let backends = match project {
         Some(p) => crate::cmd::check::backends_of(p),

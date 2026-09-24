@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use teleprompt_cache::VoiceCache;
+use teleprompt_cache::{CachedAudio, VoiceCache};
 use teleprompt_compile::manifest::{self, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_compile::manifest_diff::{self, ManifestDiff};
 use teleprompt_compile::NarrationDetail;
@@ -9,7 +9,7 @@ use teleprompt_core::config::OutputConfig;
 use teleprompt_core::Hash;
 use teleprompt_voice::VoiceBackend;
 
-use crate::cmd::check::{cache_root, compile_script_with};
+use crate::cmd::check::compile_script_with;
 use crate::project::Project;
 use crate::voice::Backends;
 
@@ -172,6 +172,33 @@ struct Rendered {
     cache_warning: Option<String>,
 }
 
+/// Synthesizes `detail`'s line and stores it, returning the entry the cache
+/// holds; an error names the line.
+///
+/// The request is the one `compile` measured, not one rebuilt here, so the
+/// audio and the published duration share one source of truth. Another
+/// process may store the same key concurrently; `VoiceCache::store` returns
+/// whichever entry won, so the caller's bytes and the sidecar a recompile
+/// reads are the same entry.
+pub(crate) async fn synthesize_and_store(
+    backend: &Arc<dyn VoiceBackend>,
+    cache: &VoiceCache,
+    detail: &NarrationDetail,
+) -> Result<CachedAudio, String> {
+    let line = |e: &dyn std::fmt::Display| format!("line `{}`: {e}", detail.line_id);
+    let synthesized = backend
+        .synthesize(&detail.synth_request)
+        .await
+        .map_err(|e| line(&e))?;
+    cache
+        .store(
+            &detail.cache_key,
+            &synthesized.pcm,
+            synthesized.word_timings.as_deref(),
+        )
+        .map_err(|e| line(&e))
+}
+
 /// One cache key's audio, from the cache or, on a miss, from `backend`
 /// and then stored. `detail` is any line that resolves to the key: equal
 /// keys imply identical `SynthRequest`s.
@@ -193,22 +220,9 @@ async fn render_one(
             cached.channels,
         ),
         None => {
-            // The request `compile` measured, not one rebuilt here, so the
-            // audio and the published duration share one source of truth.
-            let synthesized = backend
-                .synthesize(&detail.synth_request)
+            let stored = synthesize_and_store(backend, cache, detail)
                 .await
-                .map_err(|e| DubError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
-            // Another `dub` process may store this key concurrently;
-            // `VoiceCache::store` returns whichever entry won, so these bytes
-            // and the sidecar the recompile reads are the same entry.
-            let stored = cache
-                .store(
-                    &detail.cache_key,
-                    &synthesized.pcm,
-                    synthesized.word_timings.as_deref(),
-                )
-                .map_err(|e| DubError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
+                .map_err(DubError::Runtime)?;
             (
                 stored.wav,
                 stored.duration_ms,
@@ -254,7 +268,7 @@ pub async fn run_dub_with(
     // `compile_script_with`.
     let (compiled, backend) =
         compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
-    let cache = Arc::new(VoiceCache::new(cache_root(project)));
+    let cache = Arc::new(VoiceCache::new(project.caches().root));
 
     check_voices(backends, backend.id(), &compiled, &cache).await?;
     let limit = backends
