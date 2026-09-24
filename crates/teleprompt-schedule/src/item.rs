@@ -1,5 +1,5 @@
 use teleprompt_core::config::{Config, TimingConfig, TransitionConfig};
-use teleprompt_core::{Hash, VoiceSource};
+use teleprompt_core::{DurationSource, Hash, VoiceSource};
 
 use crate::policy::Policy;
 
@@ -32,16 +32,6 @@ impl NarrationInput {
             .saturating_add(self.duration_ms)
             .saturating_add(self.tail_ms)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DurationSource {
-    Exact,
-    Estimated,
-    Measured,
-    /// The adapter cannot say (a Playwright script). Neither an estimate nor
-    /// zero: the scheduler gives the shot its line's length.
-    Unknown,
 }
 
 #[derive(Debug, Clone)]

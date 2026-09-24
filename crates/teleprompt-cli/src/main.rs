@@ -378,7 +378,7 @@ fn run_plan(format: Format, args: &ScriptArgs) -> Run {
         .filter_map(|e| e.narration.as_ref());
     let total = narrated.clone().count();
     let estimated = narrated
-        .filter(|n| n.duration_source == "estimated")
+        .filter(|n| n.duration_source == teleprompt_core::DurationSource::Estimated)
         .count();
     if estimated > 0 {
         eprintln!(

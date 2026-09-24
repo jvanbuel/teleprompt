@@ -3,7 +3,8 @@
 //! `voice` dependency (docs/design.md#crates); the ladder that walks the
 //! tiers, `resolve_source`, is in `teleprompt-voice`.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum VoiceSource {
     Recorded,
     Cloned,
@@ -34,6 +35,12 @@ impl VoiceSource {
             Self::Cloned => Some(Self::Synthetic),
             Self::Synthetic => None,
         }
+    }
+}
+
+impl std::fmt::Display for VoiceSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
     }
 }
 

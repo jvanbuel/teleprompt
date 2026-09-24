@@ -5,7 +5,7 @@ use teleprompt_cache::{CachedAudio, VoiceCache};
 use teleprompt_compile::manifest;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
-use teleprompt_core::Hash;
+use teleprompt_core::{Hash, VoiceSource};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_voice::VoiceBackend;
@@ -23,8 +23,8 @@ const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Downgrade {
     pub line_id: String,
-    pub requested: String,
-    pub actual: String,
+    pub requested: VoiceSource,
+    pub actual: VoiceSource,
     pub reason: String,
 }
 
@@ -56,8 +56,8 @@ fn downgrades_in(manifest: &NarrationManifest) -> Vec<Downgrade> {
         .filter(|s| s.voice_source != s.voice_source_actual)
         .map(|s| Downgrade {
             line_id: s.id.clone(),
-            requested: s.voice_source.clone(),
-            actual: s.voice_source_actual.clone(),
+            requested: s.voice_source,
+            actual: s.voice_source_actual,
             reason: s
                 .downgrade_reason
                 .clone()
@@ -620,7 +620,7 @@ impl From<DubError> for crate::output::Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_core::Hash;
+    use teleprompt_core::DurationSource;
     use teleprompt_manifest::LineEntry;
 
     #[test]
@@ -645,10 +645,10 @@ mod tests {
             chapter: "a".to_string(),
             start_ms: 0,
             duration_ms: 0,
-            duration_source: "measured".to_string(),
+            duration_source: DurationSource::Measured,
             audio: String::new(),
-            voice_source: requested.to_string(),
-            voice_source_actual: actual.to_string(),
+            voice_source: VoiceSource::parse(requested).unwrap(),
+            voice_source_actual: VoiceSource::parse(actual).unwrap(),
             downgrade_reason: reason.map(str::to_string),
             source_hash: Hash::of(b""),
             audio_hash: Hash::of(b""),
@@ -690,8 +690,8 @@ mod tests {
             downgrades_in(&m),
             vec![Downgrade {
                 line_id: "b".to_string(),
-                requested: "recorded".to_string(),
-                actual: "synthetic".to_string(),
+                requested: VoiceSource::Recorded,
+                actual: VoiceSource::Synthetic,
                 reason: "no takes recorded".to_string(),
             }]
         );

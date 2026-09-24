@@ -9,6 +9,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use teleprompt_core::DurationSource;
 
 use teleprompt_cli::project::Project;
 use teleprompt_voice::async_trait;
@@ -288,7 +289,8 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
         "the manifest must publish the length of the file beside it"
     );
     assert_eq!(
-        seg.duration_source, "measured",
+        seg.duration_source,
+        DurationSource::Measured,
         "the recompile ran against the warm cache, so this is a measurement"
     );
 }

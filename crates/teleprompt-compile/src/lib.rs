@@ -12,11 +12,9 @@ use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::{default_adapter, Config, OutputConfig, SceneConfig};
 use teleprompt_core::program::{ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
-use teleprompt_core::{Diagnostic, Diagnostics, Hash, SourceSpan};
+use teleprompt_core::{Diagnostic, Diagnostics, DurationSource, Hash, SourceSpan};
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
-use teleprompt_schedule::{
-    schedule, ActionInput, DurationSource, Item, NarrationInput, Pacing, Policy, Timeline,
-};
+use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
 use teleprompt_voice::{
     resolve_source, DurationEstimator, Resolution, SynthRequest, VoiceSource, WordTiming,
 };
@@ -214,7 +212,7 @@ fn retime_stretched_shots(
 
         if let Some(source) = adapter.retime(&shot, action.duration_ms) {
             action.shot_hash = Hash::of(source.as_bytes());
-            action.duration_source = "exact".to_string();
+            action.duration_source = DurationSource::Exact;
             published.source = source;
         }
     }

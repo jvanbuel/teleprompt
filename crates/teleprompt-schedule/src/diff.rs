@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 use teleprompt_core::time::short;
+use teleprompt_core::{DurationSource, VoiceSource};
 
 use crate::timeline::{Entry, Timeline};
 
@@ -17,7 +18,7 @@ pub struct ChangedBeat {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct StaleTake {
     pub line: String,
-    pub falls_back_to: String,
+    pub falls_back_to: VoiceSource,
 }
 
 /// An item on both sides that moved in the entry sequence. Indices are
@@ -237,8 +238,8 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                     != nn.start_ms.saturating_sub(n.start_ms);
                 // Only estimated -> measured: a cleared cache (the reverse)
                 // changes nothing and must not read as "padding changed".
-                let now_measured =
-                    on.duration_source != nn.duration_source && nn.duration_source == "measured";
+                let now_measured = on.duration_source != nn.duration_source
+                    && nn.duration_source == DurationSource::Measured;
                 if on.source_hash != nn.source_hash
                     || on.audio_hash != nn.audio_hash
                     || on.duration_ms != nn.duration_ms
@@ -298,7 +299,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
             if nn.voice_source != nn.voice_source_actual {
                 stale_takes.push(StaleTake {
                     line: nn.line.clone(),
-                    falls_back_to: nn.voice_source_actual.clone(),
+                    falls_back_to: nn.voice_source_actual,
                 });
             }
         }

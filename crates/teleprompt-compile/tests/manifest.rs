@@ -1,4 +1,5 @@
 use std::path::Path;
+use teleprompt_core::DurationSource;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest;
@@ -501,7 +502,8 @@ mod items {
             assert_eq!(item.scene, "mock");
             assert_eq!(item.adapter, "mock");
             assert_eq!(
-                item.duration_source, "exact",
+                item.duration_source,
+                DurationSource::Exact,
                 "the mock states its own timing"
             );
         }

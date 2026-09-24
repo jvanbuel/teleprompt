@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use teleprompt_core::Hash;
+use teleprompt_core::{DurationSource, Hash, VoiceSource};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Timeline {
@@ -31,9 +31,9 @@ pub struct NarrationEntry {
     pub audio_hash: Hash,
     pub start_ms: u64,
     pub duration_ms: u64,
-    pub duration_source: String,
-    pub voice_source: String,
-    pub voice_source_actual: String,
+    pub duration_source: DurationSource,
+    pub voice_source: VoiceSource,
+    pub voice_source_actual: VoiceSource,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downgrade_reason: Option<String>,
 }
@@ -53,7 +53,7 @@ pub struct ActionEntry {
     pub session: Option<String>,
     pub start_ms: u64,
     pub duration_ms: u64,
-    pub duration_source: String,
+    pub duration_source: DurationSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

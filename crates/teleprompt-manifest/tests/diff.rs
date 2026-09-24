@@ -1,4 +1,6 @@
+use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
+use teleprompt_core::VoiceSource;
 use teleprompt_manifest::diff::diff;
 use teleprompt_manifest::{
     AudioInfo, ChapterEntry, LineEntry, NarrationManifest, MANIFEST_VERSION,
@@ -11,10 +13,10 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
         chapter: "intro".to_string(),
         start_ms,
         duration_ms,
-        duration_source: "measured".to_string(),
+        duration_source: DurationSource::Measured,
         audio: format!("audio/{id}.wav"),
-        voice_source: "synthetic".to_string(),
-        voice_source_actual: "synthetic".to_string(),
+        voice_source: VoiceSource::Synthetic,
+        voice_source_actual: VoiceSource::Synthetic,
         downgrade_reason: None,
         source_hash: Hash::of(text.as_bytes()),
         audio_hash: Hash::of(audio_seed.as_bytes()),
@@ -113,11 +115,11 @@ fn a_duration_only_change_is_audio_changed_not_shifted() {
 #[test]
 fn a_voice_tier_downgrade_is_named() {
     let mut before_seg = seg("welcome", 0, 1000, "Hello.", "a");
-    before_seg.voice_source = "cloned".to_string();
-    before_seg.voice_source_actual = "cloned".to_string();
+    before_seg.voice_source = VoiceSource::Cloned;
+    before_seg.voice_source_actual = VoiceSource::Cloned;
 
     let mut after_seg = before_seg.clone();
-    after_seg.voice_source_actual = "synthetic".to_string();
+    after_seg.voice_source_actual = VoiceSource::Synthetic;
     after_seg.downgrade_reason = Some("no voice profile enrolled".to_string());
 
     let before = manifest(vec![before_seg]);
@@ -130,12 +132,12 @@ fn a_voice_tier_downgrade_is_named() {
 #[test]
 fn a_voice_request_change_with_no_tier_change_is_named_separately() {
     let mut before_seg = seg("welcome", 0, 1000, "Hello.", "a");
-    before_seg.voice_source = "cloned".to_string();
-    before_seg.voice_source_actual = "synthetic".to_string();
+    before_seg.voice_source = VoiceSource::Cloned;
+    before_seg.voice_source_actual = VoiceSource::Synthetic;
     before_seg.downgrade_reason = Some("no voice profile enrolled".to_string());
 
     let mut after_seg = before_seg.clone();
-    after_seg.voice_source = "synthetic".to_string();
+    after_seg.voice_source = VoiceSource::Synthetic;
     after_seg.downgrade_reason = None;
 
     let before = manifest(vec![before_seg]);
@@ -296,7 +298,7 @@ fn the_report_names_the_duration_change_and_the_lines() {
 #[test]
 fn an_estimated_line_that_becomes_measured_is_drift() {
     let mut before = seg("welcome", 0, 2750, "One two three four five six.", "a");
-    before.duration_source = "estimated".to_string();
+    before.duration_source = DurationSource::Estimated;
     let after = seg("welcome", 0, 2750, "One two three four five six.", "a");
 
     let d = diff(&manifest(vec![before]), &manifest(vec![after]));
@@ -312,7 +314,7 @@ fn an_estimated_line_that_becomes_measured_is_drift() {
 fn a_measured_line_that_reverts_to_estimated_does_not_claim_a_measurement() {
     let before = seg("welcome", 0, 2750, "One two three four five six.", "a");
     let mut after = seg("welcome", 0, 2750, "One two three four five six.", "a");
-    after.duration_source = "estimated".to_string();
+    after.duration_source = DurationSource::Estimated;
 
     let d = diff(&manifest(vec![before]), &manifest(vec![after]));
     assert_ne!(
@@ -326,7 +328,7 @@ fn a_measured_line_that_reverts_to_estimated_does_not_claim_a_measurement() {
 #[test]
 fn a_text_edit_outranks_the_measurement_transition() {
     let mut before = seg("welcome", 0, 2750, "One two three four five six.", "a");
-    before.duration_source = "estimated".to_string();
+    before.duration_source = DurationSource::Estimated;
     let after = seg("welcome", 0, 3000, "One two three four five six more.", "b");
 
     let d = diff(&manifest(vec![before]), &manifest(vec![after]));
@@ -339,7 +341,7 @@ fn a_text_edit_outranks_the_measurement_transition() {
 #[test]
 fn the_measurement_transition_outranks_a_length_change() {
     let mut before = seg("welcome", 0, 2750, "One two three four five six.", "a");
-    before.duration_source = "estimated".to_string();
+    before.duration_source = DurationSource::Estimated;
     let after = seg("welcome", 0, 5000, "One two three four five six.", "b");
 
     let d = diff(&manifest(vec![before]), &manifest(vec![after]));

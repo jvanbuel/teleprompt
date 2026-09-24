@@ -20,6 +20,7 @@
 //! this suite on exactly the machines that had exercised the manual most.
 
 use std::path::{Path, PathBuf};
+use teleprompt_core::DurationSource;
 
 use teleprompt_cli::cmd::build::{self, BuildOptions};
 use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
@@ -90,9 +91,11 @@ fn every_terminal_action_is_timed_exactly() {
         }
         tapes += 1;
         assert_eq!(
-            a.duration_source, "exact",
+            a.duration_source,
+            DurationSource::Exact,
             "shot {} is {} rather than exact",
-            a.shot, a.duration_source
+            a.shot,
+            a.duration_source
         );
     }
     assert!(tapes > 0, "the manual must exercise the tape adapter");

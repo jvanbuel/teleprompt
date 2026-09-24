@@ -3,6 +3,7 @@
 
 use serde::Serialize;
 use teleprompt_core::time::short;
+use teleprompt_core::DurationSource;
 
 use crate::{LineEntry, NarrationManifest};
 
@@ -125,7 +126,8 @@ fn reason_for(before: &LineEntry, after: &LineEntry) -> Option<String> {
     // Before the audio checks, which would otherwise absorb it. Only the
     // move to `measured` counts; with `null`, estimate and audio coincide,
     // so nothing else would report it.
-    } else if before.duration_source != after.duration_source && after.duration_source == "measured"
+    } else if before.duration_source != after.duration_source
+        && after.duration_source == DurationSource::Measured
     {
         Some("now measured".to_string())
     } else if before.audio_hash != after.audio_hash || before.duration_ms != after.duration_ms {

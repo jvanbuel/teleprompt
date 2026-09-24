@@ -3,7 +3,7 @@
 //! the preview and outside consumers read it.
 
 use serde::{Deserialize, Serialize};
-use teleprompt_core::Hash;
+use teleprompt_core::{DurationSource, Hash, VoiceSource};
 
 /// Incremented on any change a consumer must not silently miss, including
 /// an added key it would otherwise ignore. Independent of
@@ -57,7 +57,7 @@ pub struct ShotEntry {
     /// `exact` when the source states its timing in full, `estimated` for a
     /// bound, `unknown` when the adapter cannot say and the shot took its
     /// line's length.
-    pub duration_source: String,
+    pub duration_source: DurationSource,
     pub policy: String,
     /// The outgoing transition, as scheduled. Deriving it from neighbouring
     /// offsets goes wrong where items overlap.
@@ -91,10 +91,10 @@ pub struct LineEntry {
     pub duration_ms: u64,
     /// `measured` from real audio, `estimated` from the estimator
     /// (docs/design.md#estimated-and-measured).
-    pub duration_source: String,
+    pub duration_source: DurationSource,
     pub audio: String,
-    pub voice_source: String,
-    pub voice_source_actual: String,
+    pub voice_source: VoiceSource,
+    pub voice_source_actual: VoiceSource,
     /// `null` when the requested tier was delivered (always serialized).
     pub downgrade_reason: Option<String>,
     pub source_hash: Hash,

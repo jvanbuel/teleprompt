@@ -1,6 +1,8 @@
 use teleprompt_core::config::TransitionDuration;
 
-use crate::item::{ActionInput, DurationSource, Item, NarrationInput};
+use teleprompt_core::DurationSource;
+
+use crate::item::{ActionInput, Item, NarrationInput};
 use crate::policy::{layout_at, Layout};
 use crate::timeline::{ActionEntry, Entry, NarrationEntry, Timeline, TransitionEntry};
 
@@ -183,9 +185,9 @@ fn narration_entry(n: &NarrationInput, slot_start_ms: u64) -> NarrationEntry {
         audio_hash: n.audio_hash,
         start_ms: slot_start_ms + n.lead_in_ms,
         duration_ms: n.duration_ms,
-        duration_source: duration_source_label(n.duration_source).to_string(),
-        voice_source: n.voice_source.label().to_string(),
-        voice_source_actual: n.voice_source_actual.label().to_string(),
+        duration_source: n.duration_source,
+        voice_source: n.voice_source,
+        voice_source_actual: n.voice_source_actual,
         downgrade_reason: n.downgrade_reason.clone(),
     }
 }
@@ -202,15 +204,6 @@ fn action_entry(a: &ActionInput, item_start_ms: u64, l: &Layout) -> ActionEntry 
         session: a.session.clone(),
         start_ms: item_start_ms + l.action_start_ms,
         duration_ms: l.action_duration_ms,
-        duration_source: duration_source_label(a.duration_source).to_string(),
-    }
-}
-
-fn duration_source_label(source: DurationSource) -> &'static str {
-    match source {
-        DurationSource::Exact => "exact",
-        DurationSource::Estimated => "estimated",
-        DurationSource::Measured => "measured",
-        DurationSource::Unknown => "unknown",
+        duration_source: a.duration_source,
     }
 }

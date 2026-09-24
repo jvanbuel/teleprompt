@@ -1,5 +1,7 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
+use teleprompt_core::DurationSource;
+use teleprompt_core::VoiceSource;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
@@ -145,7 +147,7 @@ fn a_cold_narration_duration_comes_from_the_estimator() {
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
     // 6 words at 150 wpm = 2400ms, plus 350ms for the full stop
     assert_eq!(n.duration_ms, 2750);
-    assert_eq!(n.duration_source, "estimated");
+    assert_eq!(n.duration_source, DurationSource::Estimated);
 }
 
 #[test]
@@ -161,7 +163,7 @@ fn action_duration_comes_from_the_scene_estimate() {
             .as_ref()
             .unwrap()
             .duration_source,
-        "exact"
+        DurationSource::Exact
     );
 }
 
@@ -257,8 +259,8 @@ fn the_null_backend_downgrades_a_recorded_request_and_says_why() {
         "---\nscene: { mock: { adapter: mock } }\n---\n\n# A\n\nOne. {#a voice.source=recorded}\n";
     let out = run(src);
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
-    assert_eq!(n.voice_source, "recorded");
-    assert_eq!(n.voice_source_actual, "synthetic");
+    assert_eq!(n.voice_source, VoiceSource::Recorded);
+    assert_eq!(n.voice_source_actual, VoiceSource::Synthetic);
     assert!(n.downgrade_reason.as_ref().unwrap().contains("no takes"));
 }
 
@@ -588,7 +590,7 @@ fn a_cold_cache_yields_estimated_durations() {
     let out = compile_with(ONE, &ctx).expect("compiles");
 
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
-    assert_eq!(n.duration_source, "estimated");
+    assert_eq!(n.duration_source, DurationSource::Estimated);
     // 6 words at 150 wpm = 2400ms speech, plus 350ms for `ONE`'s trailing
     // full stop — the same shared `estimate_ms` model `NullVoice` and
     // `WpmEstimator` both call, and the same total
@@ -629,7 +631,7 @@ fn a_warm_cache_yields_measured_durations() {
 
     let warm = compile_with(ONE, &ctx).expect("compiles");
     let n = warm.timeline.entries[0].narration.as_ref().unwrap();
-    assert_eq!(n.duration_source, "measured");
+    assert_eq!(n.duration_source, DurationSource::Measured);
     assert_eq!(
         n.duration_ms, 5000,
         "the cached audio's real length, not the estimate"
@@ -740,7 +742,7 @@ async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() 
             .as_ref()
             .unwrap()
             .duration_source,
-        "estimated"
+        DurationSource::Estimated
     );
 
     // The audio the backend really would have produced for the request
@@ -761,7 +763,7 @@ async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() 
             .as_ref()
             .unwrap()
             .duration_source,
-        "measured"
+        DurationSource::Measured
     );
 
     // The field really did differ, so the normalization below is hiding a

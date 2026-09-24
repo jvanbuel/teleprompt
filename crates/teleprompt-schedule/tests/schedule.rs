@@ -1,9 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
-use teleprompt_core::VoiceSource;
-use teleprompt_schedule::{
-    schedule, ActionInput, DurationSource, Item, NarrationInput, Pacing, Policy,
-};
+use teleprompt_core::{DurationSource, VoiceSource};
+use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
     let defaults = Config::default().timing;
@@ -294,7 +292,7 @@ fn narration_entries_report_where_their_duration_came_from() {
         .entries
         .iter()
         .filter_map(|e| e.narration.as_ref())
-        .map(|n| n.duration_source.as_str())
+        .map(|n| n.duration_source.label())
         .collect();
 
     assert_eq!(

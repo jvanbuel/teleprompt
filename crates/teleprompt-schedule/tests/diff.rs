@@ -1,8 +1,8 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
-use teleprompt_core::VoiceSource;
+use teleprompt_core::{DurationSource, VoiceSource};
 use teleprompt_schedule::{
-    diff, schedule, ActionInput, DurationSource, Item, NarrationInput, Pacing, Policy, TimelineDiff,
+    diff, schedule, ActionInput, Item, NarrationInput, Pacing, Policy, TimelineDiff,
 };
 
 fn cfg() -> Config {
@@ -107,7 +107,7 @@ fn stale_takes_are_reported_with_their_fallback_tier() {
     let d = diff(&a, &b);
     assert_eq!(d.stale_takes.len(), 1);
     assert_eq!(d.stale_takes[0].line, "b1");
-    assert_eq!(d.stale_takes[0].falls_back_to, "cloned");
+    assert_eq!(d.stale_takes[0].falls_back_to, VoiceSource::Cloned);
 }
 
 #[test]
