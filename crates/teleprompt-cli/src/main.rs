@@ -461,12 +461,7 @@ fn main() -> ExitCode {
                             .and_then(|rt| {
                                 let renderer = build::renderer(&options);
                                 rt.block_on(build::run_build_with(
-                                    renderer.as_ref(),
-                                    &project,
-                                    &script,
-                                    &locale,
-                                    &options,
-                                    &mut show,
+                                    &renderer, &project, &script, &locale, &options, &mut show,
                                 ))
                             }) {
                             Ok(report) => {

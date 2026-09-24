@@ -11,7 +11,7 @@
 use std::process::Command;
 
 use teleprompt_render::incremental::IncrementalRenderer;
-use teleprompt_render::{Narration, Picture, RenderPlan, Renderer, Shot, Transition};
+use teleprompt_render::{Narration, Picture, RenderPlan, Shot, Transition};
 
 mod support;
 use support::{bright_clip, duration_of, first_sound, have_ffmpeg, luma_at, tone};

@@ -1,12 +1,11 @@
 //! Rendering by encoding only the parts that moved.
 //!
-//! The monolithic renderer re-encodes every frame of a video to change one
-//! sentence of it, which on a two-minute script is most of a warm build.
-//! This one encodes [`chunks`](crate::chunk) separately, caches each
-//! under a key covering everything that changes its bytes, and stitches
-//! them with the `concat` demuxer and `-c copy` — which copies compressed
-//! frames rather than decoding and re-encoding them, and costs roughly
-//! nothing.
+//! Re-encoding every frame of a video to change one sentence of it is,
+//! on a two-minute script, most of a warm build. This renderer encodes
+//! [`chunks`](crate::chunk) separately, caches each under a key covering
+//! everything that changes its bytes, and stitches them with the `concat`
+//! demuxer and `-c copy` — which copies compressed frames rather than
+//! decoding and re-encoding them, and costs roughly nothing.
 //!
 //! The audio is still mixed in one pass. It is cheap (a four-hundred-second
 //! mix and AAC encode measured 1.4s against 7.3s for the same picture), it
@@ -21,7 +20,7 @@ use teleprompt_core::Hash;
 use crate::chunk::{self, Chunk, ChunkKey, Content, Source, Window};
 use crate::ffmpeg;
 use crate::placement::{xfade_for, BACKGROUND};
-use crate::{Progress, RenderError, RenderPlan, Rendered, Renderer};
+use crate::{Progress, RenderError, RenderPlan, Rendered};
 
 /// Renders through a cache of encoded chunks.
 #[derive(Debug, Clone)]
@@ -43,12 +42,14 @@ pub struct IncrementalRenderer {
     pub reuse: bool,
 }
 
-impl Renderer for IncrementalRenderer {
-    fn id(&self) -> &'static str {
+impl IncrementalRenderer {
+    /// Stable identifier, for reporting which path a render took.
+    pub fn id(&self) -> &'static str {
         "ffmpeg-incremental"
     }
 
-    fn render(
+    /// Render `plan`, calling `on_progress` as the work proceeds.
+    pub fn render(
         &self,
         plan: &RenderPlan,
         on_progress: &mut dyn FnMut(Progress),

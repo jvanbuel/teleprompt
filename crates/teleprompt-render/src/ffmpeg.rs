@@ -1,4 +1,4 @@
-//! The ffmpeg renderer: a filter graph and an argument vector.
+//! Running ffmpeg, and the audio encode every render ends with.
 //!
 //! ffmpeg is invoked as a subprocess with an explicit argument vector,
 //! never a shell string and never linked. Linking libav would put clang and
@@ -8,8 +8,7 @@
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
 
-use crate::placement::{placements, seconds, xfade_for, BACKGROUND};
-use crate::{Picture, RenderError, RenderPlan};
+use crate::RenderError;
 
 /// The narration bed's sample rate. Matches what the voice crates emit, so
 /// mixing never resamples.
@@ -31,8 +30,7 @@ pub(crate) const DELIVERY_SAMPLE_RATE: u32 = 48_000;
 /// Stereo, for the same reason.
 pub(crate) const DELIVERY_CHANNELS: u8 = 2;
 
-/// The audio half of an output encode, shared by both callers so a file
-/// cannot play in one render path and not the other.
+/// The audio half of an output encode.
 pub(crate) fn audio_encode(args: &mut Vec<String>) {
     args.extend([
         "-c:a".into(),
@@ -46,142 +44,6 @@ pub(crate) fn audio_encode(args: &mut Vec<String>) {
         "-movflags".into(),
         "+faststart".into(),
     ]);
-}
-
-/// The argument vector for `plan`, ffmpeg's own name excluded.
-///
-/// Pure, so the graph can be asserted on without ffmpeg installed.
-pub fn args(plan: &RenderPlan) -> Vec<String> {
-    let mut args: Vec<String> = vec!["-hide_banner".into(), "-y".into()];
-    let mut filters: Vec<String> = Vec::new();
-    let placements = placements(plan);
-
-    // Picture inputs come first, one per placement, so a placement's input index is
-    // its position.
-    for placement in &placements {
-        match &placement.picture {
-            Picture::Clip(path) => {
-                args.push("-i".into());
-                args.push(path.display().to_string());
-            }
-            // `Hold` never reaches here: `placements` folds it into the placement
-            // before it, which is what holding means.
-            Picture::Hold | Picture::Slate => {
-                args.push("-f".into());
-                args.push("lavfi".into());
-                args.push("-t".into());
-                args.push(seconds(placement.duration_ms));
-                args.push("-i".into());
-                args.push(format!(
-                    "color=c={BACKGROUND}:s={}x{}:r={}",
-                    plan.width, plan.height, plan.fps
-                ));
-            }
-        }
-    }
-
-    // A silent bed the narration is mixed over, so the output has a
-    // continuous audio stream even where nobody is speaking.
-    let bed = placements.len();
-    args.push("-f".into());
-    args.push("lavfi".into());
-    args.push("-t".into());
-    args.push(seconds(plan.duration_ms));
-    args.push("-i".into());
-    args.push(format!(
-        "anullsrc=channel_layout=mono:sample_rate={SAMPLE_RATE}"
-    ));
-
-    let mut mix: Vec<String> = vec![format!("[{bed}:a]")];
-    for (i, clip) in plan.narration.iter().enumerate() {
-        args.push("-i".into());
-        args.push(clip.path.display().to_string());
-
-        // `adelay` takes milliseconds — the unit the manifest publishes —
-        // so no rounding happens here.
-        let input = bed + 1 + i;
-        filters.push(format!(
-            "[{input}:a]adelay={ms}|{ms}[a{input}]",
-            ms = clip.start_ms
-        ));
-        mix.push(format!("[a{input}]"));
-    }
-
-    // `normalize=0`: amix otherwise divides every input by the number of
-    // inputs, so a script's narration would get quieter the more lines
-    // it had.
-    filters.push(format!(
-        "{}amix=inputs={}:normalize=0:dropout_transition=0[a]",
-        mix.join(""),
-        mix.len()
-    ));
-
-    // Every placement is normalized to the same size, rate, duration and
-    // timebase before anything is joined: `concat` requires matching
-    // formats, and `xfade` additionally refuses two inputs whose timebases
-    // differ — which is what its own output does to the next placement in the
-    // chain unless everything is pinned to `AVTB` first.
-    for (i, placement) in placements.iter().enumerate() {
-        let d = seconds(placement.duration_ms);
-        // `tpad` clones the first and last frames rather than filling with
-        // a colour, which is what makes a gap a freeze instead of a cut to
-        // black. The stop padding is deliberately longer than needed and
-        // the `trim` after it sets the exact length: a clip longer than its
-        // slot is cut, a shorter one holds.
-        filters.push(format!(
-            "[{i}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,\
-             pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color={BACKGROUND},setsar=1,fps={fps},\
-             tpad=start_mode=clone:start_duration={lead}:stop_mode=clone:stop_duration={d},\
-             trim=duration={d},setpts=PTS-STARTPTS,settb=AVTB[v{i}]",
-            w = plan.width,
-            h = plan.height,
-            fps = plan.fps,
-            lead = seconds(placement.lead_in_ms),
-        ));
-    }
-    // Joined pairwise rather than by one n-ary `concat`, because a blend
-    // takes two streams and produces one: a chain handles both kinds of
-    // join in one shape.
-    let mut label = "[v0]".to_string();
-    for (i, placement) in placements.iter().enumerate().skip(1) {
-        let out = format!("[j{i}]");
-        match &placement.blend {
-            Some((kind, overlap)) => {
-                // `offset` is where the blend begins in the stream built so
-                // far, which starts at zero because the placements tile the
-                // timeline from zero.
-                filters.push(format!(
-                    "{label}[v{i}]xfade=transition={}:duration={}:offset={}{out}",
-                    xfade_for(kind),
-                    seconds(*overlap),
-                    seconds(placement.start_ms),
-                ));
-            }
-            None => filters.push(format!("{label}[v{i}]concat=n=2:v=1:a=0{out}")),
-        }
-        label = out;
-    }
-    filters.push(format!("{label}null[v]"));
-
-    args.push("-filter_complex".into());
-    args.push(filters.join(";"));
-    args.push("-map".into());
-    args.push("[v]".into());
-    args.push("-map".into());
-    args.push("[a]".into());
-    args.push("-c:v".into());
-    args.push("libx264".into());
-    args.push("-preset".into());
-    args.push("medium".into());
-    args.push("-crf".into());
-    args.push("23".into());
-    args.push("-pix_fmt".into());
-    args.push("yuv420p".into());
-    args.push("-r".into());
-    args.push(plan.fps.to_string());
-    audio_encode(&mut args);
-    args.push(plan.output.display().to_string());
-    args
 }
 
 /// Create the directory a render is about to write into.
@@ -199,8 +61,7 @@ pub(crate) fn ensure_parent(path: &std::path::Path) -> Result<(), RenderError> {
 
 /// Run ffmpeg to completion, reporting output time as it goes.
 ///
-/// Shared by both renderers, because getting this wrong is not a graph bug
-/// — it is a hang. ffmpeg is verbose enough on a long script to fill a pipe
+/// Getting this wrong is not a graph bug — it is a hang. ffmpeg is verbose enough on a long script to fill a pipe
 /// buffer, and a render nobody is draining stops there for ever.
 pub(crate) fn run(
     program: &str,

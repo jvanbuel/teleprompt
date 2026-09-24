@@ -162,7 +162,7 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
     // that has not installed one, and every scene kind teleprompt can
     // compile and cannot yet run.
     let report = build::run_build_with_capture(
-        build::renderer(&options).as_ref(),
+        &build::renderer(&options),
         &teleprompt_capture::CaptureRegistry::new(),
         &p,
         &script,

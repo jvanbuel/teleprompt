@@ -1,9 +1,7 @@
 //! The plan's shots as placements that tile the output.
 //!
-//! Shared by both renderers: the monolithic graph builds one filter chain
-//! per placement, and the incremental one cuts the same placements into cacheable
-//! chunks. Deriving the geometry twice would mean two videos that agree
-//! until they do not.
+//! The renderer cuts these placements into cacheable chunks, so the
+//! geometry is derived once, here, from the plan.
 
 use crate::{Picture, RenderPlan};
 

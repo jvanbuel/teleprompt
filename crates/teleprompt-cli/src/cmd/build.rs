@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
-use teleprompt_render::{Picture, Progress, RenderError, Renderer};
+use teleprompt_render::{Picture, Progress, RenderError};
 
 use crate::cmd::cache;
 use crate::cmd::capture;
@@ -154,7 +154,7 @@ pub async fn run_build(
     options: &BuildOptions,
 ) -> Result<BuildReport, BuildError> {
     run_build_with_capture(
-        renderer(options).as_ref(),
+        &renderer(options),
         &capture::registry(),
         project,
         script,
@@ -171,24 +171,20 @@ pub async fn run_build(
 /// different renderer entirely; it now switches off reuse, so the two paths
 /// encode through the same code and cannot disagree about what the video
 /// should look like.
-pub fn renderer(options: &BuildOptions) -> Box<dyn Renderer> {
-    Box::new(IncrementalRenderer {
+pub fn renderer(options: &BuildOptions) -> IncrementalRenderer {
+    IncrementalRenderer {
         program: "ffmpeg".into(),
         cache_dir: options
             .compose_dir
             .clone()
             .unwrap_or_else(std::env::temp_dir),
         reuse: options.compose_dir.is_some(),
-    })
+    }
 }
 
 /// `run_build` with the renderer and the progress sink named.
-///
-/// The renderer is a parameter because there is to be more than one — the
-/// ffmpeg path handles everything, and a pure-Rust path can handle scripts
-/// whose items are all hard cuts.
 pub async fn run_build_with(
-    renderer: &dyn Renderer,
+    renderer: &IncrementalRenderer,
     project: &Project,
     script: &Path,
     locale: &str,
@@ -215,7 +211,7 @@ pub async fn run_build_with(
 /// any of it.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_build_with_capture(
-    renderer: &dyn Renderer,
+    renderer: &IncrementalRenderer,
     captures: &teleprompt_capture::CaptureRegistry,
     project: &Project,
     script: &Path,

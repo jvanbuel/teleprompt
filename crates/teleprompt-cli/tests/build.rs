@@ -141,7 +141,7 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
     // every machine that has no terminal renderer installed, and every
     // scene kind teleprompt can compile and cannot yet run.
     let report = build::run_build_with_capture(
-        build::renderer(&options).as_ref(),
+        &build::renderer(&options),
         &teleprompt_capture::CaptureRegistry::new(),
         &project,
         &script,
@@ -305,7 +305,7 @@ async fn a_render_reports_how_far_along_it_is() {
 
     let mut seen: Vec<u64> = Vec::new();
     let report = teleprompt_cli::cmd::build::run_build_with(
-        teleprompt_cli::cmd::build::renderer(&options).as_ref(),
+        &teleprompt_cli::cmd::build::renderer(&options),
         &project,
         &script,
         "en",

@@ -144,26 +144,3 @@ pub enum RenderError {
         source: std::io::Error,
     },
 }
-
-/// How a [`RenderPlan`] becomes a file.
-///
-/// A trait rather than a function because there is more than one honest way
-/// to do it: ffmpeg handles everything, and a pure-Rust path can handle the
-/// case where every shot is a hard cut — concat, mix, mux — which is what
-/// would make a single static binary possible for those scripts.
-pub trait Renderer {
-    /// Stable identifier, for reporting which path a render took.
-    fn id(&self) -> &'static str;
-
-    /// Render `plan`, calling `on_progress` as the work proceeds.
-    ///
-    /// Progress is a callback rather than a returned iterator so a renderer
-    /// that has no intermediate state to report is free to call it once, at
-    /// the end, and a caller that does not care passes a closure that
-    /// discards it.
-    fn render(
-        &self,
-        plan: &RenderPlan,
-        on_progress: &mut dyn FnMut(Progress),
-    ) -> Result<Rendered, RenderError>;
-}
