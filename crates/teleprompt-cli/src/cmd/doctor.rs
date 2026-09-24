@@ -7,16 +7,9 @@ use teleprompt_scene::SceneRegistry;
 use crate::project::Project;
 use crate::voice::Backends;
 
-/// The cache `doctor` reports on, and the path it prints for it.
-///
-/// Rooted at the project when there is one, exactly as `check` and `dub`
-/// root theirs. A CWD-relative `.teleprompt/cache` made `doctor` report
-/// `0 entries` from any subdirectory of a project with a full cache —
-/// worse than saying nothing, because it looks like an answer.
-///
-/// `doctor` still runs outside a project (it is the command you reach for
-/// when nothing else works), so the fallback is the same relative default
-/// `new::scaffold` creates. The printed path says which one was used.
+/// The cache `doctor` reports on: the project's, rooted as `check` and `dub`
+/// root theirs, so a subdirectory does not report an empty cache. Outside a
+/// project `doctor` still runs, and falls back to the relative default.
 fn cache_root(project: Option<&Project>) -> PathBuf {
     match project {
         Some(project) => project.root.join(".teleprompt").join("cache"),
@@ -24,17 +17,9 @@ fn cache_root(project: Option<&Project>) -> PathBuf {
     }
 }
 
-/// The project's own default `voice.backend` — what a script that never
-/// overrides it would resolve to. `doctor` has no script to run the full
-/// front-matter merge for, so this is deliberately shallower than
-/// `teleprompt_core::program::resolve`: the project-level setting only,
-/// falling back to `Config::default()`'s `"null"` both when a project
-/// leaves `voice.backend` unset and when there is no project at all.
-///
-/// That fallback is what makes "no project" and "a project that never
-/// touched voice.backend" behave identically: both end up probing whatever
-/// `"null"` resolves to, which is nothing — there is no configured server
-/// to ask about in either case.
+/// The project-level `voice.backend`, or `"null"` when it is unset or there
+/// is no project. Shallower than `teleprompt_core::program::resolve` on
+/// purpose: `doctor` has no script whose front matter it could merge.
 fn configured_backend_id(project: Option<&Project>) -> String {
     project
         .and_then(|p| p.config.voice.as_ref())
@@ -42,13 +27,8 @@ fn configured_backend_id(project: Option<&Project>) -> String {
         .unwrap_or_else(|| "null".to_string())
 }
 
-/// One backend's server, and what it said.
-///
-/// The id rides along with the answer rather than being implied by it. The
-/// rendered line used to be the literal `voice kokoro`, printed whichever
-/// backend was configured — harmless while Kokoro is the only server-backed
-/// backend and wrong the moment there are two, in the direction that is hard
-/// to notice: a correct-looking label naming the wrong machine's answer.
+/// One backend's server, and what it said. The id is carried rather than
+/// implied, so the label cannot name a different backend from the answer.
 #[derive(Debug, Serialize)]
 pub struct VoiceProbe {
     pub backend: String,
@@ -65,72 +45,46 @@ pub struct CaptureBackendStatus {
 
 #[derive(Debug, Serialize)]
 pub struct DoctorReport {
-    /// Whether the project's own files are in a state teleprompt can work from.
-    /// Deliberately *not* a verdict on the machine: an unreachable server
-    /// leaves this `true`, because that is a warning and `check`/`plan` do not
-    /// need the server at all. A `backends:` block that cannot be turned into
-    /// the backend the project selected is a different kind of fact — it is
-    /// wrong in the repository, it is wrong on every machine, and `dub` will
-    /// not run until it is fixed.
+    /// Whether the project's own files are usable. Not a verdict on the
+    /// machine: an unreachable server or a missing ffmpeg leaves it `true`
+    /// (docs/design.md#backend-failure). An unknown `backends:` key or a
+    /// selected backend that will not build makes it `false`.
     pub ok: bool,
     pub adapters: Vec<String>,
-    /// What can *run* a scene, as against compile one: the scene adapters
-    /// above say what a tape means, and these say whether this machine can
-    /// put it on screen. A scene with no backend here renders as a slate.
+    /// What can *run* a scene on this machine, as against compile one. A
+    /// scene with no available backend renders as a slate.
     pub capture_backends: Vec<CaptureBackendStatus>,
     pub voice_backends: Vec<String>,
     pub manifest_version: u32,
-    /// The cache directory these counts describe, so a reader can tell a
-    /// project's cache from the empty relative default.
+    /// The cache directory these counts describe.
     pub cache_root: String,
     pub cache_entries: usize,
     pub cache_bytes: u64,
-    /// The same for the compose cache — already-encoded pieces of picture,
-    /// which `build` copies rather than re-encoding. Reported separately
-    /// because it is the one that gets big: a minute of video is measured
-    /// in megabytes and a sentence of narration in kilobytes, and it is the
-    /// one `teleprompt cache` can shrink.
+    /// The same for the compose cache, reported separately because it is
+    /// the one that grows large and the one `teleprompt cache` can shrink.
     pub compose_entries: usize,
     pub compose_bytes: u64,
-    /// The renderer's own version line, or `None` when there is no ffmpeg
-    /// to ask. A missing one leaves `ok` true for the same reason an
-    /// unreachable server does: it is a fact about this machine, not about
-    /// the repository, and `check`, `plan`, `diff` and `dub` all work
-    /// without it. Only `build` does not.
+    /// ffmpeg's version line, or `None` when there is no ffmpeg. Only
+    /// `build` needs it.
     pub ffmpeg: Option<String>,
-    /// What the project's *configured* `voice.backend`'s server had to say or
-    /// `None` when that backend has nothing to probe — the common case, since a
-    /// freshly scaffolded project's backend is `null`. Every registered backend
-    /// still appears in `voice_backends` above; only the probe is limited to
-    /// the one actually selected.
+    /// What the *configured* backend's server said, or `None` when it has no
+    /// server (as with a new project's `null`). Only that backend is probed.
     pub voice_probe: Option<VoiceProbe>,
     /// Everything wrong with the project's settings, in the words `check`
-    /// would use. Empty on a healthy project.
-    ///
-    /// This used to be swallowed: `doctor` caught the construction failure,
-    /// substituted default settings, and reported a healthy project — with
-    /// a comment claiming `check` reported it "with a shot", which was wrong
-    /// on both halves. The command you run when nothing works is the last
-    /// place a known problem should be hidden.
+    /// would use, including backends the project does not select.
     pub problems: Vec<String>,
     pub notes: Vec<String>,
 }
 
-/// The settings-discovering entry point every caller outside a test uses:
-/// discovers the project once — there is exactly one `Project::discover`
-/// call in `doctor`'s whole path, here — and delegates everything else to
-/// [`doctor_report_with`]. Mirrors `crate::voice::registry`/`registry_for`
-/// and `crate::cmd::check::compile_script`/`compile_script_with` — the seam
-/// lives on the `_with` function, and this is the thin wrapper around it.
+/// [`doctor_report_with`] for the project containing the current directory,
+/// if any. The only place `doctor` discovers a project.
 pub async fn doctor_report(registry: &SceneRegistry) -> DoctorReport {
     let project = Project::discover(Path::new(".")).ok();
     doctor_report_with(registry, project.as_ref()).await
 }
 
-/// [`doctor_report`] against a caller-supplied project (or `None` for
-/// "outside a project"), so a test can hand it an in-memory `Project`
-/// pointing `backends.kokoro` at a stub server, or naming a backend other
-/// than `kokoro`, without touching a real `teleprompt.toml`.
+/// [`doctor_report`] against a caller-supplied project (`None` for outside
+/// one), so a test can point it at a stub server without a real project.
 pub async fn doctor_report_with(
     registry: &SceneRegistry,
     project: Option<&Project>,
@@ -149,18 +103,9 @@ pub async fn doctor_report_with(
         None => Backends::defaults(),
     };
 
-    // Everything the settings said that could not be turned into a backend,
-    // not just the part affecting the backend this project selected: unlike
-    // `check`, which answers "can this script be compiled", `doctor` answers
-    // "what is wrong here", and a `[backends.kokoro]` block a `null` project
-    // never reads is still a block the author wrote and expected to matter.
-    //
-    // `ok` is the narrower question, and it is deliberately narrower: it is
-    // false only for what stops *this* project working — an unmatched
-    // `backends:` key, which `check` rejects outright, or a selected backend
-    // whose settings will not build. A misconfigured backend nobody selects
-    // is listed and does not turn the report red, the same way an
-    // unreachable server is.
+    // `problems` lists every unusable `backends:` block (see
+    // `Backends::unusable_diagnostics`). `ok` is narrower: only an unknown
+    // key, which `check` rejects, or a selected backend that will not build.
     let backend_id = configured_backend_id(project);
     let blocking = !backends.diagnostics().is_empty() || backends.resolve(&backend_id).is_err();
     let problems: Vec<String> = backends
@@ -170,12 +115,8 @@ pub async fn doctor_report_with(
         .map(|d| d.message)
         .collect();
 
-    // Probe the *configured* backend, not every backend this build happens to
-    // ship. A freshly scaffolded project's `voice.backend` is `null`, which has
-    // no server — probing kokoro anyway made every `doctor` run on the common
-    // case make a network call to a server nothing configured, and print a line
-    // saying it was unreachable. That is noise reported as a finding, and it
-    // trains people to ignore the probe line.
+    // Only the configured backend: probing a server nothing configured
+    // reports an unreachable server as a finding on every `null` project.
     let voice_probe = probe_configured_backend(&backends, &backend_id).await;
 
     DoctorReport {
@@ -200,11 +141,8 @@ pub async fn doctor_report_with(
                 .to_string(),
             "no external runtime ships with teleprompt: Node, Playwright, Remotion, Slidev and agg are needed only to capture the scenes that use them."
                 .to_string(),
-            // No sample rate is claimed here. `VoiceCapabilities` does not
-            // carry one, so the only honest source is the audio a backend
-            // actually produces — which `dub` reads per run and publishes in
-            // the manifest's `audio` block. A fixed "48 kHz" here was the
-            // null backend's rate quietly asserted on every backend's behalf.
+            // No sample rate: `VoiceCapabilities` carries none, and only the
+            // audio a backend produces can say.
             "dub writes 16-bit PCM WAV; each manifest's `audio` block records the rate and \
              channel count the backend produced."
                 .to_string(),
@@ -213,13 +151,8 @@ pub async fn doctor_report_with(
     }
 }
 
-/// The renderer's version, as it reports it, or `None` when the binary is
-/// not there to ask.
-///
-/// The first line of `ffmpeg -version` rather than the whole banner, which is a
-/// dozen lines of build configuration nobody reading a health report wants. The
-/// version matters as much as availability: a too-old ffmpeg fails a render
-/// halfway through with a filter error rather than refusing it up front.
+/// The first line of `program -version`, or `None` when it cannot run. The
+/// version matters: a too-old ffmpeg fails halfway through a render.
 pub fn probe_ffmpeg(program: &str) -> Option<String> {
     let out = std::process::Command::new(program)
         .arg("-version")
@@ -234,35 +167,17 @@ pub fn probe_ffmpeg(program: &str) -> Option<String> {
         .map(|line| line.trim().to_string())
 }
 
-/// The server's own `timeout_ms` (30 000 by default) is sized for synthesis,
-/// which can legitimately take a while. Listing voices does not invoke a model
-/// — a healthy server answers in single-digit milliseconds — so a hanging probe
-/// is already a broken server, not a slow one. Five seconds is generous next to
-/// that (room for a cold start, a slow DNS lookup, a loaded-but-not-hung server
-/// under momentary pressure) while keeping `doctor` — the command reached for
-/// when something is broken — from ever waiting out the full synthesis timeout
-/// to say so.
+/// Shorter than the backend's own `timeout_ms`, which is sized for synthesis:
+/// listing voices runs no model, so a server this slow to answer is broken.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(5_000);
 
-/// One line about the *configured* backend's server, or `None` when it has
-/// nothing to probe — either `backend_id` names something this build has no
-/// concrete handle for, or what is configured there is not server-backed
-/// (today, always the `null` backend). Silence is the honest answer for a
-/// backend with no server, not a "not applicable" line.
-///
-/// `Backends::kokoro` rather than a downcast: `backends_for` already built
-/// the concrete `KokoroVoice` this project's settings describe, so asking
-/// for it by id is the same check — and the same handle — a
-/// `downcast_ref::<KokoroVoice>()` on the registry's trait object used to
-/// recover.
+/// One line about the configured backend's server, or `None` when it has no
+/// server to probe.
 async fn probe_configured_backend(backends: &Backends, backend_id: &str) -> Option<VoiceProbe> {
     let kokoro = backends.kokoro(backend_id)?;
     let url = kokoro.base_url().to_string();
     let detail = match tokio::time::timeout(PROBE_TIMEOUT, kokoro.voices()).await {
-        // The model, not only the address: the cache key is the model
-        // alone now, so two servers with different weights under one name
-        // are indistinguishable to it. This line is where that becomes
-        // visible.
+        // The model beside the address: docs/design.md#voice-cache.
         Ok(Ok(voices)) => format!(
             "{url} — reachable, model {}, {} voices",
             teleprompt_voice::VoiceBackend::capabilities(kokoro.as_ref()).version,

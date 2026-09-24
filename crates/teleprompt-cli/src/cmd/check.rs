@@ -15,39 +15,26 @@ use teleprompt_voice_null::WpmEstimator;
 use crate::project::Project;
 use crate::voice::Backends;
 
-/// Where a project's synthesis cache lives. Shared between `compile_script`
-/// (which only ever reads it) and `dub` (which populates it), so the two
-/// can never drift onto different directories and silently stop agreeing
-/// about what is warm.
+/// Where a project's caches live. Every command roots its cache here, so
+/// the one `compile_script` reads is the one `dub` fills.
 pub fn cache_root(project: &Project) -> PathBuf {
     project.root.join(".teleprompt").join("cache")
 }
 
-/// Shared front half of every command: read, parse, identify, resolve, compile.
-/// Has no side effects — it never writes to disk.
+/// Shared front half of every command: read, parse, identify, resolve,
+/// compile. Writes nothing.
 ///
-/// Returns the resolved backend alongside the compilation because the two
-/// must be the same one: `cache_key` is computed from `backend.id()` and
-/// `capabilities().version`, so a caller that synthesizes with a *different*
-/// backend writes that backend's audio into the cache under this one's key.
-/// `dub` is the only caller that reads it.
-///
-/// It is returned separately rather than being a field on `CompileOutput`
-/// because `CompileOutput` is what `check`, `plan`, and `diff` receive: a
-/// backend hanging off it would put `synthesize` one `.` away from the inner
-/// loop, which is the thing `VoiceContext` exists to make impossible.
+/// Backends are built from the project's `backends:` settings before the
+/// script is read, so a script's front-matter `backends:` cannot reach them
+/// (it gets a warning instead). The resolved backend is returned so a
+/// synthesizing caller uses the one the cache keys were computed from. It
+/// is kept off `CompileOutput`, which `check`, `plan` and `diff` receive,
+/// to hold docs/design.md#async-boundary.
 pub fn compile_script(
     project: &Project,
     script: &Path,
     locale: &str,
 ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
-    // The project's own `backends:` settings, read before the script even
-    // exists on disk — `compile_script_with` needs a registry to resolve
-    // the script's chosen backend against, and that resolution happens
-    // before this function knows whether the script's own front matter
-    // carries a further `backends:` override. Front-matter-level backend
-    // settings therefore do not reach construction here; only the
-    // project's are real, not defaults.
     compile_script_with(&backends_of(project), project, script, locale)
 }
 
@@ -70,12 +57,9 @@ pub(crate) fn compile_script_with(
     script: &Path,
     locale: &str,
 ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
-    // Before the script is even read: a `backends:` key naming nothing this
-    // build ships is wrong about the project, not about whatever is being
-    // compiled, and it is wrong in the same way for every script in the
-    // repository. It is reported here rather than in `compile_script` so
-    // that `dub` — which goes through this function, not that one — cannot
-    // reach a server on settings the author never successfully wrote.
+    // Before the script is read: an unknown `backends:` key is wrong for
+    // every script. Here rather than in `compile_script` so that `dub` and
+    // `serve`, which call this directly, cannot reach a server with it.
     let config_diags = backends.diagnostics();
     if !config_diags.is_empty() {
         return Err(render(
@@ -109,51 +93,26 @@ pub(crate) fn compile_script_with(
     )
     .map_err(|d| render(&d, &display))?;
 
-    // A script's own front matter can set `backends:` too — `Config`'s
-    // field doc says so, and `resolve` above dutifully merges it into
-    // `program.config.backends`. But the registry `compile_script` built
-    // (or that a caller of `compile_script_with` supplied) was constructed
-    // from the *project's* `backends:` alone, before this script was ever
-    // read — nothing downstream of `resolve` can reach back and
-    // reconstruct an already-built backend. Silently accepting the merge
-    // and never mentioning the mismatch would be the same defect the
-    // line-backend check below exists to catch: an author-written value
-    // the merge computes and the mechanism it is meant to affect never
-    // sees. A warning, not an error: unlike a line resolving to an
-    // unregistered backend, the compile still produces something correct —
-    // audio from the *project's* settings for that backend, just not the
-    // script's requested variant of them.
+    // `resolve` merges front-matter `backends:`, but the backends were built
+    // from the project's alone, so an override would silently do nothing. A
+    // warning, not an error: the audio still comes from the project's
+    // settings, which are correct, just not the script's variant of them.
     let base_backends = project.config.backends.clone().unwrap_or_default();
     let backend_override_diags =
         backend_override_warnings(&base_backends, &program.config.backends);
 
-    // The *resolved* backend, not just a name: a script's own front matter
-    // can override `voice.backend`, and this is what actually produces the
-    // line's audio, so `cache_key` and `backend_version` both need to
-    // come from it rather than from the raw string.
-    // A backend whose settings did not validate fails here and only here —
-    // when it is the one this project actually resolves to. Constructing
-    // every backend eagerly used to fail `check` and `plan` with exit 2 on a
-    // `backend = "null"` project because of a Kokoro setting it would never
-    // read. The error is the same one; what changed is who gets it.
+    // After front matter has had its say on `voice.backend`. Unusable
+    // settings fail here only when this is the backend selected (see
+    // `Backends`).
     let backend = backends
         .resolve(&program.config.voice.backend)
         .map_err(|d| render(&Diagnostics(vec![d]), &display))?;
 
-    // Delivery A supports exactly one backend per compile: `VoiceContext`
-    // carries a single `backend_id` for the whole program. A narration item
-    // can resolve to a different backend than the program's overall
-    // resolved backend two ways: a line attribute set it, or a
-    // chapter's front matter did. `Element::Narration` does not retain which
-    // layer supplied the value — `config` is already the fully merged
-    // result — so the diagnostic describes the *effect* ("this line
-    // resolves to a backend other than the one in use") rather than
-    // guessing which layer is at fault and telling the author to remove an
-    // attribute that, for a chapter-level override, was never written.
-    //
-    // Grouped by the offending value and reported once per group, naming
-    // every affected line, so a chapter of twelve paragraphs under one
-    // stray `voice: { backend: ... }` produces one error, not twelve.
+    // One backend per compile: `VoiceContext` carries a single `backend_id`.
+    // A line attribute or a chapter block can still pick another, and the
+    // merged config no longer says which, so the error names the effect,
+    // not the layer. One error per backend, naming every line, so a chapter
+    // under one stray `voice.backend` is not twelve errors.
     let mut offenders: std::collections::BTreeMap<
         String,
         Vec<(String, teleprompt_core::SourceSpan)>,
@@ -215,11 +174,7 @@ pub(crate) fn compile_script_with(
         estimator: &estimator,
     };
 
-    // `crate::scene::scenes()`, not `SceneRegistry::with_builtins()`: the
-    // builtins are the adapters living inside `teleprompt-scene` itself,
-    // which is the mock and nothing else. Compiling against the narrower
-    // registry fails `scene=terminal` with "no adapter `vhs` is available"
-    // on a build that ships one.
+    // Not `SceneRegistry::with_builtins()`, which holds only the mock.
     let mut out = compile(
         &program,
         &crate::scene::scenes(),
@@ -229,26 +184,16 @@ pub(crate) fn compile_script_with(
     )
     .map_err(|d| render(&d, &display))?;
 
-    // The bare message, not `render()`'s output: every other entry in
-    // `out.warnings` (cache, scheduling) is a plain sentence with no
-    // severity prefix and no `--> file` line, because both callers of this
-    // vec (`main.rs`'s `eprintln!("warning: {w}")` and `--format json`'s
-    // `warnings` array) add their own framing on top. Pushing a
-    // pre-rendered `"warning: ...\n  --> ..."` string here doubled the
-    // prefix on stderr and made the JSON array mix two shapes.
+    // The bare message, not `render()`'s output: like every other warning
+    // here it is a plain sentence, and callers add their own framing.
     out.warnings
         .extend(backend_override_diags.into_iter().map(|d| d.message));
 
     Ok((out, backend))
 }
 
-/// Diagnoses `Config.backends` entries that `resolve` computed from a
-/// script's own front matter but that a caller-supplied registry cannot
-/// see — see the call site's comment for why. `base` is what the registry
-/// was (or should have been) built from; `merged` is `program.config
-/// .backends` after `resolve`. One diagnostic per distinct offending
-/// backend id, not per differing key, mirroring the line-backend
-/// check's "once per group" shape.
+/// One warning per backend id whose `merged` entry (after `resolve`) differs
+/// from `base`, the project settings the backends were built from.
 fn backend_override_warnings(
     base: &std::collections::BTreeMap<String, serde_yaml::Value>,
     merged: &std::collections::BTreeMap<String, serde_yaml::Value>,
@@ -272,11 +217,9 @@ fn backend_override_warnings(
         .collect()
 }
 
-/// The mapping keys `after` sets or changes relative to `before`, when both
-/// are YAML mappings. Empty for a non-mapping value (a wholesale
-/// replacement — there is nothing granular to name) or when `before` is
-/// absent (every key is "new", which the caller's message already covers
-/// by naming the backend itself).
+/// The mapping keys `after` sets or changes relative to `before`. Empty
+/// unless both are mappings: otherwise there is nothing finer to name than
+/// the backend itself.
 fn differing_backend_keys(
     before: Option<&serde_yaml::Value>,
     after: &serde_yaml::Value,
@@ -292,9 +235,7 @@ fn differing_backend_keys(
         .collect()
 }
 
-/// Returns warnings on success, rendered errors on failure. `check` is
-/// `compile_script` minus the timeline: parse, validate, compile — but the
-/// caller only ever looks at whether it succeeded and what it has to say.
+/// Returns warnings on success, rendered errors on failure.
 pub fn run_check(
     project: &Project,
     script: &Path,
@@ -307,11 +248,8 @@ fn render(d: &teleprompt_core::Diagnostics, file: &str) -> Vec<String> {
     d.0.iter().map(|x| x.render(file)).collect()
 }
 
-/// The stable, typed shape of `check`'s `--format json` output. Mirrors
-/// `DoctorReport`'s and `NewReport`'s pattern rather than building JSON
-/// inline in `main.rs`: `ok` says which of `warnings`/`errors` is
-/// meaningful, but both fields are always present so consumers never have
-/// to branch on a missing key.
+/// `check`'s `--format json` output. Both lists are always present, so a
+/// consumer never branches on a missing key.
 #[derive(Debug, Serialize)]
 pub struct CheckReport {
     pub ok: bool,

@@ -1,18 +1,11 @@
-//! The caches a project keeps, and how they are kept from growing for ever.
+//! `cache`: reporting the voice and compose caches, and keeping `compose/`
+//! from growing for ever (docs/design.md#caches).
 //!
-//! Two of them sit under `.teleprompt/cache`: `voice/`, which holds
-//! synthesized narration, and `compose/`, which holds already-encoded
-//! pieces of picture. Both are entirely derived — every entry can be
-//! reproduced from the key that names it — so losing one costs time and
-//! nothing else. That is what makes evicting from them safe.
-//!
-//! It is `compose/` that needs it. A sentence of narration is kilobytes; a
-//! minute of video is megabytes, and a script iterated on through a
-//! morning leaves every intermediate version of its picture behind. The
-//! policy is the plainest one that keeps a cache worth having: a cap, and
-//! the least recently used entry goes first. The renderer marks an entry
-//! used when it copies from it, so what the last few builds depended on is
-//! the last thing to be thrown away.
+//! Every entry is derived from its key, so evicting one costs only time.
+//! Compose is the one that needs a cap: a minute of video is megabytes,
+//! and iterating on a script leaves every version of its picture behind.
+//! Least recently used goes first; the renderer marks an entry used when
+//! it copies from it.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -25,24 +18,22 @@ use crate::project::Project;
 
 /// How much encoded video a project keeps when nobody says otherwise.
 ///
-/// Generous: the cost of it being too large is disk, and the cost of it
-/// being too small is an author paying for a render they had already paid
-/// for. A 1080p minute is some tens of megabytes, so this is room for a
-/// long script and several versions of it.
+/// Generous: too large costs disk, too small costs re-encoding. A 1080p
+/// minute is tens of megabytes, so this holds several versions of a long
+/// script.
 pub(crate) const DEFAULT_MAX_MB: u64 = 1024;
 
 /// Everything stored under one key.
 ///
-/// Files, plural: the voice cache writes a WAV and a sidecar per key, and
-/// evicting the audio while keeping the sidecar would leave a hit with no
-/// bytes behind it.
+/// Files, plural: a voice entry is a WAV and a sidecar, and evicting one
+/// without the other would leave a hit with no bytes behind it.
 #[derive(Debug, Clone)]
 pub struct Entry {
     pub key: String,
     pub paths: Vec<PathBuf>,
     pub bytes: u64,
-    /// When this entry was last used, which is its modification time: the
-    /// renderer touches an entry it copies from.
+    /// The latest modification time among its files; the renderer touches
+    /// an entry it copies from.
     pub used: SystemTime,
 }
 
@@ -73,10 +64,8 @@ pub fn entries(dir: &Path) -> Vec<Entry> {
     let mut by_key: BTreeMap<String, Entry> = BTreeMap::new();
     for file in reading.filter_map(Result::ok) {
         let name = file.file_name().to_string_lossy().into_owned();
-        // A dotfile is a half-written entry — the renderer encodes beside
-        // the name it is going to use and renames into place — or the
-        // concat list of a render still running. Neither is data, and
-        // neither may be what a prune decides to throw away instead.
+        // A dotfile is a half-written entry or a running render's concat
+        // list. Neither is data, and neither may be pruned instead.
         if name.starts_with('.') {
             continue;
         }
@@ -116,9 +105,7 @@ pub fn stats(dir: &Path) -> Stats {
 }
 
 /// Evict least-recently-used entries from `dir` until it holds at most
-/// `max_bytes`.
-///
-/// A cap of zero keeps nothing, which is how an author gets the disk back.
+/// `max_bytes`. A cap of zero empties it.
 pub fn prune(dir: &Path, max_bytes: u64) -> std::io::Result<Pruned> {
     let entries = entries(dir);
     let mut bytes: u64 = entries.iter().map(|e| e.bytes).sum();
@@ -132,9 +119,7 @@ pub fn prune(dir: &Path, max_bytes: u64) -> std::io::Result<Pruned> {
         for path in &entry.paths {
             match std::fs::remove_file(path) {
                 Ok(()) => {}
-                // Somebody else's prune got there first, or a build in
-                // another terminal just rewrote it. Neither is this
-                // command's business to fail over.
+                // Another prune or build got there first; not a failure.
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => return Err(e),
             }

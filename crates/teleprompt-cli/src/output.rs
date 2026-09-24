@@ -7,14 +7,8 @@ pub enum Format {
     Json,
 }
 
-/// The stable, typed shape of a failed command's `--format json` output.
-/// Shared by every command whose success payload isn't itself the natural
-/// place to carry an `errors` list (`plan` prints a `Timeline`, `diff`
-/// prints a `TimelineDiff` — neither has room for `errors`), so their
-/// failure paths converge on this one struct instead of each inventing its
-/// own. `check` has its own `CheckReport` because it needs `warnings`
-/// alongside `errors` even on success; this one is failure-only, hence no
-/// `ok: true` case.
+/// A failed command's `--format json` output, for every command whose
+/// success payload has no room for `errors`. Always `ok: false`.
 #[derive(Debug, Serialize)]
 pub struct ErrorReport {
     pub ok: bool,

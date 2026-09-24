@@ -11,9 +11,6 @@ pub fn run_plan(
     script: &Path,
     locale: &str,
 ) -> Result<CompileOutput, Vec<String>> {
-    // The resolved backend is dropped on the floor here, deliberately:
-    // `plan` never synthesizes, and holding one would be the first step
-    // towards a path where it could.
     compile_script(project, script, locale).map(|(out, _)| out)
 }
 

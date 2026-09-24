@@ -1,9 +1,5 @@
-//! `teleprompt from <doc>` — a draft script from a document you already have.
-//!
-//! The drafting itself is `teleprompt_core::draft`, which is where its tests
-//! live. This is the shell around it: read a file, name the chapter that
-//! prose before the first heading belongs to, write the result somewhere
-//! that is not already occupied.
+//! `teleprompt from <doc>`: the file handling around
+//! `teleprompt_core::draft`, which does the drafting and holds its tests.
 
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -56,9 +52,8 @@ impl FromReport {
     }
 }
 
-/// The chapter name for prose that arrives before the document's own first
-/// heading. Derived from the file, because the drafting function would have
-/// to invent one and the caller knows a real answer.
+/// The chapter name for prose before the document's first heading, taken
+/// from the file name.
 fn title_of(doc: &Path) -> String {
     let stem = doc
         .file_stem()
@@ -72,8 +67,6 @@ fn title_of(doc: &Path) -> String {
     }
 }
 
-/// Where the draft goes when the author does not say: beside the document,
-/// named after it, with the extension it will be compiled under.
 fn default_out(doc: &Path) -> PathBuf {
     doc.with_extension("teleprompt.md")
 }
@@ -94,10 +87,9 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>, slidev: bool) -> std::io::Resu
         ));
     }
 
-    // A deck is named in the draft's scene config as it was named here:
-    // relative to where teleprompt runs, which is where the build will run.
+    // The deck path goes into the draft as given, relative to where
+    // teleprompt runs; its imports are read relative to the deck itself.
     let (script, silent_slides, warnings) = if slidev {
-        // Imports are read relative to the deck's own directory.
         let dir = doc.parent().unwrap_or(Path::new(""));
         let read = |path: &str| std::fs::read_to_string(dir.join(path)).ok();
         let d = draft_slidev(&source, &doc.display().to_string(), &read);

@@ -1,14 +1,8 @@
 //! `capture`: running the scenes, so a build shows what its tapes do.
 //!
-//! Stage 5. It sits between the manifest and the render, and it is what
-//! turns a correctly-paced video of slates into a video.
-//!
-//! The work is organised by session rather than by shot, because a scene
-//! *is* a session: the shots of a walkthrough continue one another, so a
-//! backend is handed a run of a scene and told which of its shots to keep.
-//! A shot whose clip is already cached still runs — the shot after it
-//! opens on the screen it leaves behind — which is why the unit here is
-//! not the shot.
+//! Stage 5, between the manifest and the render. The unit of work is the
+//! session, not the shot, because each shot opens on the screen the one
+//! before it left (docs/design.md#capture).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -21,9 +15,8 @@ use teleprompt_core::config::SceneConfig;
 
 /// The shots of a published manifest, as the planner needs them.
 ///
-/// Built from the manifest rather than from the in-process timeline for
-/// the reason the renderer is: two timing paths drift, and a clip captured
-/// against a length nothing published is a clip that does not fit.
+/// Built from the manifest, not the in-process timeline, for the reason
+/// `build` is (docs/design.md#rendering).
 pub(crate) fn cues_of(
     manifest: &NarrationManifest,
     shots: &[ShotSource],
@@ -54,14 +47,10 @@ pub(crate) fn cues_of(
 
 /// A scene's settings as strings.
 ///
-/// A backend reads the handful of keys it understands — how many columns,
-/// which shell, what to put in the environment — and none of them are
-/// structured. Anything that is not a scalar is left out rather than
-/// rendered as YAML, because a backend that cannot read it would be
-/// reading a syntax, not a value.
-///
-/// One level of nesting survives, flattened with a dot, so that `env:` can
-/// be written as the map it is:
+/// Backends read a few unstructured keys (columns, shell, environment), so
+/// anything that is not a scalar is left out rather than rendered as YAML.
+/// One level of nesting survives, flattened with a dot, so `env:` can be
+/// written as a map:
 ///
 /// ```yaml
 /// scene:
@@ -129,10 +118,9 @@ impl CaptureReport {
 
 /// Record whatever is missing from `clips_dir`.
 ///
-/// Infallible by design. A scene nothing here can record is slates and a
-/// warning — the timing is still real, and a video with a hole in it is
-/// more use than no video — and so is a backend that was asked and failed,
-/// because there may be another one that manages.
+/// Infallible by design: a scene nothing here can record, or a backend
+/// that fails, is a warning and slates. The timing is still real, and a
+/// video with a hole in it is more use than no video.
 pub fn run_capture(
     manifest: &NarrationManifest,
     shots: &[ShotSource],
@@ -215,12 +203,7 @@ fn record(
         })
 }
 
-/// The backends this build ships: one per scene adapter.
-///
-/// `vhs` renders terminal scenes. teleprompt already re-times every tape
-/// to its slot, so handing that tape to the program built to record tapes
-/// is the whole job — and it draws the window, the theme and the padding
-/// that nothing else would.
+/// The capture backends this build ships, one per scene adapter.
 pub fn registry() -> CaptureRegistry {
     CaptureRegistry::new()
         .with(Box::new(teleprompt_vhs::VhsRender::default()))

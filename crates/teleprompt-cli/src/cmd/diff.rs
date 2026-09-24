@@ -5,11 +5,9 @@ use teleprompt_schedule::{diff, Timeline, TimelineDiff, TIMELINE_VERSION};
 use crate::cmd::plan::run_plan;
 use crate::project::Project;
 
-/// Compiles the script fresh and compares it against the committed
-/// timeline. A missing committed timeline is not an error — it is a first
-/// run, and every item in the freshly compiled timeline is reported as
-/// `added` so the author sees what they are about to commit. A committed
-/// timeline that exists but fails to parse is a real error.
+/// Compiles the script and compares it against the committed timeline. With
+/// none committed, every item is `added`; one that does not parse is an
+/// error.
 pub fn run_diff(
     project: &Project,
     script: &Path,

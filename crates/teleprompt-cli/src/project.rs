@@ -5,21 +5,16 @@ use teleprompt_core::config::PartialConfig;
 /// A discovered teleprompt project: the directory containing
 /// `teleprompt.toml` and that file's parsed contents.
 ///
-/// `Clone` because `serve` hands one to its watcher task, which outlives the
-/// call that discovered it. Two fields, both already `Clone`.
+/// `Clone` because `serve`'s watcher takes one by value.
 #[derive(Clone)]
 pub struct Project {
     pub root: PathBuf,
     pub config: PartialConfig,
 }
 
-/// The directory a script lives in.
-///
-/// `Path::new("demo.md").parent()` is `Some("")`, not `None`, so the obvious
-/// `script.parent().unwrap_or(Path::new("."))` never falls back — and `""`
-/// canonicalizes to ENOENT. Every test, the README, and both manual
-/// transcripts happened to pass a path with a directory component, so the
-/// bare-filename case (`cd scripts && teleprompt check demo.md`) went unseen.
+/// The directory a script lives in. `Path::new("demo.md").parent()` is
+/// `Some("")`, not `None`, and `""` does not canonicalize, so the bare
+/// filename case needs `.` spelled out.
 pub(crate) fn script_dir(script: &Path) -> &Path {
     match script.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
@@ -28,9 +23,7 @@ pub(crate) fn script_dir(script: &Path) -> &Path {
 }
 
 impl Project {
-    /// Finds the project a `script` belongs to. Shared by every command that
-    /// takes a script path, so the empty-parent handling and the "which file
-    /// were we even looking at" context are defined once.
+    /// Finds the project a `script` belongs to, naming the script on failure.
     pub fn for_script(script: &Path) -> std::io::Result<Project> {
         Project::discover(script_dir(script)).map_err(|e| {
             std::io::Error::new(
@@ -42,8 +35,6 @@ impl Project {
 
     /// Walks up from `from` looking for `teleprompt.toml`.
     pub fn discover(from: &Path) -> std::io::Result<Project> {
-        // Naming the path matters: a bare `No such file or directory
-        // (os error 2)` tells the author nothing about what was missing.
         let mut dir = from.canonicalize().map_err(|e| {
             std::io::Error::new(e.kind(), format!("cannot read {}: {e}", from.display()))
         })?;
@@ -65,10 +56,8 @@ impl Project {
         }
     }
 
-    /// The file `config` was read from. Diagnostics about project settings
-    /// point here: a bad `backends:` block is a fact about this file, and
-    /// anchoring it to whichever script happened to be compiled sends the
-    /// author to the wrong place to fix it.
+    /// The file `config` was read from, which diagnostics about project
+    /// settings point at rather than at the script being compiled.
     pub(crate) fn config_path(&self) -> PathBuf {
         self.root.join("teleprompt.toml")
     }

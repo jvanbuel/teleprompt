@@ -68,9 +68,7 @@ pub fn scaffold(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
     Ok(written)
 }
 
-/// The stable, typed shape of `new`'s output in both formats. Mirrors
-/// `DoctorReport`'s `Serialize` + `render()` pattern rather than building
-/// JSON inline in `main.rs`, so later commands have a live example to copy.
+/// The stable, typed shape of `new`'s output in both formats.
 #[derive(Debug, Serialize)]
 pub struct NewReport {
     pub created: Vec<PathBuf>,

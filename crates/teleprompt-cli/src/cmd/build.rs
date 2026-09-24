@@ -1,11 +1,6 @@
-//! `build`: the whole pipeline, ending in a file you can play.
-//!
-//! Everything before this command decided *when* each thing happens.
-//! `build` turns those decisions into a video, and it does it by reading
-//! the published narration manifest — the same artifact `serve` reads and
-//! the same one an outside integrator reads. It could have kept the
-//! in-process `Timeline` in hand instead; two timing paths drift, and the
-//! one that drifts silently is the one nobody renders from.
+//! `build`: the whole pipeline, ending in a file you can play. It renders
+//! from the manifest `dub` just published, as an outside consumer would
+//! (docs/design.md#rendering).
 
 use std::path::{Path, PathBuf};
 
@@ -25,33 +20,21 @@ use crate::project::Project;
 pub struct BuildOptions {
     /// The video to write.
     pub out: PathBuf,
-    /// Where narration is published on the way past. A real directory
-    /// rather than a temporary one: it is the manifest `serve` and any
-    /// integrator read, and a render that cannot be traced back to a
-    /// manifest cannot be checked against one.
+    /// Where narration is published on the way past. A real directory, not
+    /// a temporary one, so the render can be checked against its manifest.
     pub narration_root: PathBuf,
     /// Where captured clips are looked up, by shot hash.
     pub clips_dir: PathBuf,
-    /// A frame size from the command line, which overrides the script's
-    /// own `output.resolution`. `None` — the usual case — leaves the
-    /// script in charge of how it looks.
+    /// A frame size from the command line, overriding `output.resolution`.
     pub resolution: Option<(u32, u32)>,
     /// A frame rate from the command line, overriding `output.fps`.
     pub fps: Option<u32>,
-    /// Where already-encoded pieces of picture are kept between builds.
-    /// `None` re-encodes the whole video every time.
-    ///
-    /// The cache is what makes the second build of a script cheap: a
-    /// render is the one expensive step that is entirely derived, and an
-    /// author who reworded one sentence should not pay to re-encode the
-    /// other hundred and nineteen seconds of it.
+    /// The compose cache (docs/design.md#compose-cache). `None` re-encodes
+    /// the whole video every time.
     pub compose_dir: Option<PathBuf>,
     /// Megabytes of encoded video to keep afterwards, least recently used
-    /// evicted first.
-    ///
-    /// A build prunes rather than leaving it to a command somebody has to
-    /// remember: a cache that only shrinks when asked still grows without
-    /// bound, which is the thing a cap exists to stop.
+    /// evicted first. Every build prunes, so the cap holds without anyone
+    /// remembering to run a command.
     pub cache_max_mb: u64,
 }
 
@@ -63,10 +46,8 @@ impl BuildOptions {
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| "video".into());
         Self {
-            // `build/` is what `new` gitignores, and a render is entirely
-            // derived: it belongs where a checkout will not offer to commit
-            // it. The name follows the committed timelines' — `cli.en.json`
-            // beside `cli.en.mp4`.
+            // `build/` is what `new` gitignores. The name follows the
+            // committed timelines': `cli.en.json` beside `cli.en.mp4`.
             out: project
                 .root
                 .join("build")
@@ -89,7 +70,7 @@ pub struct BuildReport {
     pub ok: bool,
     pub output: PathBuf,
     pub duration_ms: u64,
-    /// Which renderer did the work, for a report that says how it was made.
+    /// Which renderer did the work.
     pub renderer: &'static str,
     pub lines: usize,
     pub items: usize,
@@ -105,9 +86,8 @@ pub struct BuildReport {
 }
 
 impl BuildReport {
-    /// The human report. Warnings are not in it: `main` prints those to
-    /// stderr for every command, and printing them here too said
-    /// everything twice.
+    /// The human report. Warnings are not in it: `main` prints them to
+    /// stderr.
     pub fn render(&self) -> String {
         let reused = match self.reused_ms {
             Some(ms) if ms > 0 => format!(", {} reused", clock(ms)),
@@ -133,8 +113,8 @@ fn clock(ms: u64) -> String {
 pub enum BuildError {
     /// The script does not compile. Exit 2, as everywhere else.
     Validation(Vec<String>),
-    /// Everything that is not the script's fault: a missing ffmpeg, a
-    /// failed render, an unwritable output.
+    /// Not the script's fault: a missing ffmpeg, a failed render, an
+    /// unwritable output.
     Runtime(String),
 }
 
@@ -165,12 +145,8 @@ pub async fn run_build(
     .await
 }
 
-/// The renderer a set of options asks for.
-///
-/// There is one. `--no-cache` clears `compose_dir`, which used to select a
-/// different renderer entirely; it now switches off reuse, so the two paths
-/// encode through the same code and cannot disagree about what the video
-/// should look like.
+/// The renderer a set of options asks for. `--no-cache` (no `compose_dir`)
+/// switches off reuse, not the renderer, so both encode through one path.
 pub fn renderer(options: &BuildOptions) -> IncrementalRenderer {
     IncrementalRenderer {
         program: "ffmpeg".into(),
@@ -205,10 +181,8 @@ pub async fn run_build_with(
 
 /// `run_build_with`, with the capture backends named too.
 ///
-/// A parameter because "this machine cannot record that scene" is a path
-/// with its own behaviour — a warning, a slate, a video that still plays —
-/// and a test that cannot produce a machine without a backend cannot check
-/// any of it.
+/// A parameter so a test can build a machine that cannot record a scene,
+/// and check the warning and slate that follow.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_build_with_capture(
     renderer: &IncrementalRenderer,
@@ -226,16 +200,11 @@ pub async fn run_build_with_capture(
             DubError::Runtime(message) => BuildError::Runtime(message),
         })?;
 
-    // The script decides its own shape; a flag overrides it for this one
-    // render, which is what makes a quick low-resolution check possible
-    // without editing the script to get it.
     let (width, height) = options.resolution.unwrap_or(dubbed.output.resolution);
     let fps = options.fps.unwrap_or(dubbed.output.fps);
 
-    // Stage 5, between the manifest and the render. A scene this build
-    // cannot record is a warning and a slate rather than a failure: the
-    // timing is still real, and a video with a hole in it is more use than
-    // no video.
+    // Stage 5 (docs/design.md#pipeline). What cannot be recorded becomes a
+    // warning and a slate, not a failure; see [`capture::run_capture`].
     let mut warnings = dubbed.warnings;
     let recorded = capture::run_capture(
         &dubbed.manifest,
@@ -270,10 +239,8 @@ pub async fn run_build_with_capture(
         .render(&render_plan, on_progress)
         .map_err(|e| BuildError::Runtime(explain(&e)))?;
 
-    // Pruned after the render, never before: the entries this build just
-    // used are the newest, so they are the last things a cap would evict,
-    // and pruning first would throw away pieces this render was about to
-    // copy.
+    // Pruned after the render, never before: pruning first could evict
+    // pieces this render was about to copy.
     warnings.append(&mut plan_warnings);
     let mut all = warnings;
     if let Some(dir) = &options.compose_dir {
@@ -316,8 +283,8 @@ fn explain(error: &RenderError) -> String {
 
 /// `WIDTHxHEIGHT`, as `--resolution` takes it.
 ///
-/// Rejects rather than rounds: a typo'd resolution silently rendered at
-/// 1920x1080 is a long wait for the wrong file.
+/// Rejects rather than guesses: a typo silently rendered at some default
+/// is a long wait for the wrong file.
 pub fn parse_resolution(text: &str) -> Result<(u32, u32), String> {
     let (w, h) = text
         .split_once(['x', 'X'])

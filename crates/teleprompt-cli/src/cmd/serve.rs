@@ -1,20 +1,14 @@
-//! `teleprompt serve` — the loop you can watch.
+//! `teleprompt serve`: watch the script, recompile on save, synthesize only
+//! what changed, and point a browser preview at the item that moved.
 //!
-//! `plan` and `diff` answer in milliseconds and tell you numbers. Judging an
-//! edit means hearing it, which cost a re-dub and a render — minutes, for a
-//! change you wanted to evaluate in seconds. `serve` closes that: it watches
-//! the script, recompiles on save, synthesizes only what changed, and hands a
-//! preview the item that moved.
+//! The preview is a manifest consumer: it reads the narration manifest, as
+//! `docs/integrations/remotion.md` describes it, plus shot sources. Nothing
+//! here has privileged access to the schedule, so the preview cannot show
+//! timing that a real consumer would not.
 //!
-//! **The preview is a manifest consumer.** It reads exactly what
-//! `docs/integrations/remotion.md` tells an outside integrator to read —
-//! `narration.json` with its `items` — plus the shot sources it needs to draw
-//! a scene. Nothing here has privileged access to the schedule, which is what
-//! keeps "looked fine in preview" from becoming a category of bug.
-//!
-//! The HTTP server is hand-rolled over `TcpListener`. It serves one machine's
-//! own browser on loopback: a framework would be the largest dependency in the
-//! workspace, for four routes and no concurrency to speak of.
+//! The HTTP server is hand-rolled over `TcpListener`: it serves one browser
+//! on loopback, five routes, and a framework would be the workspace's
+//! largest dependency.
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
@@ -32,20 +26,16 @@ use teleprompt_voice::VoiceBackend;
 use crate::cmd::check::{backends_of, cache_root, compile_script_with};
 use crate::project::Project;
 
-/// How often the watcher reads the script.
-///
-/// Polling rather than an OS watcher: the whole dependency is one read per
-/// file per tick, and a preview that reacts within a quarter second of a
-/// save is indistinguishable from one that reacts instantly.
+/// How often the watcher reads the script. Polling rather than an OS watcher
+/// costs one read per tick, and a quarter second is instant enough.
 const POLL: Duration = Duration::from_millis(250);
 
 const PAGE: &str = include_str!("serve.html");
 
 #[derive(Debug)]
 pub enum ServeError {
-    /// The script did not compile on the first run. Later failures do not
-    /// stop the server — they are shown in the preview and cleared by the
-    /// next save that fixes them.
+    /// The script did not compile on the first run. Later failures are shown
+    /// in the preview instead.
     Validation(Vec<String>),
     Runtime(String),
 }
@@ -56,16 +46,14 @@ struct Preview {
     manifest: NarrationManifest,
     /// Shot id to adapter-native source, for the scenes the preview draws.
     shots: BTreeMap<String, String>,
-    /// Line id to the cache key its audio lives under. The cache is
-    /// addressed by content, so this is the index from the name a consumer
-    /// asks for to the file that answers it.
+    /// Line id to the cache key its audio lives under, as the compile
+    /// computed it; the cache is addressed by content, not by line id.
     audio_keys: BTreeMap<String, String>,
     /// Ids of the items and lines whose timing or content moved in the
     /// compile that produced this generation. Empty on the first one.
     changed: Vec<String>,
-    /// Set when the last save failed to compile. The previous generation's
-    /// manifest stays served, so the preview keeps playing what last worked
-    /// while showing what is wrong.
+    /// Set when the last save failed to compile. The last manifest that
+    /// compiled stays served beside it.
     error: Option<Vec<String>>,
 }
 
@@ -100,14 +88,9 @@ async fn rebuild(
     let cache = VoiceCache::new(cache_root(project));
     let audio = warm(&backend, &cache, &compiled).await?;
 
-    // Compiled a second time, because the first one read a cache that did
-    // not yet hold what `warm` has just put in it: its durations are the
-    // estimator's guesses, and publishing those would make the first
-    // preview play at a pace the second one corrects. Every line would
-    // then "move" on the first save, and the preview would have nowhere
-    // meaningful to jump to. `dub` recompiles after rendering for the same
-    // reason. The second pass is offline and sub-second — that is what the
-    // inner loop is built to be.
+    // Compiled again, as `dub` does: the first pass read durations from a
+    // cache `warm` had not yet filled, so they were estimates, and every
+    // line would "move" on the next save.
     let (compiled, _) =
         compile_script_with(&backends, project, script, locale).map_err(ServeError::Validation)?;
 
@@ -137,11 +120,8 @@ async fn rebuild(
 
 /// Fills cache misses, and reports the audio shape the manifest publishes.
 ///
-/// Sequential on purpose, which is the one place this differs from `dub`:
-/// after the first run the common case is exactly one miss — the paragraph
-/// just edited — and a fan-out with a semaphore, completion-order progress
-/// and per-key grouping buys nothing for a single request. A cold start pays
-/// for that simplicity once; `dub` is the command for a cold start.
+/// Sequential, unlike `dub`: after the first run the usual miss is the one
+/// paragraph just edited, and `dub` is the command for a cold cache.
 async fn warm(
     backend: &Arc<dyn VoiceBackend>,
     cache: &VoiceCache,
@@ -178,11 +158,7 @@ async fn warm(
 }
 
 /// What moved between two manifests, as ids the preview can seek to.
-///
-/// Deliberately coarser than `diff`: the preview only needs somewhere to
-/// jump, so a line whose text or timing changed and an item whose schedule
-/// moved are both simply "changed". `diff` remains the surface for reading
-/// *what* changed.
+/// Coarser than `diff` on purpose: the preview needs only somewhere to jump.
 fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
     let mut out = Vec::new();
     for seg in &after.lines {
@@ -217,9 +193,7 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
 /// A request line's path: query stripped, percent-decoding applied. `None`
 /// for anything that is not a well-formed HTTP GET this server serves.
 ///
-/// The decode is not optional politeness: a shot id contains a `#`
-/// (`welcome-a#0`), which a client must percent-encode, so without this
-/// every shot request arrives as `%23` and matches nothing.
+/// A shot id contains a `#` (`welcome-a#0`), which arrives as `%23`.
 fn route(line: &str) -> Option<String> {
     let mut parts = line.split_whitespace();
     if parts.next()? != "GET" {
@@ -230,9 +204,7 @@ fn route(line: &str) -> Option<String> {
     decode_percent(path)
 }
 
-/// Percent-decoding, rejecting anything that is not valid UTF-8 or not a
-/// well-formed escape — a malformed path is a bad request, not something to
-/// guess at.
+/// Percent-decoding. A malformed escape or invalid UTF-8 is `None`.
 fn decode_percent(s: &str) -> Option<String> {
     let bytes = s.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -344,11 +316,8 @@ fn handle(
 
         p if audio_id(p).is_some() => {
             let id = audio_id(p).expect("just checked");
-            // The cache is addressed by content, not by line id, so the
-            // key index built during the compile is what turns the name a
-            // consumer asks for into the file that answers it. Reconstructing
-            // the key here would be a second answer to a question the compile
-            // already answered.
+            // The key the compile computed; recomputing it here would be a
+            // second answer to the same question.
             let key = {
                 let preview = state.lock().expect("preview lock");
                 preview.audio_keys.get(id).cloned()
@@ -384,11 +353,8 @@ pub async fn run_serve(
     serve_on(listener, project, script, locale).await
 }
 
-/// [`run_serve`] against a listener the caller already bound.
-///
-/// The seam exists so a test can take port 0, learn which port the OS gave
-/// it, and drive the real server — rather than testing a reimplementation of
-/// it, or racing a hardcoded port against whatever else is running.
+/// [`run_serve`] against a listener the caller already bound, so a test can
+/// take port 0 and drive the real server.
 pub async fn serve_on(
     listener: TcpListener,
     project: &Project,
@@ -414,14 +380,10 @@ pub async fn serve_on(
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_default();
 
-    // The listener gets its own OS thread and the watcher keeps the runtime.
-    //
-    // `TcpListener::incoming()` blocks, and the CLI's runtime is
-    // current-thread: an accept loop on the async side parks the executor,
-    // and the watcher — a `tokio::spawn`ed task — is simply never polled
-    // again. It looks like a server that works and never notices a save,
-    // which is the one thing this command exists to do. Nothing here is
-    // async, so a plain thread is the honest home for it.
+    // The listener gets its own OS thread. `incoming()` blocks, and the
+    // runtime is current-thread: an accept loop there would park the
+    // executor, and the watcher below would never be polled again — a
+    // server that works and never notices a save.
     {
         let state = state.clone();
         let script_name = script_name.clone();
@@ -442,7 +404,6 @@ pub async fn serve_on(
         });
     }
 
-    // Runs until interrupted.
     watch(
         state,
         project.clone(),
@@ -479,10 +440,8 @@ async fn watch(state: Arc<Mutex<Preview>>, project: Project, script: PathBuf, lo
                 eprintln!("  recompiled — {} item(s) moved", p.changed.len());
             }
             Err(ServeError::Validation(errors)) => {
-                // The preview keeps playing the last thing that compiled.
-                // A blank screen would answer a question nobody asked:
-                // what the author wants to see is the error and the video
-                // they had a moment ago.
+                // Keep the last manifest that compiled: the author wants the
+                // error beside the video they had, not a blank screen.
                 let mut p = state.lock().expect("preview lock");
                 for e in &errors {
                     eprintln!("{e}");
@@ -500,14 +459,9 @@ async fn watch(state: Arc<Mutex<Preview>>, project: Project, script: PathBuf, lo
     }
 }
 
-/// What the watcher compares between ticks: the script's contents.
-///
-/// Not its modification time. An edit that lands inside the filesystem's
-/// timestamp resolution leaves the mtime where it was, and comparing
-/// timestamps then misses it *permanently* — the next comparison is
-/// against the same value, so the save is never seen at all rather than
-/// seen late. CI found it as a preview that never updated; a script is a
-/// few kilobytes and hashing one every quarter second costs nothing.
+/// What the watcher compares between ticks: the script's contents, not its
+/// mtime. An edit within the filesystem's timestamp resolution leaves the
+/// mtime unchanged, and that save is then never seen at all.
 fn fingerprint(path: &Path) -> Option<Hash> {
     std::fs::read(path).ok().map(|bytes| Hash::of(&bytes))
 }

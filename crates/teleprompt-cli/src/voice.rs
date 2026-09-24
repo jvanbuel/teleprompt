@@ -9,57 +9,28 @@ use teleprompt_voice_null::NullVoice;
 /// The backends this build ships, together with everything the project's
 /// `backends:` settings said that could not be turned into one.
 ///
-/// Two things live here that a bare [`VoiceRegistry`] cannot hold, and both
-/// of them are failures the config layer used to have nowhere to put:
-///
-/// * A shipped backend whose settings do not validate. Constructing every
-///   backend eagerly and propagating the first failure made
-///   `[backends.kokoro] concurrency = 0` fail `check` and `plan` on a
-///   project whose `voice.backend` is `null` and which will never open a
-///   socket. The error is kept instead, and surfaces when that backend is
-///   the one the project resolves to — which is the only run it can affect.
-///   It is *kept*, not dropped: a caller that selects the backend gets the
-///   original message, so this is a deferral, not a swallow.
-///
-/// * A `backends:` key naming nothing this build ships. `registry_for` used
-///   to look up the single literal key `"kokoro"` and discard the rest
-///   without a word, so `[backends.kokoro-local]` left `dub` talking to the
-///   default `localhost:8880` — a server the author never configured, and
-///   whose audio would be cached under `kokoro@localhost:8880` permanently.
+/// * A shipped backend whose settings do not validate. Its error is kept and
+///   surfaces only when that backend is selected, so a bad
+///   `[backends.kokoro]` does not fail `check` on a `null` project.
+/// * A `backends:` key naming nothing this build ships, which is an error
+///   (see [`Backends::diagnostics`]).
 pub struct Backends {
     registry: VoiceRegistry,
     /// Shipped backends whose settings did not validate, by id.
     unusable: BTreeMap<String, String>,
     /// `backends:` keys matching no shipped id, in the map's own order.
     unknown: Vec<String>,
-    /// The file the settings came from, so a diagnostic about them can point
-    /// at it rather than at a script that has nothing to do with it.
+    /// The file the settings came from, which diagnostics about them name.
     config_file: String,
-    /// The concrete Kokoro handle, kept alongside its `Arc<dyn VoiceBackend>`
-    /// clone in `registry` rather than instead of it.
-    ///
-    /// `dub`'s voice-list validation, `dub`'s fan-out limit, and `doctor`'s
-    /// probe all need an inherent method `VoiceBackend` does not carry —
-    /// `voices()`, `concurrency()`, `base_url()`. Kokoro used to answer that
-    /// with `as_any` and a `downcast_ref` at each of those three call sites.
-    /// This is the same information reached the way `voice.rs` was already
-    /// positioned to reach it: `backends_for` constructs the concrete type
-    /// right here, so keeping the `Arc<KokoroVoice>` costs one field, where
-    /// recovering it from the trait object afterwards cost a downcast per
-    /// caller. `None` when settings named `kokoro` but it did not construct
-    /// — the same case `unusable` records, so a caller that reads both never
-    /// sees them disagree.
+    /// The concrete Kokoro handle, alongside its trait-object clone in
+    /// `registry`; see [`Backends::kokoro`]. `None` when it did not
+    /// construct.
     kokoro: Option<Arc<KokoroVoice>>,
 }
 
 /// Every backend this build ships, each constructed from its own slice of
-/// `backends:`. Adding one is a line here plus a crate — nothing else in the
-/// workspace changes, and in particular `teleprompt-core` never learns the
-/// new backend's name.
-///
-/// Infallible by construction, which is not the same as forgiving: each
-/// failure lands in [`Backends`] and is reported by whoever is in a position
-/// to say who it affects.
+/// `backends:` (docs/design.md#crates). Infallible: each failure is kept in
+/// [`Backends`] for whoever knows whether it matters.
 pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file: &str) -> Backends {
     let mut registry = VoiceRegistry::default();
     let mut unusable = BTreeMap::new();
@@ -78,10 +49,7 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
         }
     }
 
-    // Computed against the ids this build ships, not against the ones that
-    // happened to construct: a backend whose settings are bad is still a
-    // backend this build has heard of, and reporting it as unknown as well
-    // would name the same mistake twice with two different explanations.
+    // Includes the unusable ones, so a bad block is not also called unknown.
     let shipped: Vec<String> = registry
         .available()
         .iter()
@@ -118,13 +86,9 @@ impl Backends {
         backends_for(&BTreeMap::new(), "teleprompt.toml")
     }
 
-    /// A `Backends` wrapping a caller-supplied registry.
-    ///
-    /// The seam exists so a test can register a backend this build does not
-    /// ship and watch the whole path — key, synthesis, cache, manifest — follow
-    /// it (docs/design.md#crates), which a workspace with one real backend
-    /// could not otherwise check. Nothing is unknown or unusable here: the
-    /// caller built the registry by hand, so there were no settings to misread.
+    /// A `Backends` wrapping a caller-supplied registry, so a test can follow
+    /// a backend this build does not ship through key, synthesis, cache and
+    /// manifest.
     pub fn from_registry(registry: VoiceRegistry) -> Self {
         Self {
             registry,
@@ -135,10 +99,8 @@ impl Backends {
         }
     }
 
-    /// Every id this build ships, including one whose settings did not
-    /// validate — `doctor` is asked what the build can do, and a backend
-    /// that exists but is misconfigured is a different answer from one that
-    /// does not exist.
+    /// Every id this build ships, including those whose settings did not
+    /// validate.
     pub fn ids(&self) -> Vec<String> {
         let mut ids: Vec<String> = self
             .registry
@@ -151,25 +113,17 @@ impl Backends {
         ids
     }
 
-    /// The registry itself, for the two callers that need to look a backend
-    /// up without resolving a project's choice.
+    /// The registry itself, for looking a backend up without resolving a
+    /// project's choice.
     pub fn registry(&self) -> &VoiceRegistry {
         &self.registry
     }
 
-    /// The concrete Kokoro handle, when `id` names it and it constructed
-    /// successfully — the escape hatch `dub`'s voice-list check, `dub`'s
-    /// fan-out limit, and `doctor`'s probe use to reach `voices()`,
-    /// `concurrency()` and `base_url()`, none of which `VoiceBackend`
-    /// carries.
+    /// The concrete Kokoro handle, for `voices()`, `concurrency()` and
+    /// `base_url()`, which `VoiceBackend` does not carry.
     ///
-    /// Gated on `id` rather than handed back unconditionally: a project can
-    /// select `null` while still having a valid `[backends.kokoro]` block
-    /// (or an invalid one), and none of the three callers above should act
-    /// on Kokoro's server unless Kokoro is the backend actually in use. This
-    /// mirrors [`resolve`](Self::resolve)'s own gating, and returns `None`
-    /// on the same two occasions `resolve("kokoro")` would fail: a
-    /// different id, or settings that never produced a backend.
+    /// Only when `id` is `kokoro` and it constructed, so nobody acts on
+    /// Kokoro's server when a project merely has a `[backends.kokoro]` block.
     pub fn kokoro(&self, id: &str) -> Option<&Arc<KokoroVoice>> {
         if id == "kokoro" {
             self.kokoro.as_ref()
@@ -180,11 +134,9 @@ impl Backends {
 
     /// The backend `id` names, or a diagnostic saying why not.
     ///
-    /// The two failures are anchored differently on purpose. Bad settings
-    /// are a fact about `teleprompt.toml`, so the diagnostic points there.
-    /// An unknown id could equally have come from a script's own front
-    /// matter, which `Backends` cannot see, so that one carries no file of
-    /// its own and is rendered against whatever the caller is checking.
+    /// Bad settings point at `teleprompt.toml`. An unknown id may come from
+    /// a script's front matter, so it carries no file and is rendered
+    /// against whatever the caller is checking.
     pub fn resolve(&self, id: &str) -> Result<Arc<dyn VoiceBackend>, Diagnostic> {
         if let Some(b) = self.registry.get(id) {
             return Ok(b);
@@ -204,17 +156,10 @@ impl Backends {
 
     /// One error per `backends:` key naming nothing this build ships.
     ///
-    /// An error rather than a warning, unlike the front-matter case. There
-    /// the script still compiles to something correct — the project's
-    /// settings for that backend, just not the script's requested variant of
-    /// them. Here the author's settings reach nothing whatsoever, and the
-    /// backend they were meant for keeps its defaults, so a misspelt
-    /// `[backends.kokoro-local]` sends `dub` to `localhost:8880` instead of
-    /// the server the author wrote down. If anything is listening there the
-    /// audio is synthesized against it and cached permanently under that
-    /// server's version string, reported as `measured` by every later
-    /// `plan`. That is the one failure this project has singled out as its
-    /// worst, and it is not a thing to warn about and carry on from.
+    /// An error, not a warning: the settings reach nothing, so a misspelt
+    /// `[backends.kokoro-local]` sends `dub` to the default server, whose
+    /// audio is then cached and reported as `measured` by every later
+    /// `plan`.
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
         self.unknown
             .iter()
@@ -237,12 +182,9 @@ impl Backends {
     /// One error per shipped backend whose settings did not validate,
     /// whether or not this project selects it.
     ///
-    /// Separate from [`diagnostics`](Self::diagnostics) because the two
-    /// answer different questions. `check` asks "can this script be
-    /// compiled", and a backend it never touches has no bearing on that —
-    /// that is the whole point of deferring the failure. `doctor` asks "what
-    /// is wrong here", and a `backends:` block the author wrote that cannot
-    /// produce a backend is wrong whichever script is being compiled today.
+    /// Separate from [`diagnostics`](Self::diagnostics): `check` asks
+    /// whether this script compiles, which an unselected backend cannot
+    /// affect; `doctor` asks what is wrong, which it is.
     pub(crate) fn unusable_diagnostics(&self) -> Vec<Diagnostic> {
         self.unusable
             .iter()

@@ -172,11 +172,8 @@ enum Command {
     },
 }
 
-/// Where a render's progress goes.
-///
-/// Nothing, unless a human is watching a terminal in human format: the
-/// line rewrites itself with a carriage return, which a log file records
-/// as one enormous line and a JSON consumer cannot parse at all.
+/// A render's progress, shown only to a human at a terminal: the line
+/// rewrites itself with a carriage return, which a log or JSON cannot take.
 fn progress_reporter(format: Format) -> impl FnMut(Progress) {
     use std::io::{IsTerminal, Write};
 
@@ -200,21 +197,10 @@ fn progress_reporter(format: Format) -> impl FnMut(Progress) {
     }
 }
 
-/// The async runtime, built for `dub` and `doctor` and nothing else.
-///
-/// Current-thread rather than multi-thread: neither command awaits more than
-/// one thing at a time, so worker threads have nothing to do. A bounded
-/// concurrent fan-out would want `new_multi_thread` back for `dub` — which is
-/// why the `rt-multi-thread` feature is still declared rather than trimmed
-/// away.
-///
-/// Its error is a bare `String`, not `dub::DubError`: `doctor` has no
-/// `DubError` channel of its own, so a shared helper cannot return one
-/// without lying about where the error came from. `dub`'s call site maps it
-/// into `DubError::Runtime` instead, which is where that variant already
-/// says a runtime failure belongs — exit 1, not a validation error, taking
-/// the same road as any other `dub` failure instead of panicking out
-/// through an exit code `exit_code_for` cannot issue.
+/// The async runtime for the commands that need one
+/// (docs/design.md#async-boundary). Current-thread: the work is waiting on
+/// IO, not computing. The error is a bare `String` so each caller can map
+/// it into its own runtime-failure variant.
 fn runtime() -> Result<tokio::runtime::Runtime, String> {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -249,11 +235,8 @@ fn print_errors(errors: &[String]) {
     }
 }
 
-/// Synchronous on purpose. `#[tokio::main]` started a multi-thread runtime
-/// — a worker thread per core — for every subcommand, including
-/// `check`/`plan`/`diff`/`new`, none of which ever await. `dub` and
-/// `doctor` each build their own runtime in their own arm, which is the
-/// only place async is reachable from.
+/// Synchronous on purpose: only the arms that need async build a runtime
+/// (docs/design.md#async-boundary).
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let registry = teleprompt_cli::scene::scenes();
@@ -451,10 +434,6 @@ fn main() -> ExitCode {
                             options.compose_dir = None;
                         }
                         options.cache_max_mb = cache_max_mb.unwrap_or(options.cache_max_mb);
-                        // Progress goes to stderr, and only to a terminal: a
-                        // carriage-returned percentage is for a human
-                        // watching, and in a CI log it is the same line a
-                        // few hundred times.
                         let mut show = progress_reporter(cli.format);
                         match runtime()
                             .map_err(build::BuildError::Runtime)
@@ -504,12 +483,8 @@ fn main() -> ExitCode {
                     Err(e) => fail(cli.format, Outcome::RuntimeFailure(e)),
                     Ok(size) => {
                         let options = build::BuildOptions::defaults(&project, &script, &locale);
-                        // Capture needs the manifest, and publishing it is
-                        // `dub`'s job. Running it here rather than reading
-                        // a stale one on disk is the same argument the
-                        // renderer makes: two timing paths drift, and a
-                        // clip captured against a length nothing published
-                        // is a clip that does not fit.
+                        // Dub first rather than read a manifest on disk
+                        // that may be stale (docs/design.md#rendering).
                         let dubbed = runtime().map_err(dub::DubError::Runtime).and_then(|rt| {
                             rt.block_on(dub::run_dub(
                                 &project,
@@ -595,17 +570,14 @@ fn main() -> ExitCode {
                         }
                         (None, Format::Human) => print!("{}", dub::render_dub(&result)),
                     }
-                    // A downgrade is reported either way — an author should
-                    // hear that their `recorded` script was machine-read
-                    // whether or not they asked for it to be fatal.
+                    // Reported whether or not `--strict-voice` makes it fatal.
                     if !result.downgrades.is_empty() {
                         eprintln!("voice downgraded on {} line(s):", result.downgrades.len());
                         eprint!("{}", dub::render_downgrades(&result.downgrades));
                     }
 
-                    // Checked ahead of drift: a downgrade means the audio is
-                    // not what the script asked for, which is true whether or
-                    // not the committed manifest happens to agree with it.
+                    // Ahead of drift: the audio is not what the script asked
+                    // for, whatever the committed manifest says.
                     if strict_voice && !result.downgrades.is_empty() {
                         Outcome::VoiceDowngrade
                     } else {
