@@ -159,7 +159,9 @@ reading the manifest it just published.
 | `teleprompt-cli` | the `teleprompt` binary, and the registries every adapter and backend is composed into |
 
 `core`, `schedule`, `voice` and `scene` do not depend on one another.
-Anything that needs two of them belongs in `compile`. Adapters and backends
+Anything that needs two of them belongs in `compile`. `render` reads the
+manifest and never the compiler. `tools/check_deps.py` holds the allowed
+edges between workspace crates, and CI fails on any other. Adapters and backends
 are registered only in the CLI, so adding one means one crate and one
 registry line, and no other crate learns its name.
 

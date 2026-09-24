@@ -61,3 +61,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.85
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --locked
+      # The crate layering in docs/design.md#crates, checked rather than
+      # trusted: a new edge between workspace crates must be argued for there.
+      - run: python3 tools/check_deps.py
