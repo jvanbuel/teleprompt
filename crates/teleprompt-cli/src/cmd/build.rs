@@ -134,7 +134,7 @@ pub async fn run_build(
 ) -> Result<BuildReport, BuildError> {
     run_build_with_capture(
         &renderer(options),
-        &capture::registry(),
+        &crate::scene::captures(),
         project,
         script,
         locale,
@@ -168,7 +168,7 @@ pub async fn run_build_with(
 ) -> Result<BuildReport, BuildError> {
     run_build_with_capture(
         renderer,
-        &capture::registry(),
+        &crate::scene::captures(),
         project,
         script,
         locale,

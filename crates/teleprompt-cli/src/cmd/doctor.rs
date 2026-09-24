@@ -259,7 +259,7 @@ impl DoctorReport {
 
 /// What this build can put on screen, and why it cannot where it cannot.
 fn capture_backends() -> Vec<CaptureBackendStatus> {
-    let registry = crate::cmd::capture::registry();
+    let registry = crate::scene::captures();
     registry
         .backends()
         .map(|b| CaptureBackendStatus {

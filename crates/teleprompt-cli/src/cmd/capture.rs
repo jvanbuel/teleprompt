@@ -214,18 +214,6 @@ fn record(
     Ok(clips.len())
 }
 
-/// The capture backends this build ships, one per scene adapter.
-pub fn registry() -> CaptureRegistry {
-    CaptureRegistry::new()
-        .with(Box::new(teleprompt_vhs::VhsRender::default()))
-        .with(Box::new(teleprompt_playwright::PlaywrightRender::default()))
-        .with(Box::new(teleprompt_remotion::RemotionRender::default()))
-        .with(Box::new(teleprompt_slidev::SlidevRender::default()))
-        .with(Box::new(teleprompt_asciinema::AsciinemaRender::default()))
-        .with(Box::new(teleprompt_media::MediaRender::default()))
-        .with(Box::new(teleprompt_capture::mock::MockCapture::default()))
-}
-
 /// `teleprompt capture`: dubs the script, then records whatever its shots
 /// are missing into the build's clip directory.
 ///
@@ -253,7 +241,7 @@ pub async fn capture_script(
         &dubbed.manifest,
         &dubbed.shots,
         &dubbed.scenes,
-        &registry(),
+        &crate::scene::captures(),
         &options.clips_dir,
         frame,
         on_progress,
