@@ -12,7 +12,6 @@ teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
-serde.workspace = true
 
 [dev-dependencies]
 teleprompt-voice-null = { path = "../teleprompt-voice-null" }
