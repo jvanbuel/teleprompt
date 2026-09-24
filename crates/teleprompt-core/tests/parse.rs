@@ -318,3 +318,12 @@ fn a_directive_inside_a_heading_is_rejected() {
     assert!(d.message.contains("own line"), "{}", d.message);
     assert_eq!(d.span.expect("points at the heading").line, 9);
 }
+
+/// A pause is bounded like any other duration, so an absurd one is a
+/// diagnostic here rather than a sum near `u64::MAX` in the scheduler (#22).
+#[test]
+fn a_pause_longer_than_a_day_is_rejected() {
+    let src = "# One\n\nFirst. {#a}\n\n<!-- teleprompt: pause 18446744073709551615ms -->\n";
+    let err = parse_script(src).unwrap_err();
+    assert!(err.0[0].message.contains("longer than a day"), "{}", err.0[0].message);
+}

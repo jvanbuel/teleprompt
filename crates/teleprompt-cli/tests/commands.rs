@@ -424,3 +424,16 @@ fn doctor_reports_the_projects_cache_from_a_subdirectory() {
         "the report must say which root it counted: {json}"
     );
 }
+
+/// A duration no one means is a validation error naming the attribute, not
+/// an overflow panic in the scheduler (#22).
+#[test]
+fn an_absurd_lead_in_is_a_validation_error_not_a_panic() {
+    let (_dir, p, s) = project_with(
+        "---\nteleprompt: 1\n---\n\n# One\n\n\
+         First line. {#a lead_in=18446744073709551615ms}\n\nSecond. {#b}\n",
+    );
+    let errors = run_check(&p, &s, "en").expect_err("an absurd lead_in must fail check");
+    let joined = errors.join("\n");
+    assert!(joined.contains("lead_in"), "{joined}");
+}

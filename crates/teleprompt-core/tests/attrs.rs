@@ -75,3 +75,19 @@ fn bare_token_without_equals_is_an_error() {
     let (_, d) = parse_attrs("policy", BLOCK_KEYS, SPAN);
     assert!(d[0].message.contains("expected `key=value`"));
 }
+
+/// A duration attribute that does not parse, or exceeds a day, is reported
+/// at the line rather than silently ignored (#22): `from_attrs` drops such
+/// values on the promise that this has already said so.
+#[test]
+fn a_bad_duration_value_is_a_diagnostic() {
+    for raw in [
+        "lead_in=soon",
+        "tail=18446744073709551615ms",
+        "lead_in=90000s",
+    ] {
+        let (_, d) = parse_attrs(raw, SEGMENT_KEYS, SPAN);
+        assert_eq!(d.len(), 1, "{raw}: {d:?}");
+        assert_eq!(d[0].span, Some(SPAN), "{raw}");
+    }
+}

@@ -37,7 +37,7 @@ pub fn schedule(
             if let Some(previous) = entries.last_mut() {
                 previous.transition.duration_ms -= excess;
             }
-            cursor += excess;
+            cursor = cursor.saturating_add(excess);
             carried_in = l.item_duration_ms;
         }
 
@@ -56,12 +56,12 @@ pub fn schedule(
 
         entries.push(build_entry(item, cursor, &l, transition_ms));
         carried_in = transition_ms;
-        cursor += l.item_duration_ms - transition_ms;
+        cursor = cursor.saturating_add(l.item_duration_ms - transition_ms);
     }
 
     let duration_ms = entries
         .last()
-        .map(|e| e.start_ms + e.duration_ms)
+        .map(|e| e.start_ms.saturating_add(e.duration_ms))
         .unwrap_or(0);
 
     (
@@ -104,7 +104,7 @@ fn lay_out_item(item: &Item) -> (u64, Layout) {
         .action
         .as_ref()
         .and_then(|a| a.cue_ms)
-        .map(|c| c + lead_in_ms);
+        .map(|c| c.saturating_add(lead_in_ms));
     let l = layout_at(
         item.policy,
         narration_ms,
@@ -121,10 +121,16 @@ fn quiet_window_ms(item: &Item, next: &Item, l: &Layout) -> u64 {
     let speech_end_ms = item
         .narration
         .as_ref()
-        .map(|n| l.narration_start_ms + n.lead_in_ms + n.duration_ms)
+        .map(|n| {
+            l.narration_start_ms
+                .saturating_add(n.lead_in_ms)
+                .saturating_add(n.duration_ms)
+        })
         .unwrap_or(0);
     let next_lead_in_ms = next.narration.as_ref().map_or(0, |n| n.lead_in_ms);
-    l.item_duration_ms.saturating_sub(speech_end_ms) + next_lead_in_ms
+    l.item_duration_ms
+        .saturating_sub(speech_end_ms)
+        .saturating_add(next_lead_in_ms)
 }
 
 /// The configured duration of the transition out of `item`, before it is
@@ -167,7 +173,7 @@ fn build_entry(item: &Item, start_ms: u64, l: &Layout, transition_ms: u64) -> En
         narration: item
             .narration
             .as_ref()
-            .map(|n| narration_entry(n, start_ms + l.narration_start_ms)),
+            .map(|n| narration_entry(n, start_ms.saturating_add(l.narration_start_ms))),
         action: item.action.as_ref().map(|a| action_entry(a, start_ms, l)),
         transition: TransitionEntry {
             kind: item.pacing.transition.kind.clone(),
@@ -183,7 +189,7 @@ fn narration_entry(n: &NarrationInput, slot_start_ms: u64) -> NarrationEntry {
         line: n.line_id.clone(),
         source_hash: n.source_hash,
         audio_hash: n.audio_hash,
-        start_ms: slot_start_ms + n.lead_in_ms,
+        start_ms: slot_start_ms.saturating_add(n.lead_in_ms),
         duration_ms: n.duration_ms,
         duration_source: n.duration_source,
         voice_source: n.voice_source,
@@ -202,7 +208,7 @@ fn action_entry(a: &ActionInput, item_start_ms: u64, l: &Layout) -> ActionEntry 
         // from the source that will actually be captured.
         capture_key: a.shot_hash,
         session: a.session.clone(),
-        start_ms: item_start_ms + l.action_start_ms,
+        start_ms: item_start_ms.saturating_add(l.action_start_ms),
         duration_ms: l.action_duration_ms,
         duration_source: a.duration_source,
     }

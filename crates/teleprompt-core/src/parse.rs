@@ -336,7 +336,12 @@ fn directive_from_html(html: &str) -> Result<Option<Node>, String> {
         return Err(bad_value());
     };
     match digits.trim().parse::<u64>() {
-        Ok(n) => Ok(Some(Node::Directive(Directive::Pause(n)))),
+        Ok(n) if n <= crate::attrs::MAX_DURATION_MS => {
+            Ok(Some(Node::Directive(Directive::Pause(n))))
+        }
+        Ok(_) => Err(format!(
+            "pause `{arg}` is longer than a day, the most a pause may be"
+        )),
         Err(_) => Err(bad_value()),
     }
 }

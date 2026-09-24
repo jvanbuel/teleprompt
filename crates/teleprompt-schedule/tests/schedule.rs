@@ -405,3 +405,35 @@ fn a_cue_lands_on_the_word_not_a_lead_in_before_it() {
         lead_in + 1000
     );
 }
+
+/// No `u64` input panics or wraps (#22): sums saturate, so offsets only
+/// ever move forward. The compiler rejects such durations first; this is
+/// the scheduler's own backstop.
+#[test]
+fn absurd_durations_saturate_rather_than_overflow() {
+    let mut held = item(
+        "held",
+        Some(1000),
+        Some(u64::MAX),
+        Policy::Hold,
+        Config::default(),
+    );
+    held.narration.as_mut().unwrap().lead_in_ms = u64::MAX;
+    let mut cued = item(
+        "cued",
+        Some(1000),
+        Some(1000),
+        Policy::Concurrent(teleprompt_schedule::Align::Start),
+        Config::default(),
+    );
+    cued.narration.as_mut().unwrap().lead_in_ms = u64::MAX;
+    cued.action.as_mut().unwrap().cue_ms = Some(u64::MAX);
+    let after = item("after", Some(1000), None, Policy::Hold, Config::default());
+
+    for items in [vec![held, after.clone()], vec![cued, after]] {
+        let (t, _) = schedule(&items, "s.md", "en", "0.1.0");
+        let starts: Vec<u64> = t.entries.iter().map(|e| e.start_ms).collect();
+        assert!(starts.windows(2).all(|w| w[0] <= w[1]), "{starts:?}");
+        assert!(t.entries.iter().all(|e| e.start_ms <= t.duration_ms));
+    }
+}

@@ -12,6 +12,10 @@ pub const SEGMENT_KEYS: &[&str] = &[
     "lang",
 ];
 
+/// Keys whose value is a duration, checked here so a bad one is reported at
+/// its line; `PartialConfig::from_attrs` drops what does not parse.
+const DURATION_KEYS: &[&str] = &["lead_in", "tail"];
+
 pub const BLOCK_KEYS: &[&str] = &[
     "scene",
     "include",
@@ -60,7 +64,22 @@ impl Attributes {
     }
 }
 
+/// The longest duration a script may state: a day. Anything longer is a
+/// typo, and the bound keeps every sum the scheduler makes far from
+/// `u64::MAX`.
+pub const MAX_DURATION_MS: u64 = 24 * 60 * 60 * 1000;
+
 pub fn parse_duration_ms(v: &str) -> Result<u64, String> {
+    let ms = parse_unbounded_ms(v)?;
+    if ms > MAX_DURATION_MS {
+        return Err(format!(
+            "`{v}` is longer than a day, the most a duration may be"
+        ));
+    }
+    Ok(ms)
+}
+
+fn parse_unbounded_ms(v: &str) -> Result<u64, String> {
     let err = || format!("`{v}` is not a duration (try `250ms` or `1s`)");
     if let Some(n) = v.strip_suffix("ms") {
         return n.trim().parse::<u64>().map_err(|_| err());
@@ -98,6 +117,11 @@ pub fn parse_attrs(raw: &str, allowed: &[&str], span: SourceSpan) -> (Attributes
             continue;
         }
         let value = value.trim().trim_matches('"').to_string();
+        if DURATION_KEYS.contains(&key) {
+            if let Err(why) = parse_duration_ms(&value) {
+                diags.push(Diagnostic::error(format!("`{key}`: {why}")).at(span));
+            }
+        }
         map.insert(key.to_string(), value);
     }
 

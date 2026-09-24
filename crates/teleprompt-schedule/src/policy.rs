@@ -96,7 +96,7 @@ pub fn layout_at(
             narration_start_ms: 0,
             action_start_ms: narration_ms,
             action_duration_ms: action_ms,
-            item_duration_ms: narration_ms + action_ms,
+            item_duration_ms: narration_ms.saturating_add(action_ms),
             warnings: Vec::new(),
         },
 
