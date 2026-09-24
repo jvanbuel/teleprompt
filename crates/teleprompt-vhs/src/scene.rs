@@ -56,15 +56,6 @@ const KEYS: &[&str] = &[
 
 const MODIFIERS: &[&str] = &["Ctrl", "Alt", "Shift"];
 
-/// Commands that change the tape's state but consume no wall clock.
-/// Commands that are real, cost no time, and teleprompt has nothing to do
-/// about. Deliberately short: every other VHS command is either read, or
-/// refused with a reason. A command accepted here and dropped by the
-/// capture is a video that is wrong rather than missing, which is the
-/// failure `Set`'s unknown-name rejection exists to prevent — and it was
-/// one for as long as nothing ran a tape.
-const INSTANT: &[&str] = &[];
-
 /// Settings teleprompt passes through without reading: they change what the
 /// terminal looks like, never how long it takes. Named all the same, so a
 /// misspelling is reported rather than silently having no effect — `Set
@@ -307,8 +298,6 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
             "remove the line; every shot's last frame is already kept",
         )),
 
-        instant if INSTANT.contains(&instant) => Ok(Command::Nothing),
-
         other => Err(CommandError::new(
             format!("unknown VHS command `{other}`"),
             match capitalisation_of(other) {
@@ -445,7 +434,6 @@ fn capitalisation_of(other: &str) -> Option<&'static str> {
     ["Sleep", "Type", "Set", "Output", "Source", "Wait"]
         .into_iter()
         .chain(KEYS.iter().copied())
-        .chain(INSTANT.iter().copied())
         .find(|c| c.eq_ignore_ascii_case(other))
 }
 

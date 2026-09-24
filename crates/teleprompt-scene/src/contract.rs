@@ -97,14 +97,6 @@ impl Measured {
             Measured::Unknown => None,
         }
     }
-
-    pub fn source_label(&self) -> &'static str {
-        match self {
-            Measured::Exact(_) => "exact",
-            Measured::Estimated(_) => "estimated",
-            Measured::Unknown => "unknown",
-        }
-    }
 }
 
 /// One uninterpretable line, as its adapter's line classifier saw it.
@@ -129,14 +121,6 @@ impl CommandError {
         Self {
             message: message.into(),
             help: Some(help.into()),
-        }
-    }
-
-    /// A line error with nothing useful to suggest.
-    pub fn bare(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            help: None,
         }
     }
 }

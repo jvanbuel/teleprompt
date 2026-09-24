@@ -5,24 +5,6 @@ use crate::{Diagnostic, SourceSpan};
 
 pub use crate::ast::IdOrigin;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct SegmentId(pub String);
-
-impl SegmentId {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct BlockId(pub String);
-
-impl BlockId {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
 /// What an id is allowed to contain.
 ///
 /// An id is not merely a join key: `teleprompt dub` turns it into a file

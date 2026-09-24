@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use serde::de::IgnoredAny;
 use serde::Deserialize;
 
 use crate::attrs::{parse_duration_ms, Attributes};
@@ -215,32 +216,11 @@ pub struct PartialVoice {
     /// word by word rather than replaced wholesale: a script adding one
     /// name should not drop the project's list.
     pub pronounce: Option<BTreeMap<String, String>>,
-    /// Per-tier backend configuration, exactly as spec §3.1 writes it:
-    ///
-    /// ```yaml
-    /// voice:
-    ///   source: synthetic
-    ///   synthetic: { backend: kokoro, model: af_heart, speed: 1.0 }
-    ///   cloned:    { backend: elevenlabs, profile: jan }
-    ///   recorded:  { takes_dir: takes }
-    /// ```
-    ///
-    /// Declared so the spec's canonical front matter deserializes. Like
-    /// `output.resolution` and `output.fps`, these are parsed and otherwise
-    /// unused: M0 ships only the `null` backend, and the real ones arrive in
-    /// M3.
-    pub synthetic: Option<PartialVoiceTier>,
-    pub cloned: Option<PartialVoiceTier>,
-    pub recorded: Option<PartialVoiceTier>,
-}
-
-/// One tier's backend settings. `backend` is named because every tier has
-/// one; everything else is backend-native and kept as raw YAML.
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct PartialVoiceTier {
-    pub backend: Option<String>,
-    #[serde(flatten)]
-    pub settings: BTreeMap<String, serde_yaml::Value>,
+    /// Per-tier settings (`synthetic:`, `cloned:`, `recorded:`), accepted
+    /// so front matter that names them parses, and not otherwise read.
+    pub synthetic: Option<IgnoredAny>,
+    pub cloned: Option<IgnoredAny>,
+    pub recorded: Option<IgnoredAny>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

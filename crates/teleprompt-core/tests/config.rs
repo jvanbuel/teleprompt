@@ -183,30 +183,15 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
     );
 }
 
-/// The per-tier voice blocks are parsed rather than merged — like
-/// `output.resolution` and `output.fps`, they are declared so the spec's
-/// front matter deserializes and are unused until their backends land in M3.
-/// Asserted here so the deferral is recorded rather than assumed.
+/// The per-tier voice blocks are accepted, so front matter naming them
+/// parses, and nothing reads what is inside them.
 #[test]
-fn the_per_tier_voice_blocks_are_parsed_and_kept() {
+fn the_per_tier_voice_blocks_are_accepted() {
     let p = PartialConfig::from_yaml(SPEC_3_1_FRONT_MATTER).unwrap();
     let voice = p.voice.expect("voice block present");
-    assert_eq!(
-        voice.synthetic.as_ref().unwrap().backend.as_deref(),
-        Some("kokoro")
-    );
-    assert_eq!(
-        voice.synthetic.as_ref().unwrap().settings.get("model"),
-        Some(&serde_yaml::Value::from("af_heart"))
-    );
-    assert_eq!(
-        voice.cloned.as_ref().unwrap().backend.as_deref(),
-        Some("elevenlabs")
-    );
-    assert_eq!(
-        voice.recorded.as_ref().unwrap().settings.get("takes_dir"),
-        Some(&serde_yaml::Value::from("takes"))
-    );
+    assert!(voice.synthetic.is_some());
+    assert!(voice.cloned.is_some());
+    assert!(voice.recorded.is_some());
 }
 
 /// Accepting what the spec documents must not mean accepting anything.

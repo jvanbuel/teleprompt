@@ -292,10 +292,6 @@ impl CaptureRegistry {
             .find(|b| b.adapter() == adapter)
     }
 
-    pub fn ids(&self) -> Vec<&'static str> {
-        self.backends.iter().map(|b| b.id()).collect()
-    }
-
     pub fn backends(&self) -> impl Iterator<Item = &dyn CaptureBackend> {
         self.backends.iter().map(|b| b.as_ref())
     }
