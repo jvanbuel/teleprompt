@@ -183,7 +183,7 @@ fn record(
         return Err(format!(
             "`{}` cannot record `{}` scenes here: {reason}; its {} shot(s) \
              will render as slates",
-            backend.id(),
+            backend.adapter(),
             session.scene,
             session.wanted()
         ));
@@ -272,9 +272,6 @@ mod tests {
     }
 
     impl CaptureBackend for Writes {
-        fn id(&self) -> &'static str {
-            "writes"
-        }
         fn adapter(&self) -> &'static str {
             "writes"
         }

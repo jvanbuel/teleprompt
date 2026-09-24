@@ -73,10 +73,6 @@ impl Default for SlidevRender {
 }
 
 impl CaptureBackend for SlidevRender {
-    fn id(&self) -> &'static str {
-        "slidev"
-    }
-
     fn adapter(&self) -> &'static str {
         "slidev"
     }

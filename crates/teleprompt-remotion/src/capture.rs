@@ -69,10 +69,6 @@ impl Default for RemotionRender {
 }
 
 impl CaptureBackend for RemotionRender {
-    fn id(&self) -> &'static str {
-        "remotion"
-    }
-
     fn adapter(&self) -> &'static str {
         "remotion"
     }

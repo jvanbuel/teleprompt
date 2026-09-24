@@ -263,7 +263,7 @@ fn capture_backends() -> Vec<CaptureBackendStatus> {
     registry
         .backends()
         .map(|b| CaptureBackendStatus {
-            id: b.id().to_string(),
+            id: b.adapter().to_string(),
             adapter: b.adapter().to_string(),
             unavailable: b.unavailable(),
         })

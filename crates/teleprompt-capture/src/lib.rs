@@ -216,9 +216,6 @@ pub enum CaptureError {
 
 /// What can run a scene.
 pub trait CaptureBackend {
-    /// Stable identifier, for reporting which path a capture took.
-    fn id(&self) -> &'static str;
-
     /// The scene adapter whose shots this backend speaks.
     fn adapter(&self) -> &'static str;
 

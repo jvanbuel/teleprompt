@@ -134,10 +134,6 @@ impl Default for MediaRender {
 }
 
 impl CaptureBackend for MediaRender {
-    fn id(&self) -> &'static str {
-        "media"
-    }
-
     fn adapter(&self) -> &'static str {
         "media"
     }

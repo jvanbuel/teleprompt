@@ -158,9 +158,6 @@ fn a_scene_kind_with_no_backend_has_none_rather_than_a_broken_one() {
 
     struct Fake;
     impl CaptureBackend for Fake {
-        fn id(&self) -> &'static str {
-            "fake"
-        }
         fn adapter(&self) -> &'static str {
             "vhs"
         }
@@ -176,6 +173,9 @@ fn a_scene_kind_with_no_backend_has_none_rather_than_a_broken_one() {
     }
 
     let registry = CaptureRegistry::new().with(Box::new(Fake));
-    assert_eq!(registry.for_adapter("vhs").map(|b| b.id()), Some("fake"));
+    assert_eq!(
+        registry.for_adapter("vhs").map(|b| b.adapter()),
+        Some("vhs")
+    );
     assert!(registry.for_adapter("playwright").is_none());
 }

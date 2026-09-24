@@ -73,10 +73,6 @@ impl Default for AsciinemaRender {
 }
 
 impl CaptureBackend for AsciinemaRender {
-    fn id(&self) -> &'static str {
-        "asciinema"
-    }
-
     fn adapter(&self) -> &'static str {
         "asciinema"
     }

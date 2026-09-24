@@ -92,10 +92,6 @@ impl Default for VhsRender {
 }
 
 impl CaptureBackend for VhsRender {
-    fn id(&self) -> &'static str {
-        "vhs"
-    }
-
     fn adapter(&self) -> &'static str {
         "vhs"
     }

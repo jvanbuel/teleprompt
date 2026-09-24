@@ -129,10 +129,6 @@ impl Default for PlaywrightRender {
 }
 
 impl CaptureBackend for PlaywrightRender {
-    fn id(&self) -> &'static str {
-        "playwright"
-    }
-
     fn adapter(&self) -> &'static str {
         "playwright"
     }
