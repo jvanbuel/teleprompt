@@ -183,7 +183,6 @@ pub async fn run_build_with(
 ///
 /// A parameter so a test can build a machine that cannot record a scene,
 /// and check the warning and slate that follow.
-#[allow(clippy::too_many_arguments)]
 pub async fn run_build_with_capture(
     renderer: &IncrementalRenderer,
     captures: &teleprompt_capture::CaptureRegistry,
