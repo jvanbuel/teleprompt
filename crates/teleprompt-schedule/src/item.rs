@@ -1,4 +1,4 @@
-use teleprompt_core::config::Config;
+use teleprompt_core::config::{Config, TimingConfig, TransitionConfig};
 use teleprompt_core::{Hash, VoiceSource};
 
 use crate::policy::Policy;
@@ -65,5 +65,21 @@ pub struct Item {
     pub narration: Option<NarrationInput>,
     pub action: Option<ActionInput>,
     pub policy: Policy,
-    pub config: Config,
+    pub pacing: Pacing,
+}
+
+/// The part of an item's configuration the scheduler reads.
+#[derive(Debug, Clone)]
+pub struct Pacing {
+    pub timing: TimingConfig,
+    pub transition: TransitionConfig,
+}
+
+impl From<&Config> for Pacing {
+    fn from(config: &Config) -> Self {
+        Pacing {
+            timing: config.timing.clone(),
+            transition: config.transition.clone(),
+        }
+    }
 }

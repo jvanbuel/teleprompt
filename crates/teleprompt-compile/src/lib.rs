@@ -15,7 +15,7 @@ use teleprompt_core::voice::spoken;
 use teleprompt_core::{Diagnostic, Diagnostics, Hash, SourceSpan};
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
 use teleprompt_schedule::{
-    schedule, ActionInput, DurationSource, Item, NarrationInput, Policy, Timeline,
+    schedule, ActionInput, DurationSource, Item, NarrationInput, Pacing, Policy, Timeline,
 };
 use teleprompt_voice::{
     resolve_source, DurationEstimator, Resolution, SynthRequest, VoiceSource, WordTiming,
@@ -505,7 +505,7 @@ impl<'a> Walker<'a, '_> {
                 narration: Some(p.input),
                 action: None,
                 policy: Policy::Hold,
-                config: p.config,
+                pacing: Pacing::from(&p.config),
             });
         }
     }
@@ -896,7 +896,7 @@ Read it, then remove the attribute.",
                 narration,
                 action: Some(action),
                 policy: how.policy,
-                config: b.config.clone(),
+                pacing: Pacing::from(b.config),
             });
         }
     }
@@ -920,7 +920,7 @@ Read it, then remove the attribute.",
                 session: None,
             }),
             policy: Policy::Hold,
-            config: self.program.config.clone(),
+            pacing: Pacing::from(&self.program.config),
         });
     }
 }

@@ -1,7 +1,9 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
 use teleprompt_core::VoiceSource;
-use teleprompt_schedule::{schedule, ActionInput, DurationSource, Item, NarrationInput, Policy};
+use teleprompt_schedule::{
+    schedule, ActionInput, DurationSource, Item, NarrationInput, Pacing, Policy,
+};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
     let defaults = Config::default().timing;
@@ -38,7 +40,7 @@ fn item(id: &str, n: Option<u64>, a: Option<u64>, policy: Policy, cfg: Config) -
         narration: n.map(|ms| narration(id, ms)),
         action: a.map(|ms| action(id, ms)),
         policy,
-        config: cfg,
+        pacing: Pacing::from(&cfg),
     }
 }
 
@@ -265,7 +267,7 @@ fn the_auto_transition_fills_the_quiet_window_exactly() {
 fn a_fixed_transition_wider_than_the_quiet_window_warns() {
     let mut items = vec![narration_item("one", 6900), narration_item("two", 5300)];
     for b in &mut items {
-        b.config.transition.duration = TransitionDuration::Fixed(2000);
+        b.pacing.transition.duration = TransitionDuration::Fixed(2000);
     }
     let (timeline, warnings) = schedule(&items, "tour.md", "en", "0.1.0");
 

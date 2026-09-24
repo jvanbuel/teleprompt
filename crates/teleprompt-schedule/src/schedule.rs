@@ -79,7 +79,7 @@ pub fn schedule(
 /// alongside the layout, since transition slack is measured against it.
 fn lay_out_item(item: &Item) -> (u64, Layout) {
     // Padding comes from the narration (see `NarrationInput::lead_in_ms`);
-    // `item.config.timing` is the action block's, which is right for the
+    // `item.pacing.timing` is the action block's, which is right for the
     // action's stretch and speedup bounds.
     let narration_ms = item
         .narration
@@ -108,7 +108,7 @@ fn lay_out_item(item: &Item) -> (u64, Layout) {
         narration_ms,
         action_ms,
         cue_ms,
-        &item.config.timing,
+        &item.pacing.timing,
     );
     (narration_ms, l)
 }
@@ -133,7 +133,7 @@ fn size_transition(
     quiet_window_ms: u64,
     warnings: &mut Vec<String>,
 ) -> u64 {
-    let transition = &item.config.transition;
+    let transition = &item.pacing.transition;
     match transition.duration {
         // Honoured as written, with a warning if it overlaps speech.
         TransitionDuration::Fixed(ms) => {
@@ -168,7 +168,7 @@ fn build_entry(item: &Item, start_ms: u64, l: &Layout, transition_ms: u64) -> En
             .map(|n| narration_entry(n, start_ms + l.narration_start_ms)),
         action: item.action.as_ref().map(|a| action_entry(a, start_ms, l)),
         transition: TransitionEntry {
-            kind: item.config.transition.kind.clone(),
+            kind: item.pacing.transition.kind.clone(),
             duration_ms: transition_ms,
         },
     }

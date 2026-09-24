@@ -2,7 +2,7 @@ use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
 use teleprompt_core::VoiceSource;
 use teleprompt_schedule::{
-    diff, schedule, ActionInput, DurationSource, Item, NarrationInput, Policy, TimelineDiff,
+    diff, schedule, ActionInput, DurationSource, Item, NarrationInput, Pacing, Policy, TimelineDiff,
 };
 
 fn cfg() -> Config {
@@ -28,7 +28,7 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
         }),
         action: None,
         policy: Policy::Hold,
-        config: cfg(),
+        pacing: Pacing::from(&cfg()),
     }
 }
 
@@ -287,7 +287,7 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
         let mut auto = Config::default();
         auto.transition.duration = TransitionDuration::Auto;
         let mut b1 = item("b1", 4000, "one");
-        b1.config = auto.clone();
+        b1.pacing = Pacing::from(&auto);
         b1.action = Some(ActionInput {
             shot_id: "s1".into(),
             scene: "mock".into(),
@@ -299,7 +299,7 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
             session: None,
         });
         let mut b2 = item("b2", 2000, "two");
-        b2.config = auto;
+        b2.pacing = Pacing::from(&auto);
         timeline(vec![b1, b2])
     };
     let d = diff(&build(), &build());
@@ -318,7 +318,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
         c.transition.duration = TransitionDuration::Auto;
         c.transition.max_ms = max_ms;
         let mut b1 = item("b1", 4000, "one");
-        b1.config = c.clone();
+        b1.pacing = Pacing::from(&c);
         b1.action = Some(ActionInput {
             shot_id: "s1".into(),
             scene: "mock".into(),
@@ -331,7 +331,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
         });
         b1.policy = Policy::Concurrent(teleprompt_schedule::Align::Start);
         let mut b2 = item("b2", 2000, "two");
-        b2.config = c;
+        b2.pacing = Pacing::from(&c);
         timeline(vec![b1, b2])
     };
     let before = build(600);
