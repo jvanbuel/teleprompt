@@ -1,7 +1,7 @@
 //! `from`'s drafting step, at the seam it was agreed at: Markdown in,
 //! teleprompt script out, no filesystem.
 
-use teleprompt_core::draft::draft;
+use teleprompt_cli::draft::draft;
 
 #[test]
 fn a_paragraph_becomes_a_line_carrying_its_own_id() {
@@ -66,7 +66,7 @@ fn two_paragraphs_that_open_the_same_way_get_different_ids() {
 }
 
 mod slidev {
-    use teleprompt_core::draft::draft_slidev;
+    use teleprompt_cli::draft::draft_slidev;
 
     const DECK: &str = "---
 theme: default

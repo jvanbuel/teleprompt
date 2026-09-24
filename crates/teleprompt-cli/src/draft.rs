@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::ast::slugify;
+use teleprompt_core::ast::slugify;
 
 /// Languages whose fences become terminal tapes. Anything else is left as
 /// ordinary Markdown: compilation ignores non-`teleprompt` fences, so a JSON

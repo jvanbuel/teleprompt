@@ -1,11 +1,11 @@
 //! `teleprompt from <doc>`: the file handling around
-//! `teleprompt_core::draft`, which does the drafting and holds its tests.
+//! [`crate::draft`], which does the drafting and holds its tests.
 
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
+use crate::draft::{draft, draft_slidev};
 use serde::Serialize;
-use teleprompt_core::draft::{draft, draft_slidev};
 
 /// The stable, typed shape of `from`'s output in both formats.
 #[derive(Debug, Serialize)]

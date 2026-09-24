@@ -1,4 +1,5 @@
 pub mod cmd;
+pub mod draft;
 pub mod output;
 pub mod project;
 pub mod scene;

@@ -8,8 +8,8 @@
 use std::path::PathBuf;
 
 use teleprompt_cli::cmd::check::run_check;
+use teleprompt_cli::draft::draft;
 use teleprompt_cli::project::Project;
-use teleprompt_core::draft::draft;
 
 const README: &str = "\
 # Acme
