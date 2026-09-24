@@ -325,5 +325,9 @@ fn a_directive_inside_a_heading_is_rejected() {
 fn a_pause_longer_than_a_day_is_rejected() {
     let src = "# One\n\nFirst. {#a}\n\n<!-- teleprompt: pause 18446744073709551615ms -->\n";
     let err = parse_script(src).unwrap_err();
-    assert!(err.0[0].message.contains("longer than a day"), "{}", err.0[0].message);
+    assert!(
+        err.0[0].message.contains("longer than a day"),
+        "{}",
+        err.0[0].message
+    );
 }
