@@ -17,7 +17,7 @@ durations.
 one. A render therefore holds each beat's slot with a slate — the timing is
 the scheduled timing, and the picture is not there yet. `build` says how
 many, every time. See
-`docs/superpowers/specs/2026-08-15-teleprompt-design.md` for the design.
+`docs/design.md` for the design.
 
 ## Try it
 
