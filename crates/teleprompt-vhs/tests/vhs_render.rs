@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use teleprompt_capture::{sessions, CaptureBackend, Frame, Shot};
+use teleprompt_capture::{sessions, CaptureBackend, Frame, PlannedShot};
 use teleprompt_core::Hash;
 use teleprompt_vhs::capture::VhsRender;
 
@@ -51,8 +51,8 @@ fn workdir(name: &str) -> PathBuf {
     dir
 }
 
-fn shot(shot: &str, source: &str, ms: u64) -> Shot {
-    Shot {
+fn shot(shot: &str, source: &str, ms: u64) -> PlannedShot {
+    PlannedShot {
         id: shot.into(),
         scene: "terminal".into(),
         adapter: "vhs".into(),

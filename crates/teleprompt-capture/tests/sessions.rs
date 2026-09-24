@@ -6,11 +6,11 @@
 
 use std::collections::HashSet;
 
-use teleprompt_capture::{sessions, Shot};
+use teleprompt_capture::{sessions, PlannedShot};
 use teleprompt_core::Hash;
 
-fn shot(shot: &str, scene: &str, source: &str) -> Shot {
-    Shot {
+fn shot(shot: &str, scene: &str, source: &str) -> PlannedShot {
+    PlannedShot {
         id: shot.into(),
         scene: scene.into(),
         adapter: "mock".into(),

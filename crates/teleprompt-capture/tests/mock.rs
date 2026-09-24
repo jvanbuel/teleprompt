@@ -8,7 +8,7 @@ use std::path::Path;
 use std::process::Command;
 
 use teleprompt_capture::mock::MockCapture;
-use teleprompt_capture::{sessions, CaptureBackend, Frame, Shot};
+use teleprompt_capture::{sessions, CaptureBackend, Frame, PlannedShot};
 use teleprompt_core::Hash;
 
 fn have_ffmpeg() -> bool {
@@ -32,8 +32,8 @@ fn workdir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-fn shot(shot: &str, ms: u64) -> Shot {
-    Shot {
+fn shot(shot: &str, ms: u64) -> PlannedShot {
+    PlannedShot {
         id: shot.into(),
         scene: "terminal".into(),
         adapter: "mock".into(),

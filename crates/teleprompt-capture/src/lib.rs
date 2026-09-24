@@ -17,7 +17,7 @@ use teleprompt_core::Hash;
 
 /// One action shot, as the planner needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Shot {
+pub struct PlannedShot {
     pub id: String,
     pub scene: String,
     pub adapter: String,
@@ -94,7 +94,7 @@ const PAUSE: &str = "pause";
 /// Group `shots` into the sessions a backend can run, dropping what is
 /// already captured. `have` is a predicate rather than a directory, so the
 /// planner reads no filesystem and a test writes none.
-pub fn sessions(shots: &[Shot], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
+pub fn sessions(shots: &[PlannedShot], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
     let mut out: Vec<Session> = Vec::new();
 
     for shot in shots {

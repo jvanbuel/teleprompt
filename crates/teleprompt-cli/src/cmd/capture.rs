@@ -8,7 +8,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_capture::{sessions, CaptureRegistry, Frame, Progress, Session, Shot, WorkDir};
+use teleprompt_capture::{
+    sessions, CaptureRegistry, Frame, PlannedShot, Progress, Session, WorkDir,
+};
 use teleprompt_compile::manifest::NarrationManifest;
 use teleprompt_compile::ShotSource;
 use teleprompt_core::config::SceneConfig;
@@ -21,11 +23,11 @@ pub(crate) fn cues_of(
     manifest: &NarrationManifest,
     shots: &[ShotSource],
     scenes: &BTreeMap<String, SceneConfig>,
-) -> Vec<Shot> {
+) -> Vec<PlannedShot> {
     manifest
         .shots
         .iter()
-        .map(|item| Shot {
+        .map(|item| PlannedShot {
             id: item.shot.clone(),
             scene: item.scene.clone(),
             adapter: item.adapter.clone(),
