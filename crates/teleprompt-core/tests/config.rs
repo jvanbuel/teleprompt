@@ -119,9 +119,7 @@ fn transition_duration_auto_is_case_insensitive() {
     );
 }
 
-/// Final review, item 8. Three constructs in the design spec's own canonical
-/// example were rejected by the compiler an M1 implementer would be building
-/// against:
+/// Three constructs in the canonical example front matter were once rejected:
 ///
 /// ```text
 /// voice.synthetic                       -> unknown field `synthetic`
@@ -129,9 +127,9 @@ fn transition_duration_auto_is_case_insensitive() {
 /// scene.browser.viewport: [1920, 1080]  -> invalid type: sequence, expected a string
 /// ```
 ///
-/// The block below is spec §3.1's front matter pasted **verbatim**,
-/// comments and alignment included. It is deliberately not pruned: pruning
-/// it is what let the gap survive review the first time.
+/// The block below is kept **verbatim**, comments and alignment included. It is
+/// deliberately not pruned: pruning it is what let the gap survive review the
+/// first time.
 const SPEC_3_1_FRONT_MATTER: &str = r#"teleprompt: 1
 locales:
   source: en

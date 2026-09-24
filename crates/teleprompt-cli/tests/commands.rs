@@ -137,12 +137,11 @@ fn tempdir() -> PathBuf {
     base
 }
 
-/// Task 14 review round 1, finding 2: `plan` and `diff` must emit a typed,
-/// parseable JSON payload on failure too, not just on success — a CI
-/// consumer piping `--format json` at a failing command needs something it
-/// can parse. These drive the actual compiled binary rather than the
-/// library functions, since the bug was in `main.rs`'s wiring, not in
-/// `run_plan`/`run_diff` themselves.
+/// `plan` and `diff` must emit a typed, parseable JSON payload on failure too,
+/// not just on success — a CI consumer piping `--format json` at a failing
+/// command needs something it can parse. These drive the actual compiled binary
+/// rather than the library functions, since the bug was in `main.rs`'s wiring,
+/// not in `run_plan`/`run_diff` themselves.
 #[test]
 fn plan_format_json_emits_a_typed_error_payload_on_failure() {
     let (p, _s) = project_with(BAD_ATTR);
@@ -187,11 +186,11 @@ fn diff_format_json_emits_a_typed_error_payload_on_failure() {
         .contains("unknown mock directive"));
 }
 
-/// Final review, item 3. `Path::new("demo.md").parent()` is `Some("")`, not
-/// `None`, so the `unwrap_or(Path::new("."))` fallback never fired and
-/// `"".canonicalize()` gave a bare `No such file or directory (os error 2)`
-/// with no path in it. Every other test here, the README, and both manual
-/// transcripts happen to pass a path with a directory component.
+/// `Path::new("demo.md").parent()` is `Some("")`, not `None`, so the
+/// `unwrap_or(Path::new("."))` fallback never fired and `"".canonicalize()`
+/// gave a bare `No such file or directory (os error 2)` with no path in it.
+/// Every other test here, the README, and both manual transcripts happen to
+/// pass a path with a directory component.
 ///
 /// Driven through the binary with `current_dir` set, because the defect is
 /// precisely about relative-path resolution against the process's working
@@ -286,13 +285,13 @@ fn a_line_level_backend_that_matches_the_resolved_backend_is_fine() {
     assert!(run_check(&p, &s, "en").is_ok());
 }
 
-/// Fix round 1: a chapter-level `voice.backend` override with no line
-/// attribute must still be rejected (Delivery A supports one backend per
-/// compile, full stop), but `Element::Narration`'s config is already merged
-/// and cannot say which layer produced the value. The diagnostic must
-/// therefore describe the effect ("resolves to") rather than accuse the
-/// line of writing an attribute it never wrote, and the help text must
-/// mention that chapter-level overrides are unsupported too.
+/// A chapter-level `voice.backend` override with no line attribute must still
+/// be rejected (Delivery A supports one backend per compile, full stop), but
+/// `Element::Narration`'s config is already merged and cannot say which layer
+/// produced the value. The diagnostic must therefore describe the effect
+/// ("resolves to") rather than accuse the line of writing an attribute it never
+/// wrote, and the help text must mention that chapter-level overrides are
+/// unsupported too.
 #[test]
 fn a_chapter_level_backend_override_is_reported_without_claiming_the_line_set_it() {
     let (p, s) = project_with(
@@ -314,8 +313,8 @@ fn a_chapter_level_backend_override_is_reported_without_claiming_the_line_set_it
     );
 }
 
-/// Fix round 1: a chapter-wide override affecting several lines must
-/// produce exactly one diagnostic naming all of them, not one per line.
+/// A chapter-wide override affecting several lines must produce exactly one
+/// diagnostic naming all of them, not one per line.
 #[test]
 fn a_chapter_level_backend_override_across_several_lines_is_one_diagnostic() {
     let (p, s) = project_with(

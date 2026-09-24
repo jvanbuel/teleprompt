@@ -22,11 +22,10 @@ pub struct NarrationInput {
     /// These travel with the narration rather than being read off the
     /// [`Item`]'s single `config` because an item's two halves resolve from
     /// different configuration layers: the narration's padding comes from the
-    /// *line's* attributes (`{#a lead_in=1000ms}`), while the item's
-    /// `config` is the following action block's. Reading padding off
-    /// `Item::config` silently discarded every line-level `lead_in=` /
-    /// `tail=` whenever an action block followed the paragraph — which, per
-    /// spec §3.1, is the normal case.
+    /// *line's* attributes (`{#a lead_in=1000ms}`), while the item's `config`
+    /// is the following action block's. Reading padding off `Item::config`
+    /// silently discarded every line-level `lead_in=` / `tail=` whenever an
+    /// action block followed the paragraph — which is the normal case.
     pub lead_in_ms: u64,
     pub tail_ms: u64,
     pub voice_source: VoiceSource,

@@ -95,8 +95,7 @@ fn output_is_rejected_because_teleprompt_owns_framing() {
     assert!(e[0].message.contains("Output"), "{}", e[0].message);
 }
 
-/// The other half of §7.5's capture conflict: teleprompt drives its own PTY,
-/// so the tape does not get to choose the shell.
+/// The shell is the scene's, so the tape does not get to choose it.
 #[test]
 fn set_shell_is_rejected_alongside_output() {
     let e = VhsScene

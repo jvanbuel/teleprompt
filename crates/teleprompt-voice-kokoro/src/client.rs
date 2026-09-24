@@ -21,9 +21,9 @@ impl Client {
         &self.cfg
     }
 
-    /// Every failure here is fatal to the command. Spec §7.1: a broken
-    /// synthesizer is not a voice tier, so there is no fallback to silence
-    /// anywhere in this file.
+    /// Every failure here is fatal to the command
+    /// (docs/design.md#backend-failure): a broken synthesizer is not a voice
+    /// tier, so there is no fallback to silence anywhere in this file.
     fn fail(&self, what: &str) -> VoiceError {
         VoiceError::Other(format!("kokoro at {}: {what}", self.cfg.base_url))
     }

@@ -202,11 +202,11 @@ fn progress_reporter(format: Format) -> impl FnMut(Progress) {
 
 /// The async runtime, built for `dub` and `doctor` and nothing else.
 ///
-/// Current-thread rather than multi-thread: neither command awaits more
-/// than one thing at a time, so worker threads have nothing to do. Spec
-/// §7.2's bounded concurrent fan-out would want `new_multi_thread` back for
-/// `dub` — which is why the `rt-multi-thread` feature is still declared
-/// rather than trimmed away.
+/// Current-thread rather than multi-thread: neither command awaits more than
+/// one thing at a time, so worker threads have nothing to do. A bounded
+/// concurrent fan-out would want `new_multi_thread` back for `dub` — which is
+/// why the `rt-multi-thread` feature is still declared rather than trimmed
+/// away.
 ///
 /// Its error is a bare `String`, not `dub::DubError`: `doctor` has no
 /// `DubError` channel of its own, so a shared helper cannot return one

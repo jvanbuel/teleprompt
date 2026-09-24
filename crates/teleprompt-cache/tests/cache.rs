@@ -190,13 +190,13 @@ fn no_voice_is_distinguishable_from_a_voice_literally_named_dash() {
     assert_ne!(none.to_string(), dash.to_string());
 }
 
-/// I4. A corrupt sidecar used to be an error, which made a gitignored,
-/// entirely derived artifact fail `check` — a validation command — with the
-/// blame attributed to the script and no recovery offered. The cache is
-/// content-addressed: an unreadable entry is missing information, never
-/// wrong information, so the only correct reading is a miss. The warning is
-/// what keeps that from being silent, since a line would otherwise revert
-/// from `measured` to `estimated` for no visible reason.
+/// A corrupt sidecar used to be an error, which made a gitignored, entirely
+/// derived artifact fail `check` — a validation command — with the blame
+/// attributed to the script and no recovery offered. The cache is
+/// content-addressed: an unreadable entry is missing information, never wrong
+/// information, so the only correct reading is a miss. The warning is what
+/// keeps that from being silent, since a line would otherwise revert from
+/// `measured` to `estimated` for no visible reason.
 #[test]
 fn a_corrupt_sidecar_reads_as_a_miss_and_names_itself() {
     let root = tempdir("corrupt");
@@ -351,13 +351,12 @@ fn race_one_key(root: &std::path::Path, k: &CacheKey, a_ms: u64, b_ms: u64) -> V
     handles.into_iter().map(|h| h.join().unwrap()).collect()
 }
 
-/// I3. `store` used to be two plain `std::fs::write` calls with nothing
-/// serialising writers, so the interleaving `wav_A → wav_B → sidecar_B →
-/// sidecar_A` left a well-formed sidecar beside audio it does not describe.
-/// Nothing above this layer can detect that: on a cache *hit* the duration
-/// `dub` publishes and the duration it checks the file against both come
-/// from this one sidecar, so the WAV-length guard compares a value against
-/// itself.
+/// `store` used to be two plain `std::fs::write` calls with nothing serialising
+/// writers, so the interleaving `wav_A → wav_B → sidecar_B → sidecar_A` left a
+/// well-formed sidecar beside audio it does not describe. Nothing above this
+/// layer can detect that: on a cache *hit* the duration `dub` publishes and the
+/// duration it checks the file against both come from this one sidecar, so the
+/// WAV-length guard compares a value against itself.
 ///
 /// The audio is deliberately *small*. The dangerous interleaving needs each
 /// writer's two writes to be pulled apart, which happens when the writes are

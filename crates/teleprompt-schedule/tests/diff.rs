@@ -223,11 +223,10 @@ fn an_empty_diff_renders_a_single_reassuring_line() {
     assert_eq!(diff(&a, &a).render(), "no timeline changes");
 }
 
-/// Not in the brief, but load-bearing for Task 14: a committed timeline is
-/// written to disk and read back, so `Serialize`/`Deserialize` must be
-/// exact inverses — including for the optional fields (`action`,
-/// `downgrade_reason`) that are skipped on write and so must default to
-/// `None` on read rather than failing to deserialize.
+/// A committed timeline is written to disk and read back, so
+/// `Serialize`/`Deserialize` must be exact inverses — including for the
+/// optional fields (`action`, `downgrade_reason`) that are skipped on write and
+/// so must default to `None` on read rather than failing to deserialize.
 #[test]
 fn a_timeline_with_no_action_and_no_downgrade_reason_round_trips_through_json() {
     let original = timeline(vec![item("b1", 1000, "one")]);
@@ -236,14 +235,13 @@ fn a_timeline_with_no_action_and_no_downgrade_reason_round_trips_through_json() 
     assert_eq!(restored, original);
 }
 
-/// Task 14 review round 1, finding 1: the header's three printed numbers
-/// must reconcile. Rounding `before_ms`, `after_ms`, and the raw
-/// `shift_ms` independently to one decimal is not guaranteed to agree,
-/// because tenths-of-a-second rounding is not linear: 1ms rounds to 0.0s,
-/// 50ms rounds to 0.1s (round-half-away-from-zero), but the exact 49ms
-/// difference between them also rounds to 0.0s on its own. A renderer that
-/// rounds all three independently would print "0.0s → 0.1s (+0.0s)",
-/// which visibly doesn't add up. The displayed shift must instead be
+/// The header's three printed numbers must reconcile. Rounding `before_ms`,
+/// `after_ms`, and the raw `shift_ms` independently to one decimal is not
+/// guaranteed to agree, because tenths-of-a-second rounding is not linear: 1ms
+/// rounds to 0.0s, 50ms rounds to 0.1s (round-half-away-from-zero), but the
+/// exact 49ms difference between them also rounds to 0.0s on its own. A
+/// renderer that rounds all three independently would print "0.0s → 0.1s
+/// (+0.0s)", which visibly doesn't add up. The displayed shift must instead be
 /// derived from the two already-rounded endpoints.
 #[test]
 fn rendered_shift_reconciles_with_the_rounded_endpoints() {
@@ -273,7 +271,7 @@ fn rendered_shift_reconciles_with_the_rounded_endpoints() {
 }
 
 // ---------------------------------------------------------------------------
-// Final review, item 1: `diff` was blind to whole classes of drift.
+// `diff` was blind to whole classes of drift.
 //
 // Every test above this line builds its items with
 // `TransitionDuration::Fixed(0)` and none of them reorders items, which is
@@ -347,11 +345,11 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
     assert!(!d.is_empty(), "a re-timed timeline is not a clean diff");
     assert_eq!(d.transitions.len(), 1, "only b1 has an outgoing transition");
     assert_eq!(d.transitions[0].item, "b1");
-    // 300, not the configured 600: core spec §6.3 caps an `auto` transition
-    // at the quiet window, which here is this item's 150ms tail plus the
-    // next item's 150ms lead_in. What this test guards is unaffected —
-    // retuning `max_ms` still moves every gap and the total while no item's
-    // own hash or duration changes, which is what `diff` used to miss.
+    // 300, not the configured 600: the quiet window caps an `auto` transition
+    // at the quiet window, which here is this item's 150ms tail plus the next
+    // item's 150ms lead_in. What this test guards is unaffected — retuning
+    // `max_ms` still moves every gap and the total while no item's own hash or
+    // duration changes, which is what `diff` used to miss.
     assert_eq!(d.transitions[0].before_ms, 300);
     assert_eq!(d.transitions[0].after_ms, 0);
     assert!(d.changed.is_empty(), "no item's own content changed");

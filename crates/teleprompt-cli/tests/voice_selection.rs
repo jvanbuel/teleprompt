@@ -32,7 +32,7 @@ fn kokoro_takes_its_settings_from_the_backends_map() {
     assert_eq!(k.base_url(), "http://gpu-box:8880");
 }
 
-/// I2. A backend whose settings do not validate must still be *reported* —
+/// A backend whose settings do not validate must still be *reported* —
 /// deferring the failure to the projects that select it is not the same as
 /// dropping it, and the message must survive the deferral intact.
 #[test]
@@ -69,8 +69,8 @@ fn a_bad_setting_for_one_backend_leaves_the_others_usable() {
     );
 }
 
-/// I1. A `backends:` key matching no shipped id used to be dropped without a
-/// word, so `[backends.kokoro-local]` left `dub` talking to the default
+/// A `backends:` key matching no shipped id used to be dropped without a word,
+/// so `[backends.kokoro-local]` left `dub` talking to the default
 /// `localhost:8880`.
 #[test]
 fn settings_for_a_backend_this_build_lacks_are_named_not_dropped() {
@@ -224,13 +224,12 @@ fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
         "{msg}"
     );
 
-    // M1: this warning used to be pushed already rendered — carrying its
-    // own `warning: ` prefix and a trailing `\n  --> file` line — into a
-    // vec whose only consumers (`main.rs`'s `eprintln!("warning: {w}")` and
-    // `--format json`'s `warnings` array) add that framing themselves. That
-    // doubled the prefix on stderr and, under `--format json`, put a
-    // multi-line, already-labelled string next to every other entry's bare
-    // sentence.
+    // This warning used to be pushed already rendered — carrying its own
+    // `warning: ` prefix and a trailing `\n  --> file` line — into a vec whose
+    // only consumers (`main.rs`'s `eprintln!("warning: {w}")` and `--format
+    // json`'s `warnings` array) add that framing themselves. That doubled the
+    // prefix on stderr and, under `--format json`, put a multi-line,
+    // already-labelled string next to every other entry's bare sentence.
     assert!(
         !msg.starts_with("warning:"),
         "the caller adds the `warning: ` prefix; a bare warning must not \

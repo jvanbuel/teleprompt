@@ -214,9 +214,8 @@ async fn the_binary_builds_a_video_and_reports_it_as_json() {
     assert!(out.exists());
 }
 
-/// `output:` in front matter is the script's own statement about the video
-/// it wants. It has been parsed and thrown away since M0; a render is the
-/// first thing that can act on it.
+/// `output:` in front matter is the script's own statement about the video it
+/// wants, and a render is what acts on it.
 #[tokio::test]
 async fn front_matter_decides_the_frame_when_no_flag_does() {
     if !have_ffmpeg() {

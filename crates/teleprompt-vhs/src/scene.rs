@@ -1,8 +1,7 @@
 //! The `terminal` scene, served by VHS tapes.
 //!
-//! The block body is real VHS tape syntax and stays runnable by `vhs` itself
-//! — including the mark, which is spelled as a comment for exactly that
-//! reason (§7.5). teleprompt reuses the language; the runtime is its own PTY.
+//! The block body is real VHS tape syntax and stays runnable by `vhs` itself —
+//! including the mark, which is spelled as a comment for exactly that reason.
 //!
 //! A tape mostly states its own timing: every `Sleep` is written down and
 //! every keystroke costs `Set TypingSpeed`. So `estimate` is exact for a shot
@@ -344,8 +343,8 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, CommandEr
         "TypingSpeed" => duration(Setting::TypingSpeed),
         "WaitTimeout" => duration(Setting::WaitTimeout),
 
-        // teleprompt executes the tape against its own PTY (§7.5), so a tape
-        // that picks its own shell picks one teleprompt is not driving.
+        // The shell is the scene's, set before its first block runs, so a tape
+        // that picks its own shell picks one the capture is not driving.
         "Shell" => Err(CommandError::new(
             "`Set Shell` is set by teleprompt, not by the tape",
             "remove the line; configure the shell under `scene.terminal`",
@@ -505,10 +504,10 @@ fn reject_trailing(cmd: &str, tail: &str) -> Result<(), CommandError> {
 /// True when a mark-separated chunk carries something to execute.
 ///
 /// A chunk of nothing but comments and `Set` lines is empty, not a
-/// zero-duration shot (ruling F13). `TypingSpeed` counts as a setting here
-/// even though it carries a duration: it configures later typing rather than
-/// spending any time itself, and a chunk holding only settings is exactly the
-/// phantom shot F13 rules out.
+/// zero-duration shot. `TypingSpeed` counts as a setting here even though it
+/// carries a duration: it configures later typing rather than spending any time
+/// itself, and a chunk holding only settings is exactly the phantom shot F13
+/// rules out.
 fn has_content(chunk: &[&str]) -> bool {
     chunk
         .iter()
@@ -568,16 +567,15 @@ impl SceneCompiler for VhsScene {
     /// Exact for a shot whose timing the tape states in full, `Estimated` for
     /// one containing a `Wait`.
     ///
-    /// The distinction is per shot rather than per adapter. `Sleep` and
-    /// `Set TypingSpeed` are exact, and a shot built from those alone needs
-    /// no measuring pass — which is what lets `plan` and `diff` report a
-    /// terminal scene's pacing offline, with no terminal anywhere. `Wait` is
-    /// the exception: it blocks until the shell prompt returns, so its length
-    /// is whatever `cargo build` takes, and that number is nowhere in the
-    /// tape. Its timeout is the bound the tape does state, so the shot
-    /// contributes that and says `Estimated` — the honest signal that M1's
-    /// measuring pass has something to improve here and nothing to improve on
-    /// the shot next to it.
+    /// The distinction is per shot rather than per adapter. `Sleep` and `Set
+    /// TypingSpeed` are exact, and a shot built from those alone needs no
+    /// measuring pass — which is what lets `plan` and `diff` report a terminal
+    /// scene's pacing offline, with no terminal anywhere. `Wait` is the
+    /// exception: it blocks until the shell prompt returns, so its length is
+    /// whatever `cargo build` takes, and that number is nowhere in the tape.
+    /// Its timeout is the bound the tape does state, so the shot contributes
+    /// that and says `Estimated` — the honest signal that this shot's length is
+    /// a bound, unlike the shot next to it.
     fn estimate(&self, shot: &Shot) -> Measured {
         let mut speed = DEFAULT_TYPING_SPEED_MS;
         let mut timeout = DEFAULT_WAIT_TIMEOUT_MS;

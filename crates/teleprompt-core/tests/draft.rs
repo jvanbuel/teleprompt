@@ -5,9 +5,9 @@ use teleprompt_core::draft::draft;
 
 #[test]
 fn a_paragraph_becomes_a_line_carrying_its_own_id() {
-    // §3.3: a derived id shifts when a paragraph is inserted above it, which
-    // silently invalidates caches and takes. A drafted script promotes the
-    // id at birth so the first edit cannot move it.
+    // A derived id shifts when a paragraph is inserted above it, which silently
+    // invalidates caches and takes. A drafted script promotes the id at birth
+    // so the first edit cannot move it.
     let out = draft("Welcome to Acme. Let me show you around.\n", "Acme");
     assert!(
         out.contains("Welcome to Acme. Let me show you around. {#welcome-to-acme}"),
@@ -55,8 +55,8 @@ fn a_non_shell_fence_survives_as_ordinary_markdown() {
 
 #[test]
 fn two_paragraphs_that_open_the_same_way_get_different_ids() {
-    // Ids are the anchor for caching, translation and take binding (§3.3).
-    // Two of them colliding would make two lines one.
+    // Ids are the anchor for caching and the manifest's audio files. Two of
+    // them colliding would make two lines one.
     let out = draft(
         "Run the build. It takes a while.\n\nRun the build again.\n",
         "Acme",

@@ -1,9 +1,9 @@
-//! Task 15: end-to-end acceptance for the M0 feedback loop.
+//! End-to-end acceptance for the feedback loop.
 //!
 //! These tests drive the CLI's own command functions against a realistic,
 //! multi-chapter script (`tests/fixtures/tour.md`) rather than the small
-//! synthetic fixtures used elsewhere. Together they answer M0's defining
-//! question: does editing prose produce a legible, useful diff of the
+//! synthetic fixtures used elsewhere. Together they answer the project's
+//! defining question: does editing prose produce a legible, useful diff of the
 //! video's pacing?
 
 use std::path::PathBuf;
@@ -85,7 +85,7 @@ fn planning_twice_gives_byte_identical_output() {
     assert_eq!(a, b);
 }
 
-/// The M0 acceptance criterion.
+/// The acceptance criterion.
 #[test]
 fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     let (p, s) = workspace();
@@ -122,12 +122,11 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     assert!(rendered.contains('→'));
 }
 
-/// Exact-duration assertion (Task 17, item 6). Guards against silent
-/// regressions in text fidelity: before Task 17, `rollback`'s soft-wrapped
-/// paragraph had its two lines concatenated with no separator ("one" and
-/// "extra" fused into "oneextra"), which undercounted its words by one and
-/// made every duration derived from wrapped prose too short. Hand-derived
-/// from the null backend's documented model (see
+/// Exact-duration assertion. Guards against silent regressions in text
+/// fidelity: `rollback`'s soft-wrapped paragraph had its two lines concatenated
+/// with no separator ("one" and "extra" fused into "oneextra"), which
+/// undercounted its words by one and made every duration derived from wrapped
+/// prose too short. Hand-derived from the null backend's documented model (see
 /// `teleprompt_voice::null::estimate_ms`) rather than copied from program
 /// output.
 ///

@@ -2,14 +2,10 @@ use teleprompt_core::{Diagnostic, Hash, SourceSpan};
 
 /// Where an action block's body text actually lives.
 ///
-/// A `BlockSource` used to carry only the *fence's* shot in the script, and
-/// adapters offset body line `i` by `shot.line + i + 1`. That is right for a
-/// body written inline, and meaningless for one loaded with `include=`: an
-/// error on line 3 of `steps.mock` came out as `scripts/h1.md:12:1` in a
-/// ten-line script. Controller ruling F12 removed a fabricated `line: 0` from
-/// this exact path; `include=` (T16) reintroduced a fabricated line by
-/// another route, ten tasks after F12 set the convention. An origin — which
-/// file, starting at which line — is what the convention actually needs.
+/// A fence's position is right for a body written inline and meaningless for
+/// one loaded with `include=`, whose line 3 is line 3 of that file. So
+/// diagnostics are positioned from an origin — which file, starting at which
+/// line — rather than from the fence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BodyOrigin {
     /// Written inline in the script, inside the fence at `fence`. Body line
@@ -80,9 +76,8 @@ pub struct Shot {
 /// Duration of a shot, in milliseconds.
 ///
 /// `Exact` comes from a declarative language that states its own timing.
-/// `Estimated` is a guess the compiler may improve by measuring.
-/// `Unknown` means the adapter cannot say and a measuring pass is required
-/// (M1 and later; M0 adapters never return it).
+/// `Estimated` is a bound, such as a `Wait`'s timeout. `Unknown` means the
+/// adapter cannot say; the shot then takes its line's length.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Measured {
     Exact(u64),

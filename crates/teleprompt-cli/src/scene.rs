@@ -21,8 +21,7 @@ use teleprompt_vhs::VhsScene;
 /// the dependency arrows already point.
 ///
 /// Adding an adapter is a line here plus a crate. Nothing in `-core`,
-/// `-compile`, or `-schedule` learns its name, which is the property spec
-/// §7.6 asks the contract to protect.
+/// `-compile`, or `-schedule` learns its name (docs/design.md#crates).
 pub fn scenes() -> SceneRegistry {
     let mut registry = SceneRegistry::with_builtins();
     registry.register(Box::new(VhsScene));

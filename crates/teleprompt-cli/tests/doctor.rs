@@ -84,10 +84,9 @@ fn kokoro_backends(base_url: &str) -> BTreeMap<String, serde_yaml::Value> {
     backends
 }
 
-/// Spec §9 says `doctor` probes the *configured* backend. A freshly
-/// scaffolded project's `voice.backend` is `null`, which has no server —
-/// so `doctor` must not reach across the network for it, and must not print
-/// a line pretending it did.
+/// `doctor` probes the *configured* backend. A freshly scaffolded project's
+/// `voice.backend` is `null`, which has no server — so `doctor` must not reach
+/// across the network for it, and must not print a line pretending it did.
 #[tokio::test]
 async fn a_null_backend_project_probes_nothing() {
     let project = project_with_backend("null", BTreeMap::new());
@@ -122,8 +121,8 @@ async fn a_kokoro_backend_project_against_a_reachable_stub_reports_its_voice_cou
 
 #[tokio::test]
 async fn a_kokoro_backend_project_against_a_dead_port_is_a_warning_not_a_failure() {
-    // Spec §9: check and plan do not need the server, so doctor must not
-    // report a red state for a machine that simply has not started it.
+    // Check and plan do not need the server, so doctor must not report a red
+    // state for a machine that simply has not started it.
     let project = project_with_backend("kokoro", kokoro_backends("http://127.0.0.1:1"));
     let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
 
@@ -164,12 +163,12 @@ async fn kokoro_stub_that_hangs() -> HangingKokoroStub {
     }
 }
 
-/// M2: a hanging server used to make `doctor` wait out the full synthesis
-/// `timeout_ms` (30 000 by default) before saying anything, with no word
-/// that the failure was specifically a timeout. `timeout_ms` here is set
-/// far above the probe's own deadline, so only a probe that gives up on its
-/// own — not one that happens to be fast for some other reason — makes this
-/// test finish quickly.
+/// A hanging server used to make `doctor` wait out the full synthesis
+/// `timeout_ms` (30 000 by default) before saying anything, with no word that
+/// the failure was specifically a timeout. `timeout_ms` here is set far above
+/// the probe's own deadline, so only a probe that gives up on its own — not one
+/// that happens to be fast for some other reason — makes this test finish
+/// quickly.
 #[tokio::test]
 async fn a_hanging_kokoro_server_does_not_make_doctor_wait_out_the_synthesis_timeout() {
     let stub = kokoro_stub_that_hangs().await;
@@ -325,9 +324,8 @@ async fn outside_a_project_there_is_no_probe() {
     assert!(report.ok);
 }
 
-/// Spec §9: a missing or too-old ffmpeg is the most likely first-run
-/// failure, so `doctor` is where it is found rather than fifteen minutes
-/// into a render.
+/// A missing or too-old ffmpeg is the most likely first-run failure, so
+/// `doctor` is where it is found rather than fifteen minutes into a render.
 #[tokio::test]
 async fn the_report_says_whether_this_machine_can_render() {
     let report = doctor_report_with(&SceneRegistry::with_builtins(), None).await;
@@ -350,8 +348,8 @@ async fn the_report_says_whether_this_machine_can_render() {
         "and it is in the human report either way: {rendered}"
     );
     assert!(
-        !rendered.contains("M0 builds no video"),
-        "the note that video was out of scope outlived its milestone: {rendered}"
+        !rendered.contains("builds no video"),
+        "`build` renders video, so no note may say otherwise: {rendered}"
     );
 }
 

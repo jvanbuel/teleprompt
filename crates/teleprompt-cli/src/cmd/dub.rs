@@ -320,10 +320,10 @@ pub async fn run_dub_with(
         )
     });
 
-    // Spec §7: the voice list is checked once here, not at `check` time.
-    // `check` must stay offline and synchronous, and a gate that only works
-    // when a server happens to be running is worse than no gate — the same
-    // script would pass on one machine and fail on another.
+    // The voice list is checked once here, not at `check` time. `check` must
+    // stay offline and synchronous, and a gate that only works when a server
+    // happens to be running is worse than no gate — the same script would pass
+    // on one machine and fail on another.
     //
     // `Backends::kokoro` rather than widening the trait: "list your voices"
     // is not something every backend can do, and adding an
@@ -344,14 +344,14 @@ pub async fn run_dub_with(
             .filter_map(|d| d.synth_request.voice.clone())
             .collect::<std::collections::BTreeSet<_>>();
         if !wanted.is_empty() {
-            // Spec §7.1: a server that is unreachable, slow, or returns
-            // non-200 fails the command with exit 1 — that is a fact about
-            // the machine, not the script. Only a server that *answered*
-            // and simply does not list the configured voice is a script
-            // problem (`Validation`, exit 2). `VoiceError`'s `Display`
-            // already names the URL (`Client::fail` prefixes every message
-            // with `kokoro at {base_url}: ...`), so both arms satisfy
-            // §7.1's "names the URL" requirement without repeating it here.
+            // A server that is unreachable, slow, or returns non-200 fails the
+            // command with exit 1 — that is a fact about the machine, not the
+            // script. Only a server that *answered* and simply does not list
+            // the configured voice is a script problem (`Validation`, exit 2).
+            // `VoiceError`'s `Display` already names the URL (`Client::fail`
+            // prefixes every message with `kokoro at {base_url}: ...`), so both
+            // arms satisfy the "names the URL" rule
+            // (docs/design.md#backend-failure).
             let available = kokoro
                 .voices()
                 .await
@@ -404,16 +404,16 @@ pub async fn run_dub_with(
     let permits = Arc::new(tokio::sync::Semaphore::new(limit));
 
     // Progress is reported in *completion* order with a running count, not
-    // pretended into document order: under genuine concurrency (`limit >
-    // 1`), which line finishes second is a fact about the server, not
-    // about the script, and a counter that silently relabelled completions
-    // to look sequential would be lying about what just happened. At
-    // `limit = 1` there is no concurrency for completion order to diverge
-    // from document order in the first place — see the note on `limit`
-    // above — so this order is document order there too, not a special
-    // case, just the one case where "completion order" and "document
-    // order" happen to coincide. Progress is still per line, because a
-    // cold multi-line script is otherwise minutes of silence (spec §15).
+    // pretended into document order: under genuine concurrency (`limit > 1`),
+    // which line finishes second is a fact about the server, not about the
+    // script, and a counter that silently relabelled completions to look
+    // sequential would be lying about what just happened. At `limit = 1` there
+    // is no concurrency for completion order to diverge from document order in
+    // the first place — see the note on `limit` above — so this order is
+    // document order there too, not a special case, just the one case where
+    // "completion order" and "document order" happen to coincide. Progress is
+    // still per line, because a cold multi-line script is otherwise minutes of
+    // silence.
     let total = compiled.narration.len();
     let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
@@ -480,16 +480,15 @@ pub async fn run_dub_with(
         });
     }
 
-    // `JoinSet` hands results back in completion order, not document order,
-    // so each one is filed at the indices its task carried rather than
-    // appended. Spec §7.1: one line's failure fails the run. The first
-    // error to land aborts every task still in flight instead of waiting
-    // for the rest to finish or fail too — a half-dubbed output directory
-    // is worse than none, and there is no reason to keep hammering the
-    // server once the run is already going to fail. Cache entries other
-    // tasks already stored before the abort are left in place: the cache is
-    // content-addressed and gitignored, so keeping what was already
-    // synthesized is only useful, never wrong.
+    // `JoinSet` hands results back in completion order, not document order, so
+    // each one is filed at the indices its task carried rather than appended.
+    // One line's failure fails the run. The first error to land aborts every
+    // task still in flight instead of waiting for the rest to finish or fail
+    // too — a half-dubbed output directory is worse than none, and there is no
+    // reason to keep hammering the server once the run is already going to
+    // fail. Cache entries other tasks already stored before the abort are left
+    // in place: the cache is content-addressed and gitignored, so keeping what
+    // was already synthesized is only useful, never wrong.
     let mut slots: Vec<Option<Rendered>> = (0..total).map(|_| None).collect();
     let mut failure: Option<DubError> = None;
     while let Some(joined) = tasks.join_next().await {
@@ -620,11 +619,11 @@ pub async fn run_dub_with(
     // which is exactly what a pacing drift check wants.
     //
     // The manifest's is `Hash::of(&wav_bytes)`: a description of the file
-    // sitting beside it, which is what spec §5.1 documents and what lets a
-    // consumer skip re-encoding a byte-identical render. `manifest::build`
-    // runs before anything is encoded and can only seed the field with the
-    // timeline's value, so `dub` — the one place that has the bytes —
-    // publishes their hash.
+    // sitting beside it (docs/design.md#manifest), which is what lets a
+    // consumer skip re-encoding a byte-identical render. `manifest::build` runs
+    // before anything is encoded and can only seed the field with the
+    // timeline's value, so `dub` — the one place that has the bytes — publishes
+    // their hash.
     //
     // Done before the `--check` branch, not only on the write path, so a
     // comparison is always like-for-like.

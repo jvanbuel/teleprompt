@@ -12,8 +12,8 @@ pub struct Chapter {
     pub slug: String,
     pub nodes: Vec<Node>,
     /// The YAML body of a ` ```yaml teleprompt ` block appearing immediately
-    /// after this chapter's heading (config layer 4, spec §3.5). Empty when
-    /// the chapter has no such block.
+    /// after this chapter's heading (config layer 4,
+    /// docs/design.md#configuration). Empty when the chapter has no such block.
     pub front_matter: String,
 }
 

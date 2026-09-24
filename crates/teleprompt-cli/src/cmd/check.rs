@@ -60,10 +60,10 @@ pub(crate) fn backends_of(project: &Project) -> Backends {
 
 /// [`compile_script`] against caller-supplied backends.
 ///
-/// The seam exists so a test can register a backend this build does not
-/// ship and watch the whole path — key, synthesis, cache, manifest — follow
-/// it. That is the claim spec §4.1 makes, and it is not a claim a workspace
-/// with exactly one real backend can otherwise check.
+/// The seam exists so a test can register a backend this build does not ship
+/// and watch the whole path — key, synthesis, cache, manifest — follow it
+/// (docs/design.md#crates), which a workspace with one real backend could not
+/// otherwise check.
 pub(crate) fn compile_script_with(
     backends: &Backends,
     project: &Project,

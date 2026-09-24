@@ -80,14 +80,13 @@ async fn an_unreachable_server_names_the_url() {
     assert!(err.to_string().contains("127.0.0.1:1"), "{err}");
 }
 
-/// M2. `speech()` already distinguishes a timeout from every other
-/// transport failure (`a_timeout_names_the_url_and_the_limit` in
-/// `synth.rs`); `voices()` used to map every `send()` error, timeout
-/// included, to the same "cannot list voices: {e}" — and reqwest's
-/// `Display` drops the source chain, so a hang read identically to a
-/// refused connection. `doctor`'s probe is the caller that most needs the
-/// distinction, since it is the command reached for when something is
-/// broken.
+/// `speech()` already distinguishes a timeout from every other transport
+/// failure (`a_timeout_names_the_url_and_the_limit` in `synth.rs`); `voices()`
+/// used to map every `send()` error, timeout included, to the same "cannot list
+/// voices: {e}" — and reqwest's `Display` drops the source chain, so a hang
+/// read identically to a refused connection. `doctor`'s probe is the caller
+/// that most needs the distinction, since it is the command reached for when
+/// something is broken.
 #[tokio::test]
 async fn a_timeout_names_the_limit_not_a_generic_transport_error() {
     let s = spawn(Reply::Hang).await;

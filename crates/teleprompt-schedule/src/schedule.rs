@@ -80,11 +80,11 @@ pub fn schedule(
         let slack = narration_ms.saturating_sub(l.action_duration_ms);
         let is_last = i + 1 == items.len();
 
-        // Spec §6.3, the quiet window: a transition overlaps the item it
-        // leaves, so it may only consume time when nobody is speaking. That is
-        // this item's trailing silence — from where its narration ends to
-        // where the item ends, normally `tail` — plus the next item's
-        // `lead_in`.
+        // The quiet window (docs/design.md#quiet-window): a transition overlaps
+        // the item it leaves, so it may only consume time when nobody is
+        // speaking. That is this item's trailing silence — from where its
+        // narration ends to where the item ends, normally `tail` — plus the
+        // next item's `lead_in`.
         //
         // Without this, a script of plain paragraphs derives `slack` from the
         // whole narration, because there is no action to subtract, and every

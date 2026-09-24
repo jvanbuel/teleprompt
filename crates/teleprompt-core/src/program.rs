@@ -43,9 +43,9 @@ pub enum Element {
         /// apart.
         chapter_index: usize,
         config: Config,
-        /// Source location of the paragraph this narration came from
-        /// (controller ruling F12), so downstream diagnostics can point at
-        /// the real line instead of a fabricated one.
+        /// Source location of the paragraph this narration came from, so
+        /// downstream diagnostics can point at the real line instead of a
+        /// fabricated one.
         span: SourceSpan,
     },
     Action {

@@ -167,11 +167,11 @@ fn unknown_attribute_keys_surface_as_errors() {
     assert!(e.0[0].message.contains("unknown attribute key `polcy`"));
 }
 
-/// Controller ruling F12: `Element` carries the source shot from the AST node it
-/// was built from, so Task 11 can point an adapter validation error at the
-/// real line instead of a fabricated `line: 0`. This script puts the
-/// narration paragraph and the action fence on different lines, so the test
-/// would fail if the shots were swapped or both zeroed.
+/// `Element` carries the source span from the AST node it was built from, so an
+/// adapter validation error points at the real line instead of a fabricated
+/// `line: 0`. This script puts the narration paragraph and the action fence on
+/// different lines, so the test would fail if the shots were swapped or both
+/// zeroed.
 #[test]
 fn item_shots_match_their_source_node_not_a_fabricated_line() {
     let src = "# A\n\nFirst line. {#first}\n\n```teleprompt scene=mock\nwait 1s\n```\n";

@@ -125,12 +125,12 @@ fn an_include_escaping_the_project_root_is_refused() {
     assert!(e[0].contains("outside the project"));
 }
 
-/// Final review, item 4. `BlockSource` used to carry only the fence's shot,
-/// and the mock adapter offset body line `i` by `shot.line + i + 1`. Right
-/// for an inline body; meaningless for an included one — an error on line 3
-/// of `steps.mock` came out as `scripts/h1.md:15:1` in a thirteen-line
-/// script. Ruling F12 removed a fabricated `line: 0` from this exact path;
-/// `include=` reintroduced a fabricated line by another route.
+/// `BlockSource` used to carry only the fence's shot, and the mock adapter
+/// offset body line `i` by `shot.line + i + 1`. Right for an inline body;
+/// meaningless for an included one — an error on line 3 of `steps.mock` came
+/// out as `scripts/h1.md:15:1` in a thirteen-line script. Ruling F12 removed a
+/// fabricated `line: 0` from this exact path; `include=` reintroduced a
+/// fabricated line by another route.
 #[test]
 fn a_bad_directive_in_an_included_file_names_that_file_and_its_own_line() {
     let dir = workspace();

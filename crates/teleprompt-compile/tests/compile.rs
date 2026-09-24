@@ -110,8 +110,7 @@ fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
     compile_with(src, &ctx)
 }
 
-// Controller ruling F2 (addendum): `transition` lives inside `output:`, per
-// the design spec settled in Task 5 — a top-level `transition` key fails to
+// `transition` lives inside `output:` — a top-level `transition` key fails to
 // deserialize under `deny_unknown_fields`.
 const ONE_BEAT: &str = r#"---
 scene: { mock: { adapter: mock } }
@@ -272,14 +271,13 @@ fn compilation_is_deterministic() {
     );
 }
 
-// Controller ruling F12 (second half): `Element::Action`'s `shot` must be
-// threaded into `BlockSource` for real, not `SourceSpan { line: 0, .. }`.
-// The fence here opens on line 14 (verified against `parse_script`
-// independently), so the invalid `bogus` directive on the block's second
-// body line sits at absolute source line 16 (14 + 1 + 1, per the mock
-// adapter's `shot.line + i + 1` convention). A fabricated `line: 0` would
-// instead report line 2 (0 + 1 + 1) — a small, visibly wrong number that a
-// real user's editor would never scroll to.
+// `Element::Action`'s `shot` must be threaded into `BlockSource` for real, not
+// `SourceSpan { line: 0, .. }`. The fence here opens on line 14 (verified
+// against `parse_script` independently), so the invalid `bogus` directive on
+// the block's second body line sits at absolute source line 16 (14 + 1 + 1, per
+// the mock adapter's `shot.line + i + 1` convention). A fabricated `line: 0`
+// would instead report line 2 (0 + 1 + 1) — a small, visibly wrong number that
+// a real user's editor would never scroll to.
 const SPAN_SRC: &str = "# A\n\nOne. {#a}\n\n\n\n\n\n\n\n\n\n\n```teleprompt scene=mock\nwait 100ms\nbogus directive\n```\n";
 
 #[test]
@@ -295,10 +293,9 @@ fn adapter_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
     );
 }
 
-// Fix round 1, finding 1: Task 6's F13 filter can reduce an all-`mark`
-// action block to zero surviving shots. A narration must not reach across
-// that empty block to pair with a later one — pairing stays scoped to the
-// immediately following action item.
+// Dropping empty shots can reduce an all-`mark` action block to zero surviving
+// shots. A narration must not reach across that empty block to pair with a
+// later one — pairing stays scoped to the immediately following action item.
 #[test]
 fn a_narration_does_not_jump_an_empty_action_block_to_pair_with_a_later_one() {
     let src = r#"---
@@ -360,9 +357,9 @@ mark
     assert!(out.timeline.entries[0].action.is_none());
 }
 
-// Fix round 1, finding 2: an unrecognised `voice.source` must be a
-// diagnostic, not a silent coercion to `synthetic` (which would also skip
-// the ladder's rejection-reason machinery entirely).
+// An unrecognised `voice.source` must be a diagnostic, not a silent coercion to
+// `synthetic` (which would also skip the ladder's rejection-reason machinery
+// entirely).
 #[test]
 fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
     let src = "# A\n\nOne. {#a voice.source=recordedd}\n";
@@ -371,13 +368,12 @@ fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
     assert!(e.0[0].message.contains("recordedd"));
 }
 
-// Final review, item 2: a `Item` carries one `Config`, but its two halves
-// resolve from different layers — the narration's from the line's own
-// attributes, the item's from the following action block's. `compile` used
-// to set `config: config.clone()` (the action block's) and read the
-// narration's padding off that, so an identical line produced different
-// narration timing depending on whether an action block happened to follow
-// it. Per spec §3.1 every line is followed by an action block, so the
+// A `Item` carries one `Config`, but its two halves resolve from different
+// layers — the narration's from the line's own attributes, the item's from the
+// following action block's. `compile` used to set `config: config.clone()` (the
+// action block's) and read the narration's padding off that, so an identical
+// line produced different narration timing depending on whether an action block
+// happened to follow it. A line is usually followed by an action block, so the
 // broken case was the normal one.
 const SEGMENT_WITH_LEAD_IN: &str = "One two three. {#a lead_in=1000ms}";
 
@@ -716,8 +712,8 @@ fn timeline_modulo_duration_source(t: &teleprompt_schedule::Timeline) -> serde_j
     v
 }
 
-/// Spec §11: *a cache hit and a cache miss produce identical timelines apart
-/// from `duration_source`*.
+/// A cache hit and a cache miss produce identical timelines apart from
+/// `duration_source`.
 ///
 /// `a_warm_cache_yields_measured_durations` deliberately caches audio of a
 /// different length, which proves the duration is read from the cache but

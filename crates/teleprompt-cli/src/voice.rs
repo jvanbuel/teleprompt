@@ -121,11 +121,10 @@ impl Backends {
     /// A `Backends` wrapping a caller-supplied registry.
     ///
     /// The seam exists so a test can register a backend this build does not
-    /// ship and watch the whole path — key, synthesis, cache, manifest —
-    /// follow it. That is the claim spec §4.1 makes, and it is not a claim a
-    /// workspace with exactly one real backend can otherwise check. Nothing
-    /// is unknown or unusable here: the caller built the registry by hand,
-    /// so there were no settings to misread.
+    /// ship and watch the whole path — key, synthesis, cache, manifest — follow
+    /// it (docs/design.md#crates), which a workspace with one real backend
+    /// could not otherwise check. Nothing is unknown or unusable here: the
+    /// caller built the registry by hand, so there were no settings to misread.
     pub fn from_registry(registry: VoiceRegistry) -> Self {
         Self {
             registry,

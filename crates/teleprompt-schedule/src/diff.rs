@@ -68,11 +68,11 @@ impl TimelineDiff {
     /// were "derived summaries of `changed`, not independent facts". They are
     /// not: the total is `last.start_ms + last.duration_ms`, and plenty of
     /// edits move it without touching any per-item fact this diff inspects —
-    /// retuning `output.transition.max_ms`, for one, changes every gap
-    /// between items while leaving each item's own hashes and durations
-    /// alone. Treating the total as derived is exactly what let
-    /// `diff --exit-code` report clean over a genuinely stale committed
-    /// timeline, which is the one thing spec §13 asks it to catch.
+    /// retuning `output.transition.max_ms`, for one, changes every gap between
+    /// items while leaving each item's own hashes and durations alone. Treating
+    /// the total as derived is exactly what let `diff --exit-code` report clean
+    /// over a genuinely stale committed timeline, which is the one thing it
+    /// exists to catch.
     pub fn is_empty(&self) -> bool {
         self.shift_ms == 0
             && self.changed.is_empty()

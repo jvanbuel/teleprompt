@@ -6,7 +6,6 @@ use crate::cmd::check::compile_script;
 use crate::project::Project;
 
 /// Compiles the timeline and returns it without writing anything to disk.
-/// Writing the committed timeline is not part of M0's command set.
 pub fn run_plan(
     project: &Project,
     script: &Path,

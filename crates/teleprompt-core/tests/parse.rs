@@ -224,11 +224,10 @@ fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
 }
 
 // ---------------------------------------------------------------------------
-// Final review, item 5: `split_attr_suffix` ran `ends_with('}')` + `rfind('{')`
-// over the *normalised* paragraph text, after backticks were stripped, so it
-// could not tell an inline code shot from an attribute block. teleprompt's
-// own scripts are documentation full of config snippets, so this rejected
-// valid prose:
+// `split_attr_suffix` ran `ends_with('}')` + `rfind('{')` over the *normalised*
+// paragraph text, after backticks were stripped, so it could not tell an inline
+// code shot from an attribute block. teleprompt's own scripts are documentation
+// full of config snippets, so this rejected valid prose:
 //
 //   $ cat scripts/j1.md   # The config block looks like `{ fps: 30 }`
 //   error: expected `key=value`, found `fps:`

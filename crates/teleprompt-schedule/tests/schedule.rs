@@ -123,10 +123,10 @@ fn auto_transition_is_half_the_slack_clamped_to_the_maximum() {
         item("b2", Some(1000), None, Policy::Hold, cfg),
     ];
     let mut items = items;
-    // A generous tail so the quiet window (§6.3) is wider than `max_ms` and
-    // the maximum is genuinely what binds. With the default 150ms tail the
-    // window is 300ms and the cap would bind instead — which is the subject
-    // of `the_auto_transition_fills_the_quiet_window_exactly`, not this test.
+    // A generous tail so the quiet window is wider than `max_ms` and the
+    // maximum is genuinely what binds. With the default 150ms tail the window
+    // is 300ms and the cap would bind instead — which is the subject of
+    // `the_auto_transition_fills_the_quiet_window_exactly`, not this test.
     items[0].narration.as_mut().unwrap().tail_ms = 1000;
 
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
@@ -210,14 +210,14 @@ fn the_timeline_json_shape_is_stable() {
     insta::assert_json_snapshot!(t);
 }
 
-/// Spec §6.3, the quiet window. A script of plain paragraphs has no action to
-/// subtract, so `slack` is the whole narration and an uncapped `auto`
-/// transition runs to `max_ms` — 600 ms against 300 ms of padding, overlapping
-/// 300 ms of the outgoing sentence with the incoming one.
+/// The quiet window (docs/design.md#quiet-window). A script of plain paragraphs
+/// has no action to subtract, so `slack` is the whole narration and an uncapped
+/// `auto` transition runs to `max_ms` — 600 ms against 300 ms of padding,
+/// overlapping 300 ms of the outgoing sentence with the incoming one.
 ///
-/// The cap is what makes spec §3's claim true that such a script's narration
-/// follows one line after another. Asserted on the timeline, because that
-/// is what both the manifest and the renderer read.
+/// The cap is what makes such a script's narration follow one line after
+/// another. Asserted on the timeline, because that is what both the manifest
+/// and the renderer read.
 #[test]
 fn narration_only_shots_never_talk_over_each_other() {
     let items = vec![

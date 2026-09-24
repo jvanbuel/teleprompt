@@ -41,8 +41,8 @@ async fn a_successful_synthesis_decodes_to_24khz_mono() {
     assert_eq!(out.pcm.channels, 1);
     assert_eq!(out.pcm.samples.len(), 2400);
     assert_eq!(out.pcm.duration_ms(), 100);
-    // Spec §7: word timings only exist on a /dev/ path, which is not a
-    // stable interface to publish a manifest field from.
+    // Word timings are opt-in, because Kokoro serves them only from a /dev/
+    // path; off by default, none come back.
     assert!(out.word_timings.is_none());
 }
 
@@ -63,8 +63,8 @@ async fn the_request_body_is_what_the_spec_says() {
     assert_eq!(body["input"], "hello");
     assert_eq!(body["voice"], "af_bella");
     assert_eq!(body["response_format"], "pcm");
-    // Sent to the server so the voice is *generated* at this rate rather
-    // than resampled — core spec §6.2's boundary.
+    // Sent to the server so the voice is *generated* at this rate rather than
+    // resampled (docs/design.md#principles).
     assert_eq!(body["speed"], 1.25);
 }
 
@@ -103,7 +103,7 @@ async fn a_non_200_names_the_url_and_the_status() {
     let msg = err.to_string();
     assert!(msg.contains("500"), "{msg}");
     assert!(msg.contains(&s.base_url), "{msg}");
-    // Spec §7.1: never a silent fallback to silence.
+    // Never a silent fallback to silence.
     assert!(!matches!(err, VoiceError::Unsupported { .. }));
 }
 

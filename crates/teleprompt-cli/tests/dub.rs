@@ -170,13 +170,13 @@ Every video in this repository is built from a script you can read.
     );
 }
 
-/// I4. The manifest's `audio_hash` must describe the file on disk, per spec
-/// §5.1 — that is what lets a consumer skip re-encoding a byte-identical
-/// render. It is a different quantity from the timeline's `audio_hash`,
-/// which identifies *which* audio a line resolves to and correctly does
-/// not move when `dub` re-renders the same bytes. `manifest::build` can only
-/// seed this field with the timeline's value, so the overwrite in `dub` is
-/// what makes the published field mean what it says.
+/// The manifest's `audio_hash` must describe the file on disk
+/// (docs/design.md#manifest) — that is what lets a consumer skip re-encoding a
+/// byte-identical render. It is a different quantity from the timeline's
+/// `audio_hash`, which identifies *which* audio a line resolves to and
+/// correctly does not move when `dub` re-renders the same bytes.
+/// `manifest::build` can only seed this field with the timeline's value, so the
+/// overwrite in `dub` is what makes the published field mean what it says.
 #[test]
 fn audio_hash_is_the_hash_of_the_bytes_on_disk() {
     let root = project_with("audiohash", SCRIPT);
@@ -192,7 +192,7 @@ fn audio_hash_is_the_hash_of_the_bytes_on_disk() {
         assert_eq!(
             seg["audio_hash"].as_str().unwrap(),
             expected,
-            "`{}`: spec §5.1 documents audio_hash as hashing the rendered file",
+            "`{}`: audio_hash hashes the rendered file",
             seg["id"].as_str().unwrap()
         );
     }
@@ -227,8 +227,8 @@ fn audio_hash_is_identical_across_two_runs() {
     assert!(!first.is_empty());
 }
 
-/// I1. A line id becomes `audio/<id>.wav`, so an explicit `..` id used to
-/// write outside `--out` and publish an escaping path in the manifest.
+/// A line id becomes `audio/<id>.wav`, so an explicit `..` id used to write
+/// outside `--out` and publish an escaping path in the manifest.
 #[test]
 fn an_id_that_escapes_the_output_directory_is_rejected_before_anything_is_written() {
     let root = project_with("traversal", "# A\n\nOne. {#../../../pwned}\n");
@@ -293,9 +293,8 @@ voice:
 Every video in this repository is built from a script you can read.
 ";
 
-/// I3. M0 has no recorder, so `source: recorded` downgrades to `synthetic`.
-/// That is exercisable today, contrary to an earlier claim that downgrades
-/// could not be reached in M0.
+/// There is no recorder, so `source: recorded` downgrades to `synthetic`, which
+/// makes the ladder exercisable today.
 #[test]
 fn a_recorded_request_downgrades_and_the_manifest_says_so() {
     let root = project_with("downgrade", RECORDED);
@@ -330,11 +329,7 @@ fn strict_voice_makes_a_downgrade_fatal() {
         ],
     );
 
-    assert_eq!(
-        code(&out),
-        4,
-        "spec §3: downgrades are fatal under --strict-voice"
-    );
+    assert_eq!(code(&out), 4, "downgrades are fatal under --strict-voice");
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
         stderr.contains("quick-start-1") && stderr.contains("recorded"),
@@ -516,11 +511,10 @@ fn corrupt_every_sidecar(root: &Path) -> usize {
     n
 }
 
-/// I4. A corrupt sidecar used to exit 2 out of `check`, attributed to the
-/// script — a derived, gitignored artifact bricking a validation command,
-/// with no recovery path offered and no `cache clean` to offer. The cache is
-/// content-addressed and self-healing, so the only correct reading is a
-/// miss.
+/// A corrupt sidecar used to exit 2 out of `check`, attributed to the script —
+/// a derived, gitignored artifact bricking a validation command, with no
+/// recovery path offered and no `cache clean` to offer. The cache is
+/// content-addressed and self-healing, so the only correct reading is a miss.
 #[test]
 fn a_corrupt_cache_entry_reads_as_a_miss_rather_than_bricking_check() {
     let root = project_with("corruptcheck", SCRIPT);
@@ -637,11 +631,11 @@ fn null_path_progress_is_document_order_on_every_run() {
     }
 }
 
-// --- Spec §7: the voice list is checked once, before the first line is
-// synthesized. The tests below call `run_dub` in-process rather than through
-// `tp` (the `teleprompt` binary), because the whole point is to observe
-// network traffic (or its absence) mid-command — a subprocess only ever
-// hands back an exit code and captured output.
+// --- The voice list is checked once, before the first line is synthesized. The
+// tests below call `run_dub` in-process rather than through `tp` (the
+// `teleprompt` binary), because the whole point is to observe network traffic
+// (or its absence) mid-command — a subprocess only ever hands back an exit code
+// and captured output.
 
 /// A discovered project plus the two paths `run_dub`/`run_dub_with` want
 /// directly, for tests that call them in-process.
@@ -745,9 +739,9 @@ async fn dub_with_the_null_backend_makes_no_network_call() {
         });
 }
 
-/// Spec §7: an unknown voice fails on line zero, not after the
-/// twentieth. The stub's request count is the proof — one request for the
-/// voice list, and nothing for synthesis.
+/// An unknown voice fails on line zero, not after the twentieth. The stub's
+/// request count is the proof — one request for the voice list, and nothing for
+/// synthesis.
 #[tokio::test]
 async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
     let stub = kokoro_stub_listing(&["af_heart", "af_bella"]).await;
@@ -784,15 +778,14 @@ async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
     );
 }
 
-/// Spec §7.1: "a server that is unreachable, slow, or returns non-200 fails
-/// the command with exit 1" — a fact about the machine, not the script.
-/// This pins the other side of the split the test above pins: that one
-/// asserts `Validation` when the server answers and simply does not list
-/// the configured voice; this one asserts `Runtime` when the server never
-/// answers at all. A version that collapsed both `kokoro.voices()` failure
-/// modes into one `DubError` variant would pass only one of the two tests,
-/// depending on which way it collapsed — checking just one arm would not
-/// catch that.
+/// A server that is unreachable, slow, or returns non-200 fails the command
+/// with exit 1 — a fact about the machine, not the script. This pins the other
+/// side of the split the test above pins: that one asserts `Validation` when
+/// the server answers and simply does not list the configured voice; this one
+/// asserts `Runtime` when the server never answers at all. A version that
+/// collapsed both `kokoro.voices()` failure modes into one `DubError` variant
+/// would pass only one of the two tests, depending on which way it collapsed —
+/// checking just one arm would not catch that.
 #[tokio::test]
 async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() {
     // Port 1 on loopback: nothing listens, connection refused immediately —
@@ -817,10 +810,10 @@ async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() 
     }
 }
 
-// --- Bounded concurrent synthesis (spec §7.2 / §15). `dub` fans lines
-// out to the backend rather than rendering them one at a time; the tests
-// below exercise that against a stub that answers both `/v1/audio/voices`
-// (the one-shot check above) and `/v1/audio/speech` (actual synthesis).
+// --- Bounded concurrent synthesis. `dub` fans lines out to the backend rather
+// than rendering them one at a time; the tests below exercise that against a
+// stub that answers both `/v1/audio/voices` (the one-shot check above) and
+// `/v1/audio/speech` (actual synthesis).
 
 /// A stub that serves both endpoints `dub` calls against a kokoro backend,
 /// and records the peak number of `/v1/audio/speech` requests it had open
@@ -988,13 +981,12 @@ async fn lines_are_synthesized_concurrently_but_collected_in_document_order() {
     assert_eq!(ids, sorted, "lines must be in document order: {ids:?}");
 }
 
-/// Spec §7.1: one line's failure fails the run. With fan-out it would be
-/// easy to collect every task's result and carry on regardless — a
-/// half-dubbed output directory is worse than none. Siblings are given a
-/// long (600ms) delay so the test can also pin *how* the run ends: the
-/// surfaced error must be the real 500 rather than a cancellation artifact,
-/// and the run must return promptly rather than waiting on those siblings
-/// to finish first.
+/// One line's failure fails the run. With fan-out it would be easy to collect
+/// every task's result and carry on regardless — a half-dubbed output directory
+/// is worse than none. Siblings are given a long (600ms) delay so the test can
+/// also pin *how* the run ends: the surfaced error must be the real 500 rather
+/// than a cancellation artifact, and the run must return promptly rather than
+/// waiting on those siblings to finish first.
 #[tokio::test]
 async fn a_failure_in_one_line_fails_the_run() {
     let stub =

@@ -13,11 +13,10 @@ pub struct Config {
     pub output: OutputConfig,
     pub transition: TransitionConfig,
     pub scenes: BTreeMap<String, SceneConfig>,
-    /// `scene.default:` from front matter (spec §3.1). Resolved through the
-    /// layer merge like everything else, but not yet consulted: M0 still
-    /// requires every action block to name its own `scene=`, and relaxing
-    /// that is M1's job. Kept here rather than discarded so the value an
-    /// author wrote survives the merge instead of being silently lost.
+    /// `scene.default:` from front matter. Resolved through the layer merge
+    /// like everything else, but not yet consulted: every action block names
+    /// its own `scene=`. Kept here rather than discarded so the value an author
+    /// wrote survives the merge instead of being silently lost.
     pub default_scene: Option<String>,
     /// Backend-native settings, keyed by backend id, exactly as written
     /// under `backends:` in config or front matter.
@@ -110,7 +109,7 @@ pub struct TransitionConfig {
 
 /// A resolved scene's adapter and its adapter-native settings.
 ///
-/// `settings` holds `serde_yaml::Value`, not `String`: spec §3.1 configures
+/// `settings` holds `serde_yaml::Value`, not `String`: a scene may configure
 /// `browser.viewport: [1920, 1080]`, and flattening structured YAML into a
 /// string map either rejects it (which is what happened) or lossily stringifies
 /// it. Adapters read whatever shape their own tool wants.
@@ -182,10 +181,10 @@ pub fn default_adapter(scene: &str) -> &'static str {
 /// All-optional mirror of `Config`, deserialized from one configuration layer
 /// (`teleprompt.toml`, script/chapter front matter, or line/block attributes).
 ///
-/// Carries `teleprompt` (schema version) and `output` (resolution/fps/transition)
-/// so real front matter — which nests `transition` under `output:` and stamps a
-/// top-level `teleprompt: 1` — deserializes. `teleprompt`, `output.resolution`,
-/// and `output.fps` are parsed and otherwise unused until M1.
+/// Carries `teleprompt` (schema version) and `output`
+/// (resolution/fps/transition) so real front matter — which nests `transition`
+/// under `output:` and stamps a top-level `teleprompt: 1` — deserializes.
+/// `teleprompt` is parsed and otherwise unused.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialConfig {
@@ -233,8 +232,7 @@ pub struct PartialTiming {
     pub max_speedup: Option<f64>,
 }
 
-/// The `output:` front-matter block (spec §3.1). `resolution` and `fps` are
-/// declared so real front matter deserializes; they are unused until M1.
+/// The `output:` front-matter block: frame size, rate and transitions.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialOutput {
@@ -279,7 +277,7 @@ pub struct PartialTransition {
     pub max_ms: Option<u64>,
 }
 
-/// The `scene:` block, which spec §3.1 writes in two shapes at once:
+/// The `scene:` block, which takes two shapes at once:
 ///
 /// ```yaml
 /// scene:

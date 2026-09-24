@@ -238,11 +238,11 @@ pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<
 /// to last exactly as long as it was scheduled for, and what is published
 /// is that tape.
 ///
-/// The shot's hash moves with it, which is the point rather than a side
-/// effect: spec §5.1 puts slot duration in the video cache key, and hashing
-/// the tape that will actually be captured does that exactly. An adapter
-/// that cannot re-time says so, the source stands, and the renderer holds
-/// the last frame for the difference.
+/// The shot's hash moves with it, which is the point rather than a side effect:
+/// slot duration belongs in the capture key (docs/design.md#capture-key), and
+/// hashing the tape that will actually be captured puts it there. An adapter
+/// that cannot re-time says so, the source stands, and the renderer holds the
+/// last frame for the difference.
 fn retime_stretched_shots(
     timeline: &mut Timeline,
     shots: &mut [ShotSource],
@@ -326,10 +326,10 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-pw-1.63-v2";
 /// a paragraph changes every later item's `start_ms` and no item's key,
 /// because start time is not in one.
 ///
-/// Runs after [`retime_stretched_shots`], deliberately: a shot re-written
-/// to fit its slot is a different tape, and the chain has to be built from
-/// the tape that will actually be captured. That is also how slot duration
-/// gets into the key (spec §5.1) without being a field in it.
+/// Runs after [`retime_stretched_shots`], deliberately: a shot re-written to
+/// fit its slot is a different tape, and the chain has to be built from the
+/// tape that will actually be captured. That is also how slot duration gets
+/// into the key without being a field in it (docs/design.md#capture-key).
 fn chain_capture_keys(
     timeline: &mut Timeline,
     config: &Config,
@@ -635,17 +635,16 @@ it was drafted from another document and has not been reviewed. \
 Read it, then remove the attribute."
                     ));
                 }
-                // Controller ruling F5: an `include=` path is inspected
-                // *before* anything is joined to `base_dir`. `Path::join`
-                // followed by `starts_with` never rejects `..` — `..` is
-                // just another component, so the joined path's prefix is
-                // always `base_dir`'s components regardless of how many
-                // `..` follow. Checking the raw components (and rejecting an
-                // absolute path outright) is what actually stops traversal;
-                // canonicalising first would follow symlinks out of the
-                // project and let a malicious symlink pass the check.
-                // `include=file#fragment`: the path is read like any
-                // include, and the fragment is the adapter's to interpret.
+                // An `include=` path is inspected *before* anything is joined
+                // to `base_dir`. `Path::join` followed by `starts_with` never
+                // rejects `..` — `..` is just another component, so the joined
+                // path's prefix is always `base_dir`'s components regardless of
+                // how many `..` follow. Checking the raw components (and
+                // rejecting an absolute path outright) is what actually stops
+                // traversal; canonicalising first would follow symlinks out of
+                // the project and let a malicious symlink pass the check.
+                // `include=file#fragment`: the path is read like any include,
+                // and the fragment is the adapter's to interpret.
                 let (include, fragment) = match include.as_deref().map(|i| i.split_once('#')) {
                     Some(Some((path, frag))) => (Some(path.to_string()), Some(frag.to_string())),
                     _ => (include.clone(), None),
@@ -763,10 +762,9 @@ Read it, then remove the attribute."
                     continue;
                 };
 
-                // Controller ruling F12 (second half): pass the body's real
-                // origin so adapter diagnostics point at the true file and
-                // line, not a fabricated `line: 0` and not the script's own
-                // path when the body came from somewhere else.
+                // Pass the body's real origin so adapter diagnostics point at
+                // the true file and line, not a fabricated `line: 0` and not
+                // the script's own path when the body came from somewhere else.
                 let src = BlockSource {
                     scene: scene.clone(),
                     body: body.clone(),
@@ -797,7 +795,7 @@ Read it, then remove the attribute."
                 };
 
                 if shots.is_empty() {
-                    // Task 6's F13 filter can reduce an all-`mark` block to
+                    // Dropping empty shots can reduce an all-`mark` block to
                     // zero surviving shots. Pairing stays scoped to the
                     // *immediately* following action item, so a pending
                     // narration must be flushed as its own item here rather

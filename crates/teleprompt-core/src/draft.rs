@@ -5,17 +5,16 @@ use std::collections::BTreeMap;
 use crate::ast::slugify;
 
 /// Languages whose fences become terminal tapes. Anything else is left as
-/// ordinary Markdown: §3.2 ignores non-`teleprompt` fences for compilation,
-/// so a JSON payload or a TypeScript snippet survives as an authoring note.
+/// ordinary Markdown: compilation ignores non-`teleprompt` fences, so a JSON
+/// payload or a TypeScript snippet survives as an authoring note.
 const SHELL: &[&str] = &["bash", "sh", "shell", "zsh", "console", "terminal"];
 
 /// Turns a Markdown document into a teleprompt script.
 ///
 /// `title` names the chapter that content before the document's own first
-/// heading belongs to — §3.2 requires every line and action block to be
-/// inside one, and a document that opens with prose has none. The caller
-/// knows a name worth using (the file it read); this function would have to
-/// invent one.
+/// heading belongs to — every line and action block must be inside one, and a
+/// document that opens with prose has none. The caller knows a name worth using
+/// (the file it read); this function would have to invent one.
 pub fn draft(markdown: &str, title: &str) -> String {
     let mut out = String::new();
     let mut paragraph: Vec<&str> = Vec::new();

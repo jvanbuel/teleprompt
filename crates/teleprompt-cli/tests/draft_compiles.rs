@@ -83,8 +83,8 @@ fn a_command_with_a_quote_in_it_survives_into_the_tape() {
 
 #[test]
 fn a_document_that_opens_with_prose_still_compiles() {
-    // §3.2: every line and action block must belong to a chapter, and a
-    // README that opens with a sentence has none.
+    // Every line and action block must belong to a chapter, and a README that
+    // opens with a sentence has none.
     let script = draft("Acme deploys your project.\n", "Acme");
     check(&script).unwrap_or_else(|e| panic!("{e:#?}"));
 }

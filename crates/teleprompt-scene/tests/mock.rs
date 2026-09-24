@@ -92,7 +92,7 @@ fn shot_hashes_differ_by_content_and_repeat_for_identical_content() {
 fn registry_resolves_builtin_adapters_and_rejects_unknown_ones() {
     let r = SceneRegistry::with_builtins();
     assert_eq!(r.get("mock").map(|a| a.kind()), Some("mock"));
-    assert!(r.get("playwright").is_none(), "not available in M0");
+    assert!(r.get("playwright").is_none(), "not a builtin");
 }
 
 #[test]
@@ -137,9 +137,9 @@ fn a_body_that_is_only_mark_yields_zero_shots() {
     assert_eq!(shots.len(), 0, "all-mark body yields no shots");
 }
 
-/// Final review, item 4, at the contract's own level: an included body's
-/// lines are numbered from 1 in the file they came from, and the diagnostic
-/// names that file rather than the script the caller renders against.
+/// At the contract's own level: an included body's lines are numbered from 1 in
+/// the file they came from, and the diagnostic names that file rather than the
+/// script the caller renders against.
 #[test]
 fn an_included_bodys_diagnostic_names_its_own_file_and_line() {
     let m = MockScene;
@@ -170,10 +170,9 @@ fn an_inline_bodys_diagnostic_defers_to_the_callers_file() {
 }
 
 // ---------------------------------------------------------------------------
-// Final review, item 6: `validate` and `estimate` disagreed about what
-// content is. `validate` split on whitespace; `estimate` used
-// `strip_prefix("wait ")`. The mock is M0's only source of action duration,
-// so a `check`-clean script could silently lose five seconds.
+// `validate` and `estimate` disagreed about what content is. `validate` split
+// on whitespace; `estimate` used `strip_prefix("wait ")`, so a `check`-clean
+// script could silently lose five seconds.
 // ---------------------------------------------------------------------------
 
 fn only_shot(body: &str) -> teleprompt_scene::Shot {

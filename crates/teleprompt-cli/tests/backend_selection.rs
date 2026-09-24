@@ -1,11 +1,11 @@
 //! Does the CLI actually use the backend the script selected?
 //!
-//! Spec §4.1 claims adding a backend is "one line there and one new crate —
-//! nothing else in the workspace changes". A workspace with exactly one
-//! backend registered cannot check that claim: `resolve` rejects every other
-//! id, so a `dub` that ignored the resolution entirely would look identical.
-//! These tests register a backend this build does not ship and follow it
-//! through key, synthesis, cache, and manifest.
+//! Adding a backend is meant to be one crate and one registry line, with
+//! nothing else in the workspace changing (docs/design.md#crates). A workspace
+//! with exactly one backend registered cannot check that claim: `resolve`
+//! rejects every other id, so a `dub` that ignored the resolution entirely
+//! would look identical. These tests register a backend this build does not
+//! ship and follow it through key, synthesis, cache, and manifest.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -150,12 +150,11 @@ fn samples(wav: &[u8]) -> Vec<i16> {
         .collect()
 }
 
-/// I2. `run_dub` built a `NullVoice` unconditionally while `cache_key` came
-/// from the *resolved* backend's `id()` and `capabilities().version`. With
-/// only `null` registered the two coincided; with a second backend the
-/// script asks for kokoro and gets silence — written into the
-/// content-addressed cache under kokoro's key, permanent, and reported as
-/// `measured` by every later `plan`.
+/// `run_dub` built a `NullVoice` unconditionally while `cache_key` came from
+/// the *resolved* backend's `id()` and `capabilities().version`. With only
+/// `null` registered the two coincided; with a second backend the script asks
+/// for kokoro and gets silence — written into the content-addressed cache under
+/// kokoro's key, permanent, and reported as `measured` by every later `plan`.
 #[tokio::test]
 async fn dub_synthesizes_with_the_backend_the_script_resolved_to() {
     let (project, script) = project_with("resolved", SCRIPT);
@@ -236,10 +235,9 @@ voice:
 Every video in this repository is built from a script you can read.
 ";
 
-/// I1. The WAV-length guard ran inside the render loop, against the
-/// *pre-render* compile's timeline — which on a cold cache holds estimates.
-/// The value the manifest actually publishes comes from the recompile that
-/// follows the loop.
+/// The WAV-length guard ran inside the render loop, against the *pre-render*
+/// compile's timeline — which on a cold cache holds estimates. The value the
+/// manifest actually publishes comes from the recompile that follows the loop.
 ///
 /// With `null` the two always agreed, because `NullVoice::synthesize` and
 /// `WpmEstimator::estimate_ms` call the same function. For any backend whose

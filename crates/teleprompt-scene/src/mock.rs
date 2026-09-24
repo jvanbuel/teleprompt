@@ -1,4 +1,4 @@
-//! The M0 stand-in scene: a body of `wait` and `mark` lines.
+//! A stand-in scene: a body of `wait` and `mark` lines.
 //!
 //! It exists so the compiler can produce a real timeline, `plan`, and `diff`
 //! before any external runtime is involved, and it is the reference for what
@@ -30,8 +30,7 @@ pub struct MockScene;
 /// wait 5000ms and then some  -> check: ok -> contributed 0 ms
 /// ```
 ///
-/// The mock is M0's only source of action duration, so a disagreement here
-/// is a disagreement about how long the video is.
+/// A disagreement here is a disagreement about how long the video is.
 #[derive(Debug)]
 enum Command {
     /// Blank or a `#` comment: no executable content whatsoever. Ruling F13

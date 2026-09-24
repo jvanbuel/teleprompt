@@ -249,16 +249,9 @@ fn every_line_names_the_chapter_it_was_spoken_in() {
     );
 }
 
-/// Pins current behaviour, deliberately. The scheduler subtracts an item's
-/// transition window from that item before advancing its cursor, and for a
-/// narration-only item there is no action shot to absorb it, so the window
-/// eats into speech and consecutive lines overlap. See spec §5.2, which
-/// tells consumers to treat each line's own `duration_ms` as
-/// authoritative for exactly this reason.
-///
-/// If the scheduler is ever changed so narration-only items no longer
-/// overlap, this test must fail loudly rather than the overlap silently
-/// vanishing while §5.2 and the §7 consumer example still describe it.
+/// Narration-only lines abut exactly: the `auto` transition is capped at the
+/// quiet window (docs/design.md#quiet-window), so a script of plain paragraphs
+/// reads as continuous speech.
 #[test]
 fn consecutive_narration_only_lines_abut_exactly() {
     let m = manifest_for(
@@ -280,7 +273,7 @@ Three.
             a.start_ms + a.duration_ms,
             b.start_ms,
             "`{}` and `{}` must neither overlap nor leave a gap: the auto \
-             transition is capped at the quiet window (core spec §6.3), so a \
+             transition is capped at the quiet window, so a \
              script of plain paragraphs reads as continuous speech",
             a.id,
             b.id,
@@ -288,10 +281,11 @@ Three.
     }
 }
 
-/// The contract still permits overlap (§5.2) — an author who sets a fixed
-/// transition wider than the quiet window gets exactly what they asked for.
-/// Pinned here because §5.2 tells consumers to expect it, and a claim in a
-/// published contract with no test behind it decays.
+/// The contract still permits overlap (docs/design.md#authoritative-durations)
+/// — an author who sets a fixed transition wider than the quiet window gets
+/// exactly what they asked for. Pinned here because consumers are told to
+/// expect it, and a claim in a published contract with no test behind it
+/// decays.
 #[test]
 fn a_fixed_transition_can_still_make_lines_overlap() {
     let m = manifest_for(

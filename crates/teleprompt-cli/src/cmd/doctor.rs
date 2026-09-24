@@ -65,13 +65,13 @@ pub struct CaptureBackendStatus {
 
 #[derive(Debug, Serialize)]
 pub struct DoctorReport {
-    /// Whether the project's own files are in a state teleprompt can work
-    /// from. Deliberately *not* a verdict on the machine: an unreachable
-    /// server leaves this `true`, because spec §9 makes that a warning and
-    /// `check`/`plan` do not need the server at all. A `backends:` block
-    /// that cannot be turned into the backend the project selected is a
-    /// different kind of fact — it is wrong in the repository, it is wrong
-    /// on every machine, and `dub` will not run until it is fixed.
+    /// Whether the project's own files are in a state teleprompt can work from.
+    /// Deliberately *not* a verdict on the machine: an unreachable server
+    /// leaves this `true`, because that is a warning and `check`/`plan` do not
+    /// need the server at all. A `backends:` block that cannot be turned into
+    /// the backend the project selected is a different kind of fact — it is
+    /// wrong in the repository, it is wrong on every machine, and `dub` will
+    /// not run until it is fixed.
     pub ok: bool,
     pub adapters: Vec<String>,
     /// What can *run* a scene, as against compile one: the scene adapters
@@ -98,11 +98,11 @@ pub struct DoctorReport {
     /// the repository, and `check`, `plan`, `diff` and `dub` all work
     /// without it. Only `build` does not.
     pub ffmpeg: Option<String>,
-    /// What the project's *configured* `voice.backend`'s server had to say
-    /// (spec §9), or `None` when that backend has nothing to probe — the
-    /// common case, since a freshly scaffolded project's backend is `null`.
-    /// Every registered backend still appears in `voice_backends` above;
-    /// only the probe is limited to the one actually selected.
+    /// What the project's *configured* `voice.backend`'s server had to say or
+    /// `None` when that backend has nothing to probe — the common case, since a
+    /// freshly scaffolded project's backend is `null`. Every registered backend
+    /// still appears in `voice_backends` above; only the probe is limited to
+    /// the one actually selected.
     pub voice_probe: Option<VoiceProbe>,
     /// Everything wrong with the project's settings, in the words `check`
     /// would use. Empty on a healthy project.
@@ -170,13 +170,12 @@ pub async fn doctor_report_with(
         .map(|d| d.message)
         .collect();
 
-    // Spec §9: probe the *configured* backend, not every backend this
-    // build happens to ship. A freshly scaffolded project's `voice.backend`
-    // is `null`, which has no server — probing kokoro anyway made every
-    // `doctor` run on the common case make a network call to a server
-    // nothing configured, and print a line saying it was unreachable. That
-    // is noise reported as a finding, and it trains people to ignore the
-    // probe line.
+    // Probe the *configured* backend, not every backend this build happens to
+    // ship. A freshly scaffolded project's `voice.backend` is `null`, which has
+    // no server — probing kokoro anyway made every `doctor` run on the common
+    // case make a network call to a server nothing configured, and print a line
+    // saying it was unreachable. That is noise reported as a finding, and it
+    // trains people to ignore the probe line.
     let voice_probe = probe_configured_backend(&backends, &backend_id).await;
 
     DoctorReport {
@@ -217,11 +216,10 @@ pub async fn doctor_report_with(
 /// The renderer's version, as it reports it, or `None` when the binary is
 /// not there to ask.
 ///
-/// The first line of `ffmpeg -version` rather than the whole banner, which
-/// is a dozen lines of build configuration nobody reading a health report
-/// wants. Spec §9 asks for availability *and* version, because a too-old
-/// ffmpeg fails a render halfway through with a filter error rather than
-/// refusing it up front.
+/// The first line of `ffmpeg -version` rather than the whole banner, which is a
+/// dozen lines of build configuration nobody reading a health report wants. The
+/// version matters as much as availability: a too-old ffmpeg fails a render
+/// halfway through with a filter error rather than refusing it up front.
 pub fn probe_ffmpeg(program: &str) -> Option<String> {
     let out = std::process::Command::new(program)
         .arg("-version")
@@ -236,14 +234,14 @@ pub fn probe_ffmpeg(program: &str) -> Option<String> {
         .map(|line| line.trim().to_string())
 }
 
-/// M2. The server's own `timeout_ms` (30 000 by default) is sized for
-/// synthesis, which can legitimately take a while. Listing voices does not
-/// invoke a model — a healthy server answers in single-digit milliseconds
-/// — so a hanging probe is already a broken server, not a slow one. Five
-/// seconds is generous next to that (room for a cold start, a slow DNS
-/// lookup, a loaded-but-not-hung server under momentary pressure) while
-/// keeping `doctor` — the command reached for when something is broken —
-/// from ever waiting out the full synthesis timeout to say so.
+/// The server's own `timeout_ms` (30 000 by default) is sized for synthesis,
+/// which can legitimately take a while. Listing voices does not invoke a model
+/// — a healthy server answers in single-digit milliseconds — so a hanging probe
+/// is already a broken server, not a slow one. Five seconds is generous next to
+/// that (room for a cold start, a slow DNS lookup, a loaded-but-not-hung server
+/// under momentary pressure) while keeping `doctor` — the command reached for
+/// when something is broken — from ever waiting out the full synthesis timeout
+/// to say so.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(5_000);
 
 /// One line about the *configured* backend's server, or `None` when it has
