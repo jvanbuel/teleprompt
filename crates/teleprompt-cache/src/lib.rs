@@ -216,8 +216,7 @@ impl VoiceCache {
     /// which nothing above this layer can detect. So publishing the audio is
     /// also an exclusive claim (`claim`): one writer wins, and a loser adopts
     /// the winner's entry once its sidecar lands. A lost claim with nothing
-    /// usable behind it is a leftover from an interrupted run, healed by
-    /// rewriting both.
+    /// usable behind it is an interrupted run's, healed by rewriting both.
     pub fn store(
         &self,
         key: &CacheKey,

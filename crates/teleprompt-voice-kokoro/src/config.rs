@@ -51,28 +51,14 @@ impl KokoroConfig {
         Ok(c)
     }
 
-    /// What `VoiceCapabilities::version` returns, and therefore part of
-    /// every cache key this backend's audio is stored under: the model, and
-    /// nothing else.
+    /// What `VoiceCapabilities::version` returns, and so the cache key for
+    /// this backend's audio: the model, and not the server's address, so a
+    /// cache travels between machines (docs/design.md#voice-cache). Two
+    /// servers with different weights under one model name collide; name
+    /// them apart (`model = "kokoro-v1_1"`).
     ///
-    /// Not the server's address. Audio depends on the weights a server
-    /// loaded, not on where that server is, and keying on the address means
-    /// a cache that never crosses a machine: CI starts cold, a second
-    /// contributor starts cold, and on one machine `localhost` and
-    /// `127.0.0.1` are two caches for one server. A key that travels is
-    /// what makes a shared cache possible at all.
-    ///
-    /// The trade is real and deliberate, and it runs the other way from the
-    /// one this used to make: two servers serving different weights under
-    /// one model name now collide, and the cache cannot tell them apart.
-    /// `doctor` reports the model beside the address so the mismatch is
-    /// visible where somebody is already looking, and an author running two
-    /// sets of weights distinguishes them by naming them — `model:
-    /// kokoro-v1_1` — which is the field that exists for that.
-    ///
-    /// With `word_timings` on, `+words` is added: the audio is the same,
-    /// but an entry cached without timings would keep answering without
-    /// them, so turning them on re-synthesizes each line once.
+    /// `+words` is added with `word_timings` on, so an entry cached without
+    /// timings never answers for one that needs them.
     pub fn version_string(&self) -> String {
         if self.word_timings {
             format!("{}+words", self.model)

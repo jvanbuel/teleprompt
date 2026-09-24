@@ -6,12 +6,9 @@
 //! title text="Part Two" subtitle="Configuration"
 //! ```
 //!
-//! An image and a title are stills: the same picture at any length, so
-//! they take their sentence's length and nothing about the length is in
-//! their key. A clip with `from` and `to` is exactly as long as its range,
-//! and is not re-timed, since that would change its speed; without them it
-//! plays from the start for as long as its sentence. `src` is relative to
-//! the scene's `dir`.
+//! Images and titles are stills and take their sentence's length. A clip
+//! with `from` and `to` is exact and never re-timed; without them it plays
+//! for its sentence. `src` is relative to the scene's `dir`.
 
 use std::path::PathBuf;
 

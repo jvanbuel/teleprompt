@@ -1,9 +1,7 @@
 //! A motion scene: a composition from an existing Remotion project.
 //!
-//! A shot names one of the project's compositions and the props to render
-//! it with — what `npx remotion render <id> --props=…` takes, and nothing
-//! else. The project is an ordinary Remotion project; teleprompt reads none
-//! of its code.
+//! A shot names one of the project's compositions and its props, as
+//! `npx remotion render <id> --props=…` takes them.
 //!
 //! ```text
 //! Title {"title": "Hello"}
@@ -11,8 +9,7 @@
 //!
 //! A composition takes as long as it is told to, so `estimate` is
 //! [`Measured::Unknown`] and the scheduler gives each shot its sentence.
-//! `retime` always succeeds: rendering at the scheduled length is not an
-//! approximation of the slot but the definition of it.
+//! `retime` always succeeds, because the length is a render parameter.
 
 use std::path::{Path, PathBuf};
 

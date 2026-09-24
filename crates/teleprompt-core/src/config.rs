@@ -284,18 +284,11 @@ pub struct PartialTransition {
 ///   default: browser            # names a scene
 ///   browser:                    # configures one
 ///     base_url: "http://localhost:3000"
-///     viewport: [1920, 1080]
 /// ```
 ///
-/// `default` is a reserved key holding a scene *name*; every other key is a
-/// scene *configuration*. A plain `BTreeMap<String, PartialScene>` rejected
-/// `default: browser` with "invalid type: string, expected struct
-/// PartialScene".
-///
-/// The obvious repair — an untagged enum of "name or settings" — would also
-/// make `scene: { browser: playwright }` deserialize, to nothing, turning a
-/// typo into a silent no-op. Reading the key first keeps that an error, which
-/// is the house rule: unknown or malformed input is reported, never ignored.
+/// `default` is read first as a name. An untagged "name or settings" enum
+/// would also accept `scene: { browser: playwright }`, turning a typo into a
+/// silent no-op.
 #[derive(Debug, Clone, Default)]
 pub struct PartialScenes {
     pub default: Option<String>,
@@ -411,20 +404,12 @@ macro_rules! set {
 
 impl Config {
     /// Problems only the *merged* config can see, as messages ready to be
-    /// wrapped in a [`crate::Diagnostic`].
+    /// wrapped in a [`crate::Diagnostic`]. `voice.speed` can come from any
+    /// layer, so only the merged value is what the estimator will be handed.
     ///
-    /// `voice.speed` can arrive from `teleprompt.toml`, script or chapter
-    /// front matter, a line attribute, or the CLI, and the layers
-    /// override one another — so no single layer knows what the estimator
-    /// will actually be handed. This runs on the merged result, which is the
-    /// value that reaches it.
-    ///
-    /// Both checks are load-bearing rather than tidiness. `speed: 0` made
-    /// `speech / speed` infinite, `as u64` saturated it to `u64::MAX`, and
-    /// the scheduler's padding add overflowed — a panic on `check`, which is
-    /// an exit code the CLI cannot issue. `speed: -1` was worse in a quieter
-    /// way: the offline paths accepted it and only synthesis rejected it, so
-    /// `check` passed a script `dub` refused.
+    /// A zero speed makes the estimate infinite and overflows the scheduler's
+    /// padding, a panic on `check`. A negative one passes the offline paths
+    /// and fails only at synthesis, so `check` would pass what `dub` refuses.
     pub fn problems(&self) -> Vec<String> {
         let mut out = Vec::new();
         let speed = self.voice.speed;

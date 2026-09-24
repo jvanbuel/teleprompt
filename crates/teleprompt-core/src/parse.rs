@@ -248,23 +248,11 @@ fn paragraph_node(
 
 /// Splits a trailing `{...}` attribute suffix off a paragraph.
 ///
-/// `raw` is the paragraph's *normalised* text: backticks are already gone by
-/// the time it gets here, so `` The config block looks like `{ fps: 30 }` ``
-/// and `Give it a name. {#done}` are indistinguishable by inspection — the
-/// first used to be split, producing "expected `key=value`, found `fps:`"
-/// over a perfectly valid sentence. teleprompt's own scripts are
-/// documentation full of config snippets, so that rejects real prose.
-///
-/// `ends_in_code` is the missing bit: the parser records where the
-/// paragraph's last `Event::Code` ended, and passes true when that is the
-/// paragraph's end. This was chosen over pattern-matching the suffix against
-/// `{#id ...}` / `{key=value ...}` shapes because it answers the actual
-/// question — *is this brace syntax or content?* — rather than guessing from
-/// what is inside it. A shape test would also quietly reclassify a genuinely
-/// malformed suffix like `{polcy hold}` as prose, and this project's rule is
-/// that malformed input is an error, never a silent ignore. With the code
-/// span tracked, that suffix is still parsed as attributes and still
-/// reported.
+/// `raw` is normalised text with backticks gone, so a paragraph ending in
+/// the code span `` `{ fps: 30 }` `` looks like an attribute suffix.
+/// `ends_in_code` says the paragraph ended inside a code span, which makes
+/// the braces content. Deciding by that rather than by what the braces
+/// contain keeps a malformed suffix like `{polcy hold}` an error.
 fn split_attr_suffix(raw: &str, ends_in_code: bool) -> (&str, String) {
     if ends_in_code {
         return (raw, String::new());

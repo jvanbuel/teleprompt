@@ -1,17 +1,7 @@
 //! Which tier of the dubbing spectrum produced (or should produce) a
-//! line's audio.
-//!
-//! This lives in `core` rather than in `teleprompt-voice` because it is
-//! shared *vocabulary*, not backend machinery: `teleprompt-schedule` records
-//! it on every narration input and every timeline entry, and the plan's whole
-//! reason for creating `teleprompt-compile` was that `core`, `scene`,
-//! `voice`, and `schedule` must not depend on one another. Keeping the enum
-//! next to `Hash`, `Config`, and `SourceSpan` — the other types every crate
-//! names — is what lets `schedule` stay free of a `voice` dependency.
-//!
-//! The ladder itself (`resolve_source`) stays in `teleprompt-voice`: walking
-//! it needs to ask backends what they can do, which is squarely that crate's
-//! business.
+//! line's audio. Shared vocabulary lives in `core` so `schedule` needs no
+//! `voice` dependency (docs/design.md#crates); the ladder that walks the
+//! tiers, `resolve_source`, is in `teleprompt-voice`.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VoiceSource {
@@ -47,21 +37,10 @@ impl VoiceSource {
     }
 }
 
-/// `text` with every mapped word replaced by how it is said.
-///
-/// A synthetic voice reads what it is given, and what it is given is
-/// spelling. `MWAA` comes out as a word, product names come out as
-/// whatever their letters suggest, and no amount of re-recording fixes it
-/// because the author never wrote anything wrong. The map is the place to
-/// say "this is how that is pronounced", and it applies to synthesis only:
-/// captions, the manifest and the script keep the spelling, because that
-/// is what a reader wants to see.
-///
-/// Whole words, case-sensitively. A map entry names a word, not a
-/// substring: rewriting the inside of a longer word produces something
-/// nobody wrote. Punctuation is not part of the word, so an acronym in
-/// brackets or before a full stop is still found — which is most of the
-/// places an acronym appears.
+/// `text` with every mapped word replaced by how it is said, for synthesis
+/// only (docs/design.md#word-timings). Whole words, case-sensitively:
+/// rewriting the inside of a longer word produces something nobody wrote.
+/// Punctuation is not part of a word, so `(MWAA)` and `MWAA.` still match.
 pub fn spoken(text: &str, pronounce: &std::collections::BTreeMap<String, String>) -> String {
     if pronounce.is_empty() {
         return text.to_string();

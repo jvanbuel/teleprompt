@@ -132,21 +132,15 @@ pub struct SlidevDraft {
 }
 
 /// Drafts a script from a Slidev deck: each slide's speaker notes become
-/// its narration, split at Slidev's own `[click]` markers into one
-/// paragraph per click step, each followed by a block showing that step.
+/// its narration, split at Slidev's `[click]` markers (`[click:3]` adds
+/// three) into one paragraph per click step, each followed by a block
+/// showing that step.
 ///
-/// `deck` is the path the scene config should name, as the build will
-/// see it. The deck is read the way Slidev reads it: slides are separated
-/// by `---` outside code fences and HTML comments, a separator followed by
-/// YAML up to the next `---` is that slide's frontmatter, and the notes
-/// are the slide's last comment, when nothing comes after it. `[click]`
-/// adds one click and `[click:3]` adds three.
-///
-/// Slides are numbered as Slidev numbers them, because a block names a
-/// slide by that number: a `hide`den or `disabled` slide has none, and a
-/// `src:` import contributes every slide of the file it names. `read` is
-/// given an import's path relative to the deck's directory and returns
-/// its contents, which keeps this function free of IO.
+/// `deck` is the path the scene config should name, as the build will see
+/// it. Slides are read and numbered as Slidev does: a hidden or disabled
+/// slide has no number, and a `src:` import contributes the slides of the
+/// file it names. `read` returns an import's contents given its path
+/// relative to the deck's directory, which keeps this function free of IO.
 pub fn draft_slidev(
     deck_source: &str,
     deck: &str,

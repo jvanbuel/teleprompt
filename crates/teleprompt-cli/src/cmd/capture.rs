@@ -47,10 +47,8 @@ pub(crate) fn cues_of(
 
 /// A scene's settings as strings.
 ///
-/// Backends read a few unstructured keys (columns, shell, environment), so
-/// anything that is not a scalar is left out rather than rendered as YAML.
-/// One level of nesting survives, flattened with a dot, so `env:` can be
-/// written as a map:
+/// Non-scalar values are left out rather than rendered as YAML, except one
+/// level of nesting, flattened with a dot, so `env:` can be a map:
 ///
 /// ```yaml
 /// scene:
