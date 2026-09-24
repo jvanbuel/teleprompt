@@ -65,12 +65,7 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
     };
 
     for (event, range) in parser {
-        let line = line_offset + body[..range.start].lines().count() + 1;
-        let span = SourceSpan {
-            line,
-            column: 1,
-            len: range.len(),
-        };
+        let span = span_at(body, line_offset, range.start, range.len());
 
         match event {
             Event::Start(Tag::Heading { .. }) => b.begin(State::Heading),
@@ -109,6 +104,13 @@ fn parse_body(body: &str, line_offset: usize, diags: &mut Vec<Diagnostic>) -> Ve
                 }
             }
             Event::Html(h) | Event::InlineHtml(h) => match directive_from_html(&h) {
+                // Its heading's chapter does not exist yet, so it would join
+                // the one before.
+                Ok(Some(_)) if matches!(b.state, State::Heading) => b.diags.push(
+                    Diagnostic::error("a directive goes on its own line, not inside a heading")
+                        .at(span)
+                        .with_help("move it to a line of its own below the heading"),
+                ),
                 Ok(Some(node)) => push_node(&mut b.chapters, Some(node), span, b.diags),
                 Ok(None) => {}
                 Err(message) => b.diags.push(Diagnostic::error(message).at(span)),
@@ -336,6 +338,19 @@ fn directive_from_html(html: &str) -> Result<Option<Node>, String> {
     match digits.trim().parse::<u64>() {
         Ok(n) => Ok(Some(Node::Directive(Directive::Pause(n)))),
         Err(_) => Err(bad_value()),
+    }
+}
+
+/// Where the byte `start` of `body` is, as the script's line and column.
+/// Counts newlines, not `lines()`: an event that starts partway through a
+/// line would otherwise count that unfinished line too.
+fn span_at(body: &str, line_offset: usize, start: usize, len: usize) -> SourceSpan {
+    let before = &body[..start];
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    SourceSpan {
+        line: line_offset + before.matches('\n').count() + 1,
+        column: before[line_start..].chars().count() + 1,
+        len,
     }
 }
 

@@ -294,3 +294,27 @@ fn a_malformed_attribute_suffix_is_still_reported_not_silently_prose() {
         Err(d) => panic!("parse itself must not fail here: {:?}", d.0),
     }
 }
+
+/// Something that starts partway through a line is reported on that line,
+/// at its own column (#23). Counting `lines()` up to it counted the
+/// unfinished line as well, one too many.
+#[test]
+fn a_mid_line_directive_is_reported_where_it_is() {
+    let src =
+        "---\nteleprompt: 1\n---\n\n# Intro\n\nHello there <!-- teleprompt: bogus --> friend.\n";
+    let err = parse_script(src).unwrap_err();
+    let span = err.0[0].span.expect("the diagnostic points somewhere");
+    assert_eq!((span.line, span.column), (7, 13));
+}
+
+/// A directive inside a heading came before that heading's chapter existed,
+/// so it joined the previous chapter (#23). It is rejected instead, at the
+/// heading, saying where directives go.
+#[test]
+fn a_directive_inside_a_heading_is_rejected() {
+    let src = "---\nteleprompt: 1\n---\n\n# One\n\nFirst. {#a}\n\n# Two <!-- teleprompt: pause 500ms -->\n\nSecond. {#b}\n";
+    let err = parse_script(src).unwrap_err();
+    let d = &err.0[0];
+    assert!(d.message.contains("own line"), "{}", d.message);
+    assert_eq!(d.span.expect("points at the heading").line, 9);
+}
