@@ -298,6 +298,15 @@ pub fn parse_resolution(text: &str) -> Result<(u32, u32), String> {
     Ok((parse(w, "width")?, parse(h, "height")?))
 }
 
+impl From<BuildError> for crate::output::Outcome {
+    fn from(e: BuildError) -> Self {
+        match e {
+            BuildError::Validation(errors) => Self::ValidationError(errors),
+            BuildError::Runtime(message) => Self::RuntimeFailure(message),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

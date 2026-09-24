@@ -212,3 +212,37 @@ pub fn registry() -> CaptureRegistry {
         .with(Box::new(teleprompt_media::MediaRender::default()))
         .with(Box::new(teleprompt_capture::mock::MockCapture::default()))
 }
+
+/// `teleprompt capture`: dubs the script, then records whatever its shots
+/// are missing into the build's clip directory.
+///
+/// It dubs first rather than read a manifest on disk that may be stale
+/// (docs/design.md#rendering). `size` and `fps` override the script's own
+/// `output:` frame.
+pub async fn capture_script(
+    project: &crate::project::Project,
+    script: &Path,
+    locale: &str,
+    size: Option<(u32, u32)>,
+    fps: Option<u32>,
+    on_progress: &mut dyn FnMut(Progress),
+) -> Result<CaptureReport, crate::cmd::dub::DubError> {
+    let options = crate::cmd::build::BuildOptions::defaults(project, script, locale);
+    let dubbed =
+        crate::cmd::dub::run_dub(project, script, locale, &options.narration_root, false).await?;
+    let (width, height) = size.unwrap_or(dubbed.output.resolution);
+    let frame = Frame {
+        width,
+        height,
+        fps: fps.unwrap_or(dubbed.output.fps),
+    };
+    Ok(run_capture(
+        &dubbed.manifest,
+        &dubbed.shots,
+        &dubbed.scenes,
+        &registry(),
+        &options.clips_dir,
+        frame,
+        on_progress,
+    ))
+}

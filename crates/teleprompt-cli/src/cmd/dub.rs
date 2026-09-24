@@ -593,6 +593,15 @@ pub fn render_dub(out: &DubOutput) -> String {
     s
 }
 
+impl From<DubError> for crate::output::Outcome {
+    fn from(e: DubError) -> Self {
+        match e {
+            DubError::Validation(errors) => Self::ValidationError(errors),
+            DubError::Runtime(message) => Self::RuntimeFailure(message),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

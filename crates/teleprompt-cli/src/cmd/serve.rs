@@ -475,6 +475,15 @@ fn fingerprint(path: &Path) -> Option<Hash> {
     std::fs::read(path).ok().map(|bytes| Hash::of(&bytes))
 }
 
+impl From<ServeError> for crate::output::Outcome {
+    fn from(e: ServeError) -> Self {
+        match e {
+            ServeError::Validation(errors) => Self::ValidationError(errors),
+            ServeError::Runtime(message) => Self::RuntimeFailure(message),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

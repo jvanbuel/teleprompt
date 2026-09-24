@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
+use serde::Serialize;
 use teleprompt_cli::cmd::build;
 use teleprompt_cli::cmd::cache;
 use teleprompt_cli::cmd::capture as capture_cmd;
@@ -29,6 +30,25 @@ struct Cli {
 
     #[command(subcommand)]
     command: Command,
+}
+
+/// The script a command works on, and the locale to compile it for.
+#[derive(Args)]
+struct ScriptArgs {
+    script: PathBuf,
+    #[arg(long, default_value = "en")]
+    locale: String,
+}
+
+/// A frame size and rate that override the script's `output:` block.
+#[derive(Args)]
+struct FrameArgs {
+    /// Frame size, as WIDTHxHEIGHT
+    #[arg(long)]
+    resolution: Option<String>,
+    /// Frames per second
+    #[arg(long)]
+    fps: Option<u32>,
 }
 
 #[derive(Subcommand)]
@@ -65,22 +85,13 @@ enum Command {
         slidev: bool,
     },
     /// Parse and validate; no side effects, no cost
-    Check {
-        script: PathBuf,
-        #[arg(long, default_value = "en")]
-        locale: String,
-    },
+    Check(ScriptArgs),
     /// Compile the timeline and print it
-    Plan {
-        script: PathBuf,
-        #[arg(long, default_value = "en")]
-        locale: String,
-    },
+    Plan(ScriptArgs),
     /// Compare against the committed timeline
     Diff {
-        script: PathBuf,
-        #[arg(long, default_value = "en")]
-        locale: String,
+        #[command(flatten)]
+        args: ScriptArgs,
         /// Exit 3 when the timeline has drifted
         #[arg(long)]
         exit_code: bool,
@@ -93,9 +104,8 @@ enum Command {
     /// outside consumer reads — so it cannot drift from what `build`
     /// renders.
     Serve {
-        script: PathBuf,
-        #[arg(long, default_value = "en")]
-        locale: String,
+        #[command(flatten)]
+        args: ScriptArgs,
         /// Port to listen on; 0 picks a free one
         #[arg(long, default_value_t = 7878)]
         port: u16,
@@ -111,9 +121,8 @@ enum Command {
     /// of the speech. A line's own duration_ms is authoritative for its
     /// length.
     Dub {
-        script: PathBuf,
-        #[arg(long, default_value = "en")]
-        locale: String,
+        #[command(flatten)]
+        args: ScriptArgs,
         /// Output root; one self-contained directory is written per locale
         #[arg(long)]
         out: PathBuf,
@@ -134,15 +143,10 @@ enum Command {
     /// the way past; this is the same work on its own, for filling a cache
     /// before a render or after editing a tape.
     Capture {
-        script: PathBuf,
-        #[arg(long, default_value = "en")]
-        locale: String,
-        /// Frame size, as WIDTHxHEIGHT
-        #[arg(long)]
-        resolution: Option<String>,
-        /// Frames per second
-        #[arg(long)]
-        fps: Option<u32>,
+        #[command(flatten)]
+        args: ScriptArgs,
+        #[command(flatten)]
+        frame: FrameArgs,
     },
     /// Render the video
     ///
@@ -151,18 +155,13 @@ enum Command {
     /// — the timing is the scheduled timing either way, and the count of
     /// them is reported.
     Build {
-        script: PathBuf,
-        #[arg(long, default_value = "en")]
-        locale: String,
+        #[command(flatten)]
+        args: ScriptArgs,
         /// Where to write the video; defaults to build/<script>.<locale>.mp4 in the project
         #[arg(long)]
         out: Option<PathBuf>,
-        /// Frame size, as WIDTHxHEIGHT
-        #[arg(long)]
-        resolution: Option<String>,
-        /// Frames per second
-        #[arg(long)]
-        fps: Option<u32>,
+        #[command(flatten)]
+        frame: FrameArgs,
         /// Re-encode every frame instead of reusing cached ones
         #[arg(long)]
         no_cache: bool,
@@ -235,365 +234,267 @@ fn print_errors(errors: &[String]) {
     }
 }
 
-/// Synchronous on purpose: only the arms that need async build a runtime
-/// (docs/design.md#async-boundary).
+/// A command's result: `Err` is a failure not yet reported, which
+/// [`fail`] reports in the format asked for.
+type Run = Result<Outcome, Outcome>;
+
+fn runtime_failure(e: impl ToString) -> Outcome {
+    Outcome::RuntimeFailure(e.to_string())
+}
+
+/// Prints a report: pretty JSON for `--format json`, otherwise `human`.
+fn emit(format: Format, report: &impl Serialize, human: &str) {
+    match format {
+        Format::Json => println!("{}", serde_json::to_string_pretty(report).unwrap()),
+        Format::Human => print!("{human}"),
+    }
+}
+
+fn warn(warnings: &[String]) {
+    for w in warnings {
+        eprintln!("warning: {w}");
+    }
+}
+
+fn project_for(script: &std::path::Path) -> Result<Project, Outcome> {
+    Project::for_script(script).map_err(runtime_failure)
+}
+
+/// Synchronous on purpose: only the commands that need async build a
+/// runtime (docs/design.md#async-boundary).
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let registry = teleprompt_cli::scene::scenes();
+    let format = cli.format;
+    let outcome = run(cli.command, format).unwrap_or_else(|failure| fail(format, failure));
+    ExitCode::from(exit_code_for(&outcome) as u8)
+}
 
-    let outcome = match cli.command {
-        Command::New { path } => match new::scaffold(&path) {
-            Ok(files) => {
-                let report = NewReport { created: files };
-                match cli.format {
-                    Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
-                    Format::Human => print!("{}", report.render()),
-                }
+fn run(command: Command, format: Format) -> Run {
+    match command {
+        Command::New { path } => {
+            let report = NewReport {
+                created: new::scaffold(&path).map_err(runtime_failure)?,
+            };
+            emit(format, &report, &report.render());
+            Ok(Outcome::Ok)
+        }
+        Command::From { doc, out, slidev } => {
+            let report = from::run_from(&doc, out, slidev).map_err(runtime_failure)?;
+            emit(format, &report, &report.render());
+            Ok(Outcome::Ok)
+        }
+        Command::Cache { prune_to_mb } => {
+            let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;
+            let report = cache::run_cache(&project, prune_to_mb).map_err(runtime_failure)?;
+            emit(format, &report, &report.render());
+            Ok(Outcome::Ok)
+        }
+        Command::Doctor => {
+            let registry = teleprompt_cli::scene::scenes();
+            let report = runtime()
+                .map_err(runtime_failure)?
+                .block_on(doctor::doctor_report(&registry));
+            emit(format, &report, &report.render());
+            Ok(Outcome::Ok)
+        }
+        Command::Check(args) => run_check(format, &args),
+        Command::Plan(args) => run_plan(format, &args),
+        Command::Diff { args, exit_code } => {
+            let project = project_for(&args.script)?;
+            let d = diff_cmd::run_diff(&project, &args.script, &args.locale)
+                .map_err(Outcome::ValidationError)?;
+            emit(format, &d, &format!("{}\n", d.render()));
+            Ok(if exit_code && !d.is_empty() {
+                Outcome::Drift
+            } else {
                 Outcome::Ok
-            }
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-        },
-        Command::From { doc, out, slidev } => match from::run_from(&doc, out, slidev) {
-            Ok(report) => {
-                match cli.format {
-                    Format::Json => println!("{}", serde_json::to_string_pretty(&report).unwrap()),
-                    Format::Human => print!("{}", report.render()),
-                }
-                Outcome::Ok
-            }
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-        },
-        Command::Cache { prune_to_mb } => match Project::discover(std::path::Path::new(".")) {
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            Ok(project) => match cache::run_cache(&project, prune_to_mb) {
-                Ok(report) => {
-                    match cli.format {
-                        Format::Json => {
-                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
-                        }
-                        Format::Human => print!("{}", report.render()),
-                    }
-                    Outcome::Ok
-                }
-                Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            },
-        },
-        Command::Doctor => match runtime() {
-            Ok(rt) => {
-                let report = rt.block_on(doctor::doctor_report(&registry));
-                match cli.format {
-                    Format::Json => {
-                        println!("{}", serde_json::to_string_pretty(&report).unwrap())
-                    }
-                    Format::Human => print!("{}", report.render()),
-                }
-                Outcome::Ok
-            }
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e)),
-        },
-        Command::Check { script, locale } => match Project::for_script(&script) {
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            Ok(project) => match check::run_check(&project, &script, &locale) {
-                Ok(warnings) => {
-                    for w in &warnings {
-                        eprintln!("warning: {w}");
-                    }
-                    let report = CheckReport {
-                        ok: true,
-                        warnings,
-                        errors: Vec::new(),
-                    };
-                    match cli.format {
-                        Format::Json => {
-                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
-                        }
-                        Format::Human => println!("ok"),
-                    }
-                    Outcome::Ok
-                }
-                Err(errors) => {
-                    match cli.format {
-                        Format::Json => {
-                            let report = CheckReport {
-                                ok: false,
-                                warnings: Vec::new(),
-                                errors: errors.clone(),
-                            };
-                            println!("{}", serde_json::to_string_pretty(&report).unwrap())
-                        }
-                        Format::Human => print_errors(&errors),
-                    }
-                    Outcome::ValidationError(errors)
-                }
-            },
-        },
-        Command::Plan { script, locale } => match Project::for_script(&script) {
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            Ok(project) => match plan::run_plan(&project, &script, &locale) {
-                Ok(out) => {
-                    match cli.format {
-                        Format::Json => {
-                            println!("{}", serde_json::to_string_pretty(&out.timeline).unwrap())
-                        }
-                        Format::Human => print!("{}", plan::render_plan(&out)),
-                    }
-                    let estimated = out
-                        .timeline
-                        .entries
-                        .iter()
-                        .filter(|e| {
-                            e.narration
-                                .as_ref()
-                                .is_some_and(|n| n.duration_source == "estimated")
-                        })
-                        .count();
-                    if estimated > 0 {
-                        let total = out
-                            .timeline
-                            .entries
-                            .iter()
-                            .filter(|e| e.narration.is_some())
-                            .count();
-                        eprintln!(
-                            "warning: {estimated} of {total} narration durations are \
-                             estimated; run `teleprompt dub` to measure them before \
-                             committing this timeline"
-                        );
-                    }
-                    Outcome::Ok
-                }
-                Err(errors) => fail(cli.format, Outcome::ValidationError(errors)),
-            },
-        },
-        Command::Diff {
-            script,
-            locale,
-            exit_code,
-        } => match Project::for_script(&script) {
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            Ok(project) => match diff_cmd::run_diff(&project, &script, &locale) {
-                Ok(d) => {
-                    match cli.format {
-                        Format::Json => println!("{}", serde_json::to_string_pretty(&d).unwrap()),
-                        Format::Human => println!("{}", d.render()),
-                    }
-                    if exit_code && !d.is_empty() {
-                        Outcome::Drift
-                    } else {
-                        Outcome::Ok
-                    }
-                }
-                Err(errors) => fail(cli.format, Outcome::ValidationError(errors)),
-            },
-        },
-        Command::Serve {
-            script,
-            locale,
-            port,
-        } => match Project::for_script(&script) {
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            Ok(project) => {
-                match runtime()
-                    .map_err(serve::ServeError::Runtime)
-                    .and_then(|rt| rt.block_on(serve::run_serve(&project, &script, &locale, port)))
-                {
-                    Ok(()) => Outcome::Ok,
-                    Err(serve::ServeError::Validation(errors)) => {
-                        fail(cli.format, Outcome::ValidationError(errors))
-                    }
-                    Err(serve::ServeError::Runtime(e)) => {
-                        fail(cli.format, Outcome::RuntimeFailure(e))
-                    }
-                }
-            }
-        },
+            })
+        }
+        Command::Serve { args, port } => {
+            let project = project_for(&args.script)?;
+            runtime()
+                .map_err(runtime_failure)?
+                .block_on(serve::run_serve(&project, &args.script, &args.locale, port))?;
+            Ok(Outcome::Ok)
+        }
         Command::Build {
-            script,
-            locale,
+            args,
             out,
-            resolution,
-            fps,
+            frame,
             no_cache,
             cache_max_mb,
-        } => match Project::for_script(&script) {
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            Ok(project) => {
-                let size = resolution.as_deref().map(build::parse_resolution);
-                match size {
-                    Some(Err(e)) => fail(cli.format, Outcome::RuntimeFailure(e)),
-                    size => {
-                        let mut options = build::BuildOptions::defaults(&project, &script, &locale);
-                        if let Some(path) = out {
-                            options.out = path;
-                        }
-                        if let Some(Ok(size)) = size {
-                            options.resolution = Some(size);
-                        }
-                        options.fps = fps.or(options.fps);
-                        if no_cache {
-                            options.compose_dir = None;
-                        }
-                        options.cache_max_mb = cache_max_mb.unwrap_or(options.cache_max_mb);
-                        let mut show = progress_reporter(cli.format);
-                        match runtime()
-                            .map_err(build::BuildError::Runtime)
-                            .and_then(|rt| {
-                                let renderer = build::renderer(&options);
-                                rt.block_on(build::run_build_with(
-                                    &renderer, &project, &script, &locale, &options, &mut show,
-                                ))
-                            }) {
-                            Ok(report) => {
-                                for w in &report.warnings {
-                                    eprintln!("warning: {w}");
-                                }
-                                match cli.format {
-                                    Format::Json => println!(
-                                        "{}",
-                                        serde_json::to_string_pretty(&report).unwrap()
-                                    ),
-                                    Format::Human => print!("{}", report.render()),
-                                }
-                                Outcome::Ok
-                            }
-                            Err(build::BuildError::Validation(errors)) => {
-                                fail(cli.format, Outcome::ValidationError(errors))
-                            }
-                            Err(build::BuildError::Runtime(message)) => {
-                                fail(cli.format, Outcome::RuntimeFailure(message))
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        Command::Capture {
-            script,
-            locale,
-            resolution,
-            fps,
-        } => match Project::for_script(&script) {
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            Ok(project) => {
-                match resolution
-                    .as_deref()
-                    .map(build::parse_resolution)
-                    .transpose()
-                {
-                    Err(e) => fail(cli.format, Outcome::RuntimeFailure(e)),
-                    Ok(size) => {
-                        let options = build::BuildOptions::defaults(&project, &script, &locale);
-                        // Dub first rather than read a manifest on disk
-                        // that may be stale (docs/design.md#rendering).
-                        let dubbed = runtime().map_err(dub::DubError::Runtime).and_then(|rt| {
-                            rt.block_on(dub::run_dub(
-                                &project,
-                                &script,
-                                &locale,
-                                &options.narration_root,
-                                false,
-                            ))
-                        });
-                        match dubbed {
-                            Err(dub::DubError::Validation(errors)) => {
-                                fail(cli.format, Outcome::ValidationError(errors))
-                            }
-                            Err(dub::DubError::Runtime(message)) => {
-                                fail(cli.format, Outcome::RuntimeFailure(message))
-                            }
-                            Ok(dubbed) => {
-                                let (width, height) = size.unwrap_or(dubbed.output.resolution);
-                                let frame = teleprompt_capture::Frame {
-                                    width,
-                                    height,
-                                    fps: fps.unwrap_or(dubbed.output.fps),
-                                };
-                                let report = capture_cmd::run_capture(
-                                    &dubbed.manifest,
-                                    &dubbed.shots,
-                                    &dubbed.scenes,
-                                    &capture_cmd::registry(),
-                                    &options.clips_dir,
-                                    frame,
-                                    &mut |p| {
-                                        if cli.format == Format::Human {
-                                            eprintln!(
-                                                "  [{}/{}] {} {}",
-                                                p.done, p.of, p.scene, p.shot
-                                            );
-                                        }
-                                    },
-                                );
-                                for w in &report.warnings {
-                                    eprintln!("warning: {w}");
-                                }
-                                match cli.format {
-                                    Format::Json => println!(
-                                        "{}",
-                                        serde_json::to_string_pretty(&report).unwrap()
-                                    ),
-                                    Format::Human => print!("{}", report.render()),
-                                }
-                                Outcome::Ok
-                            }
-                        }
-                    }
-                }
-            }
-        },
+        } => run_build(format, &args, out, &frame, no_cache, cache_max_mb),
+        Command::Capture { args, frame } => run_capture(format, &args, &frame),
         Command::Dub {
-            script,
-            locale,
+            args,
             out,
             check,
             strict_voice,
-        } => match Project::for_script(&script) {
-            Err(e) => fail(cli.format, Outcome::RuntimeFailure(e.to_string())),
-            Ok(project) => match runtime()
-                .map_err(dub::DubError::Runtime)
-                .and_then(|rt| rt.block_on(dub::run_dub(&project, &script, &locale, &out, check)))
-            {
-                Ok(result) => {
-                    for w in &result.warnings {
-                        eprintln!("warning: {w}");
-                    }
-                    match (&result.drift, cli.format) {
-                        (Some(d), Format::Json) => {
-                            println!("{}", serde_json::to_string_pretty(d).unwrap())
-                        }
-                        (Some(d), Format::Human) => print!("{}", d.render()),
-                        (None, Format::Json) => {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&result.manifest).unwrap()
-                            )
-                        }
-                        (None, Format::Human) => print!("{}", dub::render_dub(&result)),
-                    }
-                    // Reported whether or not `--strict-voice` makes it fatal.
-                    if !result.downgrades.is_empty() {
-                        eprintln!("voice downgraded on {} line(s):", result.downgrades.len());
-                        eprint!("{}", dub::render_downgrades(&result.downgrades));
-                    }
+        } => run_dub(format, &args, &out, check, strict_voice),
+    }
+}
 
-                    // Ahead of drift: the audio is not what the script asked
-                    // for, whatever the committed manifest says.
-                    if strict_voice && !result.downgrades.is_empty() {
-                        Outcome::VoiceDowngrade
-                    } else {
-                        match &result.drift {
-                            Some(d) if !d.is_empty() => Outcome::Drift,
-                            _ => Outcome::Ok,
-                        }
-                    }
+/// `check` reports its own failure: its JSON report has room for the errors.
+fn run_check(format: Format, args: &ScriptArgs) -> Run {
+    let project = project_for(&args.script)?;
+    match check::run_check(&project, &args.script, &args.locale) {
+        Ok(warnings) => {
+            warn(&warnings);
+            let report = CheckReport {
+                ok: true,
+                warnings,
+                errors: Vec::new(),
+            };
+            emit(format, &report, "ok\n");
+            Ok(Outcome::Ok)
+        }
+        Err(errors) => {
+            match format {
+                Format::Json => {
+                    let report = CheckReport {
+                        ok: false,
+                        warnings: Vec::new(),
+                        errors: errors.clone(),
+                    };
+                    println!("{}", serde_json::to_string_pretty(&report).unwrap())
                 }
-                Err(dub::DubError::Validation(errors)) => {
-                    fail(cli.format, Outcome::ValidationError(errors))
-                }
-                Err(dub::DubError::Runtime(e)) => fail(cli.format, Outcome::RuntimeFailure(e)),
-            },
-        },
+                Format::Human => print_errors(&errors),
+            }
+            Ok(Outcome::ValidationError(errors))
+        }
+    }
+}
+
+fn run_plan(format: Format, args: &ScriptArgs) -> Run {
+    let project = project_for(&args.script)?;
+    let out =
+        plan::run_plan(&project, &args.script, &args.locale).map_err(Outcome::ValidationError)?;
+    emit(format, &out.timeline, &plan::render_plan(&out));
+
+    let narrated = out
+        .timeline
+        .entries
+        .iter()
+        .filter_map(|e| e.narration.as_ref());
+    let total = narrated.clone().count();
+    let estimated = narrated
+        .filter(|n| n.duration_source == "estimated")
+        .count();
+    if estimated > 0 {
+        eprintln!(
+            "warning: {estimated} of {total} narration durations are \
+             estimated; run `teleprompt dub` to measure them before \
+             committing this timeline"
+        );
+    }
+    Ok(Outcome::Ok)
+}
+
+fn run_build(
+    format: Format,
+    args: &ScriptArgs,
+    out: Option<PathBuf>,
+    frame: &FrameArgs,
+    no_cache: bool,
+    cache_max_mb: Option<u64>,
+) -> Run {
+    let project = project_for(&args.script)?;
+    let size = frame
+        .resolution
+        .as_deref()
+        .map(build::parse_resolution)
+        .transpose()
+        .map_err(Outcome::RuntimeFailure)?;
+    let mut options = build::BuildOptions::defaults(&project, &args.script, &args.locale);
+    if let Some(path) = out {
+        options.out = path;
+    }
+    if size.is_some() {
+        options.resolution = size;
+    }
+    options.fps = frame.fps.or(options.fps);
+    if no_cache {
+        options.compose_dir = None;
+    }
+    options.cache_max_mb = cache_max_mb.unwrap_or(options.cache_max_mb);
+
+    let mut show = progress_reporter(format);
+    let renderer = build::renderer(&options);
+    let report = runtime()
+        .map_err(runtime_failure)?
+        .block_on(build::run_build_with(
+            &renderer,
+            &project,
+            &args.script,
+            &args.locale,
+            &options,
+            &mut show,
+        ))?;
+    warn(&report.warnings);
+    emit(format, &report, &report.render());
+    Ok(Outcome::Ok)
+}
+
+fn run_capture(format: Format, args: &ScriptArgs, frame: &FrameArgs) -> Run {
+    let project = project_for(&args.script)?;
+    let size = frame
+        .resolution
+        .as_deref()
+        .map(build::parse_resolution)
+        .transpose()
+        .map_err(Outcome::RuntimeFailure)?;
+    let mut progress = |p: teleprompt_capture::Progress| {
+        if format == Format::Human {
+            eprintln!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot);
+        }
     };
+    let report = runtime()
+        .map_err(runtime_failure)?
+        .block_on(capture_cmd::capture_script(
+            &project,
+            &args.script,
+            &args.locale,
+            size,
+            frame.fps,
+            &mut progress,
+        ))?;
+    warn(&report.warnings);
+    emit(format, &report, &report.render());
+    Ok(Outcome::Ok)
+}
 
-    ExitCode::from(exit_code_for(&outcome) as u8)
+fn run_dub(
+    format: Format,
+    args: &ScriptArgs,
+    out: &std::path::Path,
+    check: bool,
+    strict_voice: bool,
+) -> Run {
+    let project = project_for(&args.script)?;
+    let result = runtime().map_err(runtime_failure)?.block_on(dub::run_dub(
+        &project,
+        &args.script,
+        &args.locale,
+        out,
+        check,
+    ))?;
+    warn(&result.warnings);
+    match &result.drift {
+        Some(d) => emit(format, d, &d.render()),
+        None => emit(format, &result.manifest, &dub::render_dub(&result)),
+    }
+    // Reported whether or not `--strict-voice` makes it fatal.
+    if !result.downgrades.is_empty() {
+        eprintln!("voice downgraded on {} line(s):", result.downgrades.len());
+        eprint!("{}", dub::render_downgrades(&result.downgrades));
+    }
+    // Ahead of drift: the audio is not what the script asked for, whatever
+    // the committed manifest says.
+    Ok(if strict_voice && !result.downgrades.is_empty() {
+        Outcome::VoiceDowngrade
+    } else if result.drift.as_ref().is_some_and(|d| !d.is_empty()) {
+        Outcome::Drift
+    } else {
+        Outcome::Ok
+    })
 }
