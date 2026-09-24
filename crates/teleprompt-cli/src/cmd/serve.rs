@@ -361,6 +361,9 @@ pub async fn serve_on(
     script: &Path,
     locale: &str,
 ) -> Result<(), ServeError> {
+    // Taken before the build reads the script, so a save during startup
+    // differs from the baseline instead of becoming it.
+    let compiled = fingerprint(script);
     let built = rebuild(project, script, locale, None).await?;
     let cache_dir = cache_root(project);
 
@@ -409,13 +412,19 @@ pub async fn serve_on(
         project.clone(),
         script.to_path_buf(),
         locale.to_string(),
+        compiled,
     )
     .await;
     Ok(())
 }
 
-async fn watch(state: Arc<Mutex<Preview>>, project: Project, script: PathBuf, locale: String) {
-    let mut seen = fingerprint(&script);
+async fn watch(
+    state: Arc<Mutex<Preview>>,
+    project: Project,
+    script: PathBuf,
+    locale: String,
+    mut seen: Option<Hash>,
+) {
     loop {
         tokio::time::sleep(POLL).await;
         let now = fingerprint(&script);
@@ -469,6 +478,39 @@ fn fingerprint(path: &Path) -> Option<Hash> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A save between the first build reading the script and the watcher
+    /// starting is still seen, because the watcher's baseline is what the
+    /// build compiled, not what the file holds when it starts.
+    #[tokio::test]
+    async fn an_edit_during_startup_is_not_lost() {
+        let dir = std::env::temp_dir().join(format!("tp-serve-startup-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        crate::cmd::new::scaffold(&dir).unwrap();
+        let project = Project::discover(&dir).unwrap();
+        let script = dir.join("scripts/demo.md");
+
+        let compiled = fingerprint(&script);
+        let built = rebuild(&project, &script, "en", None).await.unwrap();
+        let state = Arc::new(Mutex::new(Preview {
+            generation: 1,
+            manifest: built.manifest,
+            shots: built.shots,
+            audio_keys: built.audio_keys,
+            changed: Vec::new(),
+            error: None,
+        }));
+        let edited = std::fs::read_to_string(&script).unwrap() + "\nOne more line.\n";
+        std::fs::write(&script, edited).unwrap();
+
+        let watching = watch(state.clone(), project, script, "en".into(), compiled);
+        let _ = tokio::time::timeout(POLL * 4, watching).await;
+        assert!(
+            state.lock().unwrap().generation > 1,
+            "the edit was never seen"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn routes_strip_the_query_and_reject_anything_but_get() {
