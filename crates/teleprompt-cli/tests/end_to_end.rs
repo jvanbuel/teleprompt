@@ -110,7 +110,10 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 
     assert_eq!(d.changed.len(), 1, "exactly one line changed");
     assert_eq!(d.changed[0].item, "deploy");
-    assert!(d.changed[0].reason.contains("text edited"));
+    assert_eq!(
+        d.changed[0].reason,
+        teleprompt_schedule::ChangeReason::TextEdited
+    );
     assert!(d.shift_ms > 0, "a longer paragraph lengthens the video");
     assert!(
         !d.recapture.is_empty(),

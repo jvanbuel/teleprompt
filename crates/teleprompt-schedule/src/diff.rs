@@ -12,7 +12,34 @@ pub struct ChangedBeat {
     pub item: String,
     pub before_ms: u64,
     pub after_ms: u64,
-    pub reason: String,
+    pub reason: ChangeReason,
+}
+
+/// Why a narrated item's timing changed, most actionable cause first.
+/// Serialized as its prose, which `diff --format json` has always carried.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChangeReason {
+    TextEdited,
+    NowMeasured,
+    AudioChanged,
+    PaddingChanged,
+}
+
+impl std::fmt::Display for ChangeReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::TextEdited => "text edited",
+            Self::NowMeasured => "now measured",
+            Self::AudioChanged => "audio changed",
+            Self::PaddingChanged => "padding changed",
+        })
+    }
+}
+
+impl serde::Serialize for ChangeReason {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -249,22 +276,22 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                     || now_measured
                 {
                     let reason = if on.source_hash != nn.source_hash {
-                        "text edited"
+                        ChangeReason::TextEdited
                     // After `text edited`, which explains a duration change
                     // on its own; before the audio checks, which would
                     // otherwise report the wrong cause.
                     } else if now_measured {
-                        "now measured"
+                        ChangeReason::NowMeasured
                     } else if on.audio_hash != nn.audio_hash || on.duration_ms != nn.duration_ms {
-                        "audio changed"
+                        ChangeReason::AudioChanged
                     } else {
-                        "padding changed"
+                        ChangeReason::PaddingChanged
                     };
                     changed.push(ChangedBeat {
                         item: (*id).to_string(),
                         before_ms: on.duration_ms,
                         after_ms: nn.duration_ms,
-                        reason: reason.to_string(),
+                        reason,
                     });
                 }
             }

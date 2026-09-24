@@ -1,7 +1,7 @@
 use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
 use teleprompt_core::VoiceSource;
-use teleprompt_manifest::diff::diff;
+use teleprompt_manifest::diff::{diff, DriftReason};
 use teleprompt_manifest::{
     AudioInfo, ChapterEntry, LineEntry, NarrationManifest, MANIFEST_VERSION,
 };
@@ -70,7 +70,7 @@ fn an_edited_paragraph_is_reported_as_a_text_edit() {
     assert_eq!(d.changed[0].id, "welcome");
     assert_eq!(d.changed[0].before_ms, 1000);
     assert_eq!(d.changed[0].after_ms, 2000);
-    assert_eq!(d.changed[0].reason, "text edited");
+    assert_eq!(d.changed[0].reason, DriftReason::TextEdited);
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn a_new_voice_is_reported_as_an_audio_change_not_a_text_edit() {
     let after = manifest(vec![seg("welcome", 0, 1100, "Hello.", "b")]);
     let d = diff(&before, &after);
 
-    assert_eq!(d.changed[0].reason, "audio changed");
+    assert_eq!(d.changed[0].reason, DriftReason::AudioChanged);
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn a_line_that_only_shifted_is_still_drift() {
         !d.is_empty(),
         "a shifted line desynchronises every consumer"
     );
-    assert_eq!(d.changed[0].reason, "shifted");
+    assert_eq!(d.changed[0].reason, DriftReason::Shifted);
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn a_duration_only_change_is_audio_changed_not_shifted() {
     let after = manifest(vec![seg("welcome", 0, 1200, "Hello.", "a")]);
     let d = diff(&before, &after);
 
-    assert_eq!(d.changed[0].reason, "audio changed");
+    assert_eq!(d.changed[0].reason, DriftReason::AudioChanged);
 }
 
 #[test]
@@ -126,7 +126,17 @@ fn a_voice_tier_downgrade_is_named() {
     let after = manifest(vec![after_seg]);
     let d = diff(&before, &after);
 
-    assert_eq!(d.changed[0].reason, "voice tier cloned → synthetic");
+    assert_eq!(
+        d.changed[0].reason,
+        DriftReason::VoiceTier {
+            before: VoiceSource::Cloned,
+            after: VoiceSource::Synthetic
+        }
+    );
+    assert_eq!(
+        d.changed[0].reason.to_string(),
+        "voice tier cloned → synthetic"
+    );
 }
 
 #[test]
@@ -144,7 +154,7 @@ fn a_voice_request_change_with_no_tier_change_is_named_separately() {
     let after = manifest(vec![after_seg]);
     let d = diff(&before, &after);
 
-    assert_eq!(d.changed[0].reason, "voice request changed");
+    assert_eq!(d.changed[0].reason, DriftReason::VoiceRequestChanged);
 }
 
 #[test]
@@ -205,11 +215,11 @@ fn editing_the_first_segment_shifts_later_lines_without_flagging_them_for_rerend
     assert_eq!(d.changed.len(), 3);
 
     let one_c = d.changed.iter().find(|c| c.id == "one").unwrap();
-    assert_eq!(one_c.reason, "text edited");
+    assert_eq!(one_c.reason, DriftReason::TextEdited);
     let two_c = d.changed.iter().find(|c| c.id == "two").unwrap();
-    assert_eq!(two_c.reason, "shifted");
+    assert_eq!(two_c.reason, DriftReason::Shifted);
     let three_c = d.changed.iter().find(|c| c.id == "three").unwrap();
-    assert_eq!(three_c.reason, "shifted");
+    assert_eq!(three_c.reason, DriftReason::Shifted);
 
     let text = d.render();
     let rerender_section = text
@@ -303,7 +313,7 @@ fn an_estimated_line_that_becomes_measured_is_drift() {
 
     let d = diff(&manifest(vec![before]), &manifest(vec![after]));
     assert_eq!(d.changed.len(), 1, "{:?}", d.changed);
-    assert_eq!(d.changed[0].reason, "now measured");
+    assert_eq!(d.changed[0].reason, DriftReason::NowMeasured);
 }
 
 /// The reverse — a cleared cache turning a measurement back into a
@@ -318,8 +328,8 @@ fn a_measured_line_that_reverts_to_estimated_does_not_claim_a_measurement() {
 
     let d = diff(&manifest(vec![before]), &manifest(vec![after]));
     assert_ne!(
-        d.changed.first().map(|c| c.reason.as_str()),
-        Some("now measured")
+        d.changed.first().map(|c| c.reason),
+        Some(DriftReason::NowMeasured)
     );
 }
 
@@ -332,7 +342,7 @@ fn a_text_edit_outranks_the_measurement_transition() {
     let after = seg("welcome", 0, 3000, "One two three four five six more.", "b");
 
     let d = diff(&manifest(vec![before]), &manifest(vec![after]));
-    assert_eq!(d.changed[0].reason, "text edited");
+    assert_eq!(d.changed[0].reason, DriftReason::TextEdited);
 }
 
 /// And before `audio changed`, so the transition is named rather than being
@@ -345,5 +355,31 @@ fn the_measurement_transition_outranks_a_length_change() {
     let after = seg("welcome", 0, 5000, "One two three four five six.", "b");
 
     let d = diff(&manifest(vec![before]), &manifest(vec![after]));
-    assert_eq!(d.changed[0].reason, "now measured");
+    assert_eq!(d.changed[0].reason, DriftReason::NowMeasured);
+}
+
+/// `dub --check --format json` publishes each reason as its prose; the enum
+/// must not change that.
+#[test]
+fn a_drift_reason_serializes_as_its_prose() {
+    let cases = [
+        (DriftReason::TextEdited, "\"text edited\""),
+        (DriftReason::NowMeasured, "\"now measured\""),
+        (DriftReason::AudioChanged, "\"audio changed\""),
+        (
+            DriftReason::VoiceTier {
+                before: VoiceSource::Recorded,
+                after: VoiceSource::Synthetic,
+            },
+            "\"voice tier recorded → synthetic\"",
+        ),
+        (
+            DriftReason::VoiceRequestChanged,
+            "\"voice request changed\"",
+        ),
+        (DriftReason::Shifted, "\"shifted\""),
+    ];
+    for (reason, json) in cases {
+        assert_eq!(serde_json::to_string(&reason).unwrap(), json);
+    }
 }

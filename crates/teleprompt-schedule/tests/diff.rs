@@ -2,7 +2,7 @@ use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::Hash;
 use teleprompt_core::{DurationSource, VoiceSource};
 use teleprompt_schedule::{
-    diff, schedule, ActionInput, Item, NarrationInput, Pacing, Policy, TimelineDiff,
+    diff, schedule, ActionInput, ChangeReason, Item, NarrationInput, Pacing, Policy, TimelineDiff,
 };
 
 fn cfg() -> Config {
@@ -61,7 +61,7 @@ fn a_longer_line_is_reported_with_both_durations() {
     assert_eq!(d.changed[0].item, "b1");
     assert_eq!(d.changed[0].before_ms, 4200);
     assert_eq!(d.changed[0].after_ms, 5800);
-    assert!(d.changed[0].reason.contains("text edited"));
+    assert_eq!(d.changed[0].reason, ChangeReason::TextEdited);
 }
 
 #[test]
@@ -71,8 +71,8 @@ fn a_duration_change_without_a_text_change_is_reported_differently() {
     changed.narration.as_mut().unwrap().audio_hash = Hash::of(b"different voice");
     let b = timeline(vec![changed]);
     let d = diff(&a, &b);
-    assert!(d.changed[0].reason.contains("audio changed"));
-    assert!(!d.changed[0].reason.contains("text edited"));
+    assert_eq!(d.changed[0].reason, ChangeReason::AudioChanged);
+    assert_ne!(d.changed[0].reason, ChangeReason::TextEdited);
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn a_text_edit_with_no_duration_change_is_still_reported() {
     assert_eq!(d.changed[0].item, "b1");
     assert_eq!(d.changed[0].before_ms, 1000);
     assert_eq!(d.changed[0].after_ms, 1000);
-    assert!(d.changed[0].reason.contains("text edited"));
+    assert_eq!(d.changed[0].reason, ChangeReason::TextEdited);
     assert!(!d.is_empty());
 
     let rendered = d.render();
@@ -454,7 +454,7 @@ fn a_lead_in_retune_that_does_not_change_shot_length_is_still_reported() {
     let d = diff(&before, &after);
     assert!(!d.is_empty());
     assert_eq!(d.changed.len(), 1);
-    assert_eq!(d.changed[0].reason, "padding changed");
+    assert_eq!(d.changed[0].reason, ChangeReason::PaddingChanged);
 }
 
 /// The estimated-to-measured transition is real drift — the video did change
@@ -480,7 +480,7 @@ fn an_estimate_becoming_a_measurement_is_named_as_such() {
         .iter()
         .find(|c| c.item == "b1")
         .expect("b1 changed");
-    assert_eq!(changed.reason, "now measured");
+    assert_eq!(changed.reason, ChangeReason::NowMeasured);
 
     let rendered = d.render();
     assert!(rendered.contains("now measured"), "{rendered}");
@@ -515,7 +515,7 @@ fn a_measurement_that_matches_its_estimate_still_reports() {
         "an unchanged length must not hide the measurement"
     );
     assert_eq!(d.changed.len(), 1);
-    assert_eq!(d.changed[0].reason, "now measured");
+    assert_eq!(d.changed[0].reason, ChangeReason::NowMeasured);
 }
 
 /// The reverse — a cleared cache turning a measurement back into an estimate
@@ -555,5 +555,20 @@ fn a_text_edit_outranks_the_measurement_transition() {
     };
 
     let d = diff(&before, &after);
-    assert_eq!(d.changed[0].reason, "text edited");
+    assert_eq!(d.changed[0].reason, ChangeReason::TextEdited);
+}
+
+/// `diff --format json` publishes each reason as its prose; the enum must
+/// not change that.
+#[test]
+fn a_change_reason_serializes_as_its_prose() {
+    let cases = [
+        (ChangeReason::TextEdited, "\"text edited\""),
+        (ChangeReason::NowMeasured, "\"now measured\""),
+        (ChangeReason::AudioChanged, "\"audio changed\""),
+        (ChangeReason::PaddingChanged, "\"padding changed\""),
+    ];
+    for (reason, json) in cases {
+        assert_eq!(serde_json::to_string(&reason).unwrap(), json);
+    }
 }

@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 use teleprompt_core::time::short;
-use teleprompt_core::DurationSource;
+use teleprompt_core::{DurationSource, VoiceSource};
 
 use crate::{LineEntry, NarrationManifest};
 
@@ -12,10 +12,44 @@ pub struct ChangedSegment {
     pub id: String,
     pub before_ms: u64,
     pub after_ms: u64,
-    /// `text edited` | `now measured` | `audio changed` |
-    /// `voice tier X → Y` | `voice request changed` | `shifted`. Different
-    /// causes want different fixes, so the report must not collapse them.
-    pub reason: String,
+    /// Different causes want different fixes, so the report must not
+    /// collapse them.
+    pub reason: DriftReason,
+}
+
+/// Serialized as its prose (`text edited`, `voice tier cloned → synthetic`,
+/// …), which `dub --check --format json` has always carried.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriftReason {
+    TextEdited,
+    NowMeasured,
+    AudioChanged,
+    VoiceTier {
+        before: VoiceSource,
+        after: VoiceSource,
+    },
+    VoiceRequestChanged,
+    /// Only `start_ms` moved, because an earlier line changed length.
+    Shifted,
+}
+
+impl std::fmt::Display for DriftReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TextEdited => f.write_str("text edited"),
+            Self::NowMeasured => f.write_str("now measured"),
+            Self::AudioChanged => f.write_str("audio changed"),
+            Self::VoiceTier { before, after } => write!(f, "voice tier {before} → {after}"),
+            Self::VoiceRequestChanged => f.write_str("voice request changed"),
+            Self::Shifted => f.write_str("shifted"),
+        }
+    }
+}
+
+impl Serialize for DriftReason {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -99,7 +133,7 @@ impl ManifestDiff {
         let mut stale: Vec<&str> = self
             .changed
             .iter()
-            .filter(|c| c.reason != "shifted")
+            .filter(|c| c.reason != DriftReason::Shifted)
             .map(|c| c.id.as_str())
             .collect();
         stale.extend(self.added.iter().map(String::as_str));
@@ -120,29 +154,29 @@ impl ManifestDiff {
 ///
 /// The first three reasons are ordered as in the timeline's narration diff
 /// (`teleprompt-schedule/src/diff.rs`); the two must not contradict.
-fn reason_for(before: &LineEntry, after: &LineEntry) -> Option<String> {
+fn reason_for(before: &LineEntry, after: &LineEntry) -> Option<DriftReason> {
     if before.source_hash != after.source_hash {
-        Some("text edited".to_string())
+        Some(DriftReason::TextEdited)
     // Before the audio checks, which would otherwise absorb it. Only the
     // move to `measured` counts; with `null`, estimate and audio coincide,
     // so nothing else would report it.
     } else if before.duration_source != after.duration_source
         && after.duration_source == DurationSource::Measured
     {
-        Some("now measured".to_string())
+        Some(DriftReason::NowMeasured)
     } else if before.audio_hash != after.audio_hash || before.duration_ms != after.duration_ms {
-        Some("audio changed".to_string())
+        Some(DriftReason::AudioChanged)
     } else if before.voice_source_actual != after.voice_source_actual {
-        Some(format!(
-            "voice tier {} → {}",
-            before.voice_source_actual, after.voice_source_actual
-        ))
+        Some(DriftReason::VoiceTier {
+            before: before.voice_source_actual,
+            after: after.voice_source_actual,
+        })
     } else if before.voice_source != after.voice_source
         || before.downgrade_reason != after.downgrade_reason
     {
-        Some("voice request changed".to_string())
+        Some(DriftReason::VoiceRequestChanged)
     } else if before.start_ms != after.start_ms {
-        Some("shifted".to_string())
+        Some(DriftReason::Shifted)
     } else {
         None
     }
