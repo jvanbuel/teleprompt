@@ -1,3 +1,4 @@
+use crate::DurationMs;
 use crate::SourceSpan;
 
 #[derive(Debug, Clone)]
@@ -49,7 +50,7 @@ pub struct ActionBlock {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Directive {
-    Pause(u64),
+    Pause(DurationMs),
 }
 
 pub fn slugify(title: &str) -> String {

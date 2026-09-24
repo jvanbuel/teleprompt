@@ -1,5 +1,6 @@
 use teleprompt_core::ast::{Directive, Node};
 use teleprompt_core::parse::parse_script;
+use teleprompt_core::DurationMs;
 
 const BASIC: &str = r#"---
 teleprompt: 1
@@ -85,7 +86,7 @@ fn html_comment_paragraph_is_a_directive() {
     let s = parse_script(src).unwrap();
     assert!(matches!(
         s.chapters[0].nodes[0],
-        Node::Directive(Directive::Pause(800))
+        Node::Directive(Directive::Pause(ms)) if ms == DurationMs::millis(800)
     ));
 }
 

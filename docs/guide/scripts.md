@@ -118,7 +118,8 @@ pronunciation re-renders only the lines that use that word.
 Lines take attributes after their id, as in `{#intro voice.speed=1.1}`.
 Blocks take them on the fence line. An unknown key is an error, and so is
 a duration that doesn't parse or is longer than a day (`lead_in`, `tail`,
-and a `pause`).
+and a `pause`). The same limit applies to the `_ms` settings in
+`teleprompt.toml` and front matter.
 
 | on | keys |
 |---|---|

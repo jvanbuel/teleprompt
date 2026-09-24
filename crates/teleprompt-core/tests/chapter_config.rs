@@ -2,6 +2,7 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element};
+use teleprompt_core::DurationMs;
 
 const SRC: &str = r#"---
 timing:
@@ -45,8 +46,8 @@ fn chapter_front_matter_overrides_script_front_matter() {
     let Element::Narration { config: slow, .. } = &it[1] else {
         panic!()
     };
-    assert_eq!(fast.timing.lead_in_ms, 100);
-    assert_eq!(slow.timing.lead_in_ms, 900);
+    assert_eq!(fast.timing.lead_in_ms, DurationMs::millis(100));
+    assert_eq!(slow.timing.lead_in_ms, DurationMs::millis(900));
 }
 
 #[test]

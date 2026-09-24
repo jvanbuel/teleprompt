@@ -2,6 +2,7 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element, Program};
+use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
 
 const SRC: &str = r#"---
@@ -75,7 +76,7 @@ fn front_matter_config_reaches_every_item() {
     let Element::Narration { config, .. } = &p.elements[0] else {
         panic!()
     };
-    assert_eq!(config.timing.lead_in_ms, 200);
+    assert_eq!(config.timing.lead_in_ms, DurationMs::millis(200));
 }
 
 #[test]
@@ -87,8 +88,8 @@ fn segment_attributes_override_front_matter_for_that_line_only() {
     let Element::Narration { config: second, .. } = &p.elements[2] else {
         panic!()
     };
-    assert_eq!(first.timing.lead_in_ms, 200);
-    assert_eq!(second.timing.lead_in_ms, 400);
+    assert_eq!(first.timing.lead_in_ms, DurationMs::millis(200));
+    assert_eq!(second.timing.lead_in_ms, DurationMs::millis(400));
 }
 
 #[test]
@@ -101,7 +102,8 @@ fn cli_flags_shot_everything() {
         panic!()
     };
     assert_eq!(
-        config.timing.lead_in_ms, 999,
+        config.timing.lead_in_ms,
+        DurationMs::millis(999),
         "CLI outranks the line attribute"
     );
 }

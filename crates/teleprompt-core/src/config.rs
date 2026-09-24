@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use serde::de::IgnoredAny;
 use serde::Deserialize;
 
-use crate::attrs::{parse_duration_ms, Attributes};
+use crate::attrs::Attributes;
+use crate::DurationMs;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
@@ -50,8 +51,8 @@ pub struct VoiceConfig {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimingConfig {
-    pub lead_in_ms: u64,
-    pub tail_ms: u64,
+    pub lead_in_ms: DurationMs,
+    pub tail_ms: DurationMs,
     pub max_stretch: f64,
     pub min_stretch: f64,
     pub max_speedup: f64,
@@ -72,10 +73,10 @@ pub struct OutputConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionDuration {
     Auto,
-    Fixed(u64),
+    Fixed(DurationMs),
 }
 
-/// Accepts `auto` (case-insensitively) or any string `parse_duration_ms`
+/// Accepts `auto` (case-insensitively) or any string `DurationMs::parse`
 /// understands (e.g. `250ms`, `1s`). Anything else is a deserialize error
 /// naming the offending value, so a typo in front matter is reported rather
 /// than silently treated as `auto`.
@@ -88,7 +89,7 @@ impl<'de> Deserialize<'de> for TransitionDuration {
         if s.eq_ignore_ascii_case("auto") {
             return Ok(TransitionDuration::Auto);
         }
-        parse_duration_ms(&s)
+        DurationMs::parse(&s)
             .map(TransitionDuration::Fixed)
             .map_err(|_| {
                 serde::de::Error::custom(format!(
@@ -103,8 +104,8 @@ impl<'de> Deserialize<'de> for TransitionDuration {
 pub struct TransitionConfig {
     pub kind: String,
     pub duration: TransitionDuration,
-    pub min_ms: u64,
-    pub max_ms: u64,
+    pub min_ms: DurationMs,
+    pub max_ms: DurationMs,
 }
 
 /// A resolved scene's adapter and its adapter-native settings.
@@ -149,8 +150,8 @@ impl Default for Config {
                 fps: 30,
             },
             timing: TimingConfig {
-                lead_in_ms: 150,
-                tail_ms: 150,
+                lead_in_ms: DurationMs::millis(150),
+                tail_ms: DurationMs::millis(150),
                 max_stretch: 3.0,
                 min_stretch: 0.33,
                 max_speedup: 2.0,
@@ -158,8 +159,8 @@ impl Default for Config {
             transition: TransitionConfig {
                 kind: "crossfade".into(),
                 duration: TransitionDuration::Auto,
-                min_ms: 0,
-                max_ms: 600,
+                min_ms: DurationMs::ZERO,
+                max_ms: DurationMs::millis(600),
             },
             scenes: BTreeMap::new(),
             default_scene: None,
@@ -225,8 +226,8 @@ pub struct PartialVoice {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialTiming {
-    pub lead_in_ms: Option<u64>,
-    pub tail_ms: Option<u64>,
+    pub lead_in_ms: Option<DurationMs>,
+    pub tail_ms: Option<DurationMs>,
     pub max_stretch: Option<f64>,
     pub min_stretch: Option<f64>,
     pub max_speedup: Option<f64>,
@@ -273,8 +274,8 @@ impl<'de> Deserialize<'de> for Resolution {
 pub struct PartialTransition {
     pub kind: Option<String>,
     pub duration: Option<TransitionDuration>,
-    pub min_ms: Option<u64>,
-    pub max_ms: Option<u64>,
+    pub min_ms: Option<DurationMs>,
+    pub max_ms: Option<DurationMs>,
 }
 
 /// The `scene:` block, which takes two shapes at once:

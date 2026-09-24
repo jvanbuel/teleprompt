@@ -1,4 +1,5 @@
 use teleprompt_core::attrs::{parse_attrs, BLOCK_KEYS, SEGMENT_KEYS};
+use teleprompt_core::DurationMs;
 use teleprompt_core::SourceSpan;
 
 const SPAN: SourceSpan = SourceSpan {
@@ -54,8 +55,8 @@ fn a_key_valid_elsewhere_is_still_rejected_here() {
 #[test]
 fn duration_values_parse_from_ms_and_s() {
     let (a, _) = parse_attrs("lead_in=250ms tail=1s", SEGMENT_KEYS, SPAN);
-    assert_eq!(a.get_ms("lead_in"), Some(Ok(250)));
-    assert_eq!(a.get_ms("tail"), Some(Ok(1000)));
+    assert_eq!(a.get_ms("lead_in"), Some(Ok(DurationMs::millis(250))));
+    assert_eq!(a.get_ms("tail"), Some(Ok(DurationMs::millis(1000))));
 }
 
 #[test]

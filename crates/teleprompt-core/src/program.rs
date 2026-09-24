@@ -82,7 +82,7 @@ pub enum Element {
         span: SourceSpan,
     },
     Pause {
-        ms: u64,
+        ms: crate::DurationMs,
     },
 }
 

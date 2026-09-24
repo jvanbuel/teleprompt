@@ -99,7 +99,7 @@ fn lay_out_item(item: &Item) -> (u64, Layout) {
         .unwrap_or(0);
 
     // A cue counts from the first word, which comes after the lead-in.
-    let lead_in_ms = item.narration.as_ref().map_or(0, |n| n.lead_in_ms);
+    let lead_in_ms = item.narration.as_ref().map_or(0, |n| n.lead_in_ms.ms());
     let cue_ms = item
         .action
         .as_ref()
@@ -123,11 +123,11 @@ fn quiet_window_ms(item: &Item, next: &Item, l: &Layout) -> u64 {
         .as_ref()
         .map(|n| {
             l.narration_start_ms
-                .saturating_add(n.lead_in_ms)
+                .saturating_add(n.lead_in_ms.ms())
                 .saturating_add(n.duration_ms)
         })
         .unwrap_or(0);
-    let next_lead_in_ms = next.narration.as_ref().map_or(0, |n| n.lead_in_ms);
+    let next_lead_in_ms = next.narration.as_ref().map_or(0, |n| n.lead_in_ms.ms());
     l.item_duration_ms
         .saturating_sub(speech_end_ms)
         .saturating_add(next_lead_in_ms)
@@ -145,6 +145,7 @@ fn size_transition(
     match transition.duration {
         // Honoured as written, with a warning if it overlaps speech.
         TransitionDuration::Fixed(ms) => {
+            let ms = ms.ms();
             if ms > quiet_window_ms {
                 warnings.push(format!(
                     "{}: fixed {kind} of {ms}ms exceeds the {quiet_window_ms}ms quiet \
@@ -158,7 +159,7 @@ fn size_transition(
         }
         // The quiet-window cap overrides `min_ms` on purpose.
         TransitionDuration::Auto => (slack_ms / 2)
-            .clamp(transition.min_ms, transition.max_ms)
+            .clamp(transition.min_ms.ms(), transition.max_ms.ms())
             .min(quiet_window_ms),
     }
 }
@@ -189,7 +190,7 @@ fn narration_entry(n: &NarrationInput, slot_start_ms: u64) -> NarrationEntry {
         line: n.line_id.clone(),
         source_hash: n.source_hash,
         audio_hash: n.audio_hash,
-        start_ms: slot_start_ms.saturating_add(n.lead_in_ms),
+        start_ms: slot_start_ms.saturating_add(n.lead_in_ms.ms()),
         duration_ms: n.duration_ms,
         duration_source: n.duration_source,
         voice_source: n.voice_source,

@@ -1,17 +1,18 @@
 use teleprompt_core::attrs::{parse_attrs, SEGMENT_KEYS};
 use teleprompt_core::config::{Config, PartialConfig, TransitionDuration};
+use teleprompt_core::DurationMs;
 use teleprompt_core::SourceSpan;
 
 #[test]
 fn defaults_match_the_spec() {
     let c = Config::default();
-    assert_eq!(c.timing.lead_in_ms, 150);
-    assert_eq!(c.timing.tail_ms, 150);
+    assert_eq!(c.timing.lead_in_ms, DurationMs::millis(150));
+    assert_eq!(c.timing.tail_ms, DurationMs::millis(150));
     assert_eq!(c.timing.max_stretch, 3.0);
     assert_eq!(c.timing.min_stretch, 0.33);
     assert_eq!(c.timing.max_speedup, 2.0);
-    assert_eq!(c.transition.max_ms, 600);
-    assert_eq!(c.transition.min_ms, 0);
+    assert_eq!(c.transition.max_ms, DurationMs::millis(600));
+    assert_eq!(c.transition.min_ms, DurationMs::millis(0));
     assert_eq!(c.transition.duration, TransitionDuration::Auto);
     assert_eq!(c.locales.source, "en");
 }
@@ -21,8 +22,16 @@ fn later_layers_override_earlier_ones_field_by_field() {
     let project = PartialConfig::from_toml("[timing]\nlead_in_ms = 300\ntail_ms = 400\n").unwrap();
     let script = PartialConfig::from_yaml("timing:\n  tail_ms: 500\n").unwrap();
     let c = Config::merged(&[project, script]);
-    assert_eq!(c.timing.lead_in_ms, 300, "untouched field survives");
-    assert_eq!(c.timing.tail_ms, 500, "later layer wins");
+    assert_eq!(
+        c.timing.lead_in_ms,
+        DurationMs::millis(300),
+        "untouched field survives"
+    );
+    assert_eq!(
+        c.timing.tail_ms,
+        DurationMs::millis(500),
+        "later layer wins"
+    );
 }
 
 #[test]
@@ -40,7 +49,7 @@ fn attributes_become_a_config_layer() {
     };
     let (a, _) = parse_attrs("lead_in=400ms voice.source=cloned", SEGMENT_KEYS, shot);
     let c = Config::merged(&[PartialConfig::from_attrs(&a)]);
-    assert_eq!(c.timing.lead_in_ms, 400);
+    assert_eq!(c.timing.lead_in_ms, DurationMs::millis(400));
     assert_eq!(c.voice.source, "cloned");
 }
 
@@ -75,7 +84,7 @@ fn transition_duration_accepts_auto_or_a_number() {
     let fixed = PartialConfig::from_yaml("output:\n  transition:\n    duration: 250ms\n").unwrap();
     assert_eq!(
         Config::merged(&[fixed]).transition.duration,
-        TransitionDuration::Fixed(250)
+        TransitionDuration::Fixed(DurationMs::millis(250))
     );
 }
 
@@ -89,7 +98,7 @@ fn transition_duration_accepts_auto_or_a_number() {
 fn the_schema_version_and_output_block_reach_the_merged_config() {
     let yaml = "teleprompt: 1\nlocales:\n  source: en\noutput:\n  resolution: [1920, 1080]\n  fps: 30\n  transition: { duration: auto, max_ms: 600 }\nscene:\n  mock: { adapter: mock }\n";
     let c = Config::merged(&[PartialConfig::from_yaml(yaml).unwrap()]);
-    assert_eq!(c.transition.max_ms, 600);
+    assert_eq!(c.transition.max_ms, DurationMs::millis(600));
     assert_eq!(c.locales.source, "en");
 }
 
@@ -162,7 +171,7 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
     assert_eq!(c.voice.source, "synthetic");
     assert_eq!(c.transition.kind, "crossfade");
     assert_eq!(c.transition.duration, TransitionDuration::Auto);
-    assert_eq!(c.transition.max_ms, 600);
+    assert_eq!(c.transition.max_ms, DurationMs::millis(600));
 
     assert_eq!(c.default_scene.as_deref(), Some("browser"));
     let browser = c.scenes.get("browser").expect("browser scene configured");
@@ -326,4 +335,21 @@ fn pronunciations_accumulate_across_the_layers() {
         "the later layer wins on the word it names"
     );
     assert_eq!(Config::merged(&[]).voice.pronounce.len(), 0);
+}
+
+/// Numeric durations in `teleprompt.toml` and front matter are bounded like
+/// written ones: a value over a day is a config error, not a number that
+/// reaches the scheduler (#22's remaining route).
+#[test]
+fn a_configured_duration_longer_than_a_day_is_an_error() {
+    for toml in [
+        "[timing]\nlead_in_ms = 90000000000\n",
+        "[timing]\ntail_ms = 86400001\n",
+        "[output.transition]\nmax_ms = 86400001\n",
+    ] {
+        let e = PartialConfig::from_toml(toml).expect_err(toml);
+        assert!(e.to_string().contains("longer than a day"), "{toml}: {e}");
+    }
+    assert!(PartialConfig::from_yaml("timing:\n  lead_in_ms: 86400001\n").is_err());
+    assert!(PartialConfig::from_toml("[timing]\nlead_in_ms = 86400000\n").is_ok());
 }

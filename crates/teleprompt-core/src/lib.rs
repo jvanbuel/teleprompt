@@ -11,7 +11,7 @@ pub mod program;
 pub mod time;
 pub mod voice;
 
-pub use duration::DurationSource;
+pub use duration::{DurationMs, DurationSource};
 pub use error::{Diagnostic, Diagnostics, Severity, SourceSpan};
 pub use hash::Hash;
 pub use policy::PolicyKind;

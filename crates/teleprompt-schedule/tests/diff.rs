@@ -1,4 +1,5 @@
 use teleprompt_core::config::{Config, TransitionDuration};
+use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
 use teleprompt_core::{DurationSource, VoiceSource};
 use teleprompt_schedule::{
@@ -7,7 +8,7 @@ use teleprompt_schedule::{
 
 fn cfg() -> Config {
     let mut c = Config::default();
-    c.transition.duration = TransitionDuration::Fixed(0);
+    c.transition.duration = TransitionDuration::Fixed(DurationMs::millis(0));
     c
 }
 
@@ -316,7 +317,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
     let build = |max_ms: u64| {
         let mut c = Config::default();
         c.transition.duration = TransitionDuration::Auto;
-        c.transition.max_ms = max_ms;
+        c.transition.max_ms = DurationMs::millis(max_ms);
         let mut b1 = item("b1", 4000, "one");
         b1.pacing = Pacing::from(&c);
         b1.action = Some(ActionInput {
@@ -439,8 +440,8 @@ fn a_lead_in_retune_that_does_not_change_shot_length_is_still_reported() {
         let mut b = item("b1", 1000, "one");
         {
             let n = b.narration.as_mut().unwrap();
-            n.lead_in_ms = lead_in;
-            n.tail_ms = 300 - lead_in;
+            n.lead_in_ms = DurationMs::millis(lead_in);
+            n.tail_ms = DurationMs::millis(300 - lead_in);
         }
         timeline(vec![b])
     };

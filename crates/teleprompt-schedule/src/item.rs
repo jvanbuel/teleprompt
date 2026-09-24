@@ -1,5 +1,5 @@
 use teleprompt_core::config::{Config, TimingConfig, TransitionConfig};
-use teleprompt_core::{DurationSource, Hash, VoiceSource};
+use teleprompt_core::{DurationMs, DurationSource, Hash, VoiceSource};
 
 use crate::policy::Policy;
 
@@ -14,23 +14,24 @@ pub struct NarrationInput {
     /// `docs/design.md#estimated-and-measured`.
     pub duration_source: DurationSource,
     /// Silence before and after the clip. Carried here, not read from
-    /// [`Item::config`], because that is the action block's configuration
+    /// [`Item::pacing`], because that is the action block's configuration
     /// layer and would drop the line's own `lead_in=` / `tail=`.
-    pub lead_in_ms: u64,
-    pub tail_ms: u64,
+    pub lead_in_ms: DurationMs,
+    pub tail_ms: DurationMs,
     pub voice_source: VoiceSource,
     pub voice_source_actual: VoiceSource,
     pub downgrade_reason: Option<String>,
 }
 
 impl NarrationInput {
-    /// Lead-in, clip and tail. Saturating so that no `u64` input can panic
-    /// (debug) or silently wrap (release): a saturated timeline is visibly
-    /// absurd, a wrapped one is quietly wrong.
+    /// Lead-in, clip and tail. Saturating because the clip is measured, not
+    /// bounded: a saturated timeline is visibly absurd, a wrapped one
+    /// quietly wrong.
     pub fn padded_duration_ms(&self) -> u64 {
         self.lead_in_ms
+            .ms()
             .saturating_add(self.duration_ms)
-            .saturating_add(self.tail_ms)
+            .saturating_add(self.tail_ms.ms())
     }
 }
 

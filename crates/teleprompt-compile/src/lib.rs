@@ -12,7 +12,7 @@ use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::{default_adapter, Config, OutputConfig, SceneConfig};
 use teleprompt_core::program::{ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
-use teleprompt_core::{Diagnostic, Diagnostics, DurationSource, Hash, SourceSpan};
+use teleprompt_core::{Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, SourceSpan};
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
 use teleprompt_voice::{
@@ -899,7 +899,8 @@ Read it, then remove the attribute.",
         }
     }
 
-    fn pause(&mut self, ms: u64) {
+    fn pause(&mut self, pause: DurationMs) {
+        let ms = pause.ms();
         self.flush();
         let id = format!("pause-{}", self.items.len());
         self.items.push(Item {

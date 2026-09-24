@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{Diagnostic, SourceSpan};
+use crate::{Diagnostic, DurationMs, SourceSpan};
 
 pub const SEGMENT_KEYS: &[&str] = &[
     "voice.source",
@@ -55,8 +55,8 @@ impl Attributes {
     }
 
     /// Parses `250ms`, `1s`, `1.5s`, or a bare integer treated as milliseconds.
-    pub fn get_ms(&self, key: &str) -> Option<Result<u64, String>> {
-        self.get(key).map(parse_duration_ms)
+    pub fn get_ms(&self, key: &str) -> Option<Result<DurationMs, String>> {
+        self.get(key).map(DurationMs::parse)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
@@ -64,34 +64,9 @@ impl Attributes {
     }
 }
 
-/// The longest duration a script may state: a day. Anything longer is a
-/// typo, and the bound keeps every sum the scheduler makes far from
-/// `u64::MAX`.
-pub const MAX_DURATION_MS: u64 = 24 * 60 * 60 * 1000;
-
+/// [`DurationMs::parse`] as milliseconds, for adapters that count in `u64`.
 pub fn parse_duration_ms(v: &str) -> Result<u64, String> {
-    let ms = parse_unbounded_ms(v)?;
-    if ms > MAX_DURATION_MS {
-        return Err(format!(
-            "`{v}` is longer than a day, the most a duration may be"
-        ));
-    }
-    Ok(ms)
-}
-
-fn parse_unbounded_ms(v: &str) -> Result<u64, String> {
-    let err = || format!("`{v}` is not a duration (try `250ms` or `1s`)");
-    if let Some(n) = v.strip_suffix("ms") {
-        return n.trim().parse::<u64>().map_err(|_| err());
-    }
-    if let Some(n) = v.strip_suffix('s') {
-        let secs: f64 = n.trim().parse().map_err(|_| err())?;
-        if secs < 0.0 {
-            return Err(err());
-        }
-        return Ok(crate::time::ms_from_seconds(secs));
-    }
-    v.parse::<u64>().map_err(|_| err())
+    DurationMs::parse(v).map(DurationMs::ms)
 }
 
 pub fn parse_attrs(raw: &str, allowed: &[&str], span: SourceSpan) -> (Attributes, Vec<Diagnostic>) {

@@ -1,10 +1,11 @@
 use teleprompt_core::config::TimingConfig;
+use teleprompt_core::DurationMs;
 use teleprompt_schedule::{layout, layout_at, Align, Policy};
 
 fn timing() -> TimingConfig {
     TimingConfig {
-        lead_in_ms: 150,
-        tail_ms: 150,
+        lead_in_ms: DurationMs::millis(150),
+        tail_ms: DurationMs::millis(150),
         max_stretch: 3.0,
         min_stretch: 0.33,
         max_speedup: 2.0,

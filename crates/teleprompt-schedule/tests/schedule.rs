@@ -1,4 +1,5 @@
 use teleprompt_core::config::{Config, TransitionDuration};
+use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
 use teleprompt_core::{DurationSource, VoiceSource};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy};
@@ -50,7 +51,7 @@ fn narration_item(id: &str, ms: u64) -> Item {
 
 fn no_transition() -> Config {
     let mut c = Config::default();
-    c.transition.duration = TransitionDuration::Fixed(0);
+    c.transition.duration = TransitionDuration::Fixed(DurationMs::millis(0));
     c
 }
 
@@ -84,7 +85,7 @@ fn shots_lay_out_sequentially_when_transitions_are_zero() {
 #[test]
 fn transitions_overlap_adjacent_shots() {
     let mut cfg = Config::default();
-    cfg.transition.duration = TransitionDuration::Fixed(300);
+    cfg.transition.duration = TransitionDuration::Fixed(DurationMs::millis(300));
     let items = vec![
         item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
         item("b2", Some(1000), None, Policy::Hold, cfg),
@@ -98,7 +99,7 @@ fn transitions_overlap_adjacent_shots() {
 #[test]
 fn the_last_shot_has_no_outgoing_transition() {
     let mut cfg = Config::default();
-    cfg.transition.duration = TransitionDuration::Fixed(300);
+    cfg.transition.duration = TransitionDuration::Fixed(DurationMs::millis(300));
     let t = schedule(
         &[item("b1", Some(1000), None, Policy::Hold, cfg)],
         "s.md",
@@ -127,7 +128,7 @@ fn auto_transition_is_half_the_slack_clamped_to_the_maximum() {
     // maximum is genuinely what binds. With the default 150ms tail the window
     // is 300ms and the cap would bind instead — which is the subject of
     // `the_auto_transition_fills_the_quiet_window_exactly`, not this test.
-    items[0].narration.as_mut().unwrap().tail_ms = 1000;
+    items[0].narration.as_mut().unwrap().tail_ms = DurationMs::millis(1000);
 
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
     // slack = 6150 padded narration - 200 action = 5950; half is 2975,
@@ -265,7 +266,7 @@ fn the_auto_transition_fills_the_quiet_window_exactly() {
 fn a_fixed_transition_wider_than_the_quiet_window_warns() {
     let mut items = vec![narration_item("one", 6900), narration_item("two", 5300)];
     for b in &mut items {
-        b.pacing.transition.duration = TransitionDuration::Fixed(2000);
+        b.pacing.transition.duration = TransitionDuration::Fixed(DurationMs::millis(2000));
     }
     let (timeline, warnings) = schedule(&items, "tour.md", "en", "0.1.0");
 
@@ -302,16 +303,14 @@ fn narration_entries_report_where_their_duration_came_from() {
     );
 }
 
-/// C1's second half. Validation now stops the `u64::MAX` duration that used
-/// to reach here, but the scheduler is handed `u64`s and must not panic on
-/// any triple of them — and a plain add does something worse than panic in a
-/// release build, where it wraps and produces a short, confident, wrong
-/// timeline.
+/// Lead-in and tail are bounded by their type, but the clip is measured and
+/// is not, so padding it must saturate: a plain add wraps in a release build
+/// and produces a short, confident, wrong timeline.
 #[test]
 fn padded_duration_saturates_instead_of_overflowing() {
     let mut n = narration("huge", u64::MAX);
-    n.lead_in_ms = u64::MAX;
-    n.tail_ms = u64::MAX;
+    n.lead_in_ms = DurationMs::MAX;
+    n.tail_ms = DurationMs::MAX;
     assert_eq!(n.padded_duration_ms(), u64::MAX);
 }
 
@@ -329,8 +328,8 @@ fn padded_duration_saturates_instead_of_overflowing() {
 #[test]
 fn a_transition_leaves_room_for_the_one_that_arrived_before_it() {
     let mut cfg = Config::default();
-    cfg.transition.duration = TransitionDuration::Fixed(400);
-    cfg.transition.min_ms = 0;
+    cfg.transition.duration = TransitionDuration::Fixed(DurationMs::millis(400));
+    cfg.transition.min_ms = DurationMs::millis(0);
 
     // A short item between two long ones: 400ms in, 400ms out, 500ms of item.
     let items = vec![
@@ -398,7 +397,7 @@ fn a_cue_lands_on_the_word_not_a_lead_in_before_it() {
         no_transition(),
     );
     it.action.as_mut().unwrap().cue_ms = Some(1000);
-    let lead_in = it.narration.as_ref().unwrap().lead_in_ms;
+    let lead_in = it.narration.as_ref().unwrap().lead_in_ms.ms();
     let t = schedule(&[it], "s.md", "en", "0.1.0").0;
     assert_eq!(
         t.entries[0].action.as_ref().unwrap().start_ms,
@@ -406,9 +405,9 @@ fn a_cue_lands_on_the_word_not_a_lead_in_before_it() {
     );
 }
 
-/// No `u64` input panics or wraps (#22): sums saturate, so offsets only
-/// ever move forward. The compiler rejects such durations first; this is
-/// the scheduler's own backstop.
+/// No input panics or wraps (#22): what an author wrote is at most a day by
+/// type, and the measured and adapter-reported values that are not bounded
+/// saturate, so offsets only ever move forward.
 #[test]
 fn absurd_durations_saturate_rather_than_overflow() {
     let mut held = item(
@@ -418,7 +417,7 @@ fn absurd_durations_saturate_rather_than_overflow() {
         Policy::Hold,
         Config::default(),
     );
-    held.narration.as_mut().unwrap().lead_in_ms = u64::MAX;
+    held.narration.as_mut().unwrap().lead_in_ms = DurationMs::MAX;
     let mut cued = item(
         "cued",
         Some(1000),
@@ -426,7 +425,7 @@ fn absurd_durations_saturate_rather_than_overflow() {
         Policy::Concurrent(teleprompt_schedule::Align::Start),
         Config::default(),
     );
-    cued.narration.as_mut().unwrap().lead_in_ms = u64::MAX;
+    cued.narration.as_mut().unwrap().lead_in_ms = DurationMs::MAX;
     cued.action.as_mut().unwrap().cue_ms = Some(u64::MAX);
     let after = item("after", Some(1000), None, Policy::Hold, Config::default());
 
