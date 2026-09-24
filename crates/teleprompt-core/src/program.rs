@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::ast::{ActionBlock, Chapter, Directive, Line, Node, Script};
-use crate::attrs::{parse_attrs, BLOCK_KEYS, SEGMENT_KEYS};
+use crate::attrs::{BlockAttrs, LineAttrs};
 use crate::config::{Config, PartialConfig};
 use crate::{Diagnostic, Diagnostics, Hash, SourceSpan};
 
@@ -199,9 +199,9 @@ impl Resolver<'_> {
         chapter_index: usize,
         chapter_cfg: &PartialConfig,
     ) {
-        let (attrs, mut d) = parse_attrs(&seg.raw_attrs, SEGMENT_KEYS, seg.span);
+        let (attrs, mut d) = LineAttrs::parse(&seg.raw_attrs, seg.span);
         self.diags.append(&mut d);
-        let config = self.merged(chapter_cfg, PartialConfig::from_attrs(&attrs));
+        let config = self.merged(chapter_cfg, PartialConfig::from_line(&attrs));
         for problem in config.problems() {
             self.config_problems.entry(problem).or_insert(seg.span);
         }
@@ -218,9 +218,9 @@ impl Resolver<'_> {
     }
 
     fn resolve_action_block(&mut self, block: &ActionBlock, chapter_cfg: &PartialConfig) {
-        let (attrs, mut d) = parse_attrs(&block.info, BLOCK_KEYS, block.span);
+        let (attrs, mut d) = BlockAttrs::parse(&block.info, block.span);
         self.diags.append(&mut d);
-        let Some(scene) = attrs.get("scene").map(str::to_string) else {
+        let Some(scene) = attrs.scene.clone() else {
             self.diags.push(
                 Diagnostic::error("action block has no `scene`")
                     .at(block.span)
@@ -228,17 +228,17 @@ impl Resolver<'_> {
             );
             return;
         };
-        let config = self.merged(chapter_cfg, PartialConfig::from_attrs(&attrs));
+        let config = self.merged(chapter_cfg, PartialConfig::from_block(&attrs));
         self.elements.push(Element::Action {
             block_id: block.id.clone().unwrap_or_default(),
             scene,
             body: block.body.clone(),
-            include: attrs.get("include").map(str::to_string),
-            review: attrs.get("review").map(str::to_string),
-            policy: attrs.get("policy").unwrap_or("hold").to_string(),
-            align: attrs.get("align").unwrap_or("start").to_string(),
-            cue: attrs.get("cue").map(str::to_string),
-            session: attrs.get("session").map(str::to_string),
+            include: attrs.include,
+            review: attrs.review,
+            policy: attrs.policy.unwrap_or_else(|| "hold".to_string()),
+            align: attrs.align.unwrap_or_else(|| "start".to_string()),
+            cue: attrs.cue,
+            session: attrs.session,
             config,
             span: block.span,
         });

@@ -1,4 +1,4 @@
-use teleprompt_core::attrs::{parse_attrs, BLOCK_KEYS, SEGMENT_KEYS};
+use teleprompt_core::attrs::{parse_attrs, BlockAttrs, LineAttrs, BLOCK_KEYS, SEGMENT_KEYS};
 use teleprompt_core::DurationMs;
 use teleprompt_core::SourceSpan;
 
@@ -54,21 +54,23 @@ fn a_key_valid_elsewhere_is_still_rejected_here() {
 
 #[test]
 fn duration_values_parse_from_ms_and_s() {
-    let (a, _) = parse_attrs("lead_in=250ms tail=1s", SEGMENT_KEYS, SPAN);
-    assert_eq!(a.get_ms("lead_in"), Some(Ok(DurationMs::millis(250))));
-    assert_eq!(a.get_ms("tail"), Some(Ok(DurationMs::millis(1000))));
+    let (a, d) = LineAttrs::parse("lead_in=250ms tail=1s", SPAN);
+    assert!(d.is_empty(), "{d:?}");
+    assert_eq!(a.lead_in, Some(DurationMs::millis(250)));
+    assert_eq!(a.tail, Some(DurationMs::millis(1000)));
 }
 
 #[test]
-fn malformed_duration_reports_an_error_value() {
-    let (a, _) = parse_attrs("lead_in=soon", SEGMENT_KEYS, SPAN);
-    assert!(a.get_ms("lead_in").unwrap().is_err());
+fn a_malformed_duration_is_absent_from_the_parsed_attributes() {
+    let (a, _) = LineAttrs::parse("lead_in=soon", SPAN);
+    assert_eq!(a.lead_in, None);
 }
 
 #[test]
 fn float_values_parse() {
-    let (a, _) = parse_attrs("max_stretch=2.5", BLOCK_KEYS, SPAN);
-    assert_eq!(a.get_f64("max_stretch"), Some(Ok(2.5)));
+    let (a, d) = BlockAttrs::parse("max_stretch=2.5", SPAN);
+    assert!(d.is_empty(), "{d:?}");
+    assert_eq!(a.max_stretch, Some(2.5));
 }
 
 #[test]
@@ -78,8 +80,7 @@ fn bare_token_without_equals_is_an_error() {
 }
 
 /// A duration attribute that does not parse, or exceeds a day, is reported
-/// at the line rather than silently ignored (#22): `from_attrs` drops such
-/// values on the promise that this has already said so.
+/// at the line rather than silently ignored (#22).
 #[test]
 fn a_bad_duration_value_is_a_diagnostic() {
     for raw in [
@@ -87,8 +88,27 @@ fn a_bad_duration_value_is_a_diagnostic() {
         "tail=18446744073709551615ms",
         "lead_in=90000s",
     ] {
-        let (_, d) = parse_attrs(raw, SEGMENT_KEYS, SPAN);
+        let (_, d) = LineAttrs::parse(raw, SPAN);
         assert_eq!(d.len(), 1, "{raw}: {d:?}");
         assert_eq!(d[0].span, Some(SPAN), "{raw}");
+    }
+}
+
+/// A number that does not parse is reported at its line like a duration,
+/// not dropped: `voice.speed=fast` used to leave the speed at its default
+/// without a word.
+#[test]
+fn a_bad_number_value_is_a_diagnostic() {
+    let (_, d) = LineAttrs::parse("voice.speed=fast", SPAN);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert!(d[0].message.contains("not a number"), "{}", d[0].message);
+    for raw in ["max_stretch=lots", "min_stretch=", "max_speedup=2x"] {
+        let (_, d) = BlockAttrs::parse(raw, SPAN);
+        assert_eq!(d.len(), 1, "{raw}: {d:?}");
+        assert!(
+            d[0].message.contains("not a number"),
+            "{raw}: {}",
+            d[0].message
+        );
     }
 }

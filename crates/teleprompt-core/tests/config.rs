@@ -1,4 +1,4 @@
-use teleprompt_core::attrs::{parse_attrs, SEGMENT_KEYS};
+use teleprompt_core::attrs::LineAttrs;
 use teleprompt_core::config::{Config, PartialConfig, TransitionDuration};
 use teleprompt_core::DurationMs;
 use teleprompt_core::SourceSpan;
@@ -47,8 +47,8 @@ fn attributes_become_a_config_layer() {
         column: 1,
         len: 0,
     };
-    let (a, _) = parse_attrs("lead_in=400ms voice.source=cloned", SEGMENT_KEYS, shot);
-    let c = Config::merged(&[PartialConfig::from_attrs(&a)]);
+    let (a, _) = LineAttrs::parse("lead_in=400ms voice.source=cloned", shot);
+    let c = Config::merged(&[PartialConfig::from_line(&a)]);
     assert_eq!(c.timing.lead_in_ms, DurationMs::millis(400));
     assert_eq!(c.voice.source, "cloned");
 }

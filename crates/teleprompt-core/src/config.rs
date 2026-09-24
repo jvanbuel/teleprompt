@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::de::IgnoredAny;
 use serde::Deserialize;
 
-use crate::attrs::Attributes;
+use crate::attrs::{BlockAttrs, LineAttrs};
 use crate::DurationMs;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -360,38 +360,37 @@ impl PartialConfig {
         Ok(toml::from_str(s)?)
     }
 
-    /// Builds a layer from line or block attributes. Unparseable values are
-    /// dropped here; `parse_attrs` has already reported them as diagnostics.
-    pub fn from_attrs(a: &Attributes) -> Self {
-        let mut c = Self::default();
-        let mut timing = PartialTiming::default();
-        let mut voice = PartialVoice::default();
+    /// Builds a layer from a line's attributes.
+    pub fn from_line(a: &LineAttrs) -> Self {
+        Self {
+            timing: Some(PartialTiming {
+                lead_in_ms: a.lead_in,
+                tail_ms: a.tail,
+                ..PartialTiming::default()
+            }),
+            voice: Some(PartialVoice {
+                source: a.voice_source.clone(),
+                backend: a.voice_backend.clone(),
+                voice: a.voice.clone(),
+                speed: a.voice_speed,
+                ..PartialVoice::default()
+            }),
+            ..Self::default()
+        }
+    }
 
-        if let Some(Ok(ms)) = a.get_ms("lead_in") {
-            timing.lead_in_ms = Some(ms);
+    /// Builds a layer from an action block's attributes.
+    pub fn from_block(a: &BlockAttrs) -> Self {
+        Self {
+            timing: Some(PartialTiming {
+                max_stretch: a.max_stretch,
+                min_stretch: a.min_stretch,
+                max_speedup: a.max_speedup,
+                ..PartialTiming::default()
+            }),
+            voice: Some(PartialVoice::default()),
+            ..Self::default()
         }
-        if let Some(Ok(ms)) = a.get_ms("tail") {
-            timing.tail_ms = Some(ms);
-        }
-        if let Some(Ok(v)) = a.get_f64("max_stretch") {
-            timing.max_stretch = Some(v);
-        }
-        if let Some(Ok(v)) = a.get_f64("min_stretch") {
-            timing.min_stretch = Some(v);
-        }
-        if let Some(Ok(v)) = a.get_f64("max_speedup") {
-            timing.max_speedup = Some(v);
-        }
-        voice.source = a.get("voice.source").map(str::to_string);
-        voice.backend = a.get("voice.backend").map(str::to_string);
-        voice.voice = a.get("voice.voice").map(str::to_string);
-        if let Some(Ok(v)) = a.get_f64("voice.speed") {
-            voice.speed = Some(v);
-        }
-
-        c.timing = Some(timing);
-        c.voice = Some(voice);
-        c
     }
 }
 
