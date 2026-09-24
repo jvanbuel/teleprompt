@@ -8,10 +8,10 @@ license.workspace = true
 [dependencies]
 teleprompt-core = { path = "../teleprompt-core" }
 serde.workspace = true
-serde_json.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

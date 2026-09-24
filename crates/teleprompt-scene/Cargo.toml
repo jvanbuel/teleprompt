@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 teleprompt-core = { path = "../teleprompt-core" }
-serde.workspace = true
 
 [lints]
 workspace = true
