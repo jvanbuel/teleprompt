@@ -1,14 +1,9 @@
 //! Recording a browser scene by handing Playwright its own script.
 //!
-//! The shots of a session are concatenated into one script and run once,
-//! so the browser keeps its state across them — a session is a session
-//! here for the same reason it is in a terminal: shot *n* opens on the
-//! page shot *n-1* left behind. Playwright records the context to a video,
-//! and [`teleprompt_capture::reel`] cuts that reel into a clip per shot.
-//!
-//! Nothing here interprets the script. Playwright was built to run
-//! Playwright scripts; the only thing teleprompt has to know is how to
-//! wrap one.
+//! A session's shots are concatenated into one script and run once, so
+//! shot *n* opens on the page shot *n-1* left. Playwright records a video
+//! and [`teleprompt_capture::reel`] cuts it into a clip per shot. Nothing
+//! here interprets the author's script; it is only wrapped.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -16,38 +11,26 @@ use std::process::{Command, Stdio};
 use teleprompt_capture::reel::{cut, starved, windows};
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
 
-/// How long an action annotation — the pointer, the click ripple, the
-/// title overlay — stays on screen, unless the scene says otherwise.
+/// How long an action annotation (pointer, click ripple, title) stays on
+/// screen, unless the scene sets `annotation_ms`.
 ///
-/// Playwright's own default is 500ms: twelve frames at 24fps, right for a
-/// trace somebody scrubs through and far too short for a shot watched once
-/// at speed with a sentence spoken over it. The whole reason to record a
-/// browser rather than screenshot it is to show the clicking, and at 500ms
-/// a viewer who blinks sees a page that changed by itself.
-///
-/// **The annotation is not free.** Playwright holds each action for this
-/// long before the next one runs — measured, not assumed: four clicks take
-/// 1.4s at 300ms and 10.2s at 2500ms. So this is a pacing knob that
-/// spends the shot's budget, and the budget is the narration's length. At
-/// 1200ms a click is about thirty frames, plainly visible, and a shot can
-/// still fit half a dozen of them under one sentence. A scene that clicks
-/// more often than that should say so with `annotation_ms` rather than
-/// overrun its slot and be cut.
+/// Playwright's default of 500ms is too brief to see in a video watched
+/// once. The annotation is not free: Playwright holds each action this long
+/// before the next runs (four clicks take 1.4s at 300ms, 10.2s at 2500ms),
+/// so it spends the narration's budget. 1200ms is plainly visible and still
+/// fits about half a dozen clicks under one sentence; a busier scene should
+/// lower it rather than overrun its slot.
 const DEFAULT_ANNOTATION_MS: u32 = 1_200;
 
-/// The action title's font size. Playwright's default of 24px is sized for
-/// a trace viewer on a desktop; a 1280-wide video gets scaled down on its
-/// way to wherever it is watched.
+/// The action title's font size. Playwright's 24px suits a trace viewer,
+/// not a video that is scaled down wherever it is watched.
 const DEFAULT_ANNOTATION_SIZE: u32 = 32;
 
 /// The script teleprompt writes around a session's shots.
 ///
-/// Each shot is wrapped in a block that pads it out to its scheduled
-/// length. That is not re-timing the author's script — teleprompt cannot
-/// re-write JavaScript and does not try — it is holding the page still
-/// afterwards so the shot occupies the slot the narration gave it. A shot
-/// that overruns its slot is not padded, and the reel is longer than the
-/// schedule; `starved` is what notices when that goes too far.
+/// Each shot is padded to its scheduled length by holding the page still
+/// afterwards; the author's code is not re-timed. A shot that overruns is
+/// not padded, and [`starved`] catches a reel that falls too far behind.
 pub fn script_for(session: &Session, frame: &Frame, video_dir: &str) -> String {
     let mut out = String::new();
     out.push_str("import { chromium } from 'playwright';\n\n");
@@ -68,9 +51,8 @@ pub fn script_for(session: &Session, frame: &Frame, video_dir: &str) -> String {
         "    size: {{ width: {}, height: {} }},\n",
         frame.width, frame.height
     ));
-    // The cursor is the point of recording a browser at all: a click with
-    // no pointer on screen is a page that changes for no visible reason.
-    // `DEFAULT_ANNOTATION_MS` explains what `duration` costs.
+    // Without a visible pointer a click is a page changing by itself.
+    // See `DEFAULT_ANNOTATION_MS` for what `duration` costs.
     out.push_str("    showActions: {\n");
     out.push_str(&format!(
         "      duration: {},\n",

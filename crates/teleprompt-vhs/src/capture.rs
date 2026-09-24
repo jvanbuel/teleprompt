@@ -1,19 +1,9 @@
-//! Letting `vhs` do the rendering.
+//! Recording a terminal session by handing `vhs` one re-timed tape.
 //!
-//! This is the obvious way round and it should have been first: teleprompt
-//! already re-times every tape so a shot lasts exactly as long as the
-//! sentence over it, so the tape handed to `vhs` *is* the schedule. Run it,
-//! and the video's timeline is the timeline — there is nothing to
-//! reimplement and nothing to estimate.
-//!
-//! One run per session, because a scene is a session: the shots are
-//! concatenated in order so the program stays running across shots, and
-//! the shots are then windows onto the one video. Their boundaries are the
-//! scheduled durations — the same numbers the tape was written from — so
-//! they are right by construction rather than by inference.
-//!
-//! What this does not fix is that `vhs` needs `ttyd` and a browser. Where
-//! it is not there, [`crate::VhsCapture`] drives a pty instead.
+//! Every shot is already re-timed to its slot, so the tape *is* the
+//! schedule. A session's shots are concatenated so the program keeps
+//! running across them, and each shot is cut from the one video at its
+//! scheduled offset (see `docs/design.md#capture`).
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -21,19 +11,14 @@ use std::process::{Command, Stdio};
 use teleprompt_capture::reel::{cut, starved, windows};
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
 
-/// The tape `vhs` should run for a whole session.
-///
-/// `output` is where `vhs` writes the one video the shots are cut from.
+/// The tape `vhs` runs for a whole session, writing its video to `output`.
 pub(crate) fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
     let mut out = String::new();
     // Quoted: VHS's parser reads a bare `/` as the start of a command, so
     // an unquoted absolute path is three syntax errors and no recording.
     out.push_str(&format!("Output \"{output}\"\n"));
 
-    // VHS sizes its window in pixels, which is what the render wants the
-    // picture to be. The scene's `columns`/`rows` are the pty backend's
-    // unit and are deliberately not used here: two backends, each told the
-    // size in the unit it actually takes.
+    // VHS sizes its window in pixels, the unit the render's frame is in.
     out.push_str(&format!("Set Width {}\n", frame.width));
     out.push_str(&format!("Set Height {}\n", frame.height));
     out.push_str(&format!("Set Framerate {}\n", frame.fps));
@@ -44,13 +29,11 @@ pub(crate) fn tape_for(session: &Session, frame: &Frame, output: &str) -> String
         out.push_str(&format!("Set FontSize {size}\n"));
     }
 
-    // The shell drawing its first prompt is not part of any shot, and a
-    // video that opens on it would put every shot late by however long it
-    // took. `Hide` is what VHS has for exactly this.
+    // The shell drawing its first prompt belongs to no shot; recording it
+    // would put every shot late by however long it took.
     out.push_str("Hide\n");
     for (key, value) in session.nested("env") {
-        // PATH is the one variable a scene must not be allowed to clear:
-        // see `path_with_fallback`.
+        // See `path_with_fallback`.
         if key == "PATH" {
             let inherited = std::env::var("PATH").ok();
             out.push_str(&format!(
@@ -59,9 +42,8 @@ pub(crate) fn tape_for(session: &Session, frame: &Frame, output: &str) -> String
             ));
             continue;
         }
-        // `Env` is refused in an authored tape — the environment belongs to
-        // the scene — which is precisely why it is set here, from the
-        // scene, in the one tape teleprompt writes itself.
+        // `Env` is refused in an authored tape because the environment is
+        // the scene's; this is where the scene's is set.
         out.push_str(&format!("Env {key} \"{value}\"\n"));
     }
     out.push_str(&format!(
@@ -79,18 +61,10 @@ pub(crate) fn tape_for(session: &Session, frame: &Frame, output: &str) -> String
 
 /// A scene's `PATH`, with the one teleprompt was run with behind it.
 ///
-/// A scene's `env` describes the terminal being recorded, and setting
-/// `PATH` there is how a project points its tapes at the binary it is
-/// demonstrating. But VHS applies `Env` to its *own* process, and finds
-/// `ttyd` — and the browser it screenshots through — by searching `PATH`.
-/// A scene that replaced `PATH` outright therefore disarmed the recorder,
-/// and the failure arrived in the wrong vocabulary: `could not start tty:
-/// exec: "ttyd": executable file not found in $PATH`, for a setting the
-/// author wrote to make their own program findable.
-///
-/// So the scene wins where it speaks — its directories come first — and
-/// what teleprompt inherited follows, so the tools VHS needs stay
-/// reachable. A directory the scene already names is not repeated.
+/// VHS applies `Env` to its *own* process and finds `ttyd` and its browser
+/// through `PATH`, so a scene that replaced `PATH` outright would leave VHS
+/// unable to open a terminal. The scene's directories come first and win;
+/// inherited ones follow, without repeats.
 fn path_with_fallback(scene: &str, inherited: Option<&str>) -> String {
     let mut out: Vec<&str> = scene.split(':').filter(|d| !d.is_empty()).collect();
     for dir in inherited.unwrap_or_default().split(':') {
@@ -102,10 +76,6 @@ fn path_with_fallback(scene: &str, inherited: Option<&str>) -> String {
 }
 
 /// Records `terminal` scenes by handing a re-timed tape to `vhs`.
-///
-/// The preferred backend where `vhs` will run. It is not a wrapper around
-/// a renderer teleprompt also has — it is the renderer, and teleprompt's
-/// only job is to write the tape that produces the schedule.
 #[derive(Debug, Clone)]
 pub struct VhsRender {
     pub vhs: String,
@@ -131,15 +101,10 @@ impl CaptureBackend for VhsRender {
     }
 
     fn unavailable(&self) -> Option<String> {
-        // Cheap, because this is asked to *choose* a backend — on every
-        // capture and on every `doctor`. Running a probe recording here
-        // was accurate and cost a minute, which made `doctor` useless.
-        //
-        // It is also not the whole question: `vhs` can be installed and
-        // still record nothing, quietly. That case is caught where it
-        // happens, in `capture`, and the caller falls back to the next
-        // backend — which is a better answer than a slow guess made in
-        // advance.
+        // Only a PATH check: this runs on every capture and every `doctor`,
+        // and a probe recording would take a minute. A `vhs` that is
+        // installed but records nothing is caught in `capture`, and its
+        // session renders as slates with the reason.
         let missing: Vec<&str> = [self.vhs.as_str(), "ttyd", self.ffmpeg.as_str()]
             .into_iter()
             .filter(|p| !crate::on_path(p))
@@ -185,9 +150,8 @@ impl CaptureBackend for VhsRender {
             source,
         })?;
 
-        // stderr is kept rather than inherited, because the failure worth
-        // reporting is the one with nothing in it — and when there *is*
-        // something, it is the only clue there will be.
+        // Output is captured, not inherited, so its tail can go into the
+        // error: it is the only clue to a failed recording.
         let ran = Command::new(&self.vhs)
             .arg(&tape)
             .stdin(Stdio::null())
@@ -212,9 +176,7 @@ impl CaptureBackend for VhsRender {
                 format!("{} exited {}: {}", self.vhs, ran.status, said(&ran)),
             ));
         }
-        // The failure that has no error in it: exit 0, no file. Seen in a
-        // container and on a stock CI runner, both times after `vhs`
-        // printed its usual "Creating …" and its usual closing advert.
+        // `vhs` can exit 0 and write no file.
         if !video.metadata().is_ok_and(|m| m.len() > 0) {
             return Err(failed(
                 &first,
@@ -227,8 +189,8 @@ impl CaptureBackend for VhsRender {
             ));
         }
 
-        // The windows are a prediction about how long the tape would take
-        // to run. Check it against what was recorded before cutting to it.
+        // The windows predict the tape's length; check it against the
+        // recording before cutting.
         if let Some(why) = starved(&video, session) {
             return Err(failed(&first, why));
         }
@@ -291,9 +253,7 @@ mod tests {
         }
     }
 
-    /// The shots go in in order and unedited. They have already been
-    /// re-timed to their slots; rewriting them here would be a second
-    /// opinion about a number that is already settled.
+    /// The shots go in in order and unedited: they are already re-timed.
     #[test]
     fn a_session_is_one_tape_of_its_shots_in_order() {
         let tape = tape_for(
@@ -310,8 +270,7 @@ mod tests {
         );
     }
 
-    /// The shell's first prompt belongs to no shot. Recording it would put
-    /// every shot late by however long it took to draw.
+    /// The shell's first prompt belongs to no shot.
     #[test]
     fn the_shell_starting_up_is_hidden() {
         let tape = tape_for(&session(&[("Type \"x\"\n", 100)]), &frame(), "o.mp4");
@@ -321,10 +280,7 @@ mod tests {
         assert!(hide < show && show < first, "{tape}");
     }
 
-    /// The scene's environment goes in the tape teleprompt writes, which is
-    /// the one place `Env` is allowed — an authored tape is refused it
-    /// because a scene's blocks share a shell settled before the first of
-    /// them runs.
+    /// The scene's environment is set before the recording starts.
     #[test]
     fn the_scene_environment_is_set_in_the_hidden_prelude() {
         let mut s = session(&[("Type \"x\"\n", 100)]);
@@ -336,32 +292,19 @@ mod tests {
     }
 
     /// A scene's PATH says what its terminal should prefer, not what the
-    /// recorder should forget.
-    ///
-    /// VHS applies `Env` to its own process, and finds both `ttyd` and the
-    /// browser it screenshots through by searching PATH. A scene that
-    /// replaced PATH outright therefore disarmed the recorder: the manual
-    /// asks for `target/release:/usr/local/bin:/usr/bin:/bin`, and on a
-    /// GitHub runner — where `vhs-action` installs `ttyd` somewhere else —
-    /// that is a VHS which cannot open a terminal at all.
-    ///
-    /// So the scene's entries come first and win, and what teleprompt was
-    /// run with follows as a fallback.
+    /// recorder should forget: see [`path_with_fallback`].
     #[test]
     fn a_scene_path_keeps_what_teleprompt_was_run_with_behind_it() {
         let composed = path_with_fallback("target/release", Some("/usr/bin:/opt/ttyd/bin"));
         assert_eq!(composed, "target/release:/usr/bin:/opt/ttyd/bin");
 
-        // A directory the scene already names is not repeated.
         let composed = path_with_fallback("target/release:/usr/bin", Some("/usr/bin:/bin"));
         assert_eq!(composed, "target/release:/usr/bin:/bin");
 
-        // Nothing inherited is nothing appended.
         assert_eq!(path_with_fallback("only", None), "only");
     }
 
-    /// Only PATH is extended. A scene that sets any other variable means
-    /// exactly what it says.
+    /// Only PATH is extended.
     #[test]
     fn other_scene_variables_are_passed_through_untouched() {
         let mut s = session(&[("Type \"x\"\n", 100)]);
@@ -370,8 +313,7 @@ mod tests {
         assert!(tape.contains("Env EDITOR \"vim\"\n"), "{tape}");
     }
 
-    /// The shots are windows onto the one video, at the offsets the tape
-    /// was written to produce.
+    /// The shots are windows onto the one video at their scheduled offsets.
     #[test]
     fn the_shots_are_the_scheduled_durations_accumulated() {
         let windows = windows(&session(&[("a", 800), ("b", 1_200), ("c", 400)]));

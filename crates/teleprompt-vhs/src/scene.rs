@@ -1,15 +1,8 @@
 //! The `terminal` scene, served by VHS tapes.
 //!
-//! The block body is real VHS tape syntax and stays runnable by `vhs` itself —
-//! including the mark, which is spelled as a comment for exactly that reason.
-//!
-//! A tape mostly states its own timing: every `Sleep` is written down and
-//! every keystroke costs `Set TypingSpeed`. So `estimate` is exact for a shot
-//! that contains only those, and `Estimated` for one containing a `Wait`,
-//! whose real length is a fact about the command underneath rather than about
-//! the tape. See [`VhsScene::estimate`].
-
-// Rust guideline compliant 2026-07-18
+//! The block body is real VHS tape syntax and stays runnable by `vhs`
+//! itself. See `docs/design.md#adapters` for what is refused and why a shot
+//! is `Exact` or `Estimated`.
 
 use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{Diagnostic, Hash};
@@ -22,18 +15,15 @@ use teleprompt_scene::{
 #[derive(Debug)]
 pub struct VhsScene;
 
-/// VHS's own default gap between keystrokes, overridable per tape with
-/// `Set TypingSpeed` or per command with `Type@100ms`. Matching the tool's
-/// default is what makes an unannotated tape estimate correctly.
+/// VHS's default gap between keystrokes, so an unannotated tape estimates
+/// correctly.
 const DEFAULT_TYPING_SPEED_MS: u64 = 50;
 
-/// VHS's own default bound on `Wait`, overridable with `Set WaitTimeout` or
-/// per command with `Wait@30s`. Matching the tool's default is what makes the
-/// bound teleprompt schedules against the bound VHS would enforce.
+/// VHS's default bound on `Wait`, so teleprompt schedules against the bound
+/// VHS enforces.
 const DEFAULT_WAIT_TIMEOUT_MS: u64 = 5_000;
 
-/// Keys VHS presses. Modifier chords are built from these and from single
-/// characters — see [`is_key`].
+/// Keys VHS presses; chords are built from these (see [`is_key`]).
 const KEYS: &[&str] = &[
     "Enter",
     "Tab",
@@ -55,12 +45,9 @@ const KEYS: &[&str] = &[
 
 const MODIFIERS: &[&str] = &["Ctrl", "Alt", "Shift"];
 
-/// Settings teleprompt passes through without reading: they change what the
-/// terminal looks like, never how long it takes. Named all the same, so a
-/// misspelling is reported rather than silently having no effect — `Set
-/// TypingSped 10ms` used to pass `check` and then type at the default speed,
-/// which is the "wrong length while `check` reports success" failure this
-/// adapter's own `Command` doc warns about, arriving by a different door.
+/// Settings that change how the terminal looks, never how long it takes.
+/// Listed so a misspelling such as `Set TypingSped` is an error rather than
+/// a tape typing at a speed nobody chose.
 const COSMETIC_SETTINGS: &[&str] = &[
     "BorderRadius",
     "CursorBlink",
@@ -80,12 +67,8 @@ const COSMETIC_SETTINGS: &[&str] = &[
     "WindowBarSize",
 ];
 
-/// The mark, spelled as a VHS comment.
-///
-/// VHS has no yield-point concept, and adding a `Mark` command would make the
-/// body a teleprompt dialect rather than a tape — forfeiting the only reason
-/// to point `include=` at a real `.tape` file, which is that `vhs demo.tape`
-/// runs it and VHS's own tooling understands it. As a comment it is inert.
+/// The mark, spelled as a VHS comment so the tape still runs under `vhs`
+/// (`docs/design.md#marks`).
 const MARK: &str = "# mark";
 
 /// A `Set` that teleprompt reads, or one it only passes through.
@@ -97,28 +80,22 @@ pub enum Setting {
     Cosmetic,
 }
 
-/// Commands that run but are not watched running. `Hide` stops the
-/// recording, `Show` resumes it; the shell keeps going either way. It is
-/// how a tape does its setup — `cd`, `export`, `clear` — without every
-/// demo opening on somebody navigating to a directory.
+/// `Hide` stops the recording and `Show` resumes it; the shell keeps going
+/// either way, which is how a tape does unseen setup.
 const HIDE: &str = "Hide";
 const SHOW: &str = "Show";
 
 /// What one tape line contributes.
 ///
-/// This is the adapter's single notion of content, and all three trait
-/// methods go through it — the same discipline `MockScene` documents. A
-/// `Type@100ms` that `validate` accepts and `estimate` does not understand
-/// is not a parse bug, it is a video that is the wrong length while `check`
-/// reports success.
+/// Every trait method reads lines through [`classify`], so `validate` and
+/// `estimate` cannot disagree about a line; if they did, `check` would pass
+/// a video of the wrong length.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
     /// Blank, a comment, or a command with no duration.
     Nothing,
     Mark,
-    /// Stop recording. What follows runs and is not seen, and — this is
-    /// the part that has to agree between measuring and capturing — costs
-    /// the shot no time, because nothing is on screen for it to cost.
+    /// What follows runs unseen and costs the shot no time.
     Hide,
     Show,
     /// `Require <program>`: refuse to record unless it is there.
@@ -129,12 +106,6 @@ pub enum Command {
     Sleep(u64),
     /// `speed` is a `Type@<duration>` override; `None` means "whatever
     /// `Set TypingSpeed` last established".
-    ///
-    /// The text rides along rather than just its length, because this enum
-    /// is the adapter's single notion of what a tape line contains and a
-    /// capture backend has to send the characters somewhere. Two parsers
-    /// for one language is a tape that `check` accepts and nothing can
-    /// run.
     Type {
         text: String,
         speed: Option<u64>,
@@ -154,10 +125,6 @@ pub enum Command {
 }
 
 /// The lone place a tape line is interpreted.
-///
-/// Public because it is the lone place: the capture backend that runs a
-/// tape reads the same enum the compiler measures, so a line the two would
-/// disagree about cannot exist.
 pub fn classify(line: &str) -> Result<Command, CommandError> {
     let line = line.trim();
 
@@ -189,9 +156,8 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
                     "e.g. `Sleep 2s`",
                 ));
             };
-            // Trailing garbage is rejected rather than ignored, for the
-            // reason `MockScene` gives: a line that passes `check` and then
-            // contributes nothing is the worst of both outcomes.
+            // Rejected, not ignored: a line that passes `check` and then
+            // contributes nothing is the worst outcome.
             if let Some(extra) = parts.next() {
                 return Err(CommandError::new(
                     format!("`Sleep` takes one duration, found trailing `{extra}`"),
@@ -206,34 +172,25 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
         "Type" => {
             let (text, tail) = quoted(cmd, line[head.len()..].trim())?;
             reject_trailing(cmd, tail)?;
-            // A tape long enough to overflow this could not fit in memory,
-            // but `as` would wrap silently if one ever did.
             Ok(Command::Type { text, speed: at })
         }
 
         "Set" => setting(parts.next(), parts.next()),
 
-        // teleprompt owns framing and encoding: a tape that writes its own
-        // file would produce a second, unscheduled artifact beside the one
-        // the timeline expects.
+        // teleprompt writes the tape's `Output`; another would be a second,
+        // unscheduled artifact.
         "Output" => Err(CommandError::new(
             "`Output` is set by teleprompt, not by the tape",
             "remove the line; the compiler routes frames to the timeline",
         )),
 
-        // `Source` splices another tape in at run time, long after `shots`
-        // has decided where the shots are — so any mark inside the sourced
-        // tape is invisible to the split that was supposed to honour it.
+        // A sourced tape is spliced in at run time, after `shots` has split
+        // the block, so its marks would be ignored.
         "Source" => Err(CommandError::new(
             "`Source` runs another tape inline, which hides its marks from the shot split",
             "load the other tape with the fence's `include=` attribute instead",
         )),
 
-        // `Wait` blocks until the shell prompt returns, so its real duration
-        // is however long the command underneath takes — a number that is
-        // nowhere in the tape. Its timeout is the one thing the tape does
-        // state, so that is what it contributes, and the shot carrying it
-        // reports `Estimated` rather than `Exact`.
         w if w.starts_with("Wait") => wait(w, at, line[head.len()..].trim()),
 
         key if is_key(key) => {
@@ -279,19 +236,14 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
         }
         "Paste" => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Command::Paste),
 
-        // The environment belongs to the scene, not to the tape — the same
-        // reason `Set Shell` does. A scene is a session: its blocks share
-        // one shell, and that shell's environment is settled before the
-        // first of them runs, so a variable set halfway through a
-        // walkthrough could not mean what it says.
+        // A scene's blocks share one shell whose environment is settled
+        // before the first runs, so a block cannot change it.
         "Env" => Err(CommandError::new(
             "`Env` is set by teleprompt, not by the tape",
             "put it under `scene.<name>.env` in the project config",
         )),
 
-        // teleprompt owns what a capture writes, for the reason `Output`
-        // gives: a tape that writes its own file produces a second,
-        // unscheduled artifact beside the one the timeline expects.
+        // Refused for the reason `Output` is.
         "Screenshot" => Err(CommandError::new(
             "`Screenshot` is written by teleprompt, not by the tape",
             "remove the line; every shot's last frame is already kept",
@@ -300,9 +252,7 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
         other => Err(CommandError::new(
             format!("unknown VHS command `{other}`"),
             match capitalisation_of(other) {
-                // By far the likeliest mistake, and "unknown VHS command
-                // `type`" sends the author looking for a missing feature
-                // rather than a missing shift key.
+                // The likeliest mistake, so name the fix.
                 Some(correct) => format!("VHS commands are capitalised: write `{correct}`"),
                 None => "see the VHS tape reference for the command list".to_string(),
             },
@@ -310,13 +260,8 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
     }
 }
 
-/// `Set <name> <value>`.
-///
-/// An unrecognised name is an error rather than a pass-through. The
-/// pass-through is the tempting reading — VHS has settings teleprompt does
-/// not care about, and ignoring them keeps the adapter out of the way — but
-/// it cannot tell `Set Padding 20` from `Set TypingSped 10ms`, and the second
-/// is a tape that types at a speed its author did not choose.
+/// `Set <name> <value>`. An unknown name is an error: see
+/// [`COSMETIC_SETTINGS`].
 fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, CommandError> {
     let (Some(name), Some(value)) = (name, value) else {
         return Err(match name {
@@ -343,23 +288,19 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, CommandEr
         "TypingSpeed" => duration(Setting::TypingSpeed),
         "WaitTimeout" => duration(Setting::WaitTimeout),
 
-        // The shell is the scene's, set before its first block runs, so a tape
-        // that picks its own shell picks one the capture is not driving.
+        // The shell is shared by the scene's blocks and started before the
+        // first runs, so a block cannot choose it.
         "Shell" => Err(CommandError::new(
             "`Set Shell` is set by teleprompt, not by the tape",
             "remove the line; configure the shell under `scene.terminal`",
         )),
 
-        // Re-timing the finished recording would slide the narration out from
-        // under the action it was scheduled against — which is the one thing
-        // the whole scheduler exists to prevent.
         "PlaybackSpeed" => Err(CommandError::new(
             "`Set PlaybackSpeed` re-times the recording after the fact, which would slide the \
              narration out from under it",
             "pace the shot against its narration with `policy=stretch-action` on the fence",
         )),
 
-        // A GIF-only setting, and a shot inside a video never loops.
         "LoopOffset" => Err(CommandError::new(
             "`Set LoopOffset` chooses which frame a looping GIF starts on, and a shot inside a \
              video never loops",
@@ -384,9 +325,7 @@ fn wait(cmd: &str, at: Option<u64>, rest: &str) -> Result<Command, CommandError>
             "write `Wait`, `Wait+Screen`, or `Wait+Command`",
         ));
     }
-    // The `@` on a `Wait` is its timeout, not a typing speed — the one place
-    // the two readings of `@` differ, and the reason `classify` hands `at`
-    // through rather than interpreting it at the split.
+    // Here `at` is a timeout, not a typing speed.
     let pattern_ok =
         rest.is_empty() || (rest.len() >= 2 && rest.starts_with('/') && rest.ends_with('/'));
     if !pattern_ok {
@@ -399,11 +338,7 @@ fn wait(cmd: &str, at: Option<u64>, rest: &str) -> Result<Command, CommandError>
 }
 
 /// Whether `name` is a key press: a bare key name, or modifiers ending in a
-/// key name or a single character.
-///
-/// A lone character is not a key — `C` on a line of its own is a typo, not a
-/// keystroke — and a chord's tail is checked rather than assumed, so
-/// `Ctrl+Etner` is reported instead of silently pressed.
+/// key name or a single character. A lone `C` is a typo, not a keystroke.
 fn is_key(name: &str) -> bool {
     let mut parts = name.split('+').peekable();
     let mut modifiers = 0;
@@ -437,12 +372,8 @@ fn capitalisation_of(other: &str) -> Option<&'static str> {
 }
 
 /// Reads one quoted string, returning it unescaped with the rest of the line.
-/// VHS accepts double quotes, single quotes, and backticks.
-///
-/// Scanned rather than stripped at both ends: `strip_suffix` cannot tell a
-/// closing quote from an escaped one, so `Type "say \"hi\""` measured two
-/// characters too many, and a trailing argument after the string was folded
-/// into it instead of being reported.
+/// VHS accepts double quotes, single quotes, and backticks. Scanned, not
+/// stripped at both ends, so an escaped quote does not end the string.
 fn quoted<'a>(cmd: &str, rest: &'a str) -> Result<(String, &'a str), CommandError> {
     let help = format!("e.g. `{cmd} \"npm install\"`");
     let mut chars = rest.char_indices();
@@ -501,13 +432,9 @@ fn reject_trailing(cmd: &str, tail: &str) -> Result<(), CommandError> {
     ))
 }
 
-/// True when a mark-separated chunk carries something to execute.
-///
-/// A chunk of nothing but comments and `Set` lines is empty, not a
-/// zero-duration shot. `TypingSpeed` counts as a setting here even though it
-/// carries a duration: it configures later typing rather than spending any time
-/// itself, and a chunk holding only settings is exactly the phantom shot F13
-/// rules out.
+/// True when a mark-separated chunk carries something to execute. Comments
+/// and `Set` lines (even `TypingSpeed`) spend no time, so a chunk of only
+/// those is no shot rather than a zero-length one.
 fn has_content(chunk: &[&str]) -> bool {
     chunk
         .iter()
@@ -529,11 +456,9 @@ impl SceneCompiler for VhsScene {
         let mut shots: Vec<Shot> = Vec::new();
 
         for chunk in lines.split(|l| matches!(classify(l), Ok(Command::Mark))) {
-            // `Set` lines established before a mark still govern the tape
-            // after it, so each shot carries the settings in force when it
-            // starts. That keeps `estimate` a pure function of `shot.source`,
-            // and puts the settings in the hash — so raising TypingSpeed
-            // invalidates exactly the later shots whose timing it changes.
+            // Each shot carries the `Set` lines in force when it starts, so
+            // `estimate` depends only on `shot.source` and a changed setting
+            // invalidates exactly the later shots it affects.
             let source = settings
                 .iter()
                 .chain(chunk.iter())
@@ -564,33 +489,19 @@ impl SceneCompiler for VhsScene {
         Ok(shots)
     }
 
-    /// Exact for a shot whose timing the tape states in full, `Estimated` for
-    /// one containing a `Wait`.
-    ///
-    /// The distinction is per shot rather than per adapter. `Sleep` and `Set
-    /// TypingSpeed` are exact, and a shot built from those alone needs no
-    /// measuring pass — which is what lets `plan` and `diff` report a terminal
-    /// scene's pacing offline, with no terminal anywhere. `Wait` is the
-    /// exception: it blocks until the shell prompt returns, so its length is
-    /// whatever `cargo build` takes, and that number is nowhere in the tape.
-    /// Its timeout is the bound the tape does state, so the shot contributes
-    /// that and says `Estimated` — the honest signal that this shot's length is
-    /// a bound, unlike the shot next to it.
+    /// Exact for a shot whose timing the tape states in full; `Estimated`,
+    /// at the timeout, for one containing a `Wait`, whose real length is
+    /// however long the command underneath takes.
     fn estimate(&self, shot: &Shot) -> Measured {
         let mut speed = DEFAULT_TYPING_SPEED_MS;
         let mut timeout = DEFAULT_WAIT_TIMEOUT_MS;
         let mut total: u64 = 0;
         let mut waited = false;
-        // Hidden commands cost the shot nothing. They run — the `cd` really
-        // happens — but a shot's duration is how long something is *on
-        // screen*, and nothing hidden is. Counting them would size the slot
-        // for work the viewer never sees and leave the narration waiting
-        // through it.
+        // A shot's duration is how long something is on screen, so hidden
+        // commands cost nothing; every duration goes through `visible`.
         let mut hidden = false;
 
         for line in shot.source.lines() {
-            // Hidden commands run and cost the shot nothing, so every
-            // duration below goes through `visible`.
             let mut visible = |ms: u64| {
                 if !hidden {
                     total = total.saturating_add(ms);
@@ -611,8 +522,7 @@ impl SceneCompiler for VhsScene {
                 Ok(Command::Keys {
                     count, speed: at, ..
                 }) => visible(count.saturating_mul(at.unwrap_or(speed))),
-                // A paste arrives all at once, so it costs one keystroke
-                // rather than one per character.
+                // A paste arrives at once: one keystroke.
                 Ok(Command::Paste) => visible(speed),
                 Ok(Command::Wait { timeout: at }) => {
                     waited = true;
@@ -638,24 +548,13 @@ impl SceneCompiler for VhsScene {
         }
     }
 
-    /// Re-times a tape by scaling everything that takes time in it.
-    ///
-    /// Every `Sleep`, and the speed of every keystroke, moves by the same
+    /// Re-times a tape by scaling every `Sleep` and keystroke speed by one
     /// factor, so a stretched shot is the same performance played slower
-    /// rather than the same performance followed by a wait. That is what
-    /// `stretch-action` means when it says the action fills the sentence
-    /// above it, and the difference is visible: a tape that types at its
-    /// authored speed and then sits still for ten seconds is the frozen
-    /// frame again, wearing a `Sleep`.
+    /// rather than followed by a wait.
     ///
-    /// Rounding is settled at the end rather than per line. Milliseconds
-    /// are integers and a factor is not, so a dozen scaled values can miss
-    /// the target by a few milliseconds between them; the remainder becomes
-    /// one trailing `Sleep`, which is the only line here that is not just
-    /// the author's own, scaled.
+    /// Rounding is settled once at the end: the few milliseconds the scaled
+    /// lines miss by become one trailing `Sleep`, or come off the last one.
     fn retime(&self, shot: &Shot, target_ms: u64) -> Option<String> {
-        // Only a shot that states its own timing can be promised to a
-        // length. A `Wait` is as long as the command takes.
         let current = match self.estimate(shot) {
             Measured::Exact(ms) => ms,
             _ => return None,
@@ -677,9 +576,7 @@ impl SceneCompiler for VhsScene {
                     stated_speed = true;
                     out.push(format!("Set TypingSpeed {}ms", scale(ms)));
                 }
-                // `Type@100ms "…"` and `Enter@50ms` carry their own speed,
-                // which the tape states per command and which therefore
-                // scales per command.
+                // A per-command speed scales per command.
                 Ok(
                     Command::Type {
                         speed: Some(at), ..
@@ -694,10 +591,8 @@ impl SceneCompiler for VhsScene {
             }
         }
 
-        // A tape that never said how fast it types is typing at the default,
-        // and the default is not the author's to leave alone here: without
-        // this line the keystrokes would be the one thing that did not
-        // stretch.
+        // Without this, a tape typing at the default speed would not
+        // stretch its keystrokes.
         if !stated_speed {
             out.insert(
                 0,
@@ -720,8 +615,7 @@ impl SceneCompiler for VhsScene {
                     source.push_str(&format!("Sleep {remainder}ms\n"));
                 }
             } else {
-                // Overshot by rounding: take it back off the last sleep
-                // rather than leaving the shot longer than it was promised.
+                // Overshot by rounding: take it off the last sleep.
                 source = shorten_last_sleep(&source, reached - target_ms)?;
             }
         }
@@ -729,8 +623,7 @@ impl SceneCompiler for VhsScene {
     }
 }
 
-/// `Type@100ms "hi"` with its `@` replaced. The text after the command is
-/// the author's and is copied through untouched.
+/// `Type@100ms "hi"` with its `@` replaced and the rest copied through.
 fn rescale_at(line: &str, ms: u64) -> String {
     match line.split_once(char::is_whitespace) {
         Some((head, rest)) => {
