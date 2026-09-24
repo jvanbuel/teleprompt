@@ -254,93 +254,141 @@ pub async fn run_dub_with(
     // `compile_script_with`.
     let (compiled, backend) =
         compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
-
     let cache = Arc::new(VoiceCache::new(cache_root(project)));
 
-    // A fully cached project needs no server at all, so it can be iterated
-    // on offline. A corrupt entry counts as missing: it will be re-rendered.
+    check_voices(backends, backend.id(), &compiled, &cache).await?;
+    let limit = backends
+        .kokoro(backend.id())
+        .map(|k| k.concurrency())
+        .unwrap_or(1);
+    let rendered = render_all(&backend, &cache, &compiled.narration, limit).await?;
+    let audio = Audio::collect(rendered);
+
+    // Recompile against the now-warm cache: the first compile ran before
+    // anything was rendered, so on a cold project it holds estimates. This
+    // makes `dub` idempotent, and costs no synthesis.
+    let (compiled, _) =
+        compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
+    audio.check_lengths(&compiled.timeline)?;
+    let built = audio.manifest(&compiled);
+    let downgrades = downgrades_in(&built);
+
+    // The re-render notices come first: they explain why anything below them
+    // is being recomputed at all.
+    let mut warnings = audio.cache_warnings.clone();
+    warnings.extend(compiled.warnings.iter().cloned());
+
+    let (written, drift) = if check_only {
+        (
+            Vec::new(),
+            Some(drift_from_committed(out_root, locale, &built)?),
+        )
+    } else {
+        (write_output(out_root, locale, &audio, &built)?, None)
+    };
+    Ok(DubOutput {
+        manifest: built,
+        shots: compiled.shots.clone(),
+        scenes: compiled.scenes.clone(),
+        output: compiled.output.clone(),
+        written,
+        warnings,
+        drift,
+        downgrades,
+    })
+}
+
+/// Checks the voices the script asks for against the server, once, before
+/// anything is synthesized.
+///
+/// Here, not in `check`: `check` stays offline, and a gate that depends on a
+/// running server would pass a script on one machine and fail it on
+/// another. It goes through `Backends::kokoro` rather than the trait,
+/// because listing voices is not something every backend can do
+/// (docs/design.md#voice-contract). A fully cached project needs no server,
+/// so it is not asked.
+async fn check_voices(
+    backends: &Backends,
+    backend_id: &str,
+    compiled: &teleprompt_compile::CompileOutput,
+    cache: &VoiceCache,
+) -> Result<(), DubError> {
+    // A corrupt entry counts as missing: it will be re-rendered.
     let anything_to_synthesize = compiled.narration.iter().any(|detail| {
         !matches!(
             cache.lookup_meta(&detail.cache_key),
             Ok(teleprompt_cache::CacheRead::Hit(_))
         )
     });
-
-    // The voice list is checked here, not in `check`: `check` stays offline,
-    // and a gate that depends on a running server would pass a script on one
-    // machine and fail it on another. It goes through `Backends::kokoro`
-    // rather than the trait, because listing voices is not something every
-    // backend can do (docs/design.md#voice-contract).
-    if let Some(kokoro) = backends
-        .kokoro(backend.id())
+    let Some(kokoro) = backends
+        .kokoro(backend_id)
         .filter(|_| anything_to_synthesize)
-    {
-        let wanted = compiled
-            .narration
-            .iter()
-            .filter_map(|d| d.synth_request.voice.clone())
-            .collect::<std::collections::BTreeSet<_>>();
-        if !wanted.is_empty() {
-            // A server that fails to answer is a runtime failure (exit 1,
-            // docs/design.md#backend-failure; the error names the URL). Only
-            // one that answers without the voice is a script problem (exit 2).
-            let available = kokoro
-                .voices()
-                .await
-                .map_err(|e| DubError::Runtime(e.to_string()))?;
-            let mut problems = Vec::new();
-            for v in &wanted {
-                if !available.contains(v) {
-                    problems.push(format!(
-                        "voice `{v}` is not available on the kokoro server at {} \
-                         (available: {})",
-                        kokoro.base_url(),
-                        available.join(", ")
-                    ));
-                }
-            }
-            if !problems.is_empty() {
-                return Err(DubError::Validation(problems));
-            }
-        }
+    else {
+        return Ok(());
+    };
+    let wanted = compiled
+        .narration
+        .iter()
+        .filter_map(|d| d.synth_request.voice.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    if wanted.is_empty() {
+        return Ok(());
     }
+    // A server that fails to answer is a runtime failure (exit 1,
+    // docs/design.md#backend-failure; the error names the URL). Only one
+    // that answers without the voice is a script problem (exit 2).
+    let available = kokoro
+        .voices()
+        .await
+        .map_err(|e| DubError::Runtime(e.to_string()))?;
+    let problems: Vec<String> = wanted
+        .iter()
+        .filter(|v| !available.contains(v))
+        .map(|v| {
+            format!(
+                "voice `{v}` is not available on the kokoro server at {} \
+                 (available: {})",
+                kokoro.base_url(),
+                available.join(", ")
+            )
+        })
+        .collect();
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(DubError::Validation(problems))
+    }
+}
 
-    // Bounded: the model server is the bottleneck, and fanning out wider
-    // than it serves makes the run slower and its failures worse. A backend
-    // other than kokoro gets 1. At 1, with tasks spawned in document order
-    // on the CLI's current-thread runtime, the run is serial in every
-    // observable way, stderr included.
-    let limit = backends
-        .kokoro(backend.id())
-        .map(|k| k.concurrency())
-        .unwrap_or(1);
+/// Every line's audio, in document order, rendering at most `limit` keys at
+/// once.
+///
+/// Bounded: the model server is the bottleneck, and fanning out wider than
+/// it serves makes the run slower and its failures worse. At 1, with tasks
+/// spawned in document order on the CLI's current-thread runtime, the run is
+/// serial in every observable way, stderr included. The first error aborts
+/// every task in flight; entries already stored stay, since the cache is
+/// content-addressed.
+async fn render_all(
+    backend: &Arc<dyn VoiceBackend>,
+    cache: &Arc<VoiceCache>,
+    narration: &[NarrationDetail],
+    limit: usize,
+) -> Result<Vec<Rendered>, DubError> {
     let permits = Arc::new(tokio::sync::Semaphore::new(limit));
-
     // Progress is per line, in completion order with a running count: under
     // concurrency, which line finishes next is a fact about the server, and
     // relabelling it into document order would misreport what happened.
-    let total = compiled.narration.len();
+    let total = narration.len();
     let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-
-    // One task per distinct key, not per line; see [`RenderedAudio`].
-    let mut groups: std::collections::HashMap<teleprompt_cache::CacheKey, Vec<usize>> =
-        std::collections::HashMap::new();
-    for (i, detail) in compiled.narration.iter().enumerate() {
-        groups.entry(detail.cache_key.clone()).or_default().push(i);
-    }
-
-    // `HashMap` order is random per process; spawning in document order
-    // keeps stderr reproducible. Each group's indices are already ascending.
-    let mut groups: Vec<Vec<usize>> = groups.into_values().collect();
-    groups.sort_by_key(|indices| indices[0]);
 
     let mut tasks: tokio::task::JoinSet<(Vec<usize>, Result<RenderedAudio, DubError>)> =
         tokio::task::JoinSet::new();
-    for indices in groups {
-        let detail = compiled.narration[indices[0]].clone();
+    for indices in groups_by_key(narration) {
+        let detail = narration[indices[0]].clone();
         let line_ids: Vec<String> = indices
             .iter()
-            .map(|&i| compiled.narration[i].line_id.clone())
+            .map(|&i| narration[i].line_id.clone())
             .collect();
         let backend = backend.clone();
         let cache = cache.clone();
@@ -364,144 +412,158 @@ pub async fn run_dub_with(
     }
 
     // Results arrive in completion order, so each is filed at its indices.
-    // The first error aborts every task in flight: the run has already
-    // failed. Entries already stored stay; the cache is content-addressed,
-    // so keeping them is never wrong.
     let mut slots: Vec<Option<Rendered>> = (0..total).map(|_| None).collect();
-    let mut failure: Option<DubError> = None;
     while let Some(joined) = tasks.join_next().await {
         let (indices, r) = joined.expect("a render task panicked");
-        match r {
-            Ok(audio) => {
-                for i in indices {
-                    slots[i] = Some(Rendered {
-                        line_id: compiled.narration[i].line_id.clone(),
-                        wav_bytes: audio.wav_bytes.clone(),
-                        rendered_ms: audio.rendered_ms,
-                        sample_rate: audio.sample_rate,
-                        channels: audio.channels,
-                        cache_warning: audio.cache_warning.clone(),
-                    });
-                }
-            }
+        let audio = match r {
+            Ok(audio) => audio,
             Err(e) => {
-                failure = Some(e);
-                break;
+                tasks.abort_all();
+                return Err(e);
             }
+        };
+        for i in indices {
+            slots[i] = Some(Rendered {
+                line_id: narration[i].line_id.clone(),
+                wav_bytes: audio.wav_bytes.clone(),
+                rendered_ms: audio.rendered_ms,
+                sample_rate: audio.sample_rate,
+                channels: audio.channels,
+                cache_warning: audio.cache_warning.clone(),
+            });
         }
     }
-    if let Some(e) = failure {
-        tasks.abort_all();
-        return Err(e);
-    }
-
-    let rendered: Vec<Rendered> = slots
+    Ok(slots
         .into_iter()
         .map(|r| r.expect("every index rendered when there was no failure"))
-        .collect();
+        .collect())
+}
 
-    // The rendered length rides along for the guard after the recompile.
-    let mut audio: Vec<(String, Vec<u8>, u64)> = Vec::with_capacity(rendered.len());
-
-    // Read off the audio produced. The first line in document order wins,
-    // so it does not depend on which request answered first. The manifest
-    // has one `AudioInfo` per locale.
-    let mut audio_format: Option<(u32, u16)> = None;
-
-    // Collected here because the recompile below sees a healed cache.
-    let mut cache_warnings: Vec<String> = Vec::new();
-
-    for r in rendered {
-        if let Some(w) = &r.cache_warning {
-            cache_warnings.push(format!("line `{}`: {w}", r.line_id));
-        }
-        audio_format.get_or_insert((r.sample_rate, r.channels));
-        audio.push((r.line_id, r.wav_bytes, r.rendered_ms));
+/// Line indices grouped by cache key, one group per task (see
+/// [`RenderedAudio`]), ordered by first occurrence so tasks spawn in
+/// document order and stderr is reproducible.
+fn groups_by_key(narration: &[NarrationDetail]) -> Vec<Vec<usize>> {
+    let mut groups: std::collections::HashMap<teleprompt_cache::CacheKey, Vec<usize>> =
+        std::collections::HashMap::new();
+    for (i, detail) in narration.iter().enumerate() {
+        groups.entry(detail.cache_key.clone()).or_default().push(i);
     }
+    let mut groups: Vec<Vec<usize>> = groups.into_values().collect();
+    groups.sort_by_key(|indices| indices[0]);
+    groups
+}
 
-    // Recompile against the now-warm cache: the first compile ran before
-    // anything was rendered, so on a cold project it holds estimates. This
-    // makes `dub` idempotent, and costs no synthesis.
-    let (compiled, _) =
-        compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
+/// The rendered audio, in document order, with what the manifest needs
+/// from it.
+struct Audio {
+    /// Each line's id, WAV bytes and rendered length.
+    lines: Vec<(String, Vec<u8>, u64)>,
+    /// The first line's rate and channels; the manifest has one `AudioInfo`
+    /// per locale, and the first line in document order does not depend on
+    /// which request answered first.
+    format: Option<(u32, u16)>,
+    /// Collected here because the recompile sees a healed cache.
+    cache_warnings: Vec<String>,
+}
 
-    // The length guard, against the recompiled (measured) timeline and
-    // before anything is written: an output directory that disagrees with
-    // its own manifest is worse than none. It should never fire, since
-    // `store` returns the entry the recompile reads; it catches a key or
-    // metadata drift that would make the recompile resolve a different
-    // entry, which nothing above this could detect.
-    for (line_id, _, rendered_ms) in &audio {
-        if let Some(published_ms) = published_duration_ms(&compiled.timeline, line_id) {
-            length_mismatch(line_id, *rendered_ms, published_ms)
-                .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
-        }
-    }
-
-    let (sample_rate, channels) = audio_format.unwrap_or((NO_AUDIO_SAMPLE_RATE, 1));
-    let mut built = manifest::build(
-        &compiled.timeline,
-        &compiled.chapters,
-        &compiled.narration,
-        AudioInfo {
-            format: "wav".to_string(),
-            sample_rate,
-            channels,
-        },
-    );
-
-    // `manifest::build` seeds `audio_hash` with the timeline's hash of the
-    // cache key; the manifest publishes the hash of the WAV bytes
-    // (docs/design.md#manifest), and only `dub` has them. Done before
-    // `--check` so a comparison is like-for-like.
-    for (line_id, bytes, _) in &audio {
-        if let Some(seg) = built.lines.iter_mut().find(|s| s.id == *line_id) {
-            seg.audio_hash = Hash::of(bytes);
-        }
-    }
-
-    let downgrades = downgrades_in(&built);
-
-    // The re-render notices come first: they explain why anything below them
-    // is being recomputed at all.
-    let mut warnings = cache_warnings;
-    warnings.extend(compiled.warnings.iter().cloned());
-
-    if check_only {
-        let committed =
-            read_committed(&manifest_path(out_root, locale)).map_err(DubError::Runtime)?;
-        let drift = match committed {
-            Some(before) => manifest_diff::diff(&before, &built),
-            // No manifest at all is maximal drift: everything is new.
-            None => manifest_diff::diff(
-                &NarrationManifest {
-                    lines: Vec::new(),
-                    chapters: Vec::new(),
-                    duration_ms: 0,
-                    ..built.clone()
-                },
-                &built,
-            ),
+impl Audio {
+    fn collect(rendered: Vec<Rendered>) -> Self {
+        let mut audio = Audio {
+            lines: Vec::with_capacity(rendered.len()),
+            format: None,
+            cache_warnings: Vec::new(),
         };
-        return Ok(DubOutput {
-            manifest: built,
-            shots: compiled.shots.clone(),
-            scenes: compiled.scenes.clone(),
-            output: compiled.output.clone(),
-            written: Vec::new(),
-            warnings: warnings.clone(),
-            drift: Some(drift),
-            downgrades,
-        });
+        for r in rendered {
+            if let Some(w) = &r.cache_warning {
+                audio
+                    .cache_warnings
+                    .push(format!("line `{}`: {w}", r.line_id));
+            }
+            audio.format.get_or_insert((r.sample_rate, r.channels));
+            audio.lines.push((r.line_id, r.wav_bytes, r.rendered_ms));
+        }
+        audio
     }
 
+    /// Every rendered length against the (measured) timeline, before
+    /// anything is written: an output directory that disagrees with its own
+    /// manifest is worse than none. It should never fire, since `store`
+    /// returns the entry the recompile reads; it catches a key or metadata
+    /// drift that would make the recompile resolve a different entry.
+    fn check_lengths(&self, timeline: &teleprompt_schedule::Timeline) -> Result<(), DubError> {
+        for (line_id, _, rendered_ms) in &self.lines {
+            if let Some(published_ms) = published_duration_ms(timeline, line_id) {
+                length_mismatch(line_id, *rendered_ms, published_ms)
+                    .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The manifest, with each line's `audio_hash` the hash of its WAV bytes.
+    ///
+    /// `manifest::build` seeds `audio_hash` with the timeline's hash of the
+    /// cache key; the manifest publishes the bytes' hash
+    /// (docs/design.md#manifest), and only `dub` has them. Done before
+    /// `--check` so a comparison is like-for-like.
+    fn manifest(&self, compiled: &teleprompt_compile::CompileOutput) -> NarrationManifest {
+        let (sample_rate, channels) = self.format.unwrap_or((NO_AUDIO_SAMPLE_RATE, 1));
+        let mut built = manifest::build(
+            &compiled.timeline,
+            &compiled.chapters,
+            &compiled.narration,
+            AudioInfo {
+                format: "wav".to_string(),
+                sample_rate,
+                channels,
+            },
+        );
+        for (line_id, bytes, _) in &self.lines {
+            if let Some(seg) = built.lines.iter_mut().find(|s| s.id == *line_id) {
+                seg.audio_hash = Hash::of(bytes);
+            }
+        }
+        built
+    }
+}
+
+/// How `built` differs from the manifest committed under `out_root`. No
+/// manifest at all is maximal drift: everything is new.
+fn drift_from_committed(
+    out_root: &Path,
+    locale: &str,
+    built: &NarrationManifest,
+) -> Result<ManifestDiff, DubError> {
+    let committed = read_committed(&manifest_path(out_root, locale)).map_err(DubError::Runtime)?;
+    Ok(match committed {
+        Some(before) => manifest_diff::diff(&before, built),
+        None => manifest_diff::diff(
+            &NarrationManifest {
+                lines: Vec::new(),
+                chapters: Vec::new(),
+                duration_ms: 0,
+                ..built.clone()
+            },
+            built,
+        ),
+    })
+}
+
+/// Writes each line's WAV and then the manifest, returning the paths
+/// written.
+fn write_output(
+    out_root: &Path,
+    locale: &str,
+    audio: &Audio,
+    built: &NarrationManifest,
+) -> Result<Vec<PathBuf>, DubError> {
     let dir = locale_dir(out_root, locale);
     let audio_dir = dir.join("audio");
     std::fs::create_dir_all(&audio_dir)
         .map_err(|e| DubError::Runtime(format!("cannot create {}: {e}", audio_dir.display())))?;
 
     let mut written = Vec::new();
-    for (line_id, bytes, _) in &audio {
+    for (line_id, bytes, _) in &audio.lines {
         let path = dir.join(manifest::audio_path(line_id, "wav"));
         std::fs::write(&path, bytes)
             .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
@@ -509,22 +571,12 @@ pub async fn run_dub_with(
     }
 
     let path = manifest_path(out_root, locale);
-    let json = serde_json::to_string_pretty(&built)
+    let json = serde_json::to_string_pretty(built)
         .map_err(|e| DubError::Runtime(format!("cannot serialize manifest: {e}")))?;
     std::fs::write(&path, format!("{json}\n"))
         .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
     written.push(path);
-
-    Ok(DubOutput {
-        manifest: built,
-        shots: compiled.shots.clone(),
-        scenes: compiled.scenes.clone(),
-        output: compiled.output.clone(),
-        written,
-        warnings,
-        drift: None,
-        downgrades,
-    })
+    Ok(written)
 }
 
 pub fn render_dub(out: &DubOutput) -> String {
