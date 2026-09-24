@@ -53,7 +53,7 @@ pub fn compile_script(
 
 /// The project's backends, built once from its settings and told which file
 /// those settings came from so a diagnostic about them can point at it.
-pub fn backends_of(project: &Project) -> Backends {
+pub(crate) fn backends_of(project: &Project) -> Backends {
     let settings = project.config.backends.clone().unwrap_or_default();
     crate::voice::backends_for(&settings, &project.config_path().display().to_string())
 }
@@ -64,7 +64,7 @@ pub fn backends_of(project: &Project) -> Backends {
 /// ship and watch the whole path — key, synthesis, cache, manifest — follow
 /// it. That is the claim spec §4.1 makes, and it is not a claim a workspace
 /// with exactly one real backend can otherwise check.
-pub fn compile_script_with(
+pub(crate) fn compile_script_with(
     backends: &Backends,
     project: &Project,
     script: &Path,

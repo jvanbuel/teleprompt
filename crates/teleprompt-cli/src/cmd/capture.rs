@@ -24,7 +24,7 @@ use teleprompt_core::config::SceneConfig;
 /// Built from the manifest rather than from the in-process timeline for
 /// the reason the renderer is: two timing paths drift, and a clip captured
 /// against a length nothing published is a clip that does not fit.
-pub fn cues_of(
+pub(crate) fn cues_of(
     manifest: &NarrationManifest,
     shots: &[ShotSource],
     scenes: &BTreeMap<String, SceneConfig>,

@@ -20,7 +20,7 @@ pub struct Project {
 /// canonicalizes to ENOENT. Every test, the README, and both manual
 /// transcripts happened to pass a path with a directory component, so the
 /// bare-filename case (`cd scripts && teleprompt check demo.md`) went unseen.
-pub fn script_dir(script: &Path) -> &Path {
+pub(crate) fn script_dir(script: &Path) -> &Path {
     match script.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
         _ => Path::new("."),
@@ -69,7 +69,7 @@ impl Project {
     /// point here: a bad `backends:` block is a fact about this file, and
     /// anchoring it to whichever script happened to be compiled sends the
     /// author to the wrong place to fix it.
-    pub fn config_path(&self) -> PathBuf {
+    pub(crate) fn config_path(&self) -> PathBuf {
         self.root.join("teleprompt.toml")
     }
 

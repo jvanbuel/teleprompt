@@ -244,7 +244,7 @@ impl Backends {
     /// that is the whole point of deferring the failure. `doctor` asks "what
     /// is wrong here", and a `backends:` block the author wrote that cannot
     /// produce a backend is wrong whichever script is being compiled today.
-    pub fn unusable_diagnostics(&self) -> Vec<Diagnostic> {
+    pub(crate) fn unusable_diagnostics(&self) -> Vec<Diagnostic> {
         self.unusable
             .iter()
             .map(|(id, why)| {

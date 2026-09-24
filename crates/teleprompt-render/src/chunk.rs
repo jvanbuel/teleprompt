@@ -211,7 +211,7 @@ fn window(placement: &Placement, start_ms: u64, frames: u64, fps: u32) -> Window
 /// The recipe version: bumped when the encoder settings or the filter
 /// chain change, so a cache filled by an older teleprompt is not served
 /// for frames a newer one would encode differently.
-pub const RECIPE: &str = "x264-crf23-medium-v1";
+pub(crate) const RECIPE: &str = "x264-crf23-medium-v1";
 
 /// Everything that changes a chunk's bytes, and nothing that does not.
 ///

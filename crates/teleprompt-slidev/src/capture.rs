@@ -32,7 +32,7 @@ pub fn range(steps: &[Step]) -> String {
 
 /// The ffmpeg arguments that make one still into a clip filling `frame`,
 /// letterboxed rather than stretched.
-pub fn clip_args(still: &Path, frame: &Frame, clip: &Path) -> Vec<String> {
+pub(crate) fn clip_args(still: &Path, frame: &Frame, clip: &Path) -> Vec<String> {
     let (w, h) = (frame.width, frame.height);
     vec![
         "-hide_banner".into(),

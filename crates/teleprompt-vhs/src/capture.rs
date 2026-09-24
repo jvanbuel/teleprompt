@@ -24,7 +24,7 @@ use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Se
 /// The tape `vhs` should run for a whole session.
 ///
 /// `output` is where `vhs` writes the one video the shots are cut from.
-pub fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
+pub(crate) fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
     let mut out = String::new();
     // Quoted: VHS's parser reads a bare `/` as the start of a command, so
     // an unquoted absolute path is three syntax errors and no recording.

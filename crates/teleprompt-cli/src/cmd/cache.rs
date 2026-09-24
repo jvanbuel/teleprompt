@@ -29,7 +29,7 @@ use crate::project::Project;
 /// being too small is an author paying for a render they had already paid
 /// for. A 1080p minute is some tens of megabytes, so this is room for a
 /// long script and several versions of it.
-pub const DEFAULT_MAX_MB: u64 = 1024;
+pub(crate) const DEFAULT_MAX_MB: u64 = 1024;
 
 /// Everything stored under one key.
 ///

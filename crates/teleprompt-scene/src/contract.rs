@@ -23,7 +23,7 @@ pub enum BodyOrigin {
 
 impl BodyOrigin {
     /// Source location of 0-based body line `i`, `len` characters wide.
-    pub fn span_of(&self, i: usize, len: usize) -> SourceSpan {
+    pub(crate) fn span_of(&self, i: usize, len: usize) -> SourceSpan {
         let line = match self {
             BodyOrigin::Inline { fence } => fence.line + i + 1,
             BodyOrigin::Included { .. } => i + 1,
