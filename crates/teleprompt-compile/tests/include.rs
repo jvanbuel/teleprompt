@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, VoiceContext};
@@ -9,15 +9,8 @@ use teleprompt_core::program::resolve;
 use teleprompt_scene::SceneRegistry;
 use teleprompt_voice::WpmEstimator;
 
-fn workspace() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "teleprompt-include-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+fn workspace() -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir("include")
 }
 
 /// A cache rooted alongside `workspace()`'s scratch directory rather than

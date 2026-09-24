@@ -31,20 +31,17 @@ fn program_for(src: &str) -> Program {
 }
 
 /// A cache rooted in a fresh scratch directory, so every call gets a cold
-/// cache regardless of what any other test did.
-fn throwaway_cache() -> VoiceCache {
-    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    VoiceCache::new(std::env::temp_dir().join(format!(
-        "tp-manifest-throwaway-{}-{:?}-{n}",
-        std::process::id(),
-        std::thread::current().id(),
-    )))
+/// cache regardless of what any other test did. Keep the directory alive as
+/// long as the cache.
+fn throwaway_cache() -> (teleprompt_testkit::TestDir, VoiceCache) {
+    let dir = teleprompt_testkit::test_dir("manifest-throwaway");
+    let cache = VoiceCache::new(dir.path());
+    (dir, cache)
 }
 
 fn compiled_and_manifest(src: &str) -> (CompileOutput, teleprompt_manifest::NarrationManifest) {
     let program = program_for(src);
-    let cache = throwaway_cache();
+    let (_dir, cache) = throwaway_cache();
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
         backend_id: "null",
@@ -87,7 +84,7 @@ fn manifest_for_with_words(
     word_timings: Vec<WordTiming>,
 ) -> teleprompt_manifest::NarrationManifest {
     let program = program_for(src);
-    let cache = throwaway_cache();
+    let (_dir, cache) = throwaway_cache();
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
         backend_id: "null",

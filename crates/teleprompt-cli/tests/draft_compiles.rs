@@ -37,13 +37,7 @@ The configuration file looks like this.
 
 /// Writes `source` into a scaffolded project and runs `check` over it.
 fn check(source: &str) -> Result<Vec<String>, Vec<String>> {
-    let dir = std::env::temp_dir().join(format!(
-        "tp-draft-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("draft");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
 
     let script: PathBuf = dir.join("scripts/drafted.md");

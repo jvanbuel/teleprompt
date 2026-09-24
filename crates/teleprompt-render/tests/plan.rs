@@ -116,7 +116,7 @@ fn a_shot_with_no_captured_clip_is_a_slate_and_is_reported() {
 
 #[test]
 fn a_captured_clip_is_used_where_one_exists_for_the_shot() {
-    let dir = std::env::temp_dir().join(format!("tp-plan-{}", std::process::id()));
+    let dir = teleprompt_testkit::test_dir("plan");
     let clips = dir.join("cache/video");
     std::fs::create_dir_all(&clips).unwrap();
     let hash = "5555555555555555555555555555555555555555555555555555555555555555";

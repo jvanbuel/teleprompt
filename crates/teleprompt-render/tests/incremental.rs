@@ -70,19 +70,14 @@ fn plan(dir: &Path, clip: &Path, shots: &[(u64, u64)], duration_ms: u64) -> Rend
 /// its cache ignored, which is a stronger comparison than before: the two
 /// paths can no longer disagree about what the video should look like,
 /// only about how much of it had to be encoded.
-fn one_pass() -> IncrementalRenderer {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+fn one_pass(dir: &Path) -> IncrementalRenderer {
     IncrementalRenderer {
         program: "ffmpeg".into(),
-        // A directory of its own per call. These run in parallel in one
+        // Inside the test's own directory. These run in parallel in one
         // process, and a chunk key is content-addressed, so two tests
-        // rendering similar plans write the *same* filename — which is a
-        // half-written mp4 and `moov atom not found`.
-        cache_dir: std::env::temp_dir().join(format!(
-            "tp-onepass-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        )),
+        // rendering similar plans into a shared cache write the *same*
+        // filename — which is a half-written mp4 and `moov atom not found`.
+        cache_dir: dir.join("chunks"),
         reuse: false,
     }
 }
@@ -101,7 +96,7 @@ fn an_incremental_render_is_the_same_length_as_a_one_pass_render() {
 
     let mut whole = plan(&dir, &clip, &[(0, 2_000), (2_000, 1_500)], 5_000);
     whole.output = dir.join("whole.mp4");
-    one_pass()
+    one_pass(&dir)
         .render(&whole, &mut |_| {})
         .expect("the one-pass graph renders");
 

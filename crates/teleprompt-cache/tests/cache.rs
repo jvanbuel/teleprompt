@@ -20,27 +20,22 @@ fn pcm(ms: u64) -> Pcm {
     }
 }
 
-fn tempdir(tag: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!(
-        "tp-cache-{tag}-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&d);
-    std::fs::create_dir_all(&d).unwrap();
-    d
+fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("cache-{tag}"))
 }
 
 #[test]
 fn a_miss_is_none_not_an_error() {
-    let c = VoiceCache::new(tempdir("miss"));
+    let dir = tempdir("miss");
+    let c = VoiceCache::new(dir.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
     assert!(c.lookup(&k).unwrap().hit().is_none());
 }
 
 #[test]
 fn store_then_lookup_round_trips() {
-    let c = VoiceCache::new(tempdir("round"));
+    let dir = tempdir("round");
+    let c = VoiceCache::new(dir.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
 
     let stored = c.store(&k, &pcm(1000), None).unwrap();
@@ -61,7 +56,8 @@ fn store_then_lookup_round_trips() {
 /// is how it avoids reading audio back only to drop it.
 #[test]
 fn lookup_meta_round_trips_without_the_wav() {
-    let c = VoiceCache::new(tempdir("meta-round"));
+    let dir = tempdir("meta-round");
+    let c = VoiceCache::new(dir.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
     c.store(&k, &pcm(1000), None).unwrap();
 
@@ -79,7 +75,8 @@ fn lookup_meta_round_trips_without_the_wav() {
 
 #[test]
 fn word_timings_survive_the_round_trip() {
-    let c = VoiceCache::new(tempdir("words"));
+    let dir = tempdir("words");
+    let c = VoiceCache::new(dir.path());
     let k = key("null", "0.1.0", &req("hello there", None, 1.0, "en"));
     let timings = vec![
         WordTiming {
@@ -200,7 +197,7 @@ fn no_voice_is_distinguishable_from_a_voice_literally_named_dash() {
 #[test]
 fn a_corrupt_sidecar_reads_as_a_miss_and_names_itself() {
     let root = tempdir("corrupt");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
     c.store(&k, &pcm(1000), None).unwrap();
 
@@ -227,7 +224,7 @@ fn a_corrupt_sidecar_reads_as_a_miss_and_names_itself() {
 #[test]
 fn an_ordinary_miss_carries_no_warning() {
     let root = tempdir("quietmiss");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     let k = key("null", "0.1.0", &req("never stored", None, 1.0, "en"));
     assert_eq!(c.lookup(&k).unwrap().warning(), None);
     assert_eq!(c.lookup_meta(&k).unwrap().warning(), None);
@@ -237,7 +234,7 @@ fn an_ordinary_miss_carries_no_warning() {
 #[test]
 fn a_sidecar_without_its_wav_is_a_miss() {
     let root = tempdir("halfwritten");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
     c.store(&k, &pcm(1000), None).unwrap();
 
@@ -254,7 +251,7 @@ fn a_sidecar_without_its_wav_is_a_miss() {
 #[test]
 fn lookup_meta_of_a_sidecar_without_its_wav_is_a_miss() {
     let root = tempdir("meta-halfwritten");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
     c.store(&k, &pcm(1000), None).unwrap();
 
@@ -267,7 +264,8 @@ fn lookup_meta_of_a_sidecar_without_its_wav_is_a_miss() {
 
 #[test]
 fn stats_count_entries_and_bytes() {
-    let c = VoiceCache::new(tempdir("stats"));
+    let dir = tempdir("stats");
+    let c = VoiceCache::new(dir.path());
     assert_eq!(c.stats().unwrap().entries, 0);
 
     c.store(
@@ -295,7 +293,7 @@ fn stats_count_entries_and_bytes() {
 #[test]
 fn an_orphaned_wav_is_not_counted_as_an_entry() {
     let root = tempdir("orphan");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
     c.store(&k, &pcm(1000), None).unwrap();
     assert_eq!(c.stats().unwrap().entries, 1);
@@ -423,7 +421,7 @@ fn every_racing_store_returns_the_entry_that_was_published() {
 #[test]
 fn storing_a_key_that_is_already_published_adopts_the_published_entry() {
     let root = tempdir("immutable");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
 
     let first = c.store(&k, &pcm(1000), None).unwrap();
@@ -444,7 +442,7 @@ fn storing_a_key_that_is_already_published_adopts_the_published_entry() {
 #[test]
 fn an_orphaned_wav_is_healed_by_the_next_store() {
     let root = tempdir("heal-orphan");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
 
     c.store(&k, &pcm(1000), None).unwrap();
@@ -464,7 +462,7 @@ fn an_orphaned_wav_is_healed_by_the_next_store() {
 #[test]
 fn a_corrupt_sidecar_is_healed_by_the_next_store() {
     let root = tempdir("heal-corrupt");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
 
     c.store(&k, &pcm(1000), None).unwrap();
@@ -484,7 +482,7 @@ fn a_corrupt_sidecar_is_healed_by_the_next_store() {
 #[test]
 fn a_store_leaves_no_temporary_files_behind() {
     let root = tempdir("no-litter");
-    let c = VoiceCache::new(&root);
+    let c = VoiceCache::new(root.path());
     for i in 0..4 {
         let k = key("null", "0.1.0", &req(&format!("t{i}"), None, 1.0, "en"));
         c.store(&k, &pcm(100), None).unwrap();

@@ -42,14 +42,8 @@ Enter
 ";
 
 /// A scaffolded project with `SCRIPT` in it, served on a port the OS picks.
-fn serving() -> (PathBuf, SocketAddr) {
-    let dir = std::env::temp_dir().join(format!(
-        "tp-serve-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+fn serving() -> (teleprompt_testkit::TestDir, PathBuf, SocketAddr) {
+    let dir = teleprompt_testkit::test_dir("serve");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/preview.md");
     std::fs::write(&script, SCRIPT).unwrap();
@@ -67,7 +61,7 @@ fn serving() -> (PathBuf, SocketAddr) {
         let _ = rt.block_on(serve_on(listener, &project, &served, "en"));
     });
 
-    (script, addr)
+    (dir, script, addr)
 }
 
 /// One GET, one response body. Blocking and connection-per-request, which is
@@ -128,7 +122,7 @@ fn await_generation(addr: SocketAddr, after: u64) -> serde_json::Value {
 
 #[test]
 fn the_preview_is_served_a_manifest_with_shots_in_it() {
-    let (_script, addr) = serving();
+    let (_dir, _script, addr) = serving();
     let m = json(addr, "/manifest.json");
 
     assert_eq!(
@@ -145,7 +139,7 @@ fn the_preview_is_served_a_manifest_with_shots_in_it() {
 
 #[test]
 fn a_shot_source_is_served_so_the_scene_can_be_drawn() {
-    let (_script, addr) = serving();
+    let (_dir, _script, addr) = serving();
     let m = json(addr, "/manifest.json");
     let shot = m["shots"][0]["shot"].as_str().unwrap().to_string();
 
@@ -159,7 +153,7 @@ fn a_shot_source_is_served_so_the_scene_can_be_drawn() {
 
 #[test]
 fn a_lines_audio_comes_back_as_a_wav() {
-    let (_script, addr) = serving();
+    let (_dir, _script, addr) = serving();
     let (status, body) = get(addr, "/audio/welcome.wav");
     assert!(status.contains("200"), "{status}");
     assert_eq!(&body[0..4], b"RIFF", "the cache stores WAV, so serve it");
@@ -167,7 +161,7 @@ fn a_lines_audio_comes_back_as_a_wav() {
 
 #[test]
 fn nothing_outside_the_cache_can_be_asked_for() {
-    let (_script, addr) = serving();
+    let (_dir, _script, addr) = serving();
     for path in [
         "/audio/..%2f..%2fetc%2fpasswd.wav",
         "/shots/..%2f..%2fsecrets",
@@ -183,7 +177,7 @@ fn nothing_outside_the_cache_can_be_asked_for() {
 
 #[test]
 fn editing_a_paragraph_republishes_and_names_what_moved() {
-    let (script, addr) = serving();
+    let (_dir, script, addr) = serving();
     let before = json(addr, "/state.json");
     assert_eq!(before["generation"], 1);
     assert!(before["changed"].as_array().unwrap().is_empty());
@@ -237,7 +231,7 @@ fn editing_a_paragraph_republishes_and_names_what_moved() {
 
 #[test]
 fn a_script_that_stops_compiling_keeps_the_last_good_preview() {
-    let (script, addr) = serving();
+    let (_dir, script, addr) = serving();
     let good = json(addr, "/manifest.json");
 
     std::fs::write(
@@ -265,7 +259,7 @@ fn what_sits_before_an_edit_is_not_reported_as_moved() {
     // publishing after the next save. If generation 1 carries estimates and
     // generation 2 carries measurements, every line "moves" on the first
     // edit and the preview has nowhere meaningful to jump to.
-    let (script, addr) = serving();
+    let (_dir, script, addr) = serving();
     let first = json(addr, "/manifest.json");
     let sources: Vec<&str> = first["lines"]
         .as_array()
@@ -312,7 +306,7 @@ fn what_sits_before_an_edit_is_not_reported_as_moved() {
 /// timestamp back afterwards.
 #[test]
 fn an_edit_that_does_not_move_the_clock_is_still_noticed() {
-    let (script, addr) = serving();
+    let (_dir, script, addr) = serving();
     let before = json(addr, "/state.json");
     assert_eq!(before["generation"], 1);
 

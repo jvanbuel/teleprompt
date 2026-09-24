@@ -20,37 +20,38 @@ wait 500ms
 const BAD_ATTR: &str = "# Intro\n\nOne. {#a polcy=hold}\n";
 const BAD_SCENE: &str = "# Intro\n\nOne. {#a}\n\n```teleprompt scene=mock\nclick things\n```\n";
 
-fn project_with(script: &str) -> (Project, PathBuf) {
+fn project_with(script: &str) -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     let dir = tempdir();
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let path = dir.join("scripts/test.md");
     std::fs::write(&path, script).unwrap();
-    (Project::discover(&dir).unwrap(), path)
+    let project = Project::discover(&dir).unwrap();
+    (dir, project, path)
 }
 
 #[test]
 fn check_accepts_a_valid_script() {
-    let (p, s) = project_with(GOOD);
+    let (_dir, p, s) = project_with(GOOD);
     assert!(run_check(&p, &s, "en").is_ok());
 }
 
 #[test]
 fn check_reports_an_unknown_attribute_key() {
-    let (p, s) = project_with(BAD_ATTR);
+    let (_dir, p, s) = project_with(BAD_ATTR);
     let errs = run_check(&p, &s, "en").unwrap_err();
     assert!(errs[0].contains("unknown attribute key `polcy`"));
 }
 
 #[test]
 fn check_reports_adapter_validation_errors() {
-    let (p, s) = project_with(BAD_SCENE);
+    let (_dir, p, s) = project_with(BAD_SCENE);
     let errs = run_check(&p, &s, "en").unwrap_err();
     assert!(errs[0].contains("unknown mock directive"));
 }
 
 #[test]
 fn check_does_not_write_anything() {
-    let (p, s) = project_with(GOOD);
+    let (_dir, p, s) = project_with(GOOD);
     let before = listing(&p.root);
     run_check(&p, &s, "en").unwrap();
     assert_eq!(listing(&p.root), before, "check must have no side effects");
@@ -58,7 +59,7 @@ fn check_does_not_write_anything() {
 
 #[test]
 fn plan_produces_a_timeline_without_writing_one() {
-    let (p, s) = project_with(GOOD);
+    let (_dir, p, s) = project_with(GOOD);
     let out = run_plan(&p, &s, "en").unwrap();
     assert!(out.timeline.duration_ms > 0);
     assert!(!p.timeline_path("test.md", "en").exists());
@@ -66,7 +67,7 @@ fn plan_produces_a_timeline_without_writing_one() {
 
 #[test]
 fn diff_against_a_missing_timeline_reports_every_item_as_added() {
-    let (p, s) = project_with(GOOD);
+    let (_dir, p, s) = project_with(GOOD);
     let d = run_diff(&p, &s, "en").unwrap();
     assert_eq!(d.added.len(), 1);
     assert!(!d.is_empty());
@@ -74,7 +75,7 @@ fn diff_against_a_missing_timeline_reports_every_item_as_added() {
 
 #[test]
 fn diff_against_an_identical_committed_timeline_is_empty() {
-    let (p, s) = project_with(GOOD);
+    let (_dir, p, s) = project_with(GOOD);
     let out = run_plan(&p, &s, "en").unwrap();
     let dest = p.timeline_path("test.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
@@ -85,7 +86,7 @@ fn diff_against_an_identical_committed_timeline_is_empty() {
 
 #[test]
 fn diff_detects_an_edited_paragraph() {
-    let (p, s) = project_with(GOOD);
+    let (_dir, p, s) = project_with(GOOD);
     let out = run_plan(&p, &s, "en").unwrap();
     let dest = p.timeline_path("test.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
@@ -103,7 +104,7 @@ fn diff_detects_an_edited_paragraph() {
 
 #[test]
 fn a_malformed_timeline_on_disk_is_an_error_not_a_panic() {
-    let (p, s) = project_with(GOOD);
+    let (_dir, p, s) = project_with(GOOD);
     let dest = p.timeline_path("test.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, "{ not json").unwrap();
@@ -126,15 +127,8 @@ fn listing(root: &Path) -> Vec<String> {
     out
 }
 
-fn tempdir() -> PathBuf {
-    let base = std::env::temp_dir().join(format!(
-        "teleprompt-cmd-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).unwrap();
-    base
+fn tempdir() -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir("cmd")
 }
 
 /// `plan` and `diff` must emit a typed, parseable JSON payload on failure too,
@@ -144,7 +138,7 @@ fn tempdir() -> PathBuf {
 /// not in `run_plan`/`run_diff` themselves.
 #[test]
 fn plan_format_json_emits_a_typed_error_payload_on_failure() {
-    let (p, _s) = project_with(BAD_ATTR);
+    let (_dir, p, _s) = project_with(BAD_ATTR);
     let bad = p.root.join("scripts/test.md");
 
     let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
@@ -166,7 +160,7 @@ fn plan_format_json_emits_a_typed_error_payload_on_failure() {
 
 #[test]
 fn diff_format_json_emits_a_typed_error_payload_on_failure() {
-    let (p, _s) = project_with(BAD_SCENE);
+    let (_dir, p, _s) = project_with(BAD_SCENE);
     let bad = p.root.join("scripts/test.md");
 
     let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
@@ -198,7 +192,7 @@ fn diff_format_json_emits_a_typed_error_payload_on_failure() {
 /// reproduce it.
 #[test]
 fn every_script_command_works_on_a_bare_filename_from_the_scripts_directory() {
-    let (p, _s) = project_with(GOOD);
+    let (_dir, p, _s) = project_with(GOOD);
     let scripts = p.root.join("scripts");
 
     for (args, what) in [
@@ -238,7 +232,7 @@ fn an_unreachable_script_path_is_named_in_the_error() {
 
 #[test]
 fn an_unknown_voice_backend_is_a_validation_error_naming_what_exists() {
-    let (p, s) =
+    let (_dir, p, s) =
         project_with("---\nvoice: { backend: nope }\n---\n\n# Intro\n\nOne two three. {#a}\n");
     let errors = run_check(&p, &s, "en").expect_err("unknown backend must fail check");
     let joined = errors.join("\n");
@@ -251,7 +245,7 @@ fn an_unknown_voice_backend_is_a_validation_error_naming_what_exists() {
 
 #[test]
 fn the_default_backend_is_null_so_existing_scripts_keep_working() {
-    let (p, s) = project_with("# Intro\n\nOne two three. {#a}\n");
+    let (_dir, p, s) = project_with("# Intro\n\nOne two three. {#a}\n");
     assert!(run_check(&p, &s, "en").is_ok());
 }
 
@@ -263,7 +257,7 @@ fn the_default_backend_is_null_so_existing_scripts_keep_working() {
 /// the other's audio.
 #[test]
 fn a_line_level_backend_override_that_disagrees_with_the_resolved_backend_is_rejected() {
-    let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=nope}\n");
+    let (_dir, p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=nope}\n");
     let errors = run_check(&p, &s, "en").expect_err("a disagreeing per-line backend must fail");
     let joined = errors.join("\n");
     assert!(joined.contains("line `a`"), "must name the line: {joined}");
@@ -281,7 +275,7 @@ fn a_line_level_backend_override_that_disagrees_with_the_resolved_backend_is_rej
 /// is not an override at all and must not be rejected.
 #[test]
 fn a_line_level_backend_that_matches_the_resolved_backend_is_fine() {
-    let (p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=null}\n");
+    let (_dir, p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=null}\n");
     assert!(run_check(&p, &s, "en").is_ok());
 }
 
@@ -294,7 +288,7 @@ fn a_line_level_backend_that_matches_the_resolved_backend_is_fine() {
 /// unsupported too.
 #[test]
 fn a_chapter_level_backend_override_is_reported_without_claiming_the_line_set_it() {
-    let (p, s) = project_with(
+    let (_dir, p, s) = project_with(
         "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\nOne two three. {#a}\n",
     );
     let errors = run_check(&p, &s, "en").expect_err("a chapter-level backend override must fail");
@@ -317,7 +311,7 @@ fn a_chapter_level_backend_override_is_reported_without_claiming_the_line_set_it
 /// diagnostic naming all of them, not one per line.
 #[test]
 fn a_chapter_level_backend_override_across_several_lines_is_one_diagnostic() {
-    let (p, s) = project_with(
+    let (_dir, p, s) = project_with(
         "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\n\
          One. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n",
     );
@@ -343,7 +337,7 @@ fn a_chapter_level_backend_override_across_several_lines_is_one_diagnostic() {
 /// harness instead of being observed as an exit code.
 #[test]
 fn check_on_a_zero_voice_speed_exits_two_rather_than_panicking() {
-    let (p, _s) = project_with("---\nvoice: { speed: 0 }\n---\n\n# Intro\n\nOne two. {#a}\n");
+    let (_dir, p, _s) = project_with("---\nvoice: { speed: 0 }\n---\n\n# Intro\n\nOne two. {#a}\n");
 
     let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .arg("check")
@@ -370,7 +364,8 @@ fn check_on_a_zero_voice_speed_exits_two_rather_than_panicking() {
 /// prevent, so assert the two agree rather than asserting either alone.
 #[test]
 fn check_and_dub_agree_about_a_negative_voice_speed() {
-    let (p, _s) = project_with("---\nvoice: { speed: -1 }\n---\n\n# Intro\n\nOne two. {#a}\n");
+    let (_dir, p, _s) =
+        project_with("---\nvoice: { speed: -1 }\n---\n\n# Intro\n\nOne two. {#a}\n");
     let script = p.root.join("scripts/test.md");
     let out_dir = p.root.join("out");
 
@@ -401,7 +396,7 @@ fn check_and_dub_agree_about_a_negative_voice_speed() {
 /// at the project; so does this now, and the report says which root it used.
 #[test]
 fn doctor_reports_the_projects_cache_from_a_subdirectory() {
-    let (p, _s) = project_with(GOOD);
+    let (_dir, p, _s) = project_with(GOOD);
     let dubbed = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .args(["dub", "scripts/test.md", "--out", "out"])
         .current_dir(&p.root)

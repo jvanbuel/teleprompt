@@ -27,6 +27,12 @@ meant to alter output, review the new snapshots with `cargo insta review`
 (or rerun with `INSTA_UPDATE=always`) and commit them with the change. When
 a change isn't meant to alter output, the snapshots must not move.
 
+A test that needs a directory takes one from
+`teleprompt_testkit::test_dir("name")` (a dev-dependency). It is deleted
+when the value drops, even if the test panics, so keep it bound for as long
+as anything uses the path: return it from a helper alongside what was built
+in it, and bind it as `_dir`, not `_`, which drops it at once.
+
 The oldest supported Rust is 1.85, the `rust-version` in `Cargo.toml`, and
 CI checks it with `cargo +1.85 check --workspace --locked`.
 

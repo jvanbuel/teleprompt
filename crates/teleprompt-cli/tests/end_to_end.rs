@@ -18,30 +18,25 @@ fn fixture(name: &str) -> String {
     std::fs::read_to_string(path).expect("fixture must exist")
 }
 
-fn workspace() -> (Project, PathBuf) {
-    let dir = std::env::temp_dir().join(format!(
-        "teleprompt-e2e-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+fn workspace() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
+    let dir = teleprompt_testkit::test_dir("e2e");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, fixture("tour.md")).unwrap();
-    (Project::discover(&dir).unwrap(), script)
+    let project = Project::discover(&dir).unwrap();
+    (dir, project, script)
 }
 
 #[test]
 fn the_full_fixture_validates() {
-    let (p, s) = workspace();
+    let (_dir, p, s) = workspace();
     let warnings = run_check(&p, &s, "en").expect("fixture must be valid");
     assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
 }
 
 #[test]
 fn every_policy_appears_in_the_compiled_timeline() {
-    let (p, s) = workspace();
+    let (_dir, p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     let policies: std::collections::BTreeSet<&str> = out
         .timeline
@@ -56,7 +51,7 @@ fn every_policy_appears_in_the_compiled_timeline() {
 
 #[test]
 fn items_never_overlap_and_never_gap() {
-    let (p, s) = workspace();
+    let (_dir, p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     for pair in out.timeline.entries.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
@@ -71,7 +66,7 @@ fn items_never_overlap_and_never_gap() {
 
 #[test]
 fn the_timeline_ends_where_the_last_shot_ends() {
-    let (p, s) = workspace();
+    let (_dir, p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     let last = out.timeline.entries.last().unwrap();
     assert_eq!(out.timeline.duration_ms, last.start_ms + last.duration_ms);
@@ -79,7 +74,7 @@ fn the_timeline_ends_where_the_last_shot_ends() {
 
 #[test]
 fn planning_twice_gives_byte_identical_output() {
-    let (p, s) = workspace();
+    let (_dir, p, s) = workspace();
     let a = serde_json::to_string(&run_plan(&p, &s, "en").unwrap().timeline).unwrap();
     let b = serde_json::to_string(&run_plan(&p, &s, "en").unwrap().timeline).unwrap();
     assert_eq!(a, b);
@@ -88,7 +83,7 @@ fn planning_twice_gives_byte_identical_output() {
 /// The acceptance criterion.
 #[test]
 fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
-    let (p, s) = workspace();
+    let (_dir, p, s) = workspace();
 
     let baseline = run_plan(&p, &s, "en").unwrap();
     let dest = p.timeline_path("tour.md", "en");
@@ -155,7 +150,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 /// Padded with 150 ms lead-in + 150 ms tail = 7_200 ms
 #[test]
 fn rollback_line_has_the_hand_derived_exact_duration() {
-    let (p, s) = workspace();
+    let (_dir, p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     let entry = out
         .timeline
@@ -171,7 +166,7 @@ fn rollback_line_has_the_hand_derived_exact_duration() {
 
 #[test]
 fn an_unedited_script_diffs_clean_against_its_committed_timeline() {
-    let (p, s) = workspace();
+    let (_dir, p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     let dest = p.timeline_path("tour.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();

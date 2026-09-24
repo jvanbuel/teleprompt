@@ -99,13 +99,6 @@ async fn a_missing_ffmpeg_is_reported_without_turning_the_report_red() {
     assert!(r.ok);
 }
 
-fn tempdir() -> std::path::PathBuf {
-    let base = std::env::temp_dir().join(format!(
-        "teleprompt-test-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).unwrap();
-    base
+fn tempdir() -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir("test")
 }

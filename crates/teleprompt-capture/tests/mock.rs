@@ -25,11 +25,8 @@ fn have_ffmpeg() -> bool {
     present
 }
 
-fn workdir(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("tp-capture-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+fn workdir(name: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("capture-{name}"))
 }
 
 fn shot(shot: &str, ms: u64) -> PlannedShot {

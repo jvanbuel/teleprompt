@@ -11,7 +11,7 @@
 //! tests skip on what it says. `TELEPROMPT_REQUIRE_VHS` turns that skip
 //! into a failure, for a machine that is supposed to have it.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use teleprompt_capture::{sessions, CaptureBackend, Frame, PlannedShot};
@@ -44,11 +44,8 @@ fn recorded(
     }
 }
 
-fn workdir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("tp-vhsr-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+fn workdir(name: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("vhsr-{name}"))
 }
 
 fn shot(shot: &str, source: &str, ms: u64) -> PlannedShot {

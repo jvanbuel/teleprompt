@@ -10,6 +10,7 @@ teleprompt-core = { path = "../teleprompt-core" }
 thiserror.workspace = true
 
 [dev-dependencies]
+teleprompt-testkit = { path = "../teleprompt-testkit" }
 tempfile.workspace = true
 
 [lints]

@@ -81,10 +81,8 @@ fn picture_seconds(path: &Path) -> f64 {
     frames * den.parse::<f64>().unwrap() / num.parse::<f64>().unwrap()
 }
 
-fn project_with_script(name: &str) -> (PathBuf, PathBuf) {
-    let dir = std::env::temp_dir().join(format!("tp-build-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+fn project_with_script(name: &str) -> (teleprompt_testkit::TestDir, PathBuf) {
+    let dir = teleprompt_testkit::test_dir(&format!("build-{name}"));
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, SCRIPT).unwrap();

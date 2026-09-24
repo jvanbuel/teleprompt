@@ -168,15 +168,8 @@ fn the_kokoro_handle_carries_the_configured_concurrency() {
     assert_eq!(k.concurrency(), 7);
 }
 
-fn tempdir(tag: &str) -> std::path::PathBuf {
-    let base = std::env::temp_dir().join(format!(
-        "teleprompt-voice-selection-{tag}-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).unwrap();
-    base
+fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("voice-selection-{tag}"))
 }
 
 const SCRIPT_WITH_FRONT_MATTER_BACKENDS: &str = "\
@@ -274,13 +267,20 @@ fn a_front_matter_backends_block_matching_the_project_is_not_a_warning() {
 /// A scaffolded project plus a `teleprompt.toml` of the caller's choosing.
 /// The scaffold's own `voice.backend` is `null`, which is what makes the
 /// "settings for a backend this project never uses" case reachable.
-fn project_with_toml(tag: &str, toml: &str) -> (teleprompt_cli::project::Project, PathBuf) {
+fn project_with_toml(
+    tag: &str,
+    toml: &str,
+) -> (
+    teleprompt_testkit::TestDir,
+    teleprompt_cli::project::Project,
+    PathBuf,
+) {
     let dir = tempdir(tag);
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("teleprompt.toml"), toml).unwrap();
     let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
-    (project, script)
+    (dir, project, script)
 }
 
 const NULL_PROJECT: &str = "\
@@ -315,7 +315,7 @@ adapter = \"mock\"
 /// file anchor, because every backend was constructed eagerly.
 #[test]
 fn a_bad_setting_for_a_backend_the_project_never_uses_does_not_fail_check() {
-    let (project, script) = project_with_toml(
+    let (_dir, project, script) = project_with_toml(
         "unused-bad-setting",
         &format!("{NULL_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n"),
     );
@@ -328,7 +328,7 @@ fn a_bad_setting_for_a_backend_the_project_never_uses_does_not_fail_check() {
 /// and now says which file to go and fix.
 #[test]
 fn a_bad_setting_for_the_selected_backend_fails_check_and_names_the_config_file() {
-    let (project, script) = project_with_toml(
+    let (_dir, project, script) = project_with_toml(
         "used-bad-setting",
         &format!("{KOKORO_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n"),
     );
@@ -346,7 +346,7 @@ fn a_bad_setting_for_the_selected_backend_fails_check_and_names_the_config_file(
 /// nothing and said nothing, and `dub` then connected to the default server.
 #[test]
 fn an_unknown_backends_key_fails_check_and_names_the_key() {
-    let (project, script) = project_with_toml(
+    let (_dir, project, script) = project_with_toml(
         "unknown-backends-key",
         &format!("{NULL_PROJECT}\n[backends.kokoro-local]\nbase_url = \"http://127.0.0.1:8881\"\n"),
     );
@@ -362,7 +362,7 @@ fn an_unknown_backends_key_fails_check_and_names_the_key() {
 /// must not resurrect the eager validation of an unused one.
 #[test]
 fn an_unknown_key_and_an_unused_bad_setting_report_exactly_one_problem() {
-    let (project, script) = project_with_toml(
+    let (_dir, project, script) = project_with_toml(
         "compose",
         &format!(
             "{NULL_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n\

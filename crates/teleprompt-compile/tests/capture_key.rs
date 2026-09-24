@@ -371,8 +371,7 @@ fn drawn_from(project: &std::path::Path) -> Vec<Hash> {
 /// and a file the scene does not read — its dependencies — does not.
 #[test]
 fn editing_a_file_the_scene_draws_from_re_captures_it() {
-    let dir = std::env::temp_dir().join(format!("tp-inputs-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = teleprompt_testkit::test_dir("inputs");
     std::fs::create_dir_all(dir.join("src")).unwrap();
     std::fs::create_dir_all(dir.join("node_modules")).unwrap();
     std::fs::write(dir.join("src/Title.tsx"), "red").unwrap();
@@ -449,9 +448,7 @@ fn pictured(project: &std::path::Path) -> Vec<Hash> {
 /// it re-captures the shots that show it, and nothing else.
 #[test]
 fn replacing_a_file_re_captures_only_the_shots_that_show_it() {
-    let dir = std::env::temp_dir().join(format!("tp-shot-inputs-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("shot-inputs");
     std::fs::write(dir.join("one"), "red").unwrap();
     std::fs::write(dir.join("two"), "green").unwrap();
 

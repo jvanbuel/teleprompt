@@ -48,9 +48,7 @@ fn the_shots_are_the_scheduled_durations_accumulated() {
 /// two-second tape into a red build.
 #[test]
 fn a_recording_that_stops_early_is_refused_rather_than_cut_into_empty_clips() {
-    let dir = std::env::temp_dir().join(format!("tp-reel-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("reel");
     let video = dir.join("session.mp4");
 
     // Three shots of one second each; a recording holding only two of

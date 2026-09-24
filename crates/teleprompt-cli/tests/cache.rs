@@ -23,11 +23,8 @@ fn entry(dir: &Path, name: &str, bytes: usize, age: Duration) -> PathBuf {
     path
 }
 
-fn workdir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("tp-cache-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+fn workdir(name: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("cache-{name}"))
 }
 
 #[test]

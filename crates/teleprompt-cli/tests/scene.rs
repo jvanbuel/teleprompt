@@ -56,9 +56,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     use teleprompt_cli::project::Project;
     use teleprompt_scene::Measured;
 
-    let dir = std::env::temp_dir().join(format!("tp-stretch-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("stretch");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/stretch.md");
     std::fs::write(

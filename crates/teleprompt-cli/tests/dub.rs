@@ -20,20 +20,13 @@ Every video in this repository is built from a script you can read.
 And every timeline is committed alongside it.
 ";
 
-fn tempdir(tag: &str) -> PathBuf {
-    let base = std::env::temp_dir().join(format!(
-        "teleprompt-dub-{tag}-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).unwrap();
-    base
+fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("dub-{tag}"))
 }
 
 /// Scaffold a project and drop `script` at `scripts/test.md`, mirroring
 /// `commands.rs::project_with`. Returns the project root.
-fn project_with(tag: &str, script: &str) -> PathBuf {
+fn project_with(tag: &str, script: &str) -> teleprompt_testkit::TestDir {
     let dir = tempdir(tag);
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
@@ -640,6 +633,7 @@ fn null_path_progress_is_document_order_on_every_run() {
 /// A discovered project plus the two paths `run_dub`/`run_dub_with` want
 /// directly, for tests that call them in-process.
 struct TestProject {
+    _dir: teleprompt_testkit::TestDir,
     project: Project,
     script: PathBuf,
     out: PathBuf,
@@ -661,6 +655,7 @@ fn project_with_config_and_script(config_toml: &str, script: &str) -> TestProjec
         script: dir.join("scripts/test.md"),
         out: dir.join("public/narration"),
         project,
+        _dir: dir,
     }
 }
 

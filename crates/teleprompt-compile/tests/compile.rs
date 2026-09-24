@@ -565,21 +565,16 @@ Second. {#two}
     );
 }
 
-fn cache_dir(tag: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!(
-        "tp-compile-{tag}-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&d);
-    d
+fn cache_dir(tag: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("compile-{tag}"))
 }
 
 const ONE: &str = "# Quick start\n\nOne two three four five six.\n";
 
 #[test]
 fn a_cold_cache_yields_estimated_durations() {
-    let cache = VoiceCache::new(cache_dir("cold"));
+    let dir = cache_dir("cold");
+    let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let ctx = VoiceContext {
         backend_id: "null",
@@ -604,7 +599,8 @@ fn a_cold_cache_yields_estimated_durations() {
 
 #[test]
 fn a_warm_cache_yields_measured_durations() {
-    let cache = VoiceCache::new(cache_dir("warm"));
+    let dir = cache_dir("warm");
+    let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let ctx = VoiceContext {
         backend_id: "null",
@@ -640,7 +636,8 @@ fn a_warm_cache_yields_measured_durations() {
 
 #[test]
 fn the_cache_key_covers_the_resolved_voice_config() {
-    let cache = VoiceCache::new(cache_dir("cfgkey"));
+    let dir = cache_dir("cfgkey");
+    let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let ctx = VoiceContext {
         backend_id: "null",
@@ -670,7 +667,8 @@ fn the_cache_key_covers_the_resolved_voice_config() {
 /// collide on one cache entry.
 #[test]
 fn the_cache_key_covers_the_backend_id() {
-    let cache = VoiceCache::new(cache_dir("backendkey"));
+    let dir = cache_dir("backendkey");
+    let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let null_ctx = VoiceContext {
         backend_id: "null",
@@ -726,7 +724,8 @@ fn timeline_modulo_duration_source(t: &teleprompt_schedule::Timeline) -> serde_j
 /// must survive the round trip untouched.
 #[tokio::test]
 async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() {
-    let cache = VoiceCache::new(cache_dir("roundtrip"));
+    let dir = cache_dir("roundtrip");
+    let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let ctx = VoiceContext {
         backend_id: "null",

@@ -31,14 +31,9 @@ fn repo() -> PathBuf {
 }
 
 /// The manual, in a scratch directory with a guaranteed-cold cache.
-fn manual() -> (Project, PathBuf) {
+fn manual() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     let src = repo().join("manual");
-    let dir = std::env::temp_dir().join(format!(
-        "teleprompt-manual-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = teleprompt_testkit::test_dir("manual");
     for rel in [
         Path::new("teleprompt.toml"),
         Path::new("scripts/cli.md"),
@@ -50,22 +45,20 @@ fn manual() -> (Project, PathBuf) {
             .unwrap_or_else(|e| panic!("copying {}: {e}", rel.display()));
     }
     let script = dir.join("scripts/cli.md");
-    (
-        Project::discover(&dir).expect("the manual is a teleprompt project"),
-        script,
-    )
+    let project = Project::discover(&dir).expect("the manual is a teleprompt project");
+    (dir, project, script)
 }
 
 #[test]
 fn the_manual_compiles() {
-    let (p, s) = manual();
+    let (_dir, p, s) = manual();
     let warnings = run_check(&p, &s, "en").expect("the manual must be a valid script");
     assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
 }
 
 #[test]
 fn the_committed_timeline_is_current() {
-    let (p, s) = manual();
+    let (_dir, p, s) = manual();
     let d = run_diff(&p, &s, "en").unwrap();
     assert!(
         d.is_empty(),
@@ -81,7 +74,7 @@ fn every_terminal_action_is_timed_exactly() {
     // The claim the tape adapter makes and the reason `plan` can report a
     // terminal scene's pacing with no terminal anywhere: a tape states its
     // own timing, so nothing here is a guess.
-    let (p, s) = manual();
+    let (_dir, p, s) = manual();
     let out = run_plan(&p, &s, "en").unwrap();
     let mut tapes = 0;
     for e in &out.timeline.entries {
@@ -105,7 +98,7 @@ fn every_terminal_action_is_timed_exactly() {
 fn the_manual_demonstrates_every_pacing_policy() {
     // A manual that only ever used the default policy would document the
     // tool it is not.
-    let (p, s) = manual();
+    let (_dir, p, s) = manual();
     let out = run_plan(&p, &s, "en").unwrap();
     let policies: std::collections::BTreeSet<&str> = out
         .timeline
@@ -132,7 +125,7 @@ async fn the_manual_renders() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let (project, script) = manual();
+    let (_dir, project, script) = manual();
     let options = BuildOptions {
         // Small and slow-framed: CI is checking that the pipeline runs and
         // the arithmetic holds over 25 items, not how a codec looks.
@@ -248,13 +241,11 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
         return;
     }
 
-    let (p, s) = manual();
+    let (_dir, p, s) = manual();
     let (out, _) = teleprompt_cli::cmd::check::compile_script(&p, &s, "en")
         .unwrap_or_else(|e| panic!("the manual compiles: {e:?}"));
 
-    let dir = std::env::temp_dir().join(format!("tp-manual-tapes-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("manual-tapes");
 
     let mut bad = Vec::new();
     for shot in &out.shots {

@@ -309,10 +309,8 @@ mod tests {
         }
     }
 
-    fn clips_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("tp-record-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        dir
+    fn clips_dir(name: &str) -> teleprompt_testkit::TestDir {
+        teleprompt_testkit::test_dir(&format!("record-{name}"))
     }
 
     fn frame() -> Frame {

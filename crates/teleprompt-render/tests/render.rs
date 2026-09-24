@@ -19,19 +19,14 @@ use support::{bright_clip, duration_of, first_sound, have_ffmpeg, luma_at, tone}
 /// The renderer with reuse switched off — what `--no-cache` asks for, and
 /// what these tests want: every frame encoded here, nothing served from a
 /// cache a previous test filled.
-fn one_pass() -> IncrementalRenderer {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+fn one_pass(dir: &std::path::Path) -> IncrementalRenderer {
     IncrementalRenderer {
         program: "ffmpeg".into(),
-        // A directory of its own per call. These run in parallel in one
+        // Inside the test's own directory. These run in parallel in one
         // process, and a chunk key is content-addressed, so two tests
-        // rendering similar plans write the *same* filename — which is a
-        // half-written mp4 and `moov atom not found`.
-        cache_dir: std::env::temp_dir().join(format!(
-            "tp-onepass-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-        )),
+        // rendering similar plans into a shared cache write the *same*
+        // filename — which is a half-written mp4 and `moov atom not found`.
+        cache_dir: dir.join("chunks"),
         reuse: false,
     }
 }
@@ -43,9 +38,7 @@ fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
         return;
     }
 
-    let dir = std::env::temp_dir().join(format!("tp-render-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render");
 
     let plan = RenderPlan {
         width: 640,
@@ -76,7 +69,7 @@ fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
         output: dir.join("out.mp4"),
     };
 
-    let rendered = one_pass()
+    let rendered = one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -99,9 +92,7 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
         return;
     }
 
-    let dir = std::env::temp_dir().join(format!("tp-render-audio-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-audio");
 
     let plan = RenderPlan {
         width: 320,
@@ -123,7 +114,7 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
         output: dir.join("late.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -145,9 +136,7 @@ fn a_gap_before_the_first_shot_is_held_rather_than_closed() {
         return;
     }
 
-    let dir = std::env::temp_dir().join(format!("tp-render-gap-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-gap");
 
     let plan = RenderPlan {
         width: 320,
@@ -169,7 +158,7 @@ fn a_gap_before_the_first_shot_is_held_rather_than_closed() {
         output: dir.join("gap.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -193,9 +182,7 @@ fn a_crossfade_overlaps_the_shots_it_joins() {
         return;
     }
 
-    let dir = std::env::temp_dir().join(format!("tp-render-xfade-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-xfade");
 
     let plan = RenderPlan {
         width: 320,
@@ -226,7 +213,7 @@ fn a_crossfade_overlaps_the_shots_it_joins() {
         output: dir.join("xfade.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -245,9 +232,7 @@ fn a_plan_with_no_shots_at_all_still_renders_its_narration() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let dir = std::env::temp_dir().join(format!("tp-render-prose-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-prose");
 
     let plan = RenderPlan {
         width: 320,
@@ -263,7 +248,7 @@ fn a_plan_with_no_shots_at_all_still_renders_its_narration() {
         output: dir.join("prose.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("a script with no action blocks is still a script");
     assert!((duration_of(&plan.output) - 2.0).abs() < 0.2);
@@ -279,9 +264,7 @@ fn a_shot_of_no_length_does_not_reach_the_graph() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let dir = std::env::temp_dir().join(format!("tp-render-zero-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-zero");
 
     let plan = RenderPlan {
         width: 320,
@@ -308,7 +291,7 @@ fn a_shot_of_no_length_does_not_reach_the_graph() {
         output: dir.join("zero.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("a zero-length shot is dropped, not rendered");
     assert!((duration_of(&plan.output) - 2.0).abs() < 0.2);
@@ -324,9 +307,7 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let dir = std::env::temp_dir().join(format!("tp-render-clip-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-clip");
 
     // A one-second clip, standing in for something a capture stage will
     // one day produce.
@@ -374,7 +355,7 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
         output: dir.join("clips.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -392,9 +373,7 @@ fn a_gap_after_a_shot_freezes_its_last_frame() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let dir = std::env::temp_dir().join(format!("tp-render-freeze-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-freeze");
 
     let plan = RenderPlan {
         width: 320,
@@ -412,7 +391,7 @@ fn a_gap_after_a_shot_freezes_its_last_frame() {
         output: dir.join("freeze.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -434,9 +413,7 @@ fn a_gap_before_the_first_shot_holds_its_first_frame() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let dir = std::env::temp_dir().join(format!("tp-render-open-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-open");
 
     let plan = RenderPlan {
         width: 320,
@@ -454,7 +431,7 @@ fn a_gap_before_the_first_shot_holds_its_first_frame() {
         output: dir.join("open.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 
@@ -475,9 +452,7 @@ fn dropping_an_empty_shot_does_not_drop_the_time_before_it() {
         eprintln!("skipping: no ffmpeg on PATH");
         return;
     }
-    let dir = std::env::temp_dir().join(format!("tp-render-empty-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = teleprompt_testkit::test_dir("render-empty");
 
     let plan = RenderPlan {
         width: 320,
@@ -505,7 +480,7 @@ fn dropping_an_empty_shot_does_not_drop_the_time_before_it() {
         output: dir.join("empty.mp4"),
     };
 
-    one_pass()
+    one_pass(&dir)
         .render(&plan, &mut |_| {})
         .expect("the graph is one ffmpeg accepts");
 

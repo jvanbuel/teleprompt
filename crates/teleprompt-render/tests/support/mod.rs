@@ -11,11 +11,8 @@ use std::path::PathBuf;
 use std::process::Command;
 
 /// A fresh working directory for one test, named after it.
-pub fn workdir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("tp-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+pub fn workdir(name: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("test-{name}"))
 }
 
 pub fn have_ffmpeg() -> bool {

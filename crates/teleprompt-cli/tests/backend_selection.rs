@@ -111,15 +111,8 @@ fn registry_with_tone() -> teleprompt_cli::voice::Backends {
     teleprompt_cli::voice::Backends::from_registry(r)
 }
 
-fn tempdir(tag: &str) -> PathBuf {
-    let base = std::env::temp_dir().join(format!(
-        "teleprompt-backend-{tag}-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    let _ = std::fs::remove_dir_all(&base);
-    std::fs::create_dir_all(&base).unwrap();
-    base
+fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
+    teleprompt_testkit::test_dir(&format!("backend-{tag}"))
 }
 
 const SCRIPT: &str = "\
@@ -133,13 +126,13 @@ voice:
 Every video in this repository is built from a script you can read.
 ";
 
-fn project_with(tag: &str, script: &str) -> (Project, PathBuf) {
+fn project_with(tag: &str, script: &str) -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     let dir = tempdir(tag);
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
     let project = Project::discover(&dir).unwrap();
     let path = dir.join("scripts/test.md");
-    (project, path)
+    (dir, project, path)
 }
 
 /// The 16-bit samples in a WAV's `data` chunk.
@@ -159,7 +152,7 @@ fn samples(wav: &[u8]) -> Vec<i16> {
 /// kokoro's key, permanent, and reported as `measured` by every later `plan`.
 #[tokio::test]
 async fn dub_synthesizes_with_the_backend_the_script_resolved_to() {
-    let (project, script) = project_with("resolved", SCRIPT);
+    let (_dir, project, script) = project_with("resolved", SCRIPT);
     let out_root = project.root.join("public/narration");
 
     let result = teleprompt_cli::cmd::dub::run_dub_with(
@@ -193,7 +186,7 @@ async fn dub_synthesizes_with_the_backend_the_script_resolved_to() {
 /// the null backend's rate. A consumer configures its player from this once.
 #[tokio::test]
 async fn the_manifest_reports_the_rate_the_backend_actually_produced() {
-    let (project, script) = project_with("rate", SCRIPT);
+    let (_dir, project, script) = project_with("rate", SCRIPT);
     let out_root = project.root.join("public/narration");
 
     let result = teleprompt_cli::cmd::dub::run_dub_with(
@@ -219,7 +212,7 @@ async fn the_manifest_reports_the_rate_the_backend_actually_produced() {
 /// tests, not a way for a script to name anything it likes.
 #[test]
 fn an_unregistered_backend_is_still_rejected() {
-    let (project, script) = project_with("unknown", SCRIPT);
+    let (_dir, project, script) = project_with("unknown", SCRIPT);
     let Err(errors) = teleprompt_cli::cmd::check::compile_script(&project, &script, "en") else {
         panic!("the default registry does not ship `tone`, so this must fail");
     };
@@ -248,7 +241,7 @@ Every video in this repository is built from a script you can read.
 /// published, and the identical second run succeeded off the now-warm cache.
 #[tokio::test]
 async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run() {
-    let (project, script) = project_with("drawl", DRAWL_SCRIPT);
+    let (_dir, project, script) = project_with("drawl", DRAWL_SCRIPT);
     let out_root = project.root.join("public/narration");
 
     let result = teleprompt_cli::cmd::dub::run_dub_with(

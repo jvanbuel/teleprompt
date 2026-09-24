@@ -490,8 +490,7 @@ mod tests {
     /// build compiled, not what the file holds when it starts.
     #[tokio::test]
     async fn an_edit_during_startup_is_not_lost() {
-        let dir = std::env::temp_dir().join(format!("tp-serve-startup-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = teleprompt_testkit::test_dir("serve-startup");
         crate::cmd::new::scaffold(&dir).unwrap();
         let project = Project::discover(&dir).unwrap();
         let script = dir.join("scripts/demo.md");

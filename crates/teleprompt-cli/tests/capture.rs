@@ -48,10 +48,8 @@ fn have_ffmpeg() -> bool {
     present
 }
 
-fn project(name: &str) -> (PathBuf, PathBuf) {
-    let dir = std::env::temp_dir().join(format!("tp-capture-e2e-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+fn project(name: &str) -> (teleprompt_testkit::TestDir, PathBuf) {
+    let dir = teleprompt_testkit::test_dir(&format!("capture-e2e-{name}"));
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, SCRIPT).unwrap();
