@@ -6,7 +6,7 @@
 //! here interprets the author's script; it is only wrapped.
 
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use teleprompt_capture::reel::{cut, starved, windows};
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
@@ -138,14 +138,7 @@ impl CaptureBackend for PlaywrightRender {
     }
 
     fn unavailable(&self) -> Option<String> {
-        let mut missing = Vec::new();
-        if !crate::on_path(&self.node) {
-            missing.push(self.node.clone());
-        }
-        if !crate::on_path(&self.ffmpeg) {
-            missing.push(self.ffmpeg.clone());
-        }
-        (!missing.is_empty()).then(|| format!("{} is not on PATH", missing.join(" and ")))
+        teleprompt_capture::tool::missing(&[&self.node, &self.ffmpeg])
     }
 
     fn capture(
@@ -176,27 +169,12 @@ impl CaptureBackend for PlaywrightRender {
         )
         .map_err(|e| failed(&first, format!("{}: {e}", script.display())))?;
 
-        let ran = Command::new(&self.node)
-            .arg(&script)
-            .current_dir(&work)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .map_err(|e| failed(&first, format!("{} could not be run: {e}", self.node)))?;
-        if !ran.status.success() {
-            let said = String::from_utf8_lossy(&ran.stderr);
-            let tail: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).collect();
-            let from = tail.len().saturating_sub(4);
-            return Err(failed(
-                &first,
-                format!(
-                    "the script exited {}: {}",
-                    ran.status,
-                    tail[from..].join(" / ")
-                ),
-            ));
-        }
+        teleprompt_capture::tool::run(
+            Command::new(&self.node).arg(&script).current_dir(&work),
+            "the script",
+            4,
+        )
+        .map_err(|why| failed(&first, why))?;
 
         // Playwright names the file itself, after the page that made it.
         let video = std::fs::read_dir(&video_dir)

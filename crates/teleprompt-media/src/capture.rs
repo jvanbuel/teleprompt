@@ -6,7 +6,7 @@
 //! own sound is dropped: the narration is the soundtrack.
 
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use teleprompt_capture::{
     CaptureBackend, CaptureError, Clip, Frame, Progress, Session, SessionShot,
@@ -143,13 +143,7 @@ impl CaptureBackend for MediaRender {
     }
 
     fn unavailable(&self) -> Option<String> {
-        let found = Command::new(&self.ffmpeg)
-            .arg("-version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok();
-        (!found).then(|| format!("{} is not on PATH", self.ffmpeg))
+        teleprompt_capture::tool::missing(&[&self.ffmpeg])
     }
 
     fn capture(
@@ -177,28 +171,11 @@ impl CaptureBackend for MediaRender {
                 result = Err(failed(&shot.id, "the shot is not a media directive".into()));
                 break;
             };
-            let ran = Command::new(&self.ffmpeg)
-                .args(&a)
-                .stdin(Stdio::null())
-                .output();
-            match ran {
-                Ok(out) if out.status.success() => {}
-                Ok(out) => {
-                    let said = String::from_utf8_lossy(&out.stderr);
-                    let last = said.lines().rfind(|l| !l.trim().is_empty()).unwrap_or("");
-                    result = Err(failed(
-                        &shot.id,
-                        format!("{} exited {}: {last}", self.ffmpeg, out.status),
-                    ));
-                    break;
-                }
-                Err(e) => {
-                    result = Err(failed(
-                        &shot.id,
-                        format!("{} could not be run: {e}", self.ffmpeg),
-                    ));
-                    break;
-                }
+            if let Err(why) =
+                teleprompt_capture::tool::run(Command::new(&self.ffmpeg).args(&a), &self.ffmpeg, 1)
+            {
+                result = Err(failed(&shot.id, why));
+                break;
             }
             clips.push(Clip {
                 key: shot.key,

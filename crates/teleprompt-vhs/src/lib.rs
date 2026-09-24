@@ -8,15 +8,3 @@ pub mod scene;
 
 pub use capture::VhsRender;
 pub use scene::VhsScene;
-
-use std::process::{Command, Stdio};
-
-/// Whether a program can be run.
-pub(crate) fn on_path(program: &str) -> bool {
-    Command::new(program)
-        .arg("--version")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok()
-}

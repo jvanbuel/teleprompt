@@ -82,13 +82,7 @@ impl CaptureBackend for SlidevRender {
     }
 
     fn unavailable(&self) -> Option<String> {
-        let found = Command::new(&self.ffmpeg)
-            .arg("-version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok();
-        (!found).then(|| format!("{} is not on PATH", self.ffmpeg))
+        teleprompt_capture::tool::missing(&[&self.ffmpeg])
     }
 
     fn capture(
@@ -158,30 +152,9 @@ impl CaptureBackend for SlidevRender {
         {
             export.arg("--executable-path").arg(browser);
         }
-        let result = export
-            .output()
-            .map_err(|e| {
-                failed(
-                    &first,
-                    format!("{} could not be run: {e}", slidev.display()),
-                )
-            })
-            .and_then(|ran| {
-                if ran.status.success() {
-                    return Ok(());
-                }
-                let said = String::from_utf8_lossy(&ran.stderr);
-                let tail: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).collect();
-                let from = tail.len().saturating_sub(6);
-                Err(failed(
-                    &first,
-                    format!(
-                        "slidev export exited {}: {}",
-                        ran.status,
-                        tail[from..].join(" / ")
-                    ),
-                ))
-            })
+        let result = teleprompt_capture::tool::run(&mut export, "slidev export", 6)
+            .map(|_| ())
+            .map_err(|why| failed(&first, why))
             .and_then(|()| {
                 let request = Request {
                     session,

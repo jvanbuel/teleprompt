@@ -7,7 +7,7 @@
 //! is then cut into a clip per wanted shot.
 
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use teleprompt_capture::reel::{cut, starved, windows};
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
@@ -72,15 +72,6 @@ impl Default for AsciinemaRender {
     }
 }
 
-fn runs(program: &str) -> bool {
-    Command::new(program)
-        .arg("--version")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok()
-}
-
 impl CaptureBackend for AsciinemaRender {
     fn id(&self) -> &'static str {
         "asciinema"
@@ -91,11 +82,7 @@ impl CaptureBackend for AsciinemaRender {
     }
 
     fn unavailable(&self) -> Option<String> {
-        let missing: Vec<&str> = [self.agg.as_str(), self.ffmpeg.as_str()]
-            .into_iter()
-            .filter(|p| !runs(p))
-            .collect();
-        (!missing.is_empty()).then(|| format!("{} is not on PATH", missing.join(" and ")))
+        teleprompt_capture::tool::missing(&[&self.agg, &self.ffmpeg])
     }
 
     fn capture(
@@ -225,23 +212,8 @@ impl AsciinemaRender {
         failed: &dyn Fn(&str, String) -> CaptureError,
     ) -> Result<(), CaptureError> {
         let program = command.get_program().to_string_lossy().to_string();
-        let ran = command
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|e| failed(first, format!("{program} could not be run: {e}")))?;
-        if ran.status.success() {
-            return Ok(());
-        }
-        let said = String::from_utf8_lossy(&ran.stderr);
-        let tail: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).collect();
-        let from = tail.len().saturating_sub(4);
-        Err(failed(
-            first,
-            format!(
-                "{program} exited {}: {}",
-                ran.status,
-                tail[from..].join(" / ")
-            ),
-        ))
+        teleprompt_capture::tool::run(command, &program, 4)
+            .map(|_| ())
+            .map_err(|why| failed(first, why))
     }
 }

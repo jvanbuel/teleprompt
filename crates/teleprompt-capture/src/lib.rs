@@ -8,6 +8,7 @@
 
 pub mod mock;
 pub mod reel;
+pub mod tool;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

@@ -48,13 +48,7 @@ impl CaptureBackend for MockCapture {
     }
 
     fn unavailable(&self) -> Option<String> {
-        let found = Command::new(&self.program)
-            .arg("-version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok();
-        (!found).then(|| format!("{} is not on PATH", self.program))
+        crate::tool::missing(&[&self.program])
     }
 
     fn capture(

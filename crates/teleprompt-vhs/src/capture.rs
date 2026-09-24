@@ -105,11 +105,7 @@ impl CaptureBackend for VhsRender {
         // and a probe recording would take a minute. A `vhs` that is
         // installed but records nothing is caught in `capture`, and its
         // session renders as slates with the reason.
-        let missing: Vec<&str> = [self.vhs.as_str(), "ttyd", self.ffmpeg.as_str()]
-            .into_iter()
-            .filter(|p| !crate::on_path(p))
-            .collect();
-        (!missing.is_empty()).then(|| format!("{} is not on PATH", missing.join(" and ")))
+        teleprompt_capture::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
     }
 
     fn capture(

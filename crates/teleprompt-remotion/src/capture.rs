@@ -6,7 +6,7 @@
 //! a composition does not open on the screen the one before it left.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
@@ -78,13 +78,7 @@ impl CaptureBackend for RemotionRender {
     }
 
     fn unavailable(&self) -> Option<String> {
-        let found = Command::new(&self.node)
-            .arg("--version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok();
-        (!found).then(|| format!("{} is not on PATH", self.node))
+        teleprompt_capture::tool::missing(&[&self.node])
     }
 
     fn capture(
@@ -127,29 +121,18 @@ impl CaptureBackend for RemotionRender {
             .and_then(|()| std::fs::write(&job_file, job.to_string()))
             .map_err(|e| failed(&first, format!("{}: {e}", work.display())))
             .and_then(|()| {
-                Command::new(&self.node)
-                    .arg(&script)
-                    .arg(&job_file)
-                    .current_dir(&project)
-                    .stdin(Stdio::null())
-                    .output()
-                    .map_err(|e| failed(&first, format!("{} could not be run: {e}", self.node)))
+                teleprompt_capture::tool::run(
+                    Command::new(&self.node)
+                        .arg(&script)
+                        .arg(&job_file)
+                        .current_dir(&project),
+                    "the render",
+                    6,
+                )
+                .map_err(|why| failed(&first, why))
             });
         let _ = std::fs::remove_dir_all(&work);
-        let ran = ran?;
-        if !ran.status.success() {
-            let said = String::from_utf8_lossy(&ran.stderr);
-            let tail: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).collect();
-            let from = tail.len().saturating_sub(6);
-            return Err(failed(
-                &first,
-                format!(
-                    "the render exited {}: {}",
-                    ran.status,
-                    tail[from..].join(" / ")
-                ),
-            ));
-        }
+        ran?;
 
         let mut clips = Vec::new();
         for shot in wanted {
