@@ -193,9 +193,7 @@ fn narration_entry(n: &NarrationInput, slot_start_ms: u64) -> NarrationEntry {
         start_ms: slot_start_ms.saturating_add(n.lead_in_ms.ms()),
         duration_ms: n.duration_ms,
         duration_source: n.duration_source,
-        voice_source: n.voice_source,
-        voice_source_actual: n.voice_source_actual,
-        downgrade_reason: n.downgrade_reason.clone(),
+        voice: n.voice.clone(),
     }
 }
 

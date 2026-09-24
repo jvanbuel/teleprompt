@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use teleprompt_core::{DurationSource, Hash, PolicyKind, VoiceSource};
+use teleprompt_core::{DurationSource, Hash, PolicyKind, VoiceSource, VoiceTier};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Timeline {
@@ -25,6 +25,7 @@ pub struct Entry {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(into = "NarrationWire", try_from = "NarrationWire")]
 pub struct NarrationEntry {
     pub line: String,
     pub source_hash: Hash,
@@ -32,10 +33,59 @@ pub struct NarrationEntry {
     pub start_ms: u64,
     pub duration_ms: u64,
     pub duration_source: DurationSource,
-    pub voice_source: VoiceSource,
-    pub voice_source_actual: VoiceSource,
+    pub voice: VoiceTier,
+}
+
+/// [`NarrationEntry`] as the timeline writes it: the voice tier as three
+/// fields, the reason omitted when there is none.
+#[derive(Clone, Serialize, Deserialize)]
+struct NarrationWire {
+    line: String,
+    source_hash: Hash,
+    audio_hash: Hash,
+    start_ms: u64,
+    duration_ms: u64,
+    duration_source: DurationSource,
+    voice_source: VoiceSource,
+    voice_source_actual: VoiceSource,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub downgrade_reason: Option<String>,
+    downgrade_reason: Option<String>,
+}
+
+impl From<NarrationEntry> for NarrationWire {
+    fn from(e: NarrationEntry) -> Self {
+        Self {
+            voice_source: e.voice.requested(),
+            voice_source_actual: e.voice.actual(),
+            downgrade_reason: e.voice.reason().map(str::to_string),
+            line: e.line,
+            source_hash: e.source_hash,
+            audio_hash: e.audio_hash,
+            start_ms: e.start_ms,
+            duration_ms: e.duration_ms,
+            duration_source: e.duration_source,
+        }
+    }
+}
+
+impl TryFrom<NarrationWire> for NarrationEntry {
+    type Error = String;
+
+    fn try_from(w: NarrationWire) -> Result<Self, String> {
+        Ok(Self {
+            voice: VoiceTier::from_fields(
+                w.voice_source,
+                w.voice_source_actual,
+                w.downgrade_reason,
+            )?,
+            line: w.line,
+            source_hash: w.source_hash,
+            audio_hash: w.audio_hash,
+            start_ms: w.start_ms,
+            duration_ms: w.duration_ms,
+            duration_source: w.duration_source,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

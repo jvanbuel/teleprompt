@@ -54,15 +54,14 @@ fn downgrades_in(manifest: &NarrationManifest) -> Vec<Downgrade> {
     manifest
         .lines
         .iter()
-        .filter(|s| s.voice_source != s.voice_source_actual)
-        .map(|s| Downgrade {
-            line_id: s.id.clone(),
-            requested: s.voice_source,
-            actual: s.voice_source_actual,
-            reason: s
-                .downgrade_reason
-                .clone()
-                .unwrap_or_else(|| "no reason recorded".to_string()),
+        .filter_map(|s| {
+            let d = s.voice.downgrade()?;
+            Some(Downgrade {
+                line_id: s.id.clone(),
+                requested: s.voice.requested(),
+                actual: d.to,
+                reason: d.reason.clone(),
+            })
         })
         .collect()
 }
@@ -621,7 +620,7 @@ impl From<DubError> for crate::output::Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_core::DurationSource;
+    use teleprompt_core::{DurationSource, VoiceTier};
     use teleprompt_manifest::LineEntry;
 
     #[test]
@@ -648,9 +647,12 @@ mod tests {
             duration_ms: 0,
             duration_source: DurationSource::Measured,
             audio: String::new(),
-            voice_source: VoiceSource::parse(requested).unwrap(),
-            voice_source_actual: VoiceSource::parse(actual).unwrap(),
-            downgrade_reason: reason.map(str::to_string),
+            voice: VoiceTier::from_fields(
+                VoiceSource::parse(requested).unwrap(),
+                VoiceSource::parse(actual).unwrap(),
+                reason.map(str::to_string),
+            )
+            .unwrap(),
             source_hash: Hash::of(b""),
             audio_hash: Hash::of(b""),
             words: None,

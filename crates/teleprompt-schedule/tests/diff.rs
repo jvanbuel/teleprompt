@@ -1,7 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
-use teleprompt_core::{DurationSource, VoiceSource};
+use teleprompt_core::{DurationSource, VoiceSource, VoiceTier};
 use teleprompt_schedule::{
     diff, schedule, ActionInput, ChangeReason, Item, NarrationInput, Pacing, Policy, TimelineDiff,
 };
@@ -23,9 +23,7 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
             duration_source: DurationSource::Measured,
             lead_in_ms: Config::default().timing.lead_in_ms,
             tail_ms: Config::default().timing.tail_ms,
-            voice_source: VoiceSource::Synthetic,
-            voice_source_actual: VoiceSource::Synthetic,
-            downgrade_reason: None,
+            voice: VoiceTier::delivered(VoiceSource::Synthetic),
         }),
         action: None,
         policy: Policy::Hold,
@@ -36,9 +34,12 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
 fn stale_shot(id: &str) -> Item {
     let mut b = item(id, 1000, id);
     let n = b.narration.as_mut().unwrap();
-    n.voice_source = VoiceSource::Recorded;
-    n.voice_source_actual = VoiceSource::Cloned;
-    n.downgrade_reason = Some("take stale".into());
+    n.voice = VoiceTier::downgraded(
+        VoiceSource::Recorded,
+        VoiceSource::Cloned,
+        "take stale".into(),
+    )
+    .unwrap();
     b
 }
 

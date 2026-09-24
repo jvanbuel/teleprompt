@@ -3,7 +3,7 @@
 //! the preview and outside consumers read it.
 
 use serde::{Deserialize, Serialize};
-use teleprompt_core::{DurationSource, Hash, PolicyKind, VoiceSource};
+use teleprompt_core::{DurationSource, Hash, PolicyKind, VoiceSource, VoiceTier};
 
 /// Incremented on any change a consumer must not silently miss, including
 /// an added key it would otherwise ignore. Independent of
@@ -81,6 +81,7 @@ pub struct TransitionOut {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(into = "LineWire", try_from = "LineWire")]
 pub struct LineEntry {
     pub id: String,
     pub text: String,
@@ -93,10 +94,10 @@ pub struct LineEntry {
     /// (docs/design.md#estimated-and-measured).
     pub duration_source: DurationSource,
     pub audio: String,
-    pub voice_source: VoiceSource,
-    pub voice_source_actual: VoiceSource,
-    /// `null` when the requested tier was delivered (always serialized).
-    pub downgrade_reason: Option<String>,
+    /// Published as `voice_source`, `voice_source_actual` and
+    /// `downgrade_reason`, which is `null` when the requested tier was
+    /// delivered (always serialized).
+    pub voice: VoiceTier,
     pub source_hash: Hash,
     /// Hash of the audio file's bytes, set by `dub` after encoding; see
     /// [`build`]. Byte-identical audio repeats a hash (every same-length
@@ -104,8 +105,70 @@ pub struct LineEntry {
     /// `source_hash`.
     pub audio_hash: Hash,
     /// Omitted when the backend gave no word timings.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub words: Option<Vec<WordEntry>>,
+}
+
+/// [`LineEntry`] as the manifest publishes it: the contract consumers read.
+#[derive(Clone, Serialize, Deserialize)]
+struct LineWire {
+    id: String,
+    text: String,
+    chapter: String,
+    start_ms: u64,
+    duration_ms: u64,
+    duration_source: DurationSource,
+    audio: String,
+    voice_source: VoiceSource,
+    voice_source_actual: VoiceSource,
+    downgrade_reason: Option<String>,
+    source_hash: Hash,
+    audio_hash: Hash,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    words: Option<Vec<WordEntry>>,
+}
+
+impl From<LineEntry> for LineWire {
+    fn from(e: LineEntry) -> Self {
+        Self {
+            voice_source: e.voice.requested(),
+            voice_source_actual: e.voice.actual(),
+            downgrade_reason: e.voice.reason().map(str::to_string),
+            id: e.id,
+            text: e.text,
+            chapter: e.chapter,
+            start_ms: e.start_ms,
+            duration_ms: e.duration_ms,
+            duration_source: e.duration_source,
+            audio: e.audio,
+            source_hash: e.source_hash,
+            audio_hash: e.audio_hash,
+            words: e.words,
+        }
+    }
+}
+
+impl TryFrom<LineWire> for LineEntry {
+    type Error = String;
+
+    fn try_from(w: LineWire) -> Result<Self, String> {
+        Ok(Self {
+            voice: VoiceTier::from_fields(
+                w.voice_source,
+                w.voice_source_actual,
+                w.downgrade_reason,
+            )?,
+            id: w.id,
+            text: w.text,
+            chapter: w.chapter,
+            start_ms: w.start_ms,
+            duration_ms: w.duration_ms,
+            duration_source: w.duration_source,
+            audio: w.audio,
+            source_hash: w.source_hash,
+            audio_hash: w.audio_hash,
+            words: w.words,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

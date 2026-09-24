@@ -323,10 +323,10 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
 
         // A property of the new timeline alone, whatever else changed.
         if let Some(nn) = &n.narration {
-            if nn.voice_source != nn.voice_source_actual {
+            if let Some(d) = nn.voice.downgrade() {
                 stale_takes.push(StaleTake {
                     line: nn.line.clone(),
-                    falls_back_to: nn.voice_source_actual,
+                    falls_back_to: d.to,
                 });
             }
         }

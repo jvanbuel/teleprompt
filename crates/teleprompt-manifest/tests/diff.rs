@@ -1,6 +1,6 @@
 use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
-use teleprompt_core::VoiceSource;
+use teleprompt_core::{VoiceSource, VoiceTier};
 use teleprompt_manifest::diff::{diff, DriftReason};
 use teleprompt_manifest::{
     AudioInfo, ChapterEntry, LineEntry, NarrationManifest, MANIFEST_VERSION,
@@ -15,9 +15,7 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
         duration_ms,
         duration_source: DurationSource::Measured,
         audio: format!("audio/{id}.wav"),
-        voice_source: VoiceSource::Synthetic,
-        voice_source_actual: VoiceSource::Synthetic,
-        downgrade_reason: None,
+        voice: VoiceTier::delivered(VoiceSource::Synthetic),
         source_hash: Hash::of(text.as_bytes()),
         audio_hash: Hash::of(audio_seed.as_bytes()),
         words: None,
@@ -115,12 +113,15 @@ fn a_duration_only_change_is_audio_changed_not_shifted() {
 #[test]
 fn a_voice_tier_downgrade_is_named() {
     let mut before_seg = seg("welcome", 0, 1000, "Hello.", "a");
-    before_seg.voice_source = VoiceSource::Cloned;
-    before_seg.voice_source_actual = VoiceSource::Cloned;
+    before_seg.voice = VoiceTier::delivered(VoiceSource::Cloned);
 
     let mut after_seg = before_seg.clone();
-    after_seg.voice_source_actual = VoiceSource::Synthetic;
-    after_seg.downgrade_reason = Some("no voice profile enrolled".to_string());
+    after_seg.voice = VoiceTier::downgraded(
+        VoiceSource::Cloned,
+        VoiceSource::Synthetic,
+        "no voice profile enrolled".to_string(),
+    )
+    .unwrap();
 
     let before = manifest(vec![before_seg]);
     let after = manifest(vec![after_seg]);
@@ -142,13 +143,15 @@ fn a_voice_tier_downgrade_is_named() {
 #[test]
 fn a_voice_request_change_with_no_tier_change_is_named_separately() {
     let mut before_seg = seg("welcome", 0, 1000, "Hello.", "a");
-    before_seg.voice_source = VoiceSource::Cloned;
-    before_seg.voice_source_actual = VoiceSource::Synthetic;
-    before_seg.downgrade_reason = Some("no voice profile enrolled".to_string());
+    before_seg.voice = VoiceTier::downgraded(
+        VoiceSource::Cloned,
+        VoiceSource::Synthetic,
+        "no voice profile enrolled".to_string(),
+    )
+    .unwrap();
 
     let mut after_seg = before_seg.clone();
-    after_seg.voice_source = VoiceSource::Synthetic;
-    after_seg.downgrade_reason = None;
+    after_seg.voice = VoiceTier::delivered(VoiceSource::Synthetic);
 
     let before = manifest(vec![before_seg]);
     let after = manifest(vec![after_seg]);

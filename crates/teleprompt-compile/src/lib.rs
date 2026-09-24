@@ -19,7 +19,7 @@ use teleprompt_core::{
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
 use teleprompt_voice::{
-    resolve_source, DurationEstimator, Resolution, SynthRequest, VoiceSource, WordTiming,
+    resolve_source, DurationEstimator, SynthRequest, VoiceSource, VoiceTier, WordTiming,
 };
 
 pub mod manifest;
@@ -563,9 +563,7 @@ impl<'a> Walker<'a, '_> {
                 // `lead_in=` or `tail=`.
                 lead_in_ms: config.timing.lead_in_ms,
                 tail_ms: config.timing.tail_ms,
-                voice_source: resolution.requested,
-                voice_source_actual: resolution.actual,
-                downgrade_reason: resolution.downgrade_reason,
+                voice: resolution,
             },
             id: id.to_string(),
             text: text.to_string(),
@@ -575,7 +573,7 @@ impl<'a> Walker<'a, '_> {
 
     /// The voice tier a line gets, down the ladder from the one it asked for
     /// (docs/design.md#voice-tiers).
-    fn resolve_voice(&mut self, config: &Config) -> Option<Resolution> {
+    fn resolve_voice(&mut self, config: &Config) -> Option<VoiceTier> {
         let Some(requested) = VoiceSource::parse(&config.voice.source) else {
             self.diags.push(
                 Diagnostic::error(format!("unknown voice source `{}`", config.voice.source))

@@ -1,5 +1,5 @@
 use teleprompt_core::config::{Config, TimingConfig, TransitionConfig};
-use teleprompt_core::{DurationMs, DurationSource, Hash, VoiceSource};
+use teleprompt_core::{DurationMs, DurationSource, Hash, VoiceTier};
 
 use crate::policy::Policy;
 
@@ -18,9 +18,7 @@ pub struct NarrationInput {
     /// layer and would drop the line's own `lead_in=` / `tail=`.
     pub lead_in_ms: DurationMs,
     pub tail_ms: DurationMs,
-    pub voice_source: VoiceSource,
-    pub voice_source_actual: VoiceSource,
-    pub downgrade_reason: Option<String>,
+    pub voice: VoiceTier,
 }
 
 impl NarrationInput {

@@ -1,7 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
-use teleprompt_core::{DurationSource, VoiceSource};
+use teleprompt_core::{DurationSource, VoiceSource, VoiceTier};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
@@ -14,9 +14,7 @@ fn narration(id: &str, ms: u64) -> NarrationInput {
         duration_source: DurationSource::Measured,
         lead_in_ms: defaults.lead_in_ms,
         tail_ms: defaults.tail_ms,
-        voice_source: VoiceSource::Synthetic,
-        voice_source_actual: VoiceSource::Synthetic,
-        downgrade_reason: None,
+        voice: VoiceTier::delivered(VoiceSource::Synthetic),
     }
 }
 

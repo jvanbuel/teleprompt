@@ -166,14 +166,12 @@ fn reason_for(before: &LineEntry, after: &LineEntry) -> Option<DriftReason> {
         Some(DriftReason::NowMeasured)
     } else if before.audio_hash != after.audio_hash || before.duration_ms != after.duration_ms {
         Some(DriftReason::AudioChanged)
-    } else if before.voice_source_actual != after.voice_source_actual {
+    } else if before.voice.actual() != after.voice.actual() {
         Some(DriftReason::VoiceTier {
-            before: before.voice_source_actual,
-            after: after.voice_source_actual,
+            before: before.voice.actual(),
+            after: after.voice.actual(),
         })
-    } else if before.voice_source != after.voice_source
-        || before.downgrade_reason != after.downgrade_reason
-    {
+    } else if before.voice != after.voice {
         Some(DriftReason::VoiceRequestChanged)
     } else if before.start_ms != after.start_ms {
         Some(DriftReason::Shifted)

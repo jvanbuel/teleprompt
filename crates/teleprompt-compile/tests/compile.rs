@@ -270,9 +270,9 @@ fn the_null_backend_downgrades_a_recorded_request_and_says_why() {
         "---\nscene: { mock: { adapter: mock } }\n---\n\n# A\n\nOne. {#a voice.source=recorded}\n";
     let out = run(src);
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
-    assert_eq!(n.voice_source, VoiceSource::Recorded);
-    assert_eq!(n.voice_source_actual, VoiceSource::Synthetic);
-    assert!(n.downgrade_reason.as_ref().unwrap().contains("no takes"));
+    assert_eq!(n.voice.requested(), VoiceSource::Recorded);
+    assert_eq!(n.voice.actual(), VoiceSource::Synthetic);
+    assert!(n.voice.reason().unwrap().contains("no takes"));
 }
 
 #[test]
