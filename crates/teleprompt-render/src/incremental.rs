@@ -1,16 +1,5 @@
-//! Rendering by encoding only the parts that moved.
-//!
-//! Re-encoding every frame of a video to change one sentence of it is,
-//! on a two-minute script, most of a warm build. This renderer encodes
-//! [`chunks`](crate::chunk) separately, caches each under a key covering
-//! everything that changes its bytes, and stitches them with the `concat`
-//! demuxer and `-c copy` — which copies compressed frames rather than
-//! decoding and re-encoding them, and costs roughly nothing.
-//!
-//! The audio is still mixed in one pass. It is cheap (a four-hundred-second
-//! mix and AAC encode measured 1.4s against 7.3s for the same picture), it
-//! has no natural seams, and a mix cut into cached placements would put a join
-//! in the middle of a word.
+//! Rendering by encoding only the [`chunks`](crate::chunk) that changed,
+//! then mixing the audio in one pass (`docs/design.md#compose-cache`).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -25,20 +14,12 @@ use crate::{Progress, RenderError, RenderPlan, Rendered};
 /// Renders through a cache of encoded chunks.
 #[derive(Debug, Clone)]
 pub struct IncrementalRenderer {
-    /// The binary to invoke. Configurable because `doctor` may have found a
-    /// usable ffmpeg somewhere other than `PATH`.
+    /// The ffmpeg binary.
     pub program: String,
-    /// Where encoded chunks are kept. Entirely derived — everything in
-    /// it can be reproduced from the key that names it — so it belongs
-    /// wherever the rest of the cache does.
+    /// Where encoded chunks are kept; entirely derived.
     pub cache_dir: PathBuf,
-    /// Whether a chunk already in the cache may be used.
-    ///
-    /// `false` is `--no-cache`: re-encode everything. It still writes what
-    /// it encodes, because the point is to distrust what is there, not to
-    /// refuse to leave anything behind. This is a flag rather than a second
-    /// renderer so that `--no-cache` and an ordinary build come out of the
-    /// same code — two renderers agree until they do not.
+    /// `false` is `--no-cache`: re-encode everything, but still write what
+    /// is encoded. A flag, not a second renderer, so both paths share code.
     pub reuse: bool,
 }
 
@@ -48,18 +29,11 @@ impl IncrementalRenderer {
         "ffmpeg-incremental"
     }
 
-    /// Render `plan`, calling `on_progress` as the work proceeds.
     pub fn render(
         &self,
         plan: &RenderPlan,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Rendered, RenderError> {
-        // The only plan that cannot be cut is a shot shorter than the
-        // transitions either side of it, and the scheduler caps a
-        // transition against what the item it arrives in has left, so this
-        // is unreachable from a real script. It used to hand the build to a
-        // second renderer without saying so; a fallback nobody can see is
-        // how two implementations drift apart.
         let Some(chunks) = chunk::chunks(plan) else {
             return Err(RenderError::Unchunkable);
         };
@@ -70,24 +44,19 @@ impl IncrementalRenderer {
             source,
         })?;
 
-        // One read per distinct clip, however many chunks draw on it: a
-        // transition alone puts the same file in three of them.
+        // One read per distinct clip; a transition puts one in three chunks.
         let mut identities: HashMap<PathBuf, Hash> = HashMap::new();
 
-        // Reuse is reported against the output's own clock rather than in
-        // frames: "five and a half minutes of this came from the cache" is
-        // a thing an author can check against the video in front of them.
+        // Reported in output time, which an author can check against the
+        // video, rather than in frames.
         let total_frames: u64 = chunks.iter().map(|s| s.frames).sum();
         let on_the_clock = |frames: u64| match total_frames {
             0 => 0,
             total => frames * plan.duration_ms / total,
         };
 
-        // Progress is reported from two places — encoding each chunk, then
-        // the concat pass — and the second starts its own count from zero.
-        // Left alone that reads as the render going backwards just as it
-        // finishes. The other renderer had no assembly pass, so nothing
-        // caught it until it was the only renderer left.
+        // The concat pass counts from zero again, so progress is clamped
+        // to never go backwards.
         let mut furthest = 0u64;
         let mut report = |on_progress: &mut dyn FnMut(Progress), rendered_ms: u64| {
             furthest = furthest.max(rendered_ms);
@@ -113,10 +82,9 @@ impl IncrementalRenderer {
                 reused_frames += chunk.frames;
                 mark_used(&cached);
             } else {
-                // Encoded beside the entry and renamed into place, which is
-                // atomic on one filesystem. A render killed halfway through
-                // otherwise leaves a truncated mp4 under a key that says it
-                // is complete, and every later build serves it.
+                // Encoded beside the entry and renamed into place (atomic on
+                // one filesystem), or a killed render leaves a truncated mp4
+                // that every later build serves.
                 let partial = self.cache_dir.join(format!(".{key}.partial.mp4"));
                 ffmpeg::run(
                     &self.program,
@@ -129,9 +97,8 @@ impl IncrementalRenderer {
                 })?;
             }
 
-            // Single quotes are the concat demuxer's own escape, and a
-            // cache path is ours rather than the author's — but the output
-            // directory it sits under is not.
+            // The concat demuxer's quoting: the cache directory is the
+            // author's choice and may contain a quote.
             list.push_str(&format!(
                 "file '{}'\n",
                 cached.display().to_string().replace('\'', r"'\''")
@@ -167,14 +134,12 @@ impl IncrementalRenderer {
         Ok(Rendered {
             path: plan.output.clone(),
             duration_ms: plan.duration_ms,
-            // `None` where there is no cache to draw on, which is a
-            // different claim from `Some(0)`, a cache that happened to be cold.
             reused_ms: self.reuse.then(|| on_the_clock(reused_frames)),
         })
     }
 }
 
-/// A clip's identity is its contents, read once per render.
+/// Keyed on contents; see [`ChunkKey::hash`].
 fn identity(seen: &mut HashMap<PathBuf, Hash>, path: &Path) -> std::io::Result<Hash> {
     if let Some(hash) = seen.get(path) {
         return Ok(*hash);
@@ -184,13 +149,8 @@ fn identity(seen: &mut HashMap<PathBuf, Hash>, path: &Path) -> std::io::Result<H
     Ok(hash)
 }
 
-/// Record that an entry was copied from, by setting its modification time.
-///
-/// This is the only thing that distinguishes a chunk three builds have
-/// leaned on from one nothing has wanted since April, and a cache with a
-/// size cap has to evict the second. Best effort: a read-only cache
-/// directory is a reason to render more slowly next time, not a reason to
-/// fail a render that has already succeeded.
+/// Touches the modification time, which least-recently-used eviction
+/// reads. Best effort: a read-only cache must not fail a render.
 fn mark_used(path: &Path) {
     let _ = std::fs::OpenOptions::new()
         .write(true)
@@ -200,19 +160,16 @@ fn mark_used(path: &Path) {
         });
 }
 
-/// Whether a cache entry can be served. An empty file is a crashed encode,
-/// not a chunk of no frames — those are never written.
+/// An empty file is a crashed encode; empty chunks are never written.
 fn is_usable(path: &Path) -> bool {
     std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() > 0)
 }
 
-/// Seconds, to the microsecond. Frame counts are exact in this unit up to
-/// far more frames than a video has.
+/// Seconds to the microsecond, exact for any realistic frame count.
 fn seconds_of(frames: u64, fps: u32) -> String {
     format!("{:.6}", frames as f64 / f64::from(fps))
 }
 
-/// The argv that encodes one chunk to a video-only file.
 fn encode_args(plan: &RenderPlan, chunk: &Chunk, out: &Path) -> Vec<String> {
     let mut args: Vec<String> = vec!["-hide_banner".into(), "-y".into()];
     let mut filters: Vec<String> = Vec::new();
@@ -224,10 +181,8 @@ fn encode_args(plan: &RenderPlan, chunk: &Chunk, out: &Path) -> Vec<String> {
         Content::Blend { kind, from, to } => {
             window_input(plan, from, 0, "a", &mut args, &mut filters);
             window_input(plan, to, 1, "b", &mut args, &mut filters);
-            // Half a frame short of the full window so the blend can never
-            // ask for more than either input holds, and trimmed back to the
-            // exact frame count after — the chunk's length is arithmetic
-            // the concat depends on, not something to leave to rounding.
+            // Half a frame short so the blend never asks for more than an
+            // input holds, then trimmed to the exact count the concat needs.
             let blend = format!("{:.6}", (chunk.frames as f64 - 0.5) / f64::from(plan.fps));
             filters.push(format!(
                 "[a][b]xfade=transition={}:duration={blend}:offset=0[x];\
@@ -247,7 +202,6 @@ fn encode_args(plan: &RenderPlan, chunk: &Chunk, out: &Path) -> Vec<String> {
     args
 }
 
-/// One window as an ffmpeg input and the filter chain that cuts it out.
 fn window_input(
     plan: &RenderPlan,
     window: &Window,
@@ -256,8 +210,7 @@ fn window_input(
     args: &mut Vec<String>,
     filters: &mut Vec<String>,
 ) {
-    // Long enough that the chain never runs out of source before the
-    // `trim` below decides where the window ends.
+    // Enough that the source outlasts the `trim` below.
     let enough = seconds_of(
         window.from_frame + window.frames + u64::from(plan.fps),
         plan.fps,
@@ -276,12 +229,9 @@ fn window_input(
             ));
         }
     }
-    // `tpad` clones the first and last frames rather than filling with a
-    // colour, which is what makes a held gap a freeze instead of a cut to
-    // black. It pads generously at the end and `trim` sets the exact
-    // window — in frames, because frames are what has to add up.
-    // `settb=AVTB` because `xfade` refuses two inputs whose timebases
-    // differ, and its own output differs from its inputs'.
+    // `tpad` clones edge frames, so a held gap is a freeze, not black;
+    // `trim` then cuts the exact window in frames. `settb=AVTB` because
+    // `xfade` refuses inputs whose timebases differ.
     filters.push(format!(
         "[{index}:v]scale={w}:{h}:force_original_aspect_ratio=decrease,\
          pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color={BACKGROUND},setsar=1,fps={fps},\
@@ -296,8 +246,7 @@ fn window_input(
     ));
 }
 
-/// The encoder settings, in one place: [`chunk::RECIPE`] names this, and
-/// a change here that is not a change there serves stale frames.
+/// Changing this without bumping [`chunk::RECIPE`] serves stale frames.
 fn encoder(fps: u32) -> Vec<String> {
     let mut out: Vec<String> = [
         "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p", "-r",
@@ -309,26 +258,21 @@ fn encoder(fps: u32) -> Vec<String> {
     out
 }
 
-/// The argv that concatenates the encoded chunks and mixes the narration
-/// over them.
-///
-/// The picture is copied, not re-encoded: `-c:v copy` on the concat
-/// demuxer's output moves compressed frames straight into the container.
+/// Concatenates the chunks with `-c:v copy` (no re-encode) and mixes the
+/// narration over them.
 fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
     let mut args: Vec<String> = vec!["-hide_banner".into(), "-y".into()];
     args.extend([
         "-f".into(),
         "concat".into(),
-        // The list holds absolute paths into the cache, which `-safe 1`
-        // — the default — refuses.
+        // The default `-safe 1` refuses the list's absolute paths.
         "-safe".into(),
         "0".into(),
         "-i".into(),
         list.display().to_string(),
     ]);
 
-    // A silent bed the narration is mixed over, so the output has a
-    // continuous audio stream even where nobody is speaking.
+    // A silent bed keeps the audio stream continuous between lines.
     let bed = 1;
     args.extend([
         "-f".into(),
@@ -347,8 +291,7 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
     for (i, clip) in plan.narration.iter().enumerate() {
         args.push("-i".into());
         args.push(clip.path.display().to_string());
-        // `adelay` takes milliseconds — the unit the manifest publishes —
-        // so no rounding happens here.
+        // Milliseconds, as published, so nothing is rounded.
         let input = bed + 1 + i;
         filters.push(format!(
             "[{input}:a]adelay={ms}|{ms}[a{input}]",
@@ -356,9 +299,8 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         ));
         mix.push(format!("[a{input}]"));
     }
-    // `normalize=0`: amix otherwise divides every input by the number of
-    // inputs, so a script's narration would get quieter the more chunks
-    // it had.
+    // `normalize=0`, or amix scales each input down by the input count and
+    // narration gets quieter the more lines a script has.
     filters.push(format!(
         "{}amix=inputs={}:normalize=0:dropout_transition=0[a]",
         mix.join(""),

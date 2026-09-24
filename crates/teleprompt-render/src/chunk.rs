@@ -1,34 +1,12 @@
-//! The output cut into independently encodable chunks.
+//! The output cut into independently encodable chunks
+//! (`docs/design.md#compose-cache`): a **body** is a window of one
+//! placement, and a **blend** is the overlap two placements share.
 //!
-//! A monolithic render re-encodes every frame of a video to change one
-//! sentence of it. Most of those frames are identical to the ones already
-//! on disk — the picture under paragraph nine does not move because
-//! paragraph two was reworded — and the only thing standing between an
-//! author and a one-second rebuild is that nothing names the parts.
-//!
-//! A chunk is that name. It is a contiguous run of output frames that
-//! depends on nothing outside itself, so it can be encoded once, cached
-//! under a key covering everything that changes its bytes, and stitched
-//! back with `concat -c copy`, which copies compressed frames rather than
-//! decoding them.
-//!
-//! Two shapes are enough to tile any plan. A **body** is a window of one
-//! placement. A **blend** is the overlap two placements share, which is the one
-//! region that cannot belong to either of them.
-//!
-//! Everything here counts in *frames*, not milliseconds, and a chunk's
-//! length is rounded from its **own duration** rather than read off the
-//! global timeline. That choice is the whole of the cache's usefulness.
-//! Reading boundaries off the timeline is more obviously exact, and it was
-//! how this worked first — but then a sentence reworded at the top of a
-//! script shifts everything after it by some fraction of a frame, half the
-//! chunks downstream round the other way, and a rebuild re-encodes more
-//! than half a video in which nothing after paragraph two changed. Keyed
-//! on its own duration, a shot that did not change does not change.
-//!
-//! The price is that rounded parts need not add up to the rounded whole,
-//! so the last chunk — a held frame at the end of the video, the most
-//! forgiving place there is — absorbs the difference.
+//! Everything counts in *frames*, and a chunk's length is rounded from its
+//! **own duration**, never read off the timeline. Otherwise a line that
+//! grows by a fraction of a frame makes later chunks round the other way,
+//! and an unchanged shot gets a new key. The price is that the parts need
+//! not add up to the whole; the last chunk absorbs the difference.
 
 use std::path::{Path, PathBuf};
 
@@ -37,20 +15,16 @@ use teleprompt_core::Hash;
 use crate::placement::{placements, Placement};
 use crate::{Picture, RenderPlan};
 
-/// What a window draws from.
-///
-/// Deliberately not [`Picture`]: a window can never be a `Hold`, because
-/// holding is what [`crate::placement`] resolves before a placement exists. An
-/// enum that cannot express the impossible case needs no branch for it.
+/// Not [`Picture`]: a window is never a `Hold`, because placements have
+/// already folded holds into the picture before them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Source {
     Clip(PathBuf),
     Slate,
 }
 
-/// `frames` frames of one placement, starting at `from_frame` of that placement's
-/// own timeline — in which the first `lead_in_frames` are its first frame,
-/// frozen.
+/// `frames` frames of one placement from `from_frame` of its own timeline,
+/// whose first `lead_in_frames` are its first frame, frozen.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Window {
     pub source: Source,
@@ -62,11 +36,9 @@ pub struct Window {
 /// What a chunk draws.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Content {
-    /// A window of a single placement.
     Body(Window),
-    /// Two windows of equal length, blended. This is the whole of a
-    /// transition: the frames either side of it are ordinary bodies, which
-    /// is what keeps a transition from invalidating the shots it joins.
+    /// The whole of a transition, so it never invalidates the bodies it
+    /// joins.
     Blend {
         kind: String,
         from: Window,
@@ -77,28 +49,18 @@ pub enum Content {
 /// A contiguous run of output frames that can be encoded on its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Chunk {
-    /// Where this chunk begins in the output, in frames. The chunks
-    /// tile `[0, frames_of(plan))` with no gap and no overlap.
+    /// The chunks tile the output with no gap and no overlap.
     pub start_frame: u64,
     pub frames: u64,
     pub content: Content,
 }
 
-/// How many frames a duration is, rounded to nearest.
-///
-/// Always applied to a *duration* — never to an offset on the timeline —
-/// so that the answer does not depend on where on the timeline it falls.
+/// Only ever applied to a duration, never an offset (see the module docs).
 fn frames_of(ms: u64, fps: u32) -> u64 {
     (ms * u64::from(fps) + 500) / 1000
 }
 
-/// `plan` as chunks, or `None` if it cannot be cut into any.
-///
-/// The one plan that cannot is a shot shorter than the transitions either
-/// side of it: the two blends would draw the same frames twice. That is
-/// rare enough to be worth reporting rather than engineering around —
-/// the caller renders the whole graph in one pass instead, which is what
-/// it did before chunks existed.
+/// `None` when uncuttable: see [`crate::RenderError::Unchunkable`].
 pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
     let fps = plan.fps;
     let placements = placements(plan);
@@ -106,9 +68,8 @@ pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
         return None;
     }
 
-    // How much each placement gives up at each end. A placement's `blend` is the
-    // overlap it shares with the placement *before* it, so the tail of placement i
-    // is the head of placement i+1.
+    // A placement's `blend` is its overlap with the one *before* it, so
+    // placement i's tail is placement i+1's head.
     let head = |i: usize| placements[i].blend.as_ref().map_or(0, |(_, ms)| *ms);
     let tail = |i: usize| placements.get(i + 1).map_or(0, |_| head(i + 1));
     if (0..placements.len()).any(|i| head(i) + tail(i) > placements[i].duration_ms) {
@@ -140,16 +101,12 @@ pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
         });
     }
 
-    // Rounded parts need not add up to the rounded whole. The last chunk
-    // holds a frame at the end of the video, so it is where a few
-    // thousandths of a second cost the least — and putting the whole
-    // correction in one place is what keeps every other chunk's key
-    // independent of what happened earlier in the script.
+    // The whole rounding correction goes on the last chunk, a held frame,
+    // so no other chunk's key depends on what came before it.
     settle(&mut out, frames_of(plan.duration_ms, fps));
     Some(out)
 }
 
-/// Stretch or shorten the last chunk so the chunks total `target`.
 fn settle(out: &mut [Chunk], target: u64) {
     let Some(last) = out.last_mut() else {
         return;
@@ -166,9 +123,7 @@ fn settle(out: &mut [Chunk], target: u64) {
     }
 }
 
-/// Append a chunk of `duration_ms`, unless it rounds to no frames at
-/// all — a shot too short to draw a frame of, which the chunks either
-/// side of it already cover.
+/// Skips a chunk that rounds to no frames; its neighbours cover it.
 fn push(
     out: &mut Vec<Chunk>,
     cursor: &mut u64,
@@ -188,18 +143,13 @@ fn push(
     *cursor += frames;
 }
 
-/// `frames` frames of `placement`, starting at output time `start_ms`.
-///
-/// Every number in here is a duration — how far into the placement the window
-/// begins, how long its lead-in is, how long it lasts — so a placement that
-/// slid along the timeline without otherwise changing produces the same
-/// window, and the same key.
+/// Every number is relative to the placement, so a placement that only
+/// slid along the timeline keeps the same window and key.
 fn window(placement: &Placement, start_ms: u64, frames: u64, fps: u32) -> Window {
     Window {
         source: match &placement.picture {
             Picture::Clip(path) => Source::Clip(path.clone()),
-            // `Hold` cannot reach here: a held shot is folded into the
-            // placement before it, which is what holding means.
+            // `Hold` never reaches here; placements fold it away.
             Picture::Hold | Picture::Slate => Source::Slate,
         },
         lead_in_frames: frames_of(placement.lead_in_ms, fps),
@@ -208,17 +158,13 @@ fn window(placement: &Placement, start_ms: u64, frames: u64, fps: u32) -> Window
     }
 }
 
-/// The recipe version: bumped when the encoder settings or the filter
-/// chain change, so a cache filled by an older teleprompt is not served
-/// for frames a newer one would encode differently.
+/// Bump when the encoder settings or the filter chain change, or old
+/// chunks are served for frames that would now encode differently.
 pub(crate) const RECIPE: &str = "x264-crf23-medium-v1";
 
 /// Everything that changes a chunk's bytes, and nothing that does not.
-///
-/// The whole risk of an input-addressed key is the input somebody forgot:
-/// it does not fail, it serves the wrong frames. So this is one struct,
-/// and [`ChunkKey::hash`] destructures it exhaustively — a field added
-/// here is a compile error there rather than something to remember.
+/// A forgotten input serves wrong frames silently, so [`ChunkKey::hash`]
+/// destructures this exhaustively: a new field is a compile error there.
 #[derive(Debug, Clone, Copy)]
 pub struct ChunkKey<'a> {
     pub recipe: &'a str,
@@ -229,11 +175,8 @@ pub struct ChunkKey<'a> {
 }
 
 impl<'a> ChunkKey<'a> {
-    /// The key for `chunk` rendered under `plan`'s geometry.
-    ///
-    /// Note what is *not* in it: the shot's name, its place in the script,
-    /// the script itself. Two scripts that put the same picture in the same
-    /// place encode it once.
+    /// Not in the key: the shot's name, its position or the script, so
+    /// the same picture is encoded once wherever it appears.
     pub fn for_chunk(plan: &'a RenderPlan, chunk: &'a Chunk) -> Self {
         Self {
             recipe: RECIPE,
@@ -244,12 +187,9 @@ impl<'a> ChunkKey<'a> {
         }
     }
 
-    /// The key, with clip identity resolved by `clip`.
-    ///
-    /// A clip is keyed on its *contents*, never its path: capture writes a
-    /// re-recorded scene back to the same filename, and a key on the path
-    /// would serve the old frames for ever. Resolving is the caller's job
-    /// because it reads files, and this has to stay testable without any.
+    /// A clip is keyed on its *contents*, never its path: a re-recorded
+    /// scene can land at the same path. `clip` reads the file, which keeps
+    /// this testable without IO.
     pub fn hash(
         &self,
         clip: &mut dyn FnMut(&Path) -> std::io::Result<Hash>,

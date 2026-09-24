@@ -1,14 +1,12 @@
-//! A 16-bit PCM RIFF/WAVE encoder, which is 30 lines and therefore not
-//! worth a dependency. Output is byte-stable for byte-stable input, which
-//! is what lets a committed narration directory be diffed.
+//! Byte-stable for byte-stable input, so a committed narration directory
+//! can be diffed.
 
 use crate::contract::Pcm;
 
 const HEADER_LEN: usize = 44;
 const BITS_PER_SAMPLE: u16 = 16;
 
-/// Encode `pcm` as a canonical WAVE file: one `fmt ` chunk, one `data`
-/// chunk, no padding, little-endian throughout.
+/// Canonical WAVE: one `fmt ` chunk, one `data` chunk, no padding.
 pub fn encode(pcm: &Pcm) -> Vec<u8> {
     let channels = pcm.channels;
     let block_align = channels * (BITS_PER_SAMPLE / 8);
@@ -18,8 +16,7 @@ pub fn encode(pcm: &Pcm) -> Vec<u8> {
     let mut out = Vec::with_capacity(HEADER_LEN + data_len as usize);
 
     out.extend_from_slice(b"RIFF");
-    // Everything after this field: 4 ("WAVE") + 24 (fmt chunk) + 8 (data
-    // header) + the samples.
+    // Bytes after this field: "WAVE" 4 + fmt chunk 24 + data header 8 + data.
     out.extend_from_slice(&(36 + data_len).to_le_bytes());
     out.extend_from_slice(b"WAVE");
 

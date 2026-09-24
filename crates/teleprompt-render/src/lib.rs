@@ -1,10 +1,5 @@
-//! Composing a rendered video from a published narration manifest.
-//!
-//! This is stage 6 of the pipeline — everything before it decided *when*
-//! each thing happens, and this crate turns those decisions into a file.
-//! It deliberately consumes the published manifest rather than an
-//! in-process `Timeline`: two timing paths drift, and the one that drifts
-//! silently is the one nobody renders from.
+//! Composing a video from a published narration manifest, not an
+//! in-process `Timeline` (`docs/design.md#rendering`).
 
 pub mod chunk;
 pub mod ffmpeg;
@@ -14,11 +9,8 @@ pub mod plan;
 
 use std::path::PathBuf;
 
-/// Everything a renderer needs, with every offset already decided.
-///
-/// A renderer does no scheduling. If a number is wrong here, it was wrong
-/// in the manifest, which is the property that makes a preview and a render
-/// agree.
+/// Every offset is already decided: a renderer does no scheduling, so a
+/// wrong number here was wrong in the manifest too.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderPlan {
     pub width: u32,
@@ -37,13 +29,9 @@ pub struct Shot {
     pub start_ms: u64,
     pub duration_ms: u64,
     pub picture: Picture,
-    /// The transition *out* of this shot, as the manifest publishes it.
-    ///
-    /// Only its kind is read. How long the join lasts is already in the
-    /// arithmetic — the scheduler overlaps the next shot's `start_ms` by
-    /// exactly the transition it granted — and a renderer that believed
-    /// this field instead would be free to disagree with the offsets it is
-    /// rendering against.
+    /// The transition *out* of this shot. Only its kind is read: its length
+    /// is how far the next shot's `start_ms` overlaps this one, so the
+    /// offsets stay the single source of truth.
     pub transition: Transition,
 }
 
@@ -67,22 +55,16 @@ impl Transition {
 /// What fills a shot's frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Picture {
-    /// A captured clip, to be fitted to the shot's scheduled duration.
+    /// A captured clip, fitted to the shot's duration.
     Clip(PathBuf),
-    /// Nothing was captured for this shot and there is nothing earlier to
-    /// hold — the opening of a video whose scenes were never captured. A
-    /// flat field of the background colour, so the timing is exercised and
-    /// the absence is visible rather than silently skipped.
+    /// No clip was captured: a flat field of the background colour, so the
+    /// absence is visible and later shots keep their places.
     Slate,
-    /// Whatever is already on screen, held. A pause is one of these, and so
-    /// is every stretch of narration with no action under it: on a real
-    /// script that is most of the running time, and cutting to a blank
-    /// field for it is the difference between a video and a slideshow of
-    /// black.
+    /// Whatever is already on screen, held; a pause is one of these.
     Hold,
 }
 
-/// One narration clip and where it goes.
+/// One narration clip and where it starts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Narration {
     pub id: String,
@@ -94,16 +76,14 @@ pub struct Narration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rendered {
     pub path: PathBuf,
-    /// What the renderer was asked to produce, not what the file measures.
-    /// Probing the result is the caller's business, and needs a prober.
+    /// What was asked for, not what the file measures.
     pub duration_ms: u64,
-    /// How much of the picture came from a cache of already-encoded frames
-    /// rather than from the encoder. `None` from a renderer that has no
-    /// cache — which is not the same claim as `Some(0)`, a cold cache.
+    /// Picture served from the chunk cache. `None` means reuse was off,
+    /// which is not the same claim as `Some(0)`, a cold cache.
     pub reused_ms: Option<u64>,
 }
 
-/// How far a render has got, reported as it goes rather than at the end.
+/// How far a render has got, reported as it goes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Progress {
     pub rendered_ms: u64,
@@ -113,12 +93,8 @@ pub struct Progress {
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
     /// A shot shorter than the transitions either side of it, so the two
-    /// blends would draw the same frames twice.
-    ///
-    /// The scheduler caps a transition against what the item it arrives in
-    /// has left, so a plan compiled from a script cannot be this shape. It
-    /// is reported rather than worked around: the alternative was a second
-    /// renderer nobody could see being used.
+    /// blends would draw the same frames twice. The scheduler caps
+    /// transitions, so a compiled script cannot produce this.
     #[error(
         "a shot is shorter than the transitions either side of it, so the \
          plan cannot be cut into chunks; this should not be reachable from \

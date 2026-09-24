@@ -1,9 +1,6 @@
-//! The fallback ladder over [`VoiceSource`].
-//!
-//! `VoiceSource` itself lives in `teleprompt-core` (see
-//! `teleprompt_core::voice`) because `teleprompt-schedule` names it too and
-//! must not depend on this crate. It is re-exported from here so backend code
-//! that already imports the ladder keeps a single import.
+//! The fallback ladder over [`VoiceSource`] (`docs/design.md#voice-tiers`).
+//! `VoiceSource` lives in `teleprompt-core` because `teleprompt-schedule`
+//! names it too and must not depend on this crate.
 
 pub use teleprompt_core::voice::VoiceSource;
 
@@ -14,9 +11,8 @@ pub struct Resolution {
     pub downgrade_reason: Option<String>,
 }
 
-/// Walks the ladder `recorded -> cloned -> synthetic`, stopping at the first
-/// tier `available` accepts. The reason recorded is the *first* rejection, not
-/// the last, so the message explains why the author's own voice was not used.
+/// The reason kept is the *first* rejection, so it explains why the tier
+/// the author asked for was not used.
 pub fn resolve_source(
     requested: VoiceSource,
     available: &dyn Fn(VoiceSource) -> Result<(), String>,

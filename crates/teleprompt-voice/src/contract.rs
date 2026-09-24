@@ -14,24 +14,16 @@ pub struct VoiceCapabilities {
     pub word_timings: bool,
     pub ssml: bool,
     pub speed_control: bool,
-    /// The backend's own version, not teleprompt's. Feeds
-    /// `teleprompt_cache::key`'s `backend_version`, which is what makes a
-    /// backend release turn over its cache entries instead of teleprompt's
-    /// own version doing that job for every backend at once.
+    /// The backend's own version, such as its model; part of the cache key
+    /// (`docs/design.md#voice-cache`).
     ///
-    /// **This is also the only handle a backend has on its own cache key.**
-    /// `teleprompt_cache::key` is built from `backend_id`, `backend_version`
-    /// and the `SynthRequest` — text, locale, voice, speed — and nothing
-    /// else. A backend whose output depends on configuration the request
-    /// does not carry (a model checkpoint, a `base_url`, a sample rate, a
-    /// vocoder setting) **must** fold that configuration into this string,
-    /// or two differently-configured instances share cache entries.
-    ///
-    /// The failure mode of getting this wrong is not a stale build: it is
-    /// serving one voice's audio under another voice's name, permanently,
-    /// with `plan` reporting it as `measured` and nothing above this layer
-    /// able to detect it. Version strings like
-    /// `format!("{model}-{revision}@{host}")` are the intended shape.
+    /// **The only handle a backend has on its cache key**, which otherwise
+    /// covers just the id and the [`SynthRequest`]. Configuration that
+    /// changes the audio but is not in the request (a model checkpoint, a
+    /// sample rate, a vocoder setting) **must** be folded in here, or two
+    /// differently configured instances silently serve each other's audio
+    /// as `measured`. Where the server is does not change the audio, so the
+    /// address stays out.
     pub version: String,
 }
 
@@ -50,10 +42,8 @@ pub struct WordTiming {
     pub end_ms: u64,
 }
 
-/// What a backend produces. Duration is deliberately absent: it is
-/// `pcm.duration_ms()`, so a backend cannot report a length its samples do
-/// not have. An earlier contract returned the two separately, and `dub`
-/// published a 3250 ms duration beside a 6500 ms file.
+/// What a backend produces. There is no separate duration: it is
+/// [`Pcm::duration_ms`] (`docs/design.md#voice-contract`).
 #[derive(Debug, Clone)]
 pub struct Synthesized {
     pub pcm: Pcm,
@@ -61,10 +51,8 @@ pub struct Synthesized {
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
-/// Interleaved 16-bit PCM. The one audio representation that crosses a
-/// backend boundary — encoders live downstream of this type, not inside
-/// backends, so every backend produces the same thing and only one place
-/// knows about file formats.
+/// Interleaved 16-bit PCM, the only audio that crosses the backend
+/// boundary. Encoding to a file format happens downstream, in one place.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pcm {
     pub sample_rate: u32,
@@ -73,8 +61,7 @@ pub struct Pcm {
 }
 
 impl Pcm {
-    /// Length in milliseconds, computed per *frame*: with two channels,
-    /// two samples are one instant in time, not two.
+    /// Computed per *frame*: with two channels, two samples are one instant.
     pub fn duration_ms(&self) -> u64 {
         let channels = self.channels.max(1) as u64;
         let rate = self.sample_rate.max(1) as u64;
@@ -85,38 +72,24 @@ impl Pcm {
 
 #[derive(Debug, thiserror::Error)]
 pub enum VoiceError {
-    /// `backend` is a `String`, not a `&'static str`: `id()` returns `&str`,
-    /// so a backend whose id is not a literal — one crate serving several
-    /// configured endpoints, which is the shape a network backend wants —
-    /// could not name itself in its own error. One allocation on an error
-    /// path is the whole cost.
+    /// `backend` is owned because an id need not be a literal (one crate can
+    /// serve several configured endpoints).
     #[error("backend `{backend}` does not support {what}")]
     Unsupported { backend: String, what: String },
     #[error("{0}")]
     Other(String),
 }
 
-/// One method that does the work, plus the two that let a caller holding
-/// only `dyn VoiceBackend` identify what it has.
-///
-/// There used to be a fourth method here — `as_any`, an escape hatch for
-/// capabilities genuinely one backend's own, such as listing a server's
-/// voices. It is gone: every caller that needed a backend-specific
-/// capability turned out to already be holding (or able to hold) the
-/// concrete type at the point it was constructed, so downcasting a trait
-/// object back into it was buying nothing the config layer did not already
-/// offer. See `teleprompt-cli`'s `Backends::kokoro` for where that capability
-/// now lives instead. A second server-backed backend needing the same thing
-/// is the signal that this contract should grow a real method for it —
-/// deliberately, not by re-adding a downcast.
+/// See `docs/design.md#voice-contract`. There is deliberately no downcast:
+/// a caller needing a backend's own methods (listing a server's voices)
+/// keeps the concrete type from construction, as `teleprompt-cli`'s
+/// `Backends::kokoro` does. A second backend needing the same thing means
+/// this trait should grow a real method.
 #[async_trait::async_trait]
 pub trait VoiceBackend: Send + Sync {
     fn id(&self) -> &str;
     fn capabilities(&self) -> VoiceCapabilities;
 
-    /// Turn text into audio. The only thing a backend does.
-    ///
-    /// Caching and duration prediction are teleprompt's concerns and appear
-    /// nowhere in this contract.
+    /// Caching and duration prediction are not the backend's concern.
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError>;
 }

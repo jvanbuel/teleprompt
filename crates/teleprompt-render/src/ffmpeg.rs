@@ -1,36 +1,22 @@
-//! Running ffmpeg, and the audio encode every render ends with.
-//!
-//! ffmpeg is invoked as a subprocess with an explicit argument vector,
-//! never a shell string and never linked. Linking libav would put clang and
-//! the libav headers in every build, and a distro ffmpeg built
-//! `--enable-gpl` inside an MIT binary. Invoking a subprocess is neither.
+//! ffmpeg as a subprocess with an explicit argument vector, never a shell
+//! string and never linked (`docs/design.md#rendering`).
 
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
 
 use crate::RenderError;
 
-/// The narration bed's sample rate. Matches what the voice crates emit, so
-/// mixing never resamples.
+/// The silent bed's rate: Kokoro's, so its lines mix without resampling.
+/// Lines at another rate (the null voice emits 48 kHz) are resampled in
+/// the mix.
 pub(crate) const SAMPLE_RATE: u32 = 24_000;
 
-/// What the finished file's audio track is, which is not what the bed is.
-///
-/// Mixing runs at whatever the voice backend emitted so nothing resamples
-/// on the way through, and that rate has no business deciding what comes
-/// out the other end. A render is a file people play — in a browser, on a
-/// phone, in whatever preview a review tool embeds — and 48 kHz stereo is
-/// what those players are built for. 24 kHz mono is legal AAC and a
-/// smaller file, and it is also the shape a player is most free to handle
-/// badly: the track is there, the container says so, and nothing comes
-/// out. One resample at the encode ends the argument, and costs a few
-/// hundred kilobytes.
+/// The output track, whatever the bed's rate: 48 kHz stereo is what players
+/// handle reliably (`docs/design.md#compose-cache`).
 pub(crate) const DELIVERY_SAMPLE_RATE: u32 = 48_000;
 
-/// Stereo, for the same reason.
 pub(crate) const DELIVERY_CHANNELS: u8 = 2;
 
-/// The audio half of an output encode.
 pub(crate) fn audio_encode(args: &mut Vec<String>) {
     args.extend([
         "-c:a".into(),
@@ -46,7 +32,6 @@ pub(crate) fn audio_encode(args: &mut Vec<String>) {
     ]);
 }
 
-/// Create the directory a render is about to write into.
 pub(crate) fn ensure_parent(path: &std::path::Path) -> Result<(), RenderError> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
@@ -59,18 +44,15 @@ pub(crate) fn ensure_parent(path: &std::path::Path) -> Result<(), RenderError> {
     Ok(())
 }
 
-/// Run ffmpeg to completion, reporting output time as it goes.
-///
-/// Getting this wrong is not a graph bug — it is a hang. ffmpeg is verbose enough on a long script to fill a pipe
-/// buffer, and a render nobody is draining stops there for ever.
+/// Run to completion, reporting output time as it goes. Both pipes must be
+/// drained: ffmpeg fills a pipe buffer on a long script, and then hangs.
 pub(crate) fn run(
     program: &str,
     args: &[String],
     on_out_time_ms: &mut dyn FnMut(u64),
 ) -> Result<(), RenderError> {
-    // `-progress pipe:1` writes machine-readable `key=value` lines to
-    // stdout, so nothing has to scrape the human-readable stderr — which
-    // is a log, not an interface, and changes between ffmpeg releases.
+    // `-progress pipe:1` gives machine-readable lines on stdout; stderr is
+    // a log whose format changes between releases.
     let mut child = Command::new(program)
         .args(["-nostdin", "-nostats", "-progress", "pipe:1"])
         .args(args)
@@ -83,8 +65,7 @@ pub(crate) fn run(
             source,
         })?;
 
-    // stderr is drained on its own thread. A render that fills the pipe
-    // buffer while nobody reads it deadlocks.
+    // Drained on its own thread, or a full stderr pipe deadlocks.
     let mut err = child.stderr.take().expect("stderr was piped");
     let draining = std::thread::spawn(move || {
         let mut buf = String::new();
@@ -94,9 +75,7 @@ pub(crate) fn run(
 
     let out = child.stdout.take().expect("stdout was piped");
     for line in BufReader::new(out).lines().map_while(Result::ok) {
-        // `out_time_us` is microseconds of output written so far. The
-        // older `out_time_ms` key is also microseconds despite its name,
-        // which is a trap worth not walking into.
+        // Not `out_time_ms`, which is also microseconds despite its name.
         if let Some(us) = line.strip_prefix("out_time_us=") {
             if let Ok(us) = us.trim().parse::<u64>() {
                 on_out_time_ms(us / 1000);
@@ -119,9 +98,7 @@ pub(crate) fn run(
     Ok(())
 }
 
-/// ffmpeg's last words. The interesting line of a failure is the last one;
-/// everything above it is the input report, which is long and, when the
-/// graph is at fault, irrelevant.
+/// The failure is at the end; above it is the long input report.
 fn tail(stderr: &str) -> String {
     let lines: Vec<&str> = stderr.lines().collect();
     let from = lines.len().saturating_sub(20);

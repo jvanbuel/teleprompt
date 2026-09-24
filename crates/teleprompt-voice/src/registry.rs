@@ -3,11 +3,8 @@ use std::sync::Arc;
 
 use crate::contract::VoiceBackend;
 
-/// Mirrors `SceneRegistry`. `BTreeMap` so `available()` is ordered and
-/// `doctor`'s output does not depend on insertion order.
-///
-/// `Arc`, not `Box`: `dub` synthesizes lines concurrently, so the backend
-/// is shared across tasks.
+/// Ordered so `doctor`'s output does not depend on insertion order. `Arc`
+/// because `dub` shares a backend across concurrent synthesis tasks.
 #[derive(Default)]
 pub struct VoiceRegistry {
     backends: BTreeMap<String, Arc<dyn VoiceBackend>>,
