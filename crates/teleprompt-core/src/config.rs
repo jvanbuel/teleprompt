@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::de::IgnoredAny;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::attrs::{BlockAttrs, LineAttrs};
 use crate::DurationMs;
@@ -100,9 +100,73 @@ impl<'de> Deserialize<'de> for TransitionDuration {
     }
 }
 
+/// How one shot gives way to the next. The kinds the renderer draws have a
+/// variant each; the vocabulary stays open, and any other name is kept as
+/// written in [`OtherKind`], which the renderer draws as a fade.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TransitionKind {
+    Crossfade,
+    Dissolve,
+    Wipe,
+    /// No blend: what a shot that nothing follows gets.
+    Cut,
+    Other(OtherKind),
+}
+
+/// A transition name teleprompt does not know. Only [`TransitionKind::parse`]
+/// makes one, so it is never a known name in disguise.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OtherKind(String);
+
+impl OtherKind {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TransitionKind {
+    pub fn parse(name: &str) -> Self {
+        match name {
+            "crossfade" => Self::Crossfade,
+            "dissolve" => Self::Dissolve,
+            "wipe" => Self::Wipe,
+            "cut" => Self::Cut,
+            other => Self::Other(OtherKind(other.to_string())),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Crossfade => "crossfade",
+            Self::Dissolve => "dissolve",
+            Self::Wipe => "wipe",
+            Self::Cut => "cut",
+            Self::Other(other) => other.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for TransitionKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for TransitionKind {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for TransitionKind {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(Self::parse(&String::deserialize(d)?))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransitionConfig {
-    pub kind: String,
+    pub kind: TransitionKind,
     pub duration: TransitionDuration,
     pub min_ms: DurationMs,
     pub max_ms: DurationMs,
@@ -157,7 +221,7 @@ impl Default for Config {
                 max_speedup: 2.0,
             },
             transition: TransitionConfig {
-                kind: "crossfade".into(),
+                kind: TransitionKind::Crossfade,
                 duration: TransitionDuration::Auto,
                 min_ms: DurationMs::ZERO,
                 max_ms: DurationMs::millis(600),
@@ -272,7 +336,7 @@ impl<'de> Deserialize<'de> for Resolution {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialTransition {
-    pub kind: Option<String>,
+    pub kind: Option<TransitionKind>,
     pub duration: Option<TransitionDuration>,
     pub min_ms: Option<DurationMs>,
     pub max_ms: Option<DurationMs>,

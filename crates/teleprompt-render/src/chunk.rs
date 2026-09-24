@@ -9,6 +9,7 @@
 //! not add up to the whole; the last chunk absorbs the difference.
 
 use std::path::{Path, PathBuf};
+use teleprompt_core::config::TransitionKind;
 use teleprompt_core::time;
 
 use teleprompt_core::Hash;
@@ -41,7 +42,7 @@ pub enum Content {
     /// The whole of a transition, so it never invalidates the bodies it
     /// joins.
     Blend {
-        kind: String,
+        kind: TransitionKind,
         from: Window,
         to: Window,
     },
@@ -210,7 +211,7 @@ impl<'a> ChunkKey<'a> {
             }
             Content::Blend { kind, from, to } => {
                 fields.push("blend".into());
-                fields.push(kind.clone());
+                fields.push(kind.as_str().to_string());
                 push_window(&mut fields, from, clip)?;
                 push_window(&mut fields, to, clip)?;
             }

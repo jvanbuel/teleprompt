@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use teleprompt_core::config::TransitionKind;
 use teleprompt_core::{DurationSource, Hash, PolicyKind, VoiceSource, VoiceTier};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -108,7 +109,7 @@ pub struct ActionEntry {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransitionEntry {
-    pub kind: String,
+    pub kind: TransitionKind,
     pub duration_ms: u64,
 }
 

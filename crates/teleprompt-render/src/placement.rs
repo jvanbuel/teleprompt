@@ -2,6 +2,7 @@
 //! [`crate::chunk`] then cuts into chunks.
 
 use crate::{Picture, RenderPlan};
+use teleprompt_core::config::TransitionKind;
 
 /// A slate's colour, and the padding around a clip smaller than the frame.
 pub(crate) const BACKGROUND: &str = "0x0b0d10";
@@ -19,7 +20,7 @@ pub(crate) struct Placement {
     pub picture: Picture,
     /// Kind and overlap of the join with the placement before, the overlap
     /// read off the shots' offsets (see [`crate::Shot::transition`]).
-    pub blend: Option<(String, u64)>,
+    pub blend: Option<(TransitionKind, u64)>,
 }
 
 /// Covers `[0, plan.duration_ms)` exactly.
@@ -95,10 +96,10 @@ pub(crate) fn placements(plan: &RenderPlan) -> Vec<Placement> {
 
 /// An unknown kind fades rather than failing: the scheduler has already
 /// given it time, and refusing to draw it would leave a hole.
-pub(crate) fn xfade_for(kind: &str) -> &'static str {
+pub(crate) fn xfade_for(kind: &TransitionKind) -> &'static str {
     match kind {
-        "dissolve" => "dissolve",
-        "wipe" => "wiperight",
-        _ => "fade",
+        TransitionKind::Dissolve => "dissolve",
+        TransitionKind::Wipe => "wiperight",
+        TransitionKind::Crossfade | TransitionKind::Cut | TransitionKind::Other(_) => "fade",
     }
 }

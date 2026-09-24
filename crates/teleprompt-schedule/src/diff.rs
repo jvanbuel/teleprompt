@@ -2,6 +2,7 @@
 //! iterates `BTreeMap`s keyed by item id, so output is byte-stable.
 
 use std::collections::BTreeMap;
+use teleprompt_core::config::TransitionKind;
 use teleprompt_core::time::short;
 use teleprompt_core::{DurationSource, VoiceSource};
 
@@ -61,8 +62,8 @@ pub struct ReorderedBeat {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ChangedTransition {
     pub item: String,
-    pub before_kind: String,
-    pub after_kind: String,
+    pub before_kind: TransitionKind,
+    pub after_kind: TransitionKind,
     pub before_ms: u64,
     pub after_ms: u64,
 }

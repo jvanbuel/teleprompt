@@ -8,6 +8,7 @@ mod placement;
 pub mod plan;
 
 use std::path::PathBuf;
+use teleprompt_core::config::TransitionKind;
 
 /// Every offset is already decided: a renderer does no scheduling, so a
 /// wrong number here was wrong in the manifest too.
@@ -38,7 +39,7 @@ pub struct Shot {
 /// How one shot gives way to the next.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transition {
-    pub kind: String,
+    pub kind: TransitionKind,
     pub duration_ms: u64,
 }
 
@@ -46,7 +47,7 @@ impl Transition {
     /// A hard cut, which is what a shot that nothing follows also gets.
     pub fn cut() -> Self {
         Self {
-            kind: "cut".into(),
+            kind: TransitionKind::Cut,
             duration_ms: 0,
         }
     }

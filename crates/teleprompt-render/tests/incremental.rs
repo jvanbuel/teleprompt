@@ -9,6 +9,7 @@
 
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use teleprompt_core::config::TransitionKind;
 
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::{Narration, Picture, RenderPlan, Shot, Transition};
@@ -308,7 +309,7 @@ fn a_crossfade_survives_being_a_chunk_of_its_own() {
     let clip = bright_clip(&dir, "clip.mp4");
     let mut plan = plan(&dir, &clip, &[(0, 2_000), (1_500, 2_000)], 3_500);
     plan.shots[0].transition = Transition {
-        kind: "crossfade".into(),
+        kind: TransitionKind::Crossfade,
         duration_ms: 500,
     };
 
@@ -359,7 +360,7 @@ fn a_plan_that_cannot_be_cut_is_reported_rather_than_rerouted() {
     );
     for shot in &mut plan.shots {
         shot.transition = Transition {
-            kind: "crossfade".into(),
+            kind: TransitionKind::Crossfade,
             duration_ms: 400,
         };
     }

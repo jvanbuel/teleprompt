@@ -6,6 +6,7 @@
 //! what moved. Both are arithmetic, so both are tested without ffmpeg.
 
 use std::path::{Path, PathBuf};
+use teleprompt_core::config::TransitionKind;
 
 use teleprompt_core::Hash;
 use teleprompt_render::chunk::{self, Chunk, ChunkKey, Content, Source};
@@ -31,7 +32,7 @@ fn shot(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Shot {
 fn blended(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Shot {
     Shot {
         transition: Transition {
-            kind: "xfade".into(),
+            kind: TransitionKind::parse("xfade"),
             duration_ms: 400,
         },
         ..shot(id, start_ms, duration_ms, clip)
@@ -123,7 +124,7 @@ fn a_transition_becomes_a_chunk_of_its_own() {
         shot("b#0", 1_600, 2_000, "/clips/b.mp4"),
     ];
     shots[0].transition = Transition {
-        kind: "dissolve".into(),
+        kind: TransitionKind::Dissolve,
         duration_ms: 400,
     };
     let plan = plan(shots, 3_600);
@@ -133,7 +134,7 @@ fn a_transition_becomes_a_chunk_of_its_own() {
     let Content::Blend { kind, from, to } = &chunks[1].content else {
         panic!("the middle chunk is the blend: {chunks:#?}");
     };
-    assert_eq!(kind, "dissolve");
+    assert_eq!(*kind, TransitionKind::Dissolve);
     assert_eq!(chunks[1].frames, 10, "400ms at 25fps");
     assert_eq!(from.frames, 10);
     assert_eq!(to.frames, 10);
@@ -159,7 +160,7 @@ fn the_shots_either_side_of_a_blend_give_up_the_frames_it_uses() {
         shot("b#0", 1_600, 2_000, "/clips/b.mp4"),
     ];
     shots[0].transition = Transition {
-        kind: "crossfade".into(),
+        kind: TransitionKind::Crossfade,
         duration_ms: 400,
     };
     let plan = plan(shots, 3_600);
@@ -270,7 +271,7 @@ fn a_shot_shorter_than_the_blends_around_it_does_not_split() {
     ];
     for b in &mut shots {
         b.transition = Transition {
-            kind: "crossfade".into(),
+            kind: TransitionKind::Crossfade,
             duration_ms: 400,
         };
     }

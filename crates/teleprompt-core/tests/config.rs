@@ -169,7 +169,7 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
     assert_eq!(c.locales.source, "en");
     assert_eq!(c.locales.targets, ["nl", "fr"]);
     assert_eq!(c.voice.source, "synthetic");
-    assert_eq!(c.transition.kind, "crossfade");
+    assert_eq!(c.transition.kind.as_str(), "crossfade");
     assert_eq!(c.transition.duration, TransitionDuration::Auto);
     assert_eq!(c.transition.max_ms, DurationMs::millis(600));
 
@@ -352,4 +352,25 @@ fn a_configured_duration_longer_than_a_day_is_an_error() {
     }
     assert!(PartialConfig::from_yaml("timing:\n  lead_in_ms: 86400001\n").is_err());
     assert!(PartialConfig::from_toml("[timing]\nlead_in_ms = 86400000\n").is_ok());
+}
+
+/// Every kind the renderer draws has a variant, and the vocabulary stays
+/// open: any other name is kept, spelled as written, and can never be one
+/// of the known kinds in disguise.
+#[test]
+fn transition_kinds_parse_to_their_variant_or_stay_as_written() {
+    use teleprompt_core::config::TransitionKind;
+    for (name, kind) in [
+        ("crossfade", TransitionKind::Crossfade),
+        ("dissolve", TransitionKind::Dissolve),
+        ("wipe", TransitionKind::Wipe),
+        ("cut", TransitionKind::Cut),
+    ] {
+        assert_eq!(TransitionKind::parse(name), kind);
+        assert_eq!(kind.to_string(), name);
+    }
+    let slide = TransitionKind::parse("slide");
+    assert!(matches!(slide, TransitionKind::Other(_)));
+    assert_eq!(slide.to_string(), "slide");
+    assert_eq!(serde_json::to_string(&slide).unwrap(), "\"slide\"");
 }

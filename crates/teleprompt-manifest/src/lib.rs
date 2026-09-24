@@ -3,6 +3,7 @@
 //! the preview and outside consumers read it.
 
 use serde::{Deserialize, Serialize};
+use teleprompt_core::config::TransitionKind;
 use teleprompt_core::{DurationSource, Hash, PolicyKind, VoiceSource, VoiceTier};
 
 /// Incremented on any change a consumer must not silently miss, including
@@ -76,7 +77,7 @@ pub struct ShotEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransitionOut {
-    pub kind: String,
+    pub kind: TransitionKind,
     pub duration_ms: u64,
 }
 

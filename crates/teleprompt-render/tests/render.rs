@@ -9,6 +9,7 @@
 //! anything without telling you.
 
 use std::process::Command;
+use teleprompt_core::config::TransitionKind;
 
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::{Narration, Picture, RenderPlan, Shot, Transition};
@@ -196,7 +197,7 @@ fn a_crossfade_overlaps_the_shots_it_joins() {
                 duration_ms: 2_000,
                 picture: Picture::Slate,
                 transition: Transition {
-                    kind: "crossfade".into(),
+                    kind: TransitionKind::Crossfade,
                     duration_ms: 500,
                 },
             },
