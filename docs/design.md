@@ -227,6 +227,13 @@ drift check.
 A corrupt or truncated entry reads as a miss with a reason, and it is
 overwritten on the next synthesis. Nothing ever needs a manual clean.
 
+Each file is written to a temporary path and renamed into place, audio
+before sidecar, and lookups key off the sidecar, so an interrupted store
+reads as a miss. Two `dub` processes storing one key could still
+interleave into a valid sidecar beside audio it doesn't describe, so
+publishing the audio is also an exclusive claim. One writer wins and the
+other adopts its entry.
+
 ### Voice tiers
 
 `voice.source` requests a tier: `synthetic`, `cloned` or `recorded`. When
@@ -381,7 +388,7 @@ produce two different pictures. The key is a chain, in the same way as
 OCI's chain ID:
 
 ```
-name(n)  = H(adapter, scene config, inputs, shot source)
+name(n)  = H(recipe, adapter, scene config, inputs, shot source)
 chain(0) = H(name(0))
 chain(n) = H(chain(n-1) ‖ name(n))
 ```
@@ -392,6 +399,13 @@ another scene. Moving a paragraph changes start times but no key, because
 position is not in the key. Slot length enters through `retime`: a re-timed
 shot's source is the source that will be captured. An adapter whose
 `continues` is false names each shot by `name(n)` alone.
+
+The *recipe* (`CAPTURE_RECIPE` in `teleprompt-compile`) versions how
+teleprompt draws a picture: the recorder's version, the tape or script it
+writes around a shot, a changed default. Bump it when the picture for the
+same script changes, since neither the adapter name nor the author's
+settings would move. `inputs` are the scene's `inputs` and the shot's
+`shot_inputs`, hashed by content.
 
 A block joins its scene's default session. `session="…"` starts another
 session, for a script that quits a program and starts it again. The

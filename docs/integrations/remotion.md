@@ -7,8 +7,9 @@ is the whole integration, and the seam between them is one file:
 > This page is the route where Remotion owns the *whole* video. Where
 > teleprompt should own the video and Remotion draw some of its scenes,
 > use a `scene=` block whose adapter is `remotion` instead: it renders
-> your project's own compositions by id — see "Motion graphics" in the
-> README and `examples/remotion`.
+> your project's own compositions by id — see
+> [Motion graphics](../guide/scenes.md#motion-graphics) and
+> `examples/remotion`.
 
 ```bash
 teleprompt dub scripts/tour.md --out public/narration
@@ -23,9 +24,8 @@ public/narration/en/audio/welcome.wav
 `staticFile()` serves from `public/`.
 
 **The example below is not compiled by this repository's CI.** teleprompt takes
-no Remotion dependency and the workspace ships no Node, which is deliberate
-(README: "No network, no browser, no Node, and no ffmpeg are required"). The
-code here is copy-paste material, kept short enough to audit by eye. If it
+no Remotion dependency and the workspace ships no Node, which is deliberate.
+The code here is copy-paste material, kept short enough to audit by eye. If it
 drifts from the manifest, the manifest is right and this document is wrong —
 `crates/teleprompt-compile/src/manifest.rs` is the source of truth, and
 `manifest_version` moves when its shape does.
@@ -43,7 +43,7 @@ drifts from the manifest, the manifest is right and this document is wrong —
   "chapters": [
     { "id": "the-manual-is-the-program", "title": "The manual is the program", "start_ms": 150 }
   ],
-  "segments": [
+  "lines": [
     {
       "id": "prose-and-action",
       "text": "That is the whole idea. Prose is narration…",
@@ -58,6 +58,21 @@ drifts from the manifest, the manifest is right and this document is wrong —
       "source_hash": "8c0fae65…",
       "audio_hash": "af7823e0…"
     }
+  ],
+  "shots": [
+    {
+      "shot": "prose-and-action-a#0",
+      "line": "prose-and-action",
+      "scene": "terminal",
+      "adapter": "vhs",
+      "start_ms": 32581,
+      "duration_ms": 2630,
+      "duration_source": "exact",
+      "policy": "hold",
+      "transition": { "kind": "crossfade", "duration_ms": 300 },
+      "shot_hash": "c590e04a…",
+      "capture_key": "cc98e507…"
+    }
   ]
 }
 ```
@@ -65,16 +80,16 @@ drifts from the manifest, the manifest is right and this document is wrong —
 Four fields that are easy to skip and worth wiring up:
 
 - **`duration_source`** — `measured` from real audio, `estimated` from the
-  word-count model. Render estimated segments with a visible marker during
+  word-count model. Render estimated lines with a visible marker during
   development; a re-dub will move every one of them.
 - **`audio_hash`** — hash of the encoded file's bytes. Key a render cache on it
-  and skip re-encoding unchanged segments. Repeated values are not a bug: the
-  `null` backend emits silence, so equal-length segments hash equally.
-- **`chapter`** — the slug of the chapter a segment was spoken in. Published
+  and skip re-encoding unchanged lines. Repeated values are not a bug: the
+  `null` backend emits silence, so equal-length lines hash equally.
+- **`chapter`** — the slug of the chapter a line was spoken in. Published
   because `chapters` omits chapters nobody speaks in, so reconstructing this
   from timestamps is lossy.
 - **`words`** — per-word `start_ms`/`end_ms`, present only when the backend
-  provides them. The key is absent rather than empty, so `segment.words &&`
+  provides them. The key is absent rather than empty, so `line.words &&`
   is a real test.
 
 ## Types
@@ -90,25 +105,28 @@ export type Manifest = {
   duration_ms: number;
   audio: { format: string; sample_rate: number; channels: number };
   chapters: { id: string; title: string; start_ms: number }[];
-  segments: Segment[];
-  beats: Beat[];
+  lines: Line[];
+  shots: Shot[];
 };
 
-export type Beat = {
-  span: string;
-  /** The segment spoken over this span, or null for one after a mark. */
-  segment: string | null;
+export type Shot = {
+  shot: string;
+  /** The line spoken over this shot, or null for one after a mark. */
+  line: string | null;
   scene: string;
   adapter: string;
   start_ms: number;
   duration_ms: number;
-  duration_source: "exact" | "measured" | "estimated";
-  policy: "hold" | "concurrent" | "fit-action" | "trim-action";
+  duration_source: "exact" | "measured" | "estimated" | "unknown";
+  policy: "hold" | "concurrent" | "stretch-action" | "trim-action";
   transition: { kind: string; duration_ms: number };
-  span_hash: string;
+  shot_hash: string;
+  capture_key: string;
+  /** Present only for a block with `session="…"`. */
+  session?: string;
 };
 
-export type Segment = {
+export type Line = {
   id: string;
   text: string;
   chapter: string;
@@ -185,29 +203,29 @@ export const Narrated = ({ manifest }: { manifest: Manifest }) => {
 
   return (
     <AbsoluteFill style={{ background: "#0b0d10" }}>
-      {manifest.segments.map((segment) => {
+      {manifest.lines.map((line) => {
         // Convert both absolute offsets to frames, then subtract. Two ways to
         // get this wrong, both of which look fine on a short script:
         //
         //   * rounding `duration_ms` on its own accumulates error and drifts
         //     the audio out of sync by the end of a long video;
-        //   * taking the next segment's `start_ms` as this one's end clips the
-        //     tail of the speech, because consecutive beats overlap wherever a
-        //     transition was subtracted from the preceding one.
+        //   * taking the next line's `start_ms` as this one's end stretches a
+        //     line across the gap an action or pause leaves after it, and
+        //     clips it where a fixed transition makes two lines overlap.
         //
-        // A segment's own `start_ms + duration_ms` is authoritative.
-        const from = frameAt(segment.start_ms, fps);
-        const until = frameAt(segment.start_ms + segment.duration_ms, fps);
+        // A line's own `start_ms + duration_ms` is authoritative.
+        const from = frameAt(line.start_ms, fps);
+        const until = frameAt(line.start_ms + line.duration_ms, fps);
 
         return (
           <Sequence
-            key={segment.id}
-            name={segment.id}
+            key={line.id}
+            name={line.id}
             from={from}
             durationInFrames={until - from}
           >
-            <Audio src={staticFile(DIR + segment.audio)} />
-            <Caption segment={segment} />
+            <Audio src={staticFile(DIR + line.audio)} />
+            <Caption line={line} />
           </Sequence>
         );
       })}
@@ -220,9 +238,9 @@ export const Narrated = ({ manifest }: { manifest: Manifest }) => {
 
 ```tsx
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import type { Segment } from "./manifest";
+import type { Line } from "./manifest";
 
-export const Caption = ({ segment }: { segment: Segment }) => {
+export const Caption = ({ line }: { line: Line }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   // Relative to this Sequence, which is what `words` offsets are relative to.
@@ -230,12 +248,12 @@ export const Caption = ({ segment }: { segment: Segment }) => {
 
   return (
     <p style={{ position: "absolute", bottom: 80, padding: "0 120px", color: "#eef3f8" }}>
-      {segment.words
-        ? segment.words.map((w, i) => (
+      {line.words
+        ? line.words.map((w, i) => (
             <span key={i} style={{ opacity: ms >= w.start_ms ? 1 : 0.35 }}>{w.text} </span>
           ))
-        : segment.text}
-      {segment.duration_source === "estimated" && (
+        : line.text}
+      {line.duration_source === "estimated" && (
         <span title="not yet dubbed; this timing will move" style={{ color: "#febc2e" }}> ~</span>
       )}
     </p>
@@ -261,41 +279,44 @@ render and needs a writable checkout.
 
 ## Placing the picture
 
-`beats` is the other half: one entry per scheduled action span, carrying the
+`shots` is the other half: one entry per scheduled action shot, carrying the
 numbers the **scheduler** arrived at rather than the ones the adapter proposed.
 That difference is the whole point — it is what separates replaying a tape at
 its authored pace from replaying it at the pace its narration bought.
 
 ```tsx
-{manifest.beats.map((beat) => {
-  const from = frameAt(beat.start_ms, fps);
-  const until = frameAt(beat.start_ms + beat.duration_ms, fps);
+{manifest.shots.map((shot) => {
+  const from = frameAt(shot.start_ms, fps);
+  const until = frameAt(shot.start_ms + shot.duration_ms, fps);
   return (
-    <Sequence key={beat.span} name={beat.span} from={from} durationInFrames={until - from}>
-      <Scene beat={beat} />
+    <Sequence key={shot.shot} name={shot.shot} from={from} durationInFrames={until - from}>
+      <Scene shot={shot} />
     </Sequence>
   );
 })}
 ```
 
-Same arithmetic as a segment, for the same reasons. A few notes on the fields:
+Same arithmetic as a line, for the same reasons. A few notes on the fields:
 
-- **`segment`** is `null` for a span that follows a mark inside a block — the
-  narration belongs to the block's first span, and the rest run under whatever
+- **`line`** is `null` for a shot that follows a mark inside a block — the
+  narration belongs to the block's first shot, and the rest run under whatever
   the policy left of it. It is also `null` for a pause.
-- **`scene: "pause"`** is a beat during which the picture holds. Skipping it
-  runs the next span early.
-- **`duration_source: "exact"`** means the adapter's language states the span's
-  timing in full, so no measuring pass will ever move it. A tape containing
-  `Wait` reports `estimated` instead, bounded by its timeout.
+- **`scene: "pause"`** is a shot during which the picture holds. Skipping it
+  runs the next shot early.
+- **`duration_source: "exact"`** means the adapter's language states the
+  shot's timing in full. A tape containing `Wait` reports `estimated`
+  instead, bounded by its timeout, and a Playwright script reports
+  `unknown` and takes its line's length.
 - **`transition`** is the outgoing transition as scheduled. Deriving gaps from
   neighbouring offsets instead is the arithmetic that goes wrong exactly where
-  beats overlap.
-- **`span_hash`** keys a per-span render cache, the counterpart of a segment's
-  `audio_hash`.
+  items overlap.
+- **`shot_hash`** identifies the shot's own source, the counterpart of a
+  line's `audio_hash`. **`capture_key`** identifies its *picture*: its source
+  and every shot before it in the same session, since the same keystroke can
+  show two different screens. Key a per-shot render cache on `capture_key`.
 
-What the manifest still does not carry is the span's **source** — the tape or
-the Playwright script. A consumer that draws its own picture does not need it;
+What the manifest does not carry is the shot's **source** — the tape or the
+Playwright script. A consumer that draws its own picture does not need it;
 one that wants to replay the adapter's own actions does, and that is the
 renderer's business rather than an integrator's.
 
@@ -304,7 +325,6 @@ renderer's business rather than an integrator's.
 This route ships no Remotion code and takes no Remotion dependency. The
 `remotion` scene adapter is the other direction — teleprompt owns the video
 and renders the project's compositions into it — and it too uses the
-project's own Remotion install rather than bundling one; see "Motion
-graphics" in the README. Remotion's
-own licence — free for individuals and organisations up to three employees —
+project's own Remotion install rather than bundling one. Remotion's own
+licence — free for individuals and organisations up to three employees —
 is between you and Remotion.
