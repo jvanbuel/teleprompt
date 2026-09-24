@@ -118,34 +118,39 @@ impl CaptureBackend for AsciinemaRender {
         let cast = session_cast(session).map_err(|(s, why)| failed(&s, why))?;
 
         let work = out_dir.join(format!(".asciinema-{}", std::process::id()));
-        let result = self.render(
+        let request = Request {
             session,
             frame,
-            &cast,
-            &work,
             out_dir,
-            on_progress,
-            &failed,
-            &first,
-        );
+        };
+        let result = self.render(&request, &cast, &work, on_progress, &failed, &first);
         let _ = std::fs::remove_dir_all(&work);
         result
     }
 }
 
+/// What [`CaptureBackend::capture`] was asked to record, and where.
+struct Request<'a> {
+    session: &'a Session,
+    frame: &'a Frame,
+    out_dir: &'a Path,
+}
+
 impl AsciinemaRender {
-    #[allow(clippy::too_many_arguments)]
     fn render(
         &self,
-        session: &Session,
-        frame: &Frame,
+        request: &Request<'_>,
         cast: &Cast,
         work: &Path,
-        out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
         failed: &dyn Fn(&str, String) -> CaptureError,
         first: &str,
     ) -> Result<Vec<Clip>, CaptureError> {
+        let Request {
+            session,
+            frame,
+            out_dir,
+        } = *request;
         let io = |e: std::io::Error| failed(first, format!("{}: {e}", work.display()));
         std::fs::create_dir_all(work).map_err(io)?;
         let (input, gif, reel) = (

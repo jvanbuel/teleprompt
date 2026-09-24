@@ -148,6 +148,10 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
         None => (head, None),
     };
 
+    if let Some(err) = refused(cmd) {
+        return Err(err);
+    }
+
     match cmd {
         "Sleep" => {
             let Some(value) = parts.next() else {
@@ -177,38 +181,9 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
 
         "Set" => setting(parts.next(), parts.next()),
 
-        // teleprompt writes the tape's `Output`; another would be a second,
-        // unscheduled artifact.
-        "Output" => Err(CommandError::new(
-            "`Output` is set by teleprompt, not by the tape",
-            "remove the line; the compiler routes frames to the timeline",
-        )),
-
-        // A sourced tape is spliced in at run time, after `shots` has split
-        // the block, so its marks would be ignored.
-        "Source" => Err(CommandError::new(
-            "`Source` runs another tape inline, which hides its marks from the shot split",
-            "load the other tape with the fence's `include=` attribute instead",
-        )),
-
         w if w.starts_with("Wait") => wait(w, at, line[head.len()..].trim()),
 
-        key if is_key(key) => {
-            let count = match parts.next() {
-                None => 1,
-                Some(value) => value.parse::<u64>().map_err(|_| {
-                    CommandError::new(
-                        format!("`{key}` takes an optional repeat count, found `{value}`"),
-                        "e.g. `Enter 3`",
-                    )
-                })?,
-            };
-            Ok(Command::Keys {
-                key: key.to_string(),
-                count,
-                speed: at,
-            })
-        }
+        key if is_key(key) => keys(key, parts.next(), at),
 
         HIDE => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Command::Hide),
         SHOW => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Command::Show),
@@ -236,19 +211,6 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
         }
         "Paste" => reject_trailing(cmd, line[head.len()..].trim()).map(|()| Command::Paste),
 
-        // A scene's blocks share one shell whose environment is settled
-        // before the first runs, so a block cannot change it.
-        "Env" => Err(CommandError::new(
-            "`Env` is set by teleprompt, not by the tape",
-            "put it under `scene.<name>.env` in the project config",
-        )),
-
-        // Refused for the reason `Output` is.
-        "Screenshot" => Err(CommandError::new(
-            "`Screenshot` is written by teleprompt, not by the tape",
-            "remove the line; every shot's last frame is already kept",
-        )),
-
         other => Err(CommandError::new(
             format!("unknown VHS command `{other}`"),
             match capitalisation_of(other) {
@@ -258,6 +220,56 @@ pub fn classify(line: &str) -> Result<Command, CommandError> {
             },
         )),
     }
+}
+
+/// `<key> [count]`, pressed `count` times.
+fn keys(key: &str, count: Option<&str>, speed: Option<u64>) -> Result<Command, CommandError> {
+    let count = match count {
+        None => 1,
+        Some(value) => value.parse::<u64>().map_err(|_| {
+            CommandError::new(
+                format!("`{key}` takes an optional repeat count, found `{value}`"),
+                "e.g. `Enter 3`",
+            )
+        })?,
+    };
+    Ok(Command::Keys {
+        key: key.to_string(),
+        count,
+        speed,
+    })
+}
+
+/// The error for a VHS command that teleprompt refuses in a tape, or `None`
+/// if `cmd` is not one of them.
+fn refused(cmd: &str) -> Option<CommandError> {
+    let (message, help) = match cmd {
+        // teleprompt writes the tape's `Output`; another would be a second,
+        // unscheduled artifact.
+        "Output" => (
+            "`Output` is set by teleprompt, not by the tape",
+            "remove the line; the compiler routes frames to the timeline",
+        ),
+        // A sourced tape is spliced in at run time, after `shots` has split
+        // the block, so its marks would be ignored.
+        "Source" => (
+            "`Source` runs another tape inline, which hides its marks from the shot split",
+            "load the other tape with the fence's `include=` attribute instead",
+        ),
+        // A scene's blocks share one shell whose environment is settled
+        // before the first runs, so a block cannot change it.
+        "Env" => (
+            "`Env` is set by teleprompt, not by the tape",
+            "put it under `scene.<name>.env` in the project config",
+        ),
+        // Refused for the reason `Output` is.
+        "Screenshot" => (
+            "`Screenshot` is written by teleprompt, not by the tape",
+            "remove the line; every shot's last frame is already kept",
+        ),
+        _ => return None,
+    };
+    Some(CommandError::new(message, help))
 }
 
 /// `Set <name> <value>`. An unknown name is an error: see

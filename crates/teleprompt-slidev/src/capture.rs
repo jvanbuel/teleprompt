@@ -183,35 +183,40 @@ impl CaptureBackend for SlidevRender {
                 ))
             })
             .and_then(|()| {
-                self.encode(
+                let request = Request {
                     session,
-                    &wanted,
-                    &steps,
-                    &stills,
                     frame,
                     out_dir,
-                    on_progress,
-                    &failed,
-                )
+                };
+                self.encode(&request, &wanted, &steps, &stills, on_progress, &failed)
             });
         let _ = std::fs::remove_dir_all(&stills);
         result
     }
 }
 
+/// What [`CaptureBackend::capture`] was asked to record, and where.
+struct Request<'a> {
+    session: &'a Session,
+    frame: &'a Frame,
+    out_dir: &'a Path,
+}
+
 impl SlidevRender {
-    #[allow(clippy::too_many_arguments)]
     fn encode(
         &self,
-        session: &Session,
+        request: &Request<'_>,
         wanted: &[&teleprompt_capture::SessionShot],
         steps: &[Step],
         stills: &Path,
-        frame: &Frame,
-        out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
         failed: &dyn Fn(&str, String) -> CaptureError,
     ) -> Result<Vec<Clip>, CaptureError> {
+        let Request {
+            session,
+            frame,
+            out_dir,
+        } = *request;
         let mut clips = Vec::new();
         for (shot, step) in wanted.iter().zip(steps) {
             let still = stills.join(still_name(*step));
