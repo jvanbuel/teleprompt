@@ -146,7 +146,7 @@ async fn warm(
         shape.get_or_insert((rate, channels));
     }
 
-    let (sample_rate, channels) = shape.unwrap_or((24_000, 1));
+    let (sample_rate, channels) = shape.unwrap_or((crate::cmd::dub::NO_AUDIO_SAMPLE_RATE, 1));
     Ok(AudioInfo {
         format: "wav".to_string(),
         sample_rate,
@@ -515,6 +515,33 @@ mod tests {
             "the edit was never seen"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// With no narration there is no audio to read a format from, and the
+    /// preview must still publish what `dub` does (#24).
+    #[tokio::test]
+    async fn a_script_with_no_narration_publishes_the_audio_format_dub_does() {
+        let dir = teleprompt_testkit::test_dir("serve-silent");
+        crate::cmd::new::scaffold(&dir).unwrap();
+        let script = dir.join("scripts/silent.md");
+        std::fs::write(&script, "---\nteleprompt: 1\n---\n\n# Silence\n").unwrap();
+        let project = Project::discover(&dir).unwrap();
+
+        let served = rebuild(&project, &script, "en", None).await.unwrap();
+        let dubbed = match crate::cmd::dub::run_dub(
+            &project,
+            &script,
+            "en",
+            &dir.join("out"),
+            false,
+        )
+        .await
+        {
+            Ok(out) => out,
+            Err(crate::cmd::dub::DubError::Validation(e)) => panic!("{e:?}"),
+            Err(crate::cmd::dub::DubError::Runtime(e)) => panic!("{e}"),
+        };
+        assert_eq!(served.manifest.audio, dubbed.manifest.audio);
     }
 
     #[test]

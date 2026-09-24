@@ -15,8 +15,9 @@ use crate::project::Project;
 use crate::voice::Backends;
 
 /// The `AudioInfo` sample rate for a locale with no lines. Any other
-/// manifest takes its rate from the audio produced.
-const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
+/// manifest takes its rate from the audio produced. The preview publishes
+/// the same, since it serves what `dub` would.
+pub(crate) const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
 
 /// A line the fallback ladder could not deliver at the requested tier
 /// (docs/design.md#voice-tiers). Whether that is fatal is the caller's call.
