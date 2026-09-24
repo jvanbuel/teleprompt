@@ -20,7 +20,7 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::Hash;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice_null::WpmEstimator;
+use teleprompt_voice::WpmEstimator;
 
 fn run(src: &str) -> CompileOutput {
     run_with(src, &SceneRegistry::with_builtins())

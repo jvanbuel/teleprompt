@@ -9,8 +9,9 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_core::Diagnostics;
 use teleprompt_scene::SceneRegistry;
+use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{Pcm, VoiceBackend};
-use teleprompt_voice_null::{NullVoice, WpmEstimator};
+use teleprompt_voice_null::NullVoice;
 
 fn program(src: &str) -> Program {
     let mut s = parse_script(src).unwrap();

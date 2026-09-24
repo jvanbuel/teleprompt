@@ -12,11 +12,12 @@ use std::sync::Arc;
 
 use teleprompt_cli::project::Project;
 use teleprompt_voice::async_trait;
+use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{
     DurationEstimator, LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend,
     VoiceCapabilities, VoiceError, VoiceRegistry,
 };
-use teleprompt_voice_null::{NullVoice, WpmEstimator};
+use teleprompt_voice_null::NullVoice;
 
 /// A backend that is not `null`: a different id, a different version, a
 /// different sample rate, and audible samples rather than silence.
@@ -88,7 +89,7 @@ impl VoiceBackend for DrawlVoice {
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
-        let ms = teleprompt_voice_null::estimator::estimate_ms(&req.text, DRAWL_WPM, req.speed);
+        let ms = teleprompt_voice::estimator::estimate_ms(&req.text, DRAWL_WPM, req.speed);
         let frames = (ms * TONE_SAMPLE_RATE as u64 / 1000) as usize;
         Ok(Synthesized {
             pcm: Pcm {

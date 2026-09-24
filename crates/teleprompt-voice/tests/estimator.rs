@@ -1,6 +1,6 @@
 use teleprompt_voice::estimator::DurationEstimator;
 use teleprompt_voice::SynthRequest;
-use teleprompt_voice_null::WpmEstimator;
+use teleprompt_voice::WpmEstimator;
 
 fn req(text: &str, speed: f64) -> SynthRequest {
     SynthRequest {

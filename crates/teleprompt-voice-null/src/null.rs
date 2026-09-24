@@ -3,7 +3,8 @@ use teleprompt_voice::{
     LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
 };
 
-use crate::estimator::{estimate_ms, DEFAULT_WPM};
+use teleprompt_voice::estimator::estimate_ms;
+use teleprompt_voice::DEFAULT_WPM;
 
 pub struct NullVoice {
     pub wpm: f64,

@@ -12,6 +12,6 @@ pub use contract::{
     LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
     WordTiming,
 };
-pub use estimator::DurationEstimator;
+pub use estimator::{DurationEstimator, WpmEstimator, DEFAULT_WPM};
 pub use registry::VoiceRegistry;
 pub use source::{resolve_source, Resolution, VoiceSource};

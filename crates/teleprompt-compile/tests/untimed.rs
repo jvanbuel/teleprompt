@@ -13,7 +13,7 @@ use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_scene::mock::MockScene;
 use teleprompt_scene::SceneRegistry;
-use teleprompt_voice_null::WpmEstimator;
+use teleprompt_voice::WpmEstimator;
 
 /// The mock's language, with no length claimed — as a composition or a
 /// still states none.

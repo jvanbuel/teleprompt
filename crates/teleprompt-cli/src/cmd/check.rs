@@ -10,7 +10,7 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element};
 use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_voice::VoiceBackend;
-use teleprompt_voice_null::WpmEstimator;
+use teleprompt_voice::WpmEstimator;
 
 use crate::project::Project;
 use crate::voice::Backends;
