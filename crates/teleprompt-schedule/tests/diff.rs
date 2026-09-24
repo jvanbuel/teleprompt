@@ -330,7 +330,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
             cue_ms: None,
             session: None,
         });
-        b1.policy = Policy::Concurrent(teleprompt_schedule::Align::Start);
+        b1.policy = Policy::Concurrent(teleprompt_core::policy::Align::Start);
         let mut b2 = item("b2", 2000, "two");
         b2.pacing = Pacing::from(&c);
         timeline(vec![b1, b2])

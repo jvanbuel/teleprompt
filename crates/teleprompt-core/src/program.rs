@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use crate::ast::{ActionBlock, Chapter, Directive, Line, Node, Script};
 use crate::attrs::{BlockAttrs, LineAttrs};
 use crate::config::{Config, PartialConfig};
+use crate::policy::{Align, PolicyKind};
 use crate::{Diagnostic, Diagnostics, Hash, SourceSpan};
 
 /// A chapter as the manifest and other consumers need it: identity and a
@@ -59,8 +60,8 @@ pub enum Element {
         /// where filesystem access is allowed (core stays pure).
         include: Option<String>,
         config: Config,
-        policy: String,
-        align: String,
+        policy: PolicyKind,
+        align: Align,
         /// `cue="…"`: the phrase in the narration this shot starts on.
         ///
         /// A cue in the plain sense — the words that trigger what happens
@@ -235,8 +236,8 @@ impl Resolver<'_> {
             body: block.body.clone(),
             include: attrs.include,
             review: attrs.review,
-            policy: attrs.policy.unwrap_or_else(|| "hold".to_string()),
-            align: attrs.align.unwrap_or_else(|| "start".to_string()),
+            policy: attrs.policy.unwrap_or(PolicyKind::Hold),
+            align: attrs.align.unwrap_or(Align::Start),
             cue: attrs.cue,
             session: attrs.session,
             config,

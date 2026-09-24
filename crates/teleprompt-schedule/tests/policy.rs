@@ -1,6 +1,7 @@
 use teleprompt_core::config::TimingConfig;
+use teleprompt_core::policy::{Align, PolicyKind};
 use teleprompt_core::DurationMs;
-use teleprompt_schedule::{layout, layout_at, Align, Policy};
+use teleprompt_schedule::{layout, layout_at, Policy};
 
 fn timing() -> TimingConfig {
     TimingConfig {
@@ -141,19 +142,20 @@ fn trim_with_zero_narration_does_not_divide_by_zero() {
 }
 
 #[test]
-fn policy_parses_from_attribute_strings() {
-    assert_eq!(Policy::parse("hold", "start"), Some(Policy::Hold));
+fn a_named_policy_becomes_its_layout_policy() {
+    assert_eq!(Policy::new(PolicyKind::Hold, Align::End), Policy::Hold);
     assert_eq!(
-        Policy::parse("concurrent", "end"),
-        Some(Policy::Concurrent(Align::End))
+        Policy::new(PolicyKind::Concurrent, Align::End),
+        Policy::Concurrent(Align::End)
     );
     assert_eq!(
-        Policy::parse("stretch-action", "start"),
-        Some(Policy::Stretch)
+        Policy::new(PolicyKind::StretchAction, Align::Start),
+        Policy::Stretch
     );
-    assert_eq!(Policy::parse("trim-action", "start"), Some(Policy::Trim));
-    assert_eq!(Policy::parse("nonsense", "start"), None);
-    assert_eq!(Policy::parse("concurrent", "sideways"), None);
+    assert_eq!(
+        Policy::new(PolicyKind::TrimAction, Align::Start),
+        Policy::Trim
+    );
 }
 
 /// The property the policy names fight: no policy modifies the narration.
@@ -199,21 +201,6 @@ fn no_policy_ever_denies_the_narration_its_full_length() {
             );
         }
     }
-}
-
-/// Issue #1: `stretch` and `trim` named an operation without naming its
-/// object, so both read as if the speech were adjusted. The old spellings are
-/// gone, not aliased — but `check` must say what to write instead rather than
-/// reporting a bare "unknown policy".
-#[test]
-fn the_old_policy_names_are_rejected_with_the_new_spelling() {
-    assert_eq!(Policy::parse("stretch", "start"), None);
-    assert_eq!(Policy::parse("trim", "start"), None);
-
-    assert_eq!(Policy::renamed_hint("stretch"), Some("stretch-action"));
-    assert_eq!(Policy::renamed_hint("trim"), Some("trim-action"));
-    assert_eq!(Policy::renamed_hint("hold"), None);
-    assert_eq!(Policy::renamed_hint("nonsense"), None);
 }
 
 #[test]

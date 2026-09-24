@@ -1,6 +1,7 @@
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
+use teleprompt_core::policy::{Align, PolicyKind};
 use teleprompt_core::program::{resolve, Element, Program};
 use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
@@ -135,8 +136,8 @@ fn block_policy_and_align_default_when_unset() {
     let Element::Action { policy, align, .. } = &p.elements[1] else {
         panic!()
     };
-    assert_eq!(policy, "hold");
-    assert_eq!(align, "start");
+    assert_eq!(*policy, PolicyKind::Hold);
+    assert_eq!(*align, Align::Start);
 }
 
 #[test]

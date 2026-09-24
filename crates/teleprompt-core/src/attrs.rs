@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::policy::{Align, PolicyKind};
 use crate::{Diagnostic, DurationMs, SourceSpan};
 
 pub const SEGMENT_KEYS: &[&str] = &[
@@ -90,8 +91,8 @@ pub struct BlockAttrs {
     pub scene: Option<String>,
     pub include: Option<String>,
     pub review: Option<String>,
-    pub policy: Option<String>,
-    pub align: Option<String>,
+    pub policy: Option<PolicyKind>,
+    pub align: Option<Align>,
     pub cue: Option<String>,
     pub session: Option<String>,
     pub id: Option<String>,
@@ -112,8 +113,8 @@ impl BlockAttrs {
             scene: v.text("scene"),
             include: v.text("include"),
             review: v.text("review"),
-            policy: v.text("policy"),
-            align: v.text("align"),
+            policy: v.explained("policy", PolicyKind::parse),
+            align: v.explained("align", Align::parse),
             cue: v.text("cue"),
             session: v.text("session"),
             id: v.text("id"),
@@ -142,6 +143,25 @@ impl Values<'_> {
             Ok(value) => Some(value),
             Err(why) => {
                 let d = Diagnostic::error(format!("`{key}`: {why}")).at(self.span);
+                self.diags.push(d);
+                None
+            }
+        }
+    }
+}
+
+impl Values<'_> {
+    /// Like [`Self::parsed`], for a parser that writes its own message and
+    /// help.
+    fn explained<T>(
+        &mut self,
+        key: &str,
+        parse: impl Fn(&str) -> Result<T, (String, String)>,
+    ) -> Option<T> {
+        match parse(self.a.get(key)?) {
+            Ok(value) => Some(value),
+            Err((message, help)) => {
+                let d = Diagnostic::error(message).at(self.span).with_help(help);
                 self.diags.push(d);
                 None
             }

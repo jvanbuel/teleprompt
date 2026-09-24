@@ -1,12 +1,6 @@
 use teleprompt_core::config::TimingConfig;
+use teleprompt_core::policy::Align;
 use teleprompt_core::PolicyKind;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Align {
-    Start,
-    End,
-    Center,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Policy {
@@ -17,30 +11,14 @@ pub enum Policy {
 }
 
 impl Policy {
-    pub fn parse(policy: &str, align: &str) -> Option<Self> {
-        let align = match align {
-            "start" => Align::Start,
-            "end" => Align::End,
-            "center" => Align::Center,
-            _ => return None,
-        };
-        match policy {
-            "hold" => Some(Policy::Hold),
-            "concurrent" => Some(Policy::Concurrent(align)),
-            "stretch-action" => Some(Policy::Stretch),
-            "trim-action" => Some(Policy::Trim),
-            _ => None,
-        }
-    }
-
-    /// The replacement for a retired policy name. Old names are errors, not
-    /// aliases, and this lets the error name the fix
-    /// (`docs/design.md#policies`).
-    pub fn renamed_hint(policy: &str) -> Option<&'static str> {
-        match policy {
-            "stretch" => Some("stretch-action"),
-            "trim" => Some("trim-action"),
-            _ => None,
+    /// The policy an author named, aligned as they asked; `align` matters
+    /// only to `concurrent`.
+    pub fn new(kind: PolicyKind, align: Align) -> Self {
+        match kind {
+            PolicyKind::Hold => Policy::Hold,
+            PolicyKind::Concurrent => Policy::Concurrent(align),
+            PolicyKind::StretchAction => Policy::Stretch,
+            PolicyKind::TrimAction => Policy::Trim,
         }
     }
 

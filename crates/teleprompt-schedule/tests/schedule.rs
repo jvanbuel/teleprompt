@@ -118,7 +118,7 @@ fn auto_transition_is_half_the_slack_clamped_to_the_maximum() {
             "b1",
             Some(5000),
             Some(200),
-            Policy::Concurrent(teleprompt_schedule::Align::Start),
+            Policy::Concurrent(teleprompt_core::policy::Align::Start),
             cfg.clone(),
         ),
         item("b2", Some(1000), None, Policy::Hold, cfg),
@@ -145,7 +145,7 @@ fn auto_transition_is_zero_when_there_is_no_slack() {
             "b1",
             Some(1000),
             Some(5000),
-            Policy::Concurrent(teleprompt_schedule::Align::Start),
+            Policy::Concurrent(teleprompt_core::policy::Align::Start),
             cfg.clone(),
         ),
         item("b2", Some(1000), None, Policy::Hold, cfg),
@@ -393,7 +393,7 @@ fn a_cue_lands_on_the_word_not_a_lead_in_before_it() {
         "b1",
         Some(3000),
         Some(500),
-        Policy::Concurrent(teleprompt_schedule::Align::Start),
+        Policy::Concurrent(teleprompt_core::policy::Align::Start),
         no_transition(),
     );
     it.action.as_mut().unwrap().cue_ms = Some(1000);
@@ -422,7 +422,7 @@ fn absurd_durations_saturate_rather_than_overflow() {
         "cued",
         Some(1000),
         Some(1000),
-        Policy::Concurrent(teleprompt_schedule::Align::Start),
+        Policy::Concurrent(teleprompt_core::policy::Align::Start),
         Config::default(),
     );
     cued.narration.as_mut().unwrap().lead_in_ms = DurationMs::MAX;

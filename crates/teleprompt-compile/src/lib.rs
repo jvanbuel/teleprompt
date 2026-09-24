@@ -10,9 +10,12 @@ use std::path::{Component, Path};
 
 use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::{default_adapter, Config, OutputConfig, SceneConfig};
+use teleprompt_core::policy::Align;
 use teleprompt_core::program::{ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
-use teleprompt_core::{Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, SourceSpan};
+use teleprompt_core::{
+    Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, PolicyKind, SourceSpan,
+};
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
 use teleprompt_voice::{
@@ -94,10 +97,10 @@ fn at_offset_ms(
     phrase: &str,
     text: &str,
     narration: Option<&NarrationInput>,
-    policy: &str,
+    policy: PolicyKind,
     timed: Option<(&[WordTiming], &BTreeMap<String, String>)>,
 ) -> Result<Option<u64>, Diagnostic> {
-    if policy != "concurrent" {
+    if policy != PolicyKind::Concurrent {
         return Err(Diagnostic::error(format!(
             "`cue=\"{phrase}\"` needs `policy=concurrent`, not `{policy}`"
         ))
@@ -402,8 +405,8 @@ pub fn compile(
                 body,
                 include: include.as_deref(),
                 config,
-                policy,
-                align,
+                policy: *policy,
+                align: *align,
                 cue: cue.as_deref(),
                 session,
                 review: review.as_deref(),
@@ -458,8 +461,8 @@ struct Block<'e> {
     body: &'e str,
     include: Option<&'e str>,
     config: &'e Config,
-    policy: &'e str,
-    align: &'e str,
+    policy: PolicyKind,
+    align: Align,
     cue: Option<&'e str>,
     session: &'e Option<String>,
     review: Option<&'e str>,
@@ -651,9 +654,7 @@ Read it, then remove the attribute.",
                 }
             },
         };
-        let Some(policy) = self.parse_policy(b.policy, b.align) else {
-            return;
-        };
+        let policy = Policy::new(b.policy, b.align);
         let Some((adapter_name, adapter)) = self.adapter_for(b.scene, b.config) else {
             return;
         };
@@ -734,7 +735,7 @@ Read it, then remove the attribute.",
     }
 
     /// Where in the pending line a `cue=` puts the action's start.
-    fn cue_offset(&self, phrase: &str, policy: &str) -> Result<Option<u64>, Diagnostic> {
+    fn cue_offset(&self, phrase: &str, policy: PolicyKind) -> Result<Option<u64>, Diagnostic> {
         let pending = self.pending.as_ref();
         // The pending line's detail is the last one pushed.
         let timed = pending.and_then(|p| {
@@ -745,29 +746,6 @@ Read it, then remove the attribute.",
         });
         let text = pending.map_or("", |p| p.text.as_str());
         at_offset_ms(phrase, text, pending.map(|p| &p.input), policy, timed)
-    }
-
-    fn parse_policy(&mut self, policy: &str, align: &str) -> Option<Policy> {
-        if let Some(parsed) = Policy::parse(policy, align) {
-            return Some(parsed);
-        }
-        // An old policy spelling names its replacement
-        // (docs/design.md#policies).
-        let d = match Policy::renamed_hint(policy) {
-            Some(current) => {
-                Diagnostic::error(format!("policy `{policy}` was renamed to `{current}`"))
-                    .with_help(format!(
-                        "write `policy={current}`; it adjusts the action, never the narration"
-                    ))
-            }
-            None => Diagnostic::error(format!("unknown policy `{policy}` or align `{align}`"))
-                .with_help(
-                    "policy is hold|concurrent|stretch-action|trim-action; \
-                     align is start|end|center",
-                ),
-        };
-        self.diags.push(d);
-        None
     }
 
     /// The adapter configured for `scene`, or its default.

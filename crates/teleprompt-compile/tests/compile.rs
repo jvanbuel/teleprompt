@@ -245,12 +245,23 @@ fn adapter_validation_errors_reach_the_caller() {
     assert!(e.0[0].message.contains("unknown mock directive"));
 }
 
+/// Reported where the block was written, before compiling: the policy is
+/// read with the block's other attributes.
 #[test]
-fn an_invalid_policy_is_a_diagnostic() {
+fn an_invalid_policy_is_a_diagnostic_at_its_block() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock policy=sideways\nwait 1s\n```\n";
-    let p = program(src);
-    let e = compile_program(&p).unwrap_err();
+    let mut s = parse_script(src).unwrap();
+    assign_ids(&mut s);
+    let e = resolve(
+        &s,
+        "demo.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    )
+    .unwrap_err();
     assert!(e.0[0].message.contains("unknown policy `sideways`"));
+    assert_eq!(e.0[0].span.map(|s| s.line), Some(5));
 }
 
 #[test]

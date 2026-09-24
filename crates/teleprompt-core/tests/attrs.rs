@@ -1,4 +1,5 @@
 use teleprompt_core::attrs::{parse_attrs, BlockAttrs, LineAttrs, BLOCK_KEYS, SEGMENT_KEYS};
+use teleprompt_core::policy::{Align, PolicyKind};
 use teleprompt_core::DurationMs;
 use teleprompt_core::SourceSpan;
 
@@ -111,4 +112,49 @@ fn a_bad_number_value_is_a_diagnostic() {
             d[0].message
         );
     }
+}
+
+/// Policy and align are read at the block like any other value, so a bad
+/// one is reported where it was written; compile used to report it with no
+/// position at all.
+#[test]
+fn policy_and_align_are_parsed_at_the_block() {
+    let (a, d) = BlockAttrs::parse("policy=concurrent align=end", SPAN);
+    assert!(d.is_empty(), "{d:?}");
+    assert_eq!(a.policy, Some(PolicyKind::Concurrent));
+    assert_eq!(a.align, Some(Align::End));
+
+    for (raw, says) in [
+        ("policy=sideways", "unknown policy `sideways`"),
+        ("policy=stretch", "renamed to `stretch-action`"),
+        ("align=middle", "unknown align `middle`"),
+    ] {
+        let (_, d) = BlockAttrs::parse(raw, SPAN);
+        assert_eq!(d.len(), 1, "{raw}: {d:?}");
+        assert!(d[0].message.contains(says), "{raw}: {}", d[0].message);
+        assert_eq!(d[0].span, Some(SPAN), "{raw}");
+    }
+}
+
+/// Every policy name parses, and the retired spellings are errors naming
+/// their replacement rather than aliases (issue #1: `stretch` and `trim`
+/// named an operation without its object, so both read as if the speech
+/// were adjusted).
+#[test]
+fn policy_names_parse_and_the_old_ones_name_their_replacement() {
+    for (name, kind) in [
+        ("hold", PolicyKind::Hold),
+        ("concurrent", PolicyKind::Concurrent),
+        ("stretch-action", PolicyKind::StretchAction),
+        ("trim-action", PolicyKind::TrimAction),
+    ] {
+        assert_eq!(PolicyKind::parse(name), Ok(kind));
+        assert_eq!(kind.label(), name);
+    }
+    for (old, new) in [("stretch", "stretch-action"), ("trim", "trim-action")] {
+        let (message, help) = PolicyKind::parse(old).unwrap_err();
+        assert!(message.contains(new), "{message}");
+        assert!(help.contains(&format!("policy={new}")), "{help}");
+    }
+    assert!(PolicyKind::parse("nonsense").is_err());
 }
