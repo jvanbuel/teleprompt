@@ -19,9 +19,9 @@ pub struct VhsScene;
 /// correctly.
 const DEFAULT_TYPING_SPEED_MS: u64 = 50;
 
-/// VHS's default bound on `Wait`, so teleprompt schedules against the bound
-/// VHS enforces.
-const DEFAULT_WAIT_TIMEOUT_MS: u64 = 5_000;
+/// VHS's default bound on `Wait` (`defaultWaitTimeout` in v0.11.0's
+/// `vhs.go`), so teleprompt schedules against the bound VHS enforces.
+const DEFAULT_WAIT_TIMEOUT_MS: u64 = 15_000;
 
 /// Keys VHS presses; chords are built from these (see [`is_key`]).
 const KEYS: &[&str] = &[

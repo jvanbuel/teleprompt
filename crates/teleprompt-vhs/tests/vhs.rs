@@ -239,8 +239,8 @@ fn a_shot_containing_wait_is_estimated_and_bounded_by_its_timeout() {
     let v = validated("Type \"cargo build\"\nWait\n# mark\nSleep 1s\n");
     let shots = VhsScene.shots(&v, "b").expect("shots");
 
-    // 11 chars at the 50ms default, plus the 5s default timeout.
-    assert_eq!(VhsScene.estimate(&shots[0]), Measured::Estimated(5550));
+    // 11 chars at the 50ms default, plus the 15s default timeout.
+    assert_eq!(VhsScene.estimate(&shots[0]), Measured::Estimated(15_550));
     assert_eq!(
         VhsScene.estimate(&shots[1]),
         Measured::Exact(1000),
@@ -537,4 +537,12 @@ fn the_commands_a_capture_honours_all_compile() {
             "`{body}` is honoured by the capture and must compile"
         );
     }
+}
+
+/// VHS v0.11.0, the version CI pins, bounds a `Wait` at 15 s when the tape
+/// sets no `WaitTimeout` (`defaultWaitTimeout` in `vhs.go`). Estimating 5 s
+/// scheduled too short a slot for a command taking 6–15 s (#21).
+#[test]
+fn a_bare_wait_is_estimated_at_the_vhs_default_timeout() {
+    assert_eq!(total_ms("Wait\n"), 15_000);
 }

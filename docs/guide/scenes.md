@@ -106,7 +106,7 @@ real `.tape` file.
 `Sleep` is written down and every keystroke costs `Set TypingSpeed` (50 ms
 by default, as in VHS), so teleprompt adds them up rather than guessing.
 The exception is `Wait`, which blocks until a program finishes. A shot
-containing one takes its timeout (`Set WaitTimeout`, 5 s by default) and
+containing one takes its timeout (`Set WaitTimeout`, 15 s by default) and
 is reported as `estimated`.
 
 **The tape `vhs` runs is the schedule.** teleprompt re-times each shot to
