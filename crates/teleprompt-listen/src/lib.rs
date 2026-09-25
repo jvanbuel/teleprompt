@@ -1,5 +1,9 @@
 //! Following a reader through a script by what a speech recognizer hears.
 
+mod follow;
+
+pub use follow::{Follower, Heard, Recognizer};
+
 /// The next word the reader will say: its line, and its index in that line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
