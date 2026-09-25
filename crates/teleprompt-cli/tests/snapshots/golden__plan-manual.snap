@@ -29,9 +29,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "welcome",
           "source_hash": "f54014b34f3eaa68f187d54878f7b7cef0fab48015a966239f5029505844d365",
-          "start_ms": 150,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 150
         },
         "policy": "hold",
         "start_ms": 0,
@@ -59,9 +57,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "prose-and-action",
           "source_hash": "8c0fae6521383a3cbaa5be7cabe673ff9b66033ee817571cd13fcda6d555ed5e",
-          "start_ms": 22830,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 22830
         },
         "policy": "concurrent",
         "start_ms": 22680,
@@ -89,9 +85,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "vhs",
           "source_hash": "835be9fff588bed3e4bcdd1495c7626059916626887a2489da1c80ee6782ac37",
-          "start_ms": 41530,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 41530
         },
         "policy": "hold",
         "start_ms": 41380,
@@ -119,9 +113,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "the-mark",
           "source_hash": "a1ce4bf7da55b5d6319b65cde046dedb96e6721876c09b89d35173138ad0fb94",
-          "start_ms": 71840,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 71840
         },
         "policy": "concurrent",
         "start_ms": 71690,
@@ -149,9 +141,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "new",
           "source_hash": "fba819b836ef36d72d10e33839c7379cd2538411516635009c74cf26bba1f11c",
-          "start_ms": 95390,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 95390
         },
         "policy": "hold",
         "start_ms": 95240,
@@ -199,9 +189,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "scaffold",
           "source_hash": "05547812693038698000d3652eb6525178395cd45653652f540a891ffefe23bb",
-          "start_ms": 108270,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 108270
         },
         "policy": "concurrent",
         "start_ms": 108120,
@@ -229,9 +217,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "check",
           "source_hash": "cecee378feb6298e3d781b67e35ca34b02bcc788b041f1e55532bb9fef146498",
-          "start_ms": 123120,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 123120
         },
         "policy": "hold",
         "start_ms": 122970,
@@ -259,9 +245,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "diagnostics",
           "source_hash": "b184776827cb654d17aff1c57226b3edb5aa671a6f82446c7293e68ba3b89010",
-          "start_ms": 138460,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 138460
         },
         "policy": "stretch-action",
         "start_ms": 138310,
@@ -289,9 +273,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "plan",
           "source_hash": "dc7c09885d41077ae061dad52271894a0b1cf8003aca52dec3d9c87aaf410ac8",
-          "start_ms": 157110,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 157110
         },
         "policy": "hold",
         "start_ms": 156960,
@@ -319,9 +301,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "estimated-vs-measured",
           "source_hash": "6179a9d524bc38103ba4e1ae572cc937eddd2381edf7b2b2eaf88d637fbb3b19",
-          "start_ms": 172520,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 172520
         },
         "policy": "concurrent",
         "start_ms": 172370,
@@ -349,9 +329,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "exact-actions",
           "source_hash": "0a50066637ace87d626f122477a82f77461b5a2ff9486e1e2dc56feb7eeb4e5d",
-          "start_ms": 190320,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 190320
         },
         "policy": "hold",
         "start_ms": 190170,
@@ -379,9 +357,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "commit-the-timeline",
           "source_hash": "017f3b4301ce31ebf2d45624825cc148f9c217ca1d365bd448f35e0e66c21908",
-          "start_ms": 213740,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 213740
         },
         "policy": "concurrent",
         "start_ms": 213590,
@@ -409,9 +385,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "edit-the-prose",
           "source_hash": "b8225b2ea56236c4a97c8c520bc1f15ef5bb58cd59b4f70e69584f36c9a07364",
-          "start_ms": 224990,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 224990
         },
         "policy": "stretch-action",
         "start_ms": 224840,
@@ -439,9 +413,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "the-diff",
           "source_hash": "155bf8a6fa8538a195f947dc418d8c523a0ad88e90b66f3fbef761a28db397bd",
-          "start_ms": 236640,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 236640
         },
         "policy": "hold",
         "start_ms": 236490,
@@ -469,9 +441,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "dub",
           "source_hash": "c5ba8ef84fe0522e31e899df703928af1fa682134f40c221ca43e73281e1e94b",
-          "start_ms": 262600,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 262600
         },
         "policy": "concurrent",
         "start_ms": 262450,
@@ -519,9 +489,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "manifest",
           "source_hash": "7e8bcf3c65c5232ee03750905d100c83c068d25a43001ac591e3b930341eebb5",
-          "start_ms": 280890,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 280890
         },
         "policy": "hold",
         "start_ms": 280740,
@@ -549,9 +517,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "measured",
           "source_hash": "3489162f02032ebddb265205d4633c0a6badc003cb861cabac57bd538515634c",
-          "start_ms": 304065,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 304065
         },
         "policy": "concurrent",
         "start_ms": 303915,
@@ -579,9 +545,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "dub-check",
           "source_hash": "604e43e0b775fecd6d9eb27692b7fcb7ba272409edf84969119226f0de2e9041",
-          "start_ms": 316665,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 316665
         },
         "policy": "trim-action",
         "start_ms": 316515,
@@ -649,9 +613,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "doctor",
           "source_hash": "dcae1d3d596b2f99eb44f0bb2f3efb24a5e92c5c86145c986c6e911eb9565db7",
-          "start_ms": 335355,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 335355
         },
         "policy": "hold",
         "start_ms": 335205,
@@ -679,9 +641,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "offline-by-default",
           "source_hash": "c1ab97043b5c4045ad86d9a5db173846301ff7c271495263a02b2aef2111b39f",
-          "start_ms": 353335,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 353335
         },
         "policy": "concurrent",
         "start_ms": 353185,
@@ -709,9 +669,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "self-hosting",
           "source_hash": "8c320a9539bc31e47610d30514273c25c6ded8eb25377b25adadcc0fc75d9eba",
-          "start_ms": 379085,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 379085
         },
         "policy": "concurrent",
         "start_ms": 378935,

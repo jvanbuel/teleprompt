@@ -3,7 +3,7 @@
 
 use serde::Serialize;
 use teleprompt_core::time::short;
-use teleprompt_core::{DurationSource, VoiceSource};
+use teleprompt_core::DurationSource;
 
 use crate::{LineEntry, NarrationManifest};
 
@@ -17,18 +17,12 @@ pub struct ChangedSegment {
     pub reason: DriftReason,
 }
 
-/// Serialized as its prose (`text edited`, `voice tier cloned → synthetic`,
-/// …), which `dub --check --format json` has always carried.
+/// Serialized as its prose (`text edited`, `shifted`, …), which `dub --check --format json` has always carried.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriftReason {
     TextEdited,
     NowMeasured,
     AudioChanged,
-    VoiceTier {
-        before: VoiceSource,
-        after: VoiceSource,
-    },
-    VoiceRequestChanged,
     /// Only `start_ms` moved, because an earlier line changed length.
     Shifted,
 }
@@ -39,8 +33,6 @@ impl std::fmt::Display for DriftReason {
             Self::TextEdited => f.write_str("text edited"),
             Self::NowMeasured => f.write_str("now measured"),
             Self::AudioChanged => f.write_str("audio changed"),
-            Self::VoiceTier { before, after } => write!(f, "voice tier {before} → {after}"),
-            Self::VoiceRequestChanged => f.write_str("voice request changed"),
             Self::Shifted => f.write_str("shifted"),
         }
     }
@@ -166,13 +158,6 @@ fn reason_for(before: &LineEntry, after: &LineEntry) -> Option<DriftReason> {
         Some(DriftReason::NowMeasured)
     } else if before.audio_hash != after.audio_hash || before.duration_ms != after.duration_ms {
         Some(DriftReason::AudioChanged)
-    } else if before.voice.actual() != after.voice.actual() {
-        Some(DriftReason::VoiceTier {
-            before: before.voice.actual(),
-            after: after.voice.actual(),
-        })
-    } else if before.voice != after.voice {
-        Some(DriftReason::VoiceRequestChanged)
     } else if before.start_ms != after.start_ms {
         Some(DriftReason::Shifted)
     } else {

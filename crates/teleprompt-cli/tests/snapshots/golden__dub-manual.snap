@@ -58,299 +58,236 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "audio": "audio/welcome.wav",
         "audio_hash": "90703792f347bb6c6ec6c8d77ec47e80f0387a49c1948e9ae28b00bf6a04d0a3",
         "chapter": "the-manual-is-the-program",
-        "downgrade_reason": null,
         "duration_ms": 20350,
         "duration_source": "measured",
         "id": "welcome",
         "source_hash": "f54014b34f3eaa68f187d54878f7b7cef0fab48015a966239f5029505844d365",
         "start_ms": 150,
-        "text": "This is teleprompt's command-line manual, and it is compiled by the tool it documents. Every sentence you are hearing is a paragraph of Markdown in one file, and every command you watch run is a tape in that same file, a few lines below the sentence about it.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "This is teleprompt's command-line manual, and it is compiled by the tool it documents. Every sentence you are hearing is a paragraph of Markdown in one file, and every command you watch run is a tape in that same file, a few lines below the sentence about it."
       },
       {
         "audio": "audio/prose-and-action.wav",
         "audio_hash": "9b17f18ce09bfe4e03bbee475b38b6aaff8dec267dcca86774c6a31c515d2dd8",
         "chapter": "the-manual-is-the-program",
-        "downgrade_reason": null,
         "duration_ms": 18700,
         "duration_source": "measured",
         "id": "prose-and-action",
         "source_hash": "8c0fae6521383a3cbaa5be7cabe673ff9b66033ee817571cd13fcda6d555ed5e",
         "start_ms": 22830,
-        "text": "That is the whole idea. Prose is narration, fenced blocks are what the screen does, and the length of the speech decides how long the picture holds. Rewrite this paragraph and the terminal below it waits longer, because it is waiting for me.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "That is the whole idea. Prose is narration, fenced blocks are what the screen does, and the length of the speech decides how long the picture holds. Rewrite this paragraph and the terminal below it waits longer, because it is waiting for me."
       },
       {
         "audio": "audio/vhs.wav",
         "audio_hash": "6f0edf785fa6418340532ede124ccc3ba53fc5ed0703efed1a8d8b9d4984187c",
         "chapter": "the-manual-is-the-program",
-        "downgrade_reason": null,
         "duration_ms": 25450,
         "duration_source": "measured",
         "id": "vhs",
         "source_hash": "835be9fff588bed3e4bcdd1495c7626059916626887a2489da1c80ee6782ac37",
         "start_ms": 41530,
-        "text": "The terminal you are looking at is a VHS tape — Charm's recording format, borrowed whole. teleprompt does not render it. It rewrites the tape's timings so that every span lasts exactly as long as the sentence over it, and hands that tape to VHS. Waiting for narration is a number in the input, not a renderer of our own.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "The terminal you are looking at is a VHS tape — Charm's recording format, borrowed whole. teleprompt does not render it. It rewrites the tape's timings so that every span lasts exactly as long as the sentence over it, and hands that tape to VHS. Waiting for narration is a number in the input, not a renderer of our own."
       },
       {
         "audio": "audio/the-mark.wav",
         "audio_hash": "4a4faac76459cfaa1985a49811b3895aff7358dfd1f324b2586e38ee69f63851",
         "chapter": "the-manual-is-the-program",
-        "downgrade_reason": null,
         "duration_ms": 23550,
         "duration_source": "measured",
         "id": "the-mark",
         "source_hash": "a1ce4bf7da55b5d6319b65cde046dedb96e6721876c09b89d35173138ad0fb94",
         "start_ms": 71840,
-        "text": "Where one paragraph hands over to the next, a tape carries a mark, and the mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS itself will run — which is the whole reason to keep a demo in a real tape file rather than in a dialect only teleprompt reads.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Where one paragraph hands over to the next, a tape carries a mark, and the mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS itself will run — which is the whole reason to keep a demo in a real tape file rather than in a dialect only teleprompt reads."
       },
       {
         "audio": "audio/new.wav",
         "audio_hash": "7a13b4e9b3385bf54b4fe662a3e8f2067edacdfdbbcbbac310270d4dde5bbc36",
         "chapter": "starting-a-project",
-        "downgrade_reason": null,
         "duration_ms": 10100,
         "duration_source": "measured",
         "id": "new",
         "source_hash": "fba819b836ef36d72d10e33839c7379cd2538411516635009c74cf26bba1f11c",
         "start_ms": 95390,
-        "text": "teleprompt new scaffolds one: a configuration file, a scripts directory, and a timelines directory for the compiled output you commit alongside the prose.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "teleprompt new scaffolds one: a configuration file, a scripts directory, and a timelines directory for the compiled output you commit alongside the prose."
       },
       {
         "audio": "audio/scaffold.wav",
         "audio_hash": "f44fc5cb53b6cc10a81b8d56cd72fa0f4829efa218da63d271ce366c361542a3",
         "chapter": "starting-a-project",
-        "downgrade_reason": null,
         "duration_ms": 14850,
         "duration_source": "measured",
         "id": "scaffold",
         "source_hash": "05547812693038698000d3652eb6525178395cd45653652f540a891ffefe23bb",
         "start_ms": 108270,
-        "text": "The demo script it leaves behind is two paragraphs and two action blocks — small enough to read in one breath, and complete enough to compile. Nothing else has to be installed for it to work.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "The demo script it leaves behind is two paragraphs and two action blocks — small enough to read in one breath, and complete enough to compile. Nothing else has to be installed for it to work."
       },
       {
         "audio": "audio/check.wav",
         "audio_hash": "0e598c8403d2b4b263f35d72f3de87f063828bb12297b9b245597c9d2f06db03",
         "chapter": "reading-a-script",
-        "downgrade_reason": null,
         "duration_ms": 13700,
         "duration_source": "measured",
         "id": "check",
         "source_hash": "cecee378feb6298e3d781b67e35ca34b02bcc788b041f1e55532bb9fef146498",
         "start_ms": 123120,
-        "text": "teleprompt check parses and validates, and does nothing else. No synthesis, no network, no files written — so it costs nothing to run it on every keystroke, and plenty of editors will.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "teleprompt check parses and validates, and does nothing else. No synthesis, no network, no files written — so it costs nothing to run it on every keystroke, and plenty of editors will."
       },
       {
         "audio": "audio/diagnostics.wav",
         "audio_hash": "a15a969bf725f0ae3837b55b1dd114b1c85407982aa77c1c5f3a9fbbf6eaf9ec",
         "chapter": "reading-a-script",
-        "downgrade_reason": null,
         "duration_ms": 18350,
         "duration_source": "measured",
         "id": "diagnostics",
         "source_hash": "b184776827cb654d17aff1c57226b3edb5aa671a6f82446c7293e68ba3b89010",
         "start_ms": 138460,
-        "text": "When it does have something to say, it says where. A mistyped policy, a duration that is not a duration, a tape directive teleprompt cannot run: each is reported at the line that carries it, with the spelling it should have had.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "When it does have something to say, it says where. A mistyped policy, a duration that is not a duration, a tape directive teleprompt cannot run: each is reported at the line that carries it, with the spelling it should have had."
       },
       {
         "audio": "audio/plan.wav",
         "audio_hash": "2cbd66f312889e17dd09eb4b9b50313f2bb01259e1e4bcb49a1658a311770bf9",
         "chapter": "compiling-the-timeline",
-        "downgrade_reason": null,
         "duration_ms": 12100,
         "duration_source": "measured",
         "id": "plan",
         "source_hash": "dc7c09885d41077ae061dad52271894a0b1cf8003aca52dec3d9c87aaf410ac8",
         "start_ms": 157110,
-        "text": "teleprompt plan compiles the script into a timeline and prints one line per beat: when it starts, which pacing policy governs it, and how long its narration runs.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "teleprompt plan compiles the script into a timeline and prints one line per beat: when it starts, which pacing policy governs it, and how long its narration runs."
       },
       {
         "audio": "audio/estimated-vs-measured.wav",
         "audio_hash": "d1be2a9ca2719f3e7753db86cc9e3429dd4688165990aa3a30796f55a35c3529",
         "chapter": "compiling-the-timeline",
-        "downgrade_reason": null,
         "duration_ms": 17800,
         "duration_source": "measured",
         "id": "estimated-vs-measured",
         "source_hash": "6179a9d524bc38103ba4e1ae572cc937eddd2381edf7b2b2eaf88d637fbb3b19",
         "start_ms": 172520,
-        "text": "Those durations come from the cache when a segment has been synthesized before, and from a word-count estimate when it has not. Plan never synthesizes anything, which is why it answers instantly on a laptop with no voice backend anywhere near it.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Those durations come from the cache when a segment has been synthesized before, and from a word-count estimate when it has not. Plan never synthesizes anything, which is why it answers instantly on a laptop with no voice backend anywhere near it."
       },
       {
         "audio": "audio/exact-actions.wav",
         "audio_hash": "216c35e7b47a3ac3c8ee6e7ef97a5bd8cbb57e53f57be88aa5b854304be674c8",
         "chapter": "compiling-the-timeline",
-        "downgrade_reason": null,
         "duration_ms": 19650,
         "duration_source": "measured",
         "id": "exact-actions",
         "source_hash": "0a50066637ace87d626f122477a82f77461b5a2ff9486e1e2dc56feb7eeb4e5d",
         "start_ms": 190320,
-        "text": "An action block's duration is different: a tape states its own timing. Every sleep is written down and every keystroke has a speed, so teleprompt adds them up rather than guessing, and never has to run the terminal to find out how long the terminal takes.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "An action block's duration is different: a tape states its own timing. Every sleep is written down and every keystroke has a speed, so teleprompt adds them up rather than guessing, and never has to run the terminal to find out how long the terminal takes."
       },
       {
         "audio": "audio/commit-the-timeline.wav",
         "audio_hash": "f1b881b9dc0b3955f0612a4fbb5bad1034a3b303e1d96df4ff56dd81f2753f3e",
         "chapter": "the-feedback-loop",
-        "downgrade_reason": null,
         "duration_ms": 11250,
         "duration_source": "measured",
         "id": "commit-the-timeline",
         "source_hash": "017f3b4301ce31ebf2d45624825cc148f9c217ca1d365bd448f35e0e66c21908",
         "start_ms": 213740,
-        "text": "Commit the timeline that plan produced, and teleprompt diff will compare the next compile against it. This is the loop the whole tool is built around.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Commit the timeline that plan produced, and teleprompt diff will compare the next compile against it. This is the loop the whole tool is built around."
       },
       {
         "audio": "audio/edit-the-prose.wav",
         "audio_hash": "bd44f417aa1224ab3efbf8d9cc97b0aa9fd4afe0c68f0bb0b933392326e014e8",
         "chapter": "the-feedback-loop",
-        "downgrade_reason": null,
         "duration_ms": 11350,
         "duration_source": "measured",
         "id": "edit-the-prose",
         "source_hash": "b8225b2ea56236c4a97c8c520bc1f15ef5bb58cd59b4f70e69584f36c9a07364",
         "start_ms": 224990,
-        "text": "Now edit a paragraph. Not the code, not the tape — the prose. A longer sentence takes longer to say, and everything scheduled after it moves.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Now edit a paragraph. Not the code, not the tape — the prose. A longer sentence takes longer to say, and everything scheduled after it moves."
       },
       {
         "audio": "audio/the-diff.wav",
         "audio_hash": "a1d22663d9a589ce802eca371097d9aa9a29155b9c68e4663825fc7f9536675f",
         "chapter": "the-feedback-loop",
-        "downgrade_reason": null,
         "duration_ms": 22150,
         "duration_source": "measured",
         "id": "the-diff",
         "source_hash": "155bf8a6fa8538a195f947dc418d8c523a0ad88e90b66f3fbef761a28db397bd",
         "start_ms": 236640,
-        "text": "And diff tells you exactly how much, before anything is rendered: which beats moved, by how long, and what the video now runs to end to end. That report is the review surface. It is what a pull request argues about instead of arguing about a video file nobody can read.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "And diff tells you exactly how much, before anything is rendered: which beats moved, by how long, and what the video now runs to end to end. That report is the review surface. It is what a pull request argues about instead of arguing about a video file nobody can read."
       },
       {
         "audio": "audio/dub.wav",
         "audio_hash": "9e16f66e25dd25d73133d40b1601e35a330676fa81e3a7b5326ef1ed8ef651bb",
         "chapter": "narration",
-        "downgrade_reason": null,
         "duration_ms": 16250,
         "duration_source": "measured",
         "id": "dub",
         "source_hash": "c5ba8ef84fe0522e31e899df703928af1fa682134f40c221ca43e73281e1e94b",
         "start_ms": 262600,
-        "text": "teleprompt dub is the command that actually speaks. It synthesizes every segment, writes the audio, and publishes a manifest: one entry per segment, with its prose, its offset, its length, and the voice that produced it.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "teleprompt dub is the command that actually speaks. It synthesizes every segment, writes the audio, and publishes a manifest: one entry per segment, with its prose, its offset, its length, and the voice that produced it."
       },
       {
         "audio": "audio/manifest.wav",
         "audio_hash": "e88bf4438acaf402e960532c4d8791bda4f97fc23e44be7694c0012f17fc1bba",
         "chapter": "narration",
-        "downgrade_reason": null,
         "duration_ms": 20000,
         "duration_source": "measured",
         "id": "manifest",
         "source_hash": "7e8bcf3c65c5232ee03750905d100c83c068d25a43001ac591e3b930341eebb5",
         "start_ms": 280890,
-        "text": "teleprompt renders no video. Something else owns the picture — Remotion, a web player, your own compositor — and it reads the manifest. Deriving its length from the manifest is what keeps the central property alive on the other side of that boundary: narration still drives the pacing.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "teleprompt renders no video. Something else owns the picture — Remotion, a web player, your own compositor — and it reads the manifest. Deriving its length from the manifest is what keeps the central property alive on the other side of that boundary: narration still drives the pacing."
       },
       {
         "audio": "audio/measured.wav",
         "audio_hash": "3ad0368269eaa4d52315afc0e852729436cd6a6388ab2a32a05b833adc90ae9d",
         "chapter": "narration",
-        "downgrade_reason": null,
         "duration_ms": 12600,
         "duration_source": "measured",
         "id": "measured",
         "source_hash": "3489162f02032ebddb265205d4633c0a6badc003cb861cabac57bd538515634c",
         "start_ms": 304065,
-        "text": "Having spoken the script once, teleprompt has also measured it. The same plan is still instant, and now every duration in it is a recording rather than an estimate.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Having spoken the script once, teleprompt has also measured it. The same plan is still instant, and now every duration in it is a recording rather than an estimate."
       },
       {
         "audio": "audio/dub-check.wav",
         "audio_hash": "9fbfd82a85d1cd3148413423a137214aa5f013f95051c714d3bcd617542a0baa",
         "chapter": "keeping-a-pull-request-honest",
-        "downgrade_reason": null,
         "duration_ms": 16300,
         "duration_source": "measured",
         "id": "dub-check",
         "source_hash": "604e43e0b775fecd6d9eb27692b7fcb7ba272409edf84969119226f0de2e9041",
         "start_ms": 316665,
-        "text": "dub --check compares the committed manifest against the script and exits three when they disagree. Put that in continuous integration and a change to the prose can no longer be merged with last week's narration still attached to it.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "dub --check compares the committed manifest against the script and exits three when they disagree. Put that in continuous integration and a change to the prose can no longer be merged with last week's narration still attached to it."
       },
       {
         "audio": "audio/doctor.wav",
         "audio_hash": "83fa41c9e924e8d3218e28e34c7aac3f45904b1539b4af6c75a91a09e81782c7",
         "chapter": "when-something-is-wrong",
-        "downgrade_reason": null,
         "duration_ms": 14650,
         "duration_source": "measured",
         "id": "doctor",
         "source_hash": "dcae1d3d596b2f99eb44f0bb2f3efb24a5e92c5c86145c986c6e911eb9565db7",
         "start_ms": 335355,
-        "text": "teleprompt doctor reports the environment teleprompt can see: which scene adapters this build ships, which voice backends it knows, how warm the cache is, and whether the server your project points at is answering.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "teleprompt doctor reports the environment teleprompt can see: which scene adapters this build ships, which voice backends it knows, how warm the cache is, and whether the server your project points at is answering."
       },
       {
         "audio": "audio/offline-by-default.wav",
         "audio_hash": "ddf9944d89dd63ab080925ab7f61c5ca31e65ef15e80a1246ae8525bb59fa19d",
         "chapter": "when-something-is-wrong",
-        "downgrade_reason": null,
         "duration_ms": 25750,
         "duration_source": "measured",
         "id": "offline-by-default",
         "source_hash": "c1ab97043b5c4045ad86d9a5db173846301ff7c271495263a02b2aef2111b39f",
         "start_ms": 353335,
-        "text": "A voice backend that is down is a warning there, not a failure. check, plan, and diff never needed it; only dub does. That asymmetry is the point: the loop you run a hundred times a day stays offline and instant, and the one command that needs a machine to speak is the only one that asks for it.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "A voice backend that is down is a warning there, not a failure. check, plan, and diff never needed it; only dub does. That asymmetry is the point: the loop you run a hundred times a day stays offline and instant, and the one command that needs a machine to speak is the only one that asks for it."
       },
       {
         "audio": "audio/self-hosting.wav",
         "audio_hash": "20948c7351aafa1eb439f91888caa8307bf3ff9dfbf4beea2dfda3c299d99c4f",
         "chapter": "when-something-is-wrong",
-        "downgrade_reason": null,
         "duration_ms": 23300,
         "duration_source": "measured",
         "id": "self-hosting",
         "source_hash": "8c320a9539bc31e47610d30514273c25c6ded8eb25377b25adadcc0fc75d9eba",
         "start_ms": 379085,
-        "text": "This manual compiles in the repository that builds the tool, and CI compares it against its committed timeline on every change. When a command grows a flag, the sentence about it and the tape demonstrating it are in the same file, in version control, and the build says so when they fall out of step.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "This manual compiles in the repository that builds the tool, and CI compares it against its committed timeline on every change. When a command grows a flag, the sentence about it and the tape demonstrating it are in the same file, in version control, and the build says so when they fall out of step."
       }
     ],
     "locale": "en",
-    "manifest_version": 2,
+    "manifest_version": 3,
     "script": "cli.md",
     "shots": [
       {
@@ -835,299 +772,236 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "audio": "audio/welcome.wav",
           "audio_hash": "90703792f347bb6c6ec6c8d77ec47e80f0387a49c1948e9ae28b00bf6a04d0a3",
           "chapter": "the-manual-is-the-program",
-          "downgrade_reason": null,
           "duration_ms": 20350,
           "duration_source": "measured",
           "id": "welcome",
           "source_hash": "f54014b34f3eaa68f187d54878f7b7cef0fab48015a966239f5029505844d365",
           "start_ms": 150,
-          "text": "This is teleprompt's command-line manual, and it is compiled by the tool it documents. Every sentence you are hearing is a paragraph of Markdown in one file, and every command you watch run is a tape in that same file, a few lines below the sentence about it.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "This is teleprompt's command-line manual, and it is compiled by the tool it documents. Every sentence you are hearing is a paragraph of Markdown in one file, and every command you watch run is a tape in that same file, a few lines below the sentence about it."
         },
         {
           "audio": "audio/prose-and-action.wav",
           "audio_hash": "9b17f18ce09bfe4e03bbee475b38b6aaff8dec267dcca86774c6a31c515d2dd8",
           "chapter": "the-manual-is-the-program",
-          "downgrade_reason": null,
           "duration_ms": 18700,
           "duration_source": "measured",
           "id": "prose-and-action",
           "source_hash": "8c0fae6521383a3cbaa5be7cabe673ff9b66033ee817571cd13fcda6d555ed5e",
           "start_ms": 22830,
-          "text": "That is the whole idea. Prose is narration, fenced blocks are what the screen does, and the length of the speech decides how long the picture holds. Rewrite this paragraph and the terminal below it waits longer, because it is waiting for me.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "That is the whole idea. Prose is narration, fenced blocks are what the screen does, and the length of the speech decides how long the picture holds. Rewrite this paragraph and the terminal below it waits longer, because it is waiting for me."
         },
         {
           "audio": "audio/vhs.wav",
           "audio_hash": "6f0edf785fa6418340532ede124ccc3ba53fc5ed0703efed1a8d8b9d4984187c",
           "chapter": "the-manual-is-the-program",
-          "downgrade_reason": null,
           "duration_ms": 25450,
           "duration_source": "measured",
           "id": "vhs",
           "source_hash": "835be9fff588bed3e4bcdd1495c7626059916626887a2489da1c80ee6782ac37",
           "start_ms": 41530,
-          "text": "The terminal you are looking at is a VHS tape — Charm's recording format, borrowed whole. teleprompt does not render it. It rewrites the tape's timings so that every span lasts exactly as long as the sentence over it, and hands that tape to VHS. Waiting for narration is a number in the input, not a renderer of our own.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "The terminal you are looking at is a VHS tape — Charm's recording format, borrowed whole. teleprompt does not render it. It rewrites the tape's timings so that every span lasts exactly as long as the sentence over it, and hands that tape to VHS. Waiting for narration is a number in the input, not a renderer of our own."
         },
         {
           "audio": "audio/the-mark.wav",
           "audio_hash": "4a4faac76459cfaa1985a49811b3895aff7358dfd1f324b2586e38ee69f63851",
           "chapter": "the-manual-is-the-program",
-          "downgrade_reason": null,
           "duration_ms": 23550,
           "duration_source": "measured",
           "id": "the-mark",
           "source_hash": "a1ce4bf7da55b5d6319b65cde046dedb96e6721876c09b89d35173138ad0fb94",
           "start_ms": 71840,
-          "text": "Where one paragraph hands over to the next, a tape carries a mark, and the mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS itself will run — which is the whole reason to keep a demo in a real tape file rather than in a dialect only teleprompt reads.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Where one paragraph hands over to the next, a tape carries a mark, and the mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS itself will run — which is the whole reason to keep a demo in a real tape file rather than in a dialect only teleprompt reads."
         },
         {
           "audio": "audio/new.wav",
           "audio_hash": "7a13b4e9b3385bf54b4fe662a3e8f2067edacdfdbbcbbac310270d4dde5bbc36",
           "chapter": "starting-a-project",
-          "downgrade_reason": null,
           "duration_ms": 10100,
           "duration_source": "measured",
           "id": "new",
           "source_hash": "fba819b836ef36d72d10e33839c7379cd2538411516635009c74cf26bba1f11c",
           "start_ms": 95390,
-          "text": "teleprompt new scaffolds one: a configuration file, a scripts directory, and a timelines directory for the compiled output you commit alongside the prose.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "teleprompt new scaffolds one: a configuration file, a scripts directory, and a timelines directory for the compiled output you commit alongside the prose."
         },
         {
           "audio": "audio/scaffold.wav",
           "audio_hash": "f44fc5cb53b6cc10a81b8d56cd72fa0f4829efa218da63d271ce366c361542a3",
           "chapter": "starting-a-project",
-          "downgrade_reason": null,
           "duration_ms": 14850,
           "duration_source": "measured",
           "id": "scaffold",
           "source_hash": "05547812693038698000d3652eb6525178395cd45653652f540a891ffefe23bb",
           "start_ms": 108270,
-          "text": "The demo script it leaves behind is two paragraphs and two action blocks — small enough to read in one breath, and complete enough to compile. Nothing else has to be installed for it to work.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "The demo script it leaves behind is two paragraphs and two action blocks — small enough to read in one breath, and complete enough to compile. Nothing else has to be installed for it to work."
         },
         {
           "audio": "audio/check.wav",
           "audio_hash": "0e598c8403d2b4b263f35d72f3de87f063828bb12297b9b245597c9d2f06db03",
           "chapter": "reading-a-script",
-          "downgrade_reason": null,
           "duration_ms": 13700,
           "duration_source": "measured",
           "id": "check",
           "source_hash": "cecee378feb6298e3d781b67e35ca34b02bcc788b041f1e55532bb9fef146498",
           "start_ms": 123120,
-          "text": "teleprompt check parses and validates, and does nothing else. No synthesis, no network, no files written — so it costs nothing to run it on every keystroke, and plenty of editors will.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "teleprompt check parses and validates, and does nothing else. No synthesis, no network, no files written — so it costs nothing to run it on every keystroke, and plenty of editors will."
         },
         {
           "audio": "audio/diagnostics.wav",
           "audio_hash": "a15a969bf725f0ae3837b55b1dd114b1c85407982aa77c1c5f3a9fbbf6eaf9ec",
           "chapter": "reading-a-script",
-          "downgrade_reason": null,
           "duration_ms": 18350,
           "duration_source": "measured",
           "id": "diagnostics",
           "source_hash": "b184776827cb654d17aff1c57226b3edb5aa671a6f82446c7293e68ba3b89010",
           "start_ms": 138460,
-          "text": "When it does have something to say, it says where. A mistyped policy, a duration that is not a duration, a tape directive teleprompt cannot run: each is reported at the line that carries it, with the spelling it should have had.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "When it does have something to say, it says where. A mistyped policy, a duration that is not a duration, a tape directive teleprompt cannot run: each is reported at the line that carries it, with the spelling it should have had."
         },
         {
           "audio": "audio/plan.wav",
           "audio_hash": "2cbd66f312889e17dd09eb4b9b50313f2bb01259e1e4bcb49a1658a311770bf9",
           "chapter": "compiling-the-timeline",
-          "downgrade_reason": null,
           "duration_ms": 12100,
           "duration_source": "measured",
           "id": "plan",
           "source_hash": "dc7c09885d41077ae061dad52271894a0b1cf8003aca52dec3d9c87aaf410ac8",
           "start_ms": 157110,
-          "text": "teleprompt plan compiles the script into a timeline and prints one line per beat: when it starts, which pacing policy governs it, and how long its narration runs.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "teleprompt plan compiles the script into a timeline and prints one line per beat: when it starts, which pacing policy governs it, and how long its narration runs."
         },
         {
           "audio": "audio/estimated-vs-measured.wav",
           "audio_hash": "d1be2a9ca2719f3e7753db86cc9e3429dd4688165990aa3a30796f55a35c3529",
           "chapter": "compiling-the-timeline",
-          "downgrade_reason": null,
           "duration_ms": 17800,
           "duration_source": "measured",
           "id": "estimated-vs-measured",
           "source_hash": "6179a9d524bc38103ba4e1ae572cc937eddd2381edf7b2b2eaf88d637fbb3b19",
           "start_ms": 172520,
-          "text": "Those durations come from the cache when a segment has been synthesized before, and from a word-count estimate when it has not. Plan never synthesizes anything, which is why it answers instantly on a laptop with no voice backend anywhere near it.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Those durations come from the cache when a segment has been synthesized before, and from a word-count estimate when it has not. Plan never synthesizes anything, which is why it answers instantly on a laptop with no voice backend anywhere near it."
         },
         {
           "audio": "audio/exact-actions.wav",
           "audio_hash": "216c35e7b47a3ac3c8ee6e7ef97a5bd8cbb57e53f57be88aa5b854304be674c8",
           "chapter": "compiling-the-timeline",
-          "downgrade_reason": null,
           "duration_ms": 19650,
           "duration_source": "measured",
           "id": "exact-actions",
           "source_hash": "0a50066637ace87d626f122477a82f77461b5a2ff9486e1e2dc56feb7eeb4e5d",
           "start_ms": 190320,
-          "text": "An action block's duration is different: a tape states its own timing. Every sleep is written down and every keystroke has a speed, so teleprompt adds them up rather than guessing, and never has to run the terminal to find out how long the terminal takes.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "An action block's duration is different: a tape states its own timing. Every sleep is written down and every keystroke has a speed, so teleprompt adds them up rather than guessing, and never has to run the terminal to find out how long the terminal takes."
         },
         {
           "audio": "audio/commit-the-timeline.wav",
           "audio_hash": "f1b881b9dc0b3955f0612a4fbb5bad1034a3b303e1d96df4ff56dd81f2753f3e",
           "chapter": "the-feedback-loop",
-          "downgrade_reason": null,
           "duration_ms": 11250,
           "duration_source": "measured",
           "id": "commit-the-timeline",
           "source_hash": "017f3b4301ce31ebf2d45624825cc148f9c217ca1d365bd448f35e0e66c21908",
           "start_ms": 213740,
-          "text": "Commit the timeline that plan produced, and teleprompt diff will compare the next compile against it. This is the loop the whole tool is built around.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Commit the timeline that plan produced, and teleprompt diff will compare the next compile against it. This is the loop the whole tool is built around."
         },
         {
           "audio": "audio/edit-the-prose.wav",
           "audio_hash": "bd44f417aa1224ab3efbf8d9cc97b0aa9fd4afe0c68f0bb0b933392326e014e8",
           "chapter": "the-feedback-loop",
-          "downgrade_reason": null,
           "duration_ms": 11350,
           "duration_source": "measured",
           "id": "edit-the-prose",
           "source_hash": "b8225b2ea56236c4a97c8c520bc1f15ef5bb58cd59b4f70e69584f36c9a07364",
           "start_ms": 224990,
-          "text": "Now edit a paragraph. Not the code, not the tape — the prose. A longer sentence takes longer to say, and everything scheduled after it moves.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Now edit a paragraph. Not the code, not the tape — the prose. A longer sentence takes longer to say, and everything scheduled after it moves."
         },
         {
           "audio": "audio/the-diff.wav",
           "audio_hash": "a1d22663d9a589ce802eca371097d9aa9a29155b9c68e4663825fc7f9536675f",
           "chapter": "the-feedback-loop",
-          "downgrade_reason": null,
           "duration_ms": 22150,
           "duration_source": "measured",
           "id": "the-diff",
           "source_hash": "155bf8a6fa8538a195f947dc418d8c523a0ad88e90b66f3fbef761a28db397bd",
           "start_ms": 236640,
-          "text": "And diff tells you exactly how much, before anything is rendered: which beats moved, by how long, and what the video now runs to end to end. That report is the review surface. It is what a pull request argues about instead of arguing about a video file nobody can read.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "And diff tells you exactly how much, before anything is rendered: which beats moved, by how long, and what the video now runs to end to end. That report is the review surface. It is what a pull request argues about instead of arguing about a video file nobody can read."
         },
         {
           "audio": "audio/dub.wav",
           "audio_hash": "9e16f66e25dd25d73133d40b1601e35a330676fa81e3a7b5326ef1ed8ef651bb",
           "chapter": "narration",
-          "downgrade_reason": null,
           "duration_ms": 16250,
           "duration_source": "measured",
           "id": "dub",
           "source_hash": "c5ba8ef84fe0522e31e899df703928af1fa682134f40c221ca43e73281e1e94b",
           "start_ms": 262600,
-          "text": "teleprompt dub is the command that actually speaks. It synthesizes every segment, writes the audio, and publishes a manifest: one entry per segment, with its prose, its offset, its length, and the voice that produced it.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "teleprompt dub is the command that actually speaks. It synthesizes every segment, writes the audio, and publishes a manifest: one entry per segment, with its prose, its offset, its length, and the voice that produced it."
         },
         {
           "audio": "audio/manifest.wav",
           "audio_hash": "e88bf4438acaf402e960532c4d8791bda4f97fc23e44be7694c0012f17fc1bba",
           "chapter": "narration",
-          "downgrade_reason": null,
           "duration_ms": 20000,
           "duration_source": "measured",
           "id": "manifest",
           "source_hash": "7e8bcf3c65c5232ee03750905d100c83c068d25a43001ac591e3b930341eebb5",
           "start_ms": 280890,
-          "text": "teleprompt renders no video. Something else owns the picture — Remotion, a web player, your own compositor — and it reads the manifest. Deriving its length from the manifest is what keeps the central property alive on the other side of that boundary: narration still drives the pacing.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "teleprompt renders no video. Something else owns the picture — Remotion, a web player, your own compositor — and it reads the manifest. Deriving its length from the manifest is what keeps the central property alive on the other side of that boundary: narration still drives the pacing."
         },
         {
           "audio": "audio/measured.wav",
           "audio_hash": "3ad0368269eaa4d52315afc0e852729436cd6a6388ab2a32a05b833adc90ae9d",
           "chapter": "narration",
-          "downgrade_reason": null,
           "duration_ms": 12600,
           "duration_source": "measured",
           "id": "measured",
           "source_hash": "3489162f02032ebddb265205d4633c0a6badc003cb861cabac57bd538515634c",
           "start_ms": 304065,
-          "text": "Having spoken the script once, teleprompt has also measured it. The same plan is still instant, and now every duration in it is a recording rather than an estimate.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Having spoken the script once, teleprompt has also measured it. The same plan is still instant, and now every duration in it is a recording rather than an estimate."
         },
         {
           "audio": "audio/dub-check.wav",
           "audio_hash": "9fbfd82a85d1cd3148413423a137214aa5f013f95051c714d3bcd617542a0baa",
           "chapter": "keeping-a-pull-request-honest",
-          "downgrade_reason": null,
           "duration_ms": 16300,
           "duration_source": "measured",
           "id": "dub-check",
           "source_hash": "604e43e0b775fecd6d9eb27692b7fcb7ba272409edf84969119226f0de2e9041",
           "start_ms": 316665,
-          "text": "dub --check compares the committed manifest against the script and exits three when they disagree. Put that in continuous integration and a change to the prose can no longer be merged with last week's narration still attached to it.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "dub --check compares the committed manifest against the script and exits three when they disagree. Put that in continuous integration and a change to the prose can no longer be merged with last week's narration still attached to it."
         },
         {
           "audio": "audio/doctor.wav",
           "audio_hash": "83fa41c9e924e8d3218e28e34c7aac3f45904b1539b4af6c75a91a09e81782c7",
           "chapter": "when-something-is-wrong",
-          "downgrade_reason": null,
           "duration_ms": 14650,
           "duration_source": "measured",
           "id": "doctor",
           "source_hash": "dcae1d3d596b2f99eb44f0bb2f3efb24a5e92c5c86145c986c6e911eb9565db7",
           "start_ms": 335355,
-          "text": "teleprompt doctor reports the environment teleprompt can see: which scene adapters this build ships, which voice backends it knows, how warm the cache is, and whether the server your project points at is answering.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "teleprompt doctor reports the environment teleprompt can see: which scene adapters this build ships, which voice backends it knows, how warm the cache is, and whether the server your project points at is answering."
         },
         {
           "audio": "audio/offline-by-default.wav",
           "audio_hash": "ddf9944d89dd63ab080925ab7f61c5ca31e65ef15e80a1246ae8525bb59fa19d",
           "chapter": "when-something-is-wrong",
-          "downgrade_reason": null,
           "duration_ms": 25750,
           "duration_source": "measured",
           "id": "offline-by-default",
           "source_hash": "c1ab97043b5c4045ad86d9a5db173846301ff7c271495263a02b2aef2111b39f",
           "start_ms": 353335,
-          "text": "A voice backend that is down is a warning there, not a failure. check, plan, and diff never needed it; only dub does. That asymmetry is the point: the loop you run a hundred times a day stays offline and instant, and the one command that needs a machine to speak is the only one that asks for it.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "A voice backend that is down is a warning there, not a failure. check, plan, and diff never needed it; only dub does. That asymmetry is the point: the loop you run a hundred times a day stays offline and instant, and the one command that needs a machine to speak is the only one that asks for it."
         },
         {
           "audio": "audio/self-hosting.wav",
           "audio_hash": "20948c7351aafa1eb439f91888caa8307bf3ff9dfbf4beea2dfda3c299d99c4f",
           "chapter": "when-something-is-wrong",
-          "downgrade_reason": null,
           "duration_ms": 23300,
           "duration_source": "measured",
           "id": "self-hosting",
           "source_hash": "8c320a9539bc31e47610d30514273c25c6ded8eb25377b25adadcc0fc75d9eba",
           "start_ms": 379085,
-          "text": "This manual compiles in the repository that builds the tool, and CI compares it against its committed timeline on every change. When a command grows a flag, the sentence about it and the tape demonstrating it are in the same file, in version control, and the build says so when they fall out of step.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "This manual compiles in the repository that builds the tool, and CI compares it against its committed timeline on every change. When a command grows a flag, the sentence about it and the tape demonstrating it are in the same file, in version control, and the build says so when they fall out of step."
         }
       ],
       "locale": "en",
-      "manifest_version": 2,
+      "manifest_version": 3,
       "script": "cli.md",
       "shots": [
         {

@@ -28,7 +28,6 @@ pub enum Outcome {
     RuntimeFailure(String),
     ValidationError(Vec<String>),
     Drift,
-    VoiceDowngrade,
 }
 
 pub fn exit_code_for(outcome: &Outcome) -> i32 {
@@ -37,7 +36,6 @@ pub fn exit_code_for(outcome: &Outcome) -> i32 {
         Outcome::RuntimeFailure(_) => 1,
         Outcome::ValidationError(_) => 2,
         Outcome::Drift => 3,
-        Outcome::VoiceDowngrade => 4,
     }
 }
 
@@ -54,7 +52,6 @@ mod tests {
             2
         );
         assert_eq!(exit_code_for(&Outcome::Drift), 3);
-        assert_eq!(exit_code_for(&Outcome::VoiceDowngrade), 4);
     }
 
     #[test]

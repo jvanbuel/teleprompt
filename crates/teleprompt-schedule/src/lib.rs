@@ -4,9 +4,7 @@ pub mod policy;
 pub mod schedule;
 pub mod timeline;
 
-pub use diff::{
-    diff, ChangeReason, ChangedBeat, ChangedTransition, ReorderedBeat, StaleTake, TimelineDiff,
-};
+pub use diff::{diff, ChangeReason, ChangedBeat, ChangedTransition, ReorderedBeat, TimelineDiff};
 pub use item::{ActionInput, Item, NarrationInput, Pacing};
 pub use policy::{layout, layout_at, Layout, Policy};
 pub use schedule::{schedule, TIMELINE_VERSION};

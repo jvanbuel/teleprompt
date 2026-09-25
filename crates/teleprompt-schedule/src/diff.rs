@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use teleprompt_core::config::TransitionKind;
 use teleprompt_core::time::short;
-use teleprompt_core::{DurationSource, VoiceSource};
+use teleprompt_core::DurationSource;
 
 use crate::timeline::{Entry, Timeline};
 
@@ -43,12 +43,6 @@ impl serde::Serialize for ChangeReason {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub struct StaleTake {
-    pub line: String,
-    pub falls_back_to: VoiceSource,
-}
-
 /// An item on both sides that moved in the entry sequence. Indices are
 /// 0-based positions in the full entry list; `render` prints them 1-based.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -78,7 +72,6 @@ pub struct TimelineDiff {
     pub removed: Vec<String>,
     pub reordered: Vec<ReorderedBeat>,
     pub transitions: Vec<ChangedTransition>,
-    pub stale_takes: Vec<StaleTake>,
     pub recapture: Vec<String>,
 }
 
@@ -94,7 +87,6 @@ impl TimelineDiff {
             && self.removed.is_empty()
             && self.reordered.is_empty()
             && self.transitions.is_empty()
-            && self.stale_takes.is_empty()
             && self.recapture.is_empty()
     }
 
@@ -195,16 +187,6 @@ impl TimelineDiff {
             }
         }
 
-        if !self.stale_takes.is_empty() {
-            out.push_str("\n\nstale takes (build will fall back unless re-recorded):");
-            for s in &self.stale_takes {
-                out.push_str(&format!(
-                    "\n  {:<16} falls back to {}",
-                    s.line, s.falls_back_to
-                ));
-            }
-        }
-
         if !self.recapture.is_empty() {
             out.push_str("\n\nneeds recapture:");
             for item in &self.recapture {
@@ -242,7 +224,6 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
 
     let mut changed = Vec::new();
     let mut recapture = Vec::new();
-    let mut stale_takes = Vec::new();
     let mut transitions = Vec::new();
 
     for (id, n) in &new {
@@ -321,16 +302,6 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                 }
             }
         }
-
-        // A property of the new timeline alone, whatever else changed.
-        if let Some(nn) = &n.narration {
-            if let Some(d) = nn.voice.downgrade() {
-                stale_takes.push(StaleTake {
-                    line: nn.line.clone(),
-                    falls_back_to: d.to,
-                });
-            }
-        }
     }
 
     let added: Vec<String> = new
@@ -353,7 +324,6 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
         removed,
         reordered: reordered(before, after),
         transitions,
-        stale_takes,
         recapture,
     }
 }

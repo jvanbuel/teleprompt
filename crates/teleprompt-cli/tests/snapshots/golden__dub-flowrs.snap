@@ -28,75 +28,60 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "audio": "audio/signin.wav",
         "audio_hash": "a9eefd60397870096460c466299826e571f25730a97c75c03b4c3c59da3de2e4",
         "chapter": "in-the-browser",
-        "downgrade_reason": null,
         "duration_ms": 5050,
         "duration_source": "measured",
         "id": "signin",
         "source_hash": "13c8169b184110bf8ef44126989f03c8074d78fdd23d529b00901c254484bd97",
         "start_ms": 150,
-        "text": "Airflow's web interface starts, like most of them, with a sign-in.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Airflow's web interface starts, like most of them, with a sign-in."
       },
       {
         "audio": "audio/clicking.wav",
         "audio_hash": "40cee15c5c4b4a50f5f82b1c8417b5bc4acb08988d93849497bad31da538ac5d",
         "chapter": "in-the-browser",
-        "downgrade_reason": null,
         "duration_ms": 21300,
         "duration_source": "measured",
         "id": "clicking",
         "source_hash": "05e3bb5ddb1d13289c39090e304b97d7c9b4990ed9b085bb999df298ab93f3d9",
         "start_ms": 5500,
-        "text": "From there, one task's log is a search and three clicks: narrow the DAG list, open the DAG, pick the task out of the grid, and switch to its log tab. Each click waits on the server, and what you get at the end is seven lines of output.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "From there, one task's log is a search and three clicks: narrow the DAG list, open the DAG, pick the task out of the grid, and switch to its log tab. Each click waits on the server, and what you get at the end is seven lines of output."
       },
       {
         "audio": "audio/flowrs.wav",
         "audio_hash": "705dd4d6104a57c5d091317dbc21a3c44025c8787ff951353b495d5cf2d6d520",
         "chapter": "in-the-terminal",
-        "downgrade_reason": null,
         "duration_ms": 9400,
         "duration_source": "measured",
         "id": "flowrs",
         "source_hash": "411dc5cb5b6ddb0439acd6ad348cc89003be7a3c12b40bd09348ed82556d3fd0",
         "start_ms": 27100,
-        "text": "Flowrs reads the same REST API from a terminal. One command, no sign-in, and the DAG list is already on screen.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Flowrs reads the same REST API from a terminal. One command, no sign-in, and the DAG list is already on screen."
       },
       {
         "audio": "audio/filter.wav",
         "audio_hash": "a3bfe9b68c1e8d6116e6b107cea3fc1050a2ae574ec66689a58ca26927898eef",
         "chapter": "in-the-terminal",
-        "downgrade_reason": null,
         "duration_ms": 5950,
         "duration_source": "measured",
         "id": "filter",
         "source_hash": "dd47f9c83e204f83d142d73efd2c8af6ac13406f54a0d7bc78a28cacd0b44fd0",
         "start_ms": 36500,
-        "text": "Filtering is a slash and as much of the name as you can remember.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Filtering is a slash and as much of the name as you can remember."
       },
       {
         "audio": "audio/drill.wav",
         "audio_hash": "f9787a8cc021d5b5fccf86553e1b9efb2894500069d3089572b63152008d9a53",
         "chapter": "in-the-terminal",
-        "downgrade_reason": null,
         "duration_ms": 14200,
         "duration_source": "measured",
         "id": "drill",
         "source_hash": "5a479fd63519c7540edcd1cc12fd2fde1e0de5cd2f04504151163996d1a250a8",
         "start_ms": 42450,
-        "text": "Enter walks down the hierarchy — the DAG, its runs, the tasks in a run, and finally the log. Escape walks back up. Same answer, no page loads, and nothing to click.",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "text": "Enter walks down the hierarchy — the DAG, its runs, the tasks in a run, and finally the log. Escape walks back up. Same answer, no page loads, and nothing to click."
       }
     ],
     "locale": "en",
-    "manifest_version": 2,
+    "manifest_version": 3,
     "script": "demo.md",
     "shots": [
       {
@@ -215,75 +200,60 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "audio": "audio/signin.wav",
           "audio_hash": "a9eefd60397870096460c466299826e571f25730a97c75c03b4c3c59da3de2e4",
           "chapter": "in-the-browser",
-          "downgrade_reason": null,
           "duration_ms": 5050,
           "duration_source": "measured",
           "id": "signin",
           "source_hash": "13c8169b184110bf8ef44126989f03c8074d78fdd23d529b00901c254484bd97",
           "start_ms": 150,
-          "text": "Airflow's web interface starts, like most of them, with a sign-in.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Airflow's web interface starts, like most of them, with a sign-in."
         },
         {
           "audio": "audio/clicking.wav",
           "audio_hash": "40cee15c5c4b4a50f5f82b1c8417b5bc4acb08988d93849497bad31da538ac5d",
           "chapter": "in-the-browser",
-          "downgrade_reason": null,
           "duration_ms": 21300,
           "duration_source": "measured",
           "id": "clicking",
           "source_hash": "05e3bb5ddb1d13289c39090e304b97d7c9b4990ed9b085bb999df298ab93f3d9",
           "start_ms": 5500,
-          "text": "From there, one task's log is a search and three clicks: narrow the DAG list, open the DAG, pick the task out of the grid, and switch to its log tab. Each click waits on the server, and what you get at the end is seven lines of output.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "From there, one task's log is a search and three clicks: narrow the DAG list, open the DAG, pick the task out of the grid, and switch to its log tab. Each click waits on the server, and what you get at the end is seven lines of output."
         },
         {
           "audio": "audio/flowrs.wav",
           "audio_hash": "705dd4d6104a57c5d091317dbc21a3c44025c8787ff951353b495d5cf2d6d520",
           "chapter": "in-the-terminal",
-          "downgrade_reason": null,
           "duration_ms": 9400,
           "duration_source": "measured",
           "id": "flowrs",
           "source_hash": "411dc5cb5b6ddb0439acd6ad348cc89003be7a3c12b40bd09348ed82556d3fd0",
           "start_ms": 27100,
-          "text": "Flowrs reads the same REST API from a terminal. One command, no sign-in, and the DAG list is already on screen.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Flowrs reads the same REST API from a terminal. One command, no sign-in, and the DAG list is already on screen."
         },
         {
           "audio": "audio/filter.wav",
           "audio_hash": "a3bfe9b68c1e8d6116e6b107cea3fc1050a2ae574ec66689a58ca26927898eef",
           "chapter": "in-the-terminal",
-          "downgrade_reason": null,
           "duration_ms": 5950,
           "duration_source": "measured",
           "id": "filter",
           "source_hash": "dd47f9c83e204f83d142d73efd2c8af6ac13406f54a0d7bc78a28cacd0b44fd0",
           "start_ms": 36500,
-          "text": "Filtering is a slash and as much of the name as you can remember.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Filtering is a slash and as much of the name as you can remember."
         },
         {
           "audio": "audio/drill.wav",
           "audio_hash": "f9787a8cc021d5b5fccf86553e1b9efb2894500069d3089572b63152008d9a53",
           "chapter": "in-the-terminal",
-          "downgrade_reason": null,
           "duration_ms": 14200,
           "duration_source": "measured",
           "id": "drill",
           "source_hash": "5a479fd63519c7540edcd1cc12fd2fde1e0de5cd2f04504151163996d1a250a8",
           "start_ms": 42450,
-          "text": "Enter walks down the hierarchy — the DAG, its runs, the tasks in a run, and finally the log. Escape walks back up. Same answer, no page loads, and nothing to click.",
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "text": "Enter walks down the hierarchy — the DAG, its runs, the tasks in a run, and finally the log. Escape walks back up. Same answer, no page loads, and nothing to click."
         }
       ],
       "locale": "en",
-      "manifest_version": 2,
+      "manifest_version": 3,
       "script": "demo.md",
       "shots": [
         {

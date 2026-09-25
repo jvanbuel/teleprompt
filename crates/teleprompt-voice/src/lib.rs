@@ -5,7 +5,6 @@ pub use async_trait::async_trait;
 pub mod contract;
 pub mod estimator;
 pub mod registry;
-pub mod source;
 pub mod wav;
 
 pub use contract::{
@@ -14,4 +13,3 @@ pub use contract::{
 };
 pub use estimator::{DurationEstimator, WpmEstimator, DEFAULT_WPM};
 pub use registry::VoiceRegistry;
-pub use source::{resolve_source, VoiceSource, VoiceTier};

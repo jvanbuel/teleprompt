@@ -40,7 +40,6 @@ pub fn build(
                 duration_ms: n.duration_ms,
                 duration_source: n.duration_source,
                 audio: audio_path(&n.line, &audio.format),
-                voice: n.voice.clone(),
                 source_hash: n.source_hash,
                 audio_hash: n.audio_hash,
                 words: detail.word_timings.as_ref().map(|ws| {

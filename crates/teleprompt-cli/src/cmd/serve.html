@@ -117,8 +117,8 @@ const audio = () => (ctx ??= new AudioContext());
 
 async function load(generation) {
   const manifest = await (await fetch("manifest.json")).json();
-  if (manifest.manifest_version !== 2) {
-    show([`this preview reads manifest v2; teleprompt served v${manifest.manifest_version}`]);
+  if (manifest.manifest_version !== 3) {
+    show([`this preview reads manifest v3; teleprompt served v${manifest.manifest_version}`]);
     return;
   }
   app.manifest = manifest;

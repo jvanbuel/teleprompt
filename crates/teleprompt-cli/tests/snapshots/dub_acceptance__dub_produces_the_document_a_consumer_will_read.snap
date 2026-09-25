@@ -27,61 +27,49 @@ expression: manifest
       "audio": "audio/welcome.wav",
       "audio_hash": "dbe7246bceb14adccedcb048514bbf7e9bf995adaeeeec339731ff8de2aef025",
       "chapter": "introduction",
-      "downgrade_reason": null,
       "duration_ms": 12200,
       "duration_source": "measured",
       "id": "welcome",
       "source_hash": "876ebe63cc761f4d46d15c4b4aae02bbfca440fea592b67e207978dc25c7f9c7",
       "start_ms": 150,
-      "text": "Welcome to Acme. In the next two minutes I will show you how to get a project running, deploy it, and roll it back when something goes wrong.",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic"
+      "text": "Welcome to Acme. In the next two minutes I will show you how to get a project running, deploy it, and roll it back when something goes wrong."
     },
     {
       "audio": "audio/provenance.wav",
       "audio_hash": "24dcf3e4b498be4635d6f953e27438ec72be0fd8a3ec09f8d88705c7e49ad9b1",
       "chapter": "introduction",
-      "downgrade_reason": null,
       "duration_ms": 8750,
       "duration_source": "measured",
       "id": "provenance",
       "source_hash": "4b380a79f5acfff997d3b61abf110c87862f8d41315cba07e67647d7ccb903a7",
       "start_ms": 12450,
-      "text": "Everything you see here is generated from a single Markdown file that lives in version control alongside the code it documents.",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic"
+      "text": "Everything you see here is generated from a single Markdown file that lives in version control alongside the code it documents."
     },
     {
       "audio": "audio/deploy.wav",
       "audio_hash": "df3c78b1e4c583118fd965a1dd1554d9c450e27e4e4f831218f076b01c0cce66",
       "chapter": "deploying",
-      "downgrade_reason": null,
       "duration_ms": 4900,
       "duration_source": "measured",
       "id": "deploy",
       "source_hash": "07ddd90d4a5f4916a13439a5f2c0ad63b600da4d033bd8aa227e944fd23db8dd",
       "start_ms": 21950,
-      "text": "Deployment is one command, and it streams progress as it goes.",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic"
+      "text": "Deployment is one command, and it streams progress as it goes."
     },
     {
       "audio": "audio/rollback.wav",
       "audio_hash": "5792270852a847043c21ed9f704aec5f3fcad6df026897cd5864cb201bfca5da",
       "chapter": "deploying",
-      "downgrade_reason": null,
       "duration_ms": 6900,
       "duration_source": "measured",
       "id": "rollback",
       "source_hash": "79bc51f2693074a0f8dd859de940da9df1568293ffeb82e76dc5a15da225de3b",
       "start_ms": 27750,
-      "text": "If a deploy goes wrong, rolling back takes the same single command with one extra flag.",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic"
+      "text": "If a deploy goes wrong, rolling back takes the same single command with one extra flag."
     }
   ],
   "locale": "en",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "script": "test.md",
   "shots": [
     {

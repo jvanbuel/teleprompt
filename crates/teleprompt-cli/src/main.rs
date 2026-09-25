@@ -132,9 +132,6 @@ enum Command {
         /// what the comparison measures against
         #[arg(long)]
         check: bool,
-        /// Treat a voice-tier downgrade as fatal; exit 4
-        #[arg(long)]
-        strict_voice: bool,
     },
     /// Record the scenes a build will show
     ///
@@ -325,12 +322,7 @@ fn run(command: Command, format: Format) -> Run {
             cache_max_mb,
         } => run_build(format, &args, out, &frame, no_cache, cache_max_mb),
         Command::Capture { args, frame } => run_capture(format, &args, &frame),
-        Command::Dub {
-            args,
-            out,
-            check,
-            strict_voice,
-        } => run_dub(format, &args, &out, check, strict_voice),
+        Command::Dub { args, out, check } => run_dub(format, &args, &out, check),
     }
 }
 
@@ -463,13 +455,7 @@ fn run_capture(format: Format, args: &ScriptArgs, frame: &FrameArgs) -> Run {
     Ok(Outcome::Ok)
 }
 
-fn run_dub(
-    format: Format,
-    args: &ScriptArgs,
-    out: &std::path::Path,
-    check: bool,
-    strict_voice: bool,
-) -> Run {
+fn run_dub(format: Format, args: &ScriptArgs, out: &std::path::Path, check: bool) -> Run {
     let project = project_for(&args.script)?;
     let result = runtime().map_err(runtime_failure)?.block_on(dub::run_dub(
         &project,
@@ -483,16 +469,7 @@ fn run_dub(
         Some(d) => emit(format, d, &d.render()),
         None => emit(format, &result.manifest, &dub::render_dub(&result)),
     }
-    // Reported whether or not `--strict-voice` makes it fatal.
-    if !result.downgrades.is_empty() {
-        eprintln!("voice downgraded on {} line(s):", result.downgrades.len());
-        eprint!("{}", dub::render_downgrades(&result.downgrades));
-    }
-    // Ahead of drift: the audio is not what the script asked for, whatever
-    // the committed manifest says.
-    Ok(if strict_voice && !result.downgrades.is_empty() {
-        Outcome::VoiceDowngrade
-    } else if result.drift.as_ref().is_some_and(|d| !d.is_empty()) {
+    Ok(if result.drift.as_ref().is_some_and(|d| !d.is_empty()) {
         Outcome::Drift
     } else {
         Outcome::Ok

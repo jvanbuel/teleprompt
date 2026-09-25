@@ -125,9 +125,21 @@ fn the_preview_is_served_a_manifest_with_shots_in_it() {
     let (_dir, _script, addr) = serving();
     let m = json(addr, "/manifest.json");
 
+    // The page refuses any manifest but the version it was written for, so
+    // that version must be the one the server sends.
+    let (_, page) = get(addr, "/");
+    let page = String::from_utf8(page).unwrap();
+    let marker = "manifest.manifest_version !== ";
+    let at = page.find(marker).expect("the page checks the version") + marker.len();
+    let accepted: u64 = page[at..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .unwrap();
     assert_eq!(
-        m["manifest_version"], 2,
-        "the preview places the picture from `shots`, which is v2"
+        m["manifest_version"], accepted,
+        "the preview would refuse it"
     );
     assert_eq!(m["lines"].as_array().unwrap().len(), 2);
     let shots = m["shots"].as_array().unwrap();

@@ -5,7 +5,7 @@ use teleprompt_cache::{CachedAudio, VoiceCache};
 use teleprompt_compile::manifest;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
-use teleprompt_core::{Hash, VoiceSource};
+use teleprompt_core::Hash;
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_voice::VoiceBackend;
@@ -18,16 +18,6 @@ use crate::voice::Backends;
 /// manifest takes its rate from the audio produced. The preview publishes
 /// the same, since it serves what `dub` would.
 pub(crate) const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
-
-/// A line the fallback ladder could not deliver at the requested tier
-/// (docs/design.md#voice-tiers). Whether that is fatal is the caller's call.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Downgrade {
-    pub line_id: String,
-    pub requested: VoiceSource,
-    pub actual: VoiceSource,
-    pub reason: String,
-}
 
 pub struct DubOutput {
     pub manifest: NarrationManifest,
@@ -43,38 +33,6 @@ pub struct DubOutput {
     pub warnings: Vec<String>,
     /// `Some` only under `--check`. `None` means nothing was compared.
     pub drift: Option<ManifestDiff>,
-    /// Every line delivered below its requested tier, in manifest order.
-    /// Always populated; `--strict-voice` decides whether it is fatal.
-    pub downgrades: Vec<Downgrade>,
-}
-
-/// Reads the downgrades straight off the published manifest, so what
-/// `--strict-voice` fails on is exactly what a consumer would read.
-fn downgrades_in(manifest: &NarrationManifest) -> Vec<Downgrade> {
-    manifest
-        .lines
-        .iter()
-        .filter_map(|s| {
-            let d = s.voice.downgrade()?;
-            Some(Downgrade {
-                line_id: s.id.clone(),
-                requested: s.voice.requested(),
-                actual: d.to,
-                reason: d.reason.clone(),
-            })
-        })
-        .collect()
-}
-
-pub fn render_downgrades(downgrades: &[Downgrade]) -> String {
-    let mut s = String::new();
-    for d in downgrades {
-        s.push_str(&format!(
-            "  {} — asked for {}, got {}: {}\n",
-            d.line_id, d.requested, d.actual, d.reason
-        ));
-    }
-    s
 }
 
 /// A script that fails validation (exit 2) or a runtime failure such as an
@@ -286,7 +244,6 @@ pub async fn run_dub_with(
         compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
     audio.check_lengths(&compiled.timeline)?;
     let built = audio.manifest(&compiled);
-    let downgrades = downgrades_in(&built);
 
     // The re-render notices come first: they explain why anything below them
     // is being recomputed at all.
@@ -309,7 +266,6 @@ pub async fn run_dub_with(
         written,
         warnings,
         drift,
-        downgrades,
     })
 }
 
@@ -620,8 +576,6 @@ impl From<DubError> for crate::output::Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_core::{DurationSource, VoiceTier};
-    use teleprompt_manifest::LineEntry;
 
     #[test]
     fn matching_lengths_pass_the_guard() {
@@ -636,70 +590,5 @@ mod tests {
         assert!(msg.contains("welcome"), "{msg}");
         assert!(msg.contains("6500ms"), "{msg}");
         assert!(msg.contains("3250ms"), "{msg}");
-    }
-
-    fn line(id: &str, requested: &str, actual: &str, reason: Option<&str>) -> LineEntry {
-        LineEntry {
-            id: id.to_string(),
-            text: String::new(),
-            chapter: "a".to_string(),
-            start_ms: 0,
-            duration_ms: 0,
-            duration_source: DurationSource::Measured,
-            audio: String::new(),
-            voice: VoiceTier::from_fields(
-                VoiceSource::parse(requested).unwrap(),
-                VoiceSource::parse(actual).unwrap(),
-                reason.map(str::to_string),
-            )
-            .unwrap(),
-            source_hash: Hash::of(b""),
-            audio_hash: Hash::of(b""),
-            words: None,
-        }
-    }
-
-    fn manifest_with(lines: Vec<LineEntry>) -> NarrationManifest {
-        NarrationManifest {
-            manifest_version: MANIFEST_VERSION,
-            script: "s.md".to_string(),
-            locale: "en".to_string(),
-            generated_by: "teleprompt test".to_string(),
-            duration_ms: 0,
-            audio: AudioInfo {
-                format: "wav".to_string(),
-                sample_rate: 48_000,
-                channels: 1,
-            },
-            chapters: Vec::new(),
-            lines,
-            shots: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn a_line_delivered_at_the_requested_tier_is_not_a_downgrade() {
-        let m = manifest_with(vec![line("a", "synthetic", "synthetic", None)]);
-        assert!(downgrades_in(&m).is_empty());
-    }
-
-    #[test]
-    fn a_downgrade_carries_both_tiers_and_the_reason() {
-        let m = manifest_with(vec![
-            line("a", "synthetic", "synthetic", None),
-            line("b", "recorded", "synthetic", Some("no takes recorded")),
-        ]);
-        assert_eq!(
-            downgrades_in(&m),
-            vec![Downgrade {
-                line_id: "b".to_string(),
-                requested: VoiceSource::Recorded,
-                actual: VoiceSource::Synthetic,
-                reason: "no takes recorded".to_string(),
-            }]
-        );
-        let rendered = render_downgrades(&downgrades_in(&m));
-        assert!(rendered.contains("b"), "{rendered}");
-        assert!(rendered.contains("no takes recorded"), "{rendered}");
     }
 }

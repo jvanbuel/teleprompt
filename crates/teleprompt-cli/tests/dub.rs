@@ -275,8 +275,10 @@ fn a_non_ascii_heading_dubs_to_a_real_file() {
     assert!(wav.starts_with(root.join("public/narration/en/audio")));
 }
 
+/// With no voice tiers nothing can be downgraded, so there is nothing for
+/// `--strict-voice` to make fatal, and it is not a flag.
 #[test]
-fn strict_voice_is_silent_when_every_line_got_the_tier_it_asked_for() {
+fn strict_voice_is_not_a_flag() {
     let root = project_with("strictclean", SCRIPT);
     let out = tp(
         &root,
@@ -288,7 +290,9 @@ fn strict_voice_is_silent_when_every_line_got_the_tier_it_asked_for() {
             "--strict-voice",
         ],
     );
-    assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(code(&out), 2, "{stderr}");
+    assert!(stderr.contains("--strict-voice"), "{stderr}");
 }
 
 #[test]

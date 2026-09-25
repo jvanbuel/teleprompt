@@ -1,7 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::DurationMs;
+use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
-use teleprompt_core::{DurationSource, VoiceSource, VoiceTier};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
@@ -14,7 +14,6 @@ fn narration(id: &str, ms: u64) -> NarrationInput {
         duration_source: DurationSource::Measured,
         lead_in_ms: defaults.lead_in_ms,
         tail_ms: defaults.tail_ms,
-        voice: VoiceTier::delivered(VoiceSource::Synthetic),
     }
 }
 
@@ -432,5 +431,16 @@ fn absurd_durations_saturate_rather_than_overflow() {
         let starts: Vec<u64> = t.entries.iter().map(|e| e.start_ms).collect();
         assert!(starts.windows(2).all(|w| w[0] <= w[1]), "{starts:?}");
         assert!(t.entries.iter().all(|e| e.start_ms <= t.duration_ms));
+    }
+}
+
+/// Every line is synthesized, so a timeline's narration carries no voice
+/// tier.
+#[test]
+fn a_narration_entry_carries_no_voice_tier() {
+    let (t, _) = schedule(&[narration_item("a", 1000)], "s.md", "en", "0.1.0");
+    let json = serde_json::to_value(&t.entries[0]).unwrap();
+    for key in ["voice_source", "voice_source_actual", "downgrade_reason"] {
+        assert!(json["narration"].get(key).is_none(), "{key}: {json}");
     }
 }

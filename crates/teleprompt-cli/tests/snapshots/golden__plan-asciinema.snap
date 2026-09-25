@@ -29,9 +29,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "check",
           "source_hash": "f384193045eb23f735799667d0fcf54ff3b7c5694539465ffb8527f8ee7eb86a",
-          "start_ms": 150,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 150
         },
         "policy": "stretch-action",
         "start_ms": 0,
@@ -59,9 +57,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "plan",
           "source_hash": "b3671f54fa42578c09b68aeec59373a59f3ee2f33eeac5030626893b5ed9f46b",
-          "start_ms": 11750,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 11750
         },
         "policy": "stretch-action",
         "start_ms": 11600,
@@ -89,9 +85,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "doctor",
           "source_hash": "2a332b9427bfd3338ab357b517934826d15382ac78b3a8c723286146707dfbda",
-          "start_ms": 25700,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 25700
         },
         "policy": "stretch-action",
         "start_ms": 25550,

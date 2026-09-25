@@ -29,9 +29,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "welcome",
           "source_hash": "6ea76123f7c6b44ab15a370dbe1640ee7edec9fada7da47f222f72178febbfd9",
-          "start_ms": 150,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 150
         },
         "policy": "concurrent",
         "start_ms": 0,
@@ -59,9 +57,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "timing",
           "source_hash": "55dce51e9fc829444caaabad6df564c416a4ac2190c48b65cfadebce2bfbb438",
-          "start_ms": 14650,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 14650
         },
         "policy": "concurrent",
         "start_ms": 14500,
@@ -89,9 +85,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "blocks",
           "source_hash": "0dbfdb60b5d5d890370a00bee4ee59d353571b446836f95582a92cecdd082142",
-          "start_ms": 26600,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 26600
         },
         "policy": "concurrent",
         "start_ms": 26450,
@@ -119,9 +113,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "short",
           "source_hash": "eb2fc4229bc806076cfd3fe4e5774ba0d5081dfab0ec9c23da52be3446c60a6f",
-          "start_ms": 37750,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 37750
         },
         "policy": "concurrent",
         "start_ms": 37600,
@@ -149,9 +141,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "long",
           "source_hash": "53cf8fe144913cde53add097d53dca00b615627f8dce16c5ba56b339d2a55abd",
-          "start_ms": 41600,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 41600
         },
         "policy": "concurrent",
         "start_ms": 41450,
@@ -179,9 +169,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "cache",
           "source_hash": "d47d758ddb5aa01f5dab3293a66c5983bdba16a480664d6eb5c79f50c9fa6742",
-          "start_ms": 62450,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 62450
         },
         "policy": "concurrent",
         "start_ms": 62300,

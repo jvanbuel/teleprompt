@@ -29,9 +29,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "title",
           "source_hash": "1dfc575179c020fb9ff06596363bd579b9ec11e4e5cb1adc9fd5f8f2ef9456b6",
-          "start_ms": 150,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 150
         },
         "policy": "concurrent",
         "start_ms": 0,
@@ -59,9 +57,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "image",
           "source_hash": "c45d7e8427711fc9675f7081199b0ac4d15eef6afb1a56639d88dde207088946",
-          "start_ms": 9700,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 9700
         },
         "policy": "concurrent",
         "start_ms": 9550,
@@ -89,9 +85,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "clip",
           "source_hash": "bbeb2f98dbf9e0f0520169346d5d9d252856845c48a8ca39fbc17c831c67ab8d",
-          "start_ms": 23650,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 23650
         },
         "policy": "concurrent",
         "start_ms": 23500,
@@ -119,9 +113,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "rebuild",
           "source_hash": "67ab6dbbf77ed38e80b26eb7ba8c30fb919154d4a7c82a0caf868673e02d2682",
-          "start_ms": 36100,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 36100
         },
         "policy": "concurrent",
         "start_ms": 35950,

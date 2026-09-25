@@ -3,7 +3,7 @@ source: crates/teleprompt-compile/tests/manifest.rs
 expression: m
 ---
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "script": "tour.md",
   "locale": "en",
   "generated_by": "teleprompt 0.1.0",
@@ -34,9 +34,6 @@ expression: m
       "duration_ms": 5550,
       "duration_source": "estimated",
       "audio": "audio/quick-start-1.wav",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic",
-      "downgrade_reason": null,
       "source_hash": "0fbee1f07d14ecc98c3ef11c61679dbd7e8323d8f88c8c77158f8bf7976f065c",
       "audio_hash": "76694f014a7308ccf908fb1b09257664d33aac066cfd824a5c6e0767dabde845"
     },
@@ -48,9 +45,6 @@ expression: m
       "duration_ms": 3150,
       "duration_source": "estimated",
       "audio": "audio/provenance-1.wav",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic",
-      "downgrade_reason": null,
       "source_hash": "2d0ca2b775c10771ab089230b4050525327384f999c98be24c75d31da4479b7f",
       "audio_hash": "6292dc8c426fc5800f845823e350f9b770852d913c1b161807b86e793b517cdd"
     }

@@ -18,7 +18,7 @@ use teleprompt_core::{
 };
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
-use teleprompt_voice::{DurationEstimator, SynthRequest, VoiceSource, VoiceTier, WordTiming};
+use teleprompt_voice::{DurationEstimator, SynthRequest, WordTiming};
 
 pub mod manifest;
 
@@ -519,8 +519,6 @@ impl<'a> Walker<'a, '_> {
         config: &Config,
     ) {
         self.flush();
-        // Every line is synthesized; there is no recorder or voice cloning.
-        let resolution = VoiceTier::delivered(VoiceSource::Synthetic);
         let req = SynthRequest {
             // docs/design.md#word-timings: the voice gets the
             // pronunciation, and it is in the cache key.
@@ -560,7 +558,6 @@ impl<'a> Walker<'a, '_> {
                 // `lead_in=` or `tail=`.
                 lead_in_ms: config.timing.lead_in_ms,
                 tail_ms: config.timing.tail_ms,
-                voice: resolution,
             },
             id: id.to_string(),
             text: text.to_string(),

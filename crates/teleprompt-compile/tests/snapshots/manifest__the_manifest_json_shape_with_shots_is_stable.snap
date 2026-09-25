@@ -3,7 +3,7 @@ source: crates/teleprompt-compile/tests/manifest.rs
 expression: manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK)
 ---
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "script": "tour.md",
   "locale": "en",
   "generated_by": "teleprompt 0.1.0",
@@ -29,9 +29,6 @@ expression: manifest_for(ONE_BLOCK_SPLIT_BY_A_MARK)
       "duration_ms": 5550,
       "duration_source": "estimated",
       "audio": "audio/intro.wav",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic",
-      "downgrade_reason": null,
       "source_hash": "0fbee1f07d14ecc98c3ef11c61679dbd7e8323d8f88c8c77158f8bf7976f065c",
       "audio_hash": "76694f014a7308ccf908fb1b09257664d33aac066cfd824a5c6e0767dabde845"
     }

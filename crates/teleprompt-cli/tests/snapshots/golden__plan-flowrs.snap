@@ -29,9 +29,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "signin",
           "source_hash": "13c8169b184110bf8ef44126989f03c8074d78fdd23d529b00901c254484bd97",
-          "start_ms": 150,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 150
         },
         "policy": "concurrent",
         "start_ms": 0,
@@ -59,9 +57,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "clicking",
           "source_hash": "05e3bb5ddb1d13289c39090e304b97d7c9b4990ed9b085bb999df298ab93f3d9",
-          "start_ms": 5500,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 5500
         },
         "policy": "concurrent",
         "start_ms": 5350,
@@ -89,9 +85,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "flowrs",
           "source_hash": "411dc5cb5b6ddb0439acd6ad348cc89003be7a3c12b40bd09348ed82556d3fd0",
-          "start_ms": 27100,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 27100
         },
         "policy": "concurrent",
         "start_ms": 26950,
@@ -119,9 +113,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "filter",
           "source_hash": "dd47f9c83e204f83d142d73efd2c8af6ac13406f54a0d7bc78a28cacd0b44fd0",
-          "start_ms": 36500,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 36500
         },
         "policy": "concurrent",
         "start_ms": 36350,
@@ -149,9 +141,7 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "drill",
           "source_hash": "5a479fd63519c7540edcd1cc12fd2fde1e0de5cd2f04504151163996d1a250a8",
-          "start_ms": 42450,
-          "voice_source": "synthetic",
-          "voice_source_actual": "synthetic"
+          "start_ms": 42450
         },
         "policy": "concurrent",
         "start_ms": 42300,

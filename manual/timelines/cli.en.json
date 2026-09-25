@@ -16,9 +16,7 @@
         "audio_hash": "3f8d9b4224a6f0879c6a6e65e17ede813191d94bf75544d66e7b09b19ad85ea0",
         "start_ms": 150,
         "duration_ms": 20350,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "welcome-a#0",
@@ -46,9 +44,7 @@
         "audio_hash": "73549134c270554de6849ba0f5c74ba9c8485aaaa81fa8f518f3e4dd01404d54",
         "start_ms": 22830,
         "duration_ms": 18700,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "prose-and-action-a#0",
@@ -76,9 +72,7 @@
         "audio_hash": "1f693c526092764361949bb145556c7ae42ecb2b87da58628be229ca3e83b5a9",
         "start_ms": 41530,
         "duration_ms": 25450,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "vhs-a#0",
@@ -106,9 +100,7 @@
         "audio_hash": "cc90eab86a28a00ccbb87896eb242f4fa18d774d88f56c4919ecc00fedab24af",
         "start_ms": 71840,
         "duration_ms": 23550,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "the-mark-a#0",
@@ -136,9 +128,7 @@
         "audio_hash": "fa855c9c0f89a61dcdfa25a2fe93cdc0c7c50761b6ca0f07f63f354ec1129010",
         "start_ms": 95390,
         "duration_ms": 10100,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "new-a#0",
@@ -186,9 +176,7 @@
         "audio_hash": "0b2878f34e36a0a4e098e54fa01f3b01f5ca141feede53d7093bcdbfa20739ab",
         "start_ms": 108270,
         "duration_ms": 14850,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "scaffold-a#0",
@@ -216,9 +204,7 @@
         "audio_hash": "3c934ad4c7ea39f0734b27d698a7d6dd925ab1bdbfcd9f04f2885e8abc78cfd0",
         "start_ms": 123120,
         "duration_ms": 13700,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "check-a#0",
@@ -246,9 +232,7 @@
         "audio_hash": "74a13f502f03814a9ac3623314a0c99776d73e128eed2e71582db119aca2c8c8",
         "start_ms": 138460,
         "duration_ms": 18350,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "diagnostics-a#0",
@@ -276,9 +260,7 @@
         "audio_hash": "ed46a299a1d9d027a3d505ca2b4c5be7b3e4e718d7db877acc416fad8f75b498",
         "start_ms": 157110,
         "duration_ms": 12100,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "plan-a#0",
@@ -306,9 +288,7 @@
         "audio_hash": "86c2ee56b828f87ea4785a08983eca023f86072d5e3fcc7fc093efc4f7462b85",
         "start_ms": 172520,
         "duration_ms": 17800,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "estimated-vs-measured-a#0",
@@ -336,9 +316,7 @@
         "audio_hash": "87b2d84110ea666913665655e0a5abe1b1599b7abd82830f978d2982c3e684ae",
         "start_ms": 190320,
         "duration_ms": 19650,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "exact-actions-a#0",
@@ -366,9 +344,7 @@
         "audio_hash": "3df10e54d3eda78d79893ac8dd6160e5fb62454991ad34d44de9660050d79338",
         "start_ms": 213740,
         "duration_ms": 11250,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "commit-the-timeline-a#0",
@@ -396,9 +372,7 @@
         "audio_hash": "1dc571a52501da3e2c4b8d2149d518771627ac2175b47bf8e7ab927dedb4a54f",
         "start_ms": 224990,
         "duration_ms": 11350,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "edit-the-prose-a#0",
@@ -426,9 +400,7 @@
         "audio_hash": "ab1228254a8a2eb57c9d2346b8932022176e029c9300b7fbf07155197b21f01c",
         "start_ms": 236640,
         "duration_ms": 22150,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "the-diff-a#0",
@@ -456,9 +428,7 @@
         "audio_hash": "c2c328f282d5587e3dd2e214ceaae14793683b24fbf0b143e37b826531ebfc5e",
         "start_ms": 262600,
         "duration_ms": 16250,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "dub-a#0",
@@ -506,9 +476,7 @@
         "audio_hash": "803a5b1439b2862bd86a669149eac859f6476452a266d66ea6e728e7a8eb281a",
         "start_ms": 280890,
         "duration_ms": 20000,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "manifest-a#0",
@@ -536,9 +504,7 @@
         "audio_hash": "c783cff1d4eba25f08f11fca75cbaca4be88b13c10bd5e6d4085ea2580249632",
         "start_ms": 304065,
         "duration_ms": 12600,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "measured-a#0",
@@ -566,9 +532,7 @@
         "audio_hash": "04a40693b380f5586a0190cc806968b51f92e02fccf8a8753989e294abcb0065",
         "start_ms": 316665,
         "duration_ms": 16300,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "dub-check-a#0",
@@ -636,9 +600,7 @@
         "audio_hash": "10febc16476e8bb4585f636e354a121bef55b252f2881a4f6d49e97002f4c88b",
         "start_ms": 335355,
         "duration_ms": 14650,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "doctor-a#0",
@@ -666,9 +628,7 @@
         "audio_hash": "eeec37ec6189710b2097e5d2735cc0cd3607c7fa2f6a3732da75ae534d31cfe5",
         "start_ms": 353335,
         "duration_ms": 25750,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "offline-by-default-a#0",
@@ -696,9 +656,7 @@
         "audio_hash": "c7dd57c689ab1ec5d60bb1379d92af3d30361e18c75de72bba8b5e660031aaad",
         "start_ms": 379085,
         "duration_ms": 23300,
-        "duration_source": "measured",
-        "voice_source": "synthetic",
-        "voice_source_actual": "synthetic"
+        "duration_source": "estimated"
       },
       "action": {
         "shot": "self-hosting-a#0",

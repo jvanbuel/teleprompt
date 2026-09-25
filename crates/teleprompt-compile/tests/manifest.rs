@@ -354,17 +354,19 @@ fn header_records_version_provenance_and_audio_shape() {
     assert_eq!(m.audio.channels, 1);
 }
 
+/// Every line is synthesized, so a line publishes no voice tier: version 3
+/// of the manifest dropped `voice_source`, `voice_source_actual` and
+/// `downgrade_reason`.
 #[test]
-fn downgrade_reason_is_present_as_null_but_words_are_omitted() {
+fn a_line_publishes_no_voice_tier_and_omits_absent_words() {
     let m = manifest_for(TWO_CHAPTERS);
+    assert_eq!(m.manifest_version, 3);
     let json = serde_json::to_value(&m).unwrap();
     let seg = &json["lines"][0];
 
-    assert!(
-        seg.get("downgrade_reason").is_some(),
-        "consumers should not have to distinguish absent from null here"
-    );
-    assert!(seg["downgrade_reason"].is_null());
+    for key in ["voice_source", "voice_source_actual", "downgrade_reason"] {
+        assert!(seg.get(key).is_none(), "{key} is still published: {seg}");
+    }
     assert!(
         seg.get("words").is_none(),
         "absent means the backend has no word timings; an empty array would be a lie"

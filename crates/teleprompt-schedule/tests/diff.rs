@@ -1,7 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::DurationMs;
+use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
-use teleprompt_core::{DurationSource, VoiceSource, VoiceTier};
 use teleprompt_schedule::{
     diff, schedule, ActionInput, ChangeReason, Item, NarrationInput, Pacing, Policy, TimelineDiff,
 };
@@ -23,24 +23,11 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
             duration_source: DurationSource::Measured,
             lead_in_ms: Config::default().timing.lead_in_ms,
             tail_ms: Config::default().timing.tail_ms,
-            voice: VoiceTier::delivered(VoiceSource::Synthetic),
         }),
         action: None,
         policy: Policy::Hold,
         pacing: Pacing::from(&cfg()),
     }
-}
-
-fn stale_shot(id: &str) -> Item {
-    let mut b = item(id, 1000, id);
-    let n = b.narration.as_mut().unwrap();
-    n.voice = VoiceTier::downgraded(
-        VoiceSource::Recorded,
-        VoiceSource::Cloned,
-        "take stale".into(),
-    )
-    .unwrap();
-    b
 }
 
 fn timeline(items: Vec<Item>) -> teleprompt_schedule::Timeline {
@@ -100,16 +87,6 @@ fn added_and_removed_shots_are_listed_separately() {
     let back = diff(&b, &a);
     assert_eq!(back.removed, ["b2"]);
     assert!(back.added.is_empty());
-}
-
-#[test]
-fn stale_takes_are_reported_with_their_fallback_tier() {
-    let a = timeline(vec![item("b1", 1000, "one")]);
-    let b = timeline(vec![stale_shot("b1")]);
-    let d = diff(&a, &b);
-    assert_eq!(d.stale_takes.len(), 1);
-    assert_eq!(d.stale_takes[0].line, "b1");
-    assert_eq!(d.stale_takes[0].falls_back_to, VoiceSource::Cloned);
 }
 
 #[test]
@@ -256,7 +233,6 @@ fn rendered_shift_reconciles_with_the_rounded_endpoints() {
         removed: vec![],
         reordered: vec![],
         transitions: vec![],
-        stale_takes: vec![],
         recapture: vec![],
     };
 
@@ -425,7 +401,6 @@ fn a_bare_total_duration_change_is_not_an_empty_diff() {
         removed: vec![],
         reordered: vec![],
         transitions: vec![],
-        stale_takes: vec![],
         recapture: vec![],
     };
     assert!(!d.is_empty());
@@ -573,4 +548,13 @@ fn a_change_reason_serializes_as_its_prose() {
     for (reason, json) in cases {
         assert_eq!(serde_json::to_string(&reason).unwrap(), json);
     }
+}
+
+/// With no voice tiers there is no take to go stale, and the diff has no
+/// section for them.
+#[test]
+fn a_timeline_diff_has_no_stale_takes() {
+    let (t, _) = schedule(&[item("a", 1000, "a")], "s.md", "en", "0.1.0");
+    let json = serde_json::to_value(diff(&t, &t)).unwrap();
+    assert!(json.get("stale_takes").is_none(), "{json}");
 }
