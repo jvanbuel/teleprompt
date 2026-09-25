@@ -36,6 +36,7 @@ ALLOWED = {
     "remotion": ADAPTER,
     "slidev": ADAPTER,
     "media": ADAPTER,
+    "listen": set(),
     "testkit": set(),  # dev-dependency only; never a normal dependency
     "cli": None,  # the composition root: may depend on anything
 }
