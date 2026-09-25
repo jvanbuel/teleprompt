@@ -1523,6 +1523,8 @@ dependencies = [
  "teleprompt-capture",
  "teleprompt-compile",
  "teleprompt-core",
+ "teleprompt-listen",
+ "teleprompt-listen-sherpa",
  "teleprompt-manifest",
  "teleprompt-media",
  "teleprompt-playwright",

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>teleprompt prompt</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #0b0d10; --ink: #eef2f6; --said: #5b6570; --now: #7ee0a8;
+    --dim: #8a94a1; --bad: #ff8a80;
+    --mono: ui-monospace, SFMono-Regular, "DejaVu Sans Mono", monospace;
+    --size: 5.2vw;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--ground); color: var(--ink); }
+  body { font: 500 var(--size)/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  /* For beam-splitter glass, which shows the screen reversed. */
+  body.mirrored #script { transform: scaleX(-1); }
+  #script { padding: 35vh 8vw 70vh; }
+  .line { margin: 0 0 0.9em; }
+  .w.said { color: var(--said); }
+  .w.now { color: var(--now); text-decoration: underline; text-underline-offset: 0.18em; }
+  #bar {
+    position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 14px;
+    background: #12161bee; color: var(--dim); font: 13px/1.5 var(--mono);
+    display: flex; gap: 18px;
+  }
+  #status.bad { color: var(--bad); }
+  #start {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: #0b0d10e6; color: var(--ink); font: 500 22px system-ui, sans-serif;
+    border: 0; cursor: pointer; width: 100%;
+  }
+</style>
+</head>
+<body>
+<div id="script"></div>
+<button id="start">click to start listening</button>
+<div id="bar">
+  <span id="status">not listening</span>
+  <span>space pause · m mirror · + − size</span>
+</div>
+<script>
+"use strict";
+const RATE = 16000;          // what the recognizer listens at
+const SEND_EVERY_MS = 100;   // how much audio each POST carries, at most
+const $ = (id) => document.getElementById(id);
+
+let words = [];              // per line, the word spans, split as the server splits
+let listening = false;
+let pending = [];            // 16 kHz samples not yet sent
+let inFlight = false;
+
+function status(text, bad = false) {
+  $("status").textContent = text;
+  $("status").classList.toggle("bad", bad);
+}
+
+async function loadScript() {
+  const { lines } = await (await fetch("/script.json")).json();
+  const root = $("script");
+  words = lines.map((text) => {
+    const p = document.createElement("p");
+    p.className = "line";
+    const spans = text.split(/\s+/).filter(Boolean).map((w) => {
+      const s = document.createElement("span");
+      s.className = "w";
+      s.textContent = w;
+      p.append(s, " ");
+      return s;
+    });
+    root.append(p);
+    return spans;
+  });
+  show({ line: 0, word: 0 });
+}
+
+let shownLine = -1;
+
+/** Marks what has been said and the next word; moving to a new line brings
+ *  it to a third of the way down, where the eye rests. */
+function show(at) {
+  words.forEach((spans, l) => spans.forEach((s, w) => {
+    s.classList.toggle("said", l < at.line || (l === at.line && w < at.word));
+    s.classList.toggle("now", l === at.line && w === at.word);
+  }));
+  if (at.line === shownLine) return;
+  shownLine = at.line;
+  const done = at.line >= words.length;
+  if (done) status("end of script");
+  const line = $("script").children[Math.min(at.line, words.length - 1)];
+  if (!line) return;
+  const top = done
+    ? line.offsetTop + line.offsetHeight - window.innerHeight * 0.6
+    : line.offsetTop - window.innerHeight * 0.3;
+  window.scrollTo({ top, behavior: "smooth" });
+}
+
+/** Linear resampling of one block from the device rate to 16 kHz. */
+function resample(block, from) {
+  if (from === RATE) return block;
+  const out = new Float32Array(Math.floor(block.length * RATE / from));
+  for (let i = 0; i < out.length; i++) {
+    const x = i * from / RATE, j = Math.floor(x), f = x - j;
+    out[i] = block[j] * (1 - f) + (block[j + 1] ?? block[j]) * f;
+  }
+  return out;
+}
+
+async function send() {
+  if (inFlight || pending.length === 0) return;
+  inFlight = true;
+  const chunk = Float32Array.from(pending);
+  pending = [];
+  try {
+    const r = await fetch("/listen", { method: "POST", body: chunk.buffer });
+    show(await r.json());
+  } catch (e) {
+    status(`lost the server: ${e}`, true);
+  } finally {
+    inFlight = false;
+  }
+}
+
+const WORKLET = `
+class Tap extends AudioWorkletProcessor {
+  process(inputs) {
+    const ch = inputs[0][0];
+    if (ch) this.port.postMessage(ch.slice());
+    return true;
+  }
+}
+registerProcessor("tap", Tap);`;
+
+async function start() {
+  $("start").remove();
+  try {
+    const mic = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true },
+    });
+    const ctx = new AudioContext();
+    const url = URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" }));
+    await ctx.audioWorklet.addModule(url);
+    const tap = new AudioWorkletNode(ctx, "tap");
+    tap.port.onmessage = (e) => {
+      if (listening) for (const v of resample(e.data, ctx.sampleRate)) pending.push(v);
+    };
+    ctx.createMediaStreamSource(mic).connect(tap);
+    // A new take: the server forgets any earlier one.
+    show(await (await fetch("/start", { method: "POST" })).json());
+    listening = true;
+    status("listening");
+    setInterval(send, SEND_EVERY_MS);
+  } catch (e) {
+    status(`no microphone: ${e.message ?? e}`, true);
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === " ") {
+    e.preventDefault();
+    listening = !listening;
+    status(listening ? "listening" : "paused");
+  } else if (e.key === "m") {
+    document.body.classList.toggle("mirrored");
+  } else if (e.key === "+" || e.key === "-") {
+    const now = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--size"));
+    const next = Math.max(2, now + (e.key === "+" ? 0.4 : -0.4));
+    document.documentElement.style.setProperty("--size", `${next}vw`);
+  }
+});
+
+$("start").addEventListener("click", start);
+loadScript();
+</script>
+</body>
+</html>

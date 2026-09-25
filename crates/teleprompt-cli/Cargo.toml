@@ -13,10 +13,17 @@ path = "src/lib.rs"
 name = "teleprompt"
 path = "src/main.rs"
 
+# `teleprompt prompt`'s speech recognizer. Opt-in: it downloads a native
+# library when it builds, and the default build stays offline.
+[features]
+listen = ["dep:teleprompt-listen-sherpa", "teleprompt-listen-sherpa/sherpa"]
+
 [dependencies]
 teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-compile = { path = "../teleprompt-compile" }
+teleprompt-listen = { path = "../teleprompt-listen" }
+teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = true }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-scene = { path = "../teleprompt-scene" }

@@ -8,4 +8,5 @@ pub mod dub;
 pub mod from;
 pub mod new;
 pub mod plan;
+pub mod prompt;
 pub mod serve;

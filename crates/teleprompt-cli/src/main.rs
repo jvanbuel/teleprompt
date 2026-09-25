@@ -110,6 +110,22 @@ enum Command {
         #[arg(long, default_value_t = 7878)]
         port: u16,
     },
+    /// Show the script as a prompter that follows your voice
+    ///
+    /// Serves a page on loopback that listens through the microphone and
+    /// scrolls to where you are reading, by matching what a local speech
+    /// model hears against the script. Nothing leaves the machine. Needs a
+    /// build with `--features listen` and a streaming model (see --model).
+    Prompt {
+        #[command(flatten)]
+        args: ScriptArgs,
+        /// Port to listen on; 0 picks a free one
+        #[arg(long, default_value_t = 7879)]
+        port: u16,
+        /// Directory of an unpacked sherpa-onnx streaming zipformer model
+        #[arg(long)]
+        model: Option<std::path::PathBuf>,
+    },
     /// Synthesize narration and write audio plus a manifest
     ///
     /// Placing a line: convert its own absolute offsets to frames and
@@ -306,6 +322,17 @@ fn run(command: Command, format: Format) -> Run {
             } else {
                 Outcome::Ok
             })
+        }
+        Command::Prompt { args, port, model } => {
+            let project = project_for(&args.script)?;
+            teleprompt_cli::cmd::prompt::run_prompt(
+                &project,
+                &args.script,
+                &args.locale,
+                port,
+                model.as_deref(),
+            )?;
+            Ok(Outcome::Ok)
         }
         Command::Serve { args, port } => {
             let project = project_for(&args.script)?;

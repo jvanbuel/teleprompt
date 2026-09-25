@@ -71,6 +71,7 @@ opens on the item you just changed, and `build` renders the video.
 | `plan <script>` | compile the timeline and print it |
 | `diff <script>` | compare against the committed timeline; `--exit-code` exits 3 on drift |
 | `serve <script>` | serve a live preview that opens on the item that changed |
+| `prompt <script>` | show the script as a prompter that follows your voice (opt-in build) |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |
@@ -86,6 +87,8 @@ for a runtime failure, `2` for an invalid script and `3` for drift.
   cues, transitions, configuration, and drafting from a document
 - [Scenes](docs/guide/scenes.md): capture, sessions, and each adapter
 - [Voices](docs/guide/voices.md): backends, the voice cache, and Kokoro
+- [Reading from a prompter](docs/guide/prompter.md): `prompt`, which
+  follows your voice
 - [Rendering](docs/guide/rendering.md): `build`, `dub` and the manifest,
   and the live preview
 - [Rendering with Remotion](docs/integrations/remotion.md): consuming the
