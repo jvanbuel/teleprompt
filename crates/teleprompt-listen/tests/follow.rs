@@ -9,6 +9,8 @@ impl Recognizer for Scripted {
     fn listen(&mut self, _samples: &[f32]) -> Heard {
         self.0.pop_front().expect("the test ran out of hypotheses")
     }
+
+    fn reset(&mut self) {}
 }
 
 fn partial(text: &str) -> Heard {
@@ -56,4 +58,18 @@ fn a_finished_utterance_is_where_the_next_one_starts() {
     let mut f = Follower::new(heard, SCRIPT);
     f.listen(&[0.0; 160]);
     assert_eq!(f.listen(&[0.0; 160]), Some(Position { line: 0, word: 4 }));
+}
+
+/// A second take starts from the top, with nothing the recognizer heard in
+/// the first carried into it.
+#[test]
+fn a_restart_begins_again_at_the_top() {
+    let heard = Scripted(VecDeque::from([
+        partial("welcome to acme"),
+        partial("welcome"),
+    ]));
+    let mut f = Follower::new(heard, SCRIPT);
+    f.listen(&[0.0; 160]);
+    f.restart();
+    assert_eq!(f.listen(&[0.0; 160]), Some(Position { line: 0, word: 1 }));
 }

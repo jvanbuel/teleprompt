@@ -55,6 +55,10 @@ impl Recognizer for SherpaRecognizer {
         }
         Heard { text, is_final }
     }
+
+    fn reset(&mut self) {
+        self.stream = self.recognizer.create_stream();
+    }
 }
 
 /// The model's `<part>-*.onnx`, preferring the int8 variant: a quarter of

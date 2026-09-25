@@ -65,6 +65,12 @@ impl Aligner {
         self.anchor = self.reached;
     }
 
+    /// A new take, from the top.
+    pub fn restart(&mut self) {
+        self.anchor = 0;
+        self.reached = 0;
+    }
+
     fn position_of(&self, at: usize) -> Position {
         match self.words.get(at) {
             Some(w) => Position {

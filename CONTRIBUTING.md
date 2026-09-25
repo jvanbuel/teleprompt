@@ -26,11 +26,12 @@ The speech recognizer is opt-in, because sherpa-onnx downloads its native
 library when it builds. Its test runs a real model over a recorded reading:
 
 ```bash
-TELEPROMPT_LISTEN_MODEL=path/to/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17 \
+TELEPROMPT_LISTEN_MODEL=path/to/sherpa-onnx-streaming-zipformer-en-2023-06-26 \
   cargo test -p teleprompt-listen-sherpa --features sherpa
 ```
 
-The model is one of sherpa-onnx's streaming zipformer releases. Behind a
+The model is sherpa-onnx's streaming English zipformer; the smaller 20M
+model misses the first words of a stream, and the test catches it. Behind a
 proxy its build script may not trust, download the native archive yourself
 and point `SHERPA_ONNX_ARCHIVE_DIR` at the directory holding it.
 

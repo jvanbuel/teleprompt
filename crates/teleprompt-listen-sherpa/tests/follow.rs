@@ -47,12 +47,28 @@ fn a_reading_of_two_lines_is_followed_to_the_end() {
     let reading =
         samples(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/two-lines.wav"));
     let mut last = None;
+    let mut early = None;
     // 100ms at a time, as a browser would send it, then a second of silence
     // for the recognizer to finish the last words.
-    for chunk in reading.chunks(1600).chain([[0.0f32; 16000].as_slice()]) {
+    for (i, chunk) in reading
+        .chunks(1600)
+        .chain([[0.0f32; 16000].as_slice()])
+        .enumerate()
+    {
         if let Some(p) = follower.listen(chunk) {
             last = Some(p);
         }
+        if i == 24 {
+            early = last;
+        }
     }
+    // "Let me show" ends about 2.1 s in. A reader who gets no response
+    // through their first sentence stops trusting the prompter, and some
+    // small models drop the start of a stream entirely.
+    let early = early.expect("the reader moved in the first 2.5 s");
+    assert!(
+        (early.line, early.word) >= (0, 6),
+        "at 2.5 s the reader is only at {early:?}"
+    );
     assert_eq!(last, Some(Position { line: 2, word: 0 }));
 }

@@ -12,6 +12,9 @@ pub struct Heard {
 /// for, and its hypothesis for the utterance under way out.
 pub trait Recognizer {
     fn listen(&mut self, samples: &[f32]) -> Heard;
+
+    /// Forgets everything heard, for a new take.
+    fn reset(&mut self);
 }
 
 /// A reader followed through a script by ear.
@@ -29,6 +32,14 @@ impl<R: Recognizer> Follower<R> {
             aligner: Aligner::new(lines),
             reported: None,
         }
+    }
+
+    /// A new take: the reader is back at the top, and nothing heard before
+    /// carries into it.
+    pub fn restart(&mut self) {
+        self.recognizer.reset();
+        self.aligner.restart();
+        self.reported = None;
     }
 
     /// Feeds a chunk of audio; where the reader now is, if they moved.
