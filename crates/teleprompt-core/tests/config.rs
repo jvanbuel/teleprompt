@@ -47,10 +47,10 @@ fn attributes_become_a_config_layer() {
         column: 1,
         len: 0,
     };
-    let (a, _) = LineAttrs::parse("lead_in=400ms voice.source=cloned", shot);
+    let (a, _) = LineAttrs::parse("lead_in=400ms voice.backend=kokoro", shot);
     let c = Config::merged(&[PartialConfig::from_line(&a)]);
     assert_eq!(c.timing.lead_in_ms, DurationMs::millis(400));
-    assert_eq!(c.voice.source, "cloned");
+    assert_eq!(c.voice.backend, "kokoro");
 }
 
 #[test]
@@ -144,10 +144,8 @@ locales:
   source: en
   targets: [nl, fr]
 voice:
-  source: synthetic                                  # synthetic | cloned | recorded
-  synthetic: { backend: kokoro, model: af_heart, speed: 1.0 }
-  cloned:    { backend: elevenlabs, profile: jan }   # see voices/jan.toml
-  recorded:  { takes_dir: takes }
+  backend: kokoro
+  speed: 1.0
 scene:
   default: browser
   browser:
@@ -168,7 +166,6 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
 
     assert_eq!(c.locales.source, "en");
     assert_eq!(c.locales.targets, ["nl", "fr"]);
-    assert_eq!(c.voice.source, "synthetic");
     assert_eq!(c.transition.kind.as_str(), "crossfade");
     assert_eq!(c.transition.duration, TransitionDuration::Auto);
     assert_eq!(c.transition.max_ms, DurationMs::millis(600));
@@ -188,17 +185,6 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
         browser.settings.get("base_url").and_then(|v| v.as_str()),
         Some("http://localhost:3000")
     );
-}
-
-/// The per-tier voice blocks are accepted, so front matter naming them
-/// parses, and nothing reads what is inside them.
-#[test]
-fn the_per_tier_voice_blocks_are_accepted() {
-    let p = PartialConfig::from_yaml(SPEC_3_1_FRONT_MATTER).unwrap();
-    let voice = p.voice.expect("voice block present");
-    assert!(voice.synthetic.is_some());
-    assert!(voice.cloned.is_some());
-    assert!(voice.recorded.is_some());
 }
 
 /// Accepting what the spec documents must not mean accepting anything.
@@ -373,4 +359,15 @@ fn transition_kinds_parse_to_their_variant_or_stay_as_written() {
     assert!(matches!(slide, TransitionKind::Other(_)));
     assert_eq!(slide.to_string(), "slide");
     assert_eq!(serde_json::to_string(&slide).unwrap(), "\"slide\"");
+}
+
+/// No voice tiers, so no `voice.source` setting in the config either.
+#[test]
+fn voice_source_is_not_a_config_setting() {
+    assert!(PartialConfig::from_toml("[voice]\nsource = \"recorded\"\n").is_err());
+    assert!(PartialConfig::from_yaml("voice:\n  source: recorded\n").is_err());
+    for tier in ["synthetic", "cloned", "recorded"] {
+        let yaml = format!("voice:\n  {tier}: {{ backend: kokoro }}\n");
+        assert!(PartialConfig::from_yaml(&yaml).is_err(), "{yaml}");
+    }
 }

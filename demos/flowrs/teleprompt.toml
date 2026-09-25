@@ -3,7 +3,6 @@ source = "en"
 targets = []
 
 [voice]
-source = "synthetic"
 # `null` renders silence of the estimated length: timing is real, there is
 # nothing to hear. Point this at a voice server to hear it — see README.md.
 backend = "null"

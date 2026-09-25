@@ -289,7 +289,6 @@ source = \"en\"
 targets = []
 
 [voice]
-source = \"synthetic\"
 backend = \"null\"
 
 [scene.mock]
@@ -302,7 +301,6 @@ source = \"en\"
 targets = []
 
 [voice]
-source = \"synthetic\"
 backend = \"kokoro\"
 
 [scene.mock]

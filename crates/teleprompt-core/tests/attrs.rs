@@ -19,9 +19,9 @@ fn parses_key_value_pairs() {
 
 #[test]
 fn ignores_the_leading_id_token() {
-    let (a, d) = parse_attrs("#welcome voice.source=recorded", SEGMENT_KEYS, SPAN);
+    let (a, d) = parse_attrs("#welcome voice.backend=kokoro", SEGMENT_KEYS, SPAN);
     assert!(d.is_empty());
-    assert_eq!(a.get("voice.source"), Some("recorded"));
+    assert_eq!(a.get("voice.backend"), Some("kokoro"));
 }
 
 #[test]
@@ -157,4 +157,18 @@ fn policy_names_parse_and_the_old_ones_name_their_replacement() {
         assert!(help.contains(&format!("policy={new}")), "{help}");
     }
     assert!(PolicyKind::parse("nonsense").is_err());
+}
+
+/// Every line is synthesized: there is no recorder and no voice cloning, so
+/// there is no tier to choose, and asking for one is an unknown key.
+#[test]
+fn voice_source_is_not_a_line_attribute() {
+    let (_, d) = LineAttrs::parse("voice.source=recorded", SPAN);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert!(
+        d[0].message
+            .contains("unknown attribute key `voice.source`"),
+        "{}",
+        d[0].message
+    );
 }

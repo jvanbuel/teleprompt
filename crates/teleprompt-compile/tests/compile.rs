@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use teleprompt_core::DurationSource;
-use teleprompt_core::VoiceSource;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
@@ -265,17 +264,6 @@ fn an_invalid_policy_is_a_diagnostic_at_its_block() {
 }
 
 #[test]
-fn the_null_backend_downgrades_a_recorded_request_and_says_why() {
-    let src =
-        "---\nscene: { mock: { adapter: mock } }\n---\n\n# A\n\nOne. {#a voice.source=recorded}\n";
-    let out = run(src);
-    let n = out.timeline.entries[0].narration.as_ref().unwrap();
-    assert_eq!(n.voice.requested(), VoiceSource::Recorded);
-    assert_eq!(n.voice.actual(), VoiceSource::Synthetic);
-    assert!(n.voice.reason().unwrap().contains("no takes"));
-}
-
-#[test]
 fn compilation_is_deterministic() {
     let a = run(ONE_BEAT);
     let b = run(ONE_BEAT);
@@ -369,17 +357,6 @@ mark
     assert_eq!(out.timeline.entries.len(), 1);
     assert!(out.timeline.entries[0].narration.is_some());
     assert!(out.timeline.entries[0].action.is_none());
-}
-
-// An unrecognised `voice.source` must be a diagnostic, not a silent coercion to
-// `synthetic` (which would also skip the ladder's rejection-reason machinery
-// entirely).
-#[test]
-fn an_invalid_voice_source_is_a_diagnostic_not_a_silent_synthetic() {
-    let src = "# A\n\nOne. {#a voice.source=recordedd}\n";
-    let p = program(src);
-    let e = compile_program(&p).unwrap_err();
-    assert!(e.0[0].message.contains("recordedd"));
 }
 
 // A `Item` carries one `Config`, but its two halves resolve from different

@@ -15,7 +15,6 @@ source = "en"
 targets = []
 
 [voice]
-source = "synthetic"
 backend = "kokoro"
 voice = "af_heart"
 speed = 1.0

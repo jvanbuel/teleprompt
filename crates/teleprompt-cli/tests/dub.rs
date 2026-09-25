@@ -275,61 +275,6 @@ fn a_non_ascii_heading_dubs_to_a_real_file() {
     assert!(wav.starts_with(root.join("public/narration/en/audio")));
 }
 
-const RECORDED: &str = "\
----
-voice:
-  source: recorded
----
-
-# Quick start
-
-Every video in this repository is built from a script you can read.
-";
-
-/// There is no recorder, so `source: recorded` downgrades to `synthetic`, which
-/// makes the ladder exercisable today.
-#[test]
-fn a_recorded_request_downgrades_and_the_manifest_says_so() {
-    let root = project_with("downgrade", RECORDED);
-    let out = tp(
-        &root,
-        &["dub", "scripts/test.md", "--out", "public/narration"],
-    );
-    assert_eq!(code(&out), 0, "a downgrade is not fatal by default");
-
-    let m = read_manifest(&root);
-    let seg = &m["lines"][0];
-    assert_eq!(seg["voice_source"], "recorded");
-    assert_eq!(seg["voice_source_actual"], "synthetic");
-    assert!(
-        seg["downgrade_reason"].is_string(),
-        "a downgrade without a reason is unactionable: {}",
-        seg["downgrade_reason"]
-    );
-}
-
-#[test]
-fn strict_voice_makes_a_downgrade_fatal() {
-    let root = project_with("strict", RECORDED);
-    let out = tp(
-        &root,
-        &[
-            "dub",
-            "scripts/test.md",
-            "--out",
-            "public/narration",
-            "--strict-voice",
-        ],
-    );
-
-    assert_eq!(code(&out), 4, "downgrades are fatal under --strict-voice");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("quick-start-1") && stderr.contains("recorded"),
-        "the report must name which lines downgraded and why: {stderr}"
-    );
-}
-
 #[test]
 fn strict_voice_is_silent_when_every_line_got_the_tier_it_asked_for() {
     let root = project_with("strictclean", SCRIPT);

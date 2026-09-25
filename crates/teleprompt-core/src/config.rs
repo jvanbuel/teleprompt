@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
 
 use crate::attrs::{BlockAttrs, LineAttrs};
@@ -40,7 +39,6 @@ pub struct Locales {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoiceConfig {
-    pub source: String,
     pub backend: String,
     pub voice: Option<String>,
     pub speed: f64,
@@ -203,7 +201,6 @@ impl Default for Config {
                 targets: Vec::new(),
             },
             voice: VoiceConfig {
-                source: "synthetic".into(),
                 backend: "null".into(),
                 voice: None,
                 speed: 1.0,
@@ -272,7 +269,6 @@ pub struct PartialLocales {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialVoice {
-    pub source: Option<String>,
     pub backend: Option<String>,
     pub voice: Option<String>,
     pub speed: Option<f64>,
@@ -280,11 +276,6 @@ pub struct PartialVoice {
     /// word by word rather than replaced wholesale: a script adding one
     /// name should not drop the project's list.
     pub pronounce: Option<BTreeMap<String, String>>,
-    /// Per-tier settings (`synthetic:`, `cloned:`, `recorded:`), accepted
-    /// so front matter that names them parses, and not otherwise read.
-    pub synthetic: Option<IgnoredAny>,
-    pub cloned: Option<IgnoredAny>,
-    pub recorded: Option<IgnoredAny>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -433,7 +424,6 @@ impl PartialConfig {
                 ..PartialTiming::default()
             }),
             voice: Some(PartialVoice {
-                source: a.voice_source.clone(),
                 backend: a.voice_backend.clone(),
                 voice: a.voice.clone(),
                 speed: a.voice_speed,
@@ -508,7 +498,6 @@ impl Config {
                 set!(c.locales.targets, l.targets.clone());
             }
             if let Some(v) = &layer.voice {
-                set!(c.voice.source, v.source.clone());
                 set!(c.voice.backend, v.backend.clone());
                 if v.voice.is_some() {
                     c.voice.voice = v.voice.clone();

@@ -10,7 +10,6 @@ source = "en"
 targets = []
 
 [voice]
-source = "synthetic"
 # The manual has to compile on any machine, in CI included, with nothing
 # installed. `null` renders silence of the estimated length; point this at
 # `kokoro` (and start a server) to hear it.

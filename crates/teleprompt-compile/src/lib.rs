@@ -18,9 +18,7 @@ use teleprompt_core::{
 };
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
-use teleprompt_voice::{
-    resolve_source, DurationEstimator, SynthRequest, VoiceSource, VoiceTier, WordTiming,
-};
+use teleprompt_voice::{DurationEstimator, SynthRequest, VoiceSource, VoiceTier, WordTiming};
 
 pub mod manifest;
 
@@ -521,9 +519,8 @@ impl<'a> Walker<'a, '_> {
         config: &Config,
     ) {
         self.flush();
-        let Some(resolution) = self.resolve_voice(config) else {
-            return;
-        };
+        // Every line is synthesized; there is no recorder or voice cloning.
+        let resolution = VoiceTier::delivered(VoiceSource::Synthetic);
         let req = SynthRequest {
             // docs/design.md#word-timings: the voice gets the
             // pronunciation, and it is in the cache key.
@@ -569,31 +566,6 @@ impl<'a> Walker<'a, '_> {
             text: text.to_string(),
             config: config.clone(),
         });
-    }
-
-    /// The voice tier a line gets, down the ladder from the one it asked for
-    /// (docs/design.md#voice-tiers).
-    fn resolve_voice(&mut self, config: &Config) -> Option<VoiceTier> {
-        let Some(requested) = VoiceSource::parse(&config.voice.source) else {
-            self.diags.push(
-                Diagnostic::error(format!("unknown voice source `{}`", config.voice.source))
-                    .with_help("voice.source is recorded|cloned|synthetic"),
-            );
-            return None;
-        };
-        match resolve_source(requested, &|tier| match tier {
-            VoiceSource::Recorded => {
-                Err("no takes recorded; teleprompt has no recorder yet".into())
-            }
-            VoiceSource::Cloned => Err("no voice profile enrolled".into()),
-            VoiceSource::Synthetic => Ok(()),
-        }) {
-            Ok(r) => Some(r),
-            Err(e) => {
-                self.diags.push(Diagnostic::error(e));
-                None
-            }
-        }
     }
 
     /// A line's duration: measured from the cache, or estimated on a miss.

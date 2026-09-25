@@ -4,7 +4,6 @@ use crate::policy::{Align, PolicyKind};
 use crate::{Diagnostic, DurationMs, SourceSpan};
 
 pub const SEGMENT_KEYS: &[&str] = &[
-    "voice.source",
     "voice.backend",
     "voice.voice",
     "voice.speed",
@@ -54,7 +53,6 @@ impl Attributes {
 /// step to drop.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LineAttrs {
-    pub voice_source: Option<String>,
     pub voice_backend: Option<String>,
     pub voice: Option<String>,
     pub voice_speed: Option<f64>,
@@ -72,7 +70,6 @@ impl LineAttrs {
             diags: &mut diags,
         };
         let attrs = Self {
-            voice_source: v.text("voice.source"),
             voice_backend: v.text("voice.backend"),
             voice: v.text("voice.voice"),
             voice_speed: v.parsed("voice.speed", number),

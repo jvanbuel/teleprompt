@@ -9,7 +9,6 @@ source = "en"
 targets = []
 
 [voice]
-source = "synthetic"
 backend = "null"
 
 [scene.mock]
