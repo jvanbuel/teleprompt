@@ -261,9 +261,9 @@ fn a_real_id_suffix_still_parses() {
 
 #[test]
 fn a_real_key_value_suffix_still_parses() {
-    let seg = only_line("# B\n\nGive it a name. {#done voice.source=recorded}\n");
+    let seg = only_line("# B\n\nGive it a name. {#done voice.backend=kokoro}\n");
     assert_eq!(seg.text, "Give it a name.");
-    assert_eq!(seg.raw_attrs, "#done voice.source=recorded");
+    assert_eq!(seg.raw_attrs, "#done voice.backend=kokoro");
 }
 
 /// A code shot that is *not* at the paragraph's end must not suppress a real

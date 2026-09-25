@@ -78,8 +78,7 @@ opens on the item you just changed, and `build` renders the video.
 | `cache` | report what the project's caches hold, or shrink them |
 
 Every command accepts `--format json`. Exit codes are `0` for success, `1`
-for a runtime failure, `2` for an invalid script, `3` for drift, and `4` for
-a voice fallback under `--strict-voice`.
+for a runtime failure, `2` for an invalid script and `3` for drift.
 
 ## Documentation
 

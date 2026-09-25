@@ -34,7 +34,7 @@ drifts from the manifest, the manifest is right and this document is wrong —
 
 ```jsonc
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "script": "tour.md",
   "locale": "en",
   "generated_by": "teleprompt 0.1.0",
@@ -52,9 +52,6 @@ drifts from the manifest, the manifest is right and this document is wrong —
       "duration_ms": 14357,
       "duration_source": "measured",
       "audio": "audio/prose-and-action.wav",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic",
-      "downgrade_reason": null,
       "source_hash": "8c0fae65…",
       "audio_hash": "af7823e0…"
     }
@@ -134,9 +131,6 @@ export type Line = {
   duration_ms: number;
   duration_source: "measured" | "estimated";
   audio: string;
-  voice_source: string;
-  voice_source_actual: string;
-  downgrade_reason: string | null;
   source_hash: string;
   audio_hash: string;
   words?: { text: string; start_ms: number; end_ms: number }[];
@@ -172,7 +166,7 @@ export const RemotionRoot = () => (
 
       // A major version teleprompt did not promise is a hard stop, not a
       // warning: the fields below are exactly what changed.
-      if (manifest.manifest_version !== 2) {
+      if (manifest.manifest_version !== 3) {
         throw new Error(`unsupported narration manifest v${manifest.manifest_version}`);
       }
 

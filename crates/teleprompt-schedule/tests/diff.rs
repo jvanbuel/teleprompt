@@ -204,10 +204,10 @@ fn an_empty_diff_renders_a_single_reassuring_line() {
 
 /// A committed timeline is written to disk and read back, so
 /// `Serialize`/`Deserialize` must be exact inverses — including for the
-/// optional fields (`action`, `downgrade_reason`) that are skipped on write and
-/// so must default to `None` on read rather than failing to deserialize.
+/// optional `action`, which is skipped on write and so must default to
+/// `None` on read rather than failing to deserialize.
 #[test]
-fn a_timeline_with_no_action_and_no_downgrade_reason_round_trips_through_json() {
+fn a_timeline_with_no_action_round_trips_through_json() {
     let original = timeline(vec![item("b1", 1000, "one")]);
     let json = serde_json::to_string_pretty(&original).expect("serialize");
     let restored: teleprompt_schedule::Timeline = serde_json::from_str(&json).expect("deserialize");

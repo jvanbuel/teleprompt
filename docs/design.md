@@ -237,15 +237,6 @@ interleave into a valid sidecar beside audio it doesn't describe, so
 publishing the audio is also an exclusive claim. One writer wins and the
 other adopts its entry.
 
-### Voice tiers
-
-`voice.source` requests a tier: `synthetic`, `cloned` or `recorded`. When
-the requested tier cannot produce a line, the ladder drops one tier
-(`recorded`, then `cloned`, then `synthetic`) and records
-`voice_source_actual` and `downgrade_reason` next to the requested tier.
-`dub --strict-voice` makes a downgrade fatal with exit 4. Only the
-synthetic tier has backends today, so the other two always downgrade.
-
 ### Backend failure
 
 A backend that is unreachable, slow or returns an error fails the command
@@ -327,7 +318,7 @@ written, with a warning when it exceeds the quiet window.
 `timelines/<script>.<locale>.json` is committed, and it is the review
 surface. A reviewer reads it, not the video, to see what a prose change did
 to the pacing. For each item it records start and duration, the policy,
-the line's hashes and voice tier, the shot's scene, adapter, `shot_hash`,
+the line's hashes, the shot's scene, adapter, `shot_hash`,
 `capture_key` and duration source, and the transition. There are no
 timestamps and no floats, so the file is byte-stable.
 
@@ -460,9 +451,9 @@ that renders the video: teleprompt's own `build`, `serve`, and outside
 tools such as Remotion. `docs/integrations/remotion.md` is the consumer's
 guide.
 
-It carries `manifest_version` (2), provenance, `duration_ms`, the audio
+It carries `manifest_version` (3), provenance, `duration_ms`, the audio
 format, `chapters`, `lines` (id, text, chapter, start, duration, duration
-source, audio path, voice tier and downgrade, `source_hash`, `audio_hash`,
+source, audio path, `source_hash`, `audio_hash`,
 and `words` when timed), and `shots` (the action schedule with scene,
 adapter, policy, transition, `shot_hash`, `capture_key` and session). A
 consumer must refuse a version it does not know.
@@ -549,7 +540,6 @@ The binary is a thin shell over the library crates. Every command takes
 | 1 | runtime failure (IO, network, a subprocess) |
 | 2 | validation error: the script, its config or its arguments |
 | 3 | drift, from `diff --exit-code` or `dub --check` |
-| 4 | a voice downgrade under `--strict-voice` |
 
 A validation error names the file, line and column, quotes the line, and
 says what was expected.
@@ -576,7 +566,7 @@ says what was expected.
 
 Named here so the rest of this document is not read as covering them:
 
-- **Recorded and cloned tiers.** Neither has a backend, and there are no
+- **Recorded or cloned voices.** Every line is synthesized. There are no
   takes, no `record` command and no voice enrollment.
 - **Localization sidecars.** `--locale` selects configuration, but
   translated narration files and their staleness ledger do not exist.

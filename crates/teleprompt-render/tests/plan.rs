@@ -12,7 +12,7 @@ use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::Picture;
 
 const MANIFEST: &str = r#"{
-  "manifest_version": 2,
+  "manifest_version": 3,
   "script": "tour.md",
   "locale": "en",
   "generated_by": "teleprompt 0.1.0",
@@ -28,9 +28,6 @@ const MANIFEST: &str = r#"{
       "duration_ms": 2000,
       "duration_source": "measured",
       "audio": "audio/welcome.wav",
-      "voice_source": "synthetic",
-      "voice_source_actual": "synthetic",
-      "downgrade_reason": null,
       "source_hash": "1111111111111111111111111111111111111111111111111111111111111111",
       "audio_hash": "2222222222222222222222222222222222222222222222222222222222222222"
     }

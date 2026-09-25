@@ -123,7 +123,7 @@ and a `pause`). The same limit applies to the `_ms` settings in
 
 | on | keys |
 |---|---|
-| a line | `voice.source`, `voice.backend`, `voice.voice`, `voice.speed`, `lead_in`, `tail`, `lang` |
+| a line | `voice.backend`, `voice.voice`, `voice.speed`, `lead_in`, `tail`, `lang` |
 | a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `max_speedup`, `max_stretch`, `min_stretch`, `review` |
 
 `include=path` takes the block's body from a file, so a tape or a

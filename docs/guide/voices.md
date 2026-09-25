@@ -80,13 +80,6 @@ opt-in. A server without that endpoint fails `dub` with a message naming
 the setting. Turning timings on changes the cache key once, so each line is
 synthesized again, this time with its timings.
 
-## Voice tiers
-
-`voice.source` asks for `synthetic` (the default), `cloned` or `recorded`.
-Only `synthetic` has backends today, so the other two fall back to it. The
-manifest records what was asked for, what was used and why, and
-`dub --strict-voice` makes a fallback fail with exit 4.
-
 ## Testing against a real server
 
 The Kokoro tests run against an in-process stub. One test uses a real
