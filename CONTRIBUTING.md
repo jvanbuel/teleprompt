@@ -20,6 +20,19 @@ these variables so a skip there is a failure:
 | `TELEPROMPT_REQUIRE_FFMPEG` | ffmpeg is missing |
 | `TELEPROMPT_REQUIRE_VHS` | vhs is missing |
 | `TELEPROMPT_REQUIRE_CAPTURE` | the manual renders any shot as a slate |
+| `TELEPROMPT_REQUIRE_LISTEN` | `TELEPROMPT_LISTEN_MODEL` is not set |
+
+The speech recognizer is opt-in, because sherpa-onnx downloads its native
+library when it builds. Its test runs a real model over a recorded reading:
+
+```bash
+TELEPROMPT_LISTEN_MODEL=path/to/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17 \
+  cargo test -p teleprompt-listen-sherpa --features sherpa
+```
+
+The model is one of sherpa-onnx's streaming zipformer releases. Behind a
+proxy its build script may not trust, download the native archive yourself
+and point `SHERPA_ONNX_ARCHIVE_DIR` at the directory holding it.
 
 `crates/teleprompt-cli/tests/golden.rs` pins `plan` output for every example
 project, and every command's failure output and exit code. When a change is

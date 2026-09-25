@@ -1,0 +1,8 @@
+//! A [`teleprompt_listen::Recognizer`] backed by a streaming sherpa-onnx
+//! model, behind the `sherpa` feature.
+
+#[cfg(feature = "sherpa")]
+mod sherpa;
+
+#[cfg(feature = "sherpa")]
+pub use sherpa::{SherpaRecognizer, SAMPLE_RATE};
