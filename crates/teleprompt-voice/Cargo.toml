@@ -8,7 +8,12 @@ license.workspace = true
 [dependencies]
 async-trait.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+teleprompt-core = { path = "../teleprompt-core" }
 thiserror.workspace = true
+
+[dev-dependencies]
+teleprompt-testkit = { path = "../teleprompt-testkit" }
 
 [lints]
 workspace = true

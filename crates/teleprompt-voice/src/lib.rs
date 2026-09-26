@@ -6,6 +6,7 @@ pub mod contract;
 pub mod estimator;
 pub mod registry;
 mod resample;
+pub mod takes;
 pub mod wav;
 
 pub use contract::{
