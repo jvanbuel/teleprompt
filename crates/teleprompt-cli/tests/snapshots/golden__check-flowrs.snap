@@ -4,10 +4,16 @@ expression: transcript(&out)
 ---
 {
   "exit": 0,
-  "stderr": [],
+  "stderr": [
+    "warning: line `clicking` has a 31-word sentence, hard to say in one breath and to read as captions",
+    "  --> demos/flowrs/scripts/demo.md:25:1",
+    "  help: split it in two"
+  ],
   "stdout": {
     "errors": [],
     "ok": true,
-    "warnings": []
+    "warnings": [
+      "line `clicking` has a 31-word sentence, hard to say in one breath and to read as captions\n  --> demos/flowrs/scripts/demo.md:25:1\n  help: split it in two"
+    ]
   }
 }

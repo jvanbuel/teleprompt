@@ -315,7 +315,16 @@ pub fn run_check(
     script: &Path,
     locale: &str,
 ) -> Result<Vec<String>, Vec<String>> {
-    compile_script(project, script, locale).map(|(out, _)| out.warnings)
+    let mut warnings = compile_script(project, script, locale)?.0.warnings;
+    // What is hard to say aloud, in the language the lines are said in.
+    let program = resolved(project, script, locale)?;
+    let display = script.display().to_string();
+    warnings.extend(teleprompt_core::lint::lint(&program).iter().map(|d| {
+        d.render(&display)
+            .trim_start_matches("warning: ")
+            .to_string()
+    }));
+    Ok(warnings)
 }
 
 /// `script` resolved in its own language, for reading its narration rather

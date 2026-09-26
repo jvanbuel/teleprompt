@@ -4,10 +4,44 @@ expression: transcript(&out)
 ---
 {
   "exit": 0,
-  "stderr": [],
+  "stderr": [
+    "warning: line `welcome` has a 34-word sentence, hard to say in one breath and to read as captions",
+    "  --> manual/scripts/cli.md:13:1",
+    "  help: split it in two",
+    "warning: line `the-mark` has a 36-word sentence, hard to say in one breath and to read as captions",
+    "  --> manual/scripts/cli.md:58:1",
+    "  help: split it in two",
+    "warning: line `diagnostics` has a 32-word sentence, hard to say in one breath and to read as captions",
+    "  --> manual/scripts/cli.md:111:1",
+    "  help: split it in two",
+    "warning: line `exact-actions` has a 34-word sentence, hard to say in one breath and to read as captions",
+    "  --> manual/scripts/cli.md:153:1",
+    "  help: split it in two",
+    "warning: line `dub-check` says `--check`, which a voice may read out character by character",
+    "  --> manual/scripts/cli.md:245:1",
+    "  help: reword it, or say how under voice.pronounce, e.g. pronounce: { \"--check\": \"…\" }",
+    "warning: line `doctor` has a 34-word sentence, hard to say in one breath and to read as captions",
+    "  --> manual/scripts/cli.md:265:1",
+    "  help: split it in two",
+    "warning: line `offline-by-default` has a 36-word sentence, hard to say in one breath and to read as captions",
+    "  --> manual/scripts/cli.md:276:1",
+    "  help: split it in two",
+    "warning: line `self-hosting` has a 34-word sentence, hard to say in one breath and to read as captions",
+    "  --> manual/scripts/cli.md:289:1",
+    "  help: split it in two"
+  ],
   "stdout": {
     "errors": [],
     "ok": true,
-    "warnings": []
+    "warnings": [
+      "line `welcome` has a 34-word sentence, hard to say in one breath and to read as captions\n  --> manual/scripts/cli.md:13:1\n  help: split it in two",
+      "line `the-mark` has a 36-word sentence, hard to say in one breath and to read as captions\n  --> manual/scripts/cli.md:58:1\n  help: split it in two",
+      "line `diagnostics` has a 32-word sentence, hard to say in one breath and to read as captions\n  --> manual/scripts/cli.md:111:1\n  help: split it in two",
+      "line `exact-actions` has a 34-word sentence, hard to say in one breath and to read as captions\n  --> manual/scripts/cli.md:153:1\n  help: split it in two",
+      "line `dub-check` says `--check`, which a voice may read out character by character\n  --> manual/scripts/cli.md:245:1\n  help: reword it, or say how under voice.pronounce, e.g. pronounce: { \"--check\": \"…\" }",
+      "line `doctor` has a 34-word sentence, hard to say in one breath and to read as captions\n  --> manual/scripts/cli.md:265:1\n  help: split it in two",
+      "line `offline-by-default` has a 36-word sentence, hard to say in one breath and to read as captions\n  --> manual/scripts/cli.md:276:1\n  help: split it in two",
+      "line `self-hosting` has a 34-word sentence, hard to say in one breath and to read as captions\n  --> manual/scripts/cli.md:289:1\n  help: split it in two"
+    ]
   }
 }

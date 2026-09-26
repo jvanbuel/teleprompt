@@ -113,6 +113,23 @@ This applies to synthesis only. The script, captions and manifest keep the
 spelling. Matching is on whole words and case-sensitive, and correcting a
 pronunciation re-renders only the lines that use that word.
 
+## Lines that are hard to say
+
+`teleprompt check` also reads the narration the way a listener hears it,
+and warns about:
+
+- **A sentence of more than 30 words.** It's hard to say in one breath,
+  and hard to read as captions. Split it.
+- **Words a voice reads as code:** file names (`tour.md`), paths, URLs,
+  `--flags`, `snake_case` and `camelCase` names. A voice may spell them
+  out. Reword the line, or say how under `pronounce`, which silences the
+  warning.
+- **A doubled word**, like "the the". ("that that" and "had had" are
+  English.)
+
+These are warnings: `check` still passes. With `--locale`, the translated
+lines are checked.
+
 ## Attributes
 
 Lines take attributes after their id, as in `{#intro voice.speed=1.1}`.

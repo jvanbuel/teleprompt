@@ -4,10 +4,16 @@ expression: transcript(&out)
 ---
 {
   "exit": 0,
-  "stderr": [],
+  "stderr": [
+    "warning: line `long` has a 49-word sentence, hard to say in one breath and to read as captions",
+    "  --> examples/remotion/scripts/remotion.md:46:1",
+    "  help: split it in two"
+  ],
   "stdout": {
     "errors": [],
     "ok": true,
-    "warnings": []
+    "warnings": [
+      "line `long` has a 49-word sentence, hard to say in one breath and to read as captions\n  --> examples/remotion/scripts/remotion.md:46:1\n  help: split it in two"
+    ]
   }
 }

@@ -5,6 +5,7 @@ pub mod duration;
 pub mod error;
 pub mod hash;
 pub mod ident;
+pub mod lint;
 pub mod parse;
 pub mod policy;
 pub mod program;
