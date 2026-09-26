@@ -10,8 +10,9 @@ from fontTools.pens.transformPen import TransformPen
 FONT = 'SpaceMono-Bold.ttf'
 NAME = 'telepr0mpt'
 ZERO = NAME.index('0')
-TRACK = -0.012  # of the em: a mono font's even spacing, tightened a little
+TRACK = 0.02    # of the em, added between letters
 X_HEIGHT = 42   # px in a 128 px lockup
+M_OPEN = 60     # units added to each of the m's counters
 
 ICON = '''<defs><linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3d45"/><stop offset="1" stop-color="#1a1c20"/></linearGradient></defs>
   <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#edge)"/>
@@ -21,6 +22,22 @@ ICON = '''<defs><linearGradient id="edge" x1="0" y1="0" x2="0" y2="1"><stop offs
   <rect x="44" y="59.5" width="22" height="9" rx="4.5" fill="#ffb800"/>
   <rect x="70" y="59.5" width="30" height="9" rx="4.5" fill="#f2f4f7"/>
   <rect x="40" y="81" width="44" height="9" rx="4.5" fill="#f2f4f7" fill-opacity="0.55"/>'''
+
+
+def widen(name, pen):
+    """A pen that draws `name`, with the m's two counters opened up.
+
+    Space Mono squeezes its m into one cell, 81 units a counter against
+    the n's 200-odd; set large, that knots up "mpt". Stretching only the
+    counters keeps the stems' weight."""
+    if name != 'm':
+        return pen, 0
+    def x(v):
+        return v + sum(M_OPEN * min(max((v - a) / (b - a), 0), 1) for a, b in ((162, 243), (369, 450)))
+    class Warp:
+        def transformPoint(self, p):
+            return (x(p[0]), p[1])
+    return TransformPen(pen, Warp()), 2 * M_OPEN
 
 
 def outlines():
@@ -36,11 +53,12 @@ def outlines():
     x, rest, zero = 0, pathops.Path(), pathops.Path()
     for info, pos in zip(buf.glyph_infos, buf.glyph_positions):
         into = zero if info.cluster == ZERO else pathops.Path()
-        glyphs[f.getGlyphName(info.codepoint)].draw(
-            TransformPen(into.getPen(), (1, 0, 0, 1, x + pos.x_offset, pos.y_offset)))
+        name = f.getGlyphName(info.codepoint)
+        pen, extra = widen(name, TransformPen(into.getPen(), (1, 0, 0, 1, x + pos.x_offset, pos.y_offset)))
+        glyphs[name].draw(pen)
         if info.cluster != ZERO:
             rest = pathops.op(rest, into, pathops.PathOp.UNION)
-        x += pos.x_advance + TRACK * upm
+        x += pos.x_advance + extra + TRACK * upm
     return rest, zero, X_HEIGHT / f['OS/2'].sxHeight
 
 
