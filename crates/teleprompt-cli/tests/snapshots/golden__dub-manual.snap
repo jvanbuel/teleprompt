@@ -17,53 +17,53 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "id": "starting-a-project",
-        "start_ms": 95390,
+        "start_ms": 95540,
         "title": "Starting a project"
       },
       {
         "id": "reading-a-script",
-        "start_ms": 123120,
+        "start_ms": 123270,
         "title": "Reading a script"
       },
       {
         "id": "compiling-the-timeline",
-        "start_ms": 157110,
+        "start_ms": 158160,
         "title": "Compiling the timeline"
       },
       {
         "id": "the-feedback-loop",
-        "start_ms": 213740,
+        "start_ms": 214990,
         "title": "The feedback loop"
       },
       {
         "id": "narration",
-        "start_ms": 262600,
+        "start_ms": 263850,
         "title": "Narration"
       },
       {
         "id": "keeping-a-pull-request-honest",
-        "start_ms": 316665,
+        "start_ms": 317915,
         "title": "Keeping a pull request honest"
       },
       {
         "id": "when-something-is-wrong",
-        "start_ms": 335355,
+        "start_ms": 337955,
         "title": "When something is wrong"
       }
     ],
-    "duration_ms": 402535,
+    "duration_ms": 405635,
     "generated_by": "teleprompt 0.1.0",
     "lines": [
       {
         "audio": "audio/welcome.wav",
-        "audio_hash": "90703792f347bb6c6ec6c8d77ec47e80f0387a49c1948e9ae28b00bf6a04d0a3",
+        "audio_hash": "bcd3b5ae70eda7793b485c26ccc83f206c4e0b689966308d12ea4dfd26fb3cf3",
         "chapter": "the-manual-is-the-program",
-        "duration_ms": 20350,
+        "duration_ms": 20150,
         "duration_source": "measured",
         "id": "welcome",
-        "source_hash": "f54014b34f3eaa68f187d54878f7b7cef0fab48015a966239f5029505844d365",
+        "source_hash": "a0848c759fe7485f98ba1ca83cb24dcb823293917c7fc261224bb155d3ee9b58",
         "start_ms": 150,
-        "text": "This is teleprompt's command-line manual, and it is compiled by the tool it documents. Every sentence you are hearing is a paragraph of Markdown in one file, and every command you watch run is a tape in that same file, a few lines below the sentence about it."
+        "text": "This is teleprompt's command-line manual, and it is compiled by the tool it documents. Every sentence you are hearing is a paragraph of Markdown in one file. Every command you watch run is a tape in that same file, a few lines below the sentence about it."
       },
       {
         "audio": "audio/prose-and-action.wav",
@@ -73,7 +73,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "prose-and-action",
         "source_hash": "8c0fae6521383a3cbaa5be7cabe673ff9b66033ee817571cd13fcda6d555ed5e",
-        "start_ms": 22830,
+        "start_ms": 22630,
         "text": "That is the whole idea. Prose is narration, fenced blocks are what the screen does, and the length of the speech decides how long the picture holds. Rewrite this paragraph and the terminal below it waits longer, because it is waiting for me."
       },
       {
@@ -84,19 +84,19 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "vhs",
         "source_hash": "835be9fff588bed3e4bcdd1495c7626059916626887a2489da1c80ee6782ac37",
-        "start_ms": 41530,
+        "start_ms": 41330,
         "text": "The terminal you are looking at is a VHS tape — Charm's recording format, borrowed whole. teleprompt does not render it. It rewrites the tape's timings so that every span lasts exactly as long as the sentence over it, and hands that tape to VHS. Waiting for narration is a number in the input, not a renderer of our own."
       },
       {
         "audio": "audio/the-mark.wav",
-        "audio_hash": "4a4faac76459cfaa1985a49811b3895aff7358dfd1f324b2586e38ee69f63851",
+        "audio_hash": "a4b3d9b6daf2c095739171fa587d912bfeb1754620ca3b0f8bbd9a31192ac21b",
         "chapter": "the-manual-is-the-program",
-        "duration_ms": 23550,
+        "duration_ms": 23900,
         "duration_source": "measured",
         "id": "the-mark",
-        "source_hash": "a1ce4bf7da55b5d6319b65cde046dedb96e6721876c09b89d35173138ad0fb94",
-        "start_ms": 71840,
-        "text": "Where one paragraph hands over to the next, a tape carries a mark, and the mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS itself will run — which is the whole reason to keep a demo in a real tape file rather than in a dialect only teleprompt reads."
+        "source_hash": "62d97baff554b41fc4b6d8b2a9b80a96a21e514a9ba01f7f70221086fc71c5b2",
+        "start_ms": 71640,
+        "text": "Where one paragraph hands over to the next, a tape carries a mark, and the mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS itself will run. That is the whole reason to keep a demo in a real tape file rather than in a dialect only teleprompt reads."
       },
       {
         "audio": "audio/new.wav",
@@ -106,7 +106,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "new",
         "source_hash": "fba819b836ef36d72d10e33839c7379cd2538411516635009c74cf26bba1f11c",
-        "start_ms": 95390,
+        "start_ms": 95540,
         "text": "teleprompt new scaffolds one: a configuration file, a scripts directory, and a timelines directory for the compiled output you commit alongside the prose."
       },
       {
@@ -117,7 +117,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "scaffold",
         "source_hash": "05547812693038698000d3652eb6525178395cd45653652f540a891ffefe23bb",
-        "start_ms": 108270,
+        "start_ms": 108420,
         "text": "The demo script it leaves behind is two paragraphs and two action blocks — small enough to read in one breath, and complete enough to compile. Nothing else has to be installed for it to work."
       },
       {
@@ -128,19 +128,19 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "check",
         "source_hash": "cecee378feb6298e3d781b67e35ca34b02bcc788b041f1e55532bb9fef146498",
-        "start_ms": 123120,
+        "start_ms": 123270,
         "text": "teleprompt check parses and validates, and does nothing else. No synthesis, no network, no files written — so it costs nothing to run it on every keystroke, and plenty of editors will."
       },
       {
         "audio": "audio/diagnostics.wav",
-        "audio_hash": "a15a969bf725f0ae3837b55b1dd114b1c85407982aa77c1c5f3a9fbbf6eaf9ec",
+        "audio_hash": "387629077dcf152e225ee247c2b7bbe3ea12714752e5e662c22a6800a84b48e6",
         "chapter": "reading-a-script",
-        "duration_ms": 18350,
+        "duration_ms": 19250,
         "duration_source": "measured",
         "id": "diagnostics",
-        "source_hash": "b184776827cb654d17aff1c57226b3edb5aa671a6f82446c7293e68ba3b89010",
-        "start_ms": 138460,
-        "text": "When it does have something to say, it says where. A mistyped policy, a duration that is not a duration, a tape directive teleprompt cannot run: each is reported at the line that carries it, with the spelling it should have had."
+        "source_hash": "5e081cc0a9254468e68b5a494c133551e83d54f7a52d44deace87b097162dee7",
+        "start_ms": 138610,
+        "text": "When it does have something to say, it says where. Take a mistyped policy, a duration that is not a duration, or a tape directive teleprompt cannot run. Each is reported at the line that carries it, with the spelling it should have had."
       },
       {
         "audio": "audio/plan.wav",
@@ -150,7 +150,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "plan",
         "source_hash": "dc7c09885d41077ae061dad52271894a0b1cf8003aca52dec3d9c87aaf410ac8",
-        "start_ms": 157110,
+        "start_ms": 158160,
         "text": "teleprompt plan compiles the script into a timeline and prints one line per beat: when it starts, which pacing policy governs it, and how long its narration runs."
       },
       {
@@ -161,19 +161,19 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "estimated-vs-measured",
         "source_hash": "6179a9d524bc38103ba4e1ae572cc937eddd2381edf7b2b2eaf88d637fbb3b19",
-        "start_ms": 172520,
+        "start_ms": 173570,
         "text": "Those durations come from the cache when a segment has been synthesized before, and from a word-count estimate when it has not. Plan never synthesizes anything, which is why it answers instantly on a laptop with no voice backend anywhere near it."
       },
       {
         "audio": "audio/exact-actions.wav",
-        "audio_hash": "216c35e7b47a3ac3c8ee6e7ef97a5bd8cbb57e53f57be88aa5b854304be674c8",
+        "audio_hash": "7720c84bbb75ddc7d0649f9ac1dcffef106d83f79242d86281a948c220660741",
         "chapter": "compiling-the-timeline",
-        "duration_ms": 19650,
+        "duration_ms": 19850,
         "duration_source": "measured",
         "id": "exact-actions",
-        "source_hash": "0a50066637ace87d626f122477a82f77461b5a2ff9486e1e2dc56feb7eeb4e5d",
-        "start_ms": 190320,
-        "text": "An action block's duration is different: a tape states its own timing. Every sleep is written down and every keystroke has a speed, so teleprompt adds them up rather than guessing, and never has to run the terminal to find out how long the terminal takes."
+        "source_hash": "c8a3f602c8a5415279a4197abbb68cad6647e396ba3a8de87eef6f7fca4f2385",
+        "start_ms": 191370,
+        "text": "An action block's duration is different: a tape states its own timing. Every sleep is written down and every keystroke has a speed, so teleprompt adds them up rather than guessing. It never has to run the terminal to find out how long the terminal takes."
       },
       {
         "audio": "audio/commit-the-timeline.wav",
@@ -183,7 +183,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "commit-the-timeline",
         "source_hash": "017f3b4301ce31ebf2d45624825cc148f9c217ca1d365bd448f35e0e66c21908",
-        "start_ms": 213740,
+        "start_ms": 214990,
         "text": "Commit the timeline that plan produced, and teleprompt diff will compare the next compile against it. This is the loop the whole tool is built around."
       },
       {
@@ -194,7 +194,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "edit-the-prose",
         "source_hash": "b8225b2ea56236c4a97c8c520bc1f15ef5bb58cd59b4f70e69584f36c9a07364",
-        "start_ms": 224990,
+        "start_ms": 226240,
         "text": "Now edit a paragraph. Not the code, not the tape — the prose. A longer sentence takes longer to say, and everything scheduled after it moves."
       },
       {
@@ -205,7 +205,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "the-diff",
         "source_hash": "155bf8a6fa8538a195f947dc418d8c523a0ad88e90b66f3fbef761a28db397bd",
-        "start_ms": 236640,
+        "start_ms": 237890,
         "text": "And diff tells you exactly how much, before anything is rendered: which beats moved, by how long, and what the video now runs to end to end. That report is the review surface. It is what a pull request argues about instead of arguing about a video file nobody can read."
       },
       {
@@ -216,7 +216,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "dub",
         "source_hash": "c5ba8ef84fe0522e31e899df703928af1fa682134f40c221ca43e73281e1e94b",
-        "start_ms": 262600,
+        "start_ms": 263850,
         "text": "teleprompt dub is the command that actually speaks. It synthesizes every segment, writes the audio, and publishes a manifest: one entry per segment, with its prose, its offset, its length, and the voice that produced it."
       },
       {
@@ -227,7 +227,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "manifest",
         "source_hash": "7e8bcf3c65c5232ee03750905d100c83c068d25a43001ac591e3b930341eebb5",
-        "start_ms": 280890,
+        "start_ms": 282140,
         "text": "teleprompt renders no video. Something else owns the picture — Remotion, a web player, your own compositor — and it reads the manifest. Deriving its length from the manifest is what keeps the central property alive on the other side of that boundary: narration still drives the pacing."
       },
       {
@@ -238,52 +238,52 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "duration_source": "measured",
         "id": "measured",
         "source_hash": "3489162f02032ebddb265205d4633c0a6badc003cb861cabac57bd538515634c",
-        "start_ms": 304065,
+        "start_ms": 305315,
         "text": "Having spoken the script once, teleprompt has also measured it. The same plan is still instant, and now every duration in it is a recording rather than an estimate."
       },
       {
         "audio": "audio/dub-check.wav",
-        "audio_hash": "9fbfd82a85d1cd3148413423a137214aa5f013f95051c714d3bcd617542a0baa",
+        "audio_hash": "fe574e3c0ae849d7c778678ca2c8a0ce2826030ed106e00844756199d3f13e85",
         "chapter": "keeping-a-pull-request-honest",
-        "duration_ms": 16300,
+        "duration_ms": 17650,
         "duration_source": "measured",
         "id": "dub-check",
-        "source_hash": "604e43e0b775fecd6d9eb27692b7fcb7ba272409edf84969119226f0de2e9041",
-        "start_ms": 316665,
-        "text": "dub --check compares the committed manifest against the script and exits three when they disagree. Put that in continuous integration and a change to the prose can no longer be merged with last week's narration still attached to it."
+        "source_hash": "bd130b21980d717415a38f7fd057d059cc9cd0f86bbf873d23cb593739d685bd",
+        "start_ms": 317915,
+        "text": "With its check flag, dub compares the committed manifest against the script and exits three when they disagree. Put that in continuous integration and a change to the prose can no longer be merged with last week's narration still attached to it."
       },
       {
         "audio": "audio/doctor.wav",
-        "audio_hash": "83fa41c9e924e8d3218e28e34c7aac3f45904b1539b4af6c75a91a09e81782c7",
+        "audio_hash": "d4fd7bcee16cfde6ea274b60f48cbd888ecb581526cfe7428e60d381fbe3d4f8",
         "chapter": "when-something-is-wrong",
-        "duration_ms": 14650,
+        "duration_ms": 15550,
         "duration_source": "measured",
         "id": "doctor",
-        "source_hash": "dcae1d3d596b2f99eb44f0bb2f3efb24a5e92c5c86145c986c6e911eb9565db7",
-        "start_ms": 335355,
-        "text": "teleprompt doctor reports the environment teleprompt can see: which scene adapters this build ships, which voice backends it knows, how warm the cache is, and whether the server your project points at is answering."
+        "source_hash": "f302c5c80e88e4069b8e019c0dcdcf3c3762a913e390a920c44393c8279f8776",
+        "start_ms": 337955,
+        "text": "teleprompt doctor reports the environment teleprompt can see. It lists which scene adapters this build ships, which voice backends it knows, how warm the cache is, and whether the server your project points at is answering."
       },
       {
         "audio": "audio/offline-by-default.wav",
-        "audio_hash": "ddf9944d89dd63ab080925ab7f61c5ca31e65ef15e80a1246ae8525bb59fa19d",
+        "audio_hash": "d2d452f4ee887007a8d023a32b46cba29e920caaa43dd827e888de53b72be7d2",
         "chapter": "when-something-is-wrong",
-        "duration_ms": 25750,
+        "duration_ms": 25550,
         "duration_source": "measured",
         "id": "offline-by-default",
-        "source_hash": "c1ab97043b5c4045ad86d9a5db173846301ff7c271495263a02b2aef2111b39f",
-        "start_ms": 353335,
-        "text": "A voice backend that is down is a warning there, not a failure. check, plan, and diff never needed it; only dub does. That asymmetry is the point: the loop you run a hundred times a day stays offline and instant, and the one command that needs a machine to speak is the only one that asks for it."
+        "source_hash": "25bc447a63e09b89ff610ec0c7273286aaa97b6419a7cb41c5bf83cd751ac766",
+        "start_ms": 356835,
+        "text": "A voice backend that is down is a warning there, not a failure. check, plan, and diff never needed it; only dub does. That asymmetry is the point: the loop you run a hundred times a day stays offline and instant. The one command that needs a machine to speak is the only one that asks for it."
       },
       {
         "audio": "audio/self-hosting.wav",
-        "audio_hash": "20948c7351aafa1eb439f91888caa8307bf3ff9dfbf4beea2dfda3c299d99c4f",
+        "audio_hash": "fc31a1d2f47b1aa4b8c72853026c0590f15d3f07477d25e0a76f2fa0523e2c34",
         "chapter": "when-something-is-wrong",
-        "duration_ms": 23300,
+        "duration_ms": 23100,
         "duration_source": "measured",
         "id": "self-hosting",
-        "source_hash": "8c320a9539bc31e47610d30514273c25c6ded8eb25377b25adadcc0fc75d9eba",
-        "start_ms": 379085,
-        "text": "This manual compiles in the repository that builds the tool, and CI compares it against its committed timeline on every change. When a command grows a flag, the sentence about it and the tape demonstrating it are in the same file, in version control, and the build says so when they fall out of step."
+        "source_hash": "26027be536bb6c3505ad3f77753f2599fa5c349b93eaf64ff65d0c5b1335d2ab",
+        "start_ms": 382385,
+        "text": "This manual compiles in the repository that builds the tool, and CI compares it against its committed timeline on every change. When a command grows a flag, the sentence about it and the tape demonstrating it are in the same file, in version control. The build says so when they fall out of step."
       }
     ],
     "locale": "en",
@@ -300,7 +300,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "welcome-a#0",
         "shot_hash": "c590e04a8aa99440733a0ad195e0f6c4e281e62c2e82bd16a9880fd52fb83ad4",
-        "start_ms": 20650,
+        "start_ms": 20450,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -316,7 +316,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "prose-and-action-a#0",
         "shot_hash": "f92e17fc935b44cceaedb00e6521d058837b6a9d5212c517a83c436d2de7e809",
-        "start_ms": 22680,
+        "start_ms": 22480,
         "transition": {
           "duration_ms": 300,
           "kind": "crossfade"
@@ -332,7 +332,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "vhs-a#0",
         "shot_hash": "b63a9c7181bcd72e8366b281d96983c70eeabba30f645b20ee764f4cb7a4216f",
-        "start_ms": 67130,
+        "start_ms": 66930,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -348,7 +348,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "the-mark-a#0",
         "shot_hash": "52580d2de20767021e7a613bea91f859546e75c446e49d37addcab00dcf29606",
-        "start_ms": 71690,
+        "start_ms": 71490,
         "transition": {
           "duration_ms": 300,
           "kind": "crossfade"
@@ -364,7 +364,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "new-a#0",
         "shot_hash": "7d53e075d547893fad969c116a389ae873d279c85ffc38e806065970352c436d",
-        "start_ms": 105640,
+        "start_ms": 105790,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -380,7 +380,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "new-a#1",
         "shot_hash": "5041686bca8a6833c8968945b67960860418fca9019a9ef1d40124a035d94c69",
-        "start_ms": 106640,
+        "start_ms": 106790,
         "transition": {
           "duration_ms": 0,
           "kind": "crossfade"
@@ -396,7 +396,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "scaffold-a#0",
         "shot_hash": "31177f0f13f9168d5b1e708e3dbdddb25d9b51f5ee4afe33829219c702c7fa05",
-        "start_ms": 108120,
+        "start_ms": 108270,
         "transition": {
           "duration_ms": 300,
           "kind": "crossfade"
@@ -412,7 +412,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "check-a#0",
         "shot_hash": "8bc04e8ed57bdeff01469d1052f80257d7e6c772cd2c870ade8cf18230f3fe84",
-        "start_ms": 136970,
+        "start_ms": 137120,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -420,15 +420,15 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "bed5517b59168b750e789aaa1b8d7920d01c46088b1d285f2a5ab92884bc429e",
-        "duration_ms": 18650,
+        "capture_key": "46c46ace1d180ae814b53f23864de07686ba069f762361e7a1549eb1baacd0ae",
+        "duration_ms": 19550,
         "duration_source": "exact",
         "line": "diagnostics",
         "policy": "fit-action",
         "scene": "vhs",
         "shot": "diagnostics-a#0",
-        "shot_hash": "84736b62152f8ae11941d6bf97dd6772253340a2d1868b05208bd458b16f27dc",
-        "start_ms": 138310,
+        "shot_hash": "f9f28d47c6d3be915b4b28fa40b61b85d7352df61d43ad22e68e313c5d03c620",
+        "start_ms": 138460,
         "transition": {
           "duration_ms": 0,
           "kind": "crossfade"
@@ -436,7 +436,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "fbe93bb1a38897c356f34b4417617a003205e5da5e6777a1dbb157b74d6af0be",
+        "capture_key": "d6860e6583fbd5c232b041f89fba693fbd991cb68f166f8d3b2704d55490a90d",
         "duration_ms": 3610,
         "duration_source": "exact",
         "line": "plan",
@@ -444,7 +444,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "plan-a#0",
         "shot_hash": "98e78984d06ed1979aed4cabaeda03c3d37ec5be77bf664c97e5c7e36fc06b7e",
-        "start_ms": 169360,
+        "start_ms": 170410,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -452,7 +452,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "82c0690ab76c51b971ec9d12d1ad4d885975906dee7657cbb428b6edfcfcef34",
+        "capture_key": "572d7abd374f574eb4742f31577632f64b50b35abe623984886d820a31c40596",
         "duration_ms": 3650,
         "duration_source": "exact",
         "line": "estimated-vs-measured",
@@ -460,7 +460,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "estimated-vs-measured-a#0",
         "shot_hash": "9a7a1c63d5321f597b91df6bace8586f8c81e9c068ef6f43e127fe74836aad6c",
-        "start_ms": 172370,
+        "start_ms": 173420,
         "transition": {
           "duration_ms": 300,
           "kind": "crossfade"
@@ -468,7 +468,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "be598fcd29d53e33b2a4e3fc3132b9302b6a6e0886581f89065e851da170d2f5",
+        "capture_key": "cacc31661aaa6c09e2f1107d8a74d3265d325a21149dcd37128c0813accbf814",
         "duration_ms": 4070,
         "duration_source": "exact",
         "line": "exact-actions",
@@ -476,7 +476,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "exact-actions-a#0",
         "shot_hash": "9ac50a40998b79f78a5b85c3ea585e48756b4e53f347f1f94f39c08706281c21",
-        "start_ms": 210120,
+        "start_ms": 211370,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -484,7 +484,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "1312a367bdcd37e676787226a16f57c851a2a6bea92d763f82adaa6e6f8ca821",
+        "capture_key": "528c2f56842f389a5a04712244d958e71a731b77f1f6880198f41d5a12f80f4c",
         "duration_ms": 2625,
         "duration_source": "exact",
         "line": "commit-the-timeline",
@@ -492,7 +492,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "commit-the-timeline-a#0",
         "shot_hash": "6325dbe2fa3a82d66f96b32cc26f66a2495c9a35d03daaada8632998db0c5d12",
-        "start_ms": 213590,
+        "start_ms": 214840,
         "transition": {
           "duration_ms": 300,
           "kind": "crossfade"
@@ -500,7 +500,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "ef6b34fe97ad038bd09e9a92da73f80b455ee605299ae57452bb4df1db3504fc",
+        "capture_key": "6c66221793250efdfc0656e4ff07be1820d7c77cc70012cce7077dbb209b11b8",
         "duration_ms": 11650,
         "duration_source": "exact",
         "line": "edit-the-prose",
@@ -508,7 +508,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "edit-the-prose-a#0",
         "shot_hash": "14a2294c6efadf9c64d5d956750a783526d754495d0c4544b474f6e56ee74249",
-        "start_ms": 224840,
+        "start_ms": 226090,
         "transition": {
           "duration_ms": 0,
           "kind": "crossfade"
@@ -516,7 +516,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "a2348f95b3f644ad575e1ff930521b2175d282fdeb93d1ae467b027730e514f1",
+        "capture_key": "233f78a6fc32da68e7f56213220e38a65059e0e3775d8b698e6a4433f16a41b5",
         "duration_ms": 4110,
         "duration_source": "exact",
         "line": "the-diff",
@@ -524,7 +524,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "the-diff-a#0",
         "shot_hash": "f01cf6d28aa459a5eed1e15f3b3d23d886b5dff5dc52811bd6dc5c7520c9705d",
-        "start_ms": 258940,
+        "start_ms": 260190,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -532,7 +532,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "8f3fd1ce0a648c13a65ec17f91e7d3c050ec81a155977118dc8df18411ef66bc",
+        "capture_key": "3b37845bd020f0ed3c65a586aaf56a009204a01283643a77735d8f2810701ab9",
         "duration_ms": 4770,
         "duration_source": "exact",
         "line": "dub",
@@ -540,7 +540,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "dub-a#0",
         "shot_hash": "6f6e47df7942bc323d65ede1e2798867fee93b6d95b1d2e184d6a257d4fbe052",
-        "start_ms": 262450,
+        "start_ms": 263700,
         "transition": {
           "duration_ms": 150,
           "kind": "crossfade"
@@ -548,7 +548,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "11a3ab382102d2a1903c88218209a4e7bcb0b29415c65cd682ef869521754e1d",
+        "capture_key": "c19b144638a9999b4b04f3d4e97d89ce8b1b3d927f62c23c0af5c8adde191438",
         "duration_ms": 1890,
         "duration_source": "exact",
         "line": null,
@@ -556,7 +556,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "dub-a#1",
         "shot_hash": "e2c37062e75bace482bf9c186575565e01940a68482d6af48931679ce9faeecc",
-        "start_ms": 278850,
+        "start_ms": 280100,
         "transition": {
           "duration_ms": 0,
           "kind": "crossfade"
@@ -564,7 +564,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "03cc0944cf4f2f4844984a115b01b1609a7344fd1f842df45e11be8a09f119c7",
+        "capture_key": "80b7d9deed6a1fb3715ac33b3cacc925350c16fec22c071d739e17f22f879df7",
         "duration_ms": 3475,
         "duration_source": "exact",
         "line": "manifest",
@@ -572,7 +572,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "manifest-a#0",
         "shot_hash": "e5b2ded9e87f5dc2ad3f3c31348be93ce7d6e784bf75442b90e0ade7be7f2324",
-        "start_ms": 301040,
+        "start_ms": 302290,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -580,7 +580,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "335330bc9a021b420ae6e1a06f578d89e14d65e8cc5c917253facd0f01209829",
+        "capture_key": "0a333150390857d318d0faa2eebf7eb2295884e173466d96728238598c9294b9",
         "duration_ms": 3350,
         "duration_source": "exact",
         "line": "measured",
@@ -588,7 +588,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "measured-a#0",
         "shot_hash": "f6212eda87d51253dd63dc30fb35cfd39074f1301f6afbb6cbd5d731d2020392",
-        "start_ms": 303915,
+        "start_ms": 305165,
         "transition": {
           "duration_ms": 300,
           "kind": "crossfade"
@@ -596,7 +596,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "f319b5368599db4a4a014a3fa3232f4a36e1d4667d5ede6defc901e402f3172a",
+        "capture_key": "4357338e5935f3f7cc1cee9bfda53eaf7f64cbc305a74397faaf96dd88d53007",
         "duration_ms": 4010,
         "duration_source": "exact",
         "line": "dub-check",
@@ -604,7 +604,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "dub-check-a#0",
         "shot_hash": "0a88697a4e773e9843f823fa7654388d632325fc859588af0422845e78baed90",
-        "start_ms": 316515,
+        "start_ms": 317765,
         "transition": {
           "duration_ms": 150,
           "kind": "crossfade"
@@ -612,7 +612,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "103a9a73a37801ba7dd67a0aacdce506758203f226b1e77879d434cc0b3c823e",
+        "capture_key": "7520f617bcf74138d494262a05ef2e05ff91bb80218c7e1facd50fbed91d3472",
         "duration_ms": 1740,
         "duration_source": "exact",
         "line": null,
@@ -620,7 +620,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "dub-check-a#1",
         "shot_hash": "22f73a7b07e11a4b7a1d848207613dff8492e3e7dd79f7a6a327de83bd44192f",
-        "start_ms": 332965,
+        "start_ms": 335565,
         "transition": {
           "duration_ms": 0,
           "kind": "crossfade"
@@ -636,7 +636,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "pause",
         "shot": "pause-21",
         "shot_hash": "76a7936849405a972db0416bbe56ca0b117ddeea82e1dfe0ea78afc46c02e5e4",
-        "start_ms": 334705,
+        "start_ms": 337305,
         "transition": {
           "duration_ms": 0,
           "kind": "crossfade"
@@ -644,7 +644,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "37ba4b4db32b7b56c8159afb60180d69c0f82d9dd64a000524118aa6b8bb58a5",
+        "capture_key": "53aeb492164a6737108b63fd6b5c9b756a7ab19f561d5cd61a658cbf439532c7",
         "duration_ms": 3630,
         "duration_source": "exact",
         "line": "doctor",
@@ -652,7 +652,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "doctor-a#0",
         "shot_hash": "bfd66b4b5ac82854237d404b5479d6b12c582bc91cb378e92513f394f9c4f40d",
-        "start_ms": 350155,
+        "start_ms": 353655,
         "transition": {
           "duration_ms": 600,
           "kind": "crossfade"
@@ -660,7 +660,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "a03e1f80e31f2cb5fde38f2d199bf65eebdb351d4b887cf26547067a3c7a6c29",
+        "capture_key": "0a16400f3c33f44c5bc4dae00276183a0c0d4e45eda591d973012a201ef4e600",
         "duration_ms": 3650,
         "duration_source": "exact",
         "line": "offline-by-default",
@@ -668,7 +668,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "offline-by-default-a#0",
         "shot_hash": "801922a400fc7791486b938d3ac9bb93b4008cc25f231ec6138f1ce37cb54c96",
-        "start_ms": 353185,
+        "start_ms": 356685,
         "transition": {
           "duration_ms": 300,
           "kind": "crossfade"
@@ -676,7 +676,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       },
       {
         "adapter": "vhs",
-        "capture_key": "189afb6f37a600871f3268950fe9772c20fe353d69c5e9c87c358d5136c774a9",
+        "capture_key": "84392ef205adf38ba3b7255be30eb2684732992aec477da841030c6c937f5ab0",
         "duration_ms": 3140,
         "duration_source": "exact",
         "line": "self-hosting",
@@ -684,7 +684,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         "scene": "vhs",
         "shot": "self-hosting-a#0",
         "shot_hash": "b2e4f69fedad7dbbba1307798c465eeb3e79c1567282a0d559448be1e4f6f9c0",
-        "start_ms": 378935,
+        "start_ms": 382235,
         "transition": {
           "duration_ms": 0,
           "kind": "crossfade"
@@ -731,53 +731,53 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "id": "starting-a-project",
-          "start_ms": 95390,
+          "start_ms": 95540,
           "title": "Starting a project"
         },
         {
           "id": "reading-a-script",
-          "start_ms": 123120,
+          "start_ms": 123270,
           "title": "Reading a script"
         },
         {
           "id": "compiling-the-timeline",
-          "start_ms": 157110,
+          "start_ms": 158160,
           "title": "Compiling the timeline"
         },
         {
           "id": "the-feedback-loop",
-          "start_ms": 213740,
+          "start_ms": 214990,
           "title": "The feedback loop"
         },
         {
           "id": "narration",
-          "start_ms": 262600,
+          "start_ms": 263850,
           "title": "Narration"
         },
         {
           "id": "keeping-a-pull-request-honest",
-          "start_ms": 316665,
+          "start_ms": 317915,
           "title": "Keeping a pull request honest"
         },
         {
           "id": "when-something-is-wrong",
-          "start_ms": 335355,
+          "start_ms": 337955,
           "title": "When something is wrong"
         }
       ],
-      "duration_ms": 402535,
+      "duration_ms": 405635,
       "generated_by": "teleprompt 0.1.0",
       "lines": [
         {
           "audio": "audio/welcome.wav",
-          "audio_hash": "90703792f347bb6c6ec6c8d77ec47e80f0387a49c1948e9ae28b00bf6a04d0a3",
+          "audio_hash": "bcd3b5ae70eda7793b485c26ccc83f206c4e0b689966308d12ea4dfd26fb3cf3",
           "chapter": "the-manual-is-the-program",
-          "duration_ms": 20350,
+          "duration_ms": 20150,
           "duration_source": "measured",
           "id": "welcome",
-          "source_hash": "f54014b34f3eaa68f187d54878f7b7cef0fab48015a966239f5029505844d365",
+          "source_hash": "a0848c759fe7485f98ba1ca83cb24dcb823293917c7fc261224bb155d3ee9b58",
           "start_ms": 150,
-          "text": "This is teleprompt's command-line manual, and it is compiled by the tool it documents. Every sentence you are hearing is a paragraph of Markdown in one file, and every command you watch run is a tape in that same file, a few lines below the sentence about it."
+          "text": "This is teleprompt's command-line manual, and it is compiled by the tool it documents. Every sentence you are hearing is a paragraph of Markdown in one file. Every command you watch run is a tape in that same file, a few lines below the sentence about it."
         },
         {
           "audio": "audio/prose-and-action.wav",
@@ -787,7 +787,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "prose-and-action",
           "source_hash": "8c0fae6521383a3cbaa5be7cabe673ff9b66033ee817571cd13fcda6d555ed5e",
-          "start_ms": 22830,
+          "start_ms": 22630,
           "text": "That is the whole idea. Prose is narration, fenced blocks are what the screen does, and the length of the speech decides how long the picture holds. Rewrite this paragraph and the terminal below it waits longer, because it is waiting for me."
         },
         {
@@ -798,19 +798,19 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "vhs",
           "source_hash": "835be9fff588bed3e4bcdd1495c7626059916626887a2489da1c80ee6782ac37",
-          "start_ms": 41530,
+          "start_ms": 41330,
           "text": "The terminal you are looking at is a VHS tape — Charm's recording format, borrowed whole. teleprompt does not render it. It rewrites the tape's timings so that every span lasts exactly as long as the sentence over it, and hands that tape to VHS. Waiting for narration is a number in the input, not a renderer of our own."
         },
         {
           "audio": "audio/the-mark.wav",
-          "audio_hash": "4a4faac76459cfaa1985a49811b3895aff7358dfd1f324b2586e38ee69f63851",
+          "audio_hash": "a4b3d9b6daf2c095739171fa587d912bfeb1754620ca3b0f8bbd9a31192ac21b",
           "chapter": "the-manual-is-the-program",
-          "duration_ms": 23550,
+          "duration_ms": 23900,
           "duration_source": "measured",
           "id": "the-mark",
-          "source_hash": "a1ce4bf7da55b5d6319b65cde046dedb96e6721876c09b89d35173138ad0fb94",
-          "start_ms": 71840,
-          "text": "Where one paragraph hands over to the next, a tape carries a mark, and the mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS itself will run — which is the whole reason to keep a demo in a real tape file rather than in a dialect only teleprompt reads."
+          "source_hash": "62d97baff554b41fc4b6d8b2a9b80a96a21e514a9ba01f7f70221086fc71c5b2",
+          "start_ms": 71640,
+          "text": "Where one paragraph hands over to the next, a tape carries a mark, and the mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS itself will run. That is the whole reason to keep a demo in a real tape file rather than in a dialect only teleprompt reads."
         },
         {
           "audio": "audio/new.wav",
@@ -820,7 +820,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "new",
           "source_hash": "fba819b836ef36d72d10e33839c7379cd2538411516635009c74cf26bba1f11c",
-          "start_ms": 95390,
+          "start_ms": 95540,
           "text": "teleprompt new scaffolds one: a configuration file, a scripts directory, and a timelines directory for the compiled output you commit alongside the prose."
         },
         {
@@ -831,7 +831,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "scaffold",
           "source_hash": "05547812693038698000d3652eb6525178395cd45653652f540a891ffefe23bb",
-          "start_ms": 108270,
+          "start_ms": 108420,
           "text": "The demo script it leaves behind is two paragraphs and two action blocks — small enough to read in one breath, and complete enough to compile. Nothing else has to be installed for it to work."
         },
         {
@@ -842,19 +842,19 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "check",
           "source_hash": "cecee378feb6298e3d781b67e35ca34b02bcc788b041f1e55532bb9fef146498",
-          "start_ms": 123120,
+          "start_ms": 123270,
           "text": "teleprompt check parses and validates, and does nothing else. No synthesis, no network, no files written — so it costs nothing to run it on every keystroke, and plenty of editors will."
         },
         {
           "audio": "audio/diagnostics.wav",
-          "audio_hash": "a15a969bf725f0ae3837b55b1dd114b1c85407982aa77c1c5f3a9fbbf6eaf9ec",
+          "audio_hash": "387629077dcf152e225ee247c2b7bbe3ea12714752e5e662c22a6800a84b48e6",
           "chapter": "reading-a-script",
-          "duration_ms": 18350,
+          "duration_ms": 19250,
           "duration_source": "measured",
           "id": "diagnostics",
-          "source_hash": "b184776827cb654d17aff1c57226b3edb5aa671a6f82446c7293e68ba3b89010",
-          "start_ms": 138460,
-          "text": "When it does have something to say, it says where. A mistyped policy, a duration that is not a duration, a tape directive teleprompt cannot run: each is reported at the line that carries it, with the spelling it should have had."
+          "source_hash": "5e081cc0a9254468e68b5a494c133551e83d54f7a52d44deace87b097162dee7",
+          "start_ms": 138610,
+          "text": "When it does have something to say, it says where. Take a mistyped policy, a duration that is not a duration, or a tape directive teleprompt cannot run. Each is reported at the line that carries it, with the spelling it should have had."
         },
         {
           "audio": "audio/plan.wav",
@@ -864,7 +864,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "plan",
           "source_hash": "dc7c09885d41077ae061dad52271894a0b1cf8003aca52dec3d9c87aaf410ac8",
-          "start_ms": 157110,
+          "start_ms": 158160,
           "text": "teleprompt plan compiles the script into a timeline and prints one line per beat: when it starts, which pacing policy governs it, and how long its narration runs."
         },
         {
@@ -875,19 +875,19 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "estimated-vs-measured",
           "source_hash": "6179a9d524bc38103ba4e1ae572cc937eddd2381edf7b2b2eaf88d637fbb3b19",
-          "start_ms": 172520,
+          "start_ms": 173570,
           "text": "Those durations come from the cache when a segment has been synthesized before, and from a word-count estimate when it has not. Plan never synthesizes anything, which is why it answers instantly on a laptop with no voice backend anywhere near it."
         },
         {
           "audio": "audio/exact-actions.wav",
-          "audio_hash": "216c35e7b47a3ac3c8ee6e7ef97a5bd8cbb57e53f57be88aa5b854304be674c8",
+          "audio_hash": "7720c84bbb75ddc7d0649f9ac1dcffef106d83f79242d86281a948c220660741",
           "chapter": "compiling-the-timeline",
-          "duration_ms": 19650,
+          "duration_ms": 19850,
           "duration_source": "measured",
           "id": "exact-actions",
-          "source_hash": "0a50066637ace87d626f122477a82f77461b5a2ff9486e1e2dc56feb7eeb4e5d",
-          "start_ms": 190320,
-          "text": "An action block's duration is different: a tape states its own timing. Every sleep is written down and every keystroke has a speed, so teleprompt adds them up rather than guessing, and never has to run the terminal to find out how long the terminal takes."
+          "source_hash": "c8a3f602c8a5415279a4197abbb68cad6647e396ba3a8de87eef6f7fca4f2385",
+          "start_ms": 191370,
+          "text": "An action block's duration is different: a tape states its own timing. Every sleep is written down and every keystroke has a speed, so teleprompt adds them up rather than guessing. It never has to run the terminal to find out how long the terminal takes."
         },
         {
           "audio": "audio/commit-the-timeline.wav",
@@ -897,7 +897,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "commit-the-timeline",
           "source_hash": "017f3b4301ce31ebf2d45624825cc148f9c217ca1d365bd448f35e0e66c21908",
-          "start_ms": 213740,
+          "start_ms": 214990,
           "text": "Commit the timeline that plan produced, and teleprompt diff will compare the next compile against it. This is the loop the whole tool is built around."
         },
         {
@@ -908,7 +908,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "edit-the-prose",
           "source_hash": "b8225b2ea56236c4a97c8c520bc1f15ef5bb58cd59b4f70e69584f36c9a07364",
-          "start_ms": 224990,
+          "start_ms": 226240,
           "text": "Now edit a paragraph. Not the code, not the tape — the prose. A longer sentence takes longer to say, and everything scheduled after it moves."
         },
         {
@@ -919,7 +919,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "the-diff",
           "source_hash": "155bf8a6fa8538a195f947dc418d8c523a0ad88e90b66f3fbef761a28db397bd",
-          "start_ms": 236640,
+          "start_ms": 237890,
           "text": "And diff tells you exactly how much, before anything is rendered: which beats moved, by how long, and what the video now runs to end to end. That report is the review surface. It is what a pull request argues about instead of arguing about a video file nobody can read."
         },
         {
@@ -930,7 +930,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "dub",
           "source_hash": "c5ba8ef84fe0522e31e899df703928af1fa682134f40c221ca43e73281e1e94b",
-          "start_ms": 262600,
+          "start_ms": 263850,
           "text": "teleprompt dub is the command that actually speaks. It synthesizes every segment, writes the audio, and publishes a manifest: one entry per segment, with its prose, its offset, its length, and the voice that produced it."
         },
         {
@@ -941,7 +941,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "manifest",
           "source_hash": "7e8bcf3c65c5232ee03750905d100c83c068d25a43001ac591e3b930341eebb5",
-          "start_ms": 280890,
+          "start_ms": 282140,
           "text": "teleprompt renders no video. Something else owns the picture — Remotion, a web player, your own compositor — and it reads the manifest. Deriving its length from the manifest is what keeps the central property alive on the other side of that boundary: narration still drives the pacing."
         },
         {
@@ -952,52 +952,52 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "duration_source": "measured",
           "id": "measured",
           "source_hash": "3489162f02032ebddb265205d4633c0a6badc003cb861cabac57bd538515634c",
-          "start_ms": 304065,
+          "start_ms": 305315,
           "text": "Having spoken the script once, teleprompt has also measured it. The same plan is still instant, and now every duration in it is a recording rather than an estimate."
         },
         {
           "audio": "audio/dub-check.wav",
-          "audio_hash": "9fbfd82a85d1cd3148413423a137214aa5f013f95051c714d3bcd617542a0baa",
+          "audio_hash": "fe574e3c0ae849d7c778678ca2c8a0ce2826030ed106e00844756199d3f13e85",
           "chapter": "keeping-a-pull-request-honest",
-          "duration_ms": 16300,
+          "duration_ms": 17650,
           "duration_source": "measured",
           "id": "dub-check",
-          "source_hash": "604e43e0b775fecd6d9eb27692b7fcb7ba272409edf84969119226f0de2e9041",
-          "start_ms": 316665,
-          "text": "dub --check compares the committed manifest against the script and exits three when they disagree. Put that in continuous integration and a change to the prose can no longer be merged with last week's narration still attached to it."
+          "source_hash": "bd130b21980d717415a38f7fd057d059cc9cd0f86bbf873d23cb593739d685bd",
+          "start_ms": 317915,
+          "text": "With its check flag, dub compares the committed manifest against the script and exits three when they disagree. Put that in continuous integration and a change to the prose can no longer be merged with last week's narration still attached to it."
         },
         {
           "audio": "audio/doctor.wav",
-          "audio_hash": "83fa41c9e924e8d3218e28e34c7aac3f45904b1539b4af6c75a91a09e81782c7",
+          "audio_hash": "d4fd7bcee16cfde6ea274b60f48cbd888ecb581526cfe7428e60d381fbe3d4f8",
           "chapter": "when-something-is-wrong",
-          "duration_ms": 14650,
+          "duration_ms": 15550,
           "duration_source": "measured",
           "id": "doctor",
-          "source_hash": "dcae1d3d596b2f99eb44f0bb2f3efb24a5e92c5c86145c986c6e911eb9565db7",
-          "start_ms": 335355,
-          "text": "teleprompt doctor reports the environment teleprompt can see: which scene adapters this build ships, which voice backends it knows, how warm the cache is, and whether the server your project points at is answering."
+          "source_hash": "f302c5c80e88e4069b8e019c0dcdcf3c3762a913e390a920c44393c8279f8776",
+          "start_ms": 337955,
+          "text": "teleprompt doctor reports the environment teleprompt can see. It lists which scene adapters this build ships, which voice backends it knows, how warm the cache is, and whether the server your project points at is answering."
         },
         {
           "audio": "audio/offline-by-default.wav",
-          "audio_hash": "ddf9944d89dd63ab080925ab7f61c5ca31e65ef15e80a1246ae8525bb59fa19d",
+          "audio_hash": "d2d452f4ee887007a8d023a32b46cba29e920caaa43dd827e888de53b72be7d2",
           "chapter": "when-something-is-wrong",
-          "duration_ms": 25750,
+          "duration_ms": 25550,
           "duration_source": "measured",
           "id": "offline-by-default",
-          "source_hash": "c1ab97043b5c4045ad86d9a5db173846301ff7c271495263a02b2aef2111b39f",
-          "start_ms": 353335,
-          "text": "A voice backend that is down is a warning there, not a failure. check, plan, and diff never needed it; only dub does. That asymmetry is the point: the loop you run a hundred times a day stays offline and instant, and the one command that needs a machine to speak is the only one that asks for it."
+          "source_hash": "25bc447a63e09b89ff610ec0c7273286aaa97b6419a7cb41c5bf83cd751ac766",
+          "start_ms": 356835,
+          "text": "A voice backend that is down is a warning there, not a failure. check, plan, and diff never needed it; only dub does. That asymmetry is the point: the loop you run a hundred times a day stays offline and instant. The one command that needs a machine to speak is the only one that asks for it."
         },
         {
           "audio": "audio/self-hosting.wav",
-          "audio_hash": "20948c7351aafa1eb439f91888caa8307bf3ff9dfbf4beea2dfda3c299d99c4f",
+          "audio_hash": "fc31a1d2f47b1aa4b8c72853026c0590f15d3f07477d25e0a76f2fa0523e2c34",
           "chapter": "when-something-is-wrong",
-          "duration_ms": 23300,
+          "duration_ms": 23100,
           "duration_source": "measured",
           "id": "self-hosting",
-          "source_hash": "8c320a9539bc31e47610d30514273c25c6ded8eb25377b25adadcc0fc75d9eba",
-          "start_ms": 379085,
-          "text": "This manual compiles in the repository that builds the tool, and CI compares it against its committed timeline on every change. When a command grows a flag, the sentence about it and the tape demonstrating it are in the same file, in version control, and the build says so when they fall out of step."
+          "source_hash": "26027be536bb6c3505ad3f77753f2599fa5c349b93eaf64ff65d0c5b1335d2ab",
+          "start_ms": 382385,
+          "text": "This manual compiles in the repository that builds the tool, and CI compares it against its committed timeline on every change. When a command grows a flag, the sentence about it and the tape demonstrating it are in the same file, in version control. The build says so when they fall out of step."
         }
       ],
       "locale": "en",
@@ -1014,7 +1014,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "welcome-a#0",
           "shot_hash": "c590e04a8aa99440733a0ad195e0f6c4e281e62c2e82bd16a9880fd52fb83ad4",
-          "start_ms": 20650,
+          "start_ms": 20450,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1030,7 +1030,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "prose-and-action-a#0",
           "shot_hash": "f92e17fc935b44cceaedb00e6521d058837b6a9d5212c517a83c436d2de7e809",
-          "start_ms": 22680,
+          "start_ms": 22480,
           "transition": {
             "duration_ms": 300,
             "kind": "crossfade"
@@ -1046,7 +1046,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "vhs-a#0",
           "shot_hash": "b63a9c7181bcd72e8366b281d96983c70eeabba30f645b20ee764f4cb7a4216f",
-          "start_ms": 67130,
+          "start_ms": 66930,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1062,7 +1062,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "the-mark-a#0",
           "shot_hash": "52580d2de20767021e7a613bea91f859546e75c446e49d37addcab00dcf29606",
-          "start_ms": 71690,
+          "start_ms": 71490,
           "transition": {
             "duration_ms": 300,
             "kind": "crossfade"
@@ -1078,7 +1078,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "new-a#0",
           "shot_hash": "7d53e075d547893fad969c116a389ae873d279c85ffc38e806065970352c436d",
-          "start_ms": 105640,
+          "start_ms": 105790,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1094,7 +1094,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "new-a#1",
           "shot_hash": "5041686bca8a6833c8968945b67960860418fca9019a9ef1d40124a035d94c69",
-          "start_ms": 106640,
+          "start_ms": 106790,
           "transition": {
             "duration_ms": 0,
             "kind": "crossfade"
@@ -1110,7 +1110,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "scaffold-a#0",
           "shot_hash": "31177f0f13f9168d5b1e708e3dbdddb25d9b51f5ee4afe33829219c702c7fa05",
-          "start_ms": 108120,
+          "start_ms": 108270,
           "transition": {
             "duration_ms": 300,
             "kind": "crossfade"
@@ -1126,7 +1126,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "check-a#0",
           "shot_hash": "8bc04e8ed57bdeff01469d1052f80257d7e6c772cd2c870ade8cf18230f3fe84",
-          "start_ms": 136970,
+          "start_ms": 137120,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1134,15 +1134,15 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "bed5517b59168b750e789aaa1b8d7920d01c46088b1d285f2a5ab92884bc429e",
-          "duration_ms": 18650,
+          "capture_key": "46c46ace1d180ae814b53f23864de07686ba069f762361e7a1549eb1baacd0ae",
+          "duration_ms": 19550,
           "duration_source": "exact",
           "line": "diagnostics",
           "policy": "fit-action",
           "scene": "vhs",
           "shot": "diagnostics-a#0",
-          "shot_hash": "84736b62152f8ae11941d6bf97dd6772253340a2d1868b05208bd458b16f27dc",
-          "start_ms": 138310,
+          "shot_hash": "f9f28d47c6d3be915b4b28fa40b61b85d7352df61d43ad22e68e313c5d03c620",
+          "start_ms": 138460,
           "transition": {
             "duration_ms": 0,
             "kind": "crossfade"
@@ -1150,7 +1150,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "fbe93bb1a38897c356f34b4417617a003205e5da5e6777a1dbb157b74d6af0be",
+          "capture_key": "d6860e6583fbd5c232b041f89fba693fbd991cb68f166f8d3b2704d55490a90d",
           "duration_ms": 3610,
           "duration_source": "exact",
           "line": "plan",
@@ -1158,7 +1158,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "plan-a#0",
           "shot_hash": "98e78984d06ed1979aed4cabaeda03c3d37ec5be77bf664c97e5c7e36fc06b7e",
-          "start_ms": 169360,
+          "start_ms": 170410,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1166,7 +1166,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "82c0690ab76c51b971ec9d12d1ad4d885975906dee7657cbb428b6edfcfcef34",
+          "capture_key": "572d7abd374f574eb4742f31577632f64b50b35abe623984886d820a31c40596",
           "duration_ms": 3650,
           "duration_source": "exact",
           "line": "estimated-vs-measured",
@@ -1174,7 +1174,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "estimated-vs-measured-a#0",
           "shot_hash": "9a7a1c63d5321f597b91df6bace8586f8c81e9c068ef6f43e127fe74836aad6c",
-          "start_ms": 172370,
+          "start_ms": 173420,
           "transition": {
             "duration_ms": 300,
             "kind": "crossfade"
@@ -1182,7 +1182,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "be598fcd29d53e33b2a4e3fc3132b9302b6a6e0886581f89065e851da170d2f5",
+          "capture_key": "cacc31661aaa6c09e2f1107d8a74d3265d325a21149dcd37128c0813accbf814",
           "duration_ms": 4070,
           "duration_source": "exact",
           "line": "exact-actions",
@@ -1190,7 +1190,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "exact-actions-a#0",
           "shot_hash": "9ac50a40998b79f78a5b85c3ea585e48756b4e53f347f1f94f39c08706281c21",
-          "start_ms": 210120,
+          "start_ms": 211370,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1198,7 +1198,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "1312a367bdcd37e676787226a16f57c851a2a6bea92d763f82adaa6e6f8ca821",
+          "capture_key": "528c2f56842f389a5a04712244d958e71a731b77f1f6880198f41d5a12f80f4c",
           "duration_ms": 2625,
           "duration_source": "exact",
           "line": "commit-the-timeline",
@@ -1206,7 +1206,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "commit-the-timeline-a#0",
           "shot_hash": "6325dbe2fa3a82d66f96b32cc26f66a2495c9a35d03daaada8632998db0c5d12",
-          "start_ms": 213590,
+          "start_ms": 214840,
           "transition": {
             "duration_ms": 300,
             "kind": "crossfade"
@@ -1214,7 +1214,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "ef6b34fe97ad038bd09e9a92da73f80b455ee605299ae57452bb4df1db3504fc",
+          "capture_key": "6c66221793250efdfc0656e4ff07be1820d7c77cc70012cce7077dbb209b11b8",
           "duration_ms": 11650,
           "duration_source": "exact",
           "line": "edit-the-prose",
@@ -1222,7 +1222,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "edit-the-prose-a#0",
           "shot_hash": "14a2294c6efadf9c64d5d956750a783526d754495d0c4544b474f6e56ee74249",
-          "start_ms": 224840,
+          "start_ms": 226090,
           "transition": {
             "duration_ms": 0,
             "kind": "crossfade"
@@ -1230,7 +1230,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "a2348f95b3f644ad575e1ff930521b2175d282fdeb93d1ae467b027730e514f1",
+          "capture_key": "233f78a6fc32da68e7f56213220e38a65059e0e3775d8b698e6a4433f16a41b5",
           "duration_ms": 4110,
           "duration_source": "exact",
           "line": "the-diff",
@@ -1238,7 +1238,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "the-diff-a#0",
           "shot_hash": "f01cf6d28aa459a5eed1e15f3b3d23d886b5dff5dc52811bd6dc5c7520c9705d",
-          "start_ms": 258940,
+          "start_ms": 260190,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1246,7 +1246,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "8f3fd1ce0a648c13a65ec17f91e7d3c050ec81a155977118dc8df18411ef66bc",
+          "capture_key": "3b37845bd020f0ed3c65a586aaf56a009204a01283643a77735d8f2810701ab9",
           "duration_ms": 4770,
           "duration_source": "exact",
           "line": "dub",
@@ -1254,7 +1254,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "dub-a#0",
           "shot_hash": "6f6e47df7942bc323d65ede1e2798867fee93b6d95b1d2e184d6a257d4fbe052",
-          "start_ms": 262450,
+          "start_ms": 263700,
           "transition": {
             "duration_ms": 150,
             "kind": "crossfade"
@@ -1262,7 +1262,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "11a3ab382102d2a1903c88218209a4e7bcb0b29415c65cd682ef869521754e1d",
+          "capture_key": "c19b144638a9999b4b04f3d4e97d89ce8b1b3d927f62c23c0af5c8adde191438",
           "duration_ms": 1890,
           "duration_source": "exact",
           "line": null,
@@ -1270,7 +1270,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "dub-a#1",
           "shot_hash": "e2c37062e75bace482bf9c186575565e01940a68482d6af48931679ce9faeecc",
-          "start_ms": 278850,
+          "start_ms": 280100,
           "transition": {
             "duration_ms": 0,
             "kind": "crossfade"
@@ -1278,7 +1278,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "03cc0944cf4f2f4844984a115b01b1609a7344fd1f842df45e11be8a09f119c7",
+          "capture_key": "80b7d9deed6a1fb3715ac33b3cacc925350c16fec22c071d739e17f22f879df7",
           "duration_ms": 3475,
           "duration_source": "exact",
           "line": "manifest",
@@ -1286,7 +1286,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "manifest-a#0",
           "shot_hash": "e5b2ded9e87f5dc2ad3f3c31348be93ce7d6e784bf75442b90e0ade7be7f2324",
-          "start_ms": 301040,
+          "start_ms": 302290,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1294,7 +1294,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "335330bc9a021b420ae6e1a06f578d89e14d65e8cc5c917253facd0f01209829",
+          "capture_key": "0a333150390857d318d0faa2eebf7eb2295884e173466d96728238598c9294b9",
           "duration_ms": 3350,
           "duration_source": "exact",
           "line": "measured",
@@ -1302,7 +1302,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "measured-a#0",
           "shot_hash": "f6212eda87d51253dd63dc30fb35cfd39074f1301f6afbb6cbd5d731d2020392",
-          "start_ms": 303915,
+          "start_ms": 305165,
           "transition": {
             "duration_ms": 300,
             "kind": "crossfade"
@@ -1310,7 +1310,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "f319b5368599db4a4a014a3fa3232f4a36e1d4667d5ede6defc901e402f3172a",
+          "capture_key": "4357338e5935f3f7cc1cee9bfda53eaf7f64cbc305a74397faaf96dd88d53007",
           "duration_ms": 4010,
           "duration_source": "exact",
           "line": "dub-check",
@@ -1318,7 +1318,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "dub-check-a#0",
           "shot_hash": "0a88697a4e773e9843f823fa7654388d632325fc859588af0422845e78baed90",
-          "start_ms": 316515,
+          "start_ms": 317765,
           "transition": {
             "duration_ms": 150,
             "kind": "crossfade"
@@ -1326,7 +1326,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "103a9a73a37801ba7dd67a0aacdce506758203f226b1e77879d434cc0b3c823e",
+          "capture_key": "7520f617bcf74138d494262a05ef2e05ff91bb80218c7e1facd50fbed91d3472",
           "duration_ms": 1740,
           "duration_source": "exact",
           "line": null,
@@ -1334,7 +1334,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "dub-check-a#1",
           "shot_hash": "22f73a7b07e11a4b7a1d848207613dff8492e3e7dd79f7a6a327de83bd44192f",
-          "start_ms": 332965,
+          "start_ms": 335565,
           "transition": {
             "duration_ms": 0,
             "kind": "crossfade"
@@ -1350,7 +1350,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "pause",
           "shot": "pause-21",
           "shot_hash": "76a7936849405a972db0416bbe56ca0b117ddeea82e1dfe0ea78afc46c02e5e4",
-          "start_ms": 334705,
+          "start_ms": 337305,
           "transition": {
             "duration_ms": 0,
             "kind": "crossfade"
@@ -1358,7 +1358,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "37ba4b4db32b7b56c8159afb60180d69c0f82d9dd64a000524118aa6b8bb58a5",
+          "capture_key": "53aeb492164a6737108b63fd6b5c9b756a7ab19f561d5cd61a658cbf439532c7",
           "duration_ms": 3630,
           "duration_source": "exact",
           "line": "doctor",
@@ -1366,7 +1366,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "doctor-a#0",
           "shot_hash": "bfd66b4b5ac82854237d404b5479d6b12c582bc91cb378e92513f394f9c4f40d",
-          "start_ms": 350155,
+          "start_ms": 353655,
           "transition": {
             "duration_ms": 600,
             "kind": "crossfade"
@@ -1374,7 +1374,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "a03e1f80e31f2cb5fde38f2d199bf65eebdb351d4b887cf26547067a3c7a6c29",
+          "capture_key": "0a16400f3c33f44c5bc4dae00276183a0c0d4e45eda591d973012a201ef4e600",
           "duration_ms": 3650,
           "duration_source": "exact",
           "line": "offline-by-default",
@@ -1382,7 +1382,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "offline-by-default-a#0",
           "shot_hash": "801922a400fc7791486b938d3ac9bb93b4008cc25f231ec6138f1ce37cb54c96",
-          "start_ms": 353185,
+          "start_ms": 356685,
           "transition": {
             "duration_ms": 300,
             "kind": "crossfade"
@@ -1390,7 +1390,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         },
         {
           "adapter": "vhs",
-          "capture_key": "189afb6f37a600871f3268950fe9772c20fe353d69c5e9c87c358d5136c774a9",
+          "capture_key": "84392ef205adf38ba3b7255be30eb2684732992aec477da841030c6c937f5ab0",
           "duration_ms": 3140,
           "duration_source": "exact",
           "line": "self-hosting",
@@ -1398,7 +1398,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           "scene": "vhs",
           "shot": "self-hosting-a#0",
           "shot_hash": "b2e4f69fedad7dbbba1307798c465eeb3e79c1567282a0d559448be1e4f6f9c0",
-          "start_ms": 378935,
+          "start_ms": 382235,
           "transition": {
             "duration_ms": 0,
             "kind": "crossfade"

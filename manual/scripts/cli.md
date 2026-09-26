@@ -12,8 +12,8 @@ output:
 
 This is teleprompt's command-line manual, and it is compiled by the tool it
 documents. Every sentence you are hearing is a paragraph of Markdown in one
-file, and every command you watch run is a tape in that same file, a few
-lines below the sentence about it. {#welcome}
+file. Every command you watch run is a tape in that same file, a few lines
+below the sentence about it. {#welcome}
 
 ```teleprompt scene=vhs
 Set TypingSpeed 35ms
@@ -57,7 +57,7 @@ Sleep 1500ms
 
 Where one paragraph hands over to the next, a tape carries a mark, and the
 mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS
-itself will run — which is the whole reason to keep a demo in a real tape
+itself will run. That is the whole reason to keep a demo in a real tape
 file rather than in a dialect only teleprompt reads. {#the-mark}
 
 ```teleprompt scene=vhs policy=concurrent
@@ -108,10 +108,10 @@ Enter
 Sleep 800ms
 ```
 
-When it does have something to say, it says where. A mistyped policy, a
-duration that is not a duration, a tape directive teleprompt cannot run:
-each is reported at the line that carries it, with the spelling it should
-have had. {#diagnostics}
+When it does have something to say, it says where. Take a mistyped policy,
+a duration that is not a duration, or a tape directive teleprompt cannot
+run. Each is reported at the line that carries it, with the spelling it
+should have had. {#diagnostics}
 
 ```teleprompt scene=vhs policy=fit-action
 # One span, no `Mark`: the whole exchange is paced against the sentence
@@ -152,7 +152,7 @@ Sleep 1800ms
 
 An action block's duration is different: a tape states its own timing. Every
 sleep is written down and every keystroke has a speed, so teleprompt adds
-them up rather than guessing, and never has to run the terminal to find out
+them up rather than guessing. It never has to run the terminal to find out
 how long the terminal takes. {#exact-actions}
 
 ```teleprompt scene=vhs
@@ -242,8 +242,8 @@ Sleep 1500ms
 
 # Keeping a pull request honest
 
-`dub --check` compares the committed manifest against the script and exits
-three when they disagree. Put that in continuous integration and a change
+With its check flag, `dub` compares the committed manifest against the
+script and exits three when they disagree. Put that in continuous integration and a change
 to the prose can no longer be merged with last week's narration still
 attached to it. {#dub-check}
 
@@ -262,9 +262,10 @@ Sleep 1500ms
 
 # When something is wrong
 
-`teleprompt doctor` reports the environment teleprompt can see: which scene
-adapters this build ships, which voice backends it knows, how warm the cache
-is, and whether the server your project points at is answering. {#doctor}
+`teleprompt doctor` reports the environment teleprompt can see. It lists
+which scene adapters this build ships, which voice backends it knows, how
+warm the cache is, and whether the server your project points at is
+answering. {#doctor}
 
 ```teleprompt scene=vhs
 Set TypingSpeed 35ms
@@ -275,8 +276,8 @@ Sleep 3s
 
 A voice backend that is down is a warning there, not a failure. `check`,
 `plan`, and `diff` never needed it; only `dub` does. That asymmetry is the
-point: the loop you run a hundred times a day stays offline and instant, and
-the one command that needs a machine to speak is the only one that asks for
+point: the loop you run a hundred times a day stays offline and instant. The
+one command that needs a machine to speak is the only one that asks for
 it. {#offline-by-default}
 
 ```teleprompt scene=vhs policy=concurrent
@@ -289,7 +290,7 @@ Sleep 2s
 This manual compiles in the repository that builds the tool, and CI compares
 it against its committed timeline on every change. When a command grows a
 flag, the sentence about it and the tape demonstrating it are in the same
-file, in version control, and the build says so when they fall out of
+file, in version control. The build says so when they fall out of
 step. {#self-hosting}
 
 ```teleprompt scene=vhs policy=concurrent
