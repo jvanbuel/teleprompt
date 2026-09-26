@@ -157,6 +157,7 @@ reading the manifest it just published.
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
 | `teleprompt-listen-sherpa` | the recognizer, a streaming sherpa-onnx model; empty without its opt-in `sherpa` feature, so the default build stays offline |
 | `teleprompt-derive` | deriving a script from a recorded terminal session: keystrokes and timed words in, lines and the tapes between them out. Pure, no dependencies |
+| `teleprompt-translate` | translators for `translate`: the request every one of them is sent, Claude over the Messages API, and a shell command of the author's |
 | `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler and capture backend |
@@ -368,6 +369,37 @@ with their times:
 line's stretch of the recording as its [take](#takes): from 150 ms before
 its first word to 250 ms after its last, never past halfway to the next
 line.
+
+### Translation
+
+A script is written in one locale, `locales.source`. Compiling it for
+another (`--locale nl`) reads the translation beside it,
+`tour.nl.yaml` beside `tour.md`, and puts it in place of the source's
+text before anything is compiled: each line, each chapter title, and
+each cue. Scenes, tapes and every other setting are the source video's,
+over which `[locale.nl]` in configuration applies, a Dutch voice for
+instance.
+
+Each entry records the first twelve hex digits of the hash of the text
+it was translated from. So the file is its own staleness ledger: an
+entry whose source has changed is spoken, and reported as out of date,
+until it is translated again. A line with no entry at all is an error,
+since there is nothing to say in its place. The translated text hashes
+as itself, so its audio is keyed apart from the source line's, and a
+take recorded for the source line is never spoken in its place.
+
+A cue names a phrase of its line, which the translation mostly does not
+contain. It is taken from the file's `cues:`; failing that it is kept
+when the translation kept its words, as it keeps a command; and failing
+that the shot starts on the words as far into the translated line as the
+phrase was into the source, with a warning.
+
+`translate` fills the file in. It asks only for what is missing or
+stale, and for the cues of lines it retranslates, and sends what is
+already translated along so terminology holds. Answers are merged in
+script order, and entries for lines the script no longer has are
+dropped. A translated cue that is not words of its line is left out for
+compile to place.
 
 ## Scheduling
 
@@ -684,8 +716,6 @@ Named here so the rest of this document is not read as covering them:
 
 - **Cloned voices.** There is no voice enrollment: a line is recorded or
   synthesized.
-- **Localization sidecars.** `--locale` selects configuration, but
-  translated narration files and their staleness ledger do not exist.
 - **Deriving a script from a browser session.** `record` derives one from
   a terminal session; a browser would need its actions recorded as a
   replayable script, which nothing does yet.
