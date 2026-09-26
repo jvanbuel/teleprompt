@@ -8,6 +8,15 @@ pub use cues::Cues;
 pub use follow::{Follower, Heard, Recognizer};
 pub use take::TakeLog;
 
+/// A word a recognizer heard in a recording, and when, in milliseconds
+/// from its start.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimedWord {
+    pub text: String,
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+
 /// The next word the reader will say: its line, and its index in that line.
 /// Ordered as in the script.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

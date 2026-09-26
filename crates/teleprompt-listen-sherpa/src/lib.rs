@@ -5,4 +5,4 @@
 mod sherpa;
 
 #[cfg(feature = "sherpa")]
-pub use sherpa::{SherpaRecognizer, SAMPLE_RATE};
+pub use sherpa::{transcribe, SherpaRecognizer, SAMPLE_RATE};

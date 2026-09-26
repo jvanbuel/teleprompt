@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use sherpa_onnx::{OnlineRecognizer, OnlineRecognizerConfig, OnlineStream};
-use teleprompt_listen::{Heard, Recognizer};
+use sherpa_onnx::{OnlineRecognizer, OnlineRecognizerConfig, OnlineStream, RecognizerResult};
+use teleprompt_listen::{Heard, Recognizer, TimedWord};
 
 /// The rate the streaming zipformer models are trained at; audio is
 /// resampled to it before it gets here.
@@ -86,4 +86,82 @@ fn existing(path: PathBuf) -> Result<String, String> {
     } else {
         Err(format!("{} is missing", path.display()))
     }
+}
+
+/// Every word in a recording, with when it was said: the whole of
+/// `samples` (mono, [`SAMPLE_RATE`]) run through the model in `dir`.
+pub fn transcribe(dir: &Path, samples: &[f32]) -> Result<Vec<TimedWord>, String> {
+    let SherpaRecognizer { recognizer, stream } = SherpaRecognizer::new(dir)?;
+    let mut words = Vec::new();
+    // Where the utterance under way began, in samples, for a model that
+    // does not say: timestamps count from the last reset.
+    let mut offset = 0;
+    let mut fed = 0;
+    // Silence after the end, so the model hears the last word out.
+    let tail = vec![0.0; SAMPLE_RATE as usize];
+    for chunk in samples.chunks(SAMPLE_RATE as usize / 10).chain([&tail[..]]) {
+        stream.accept_waveform(SAMPLE_RATE as i32, chunk);
+        fed += chunk.len();
+        while recognizer.is_ready(&stream) {
+            recognizer.decode(&stream);
+        }
+        if recognizer.is_endpoint(&stream) {
+            if let Some(r) = recognizer.get_result(&stream) {
+                words.extend(timed(&r, offset));
+            }
+            recognizer.reset(&stream);
+            offset = fed;
+        }
+    }
+    stream.input_finished();
+    while recognizer.is_ready(&stream) {
+        recognizer.decode(&stream);
+    }
+    if let Some(r) = recognizer.get_result(&stream) {
+        words.extend(timed(&r, offset));
+    }
+    Ok(words)
+}
+
+/// How long a word's last token is taken to last: a token is stamped where
+/// the model emitted it, near its start.
+const LAST_TOKEN_MS: u64 = 300;
+
+/// Tokens into words: a token starting with a space starts a word, which
+/// ends where its last token does, or where the next word starts.
+fn timed(r: &RecognizerResult, offset: usize) -> Vec<TimedWord> {
+    let Some(stamps) = &r.timestamps else {
+        return Vec::new();
+    };
+    // The model's own start for the utterance: where it had decoded to at
+    // the reset, which trails what had been fed.
+    let base = r
+        .start_time
+        .map_or(offset as u64 * 1000 / u64::from(SAMPLE_RATE), |s| {
+            (f64::from(s) * 1000.0).round() as u64
+        });
+    let mut words: Vec<TimedWord> = Vec::new();
+    for (token, &at) in r.tokens.iter().zip(stamps) {
+        let ms = base + (f64::from(at) * 1000.0).round() as u64;
+        let piece = token.trim_start_matches([' ', '\u{2581}']);
+        let starts = token.starts_with([' ', '\u{2581}']) || words.is_empty();
+        match words.last_mut() {
+            Some(word) if !starts => {
+                word.text.push_str(piece);
+                word.end_ms = ms + LAST_TOKEN_MS;
+            }
+            _ => {
+                if let Some(prev) = words.last_mut() {
+                    prev.end_ms = prev.end_ms.min(ms);
+                }
+                words.push(TimedWord {
+                    text: piece.to_string(),
+                    start_ms: ms,
+                    end_ms: ms + LAST_TOKEN_MS,
+                });
+            }
+        }
+    }
+    words.retain(|w| !w.text.is_empty());
+    words
 }

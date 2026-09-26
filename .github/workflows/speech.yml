@@ -1,0 +1,52 @@
+name: Speech
+
+# The recognizer, run with a real model: following a reader, and
+# transcribing a recording into timed words for `import`.
+on:
+  push:
+    paths:
+      - crates/teleprompt-listen/**
+      - crates/teleprompt-listen-sherpa/**
+      - crates/teleprompt-derive/**
+      - crates/teleprompt-cli/src/cmd/import*
+      - crates/teleprompt-cli/tests/import*
+      - .github/workflows/speech.yml
+  pull_request:
+    paths:
+      - crates/teleprompt-listen/**
+      - crates/teleprompt-listen-sherpa/**
+      - crates/teleprompt-derive/**
+      - crates/teleprompt-cli/src/cmd/import*
+      - crates/teleprompt-cli/tests/import*
+      - .github/workflows/speech.yml
+
+jobs:
+  speech:
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      MODEL: sherpa-onnx-streaming-zipformer-en-2023-06-26
+      TELEPROMPT_REQUIRE_LISTEN: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: model
+          key: ${{ env.MODEL }}
+      - name: Speech model
+        run: |
+          if [ ! -d "model/$MODEL" ]; then
+            mkdir -p model
+            curl -sSfL "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$MODEL.tar.bz2" | tar xj -C model
+          fi
+      - name: Recognizer tests, with the model
+        env:
+          TELEPROMPT_LISTEN_MODEL: ${{ github.workspace }}/model/${{ env.MODEL }}
+        run: |
+          cargo clippy -p teleprompt-listen-sherpa --features sherpa --all-targets -- -D warnings
+          cargo test -p teleprompt-listen-sherpa --features sherpa

@@ -23,7 +23,9 @@ these variables so a skip there is a failure:
 | `TELEPROMPT_REQUIRE_LISTEN` | `TELEPROMPT_LISTEN_MODEL` is not set |
 
 The speech recognizer is opt-in, because sherpa-onnx downloads its native
-library when it builds. Its test runs a real model over a recorded reading:
+library when it builds. Its tests run a real model over a recorded reading,
+following it and transcribing it into timed words (the `Speech` workflow
+runs them in CI):
 
 ```bash
 TELEPROMPT_LISTEN_MODEL=path/to/sherpa-onnx-streaming-zipformer-en-2023-06-26 \
