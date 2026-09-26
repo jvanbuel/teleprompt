@@ -9,6 +9,7 @@ pub mod parse;
 pub mod policy;
 pub mod program;
 pub mod time;
+pub mod translation;
 pub mod voice;
 
 pub use duration::{DurationMs, DurationSource};

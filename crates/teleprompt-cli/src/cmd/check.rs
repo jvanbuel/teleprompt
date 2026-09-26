@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use teleprompt_core::program::Program;
 use teleprompt_voice::takes::Takes;
@@ -10,6 +10,7 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element};
+use teleprompt_core::translation::Translation;
 use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_voice::VoiceBackend;
 use teleprompt_voice::WpmEstimator;
@@ -80,7 +81,7 @@ pub(crate) fn compile_script_with(
         return Err(render(&teleprompt_core::Diagnostics(id_diags), &display));
     }
 
-    let program = resolve(
+    let mut program = resolve(
         &parsed,
         &name,
         locale,
@@ -88,6 +89,7 @@ pub(crate) fn compile_script_with(
         &PartialConfig::default(),
     )
     .map_err(|d| render(&d, &display))?;
+    let translation_warnings = translate(&mut program, script, &display)?;
 
     // `resolve` merges front-matter `backends:`, but the backends were built
     // from the project's alone, so an override would silently do nothing. A
@@ -166,8 +168,46 @@ pub(crate) fn compile_script_with(
     // here it is a plain sentence, and callers add their own framing.
     out.warnings
         .extend(backend_override_diags.into_iter().map(|d| d.message));
+    out.warnings.extend(translation_warnings);
 
     Ok((out, backend))
+}
+
+/// For a locale other than the script's own, puts the translation beside
+/// the script (`tour.nl.yaml` for `tour.md`) in place of its English,
+/// returning what is out of date in it.
+fn translate(
+    program: &mut Program,
+    script: &Path,
+    display: &str,
+) -> Result<Vec<String>, Vec<String>> {
+    let locale = program.locale.clone();
+    if locale == program.config.locales.source {
+        return Ok(Vec::new());
+    }
+    let path = translation_path(script, &locale);
+    let yaml = std::fs::read_to_string(&path).map_err(|e| {
+        let d = Diagnostic::error(format!(
+            "there is no `{locale}` translation at {}: {e}",
+            path.display()
+        ))
+        .with_help(format!(
+            "run `teleprompt translate {display} --to {locale}`"
+        ));
+        render(&Diagnostics(vec![d]), display)
+    })?;
+    let translation =
+        Translation::from_yaml(&yaml).map_err(|e| vec![format!("{}: {e}", path.display())])?;
+    let diags = teleprompt_core::translation::apply(program, &translation);
+    if diags.iter().any(Diagnostic::is_error) {
+        return Err(render(&Diagnostics(diags), display));
+    }
+    Ok(diags.into_iter().map(|d| d.message).collect())
+}
+
+/// Where `script`'s `locale` translation is kept.
+pub fn translation_path(script: &Path, locale: &str) -> PathBuf {
+    script.with_extension(format!("{locale}.yaml"))
 }
 
 /// Compiles `program` against the project's voice cache and takes, naming
