@@ -193,6 +193,7 @@ fn narration_entry(n: &NarrationInput, slot_start_ms: u64) -> NarrationEntry {
         start_ms: slot_start_ms.saturating_add(n.lead_in_ms.ms()),
         duration_ms: n.duration_ms,
         duration_source: n.duration_source,
+        recorded: n.recorded,
     }
 }
 

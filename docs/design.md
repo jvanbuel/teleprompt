@@ -239,6 +239,28 @@ interleave into a valid sidecar beside audio it doesn't describe, so
 publishing the audio is also an exclusive claim. One writer wins and the
 other adopts its entry.
 
+### Takes
+
+A line can be spoken from a recording instead of synthesized. Recordings
+live in `takes/` at the project root: `<line>.wav`, and a sidecar
+`<line>.json` holding the text the line had when it was read, the
+recording's length and the hash of its bytes. They are source, not cache,
+since nothing can make them again, so they are committed.
+
+A take is *current* while its line still reads exactly as it did when it
+was recorded. A current take is the line's voice: its length is measured
+from the sidecar, so `plan` reads no audio, and its hash is the line's
+`audio_hash`, so recording a line again shows in `diff`. The timeline marks
+the line `recorded`. Editing the line leaves its take behind, and the line
+is synthesized again until it is re-recorded. Once a project has any
+takes, every command that compiles names the lines it still synthesizes.
+
+`dub` publishes a take converted to the rate and channels of the
+synthesized lines, because the manifest has one audio format. The
+conversion keeps the length to the millisecond, since the manifest
+publishes it. A take whose bytes no longer match their sidecar fails the
+command. `serve` plays a recorded line from its take.
+
 ### Backend failure
 
 A backend that is unreachable, slow or returns an error fails the command
@@ -568,8 +590,8 @@ says what was expected.
 
 Named here so the rest of this document is not read as covering them:
 
-- **Recorded or cloned voices.** Every line is synthesized. There are no
-  takes, no `record` command and no voice enrollment.
+- **Cloned voices.** There is no voice enrollment: a line is recorded or
+  synthesized.
 - **Localization sidecars.** `--locale` selects configuration, but
   translated narration files and their staleness ledger do not exist.
 - **Deriving a script from a live session.** `from` drafts from documents

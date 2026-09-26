@@ -8,7 +8,8 @@ use teleprompt_core::config::OutputConfig;
 use teleprompt_core::Hash;
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
-use teleprompt_voice::VoiceBackend;
+use teleprompt_voice::takes::Takes;
+use teleprompt_voice::{wav, Pcm, VoiceBackend};
 
 use crate::cmd::check::compile_script_with;
 use crate::project::Project;
@@ -234,7 +235,15 @@ pub async fn run_dub_with(
         .kokoro(backend.id())
         .map(|k| k.concurrency())
         .unwrap_or(1);
-    let rendered = render_all(&backend, &cache, &compiled.narration, limit).await?;
+    let takes = Takes::load(&project.takes_dir()).map_err(|e| DubError::Runtime(e.to_string()))?;
+    let synthesized: Vec<NarrationDetail> = compiled
+        .narration
+        .iter()
+        .filter(|d| d.take.is_none())
+        .cloned()
+        .collect();
+    let rendered = render_all(&backend, &cache, &synthesized, limit).await?;
+    let rendered = with_takes(&compiled.narration, rendered, &takes)?;
     let audio = Audio::collect(rendered);
 
     // Recompile against the now-warm cache: the first compile ran before
@@ -286,10 +295,11 @@ async fn check_voices(
 ) -> Result<(), DubError> {
     // A corrupt entry counts as missing: it will be re-rendered.
     let anything_to_synthesize = compiled.narration.iter().any(|detail| {
-        !matches!(
-            cache.lookup_meta(&detail.cache_key),
-            Ok(teleprompt_cache::CacheRead::Hit(_))
-        )
+        detail.take.is_none()
+            && !matches!(
+                cache.lookup_meta(&detail.cache_key),
+                Ok(teleprompt_cache::CacheRead::Hit(_))
+            )
     });
     let Some(kokoro) = backends
         .kokoro(backend_id)
@@ -408,6 +418,63 @@ async fn render_all(
         .into_iter()
         .map(|r| r.expect("every index rendered when there was no failure"))
         .collect())
+}
+
+/// Every line's audio in document order: `synthesized` for the lines
+/// without a take, in order, and each recorded line's take, converted to the
+/// synthesized lines' rate and channels, since the manifest publishes one.
+fn with_takes(
+    narration: &[NarrationDetail],
+    synthesized: Vec<Rendered>,
+    takes: &Takes,
+) -> Result<Vec<Rendered>, DubError> {
+    let mut format = synthesized.first().map(|r| (r.sample_rate, r.channels));
+    let mut synthesized = synthesized.into_iter();
+    let mut out = Vec::with_capacity(narration.len());
+    for detail in narration {
+        if detail.take.is_none() {
+            out.extend(synthesized.next());
+            continue;
+        }
+        let failed = |e: &dyn std::fmt::Display| {
+            DubError::Runtime(format!("line `{}`: {e}", detail.line_id))
+        };
+        let bytes = takes.read(&detail.line_id).map_err(|e| failed(&e))?;
+        let recorded = wav::decode(&bytes).map_err(|e| failed(&e))?;
+        let (rate, channels) = *format.get_or_insert((recorded.sample_rate, recorded.channels));
+        let pcm = with_channels(recorded.resampled(rate), channels).map_err(|e| failed(&e))?;
+        out.push(Rendered {
+            line_id: detail.line_id.clone(),
+            wav_bytes: wav::encode(&pcm),
+            rendered_ms: pcm.duration_ms(),
+            sample_rate: pcm.sample_rate,
+            channels: pcm.channels,
+            cache_warning: None,
+        });
+    }
+    Ok(out)
+}
+
+/// A mono take played on every channel the narration has.
+fn with_channels(pcm: Pcm, channels: u16) -> Result<Pcm, String> {
+    if pcm.channels == channels {
+        return Ok(pcm);
+    }
+    if pcm.channels != 1 {
+        return Err(format!(
+            "the take has {} channels and the narration {channels}",
+            pcm.channels
+        ));
+    }
+    Ok(Pcm {
+        samples: pcm
+            .samples
+            .iter()
+            .flat_map(|&s| std::iter::repeat_n(s, channels as usize))
+            .collect(),
+        channels,
+        ..pcm
+    })
 }
 
 /// Line indices grouped by cache key, one group per task (see

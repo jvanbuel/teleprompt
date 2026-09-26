@@ -54,6 +54,7 @@ fn compile_program(p: &Program) -> Result<CompileOutput, Diagnostics> {
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     compile(
         p,
@@ -108,6 +109,7 @@ fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     compile_with(src, &ctx)
 }
@@ -569,6 +571,7 @@ fn a_cold_cache_yields_estimated_durations() {
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &est,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     let out = compile_with(ONE, &ctx).expect("compiles");
 
@@ -595,6 +598,7 @@ fn a_warm_cache_yields_measured_durations() {
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &est,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
 
     // Populate the cache under the key compile will look up, with audio of a
@@ -632,6 +636,7 @@ fn the_cache_key_covers_the_resolved_voice_config() {
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &est,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
 
     let plain = compile_with(ONE, &ctx).unwrap();
@@ -663,12 +668,14 @@ fn the_cache_key_covers_the_backend_id() {
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &est,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     let other_ctx = VoiceContext {
         backend_id: "other",
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &est,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
 
     let null = compile_with(ONE, &null_ctx).unwrap();
@@ -720,6 +727,7 @@ async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() 
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &est,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
 
     let cold = compile_with(ONE, &ctx).expect("compiles");

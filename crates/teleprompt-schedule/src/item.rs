@@ -18,6 +18,8 @@ pub struct NarrationInput {
     /// layer and would drop the line's own `lead_in=` / `tail=`.
     pub lead_in_ms: DurationMs,
     pub tail_ms: DurationMs,
+    /// Spoken from a recorded take rather than synthesized.
+    pub recorded: bool,
 }
 
 impl NarrationInput {

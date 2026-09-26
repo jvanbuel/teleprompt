@@ -18,6 +18,7 @@ use teleprompt_core::{
 };
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
+use teleprompt_voice::takes::{TakeMeta, Takes};
 use teleprompt_voice::{DurationEstimator, SynthRequest, WordTiming};
 
 pub mod manifest;
@@ -29,6 +30,8 @@ pub struct VoiceContext<'a> {
     pub backend_version: &'a str,
     pub cache: &'a VoiceCache,
     pub estimator: &'a dyn DurationEstimator,
+    /// Recorded takes; a current one stands in for synthesis.
+    pub takes: &'a Takes,
 }
 
 /// An included file as an author would find it from where they invoked
@@ -57,6 +60,9 @@ pub struct NarrationDetail {
     /// its audio under.
     pub cache_key: CacheKey,
     pub word_timings: Option<Vec<WordTiming>>,
+    /// The recorded take the line is spoken from, when it has a current
+    /// one; `synth_request` and `cache_key` then go unused.
+    pub take: Option<TakeMeta>,
 }
 
 /// One action shot's source, as the adapter split it (and re-timed it), for
@@ -529,10 +535,22 @@ impl<'a> Walker<'a, '_> {
         };
         let cache_key =
             teleprompt_cache::key(self.voice.backend_id, self.voice.backend_version, &req);
-        let Some((duration_ms, duration_source, word_timings)) =
-            self.duration(id, &cache_key, &req)
-        else {
-            return;
+        let take = self.voice.takes.current(id, text).cloned();
+        let (duration_ms, duration_source, word_timings, audio_hash) = match &take {
+            Some(t) => (t.duration_ms, DurationSource::Measured, None, t.audio_hash),
+            None => {
+                let Some((ms, source, timings)) = self.duration(id, &cache_key, &req) else {
+                    return;
+                };
+                // Identifies the audio this line resolves to, via its cache
+                // key; not the manifest's hash of the WAV bytes.
+                (
+                    ms,
+                    source,
+                    timings,
+                    Hash::of(cache_key.to_string().as_bytes()),
+                )
+            }
         };
 
         self.narration.push(NarrationDetail {
@@ -543,16 +561,16 @@ impl<'a> Walker<'a, '_> {
             synth_request: req,
             cache_key: cache_key.clone(),
             word_timings,
+            take: take.clone(),
         });
         self.pending = Some(Pending {
             input: NarrationInput {
                 line_id: id.to_string(),
                 source_hash,
-                // Identifies the audio this line resolves to, via its cache
-                // key; not the manifest's hash of the WAV bytes.
-                audio_hash: Hash::of(cache_key.to_string().as_bytes()),
+                audio_hash,
                 duration_ms,
                 duration_source,
+                recorded: take.is_some(),
                 // From the line's own config: the item it joins may carry
                 // the action block's config, which lacks a line-level
                 // `lead_in=` or `tail=`.

@@ -39,7 +39,7 @@ wait 800ms
 ```
 "#;
 
-const GITIGNORE: &str = ".teleprompt/cache/\n.teleprompt/traces/\nbuild/\ntakes/*.wav\n";
+const GITIGNORE: &str = ".teleprompt/cache/\n.teleprompt/traces/\nbuild/\n";
 
 pub fn scaffold(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
     let manifest = dir.join("teleprompt.toml");

@@ -1,5 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
+use teleprompt_core::program::Program;
+use teleprompt_voice::takes::Takes;
 
 use serde::Serialize;
 use teleprompt_cache::VoiceCache;
@@ -158,25 +160,7 @@ pub(crate) fn compile_script_with(
     // `Some("")` for a parent, which is not the current directory.
     let base_dir = crate::project::script_dir(script);
 
-    let cache = VoiceCache::new(project.caches().root);
-    let estimator = WpmEstimator::default();
-    let capabilities = backend.capabilities();
-    let ctx = VoiceContext {
-        backend_id: backend.id(),
-        backend_version: &capabilities.version,
-        cache: &cache,
-        estimator: &estimator,
-    };
-
-    // Not `SceneRegistry::with_builtins()`, which holds only the mock.
-    let mut out = compile(
-        &program,
-        &crate::scene::scenes(),
-        &ctx,
-        base_dir,
-        env!("CARGO_PKG_VERSION"),
-    )
-    .map_err(|d| render(&d, &display))?;
+    let mut out = compile_with_voice(project, &program, &*backend, base_dir, &display)?;
 
     // The bare message, not `render()`'s output: like every other warning
     // here it is a plain sentence, and callers add their own framing.
@@ -184,6 +168,62 @@ pub(crate) fn compile_script_with(
         .extend(backend_override_diags.into_iter().map(|d| d.message));
 
     Ok((out, backend))
+}
+
+/// Compiles `program` against the project's voice cache and takes, naming
+/// the lines still synthesized once there are takes.
+fn compile_with_voice(
+    project: &Project,
+    program: &Program,
+    backend: &dyn VoiceBackend,
+    base_dir: &Path,
+    display: &str,
+) -> Result<CompileOutput, Vec<String>> {
+    let cache = VoiceCache::new(project.caches().root);
+    let estimator = WpmEstimator::default();
+    let capabilities = backend.capabilities();
+    let takes = Takes::load(&project.takes_dir()).map_err(|e| vec![e.to_string()])?;
+    let ctx = VoiceContext {
+        backend_id: backend.id(),
+        backend_version: &capabilities.version,
+        cache: &cache,
+        estimator: &estimator,
+        takes: &takes,
+    };
+
+    // Not `SceneRegistry::with_builtins()`, which holds only the mock.
+    let mut out = compile(
+        program,
+        &crate::scene::scenes(),
+        &ctx,
+        base_dir,
+        env!("CARGO_PKG_VERSION"),
+    )
+    .map_err(|d| render(&d, display))?;
+    out.warnings.extend(unrecorded(&takes, &out));
+    Ok(out)
+}
+
+/// Once a project records its narration, which lines it still synthesizes:
+/// never recorded, or edited since.
+fn unrecorded(takes: &Takes, out: &CompileOutput) -> Option<String> {
+    if takes.is_empty() {
+        return None;
+    }
+    let ids: Vec<&str> = out
+        .narration
+        .iter()
+        .filter(|d| d.take.is_none())
+        .map(|d| d.line_id.as_str())
+        .collect();
+    (!ids.is_empty()).then(|| {
+        format!(
+            "{} of {} lines have no current take and are synthesized: {}",
+            ids.len(),
+            out.narration.len(),
+            ids.join(", ")
+        )
+    })
 }
 
 /// One warning per backend id whose `merged` entry (after `resolve`) differs

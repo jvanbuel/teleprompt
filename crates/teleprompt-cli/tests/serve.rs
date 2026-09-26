@@ -43,8 +43,16 @@ Enter
 
 /// A scaffolded project with `SCRIPT` in it, served on a port the OS picks.
 fn serving() -> (teleprompt_testkit::TestDir, PathBuf, SocketAddr) {
+    serving_with(|_| {})
+}
+
+/// [`serving`], with `prepare` run on the project before it is served.
+fn serving_with(
+    prepare: impl FnOnce(&std::path::Path),
+) -> (teleprompt_testkit::TestDir, PathBuf, SocketAddr) {
     let dir = teleprompt_testkit::test_dir("serve");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    prepare(&dir);
     let script = dir.join("scripts/preview.md");
     std::fs::write(&script, SCRIPT).unwrap();
 
@@ -169,6 +177,24 @@ fn a_lines_audio_comes_back_as_a_wav() {
     let (status, body) = get(addr, "/audio/welcome.wav");
     assert!(status.contains("200"), "{status}");
     assert_eq!(&body[0..4], b"RIFF", "the cache stores WAV, so serve it");
+}
+
+/// A recorded line is previewed in the voice it will be published in.
+#[test]
+fn a_recorded_lines_audio_is_its_take() {
+    let take = teleprompt_voice::Pcm {
+        sample_rate: 24_000,
+        channels: 1,
+        samples: vec![1234; 24_000],
+    };
+    let (dir, _script, addr) = serving_with(|root| {
+        let mut takes = teleprompt_voice::takes::Takes::load(&root.join("takes")).unwrap();
+        let text = "Welcome to teleprompt. This paragraph decides how long the tape below runs.";
+        takes.save("welcome", text, &take).unwrap();
+    });
+    let (status, body) = get(addr, "/audio/welcome.wav");
+    assert!(status.contains("200"), "{status}");
+    assert_eq!(body, std::fs::read(dir.join("takes/welcome.wav")).unwrap());
 }
 
 #[test]

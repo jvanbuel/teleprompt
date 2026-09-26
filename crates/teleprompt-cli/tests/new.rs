@@ -46,6 +46,7 @@ fn the_scaffolded_script_compiles() {
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     let out = compile(
         &program,
@@ -74,6 +75,8 @@ fn the_gitignore_excludes_caches_and_build_output_but_not_timelines() {
     assert!(ignore.contains(".teleprompt/cache/"));
     assert!(ignore.contains("build/"));
     assert!(!ignore.contains("timelines/"));
+    // Takes are source: nothing can record them again.
+    assert!(!ignore.contains("takes"), "{ignore}");
 }
 
 #[tokio::test]

@@ -47,9 +47,10 @@ struct Preview {
     manifest: NarrationManifest,
     /// Shot id to adapter-native source, for the scenes the preview draws.
     shots: BTreeMap<String, String>,
-    /// Line id to the cache key its audio lives under, as the compile
-    /// computed it; the cache is addressed by content, not by line id.
-    audio_keys: BTreeMap<String, String>,
+    /// Line id to the file its audio is in: its take, or the cache entry
+    /// under the key the compile computed, since the cache is addressed by
+    /// content, not by line id.
+    audio_files: BTreeMap<String, PathBuf>,
     /// Ids of the items and lines whose timing or content moved in the
     /// compile that produced this generation. Empty on the first one.
     changed: Vec<String>,
@@ -71,7 +72,7 @@ struct State<'a> {
 struct Built {
     manifest: NarrationManifest,
     shots: BTreeMap<String, String>,
-    audio_keys: BTreeMap<String, String>,
+    audio_files: BTreeMap<String, PathBuf>,
     changed: Vec<String>,
 }
 
@@ -106,10 +107,19 @@ async fn rebuild(
     Ok(Built {
         changed,
         manifest,
-        audio_keys: compiled
+        audio_files: compiled
             .narration
             .iter()
-            .map(|d| (d.line_id.clone(), d.cache_key.to_string()))
+            .map(|d| {
+                let file = match d.take {
+                    Some(_) => project.takes_dir().join(format!("{}.wav", d.line_id)),
+                    None => project
+                        .caches()
+                        .voice()
+                        .join(format!("{}.wav", d.cache_key)),
+                };
+                (d.line_id.clone(), file)
+            })
             .collect(),
         shots: compiled
             .shots
@@ -129,7 +139,8 @@ async fn warm(
     compiled: &teleprompt_compile::CompileOutput,
 ) -> Result<AudioInfo, ServeError> {
     let mut shape: Option<(u32, u16)> = None;
-    for detail in &compiled.narration {
+    // A recorded line is played from its take.
+    for detail in compiled.narration.iter().filter(|d| d.take.is_none()) {
         let hit = cache
             .lookup_meta(&detail.cache_key)
             .map_err(|e| ServeError::Runtime(format!("line `{}`: {e}", detail.line_id)))?
@@ -256,7 +267,6 @@ fn handle(
     stream: &mut TcpStream,
     state: &Mutex<Preview>,
     script_name: &str,
-    voice_dir: &Path,
 ) -> std::io::Result<()> {
     let mut line = String::new();
     BufReader::new(&*stream).read_line(&mut line)?;
@@ -313,16 +323,16 @@ fn handle(
 
         p if audio_id(p).is_some() => {
             let id = audio_id(p).expect("just checked");
-            // The key the compile computed; recomputing it here would be a
+            // The file the compile resolved; recomputing it here would be a
             // second answer to the same question.
-            let key = {
+            let file = {
                 let preview = state.lock().expect("preview lock");
-                preview.audio_keys.get(id).cloned()
+                preview.audio_files.get(id).cloned()
             };
-            let Some(key) = key else {
+            let Some(file) = file else {
                 return respond(stream, "404 Not Found", "text/plain", b"no such line");
             };
-            match std::fs::read(voice_dir.join(format!("{key}.wav"))) {
+            match std::fs::read(file) {
                 Ok(bytes) => respond(stream, "200 OK", "audio/wav", &bytes),
                 Err(_) => respond(stream, "404 Not Found", "text/plain", b"no audio yet"),
             }
@@ -362,13 +372,12 @@ pub async fn serve_on(
     // differs from the baseline instead of becoming it.
     let compiled = fingerprint(script);
     let built = rebuild(project, script, locale, None).await?;
-    let voice_dir = project.caches().voice();
 
     let state = Arc::new(Mutex::new(Preview {
         generation: 1,
         manifest: built.manifest,
         shots: built.shots,
-        audio_keys: built.audio_keys,
+        audio_files: built.audio_files,
         changed: Vec::new(),
         error: None,
     }));
@@ -387,7 +396,6 @@ pub async fn serve_on(
     {
         let state = state.clone();
         let script_name = script_name.clone();
-        let voice_dir = voice_dir.clone();
         std::thread::spawn(move || {
             for incoming in listener.incoming() {
                 let mut stream = match incoming {
@@ -397,7 +405,7 @@ pub async fn serve_on(
                         continue;
                     }
                 };
-                if let Err(e) = handle(&mut stream, &state, &script_name, &voice_dir) {
+                if let Err(e) = handle(&mut stream, &state, &script_name) {
                     eprintln!("warning: {e}");
                 }
             }
@@ -440,7 +448,7 @@ async fn watch(
                 p.generation += 1;
                 p.manifest = built.manifest;
                 p.shots = built.shots;
-                p.audio_keys = built.audio_keys;
+                p.audio_files = built.audio_files;
                 p.changed = built.changed;
                 p.error = None;
                 eprintln!("  recompiled — {} item(s) moved", p.changed.len());
@@ -501,7 +509,7 @@ mod tests {
             generation: 1,
             manifest: built.manifest,
             shots: built.shots,
-            audio_keys: built.audio_keys,
+            audio_files: built.audio_files,
             changed: Vec::new(),
             error: None,
         }));

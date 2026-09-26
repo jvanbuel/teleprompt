@@ -62,6 +62,10 @@ impl Takes {
         })
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.meta.is_empty()
+    }
+
     /// The take of line `id`, if it was read from `text` as it is now.
     pub fn current(&self, id: &str, text: &str) -> Option<&TakeMeta> {
         self.meta.get(id).filter(|t| t.text == text)

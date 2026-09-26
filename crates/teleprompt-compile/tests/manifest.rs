@@ -48,6 +48,7 @@ fn compiled_and_manifest(src: &str) -> (CompileOutput, teleprompt_manifest::Narr
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     let out = compile(
         &program,
@@ -91,6 +92,7 @@ fn manifest_for_with_words(
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
 
     let cold = compile(

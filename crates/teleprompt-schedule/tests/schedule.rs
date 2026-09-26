@@ -14,6 +14,7 @@ fn narration(id: &str, ms: u64) -> NarrationInput {
         duration_source: DurationSource::Measured,
         lead_in_ms: defaults.lead_in_ms,
         tail_ms: defaults.tail_ms,
+        recorded: false,
     }
 }
 

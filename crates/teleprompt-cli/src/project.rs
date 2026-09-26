@@ -59,6 +59,11 @@ impl Project {
         CacheDirs::under(&self.root)
     }
 
+    /// Recorded takes: source, beside the scripts, not a cache.
+    pub fn takes_dir(&self) -> PathBuf {
+        self.root.join("takes")
+    }
+
     /// Finds the project a `script` belongs to, naming the script on failure.
     pub fn for_script(script: &Path) -> std::io::Result<Project> {
         Project::discover(script_dir(script)).map_err(|e| {

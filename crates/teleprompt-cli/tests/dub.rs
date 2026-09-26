@@ -1203,3 +1203,72 @@ async fn a_fully_cached_script_dubs_with_the_server_gone() {
             DubError::Runtime(r) => panic!("a warm cache must not need the server: {r}"),
         });
 }
+
+const TOUR: &str = "\
+# Tour
+
+Welcome to Acme. {#welcome}
+
+Deployment is one command. {#deploy}
+";
+
+/// A project with `welcome` recorded, at another rate than the voice's.
+fn recorded(tag: &str) -> teleprompt_testkit::TestDir {
+    let root = project_with(tag, TOUR);
+    let mut takes = teleprompt_voice::takes::Takes::load(&root.join("takes")).unwrap();
+    let pcm = teleprompt_voice::Pcm {
+        sample_rate: 24_000,
+        channels: 1,
+        samples: (0..36_000).map(|i| ((i % 60) * 300) as i16).collect(),
+    };
+    takes.save("welcome", "Welcome to Acme.", &pcm).unwrap();
+    root
+}
+
+/// A recorded line is published from its take, at the rate the rest of the
+/// narration has and at exactly its own length; the others are synthesized,
+/// and dub says which.
+#[test]
+fn dub_publishes_a_take_and_names_the_lines_it_synthesized() {
+    let root = recorded("take");
+    let out = tp(
+        &root,
+        &["dub", "scripts/test.md", "--out", "public/narration"],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(code(&out), 0, "{stderr}");
+
+    let m = read_manifest(&root);
+    let lines = m["lines"].as_array().unwrap();
+    let welcome = lines.iter().find(|l| l["id"] == "welcome").unwrap();
+    assert_eq!(welcome["duration_ms"], 1500);
+    assert_eq!(wav_ms(&root, &m, welcome), 1500);
+    let wav = teleprompt_voice::wav::decode(&wav_bytes(&root, welcome)).unwrap();
+    assert_eq!(
+        u64::from(wav.sample_rate),
+        m["audio"]["sample_rate"].as_u64().unwrap()
+    );
+    assert!(
+        wav.samples.iter().any(|&s| s != 0),
+        "the take's sound, not silence"
+    );
+
+    assert!(
+        stderr.contains("synthesized") && stderr.contains("deploy") && !stderr.contains("welcome"),
+        "{stderr}"
+    );
+}
+
+/// A take whose audio is not what was recorded is refused, not published.
+#[test]
+fn dub_refuses_a_take_that_changed_on_disk() {
+    let root = recorded("take-tampered");
+    std::fs::write(root.join("takes/welcome.wav"), b"RIFF not the take").unwrap();
+    let out = tp(
+        &root,
+        &["dub", "scripts/test.md", "--out", "public/narration"],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(code(&out), 1, "{stderr}");
+    assert!(stderr.contains("welcome.wav"), "{stderr}");
+}

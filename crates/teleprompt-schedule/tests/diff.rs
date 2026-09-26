@@ -23,6 +23,7 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
             duration_source: DurationSource::Measured,
             lead_in_ms: Config::default().timing.lead_in_ms,
             tail_ms: Config::default().timing.tail_ms,
+            recorded: false,
         }),
         action: None,
         policy: Policy::Hold,

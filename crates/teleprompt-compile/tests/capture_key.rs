@@ -37,6 +37,7 @@ fn run_with(src: &str, registry: &SceneRegistry) -> CompileOutput {
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     let mut parsed = parse_script(src).expect("fixture parses");
     assign_ids(&mut parsed);

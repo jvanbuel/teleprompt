@@ -33,6 +33,9 @@ pub struct NarrationEntry {
     pub start_ms: u64,
     pub duration_ms: u64,
     pub duration_source: DurationSource,
+    /// Spoken from a recorded take; absent for a synthesized line.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub recorded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -38,6 +38,7 @@ fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<S
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     compile(&p, &SceneRegistry::with_builtins(), &ctx, dir, "0.1.0")
         .map_err(|d| d.0.iter().map(|x| x.message.clone()).collect())
@@ -63,6 +64,7 @@ fn run_rendered(dir: &Path, script_name: &str, src: &str) -> Result<(), Vec<Stri
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     compile(&p, &SceneRegistry::with_builtins(), &ctx, dir, "0.1.0")
         .map(|_| ())

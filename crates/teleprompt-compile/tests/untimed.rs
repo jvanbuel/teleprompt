@@ -44,6 +44,7 @@ fn compile_it(body: &str) -> Result<teleprompt_compile::CompileOutput, Diagnosti
         backend_version: "0.1.0",
         cache: &cache,
         estimator: &estimator,
+        takes: &teleprompt_voice::takes::Takes::default(),
     };
     let mut parsed = parse_script(&src).expect("parses");
     assign_ids(&mut parsed);
