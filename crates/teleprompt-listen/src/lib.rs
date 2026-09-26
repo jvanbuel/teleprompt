@@ -2,9 +2,11 @@
 
 mod cues;
 mod follow;
+mod take;
 
 pub use cues::Cues;
 pub use follow::{Follower, Heard, Recognizer};
+pub use take::TakeLog;
 
 /// The next word the reader will say: its line, and its index in that line.
 /// Ordered as in the script.
