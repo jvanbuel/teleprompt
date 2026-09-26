@@ -147,3 +147,14 @@ fn a_run_far_ahead_of_the_reader_is_not_followed() {
         Position { line: 0, word: 1 }
     );
 }
+
+/// A take can start at any line, to read it again: the reader is placed at
+/// its first word, and nothing before it is in reach.
+#[test]
+fn a_take_can_start_at_a_later_line() {
+    let mut a = Aligner::new(SCRIPT);
+    a.hear("welcome to acme");
+    a.restart_at(2);
+    assert_eq!(a.hear("welcome to acme"), Position { line: 2, word: 0 });
+    assert_eq!(a.hear("if a deploy"), Position { line: 2, word: 3 });
+}

@@ -37,8 +37,13 @@ impl<R: Recognizer> Follower<R> {
     /// A new take: the reader is back at the top, and nothing heard before
     /// carries into it.
     pub fn restart(&mut self) {
+        self.restart_at(0);
+    }
+
+    /// A new take from `line`, to read it again.
+    pub fn restart_at(&mut self, line: usize) {
         self.recognizer.reset();
-        self.aligner.restart();
+        self.aligner.restart_at(line);
         self.reported = None;
     }
 

@@ -72,8 +72,13 @@ impl Aligner {
 
     /// A new take, from the top.
     pub fn restart(&mut self) {
-        self.anchor = 0;
-        self.reached = 0;
+        self.restart_at(0);
+    }
+
+    /// A new take, from the first word of `line`.
+    pub fn restart_at(&mut self, line: usize) {
+        self.anchor = self.words.partition_point(|w| w.line < line);
+        self.reached = self.anchor;
     }
 
     fn position_of(&self, at: usize) -> Position {

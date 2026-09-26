@@ -28,4 +28,9 @@ impl Cues {
     pub fn restart(&mut self) {
         self.fired = 0;
     }
+
+    /// A new take from `at`: the cues before it stay behind, as fired.
+    pub fn restart_at(&mut self, at: Position) {
+        self.fired = self.at.partition_point(|&cue| cue < at);
+    }
 }

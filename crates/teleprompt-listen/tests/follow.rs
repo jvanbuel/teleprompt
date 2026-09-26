@@ -73,3 +73,15 @@ fn a_restart_begins_again_at_the_top() {
     f.restart();
     assert_eq!(f.listen(&[0.0; 160]), Some(Position { line: 0, word: 1 }));
 }
+
+#[test]
+fn a_take_started_at_a_line_follows_from_it() {
+    let heard = Scripted(VecDeque::from([
+        partial("welcome to"),
+        partial("deployment is"),
+    ]));
+    let mut f = Follower::new(heard, SCRIPT);
+    f.listen(&[0.0; 160]);
+    f.restart_at(1);
+    assert_eq!(f.listen(&[0.0; 160]), Some(Position { line: 1, word: 2 }));
+}

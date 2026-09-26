@@ -43,3 +43,13 @@ fn a_restart_arms_every_cue_again() {
     cues.restart();
     assert_eq!(cues.reach(at(0, 0)), 0..1);
 }
+
+/// A take started part-way through fires only what lies ahead of it; what
+/// comes before it in the script is not played all at once.
+#[test]
+fn a_restart_at_a_line_arms_only_the_cues_from_there() {
+    let mut cues = Cues::new(vec![at(0, 0), at(0, 3), at(1, 0), at(1, 2)]);
+    cues.restart_at(at(1, 0));
+    assert_eq!(cues.reach(at(1, 0)), 2..3);
+    assert_eq!(cues.reach(at(1, 2)), 3..4);
+}
