@@ -1619,6 +1619,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-derive"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "teleprompt-core",
+ "teleprompt-vhs",
+]
+
+[[package]]
 name = "teleprompt-listen"
 version = "0.1.0"
 

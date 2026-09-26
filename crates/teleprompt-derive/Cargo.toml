@@ -1,0 +1,17 @@
+[package]
+name = "teleprompt-derive"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+
+[dev-dependencies]
+# The tapes this crate writes must be tapes the terminal scene accepts.
+teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-vhs = { path = "../teleprompt-vhs" }
+
+[lints]
+workspace = true

@@ -37,6 +37,7 @@ ALLOWED = {
     "slidev": ADAPTER,
     "media": ADAPTER,
     "listen": set(),
+    "derive": set(),
     "listen-sherpa": {"listen"},
     "prompter": {"core", "compile", "listen", "voice"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
