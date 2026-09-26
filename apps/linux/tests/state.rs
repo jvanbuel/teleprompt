@@ -1,0 +1,83 @@
+mod common;
+
+use teleprompt_gtk::api::{Position, Script, ServerMessage};
+use teleprompt_gtk::state::{PrompterState, Status, Word};
+
+fn loaded() -> PrompterState {
+    let mut state = PrompterState::default();
+    state.load(serde_json::from_str::<Script>(&common::example("script.json")).unwrap());
+    state
+}
+
+fn reached(line: usize, word: usize, play: &[&str]) -> ServerMessage {
+    ServerMessage::Reached {
+        at: Position { line, word },
+        play: play.iter().map(|s| s.to_string()).collect(),
+    }
+}
+
+#[test]
+fn words_before_the_reader_are_said() {
+    let mut state = loaded();
+    state.apply(reached(0, 3, &[]));
+    assert_eq!(state.word(0, 2), Word::Said);
+    assert_eq!(state.word(0, 3), Word::Next);
+    assert_eq!(state.word(1, 0), Word::Ahead);
+}
+
+/// Shots play in the order given; reading on cuts off the one playing.
+#[test]
+fn shots_play_in_order_and_reading_on_cuts_them_off() {
+    let mut state = loaded();
+    state.start_take(0);
+    state.apply(reached(0, 3, &["intro#0", "welcome-a#0"]));
+    assert_eq!(state.playing.as_deref(), Some("intro#0"));
+    assert_eq!(state.playing_clip(), None, "intro was never captured");
+    state.clip_ended();
+    assert_eq!(state.playing.as_deref(), Some("welcome-a#0"));
+    assert!(state.playing_clip().unwrap().starts_with("/api/v1/clips/"));
+    state.apply(reached(1, 0, &["welcome-b#0"]));
+    assert_eq!(state.playing.as_deref(), Some("welcome-b#0"));
+    state.clip_ended();
+    assert_eq!(state.playing, None);
+    assert_eq!(state.started.len(), 3);
+}
+
+#[test]
+fn a_new_take_forgets_what_played() {
+    let mut state = loaded();
+    state.start_take(0);
+    state.apply(reached(0, 3, &["intro#0"]));
+    state.start_take(1);
+    assert_eq!(state.at, Position { line: 1, word: 0 });
+    assert_eq!(state.playing, None);
+    assert!(state.started.is_empty());
+    assert!(state.listening);
+}
+
+#[test]
+fn stopping_says_what_was_kept() {
+    let mut state = loaded();
+    state.start_take(0);
+    state.apply(ServerMessage::Stopped {
+        saved: vec!["welcome".into()],
+    });
+    assert!(!state.listening);
+    assert_eq!(state.status, Status::info("kept 1 line(s): welcome"));
+    state.apply(ServerMessage::Stopped { saved: vec![] });
+    assert_eq!(state.status, Status::info("nothing read in full to keep"));
+}
+
+#[test]
+fn an_error_is_shown() {
+    let mut state = loaded();
+    state.apply(ServerMessage::Error("disk full".into()));
+    assert_eq!(state.status, Status::error("disk full"));
+}
+
+#[test]
+fn the_end_of_the_script_is_said() {
+    let mut state = loaded();
+    state.apply(reached(2, 0, &[]));
+    assert_eq!(state.status, Status::info("end of script"));
+}

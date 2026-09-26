@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Teleprompt
+Comment=A prompter that follows your voice and records your takes
+Exec=teleprompt-gtk %f
+Icon=audio-input-microphone
+Terminal=false
+Categories=AudioVideo;Video;
+MimeType=text/markdown;

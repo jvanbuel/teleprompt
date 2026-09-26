@@ -43,4 +43,4 @@ behalf of your terminal.
 - `Tests/TelepromptKitTests`: checks the API against
   `docs/api/v1/examples`, which the server is tested against too, and an
   end-to-end test that launches the real server and reads it a recording
-  (`TELEPROMPT_BIN` and `TELEPROMPT_MODEL`; see `EndToEndTests.swift`).
+  of `apps/fixtures/tour` (`TELEPROMPT_BIN` and `TELEPROMPT_MODEL`; see `EndToEndTests.swift`).

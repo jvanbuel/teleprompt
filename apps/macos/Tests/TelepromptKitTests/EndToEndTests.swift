@@ -2,7 +2,7 @@ import XCTest
 @testable import TelepromptKit
 
 /// The real `teleprompt prompt`, launched and driven as the app does it,
-/// hearing a recorded reading of `Tests/Fixtures/tour`. Opt-in: it needs a
+/// hearing a recorded reading of `apps/fixtures/tour`. Opt-in: it needs a
 /// binary built with `--features listen` and a speech model.
 ///
 ///     TELEPROMPT_BIN=…/teleprompt TELEPROMPT_MODEL=…/zipformer swift test --filter EndToEnd
@@ -24,7 +24,7 @@ final class EndToEndTests: XCTestCase {
         let project = FileManager.default.temporaryDirectory
             .appendingPathComponent("teleprompt-e2e-\(UUID().uuidString)")
         try FileManager.default.copyItem(
-            at: repository.appendingPathComponent("apps/macos/Tests/Fixtures/tour"), to: project
+            at: repository.appendingPathComponent("apps/fixtures/tour"), to: project
         )
         defer { try? FileManager.default.removeItem(at: project) }
         let script = project.appendingPathComponent("scripts/tour.md").path

@@ -6,10 +6,10 @@ are by matching what a local speech model hears against the script, and
 keeps the next word highlighted a third of the way down the screen. Nothing
 you say leaves the machine.
 
-It runs in a browser. On a Mac there is also a native app, in
-`apps/macos`, which launches `teleprompt prompt` itself and plays the
-shots with the system's player; its README says how to build it. Both need
-the recognizer and the model below.
+It runs in a browser, and as a native app: `apps/macos` in SwiftUI and
+`apps/linux` in GTK. The apps launch `teleprompt prompt` themselves and play
+the shots with the system's player; their READMEs say how to build them.
+All of them need the recognizer and the model below.
 
 ## Setting it up
 
