@@ -1,11 +1,14 @@
 //! Following a reader through a script by what a speech recognizer hears.
 
+mod cues;
 mod follow;
 
+pub use cues::Cues;
 pub use follow::{Follower, Heard, Recognizer};
 
 /// The next word the reader will say: its line, and its index in that line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Ordered as in the script.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Position {
     pub line: usize,
     pub word: usize,
