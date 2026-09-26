@@ -127,3 +127,7 @@ is expected.
 `examples/` holds a complete project for each of Remotion, Slidev,
 asciinema and media scenes, and `demos/flowrs` is a two-scene walkthrough
 of real software.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
