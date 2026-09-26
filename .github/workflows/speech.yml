@@ -26,7 +26,13 @@ on:
 
 jobs:
   speech:
-    runs-on: ubuntu-24.04
+    # macOS too: `record`'s terminal and ffmpeg run there as well, with a
+    # file standing in for the microphone.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
     env:
       CARGO_INCREMENTAL: "0"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
@@ -40,7 +46,11 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - name: ffmpeg, which `record` records the microphone with
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: ffmpeg, which `record` records the microphone with
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
       - uses: actions/cache@v4
         with:
           path: model
@@ -66,4 +76,4 @@ jobs:
         run: |
           cargo clippy -p teleprompt-listen-sherpa --features sherpa --all-targets -- -D warnings
           cargo test -p teleprompt-listen-sherpa --features sherpa
-          cargo test -p teleprompt-cli --features listen --test import_listen --test record_listen
+          cargo test -p teleprompt-cli --features listen --test import_listen --test record_listen --test record
