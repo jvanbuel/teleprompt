@@ -26,14 +26,19 @@ behalf of your terminal.
 
 | key | does |
 |---|---|
-| click a line | start a take there |
-| ⌘T | take from the top |
-| return | keep the take |
+| click a line | record from there |
+| Record | record from the line you are on |
+| ⌘T | record from the top |
+| return | keep the take (during the count of three: cancel) |
 | space | pause or resume |
-| m | mirror the text |
+| m | mirror the text, for beam-splitter glass |
 | + / − | text size |
-| s | show or hide the screen |
-| ⌘⇧S | the screen in its own window, for a second display |
+| s | show or hide the monitor |
+| ⌘⇧S | the monitor in its own window, for a second display |
+
+A take starts after a count of three; Settings turns that off. The look is
+described in `apps/DESIGN.md`; the typeface and the icon are bundled by
+`bundle.sh`.
 
 ## Layout
 

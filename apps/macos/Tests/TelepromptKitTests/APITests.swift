@@ -4,6 +4,7 @@ import XCTest
 final class APITests: XCTestCase {
     func testTheScriptExampleDecodes() throws {
         let script = try JSONDecoder().decode(Script.self, from: example("script.json"))
+        XCTAssertEqual(script.name, "tour.md")
         XCTAssertEqual(script.lines.map(\.id), ["welcome", "deploy"])
         XCTAssertEqual(script.lines[0].words.count, 8)
         XCTAssertEqual(script.shots.map(\.at), [

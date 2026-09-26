@@ -1,4 +1,5 @@
 {
+  "name": "tour.md",
   "lines": [
     { "id": "welcome", "text": "Welcome to Acme. Let me show you around.", "recorded": false },
     { "id": "deploy", "text": "Deployment is one command.", "recorded": false }

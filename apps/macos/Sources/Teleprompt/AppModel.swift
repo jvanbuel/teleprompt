@@ -19,14 +19,28 @@ final class AppModel: ObservableObject {
     @Published private(set) var phase = Phase.idle
     @Published var state = PrompterState()
     @Published private(set) var paused = false
+    /// The beat of the count before a take, while it counts.
+    @Published private(set) var counting: Int?
     @Published var chooseScript = false
     @Published var mirrored = false
     @Published var showsScreen = true
-    @Published var textSize: CGFloat = 44
+    @Published var textSize: CGFloat = 48
+    /// The microphone's loudness, 0 to 1, while a take listens.
+    @Published private(set) var level: Double = 0
+    /// How far the clip on screen has played, and its time as text.
+    @Published private(set) var clipFraction: Double = 0
+    @Published private(set) var clipTime = ""
+    @Published private(set) var toast: String?
+    @Published private(set) var scriptName = ""
+    @Published private(set) var projectName = ""
+    /// The take's running time: what ran before a pause, and since when.
+    @Published private(set) var takeTime: TimeInterval = 0
+    @Published private(set) var takeSince: Date?
 
     @Published var binaryPath: String { didSet { defaults.set(binaryPath, forKey: "binary") } }
     @Published var modelPath: String { didSet { defaults.set(modelPath, forKey: "model") } }
     @Published var locale: String { didSet { defaults.set(locale, forKey: "locale") } }
+    @Published var countdownOn: Bool { didSet { defaults.set(countdownOn, forKey: "countdown") } }
     @Published private var lastScript: String { didSet { defaults.set(lastScript, forKey: "script") } }
 
     let player = AVPlayer()
@@ -37,16 +51,23 @@ final class AppModel: ObservableObject {
     private var client: SessionClient?
     private var mic: MicCapture?
     private var clipObserver: NSObjectProtocol?
+    private var timeObserver: Any?
 
     init() {
         binaryPath = defaults.string(forKey: "binary") ?? Self.defaultBinary() ?? ""
         modelPath = defaults.string(forKey: "model") ?? ""
         locale = defaults.string(forKey: "locale") ?? "en"
+        countdownOn = defaults.object(forKey: "countdown") as? Bool ?? true
         lastScript = defaults.string(forKey: "script") ?? ""
+        timeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(value: 1, timescale: 10), queue: .main
+        ) { [weak self] time in
+            MainActor.assumeIsolated { self?.showProgress(time) }
+        }
     }
 
     var isReady: Bool { phase == .ready }
-    var isTaking: Bool { isReady && (state.listening || paused) }
+    var isTaking: Bool { isReady && (state.listening || paused || counting != nil) }
     var lastScriptURL: URL? { lastScript.isEmpty ? nil : URL(fileURLWithPath: lastScript) }
 
     /// Where `teleprompt` usually is. An app does not get the shell's PATH.
@@ -61,6 +82,9 @@ final class AppModel: ObservableObject {
     func open(_ script: URL) {
         shutdown()
         lastScript = script.path
+        scriptName = script.lastPathComponent
+        let dir = script.deletingLastPathComponent()
+        projectName = (dir.lastPathComponent == "scripts" ? dir.deletingLastPathComponent() : dir).lastPathComponent
         guard FileManager.default.isExecutableFile(atPath: binaryPath) else {
             phase = .failed(["Set the teleprompt binary in Settings (⌘,). It must be built with --features listen."])
             return
@@ -129,7 +153,10 @@ final class AppModel: ObservableObject {
         let before = state.playing
         state.apply(message)
         if state.playing != before { play(state.playing) }
-        if case .stopped = message { Task { await refreshRecorded() } }
+        if case .stopped = message {
+            show(toast: state.status.text)
+            Task { await refreshRecorded() }
+        }
     }
 
     private func refreshRecorded() async {
@@ -137,37 +164,78 @@ final class AppModel: ObservableObject {
         state.script = script
     }
 
-    /// Starts a take at `line`, opening the microphone the first time.
+    /// Starts a take at `line`, after a count of three if that is on,
+    /// opening the microphone the first time.
     func take(from line: Int) {
-        guard isReady, let client else { return }
+        guard isReady, client != nil, counting == nil else { return }
         Task {
             guard let mic = await openMic() else { return }
             mic.sending = false
             _ = mic.flush()
             player.pause()
-            state.startTake(from: line)
             paused = false
-            client.send(.start(from: line, rate: mic.rate))
-            mic.sending = true
+            state.listening = false
+            state.at = Position(line: line, word: 0)
+            if countdownOn {
+                state.status = .init("Recording from line \(line + 1) in…")
+                for beat in [3, 2, 1] {
+                    counting = beat
+                    try? await Task.sleep(nanoseconds: 650_000_000)
+                    if counting == nil { return }
+                }
+                counting = nil
+            }
+            begin(line, mic)
         }
     }
 
-    /// Ends the take; the server keeps the lines read in full.
+    private func begin(_ line: Int, _ mic: MicCapture) {
+        guard let client else { return }
+        state.startTake(from: line)
+        takeTime = 0
+        takeSince = .now
+        client.send(.start(from: line, rate: mic.rate))
+        mic.sending = true
+    }
+
+    /// Ends the take, or the count before it; the server keeps the lines
+    /// read in full.
     func keep() {
-        guard let client, let mic else { return }
+        if counting != nil {
+            counting = nil
+            state.status = .init("Click a line to record from there")
+            return
+        }
+        guard let client, let mic, state.listening || paused else { return }
         mic.sending = false
         client.sendAudio(mic.flush())
         client.send(.stop)
         state.listening = false
         paused = false
+        stopClock()
+        level = 0
+        state.status = .init("Keeping the take…")
     }
 
     func togglePause() {
-        guard let mic, isTaking else { return }
+        guard let mic, state.listening || paused else { return }
         paused.toggle()
         mic.sending = !paused
         state.listening = !paused
-        state.status = .init(paused ? "paused" : "listening")
+        state.status = .init(paused ? "Paused" : "Recording")
+        if paused { stopClock() } else { takeSince = .now }
+    }
+
+    private func stopClock() {
+        if let since = takeSince { takeTime += Date.now.timeIntervalSince(since) }
+        takeSince = nil
+    }
+
+    /// The take's running time at `date`, as timecode.
+    func timecode(at date: Date) -> String {
+        let seconds = takeTime + (takeSince.map { date.timeIntervalSince($0) } ?? 0)
+        let tenths = Int(seconds * 10)
+        return String(format: "%02d:%02d.%d", tenths / 600, tenths / 10 % 60, tenths % 10)
     }
 
     private func openMic() async -> MicCapture? {
@@ -177,9 +245,15 @@ final class AppModel: ObservableObject {
             return nil
         }
         do {
-            let mic = try MicCapture { [outlet] samples in
-                outlet.client?.sendAudio(samples)
-            }
+            let mic = try MicCapture(
+                sink: { [outlet] samples in outlet.client?.sendAudio(samples) },
+                level: { [weak self] rms in
+                    Task { @MainActor in
+                        guard let self, self.state.listening else { return }
+                        self.level = min(1, Double(rms).squareRoot())
+                    }
+                }
+            )
             self.mic = mic
             return mic
         } catch {
@@ -192,6 +266,8 @@ final class AppModel: ObservableObject {
     private func play(_ shot: String?) {
         if let clipObserver { NotificationCenter.default.removeObserver(clipObserver) }
         clipObserver = nil
+        clipFraction = 0
+        clipTime = ""
         guard let shot, let path = state.script.shots.first(where: { $0.shot == shot })?.clip,
               let client
         else {
@@ -205,7 +281,14 @@ final class AppModel: ObservableObject {
             MainActor.assumeIsolated { self?.clipEnded() }
         }
         player.replaceCurrentItem(with: item)
+        player.isMuted = true
         player.play()
+    }
+
+    private func showProgress(_ time: CMTime) {
+        guard let duration = player.currentItem?.duration.seconds, duration.isFinite, duration > 0 else { return }
+        clipFraction = min(1, time.seconds / duration)
+        clipTime = String(format: "%.1f s / %.1f s", time.seconds, duration)
     }
 
     func clipEnded() {
@@ -213,8 +296,24 @@ final class AppModel: ObservableObject {
         play(state.playing)
     }
 
+    /// The next captured shot the reader has yet to reach, and its line.
+    var nextShot: (name: String, line: Int)? {
+        state.script.shots
+            .first { $0.clip != nil && !state.started.contains($0.shot) && $0.at >= state.at }
+            .map { (displayName($0.shot), $0.at.line + 1) }
+    }
+
+    private func show(toast text: String) {
+        toast = text
+        Task {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            if toast == text { toast = nil }
+        }
+    }
+
     private func closeSession() {
         mic?.sending = false
+        counting = nil
         client?.close()
         client = nil
         outlet.client = nil
@@ -227,6 +326,12 @@ final class AppModel: ObservableObject {
         server = nil
         phase = .idle
     }
+}
+
+/// A shot's name as a person reads it: its block, without the index when
+/// there is only one.
+func displayName(_ shot: String) -> String {
+    shot.hasSuffix("#0") ? String(shot.dropLast(2)) : shot
 }
 
 /// The session the microphone sends to, readable from any thread.

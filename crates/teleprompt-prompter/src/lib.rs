@@ -92,6 +92,8 @@ fn word_at(text: &str, offset_ms: u64, duration_ms: u64) -> usize {
 
 /// What the prompter shows and plays.
 pub struct Prompt {
+    /// The script's name, as its reader knows it: its file name.
+    pub name: String,
     /// The narration, a line per paragraph.
     pub lines: Vec<String>,
     /// Each line's id, which names its take.
@@ -115,6 +117,7 @@ pub struct Reached {
 /// The script as a front end shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Script {
+    pub name: String,
     pub lines: Vec<ScriptLine>,
     pub shots: Vec<ScriptShot>,
 }
@@ -267,7 +270,11 @@ impl<R: Recognizer> Session<R> {
                 clip: self.clip(&s.capture_key.to_string()),
             })
             .collect();
-        Script { lines, shots }
+        Script {
+            name: self.prompt.name.clone(),
+            lines,
+            shots,
+        }
     }
 
     /// The captured clip of a shot in this script, by its capture key;

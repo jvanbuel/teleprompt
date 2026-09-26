@@ -48,6 +48,7 @@ fn prompt(dir: &std::path::Path) -> Prompt {
     )
     .unwrap();
     Prompt {
+        name: "tour.md".into(),
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: vec!["welcome".into(), "deploy".into()],
         shots: vec![
@@ -202,6 +203,7 @@ fn stopping_without_a_take_keeps_nothing() {
 fn the_script_names_each_shot_and_its_clip() {
     let f = session("prompter-script", &[]);
     let script = f.session.script();
+    assert_eq!(script.name, "tour.md");
     let texts: Vec<&str> = script.lines.iter().map(|l| l.text.as_str()).collect();
     assert_eq!(texts, LINES);
     let captured = f.dir.join(format!("{}.mp4", Hash::of(b"welcome-a#0")));

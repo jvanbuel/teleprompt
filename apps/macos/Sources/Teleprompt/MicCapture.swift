@@ -2,7 +2,8 @@
 import AVFoundation
 
 /// The default microphone, as it is: no voice processing, since what it
-/// hears is the take. Hands on mono samples about every 100 ms.
+/// hears is the take. Hands on mono samples about every 100 ms, and the
+/// loudness of each buffer.
 final class MicCapture: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private let lock = NSLock()
@@ -10,8 +11,9 @@ final class MicCapture: @unchecked Sendable {
     private var _sending = false
     let rate: Int
 
-    /// `sink` is called on the audio thread with each chunk.
-    init(sink: @escaping @Sendable ([Float]) -> Void) throws {
+    /// `sink` and `level` are called on the audio thread; `level` with each
+    /// buffer's RMS, whether or not sending is on.
+    init(sink: @escaping @Sendable ([Float]) -> Void, level: @escaping @Sendable (Float) -> Void) throws {
         let input = engine.inputNode
         let format = input.inputFormat(forBus: 0)
         rate = Int(format.sampleRate)
@@ -19,6 +21,9 @@ final class MicCapture: @unchecked Sendable {
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
             guard let self, let channel = buffer.floatChannelData?[0] else { return }
             let samples = Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
+            if !samples.isEmpty {
+                level((samples.reduce(0) { $0 + $1 * $1 } / Float(samples.count)).squareRoot())
+            }
             let ready: [Float]? = self.lock.withLock {
                 guard self._sending else { return nil }
                 self.pending.append(contentsOf: samples)

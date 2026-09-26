@@ -72,6 +72,7 @@ fn prompting_counted(
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
     let addr = listener.local_addr().unwrap();
     let prompt = Prompt {
+        name: "tour.md".into(),
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| l.to_string()).collect(),
         shots: shots(),
@@ -282,6 +283,7 @@ fn the_script_lists_lines_and_shots() {
     assert_eq!(
         script,
         serde_json::json!({
+            "name": "tour.md",
             "lines": [
                 { "id": "welcome", "text": LINES[0], "recorded": false },
                 { "id": "deploy", "text": LINES[1], "recorded": false },
@@ -538,4 +540,17 @@ fn the_listening_event_is_the_example() {
         teleprompt_cli::cmd::prompt::listening_event(addr),
         example("listening.json")
     );
+}
+
+/// The page is set in the prompters' typeface, served with it, so it looks
+/// the same on a machine that has never installed it.
+#[test]
+fn the_page_s_typeface_is_served() {
+    let (addr, _clips) = prompting(&[]);
+    let response = get(addr, "/fonts/atkinson-hyperlegible-next.woff2");
+    let head = String::from_utf8_lossy(&response[..response.len().min(300)]).to_string();
+    assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+    assert!(head.contains("Content-Type: font/woff2"), "{head}");
+    let page = request(addr, "GET", "/", &[]);
+    assert!(page.contains("/fonts/atkinson-hyperlegible-next.woff2"));
 }

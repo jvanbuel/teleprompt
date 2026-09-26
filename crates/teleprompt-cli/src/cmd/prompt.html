@@ -3,149 +3,318 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>teleprompt prompt</title>
+<title>Teleprompt</title>
 <style>
+  /* The prompters' design: apps/DESIGN.md. The glass is black because a
+     beam-splitter does not reflect black; amber marks the next word and
+     the reading line, and nothing else; red is the tally, and means
+     recording. */
+  @font-face {
+    font-family: "Atkinson Hyperlegible Next";
+    src: url("/fonts/atkinson-hyperlegible-next.woff2") format("woff2");
+    font-weight: 200 800;
+  }
   :root {
     color-scheme: dark;
-    --ground: #0b0d10; --ink: #eef2f6; --said: #5b6570; --now: #7ee0a8;
-    --dim: #8a94a1; --bad: #ff8a80;
-    --mono: ui-monospace, SFMono-Regular, "DejaVu Sans Mono", monospace;
-    --size: 5.2vw;
+    --glass: #000; --ink: #f2f4f7; --cue: #ffb800; --tally: #ff3b30;
+    --recorded: #3ddc84; --missing: #f28b82;
+    --chrome: #17181b; --raised: #202227; --line: #2c2f36;
+    --said: rgb(242 244 247 / 0.3); --later: rgb(242 244 247 / 0.55);
+    --size: 48px;
+    --reading: 36%;
+    --face: "Atkinson Hyperlegible Next", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--ground); color: var(--ink); }
-  body { font: 500 var(--size)/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  /* For beam-splitter glass, which shows the screen reversed. */
-  body.mirrored #script { transform: scaleX(-1); }
-  #script { padding: 35vh 8vw 70vh; }
-  /* With shots, the screen takes the right of the window, as the video's
-     picture will, and the text the left. */
-  body.with-screen { --size: 3.4vw; }
-  body.with-screen #script { margin-right: 46vw; padding-right: 3vw; }
-  #screen {
-    display: none; position: fixed; top: 0; right: 0; bottom: 34px; width: 46vw;
-    background: #000; align-items: center; justify-content: center;
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--chrome); color: var(--ink); font: 500 15px/1.4 var(--face);
+    display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
   }
-  body.with-screen #screen { display: flex; }
-  body.with-screen.no-screen #screen { display: none; }
-  body.with-screen.no-screen #script { margin-right: 0; }
-  #screen video { max-width: 100%; max-height: 100%; }
-  #slate { color: var(--dim); font: 15px/1.5 var(--mono); padding: 2em; text-align: center; }
-  #slate:empty, #clip[hidden] { display: none; }
-  .shot {
-    font: 0.4em/1 var(--mono); color: var(--dim); border: 1px solid currentColor;
-    border-radius: 4px; padding: 0.15em 0.4em; margin: 0 0.3em; vertical-align: middle;
-    white-space: nowrap;
+  button { font: inherit; color: inherit; }
+
+  header {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
   }
-  .shot.missing { border-style: dashed; }
-  .shot.playing { color: var(--now); }
-  .shot.played { opacity: 0.45; }
-  .line { margin: 0 0 0.9em; cursor: pointer; border-left: 0.12em solid transparent; padding-left: 0.4em; margin-left: -0.52em; }
-  /* A line with a current take. */
-  .line.recorded { border-left-color: var(--now); }
+  #title { text-align: center; font-weight: 700; }
+  #record {
+    justify-self: end; display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border: 0; border-radius: 999px; background: var(--tally);
+    color: #fff; font-weight: 700; cursor: pointer;
+  }
+  #record::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  #record.keep { background: var(--ink); color: #000; }
+  #record.keep::before { border-radius: 1px; }
+  #record:focus-visible, .line:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+  main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
+  body.no-monitor main { grid-template-columns: 1fr; }
+  body.no-monitor #monitor { display: none; }
+
+  /* The glass. */
+  #glass { position: relative; background: var(--glass); min-height: 0; overflow: hidden; }
+  #scroller { position: absolute; inset: 0; overflow: hidden; }
+  #script { padding: 0 72px 0 0; font-size: var(--size); line-height: 1.32; }
+  body.mirrored #glass-inner { transform: scaleX(-1); }
+  #glass-inner { position: absolute; inset: 0; }
+  .line {
+    display: grid; grid-template-columns: 76px 1fr; margin: 0 0 0.58em; cursor: pointer;
+    color: var(--later);
+  }
+  .line.current { color: var(--ink); }
+  .gutter {
+    position: relative; font: 700 14px/calc(var(--size) * 1.32) var(--face);
+    color: rgb(242 244 247 / 0.32); text-align: right; padding-right: 22px;
+  }
+  .line.current .gutter { color: rgb(242 244 247 / 0.9); }
+  .line.recorded .gutter::before {
+    content: ""; position: absolute; left: 12px; top: calc(var(--size) * 0.66 - 5px);
+    width: 9px; height: 5px; border: solid var(--recorded); border-width: 0 0 2.2px 2.2px;
+    transform: rotate(-45deg);
+  }
   .w.said { color: var(--said); }
-  .w.now { color: var(--now); text-decoration: underline; text-underline-offset: 0.18em; }
-  #bar {
-    position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 14px;
-    background: #12161bee; color: var(--dim); font: 13px/1.5 var(--mono);
-    display: flex; gap: 18px;
+  .w.next { color: var(--cue); text-decoration: underline; text-decoration-color: var(--cue);
+            text-underline-offset: 0.14em; text-decoration-thickness: 0.06em; }
+  .shot { font-size: 0.5em; vertical-align: 0.35em; color: rgb(242 244 247 / 0.6); margin-right: 0.4em; }
+  .shot.aired { color: rgb(242 244 247 / 0.22); }
+  .shot.missing { color: var(--missing); }
+  /* The reading line: a cue arrow, and the glass fading out above and below. */
+  #reading {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(#000d, #0000 20%, #0000 78%, #000e);
   }
-  #status.bad { color: var(--bad); }
-  #start {
-    position: fixed; inset: 0; display: grid; place-items: center;
-    background: #0b0d10e6; color: var(--ink); font: 500 22px system-ui, sans-serif;
-    border: 0; cursor: pointer; width: 100%;
+  #reading::before {
+    content: ""; position: absolute; left: 10px; top: var(--reading);
+    border: 8px solid transparent; border-left: 12px solid var(--cue); transform: translateY(-50%);
   }
+  #countdown {
+    position: absolute; inset: 0; display: none; place-items: center;
+    background: rgb(0 0 0 / 0.78); font: 300 180px/1 var(--face); font-variant-numeric: tabular-nums;
+    color: rgb(242 244 247 / 0.92); pointer-events: none;
+  }
+  #countdown.on { display: grid; }
+
+  /* The monitor. */
+  #monitor { border-left: 1px solid var(--line); padding: 20px; overflow: auto; }
+  #screen {
+    position: relative; aspect-ratio: 16 / 9; background: var(--glass);
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+    display: grid; place-items: center;
+  }
+  #clip { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #clip[hidden] { display: none; }
+  #slate { color: rgb(242 244 247 / 0.42); text-align: center; padding: 0 24px; }
+  #slate.missing { color: var(--missing); }
+  #caption { display: flex; justify-content: space-between; margin-top: 12px; min-height: 21px; }
+  #shot-title { font-weight: 700; }
+  #shot-time { color: rgb(242 244 247 / 0.55); font-size: 13px; font-variant-numeric: tabular-nums; }
+  #progress { height: 3px; margin-top: 8px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  #progress > div { height: 100%; width: 0; background: var(--ink); }
+  h2 { font-size: 13px; color: rgb(242 244 247 / 0.55); margin: 28px 0 6px; }
+  #rundown { list-style: none; margin: 0; padding: 0; }
+  #rundown li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center; padding: 7px 4px; }
+  #rundown .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid rgb(242 244 247 / 0.55); }
+  #rundown .where { color: rgb(242 244 247 / 0.45); font-size: 13px; font-variant-numeric: tabular-nums; }
+  #rundown li.aired { color: rgb(242 244 247 / 0.35); }
+  #rundown li.aired .dot { background: rgb(242 244 247 / 0.3); border-color: transparent; }
+  #rundown li.on-screen { font-weight: 700; }
+  #rundown li.on-screen .dot { background: var(--ink); border-color: var(--ink); }
+  #rundown li.on-screen .where { color: var(--ink); }
+  #rundown li.not-captured .dot { border-color: var(--missing); }
+  #rundown li.not-captured .where { color: var(--missing); }
+
+  /* The tally bar. */
+  footer {
+    display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+    background: var(--raised); border-top: 1px solid var(--line);
+  }
+  #tally { width: 10px; height: 10px; border-radius: 50%; background: rgb(242 244 247 / 0.18); }
+  #tally.on-air { background: var(--tally); box-shadow: 0 0 10px rgb(255 59 48 / 0.7); }
+  #timecode { font-weight: 600; letter-spacing: 0.5px; color: rgb(242 244 247 / 0.4); font-variant-numeric: tabular-nums; }
+  #timecode.on-air { color: var(--ink); }
+  #meter { width: 72px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  #meter > div { height: 100%; width: 0; background: var(--recorded); transition: width 80ms linear; }
+  #status { flex: 1; margin-left: 6px; color: rgb(242 244 247 / 0.7); font-size: 14px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status.bad { color: var(--missing); }
+  #keys { display: flex; gap: 14px; }
+  #keys span { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: rgb(242 244 247 / 0.6); }
+  kbd {
+    font: 700 12px/1.4 var(--face); color: var(--ink); background: var(--chrome);
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px;
+  }
+
+  #toast {
+    position: absolute; left: 50%; bottom: 72px; transform: translate(-50%, 12px); opacity: 0;
+    background: var(--raised); border: 1px solid var(--line); border-radius: 999px; padding: 10px 20px;
+    font-weight: 700; transition: opacity 180ms, transform 180ms; pointer-events: none;
+  }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { #toast, #meter > div { transition: none; } }
 </style>
 </head>
 <body>
-<div id="script"></div>
-<div id="screen"><video id="clip" muted playsinline></video><div id="slate"></div></div>
-<button id="start">click to start a take</button>
-<div id="bar">
-  <span id="status">not listening</span>
-  <span>click a line to take it from there · enter keep the take · space pause · m mirror · + − size · s screen</span>
-</div>
+<header>
+  <span></span>
+  <span id="title">Teleprompt</span>
+  <button id="record" title="Record from the line you are on (R)">Record</button>
+</header>
+<main>
+  <section id="glass">
+    <div id="glass-inner">
+      <div id="scroller"><div id="script"></div></div>
+      <div id="reading"></div>
+    </div>
+    <div id="countdown"></div>
+    <div id="toast"></div>
+  </section>
+  <aside id="monitor">
+    <div id="screen"><video id="clip" muted playsinline hidden></video><div id="slate"></div></div>
+    <div id="caption"><span id="shot-title"></span><span id="shot-time"></span></div>
+    <div id="progress"><div></div></div>
+    <h2>Rundown</h2>
+    <ul id="rundown"></ul>
+  </aside>
+</main>
+<footer>
+  <span id="tally"></span>
+  <span id="timecode">00:00.0</span>
+  <span id="meter"><div></div></span>
+  <span id="status">Loading the script</span>
+  <span id="keys"></span>
+</footer>
 <script>
 "use strict";
 const API = "/api/v1";
 const SEND_EVERY_MS = 100;   // how much audio each message carries, at most
+const READING = 0.36;        // the reading line, as a fraction of the glass
+const GLIDE = 0.22;          // how quickly the text settles on it, in seconds
+const COUNT_MS = 650;        // one beat of the count before a take
 const $ = (id) => document.getElementById(id);
 
+let script = { lines: [], shots: [] };
 let words = [];              // per line, the word spans, split as the server splits
-let shots = new Map();       // shot id to { clip, marker }
+let lines = [];              // the line elements
+let shots = new Map();       // shot id to { clip, marker, row, at }
 let queue = [];              // shots to play after the one playing
-let listening = false;
+let playing = null;
+let started = new Set();     // shots started this take
+let at = { line: 0, word: 0 };
+let listening = false, paused = false, counting = false;
 let pending = [];            // samples not yet sent, at the microphone's rate
 let rate = 0;                // the microphone's rate, once it is open
 let ws = null;               // the session socket, once open
+let takeTime = 0, takeSince = null;
 
 function status(text, bad = false) {
   $("status").textContent = text;
   $("status").classList.toggle("bad", bad);
 }
 
+/** The keys that matter now, as keycaps. */
+function keys() {
+  const pairs = counting ? [["⏎", "Cancel"]]
+    : paused ? [["⏎", "Keep take"], ["Space", "Resume"]]
+    : listening ? [["⏎", "Keep take"], ["Space", "Pause"]]
+    : [["R", "Record"], ["M", "Mirror"]];
+  $("keys").replaceChildren(...pairs.map(([k, action]) => {
+    const pair = document.createElement("span");
+    const kbd = document.createElement("kbd");
+    kbd.textContent = k;
+    pair.append(kbd, action);
+    return pair;
+  }));
+  const taking = listening || paused || counting;
+  $("record").textContent = taking ? "Keep take" : "Record";
+  $("record").classList.toggle("keep", taking);
+  for (const el of [$("tally"), $("timecode")]) el.classList.toggle("on-air", listening);
+}
+
+function name(shot) { return shot.replace(/#0$/, ""); }
+
 async function loadScript() {
-  const script = await (await fetch(`${API}/script`)).json();
+  script = await (await fetch(`${API}/script`)).json();
+  if (script.name) { $("title").textContent = script.name; document.title = script.name; }
   const root = $("script");
+  root.replaceChildren();
+  shots = new Map();
   words = script.lines.map(({ text }, l) => {
-    const p = document.createElement("p");
-    p.className = "line";
-    p.addEventListener("click", () => take(l));
+    const line = document.createElement("div");
+    line.className = "line";
+    line.tabIndex = 0;
+    line.addEventListener("click", () => take(l));
+    const gutter = document.createElement("span");
+    gutter.className = "gutter";
+    gutter.textContent = l + 1;
+    const body = document.createElement("span");
     const spans = text.split(/\s+/).filter(Boolean).map((w) => {
       const s = document.createElement("span");
       s.className = "w";
       s.textContent = w;
-      p.append(s, " ");
+      body.append(s, " ");
       return s;
     });
-    root.append(p);
+    line.append(gutter, body);
+    root.append(line);
     return spans;
   });
+  lines = [...root.children];
   for (const shot of script.shots) markShot(shot);
   markRecorded(script.lines);
-  document.body.classList.toggle("with-screen", script.shots.length > 0);
-  show({ line: 0, word: 0 });
+  document.body.classList.toggle("no-monitor", script.shots.length === 0);
+  show(at);
+  slate();
 }
 
-function markRecorded(lines) {
-  [...$("script").children].forEach((p, l) => p.classList.toggle("recorded", !!lines[l]?.recorded));
+function markRecorded(scriptLines) {
+  lines.forEach((el, l) => el.classList.toggle("recorded", !!scriptLines[l]?.recorded));
 }
 
-/** A marker in the text where a shot starts: before the word that starts
- *  it, or after the line it follows. */
-function markShot({ shot, at, clip }) {
+/** A diamond in the text where a shot starts, and its row in the rundown. */
+function markShot({ shot, at: cue, clip }) {
   const marker = document.createElement("span");
   marker.className = "shot" + (clip ? "" : " missing");
-  marker.textContent = "▶ " + shot + (clip ? "" : " (not captured)");
-  shots.set(shot, { clip, marker });
-  const lines = $("script").children;
-  // A shot starts once word `at.word` is said; the marker goes after it.
-  const said = at.word > 0 ? words[at.line]?.[at.word - 1] : null;
-  if (said) said.after(" ", marker);
-  else if (at.line > 0) lines[at.line - 1]?.append(marker);
-  else lines[0]?.prepend(marker);
+  marker.textContent = "◆";
+  const said = words[cue.line]?.[cue.word];
+  if (said) said.before(marker);
+  else lines[cue.line]?.lastElementChild.append(marker);
+  const row = document.createElement("li");
+  row.innerHTML = `<span class="dot"></span><span></span><span class="where"></span>`;
+  row.children[1].textContent = name(shot);
+  $("rundown").append(row);
+  shots.set(shot, { clip, marker, row, at: cue });
+  rundown();
+}
+
+function rundown() {
+  for (const [id, { clip, marker, row, at: cue }] of shots) {
+    const state = playing === id ? "on-screen" : !clip ? "not-captured" : started.has(id) ? "aired" : "";
+    row.className = state;
+    marker.classList.toggle("aired", started.has(id) && playing !== id);
+    row.querySelector(".where").textContent =
+      state === "on-screen" ? "on screen" : state === "not-captured" ? "not captured"
+      : state === "aired" ? "played"
+      : cue.word === 0 ? `line ${cue.line + 1}` : `line ${cue.line + 1}, word ${cue.word + 1}`;
+  }
 }
 
 /** Plays `ids` in turn, cutting whatever is playing: the reader has moved
  *  on, and the screen follows the reader. */
 function play(ids) {
   if (!ids || ids.length === 0) return;
+  for (const id of ids) started.add(id);
   queue = [...ids];
   next();
 }
 
 function next() {
   const video = $("clip");
-  for (const { marker } of shots.values()) {
-    if (marker.classList.contains("playing")) {
-      marker.classList.replace("playing", "played");
-    }
-  }
-  const id = queue.shift();
-  if (id === undefined) return;          // hold the last frame
-  const { clip, marker } = shots.get(id);
-  marker.classList.add("playing");
+  playing = queue.shift() ?? null;
+  rundown();
+  if (playing === null) return slate();
+  const { clip } = shots.get(playing);
+  $("shot-title").textContent = name(playing);
   if (clip) {
     $("slate").textContent = "";
     video.hidden = false;
@@ -153,30 +322,66 @@ function next() {
     video.play().catch(() => {});
   } else {
     video.hidden = true;
-    $("slate").textContent = `${id} has not been captured: run teleprompt capture`;
-    setTimeout(() => { if (marker.classList.contains("playing")) next(); }, 2000);
+    $("slate").textContent = "This shot was never captured. Run teleprompt capture to record it.";
+    $("slate").classList.add("missing");
+    const shot = playing;
+    setTimeout(() => { if (playing === shot) next(); }, 2000);
   }
 }
 
-let shownLine = -1;
+/** The monitor with nothing playing: what comes next. */
+function slate() {
+  const video = $("clip");
+  video.pause();
+  video.hidden = true;
+  $("slate").classList.remove("missing");
+  $("shot-title").textContent = "";
+  $("shot-time").textContent = "";
+  $("progress").firstElementChild.style.width = "0";
+  const upcoming = [...shots].find(([id, s]) => s.clip && !started.has(id)
+    && (s.at.line > at.line || (s.at.line === at.line && s.at.word >= at.word)));
+  $("slate").textContent = upcoming ? `Next: ${name(upcoming[0])}, at line ${upcoming[1].at.line + 1}`
+    : started.size ? "Every shot has played." : "Each shot plays here as your reading reaches it.";
+}
 
-/** Marks what has been said and the next word; moving to a new line brings
- *  it to a third of the way down, where the eye rests. */
-function show(at) {
+/** Dims what is said and the lines to come, marks the next word, and
+ *  glides its line to the reading line. */
+function show(next) {
+  at = next;
   words.forEach((spans, l) => spans.forEach((s, w) => {
     s.classList.toggle("said", l < at.line || (l === at.line && w < at.word));
-    s.classList.toggle("now", l === at.line && w === at.word);
+    s.classList.toggle("next", l === at.line && w === at.word);
   }));
-  if (at.line === shownLine) return;
-  shownLine = at.line;
-  const done = at.line >= words.length;
-  if (done) status("end of script");
-  const line = $("script").children[Math.min(at.line, words.length - 1)];
-  if (!line) return;
-  const top = done
-    ? line.offsetTop + line.offsetHeight - window.innerHeight * 0.6
-    : line.offsetTop - window.innerHeight * 0.3;
-  window.scrollTo({ top, behavior: "smooth" });
+  lines.forEach((el, l) => el.classList.toggle("current", l === at.line));
+  if (at.line >= words.length && words.length) status("End of script");
+  glide();
+}
+
+let glideGoal = 0, gliding = false;
+function glide() {
+  const scroller = $("scroller");
+  const target = words[at.line]?.[at.word] ?? words[at.line]?.at(-1) ?? lines.at(-1)?.lastElementChild;
+  if (!target) return;
+  const rect = target.getBoundingClientRect(), box = scroller.getBoundingClientRect();
+  const centre = rect.top - box.top + rect.height / 2;
+  glideGoal = Math.max(0, scroller.scrollTop + centre - box.height * READING);
+  if (gliding) return;
+  gliding = true;
+  let last = performance.now();
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const step = (now) => {
+    const dt = (now - last) / 1000;
+    last = now;
+    const d = glideGoal - scroller.scrollTop;
+    if (Math.abs(d) < 0.5 || reduce) {
+      scroller.scrollTop = glideGoal;
+      gliding = false;
+      return;
+    }
+    scroller.scrollTop += d * (1 - Math.exp(-dt / GLIDE));
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 /** Sends the audio not yet sent, as one binary message. */
@@ -196,23 +401,36 @@ function openSession() {
       ws = socket;
       resolve();
     };
-    socket.onerror = () => reject(new Error("no session: is another prompter page open?"));
+    socket.onerror = () => reject(new Error("Another prompter already has the session. Close it and reload."));
     socket.onclose = () => {
-      if (ws === socket) status("lost the server", true);
+      if (ws === socket) status("Lost the server. Reload once it is running again.", true);
       ws = null;
       listening = false;
+      keys();
     };
     socket.onmessage = (e) => onMessage(JSON.parse(e.data));
   });
+}
+
+let toastTimer = null;
+function toast(text) {
+  $("toast").textContent = text;
+  $("toast").classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").classList.remove("on"), 4000);
 }
 
 async function onMessage(message) {
   if (message.type === "reached") {
     show(message);
     play(message.play);
+    if (!playing) slate();
   } else if (message.type === "stopped") {
     const { saved } = message;
-    status(saved.length ? `kept ${saved.length} line(s): ${saved.join(", ")}` : "nothing read in full to keep");
+    const kept = saved.length === 0 ? "Nothing was read in full, so nothing was kept"
+      : saved.length === 1 ? `Kept 1 line: ${saved[0]}` : `Kept ${saved.length} lines: ${saved.join(", ")}`;
+    status(kept);
+    toast(kept);
     markRecorded((await (await fetch(`${API}/script`)).json()).lines);
   } else if (message.type === "error") {
     status(message.message, true);
@@ -231,8 +449,8 @@ registerProcessor("tap", Tap);`;
 
 let mic = null;               // opened once, on the first take
 
-/** Opens the microphone and starts sending it. What it hears is the take,
- *  so the browser is asked not to clean it up. */
+/** Opens the microphone. What it hears is the take, so the browser is
+ *  asked not to clean it up. */
 async function openMic() {
   if (mic) return;
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -244,73 +462,146 @@ async function openMic() {
   await ctx.audioWorklet.addModule(url);
   const tap = new AudioWorkletNode(ctx, "tap");
   tap.port.onmessage = (e) => {
-    if (listening) for (const v of e.data) pending.push(v);
+    if (!listening) return;
+    let power = 0;
+    for (const v of e.data) { pending.push(v); power += v * v; }
+    level(Math.sqrt(power / e.data.length));
   };
   ctx.createMediaStreamSource(stream).connect(tap);
   setInterval(send, SEND_EVERY_MS);
   mic = stream;
 }
 
-/** A new take from line `from`; the server drops any take not kept. The
- *  answer to the start shows where it begins. */
+function level(rms) {
+  $("meter").firstElementChild.style.width = `${Math.min(100, Math.sqrt(rms) * 100)}%`;
+}
+
+/** A new take from line `from`, after a count of three; the server drops
+ *  any take not kept. */
 async function take(from = 0) {
-  $("start")?.remove();
+  if (counting) return;
   try {
     await openMic();
-  } catch (e) {
-    status(`no microphone: ${e.message ?? e}`, true);
-    return;
-  }
-  try {
     await openSession();
   } catch (e) {
-    status(e.message, true);
+    status(e.name === "NotAllowedError" ? "The browser may not use the microphone: allow it for this page." : e.message, true);
     return;
   }
   listening = false;
+  paused = false;
   pending = [];
   queue = [];
-  for (const { marker } of shots.values()) marker.classList.remove("playing", "played");
-  shownLine = -1;
+  playing = null;
+  started = new Set();
+  show({ line: from, word: 0 });
+  rundown();
+  slate();
+  counting = true;
+  status(`Recording from line ${from + 1} in…`);
+  keys();
+  for (const n of [3, 2, 1]) {
+    $("countdown").textContent = n;
+    $("countdown").classList.add("on");
+    await new Promise((r) => setTimeout(r, COUNT_MS));
+    if (!counting) break;
+  }
+  $("countdown").classList.remove("on");
+  if (!counting) return;
+  counting = false;
   ws.send(JSON.stringify({ type: "start", from, rate }));
   listening = true;
-  status(`recording from line ${from + 1}`);
+  takeTime = 0;
+  takeSince = performance.now();
+  status(`Recording from line ${from + 1}`);
+  keys();
 }
 
 /** Ends the take, keeping the lines read in full. */
 function keep() {
-  if (!ws) return;
+  if (counting) {
+    counting = false;
+    status("Click a line to record from there");
+    return keys();
+  }
+  if (!ws || !(listening || paused)) return;
   listening = false;
+  paused = false;
+  if (takeSince !== null) { takeTime += performance.now() - takeSince; takeSince = null; }
   send();
   ws.send(JSON.stringify({ type: "stop" }));
+  status("Keeping the take…");
+  level(0);
+  keys();
 }
 
+function togglePause() {
+  if (!(listening || paused)) return;
+  paused = !paused;
+  listening = !paused;
+  if (paused) { takeTime += performance.now() - takeSince; takeSince = null; }
+  else takeSince = performance.now();
+  status(paused ? "Paused" : "Recording");
+  keys();
+}
+
+setInterval(() => {
+  const ms = takeTime + (takeSince === null ? 0 : performance.now() - takeSince);
+  const tenths = Math.floor(ms / 100);
+  $("timecode").textContent =
+    `${String(Math.floor(tenths / 600)).padStart(2, "0")}:${String(Math.floor(tenths / 10) % 60).padStart(2, "0")}.${tenths % 10}`;
+}, 100);
+
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    keep();
-  } else if (e.key === " ") {
-    e.preventDefault();
-    listening = !listening;
-    status(listening ? "listening" : "paused");
-  } else if (e.key === "s") {
-    document.body.classList.toggle("no-screen");
-  } else if (e.key === "m") {
-    document.body.classList.toggle("mirrored");
-  } else if (e.key === "+" || e.key === "-") {
-    const now = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--size"));
-    const next = Math.max(2, now + (e.key === "+" ? 0.4 : -0.4));
-    document.documentElement.style.setProperty("--size", `${next}vw`);
-  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const handled = {
+    "Enter": keep,
+    " ": togglePause,
+    "r": () => (listening || paused || counting ? keep() : take(at.line < words.length ? at.line : 0)),
+    "m": () => document.body.classList.toggle("mirrored"),
+    "s": () => document.body.classList.toggle("no-monitor"),
+    "+": () => resize(4), "=": () => resize(4), "-": () => resize(-4),
+  }[e.key];
+  if (!handled) return;
+  e.preventDefault();
+  handled();
 });
 
-$("start").addEventListener("click", () => take(0));
+function resize(by) {
+  const now = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--size"));
+  document.documentElement.style.setProperty("--size", `${Math.min(120, Math.max(24, now + by))}px`);
+  glide();
+}
+
+$("record").addEventListener("click", () =>
+  listening || paused || counting ? keep() : take(at.line < words.length ? at.line : 0));
 $("clip").addEventListener("ended", next);
-$("clip").addEventListener("error", (e) => {
-  e.target.hidden = true;
-  $("slate").textContent = `this browser cannot play ${e.target.src.split("/").pop()}`;
+$("clip").addEventListener("timeupdate", (e) => {
+  const v = e.target;
+  if (!v.duration) return;
+  $("progress").firstElementChild.style.width = `${(v.currentTime / v.duration) * 100}%`;
+  $("shot-time").textContent = `${v.currentTime.toFixed(1)} s / ${v.duration.toFixed(1)} s`;
 });
-loadScript();
+$("clip").addEventListener("error", (e) => {
+  // Only the clip that should be on screen; a load cut short is no error.
+  const clip = playing && shots.get(playing)?.clip;
+  if (!clip || !e.target.src.endsWith(clip)) return;
+  e.target.hidden = true;
+  $("slate").textContent = "This browser cannot play the clip. Chrome, Edge and Safari can.";
+  $("slate").classList.add("missing");
+});
+/** The first line and the last can both reach the reading line. */
+function margins() {
+  const h = $("scroller").clientHeight;
+  $("script").style.paddingTop = `${h * READING}px`;
+  $("script").style.paddingBottom = `${h * (1 - READING)}px`;
+  glide();
+}
+addEventListener("resize", margins);
+margins();
+loadScript().then(() => {
+  status("Click a line to record from there");
+  keys();
+});
 </script>
 </body>
 </html>

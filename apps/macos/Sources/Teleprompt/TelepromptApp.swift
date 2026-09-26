@@ -2,6 +2,10 @@
 import SwiftUI
 
 struct TelepromptApp: App {
+    init() {
+        Theme.registerFonts()
+    }
+
     @NSApplicationDelegateAdaptor private var delegate: AppDelegate
     @StateObject private var model = AppModel()
 
@@ -9,15 +13,18 @@ struct TelepromptApp: App {
         WindowGroup("Teleprompt") {
             ContentView()
                 .environmentObject(model)
-                .frame(minWidth: 720, minHeight: 480)
+                .frame(minWidth: 900, minHeight: 560)
                 .onAppear { delegate.model = model }
         }
         .commands { PrompterCommands(model: model) }
 
         // The screen on its own, for a second display.
-        Window("Screen", id: "screen") {
-            ScreenView()
+        Window("Monitor", id: "screen") {
+            MonitorScreen()
                 .environmentObject(model)
+                .padding(12)
+                .background(Theme.glass)
+                .preferredColorScheme(.dark)
                 .frame(minWidth: 480, minHeight: 270)
         }
 
@@ -51,12 +58,12 @@ struct PrompterCommands: Commands {
         // The plain keys (return, space, m, + −, s) are the prompter's own;
         // see PrompterView. Here they would fire while typing in Settings.
         CommandMenu("Prompter") {
-            Button("Take from the Top") { model.take(from: 0) }
+            Button("Record from the Top") { model.take(from: 0) }
                 .keyboardShortcut("t")
                 .disabled(!model.isReady)
             Button("Keep Take") { model.keep() }
                 .keyboardShortcut(.return)
-                .disabled(!model.state.listening)
+                .disabled(!model.isTaking)
             Button(model.paused ? "Resume" : "Pause") { model.togglePause() }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(!model.isTaking)
@@ -67,8 +74,8 @@ struct PrompterCommands: Commands {
             Button("Smaller Text") { model.textSize = max(16, model.textSize - 4) }
                 .keyboardShortcut("-")
             Divider()
-            Toggle("Show Screen", isOn: $model.showsScreen)
-            Button("Screen in Its Own Window") {
+            Toggle("Show Monitor", isOn: $model.showsScreen)
+            Button("Monitor in Its Own Window") {
                 model.showsScreen = false
                 openWindow(id: "screen")
             }

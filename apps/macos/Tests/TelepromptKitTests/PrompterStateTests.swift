@@ -47,9 +47,11 @@ final class PrompterStateTests: XCTestCase {
         state.startTake(from: 0)
         state.apply(.stopped(saved: ["welcome"]))
         XCTAssertFalse(state.listening)
-        XCTAssertEqual(state.status, .init("kept 1 line(s): welcome"))
+        XCTAssertEqual(state.status, .init("Kept 1 line: welcome"))
+        state.apply(.stopped(saved: ["welcome", "deploy"]))
+        XCTAssertEqual(state.status, .init("Kept 2 lines: welcome, deploy"))
         state.apply(.stopped(saved: []))
-        XCTAssertEqual(state.status, .init("nothing read in full to keep"))
+        XCTAssertEqual(state.status, .init("Nothing was read in full, so nothing was kept"))
     }
 
     func testAnErrorIsShown() throws {
@@ -61,6 +63,6 @@ final class PrompterStateTests: XCTestCase {
     func testTheEndOfTheScriptIsSaid() throws {
         var state = try loaded()
         state.apply(.reached(at: Position(line: 2, word: 0), play: []))
-        XCTAssertEqual(state.status, .init("end of script"))
+        XCTAssertEqual(state.status, .init("End of script"))
     }
 }

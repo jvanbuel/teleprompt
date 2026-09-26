@@ -22,6 +22,7 @@ struct SettingsView: View {
             }
             Section {
                 TextField("Locale", text: $model.locale)
+                Toggle("Count down before a take", isOn: $model.countdownOn)
             }
         }
         .formStyle(.grouped)

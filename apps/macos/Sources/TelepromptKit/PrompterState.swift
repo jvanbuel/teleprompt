@@ -30,7 +30,7 @@ public struct PrompterState: Equatable, Sendable {
     public mutating func load(_ script: Script) {
         self.script = script
         at = Position(line: 0, word: 0)
-        status = Status("click a line, or press return, to start a take")
+        status = Status("Click a line to record from there")
     }
 
     /// A take is starting at line `from`: nothing has played in it yet.
@@ -40,7 +40,7 @@ public struct PrompterState: Equatable, Sendable {
         queue = []
         started = []
         listening = true
-        status = Status("recording from line \(from + 1)")
+        status = Status("Recording from line \(from + 1)")
     }
 
     public mutating func apply(_ message: ServerMessage) {
@@ -54,13 +54,16 @@ public struct PrompterState: Equatable, Sendable {
                 started.formUnion(play)
             }
             if at.line >= script.lines.count, !script.lines.isEmpty {
-                status = Status("end of script")
+                status = Status("End of script")
             }
         case let .stopped(saved):
             listening = false
-            status = Status(saved.isEmpty
-                ? "nothing read in full to keep"
-                : "kept \(saved.count) line(s): \(saved.joined(separator: ", "))")
+            let kept: String = switch saved.count {
+            case 0: "Nothing was read in full, so nothing was kept"
+            case 1: "Kept 1 line: \(saved[0])"
+            default: "Kept \(saved.count) lines: \(saved.joined(separator: ", "))"
+            }
+            status = Status(kept)
         case let .error(message):
             status = Status(message, isError: true)
         case .unknown:

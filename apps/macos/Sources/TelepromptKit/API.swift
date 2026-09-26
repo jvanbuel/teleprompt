@@ -24,10 +24,13 @@ public struct Position: Codable, Equatable, Comparable, Sendable {
 
 /// `GET /api/v1/script`.
 public struct Script: Codable, Equatable, Sendable {
+    /// The script's file name; servers before it was added send none.
+    public var name: String?
     public var lines: [Line]
     public var shots: [Shot]
 
-    public init(lines: [Line], shots: [Shot]) {
+    public init(name: String? = nil, lines: [Line], shots: [Shot]) {
+        self.name = name
         self.lines = lines
         self.shots = shots
     }

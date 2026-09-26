@@ -62,6 +62,10 @@ pub fn run_prompt(
     let (compiled, _) = crate::cmd::check::compile_script(project, script, locale)
         .map_err(PromptError::Validation)?;
     let prompt = Prompt {
+        name: script
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
         shots: teleprompt_prompter::shot_cues(&compiled),
         ids: compiled
             .narration
@@ -111,6 +115,10 @@ pub fn run_prompt(
 pub fn listening_event(addr: SocketAddr) -> serde_json::Value {
     serde_json::json!({ "event": "listening", "url": format!("http://{addr}"), "api": "/api/v1" })
 }
+
+/// The prompters' typeface (`apps/fonts`), Latin, for the page.
+const FONT: &[u8] = include_bytes!("prompt-font.woff2");
+const FONT_PATH: &str = "/fonts/atkinson-hyperlegible-next.woff2";
 
 const PAGE: &str = include_str!("prompt.html");
 
@@ -167,6 +175,7 @@ impl<R: Recognizer> Server<R> {
         match request.path.as_str() {
             "/" => ("200 OK", "text/html; charset=utf-8", PAGE.into()),
             "/favicon.ico" => ("204 No Content", "text/plain", Vec::new()),
+            FONT_PATH => ("200 OK", "font/woff2", FONT.to_vec()),
             "/api/v1/script" => json(script(self.session().script())),
             path => match path
                 .strip_prefix("/api/v1/clips/")
@@ -294,7 +303,7 @@ fn script(s: Script) -> serde_json::Value {
             })
         })
         .collect();
-    serde_json::json!({ "lines": lines, "shots": shots })
+    serde_json::json!({ "name": s.name, "lines": lines, "shots": shots })
 }
 
 fn json(value: serde_json::Value) -> Response {
