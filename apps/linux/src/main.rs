@@ -130,17 +130,24 @@ fn settings(window: &Rc<Window>) {
     let binary = path_row(
         window,
         "teleprompt binary",
-        config.binary.as_deref(),
+        config.binary().as_deref(),
         false,
         |c, p| c.binary = Some(p),
     );
     let model = path_row(
         window,
         "Speech model",
-        config.model.as_deref(),
+        config.model().as_deref(),
         true,
         |c, p| c.model = Some(p),
     );
+    // What the app will use: the environment's, when it overrides.
+    for (row, var) in [(&binary, "TELEPROMPT_BIN"), (&model, "TELEPROMPT_MODEL")] {
+        if std::env::var_os(var).is_some() {
+            let shown = row.subtitle().unwrap_or_default();
+            row.set_subtitle(&format!("{shown} (from {var})"));
+        }
+    }
     let locale = adw::EntryRow::builder()
         .title("Locale")
         .text(config.locale())
