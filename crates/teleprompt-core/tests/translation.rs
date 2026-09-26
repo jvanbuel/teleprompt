@@ -217,3 +217,72 @@ fn a_translation_round_trips_through_yaml_in_order() {
     let back = Translation::from_yaml(&yaml).unwrap();
     assert_eq!(back, t);
 }
+
+use teleprompt_core::translation::{merged, pending, Kind};
+
+/// Everything is to translate when nothing is yet: chapter titles, lines,
+/// and cues with the line they are in.
+#[test]
+fn a_new_locale_needs_every_title_line_and_cue() {
+    let p = program("en");
+    let todo = pending(&p, &Translation::default());
+    let keys: Vec<(&str, &Kind)> = todo.iter().map(|i| (i.key.as_str(), &i.kind)).collect();
+    assert_eq!(
+        keys,
+        [
+            ("introduction", &Kind::Chapter),
+            ("welcome", &Kind::Line),
+            ("start", &Kind::Line),
+            (
+                "start-a",
+                &Kind::Cue {
+                    line: "start".into()
+                }
+            ),
+            ("progress", &Kind::Line),
+            (
+                "progress-a",
+                &Kind::Cue {
+                    line: "progress".into()
+                }
+            ),
+        ]
+    );
+    assert_eq!(todo[3].english, "config add");
+    assert_eq!(todo[3].id(), "cue:start-a");
+}
+
+/// Only what is missing or out of date is translated again; a cue follows
+/// its line when the line is retranslated.
+#[test]
+fn only_missing_and_stale_entries_are_pending() {
+    let p = program("en");
+    let mut t = dutch();
+    t.lines[2].1 = entry(
+        "Then it streamed its progress.",
+        "Daarna toonde het de voortgang.",
+    );
+    let todo: Vec<String> = pending(&p, &t).into_iter().map(|i| i.key).collect();
+    assert_eq!(todo, ["start-a", "progress", "progress-a"]);
+}
+
+/// Results are merged in script order; entries for lines that are gone are
+/// dropped, and a cue must be words of its translated line.
+#[test]
+fn merging_keeps_script_order_and_drops_what_is_gone() {
+    let p = program("en");
+    let mut old = dutch();
+    old.lines.push(("removed".into(), entry("Gone.", "Weg.")));
+    old.lines.swap(0, 2);
+    let done = vec![
+        ("cue:start-a".to_string(), "config add".to_string()),
+        ("cue:progress-a".to_string(), "niet in de zin".to_string()),
+    ];
+    let (t, rejected) = merged(&p, &old, &done);
+    let lines: Vec<&str> = t.lines.iter().map(|(k, _)| k.as_str()).collect();
+    assert_eq!(lines, ["welcome", "start", "progress"]);
+    assert_eq!(t.cues.len(), 1);
+    assert_eq!(t.cues[0].0, "start-a");
+    assert_eq!(t.cues[0].1.from, source_of("config add"));
+    assert_eq!(rejected, ["cue:progress-a"]);
+}

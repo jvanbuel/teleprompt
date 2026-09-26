@@ -318,6 +318,33 @@ pub fn run_check(
     compile_script(project, script, locale).map(|(out, _)| out.warnings)
 }
 
+/// `script` resolved in its own language, for reading its narration rather
+/// than compiling it.
+pub(crate) fn source_program(project: &Project, script: &Path) -> Result<Program, Vec<String>> {
+    let display = script.display().to_string();
+    let name = script
+        .file_name()
+        .map_or_else(|| display.clone(), |s| s.to_string_lossy().to_string());
+    let src =
+        std::fs::read_to_string(script).map_err(|e| vec![format!("cannot read {display}: {e}")])?;
+    let mut parsed = parse_script(&src).map_err(|d| render(&d, &display))?;
+    let id_diags = assign_ids(&mut parsed);
+    if id_diags.iter().any(Diagnostic::is_error) {
+        return Err(render(&Diagnostics(id_diags), &display));
+    }
+    let source = teleprompt_core::config::Config::merged(std::slice::from_ref(&project.config))
+        .locales
+        .source;
+    resolve(
+        &parsed,
+        &name,
+        &source,
+        &project.config,
+        &PartialConfig::default(),
+    )
+    .map_err(|d| render(&d, &display))
+}
+
 fn render(d: &teleprompt_core::Diagnostics, file: &str) -> Vec<String> {
     d.0.iter().map(|x| x.render(file)).collect()
 }

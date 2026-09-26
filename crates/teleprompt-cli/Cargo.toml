@@ -37,6 +37,7 @@ teleprompt-remotion = { path = "../teleprompt-remotion" }
 teleprompt-slidev = { path = "../teleprompt-slidev" }
 teleprompt-vhs = { path = "../teleprompt-vhs" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
+teleprompt-translate = { path = "../teleprompt-translate" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
 teleprompt-voice-null = { path = "../teleprompt-voice-null" }

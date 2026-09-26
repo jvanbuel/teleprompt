@@ -147,6 +147,26 @@ enum Command {
     /// `asciinema rec --stdin` (asciinema 3: `--capture-input`) and your
     /// voice at the same time, or use `teleprompt record`.
     Import(ImportArgs),
+    /// Translate a script's narration into another locale
+    ///
+    /// Writes <script>.<locale>.yaml beside the script, translating only
+    /// what is missing or has changed in the English since; read it over,
+    /// since it is spoken as written. Compile, dub or build with
+    /// `--locale <locale>` to use it. Translates with Claude by default,
+    /// which needs ANTHROPIC_API_KEY.
+    Translate {
+        script: PathBuf,
+        /// The locale to translate into, e.g. nl, fr, pt-BR
+        #[arg(long)]
+        to: String,
+        /// The Claude model to translate with
+        #[arg(long, conflicts_with = "command")]
+        model: Option<String>,
+        /// Translate with this shell command instead: it gets the request as
+        /// JSON on stdin and answers {"items": [{"id", "text"}]} on stdout
+        #[arg(long)]
+        command: Option<String>,
+    },
     /// Record yourself using a terminal while you talk, and get a script
     ///
     /// Opens your shell and records it and the microphone until you exit
@@ -367,6 +387,31 @@ fn run_record(_: Format, _: RecordArgs) -> Run {
     ))
 }
 
+fn run_translate_cmd(
+    format: Format,
+    script: &std::path::Path,
+    to: &str,
+    model: Option<&str>,
+    command: Option<String>,
+) -> Run {
+    use teleprompt_cli::cmd::translate::{run_translate, TranslateError};
+    use teleprompt_translate::{Claude, Translator};
+    let project = project_for(script)?;
+    let translator = match command {
+        Some(cmd) => Translator::Command(cmd),
+        None => Translator::Claude(Claude::from_env(model).map_err(Outcome::RuntimeFailure)?),
+    };
+    let report = tokio::runtime::Runtime::new()
+        .map_err(|e| Outcome::RuntimeFailure(e.to_string()))?
+        .block_on(run_translate(&project, script, to, &translator))
+        .map_err(|e| match e {
+            TranslateError::Validation(v) => Outcome::ValidationError(v),
+            TranslateError::Runtime(r) => Outcome::RuntimeFailure(r),
+        })?;
+    emit(format, &report, &report.render());
+    Ok(Outcome::Ok)
+}
+
 fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
     let script = match args.out {
         Some(out) => out,
@@ -426,6 +471,12 @@ fn run(command: Command, format: Format) -> Run {
             Ok(Outcome::Ok)
         }
         Command::Import(args) => run_import_cmd(format, args),
+        Command::Translate {
+            script,
+            to,
+            model,
+            command,
+        } => run_translate_cmd(format, &script, &to, model.as_deref(), command),
         Command::Record(args) => run_record(format, args),
         Command::Cache { prune_to_mb } => {
             let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;

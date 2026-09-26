@@ -25,6 +25,154 @@ pub struct Entry {
     pub text: String,
 }
 
+/// Something to translate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Item {
+    /// Chapter slug, line id or block id.
+    pub key: String,
+    pub kind: Kind,
+    pub english: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Kind {
+    Chapter,
+    Line,
+    /// A phrase of line `line`, to find in its translation.
+    Cue {
+        line: String,
+    },
+}
+
+impl Item {
+    /// The item's key with its kind, unique across kinds: a chapter slug
+    /// can be a line's id too.
+    pub fn id(&self) -> String {
+        let kind = match self.kind {
+            Kind::Chapter => "chapter",
+            Kind::Line => "line",
+            Kind::Cue { .. } => "cue",
+        };
+        format!("{kind}:{}", self.key)
+    }
+}
+
+/// A program's chapters (once per slug), lines and cues, in script order.
+pub fn items(program: &Program) -> Vec<Item> {
+    let mut items: Vec<Item> = Vec::new();
+    for c in &program.chapters {
+        if !items.iter().any(|i| i.key == c.slug) {
+            items.push(Item {
+                key: c.slug.clone(),
+                kind: Kind::Chapter,
+                english: c.title.clone(),
+            });
+        }
+    }
+    let mut line = None;
+    for element in &program.elements {
+        match element {
+            Element::Narration { id, text, .. } => {
+                line = Some(id.clone());
+                items.push(Item {
+                    key: id.clone(),
+                    kind: Kind::Line,
+                    english: text.clone(),
+                });
+            }
+            Element::Action {
+                block_id,
+                cue: Some(cue),
+                ..
+            } => {
+                if let Some(line) = &line {
+                    items.push(Item {
+                        key: block_id.clone(),
+                        kind: Kind::Cue { line: line.clone() },
+                        english: cue.clone(),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    items
+}
+
+impl Translation {
+    /// The translation of `item`, if there is one.
+    pub fn of(&self, item: &Item) -> Option<&Entry> {
+        find(self.entries(&item.kind), &item.key)
+    }
+
+    fn entries(&self, kind: &Kind) -> &[(String, Entry)] {
+        match kind {
+            Kind::Chapter => &self.chapters,
+            Kind::Line => &self.lines,
+            Kind::Cue { .. } => &self.cues,
+        }
+    }
+}
+
+/// What of `program` (in its own language) `existing` has no current
+/// translation of: missing, translated from English that has changed, or
+/// a cue in a line that is itself pending.
+pub fn pending(program: &Program, existing: &Translation) -> Vec<Item> {
+    let mut lines_pending: Vec<String> = Vec::new();
+    items(program)
+        .into_iter()
+        .filter(|item| {
+            let current = find(existing.entries(&item.kind), &item.key)
+                .is_some_and(|e| e.from == source_of(&item.english));
+            let todo = match &item.kind {
+                Kind::Cue { line } => !current || lines_pending.contains(line),
+                _ => !current,
+            };
+            if todo && item.kind == Kind::Line {
+                lines_pending.push(item.key.clone());
+            }
+            todo
+        })
+        .collect()
+}
+
+/// `existing` with `done` (translations by [`Item::id`]) in it, in script
+/// order and without entries for what the script no longer has. A cue
+/// that is not words of its line's translation is left out, and its id
+/// returned.
+pub fn merged(
+    program: &Program,
+    existing: &Translation,
+    done: &[(String, String)],
+) -> (Translation, Vec<String>) {
+    let mut out = Translation::default();
+    let mut rejected = Vec::new();
+    for item in items(program) {
+        let fresh = done.iter().find(|(id, _)| *id == item.id()).map(|(_, t)| t);
+        let entry = match fresh {
+            Some(text) => Some(Entry {
+                from: source_of(&item.english),
+                text: text.clone(),
+            }),
+            None => find(existing.entries(&item.kind), &item.key).cloned(),
+        };
+        let Some(entry) = entry else { continue };
+        match &item.kind {
+            Kind::Chapter => out.chapters.push((item.key, entry)),
+            Kind::Line => out.lines.push((item.key, entry)),
+            Kind::Cue { line } => {
+                let in_line = find(&out.lines, line).is_some_and(|l| l.text.contains(&entry.text));
+                if in_line {
+                    out.cues.push((item.key, entry));
+                } else if fresh.is_some() {
+                    rejected.push(item.id());
+                }
+            }
+        }
+    }
+    (out, rejected)
+}
+
 /// Hex characters of a source's hash an entry keeps: enough to tell two
 /// versions of a line apart, short enough to read past in a review.
 const SOURCE_CHARS: usize = 12;

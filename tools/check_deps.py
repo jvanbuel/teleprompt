@@ -36,6 +36,7 @@ ALLOWED = {
     "remotion": ADAPTER,
     "slidev": ADAPTER,
     "media": ADAPTER,
+    "translate": {"core"},
     "listen": set(),
     "derive": set(),
     "listen-sherpa": {"listen"},
