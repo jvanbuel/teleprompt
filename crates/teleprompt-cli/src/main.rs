@@ -11,6 +11,7 @@ use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
 use teleprompt_cli::cmd::dub;
 use teleprompt_cli::cmd::from;
+use teleprompt_cli::cmd::import::{self, Import, Words};
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
 use teleprompt_cli::cmd::serve;
@@ -83,6 +84,36 @@ enum Command {
         /// narration, a paragraph per `[click]` step
         #[arg(long)]
         slidev: bool,
+    },
+    /// Draft a script from a terminal session you recorded while talking
+    ///
+    /// What you said becomes the narration, cut into lines where you
+    /// paused; what you typed becomes terminal tapes, run with the line you
+    /// were saying or after the one before, as they were. Each line is
+    /// then spoken from your recording. Record the session with
+    /// `asciinema rec --stdin` (asciinema 3: `--capture-input`) and your
+    /// voice at the same time, or use `teleprompt record`.
+    Import {
+        /// The asciicast, with keystrokes
+        cast: PathBuf,
+        /// The voice, as a WAV
+        #[arg(long)]
+        voice: PathBuf,
+        /// Where to write the script; defaults to scripts/<cast>.md in the project
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Directory of an unpacked sherpa-onnx streaming zipformer model
+        #[arg(long, required_unless_present = "words")]
+        model: Option<PathBuf>,
+        /// Timed words as JSON ([{text, start_ms, end_ms}]) instead of --model
+        #[arg(long, conflicts_with = "model")]
+        words: Option<PathBuf>,
+        /// How many milliseconds after the cast the voice recording started
+        #[arg(long, default_value_t = 0, allow_negative_numbers = true)]
+        offset_ms: i64,
+        /// Replace the script, and its lines' takes, if they exist
+        #[arg(long)]
+        force: bool,
     },
     /// Parse and validate; no side effects, no cost
     Check(ScriptArgs),
@@ -269,6 +300,13 @@ fn warn(warnings: &[String]) {
     }
 }
 
+/// `scripts/<cast>.md` in the project around the working directory.
+fn default_import_script(cast: &std::path::Path) -> Result<PathBuf, Outcome> {
+    let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;
+    let stem = cast.file_stem().unwrap_or_default().to_string_lossy();
+    Ok(project.root.join("scripts").join(format!("{stem}.md")))
+}
+
 fn project_for(script: &std::path::Path) -> Result<Project, Outcome> {
     Project::for_script(script).map_err(runtime_failure)
 }
@@ -293,6 +331,36 @@ fn run(command: Command, format: Format) -> Run {
         }
         Command::From { doc, out, slidev } => {
             let report = from::run_from(&doc, out, slidev).map_err(runtime_failure)?;
+            emit(format, &report, &report.render());
+            Ok(Outcome::Ok)
+        }
+        Command::Import {
+            cast,
+            voice,
+            out,
+            model,
+            words,
+            offset_ms,
+            force,
+        } => {
+            let script = match out {
+                Some(out) => out,
+                None => default_import_script(&cast)?,
+            };
+            let words = match (&words, &model) {
+                (Some(path), _) => Words::File(path),
+                (None, Some(dir)) => Words::Model(dir),
+                (None, None) => unreachable!("clap requires one"),
+            };
+            let report = import::run_import(&Import {
+                cast: &cast,
+                voice: &voice,
+                script: &script,
+                words,
+                offset_ms,
+                force,
+            })
+            .map_err(Outcome::RuntimeFailure)?;
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }

@@ -26,12 +26,16 @@ fn session() -> (Trace, Vec<Word>) {
         trace.input.push((1850 + i as u64 * 60, c.to_string()));
     }
     for (i, c) in "cat \"a b\".txt\r".chars().enumerate() {
-        trace.input.push((9000 + i as u64 * 60, c.to_string()));
+        trace.input.push((30_000 + i as u64 * 60, c.to_string()));
     }
-    trace.output = vec![2400, 9900];
+    trace.output = vec![2400, 30_900];
     let words = [
         say(1000, "LET'S SEE WHAT IS HERE"),
-        say(6000, "AND NOW THE FILE"),
+        say(
+            6000,
+            "AND NOW THE FILE WHICH I WROTE EARLIER TODAY SO THAT THIS LINE RUNS LONGER \
+             THAN ONE LINE OF A SCRIPT IS WIDE",
+        ),
     ]
     .concat();
     (trace, words)
@@ -76,7 +80,10 @@ fn a_derived_script_is_a_script() {
             _ => {}
         }
     }
-    assert_eq!(narration, ["Let's see what is here.", "And now the file."]);
+    let long = "And now the file which I wrote earlier today so that this line runs \
+                longer than one line of a script is wide.";
+    assert_eq!(narration, ["Let's see what is here.", long]);
+    assert!(md.lines().all(|l| l.len() <= 76), "wrapped:\n{md}");
     assert_eq!(
         actions,
         [

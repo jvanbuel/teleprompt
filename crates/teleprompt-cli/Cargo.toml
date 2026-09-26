@@ -22,6 +22,7 @@ listen = ["dep:teleprompt-listen-sherpa", "teleprompt-listen-sherpa/sherpa"]
 teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-compile = { path = "../teleprompt-compile" }
+teleprompt-derive = { path = "../teleprompt-derive" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = true }
 teleprompt-core = { path = "../teleprompt-core" }

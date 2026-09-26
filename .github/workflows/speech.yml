@@ -50,3 +50,4 @@ jobs:
         run: |
           cargo clippy -p teleprompt-listen-sherpa --features sherpa --all-targets -- -D warnings
           cargo test -p teleprompt-listen-sherpa --features sherpa
+          cargo test -p teleprompt-cli --features listen --test import_listen

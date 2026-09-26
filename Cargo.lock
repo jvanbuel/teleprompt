@@ -1567,6 +1567,7 @@ dependencies = [
  "teleprompt-capture",
  "teleprompt-compile",
  "teleprompt-core",
+ "teleprompt-derive",
  "teleprompt-listen",
  "teleprompt-listen-sherpa",
  "teleprompt-manifest",

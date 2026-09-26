@@ -11,7 +11,7 @@ pub(crate) fn render(draft: &Draft, options: &Options) -> String {
     for beat in &draft.beats {
         if let Some(line) = &beat.line {
             out.push('\n');
-            out.push_str(&line.text);
+            out.push_str(&wrap(&line.text));
             out.push('\n');
         }
         for block in &beat.blocks {
@@ -36,4 +36,23 @@ fn info(block: &Block, scene: &str) -> String {
         info.push_str(&format!(" cue=\"{cue}\""));
     }
     info
+}
+
+/// A paragraph broken at spaces to fit 76 columns, as scripts are written;
+/// Markdown reads the breaks as spaces.
+fn wrap(text: &str) -> String {
+    let mut out = String::new();
+    let mut width = 0;
+    for word in text.split(' ') {
+        if width > 0 && width + 1 + word.len() > 76 {
+            out.push('\n');
+            width = 0;
+        } else if width > 0 {
+            out.push(' ');
+            width += 1;
+        }
+        out.push_str(word);
+        width += word.len();
+    }
+    out
 }
