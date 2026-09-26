@@ -9,7 +9,9 @@ on:
       - crates/teleprompt-listen-sherpa/**
       - crates/teleprompt-derive/**
       - crates/teleprompt-cli/src/cmd/import*
+      - crates/teleprompt-cli/src/cmd/record*
       - crates/teleprompt-cli/tests/import*
+      - crates/teleprompt-cli/tests/record*
       - .github/workflows/speech.yml
   pull_request:
     paths:
@@ -17,7 +19,9 @@ on:
       - crates/teleprompt-listen-sherpa/**
       - crates/teleprompt-derive/**
       - crates/teleprompt-cli/src/cmd/import*
+      - crates/teleprompt-cli/src/cmd/record*
       - crates/teleprompt-cli/tests/import*
+      - crates/teleprompt-cli/tests/record*
       - .github/workflows/speech.yml
 
 jobs:
@@ -34,6 +38,8 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+      - name: ffmpeg, which `record` records the microphone with
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - uses: actions/cache@v4
         with:
           path: model
@@ -50,4 +56,4 @@ jobs:
         run: |
           cargo clippy -p teleprompt-listen-sherpa --features sherpa --all-targets -- -D warnings
           cargo test -p teleprompt-listen-sherpa --features sherpa
-          cargo test -p teleprompt-cli --features listen --test import_listen
+          cargo test -p teleprompt-cli --features listen --test import_listen --test record_listen

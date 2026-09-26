@@ -52,6 +52,31 @@ struct FrameArgs {
     fps: Option<u32>,
 }
 
+/// What `import` reads, and where it writes.
+#[derive(Args)]
+struct ImportArgs {
+    /// The asciicast, with keystrokes
+    cast: PathBuf,
+    /// The voice, as a WAV
+    #[arg(long)]
+    voice: PathBuf,
+    /// Where to write the script; defaults to scripts/<cast>.md in the project
+    #[arg(long)]
+    out: Option<PathBuf>,
+    /// Directory of an unpacked sherpa-onnx streaming zipformer model
+    #[arg(long, required_unless_present = "words")]
+    model: Option<PathBuf>,
+    /// Timed words as JSON ([{text, start_ms, end_ms}]) instead of --model
+    #[arg(long, conflicts_with = "model")]
+    words: Option<PathBuf>,
+    /// How many milliseconds after the cast the voice recording started
+    #[arg(long, default_value_t = 0, allow_negative_numbers = true)]
+    offset_ms: i64,
+    /// Replace the script, and its lines' takes, if they exist
+    #[arg(long)]
+    force: bool,
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Scaffold a new project
@@ -93,27 +118,31 @@ enum Command {
     /// then spoken from your recording. Record the session with
     /// `asciinema rec --stdin` (asciinema 3: `--capture-input`) and your
     /// voice at the same time, or use `teleprompt record`.
-    Import {
-        /// The asciicast, with keystrokes
-        cast: PathBuf,
-        /// The voice, as a WAV
-        #[arg(long)]
-        voice: PathBuf,
-        /// Where to write the script; defaults to scripts/<cast>.md in the project
-        #[arg(long)]
-        out: Option<PathBuf>,
+    Import(ImportArgs),
+    /// Record yourself using a terminal while you talk, and get a script
+    ///
+    /// Opens your shell and records it and the microphone until you exit
+    /// the shell, then drafts <script> from the session as `import` does:
+    /// what you said is the narration, spoken from your recording, and what
+    /// you typed is the tapes. The recording is kept in
+    /// .teleprompt/traces. Needs ffmpeg, and a build with `--features
+    /// listen`.
+    Record {
+        /// The script to write, e.g. scripts/tour.md
+        script: PathBuf,
         /// Directory of an unpacked sherpa-onnx streaming zipformer model
-        #[arg(long, required_unless_present = "words")]
-        model: Option<PathBuf>,
-        /// Timed words as JSON ([{text, start_ms, end_ms}]) instead of --model
-        #[arg(long, conflicts_with = "model")]
-        words: Option<PathBuf>,
-        /// How many milliseconds after the cast the voice recording started
-        #[arg(long, default_value_t = 0, allow_negative_numbers = true)]
-        offset_ms: i64,
+        #[arg(long)]
+        model: PathBuf,
+        /// ffmpeg's input for the microphone, e.g. "-f alsa -i default";
+        /// defaults to the system's default input
+        #[arg(long, allow_hyphen_values = true)]
+        mic: Option<String>,
         /// Replace the script, and its lines' takes, if they exist
         #[arg(long)]
         force: bool,
+        /// The program to record instead of $SHELL, with its arguments
+        #[arg(last = true)]
+        shell: Vec<String>,
     },
     /// Parse and validate; no side effects, no cost
     Check(ScriptArgs),
@@ -300,6 +329,67 @@ fn warn(warnings: &[String]) {
     }
 }
 
+#[cfg(unix)]
+fn run_record(
+    format: Format,
+    script: &std::path::Path,
+    model: &std::path::Path,
+    mic: Option<&str>,
+    force: bool,
+    shell: Vec<String>,
+) -> Run {
+    use teleprompt_cli::cmd::record::{run_record, Record};
+    let report = run_record(&Record {
+        script,
+        model,
+        mic: mic
+            .map(|m| m.split_whitespace().map(str::to_string).collect())
+            .unwrap_or_default(),
+        shell,
+        force,
+    })
+    .map_err(Outcome::RuntimeFailure)?;
+    emit(format, &report, &report.render());
+    Ok(Outcome::Ok)
+}
+
+#[cfg(not(unix))]
+fn run_record(
+    _: Format,
+    _: &std::path::Path,
+    _: &std::path::Path,
+    _: Option<&str>,
+    _: bool,
+    _: Vec<String>,
+) -> Run {
+    Err(Outcome::RuntimeFailure(
+        "`record` needs a Unix terminal; record with asciinema and use `import`".to_string(),
+    ))
+}
+
+fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
+    let script = match args.out {
+        Some(out) => out,
+        None => default_import_script(&args.cast)?,
+    };
+    let words = match (&args.words, &args.model) {
+        (Some(path), _) => Words::File(path),
+        (None, Some(dir)) => Words::Model(dir),
+        (None, None) => unreachable!("clap requires one"),
+    };
+    let report = import::run_import(&Import {
+        cast: &args.cast,
+        voice: &args.voice,
+        script: &script,
+        words,
+        offset_ms: args.offset_ms,
+        force: args.force,
+    })
+    .map_err(Outcome::RuntimeFailure)?;
+    emit(format, &report, &report.render());
+    Ok(Outcome::Ok)
+}
+
 /// `scripts/<cast>.md` in the project around the working directory.
 fn default_import_script(cast: &std::path::Path) -> Result<PathBuf, Outcome> {
     let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;
@@ -334,36 +424,14 @@ fn run(command: Command, format: Format) -> Run {
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }
-        Command::Import {
-            cast,
-            voice,
-            out,
+        Command::Import(args) => run_import_cmd(format, args),
+        Command::Record {
+            script,
             model,
-            words,
-            offset_ms,
+            mic,
             force,
-        } => {
-            let script = match out {
-                Some(out) => out,
-                None => default_import_script(&cast)?,
-            };
-            let words = match (&words, &model) {
-                (Some(path), _) => Words::File(path),
-                (None, Some(dir)) => Words::Model(dir),
-                (None, None) => unreachable!("clap requires one"),
-            };
-            let report = import::run_import(&Import {
-                cast: &cast,
-                voice: &voice,
-                script: &script,
-                words,
-                offset_ms,
-                force,
-            })
-            .map_err(Outcome::RuntimeFailure)?;
-            emit(format, &report, &report.render());
-            Ok(Outcome::Ok)
-        }
+            shell,
+        } => run_record(format, &script, &model, mic.as_deref(), force, shell),
         Command::Cache { prune_to_mb } => {
             let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;
             let report = cache::run_cache(&project, prune_to_mb).map_err(runtime_failure)?;

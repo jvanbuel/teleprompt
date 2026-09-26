@@ -211,3 +211,36 @@ fn typed_text_is_quoted_so_vhs_reads_it_back() {
     let line = tape.lines().nth(1).unwrap();
     assert_eq!(line, r#"Type `echo "it's" \\n`"#);
 }
+
+/// A pasted command arrives all at once: it types at VHS's own speed, not
+/// at no speed.
+#[test]
+fn a_paste_types_at_the_default_speed() {
+    let mut trace = Trace::default();
+    trace.input.push((2000, "ls -la\r".to_string()));
+    let d = derive(&trace, &say(0, "HI"), &Options::default());
+    assert!(
+        d.beats[0].blocks[0]
+            .tape
+            .starts_with("Set TypingSpeed 50ms\n"),
+        "{:?}",
+        d.beats
+    );
+}
+
+/// The wait after the last command ends at the next keystroke, even one of
+/// the `exit` the script leaves out: what the shell printed after that is
+/// not this command's output.
+#[test]
+fn output_after_the_next_keystroke_is_not_waited_for() {
+    let mut trace = Trace::default();
+    let enter = typed(&mut trace, 2000, 50, "ls");
+    typed(&mut trace, 9000, 50, "exit");
+    trace.output = vec![enter + 100, 9010, 9300];
+    let d = derive(&trace, &say(0, "HI"), &Options::default());
+    assert!(
+        d.beats[0].blocks[0].tape.ends_with("Enter\nSleep 400ms\n"),
+        "{:?}",
+        d.beats
+    );
+}

@@ -1,6 +1,6 @@
 //! Speech into lines, and each command placed against them.
 
-use crate::tape::{commands, tape, Command};
+use crate::tape::{commands, tape};
 use crate::{Draft, Options, Trace, Word};
 
 /// A narration line: what was said, as the script will read it, and when.
@@ -71,7 +71,9 @@ pub fn derive(trace: &Trace, words: &[Word], options: &Options) -> Draft {
     while i < cmds.len() {
         let group = placed[i];
         let len = placed[i..].iter().take_while(|p| **p == group).count();
-        let next = cmds.get(i + len).map(Command::start);
+        // The session's next keystroke, even one of a command left out.
+        let end = cmds[i + len - 1].end();
+        let next = trace.input.iter().map(|(t, _)| *t).find(|&t| t > end);
         let (seg, mode) = group;
         let cue = match (seg, mode) {
             (Some(s), Mode::Concurrent) => cue(&segments[s], cmds[i].start()),

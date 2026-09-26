@@ -170,7 +170,8 @@ fn typing_speed(cmds: &[Command], pause_ms: u64) -> u64 {
         .flat_map(|c| c.keys.windows(2))
         .filter(|w| matches!((w[0].1, w[1].1), (Key::Char(_), Key::Char(_))))
         .map(|w| w[1].0 - w[0].0)
-        .filter(|&g| g < pause_ms)
+        // Together is a paste, not typing.
+        .filter(|&g| g > 0 && g < pause_ms)
         .collect();
     if gaps.is_empty() {
         return 50;

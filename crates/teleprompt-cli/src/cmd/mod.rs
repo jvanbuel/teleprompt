@@ -10,4 +10,6 @@ pub mod import;
 pub mod new;
 pub mod plan;
 pub mod prompt;
+#[cfg(unix)]
+pub mod record;
 pub mod serve;

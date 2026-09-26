@@ -56,6 +56,12 @@ tokio = { workspace = true, features = ["sync", "time"] }
 # the handshake, no TLS or URL client.
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 
+# `record`'s terminal: a shell in a pseudo-terminal, and ours in raw mode
+# while it runs, so every key reaches the shell as it was pressed.
+[target.'cfg(unix)'.dependencies]
+portable-pty = "0.9"
+rustix = { version = "1", features = ["termios"] }
+
 [dev-dependencies]
 # A client for `prompt`'s session socket.
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
