@@ -1,12 +1,14 @@
-//! `teleprompt prompt`'s REST API, driven over a real socket with a
+//! `teleprompt prompt`'s API, v1, driven over real sockets with a
 //! recognizer that hears what the test says. What the prompter does is
-//! tested in `teleprompt-prompter`; these pin the routes and the JSON.
+//! tested in `teleprompt-prompter`; these pin the routes, the socket's
+//! messages and their JSON.
 
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use teleprompt_cli::cmd::prompt::prompt_on;
 use teleprompt_core::Hash;
@@ -97,65 +99,209 @@ fn request(addr: SocketAddr, method: &str, path: &str, body: &[u8]) -> String {
     response.split_once("\r\n\r\n").unwrap().1.to_string()
 }
 
-fn samples(n: usize) -> Vec<u8> {
-    vec![0u8; n * 4]
+/// A GET, and the whole response: status line, headers and body.
+fn get(addr: SocketAddr, path: &str) -> Vec<u8> {
+    let mut s = TcpStream::connect(addr).unwrap();
+    write!(s, "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
+    let mut response = Vec::new();
+    s.read_to_end(&mut response).unwrap();
+    response
 }
 
-/// The page posts the microphone's samples as they come and reads back
-/// where the reader is.
+fn json_at(addr: SocketAddr, path: &str) -> serde_json::Value {
+    let body = request(addr, "GET", path, &[]);
+    serde_json::from_str(&body).unwrap_or_else(|e| panic!("{path}: {e}: {body}"))
+}
+
+type Socket = tungstenite::WebSocket<TcpStream>;
+
+/// The session socket, opened as the page opens it.
+fn session(addr: SocketAddr) -> Socket {
+    let stream = TcpStream::connect(addr).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let url = format!("ws://{addr}/api/v1/session");
+    tungstenite::client(url.as_str(), stream).unwrap().0
+}
+
+fn send(ws: &mut Socket, message: serde_json::Value) {
+    ws.send(tungstenite::Message::text(message.to_string()))
+        .unwrap();
+}
+
+/// Sends `n` samples of silence as one binary message.
+fn send_audio(ws: &mut Socket, n: usize) {
+    ws.send(tungstenite::Message::binary(vec![0u8; n * 4]))
+        .unwrap();
+}
+
+/// The next JSON message from the server.
+fn next(ws: &mut Socket) -> serde_json::Value {
+    loop {
+        match ws.read().unwrap() {
+            tungstenite::Message::Text(text) => return serde_json::from_str(&text).unwrap(),
+            tungstenite::Message::Ping(_) | tungstenite::Message::Pong(_) => continue,
+            other => panic!("expected JSON, got {other:?}"),
+        }
+    }
+}
+
+/// Starting a take answers where it starts and what plays there.
 #[test]
-fn posting_audio_answers_where_the_reader_is() {
-    let (addr, _clips) = prompting(&["welcome to"]);
-    let body = request(addr, "POST", "/listen", &samples(1600));
-    let at: serde_json::Value = serde_json::from_str(&body).unwrap();
+fn starting_a_take_answers_where_the_reader_is() {
+    let (addr, _clips) = prompting(&["deployment is"]);
+    let mut ws = session(addr);
+    send(
+        &mut ws,
+        serde_json::json!({ "type": "start", "from": 1, "rate": 16000 }),
+    );
     assert_eq!(
-        (at["line"].as_u64(), at["word"].as_u64()),
-        (Some(0), Some(2))
+        next(&mut ws),
+        serde_json::json!({ "type": "reached", "line": 1, "word": 0, "play": ["welcome-b#0"] })
+    );
+    send_audio(&mut ws, 1600);
+    assert_eq!(
+        next(&mut ws),
+        serde_json::json!({ "type": "reached", "line": 1, "word": 2, "play": [] })
     );
 }
 
-/// The page shows the lines exactly as the aligner counts their words, so a
-/// position picks out the word on screen.
+/// Audio that moves no one says nothing; the page hears only news.
 #[test]
-fn the_script_is_served_as_the_lines_it_follows() {
-    let (addr, _clips) = prompting(&[]);
-    let body = request(addr, "GET", "/script.json", &[]);
-    let script: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(script["lines"], serde_json::json!(LINES));
+fn audio_that_moves_no_one_says_nothing() {
+    let (addr, _clips) = prompting(&["", "welcome to"]);
+    let mut ws = session(addr);
+    send(
+        &mut ws,
+        serde_json::json!({ "type": "start", "from": 0, "rate": 16000 }),
+    );
+    next(&mut ws);
+    send_audio(&mut ws, 1600);
+    send_audio(&mut ws, 1600);
+    assert_eq!(
+        next(&mut ws),
+        serde_json::json!({ "type": "reached", "line": 0, "word": 2, "play": [] }),
+        "the first message after the silence"
+    );
 }
 
-/// The page marks where each shot starts, and knows which have a clip to
-/// play; one that was never captured is shown as missing, not skipped.
+/// The take's audio is at the rate `start` names; the recognizer hears it
+/// at its own.
 #[test]
-fn the_script_names_each_shot_where_it_starts_and_its_clip() {
+fn audio_is_heard_at_the_recognizers_rate() {
+    let (addr, _dir, heard) = prompting_counted(&[]);
+    let mut ws = session(addr);
+    send(
+        &mut ws,
+        serde_json::json!({ "type": "start", "from": 0, "rate": 48000 }),
+    );
+    next(&mut ws);
+    send_audio(&mut ws, 4_800);
+    send_audio(&mut ws, 4_800);
+    send(&mut ws, serde_json::json!({ "type": "stop" }));
+    next(&mut ws);
+    let n = heard.load(Ordering::SeqCst);
+    assert!((3_100..=3_200).contains(&n), "{n} samples at 16 kHz");
+}
+
+/// Stopping answers the ids of the lines kept.
+#[test]
+fn stopping_answers_the_lines_kept() {
+    let (addr, _dir) = prompting(&[]);
+    let mut ws = session(addr);
+    send(&mut ws, serde_json::json!({ "type": "stop" }));
+    assert_eq!(
+        next(&mut ws),
+        serde_json::json!({ "type": "stopped", "saved": [] })
+    );
+}
+
+/// A message the server does not understand is answered, not dropped, and
+/// the session goes on.
+#[test]
+fn a_message_not_understood_is_answered_with_an_error() {
+    let (addr, _dir) = prompting(&[]);
+    let mut ws = session(addr);
+    send(&mut ws, serde_json::json!({ "type": "rewind" }));
+    let error = next(&mut ws);
+    assert_eq!(error["type"], "error", "{error}");
+    send(&mut ws, serde_json::json!({ "type": "stop" }));
+    assert_eq!(next(&mut ws)["type"], "stopped");
+}
+
+/// One prompter, one reader: a second session is refused while the first
+/// is open, and allowed once it closes.
+#[test]
+fn one_session_at_a_time() {
+    let (addr, _dir) = prompting(&[]);
+    let mut first = session(addr);
+    let stream = TcpStream::connect(addr).unwrap();
+    let url = format!("ws://{addr}/api/v1/session");
+    match tungstenite::client(url.as_str(), stream) {
+        Err(tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response))) => {
+            assert_eq!(response.status(), 409)
+        }
+        other => panic!("a second session was not refused: {:?}", other.map(|_| ())),
+    }
+    first.close(None).unwrap();
+    while first.read().is_ok() {}
+    // The server lets go of the session once it has seen the close.
+    let mut again = (0..40)
+        .find_map(|_| {
+            let stream = TcpStream::connect(addr).unwrap();
+            let url = format!("ws://{addr}/api/v1/session");
+            let opened = tungstenite::client(url.as_str(), stream).ok();
+            if opened.is_none() {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            opened
+        })
+        .expect("a session once the first closed")
+        .0;
+    send(&mut again, serde_json::json!({ "type": "stop" }));
+    assert_eq!(next(&mut again)["type"], "stopped");
+}
+
+/// The session route is a socket; a plain request is told so.
+#[test]
+fn the_session_route_needs_a_websocket() {
+    let (addr, _dir) = prompting(&[]);
+    let response = String::from_utf8_lossy(&get(addr, "/api/v1/session")).to_string();
+    assert!(response.starts_with("HTTP/1.1 426"), "{response}");
+}
+
+/// The script lists the lines as the aligner counts their words, which are
+/// recorded, and each shot with its cue and clip; one never captured has
+/// none.
+#[test]
+fn the_script_lists_lines_and_shots() {
     let (addr, _clips) = prompting(&[]);
-    let body = request(addr, "GET", "/script.json", &[]);
-    let script: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let script = json_at(addr, "/api/v1/script");
     let captured = Hash::of(b"welcome-a#0");
     assert_eq!(
-        script["shots"],
-        serde_json::json!([
-            { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },
-            { "shot": "welcome-a#0", "at": { "line": 0, "word": 3 },
-              "clip": format!("/clips/{captured}.mp4") },
-            { "shot": "welcome-b#0", "at": { "line": 1, "word": 0 }, "clip": null },
-        ])
+        script,
+        serde_json::json!({
+            "lines": [
+                { "id": "welcome", "text": LINES[0], "recorded": false },
+                { "id": "deploy", "text": LINES[1], "recorded": false },
+            ],
+            "shots": [
+                { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },
+                { "shot": "welcome-a#0", "at": { "line": 0, "word": 3 },
+                  "clip": format!("/api/v1/clips/{captured}.mp4") },
+                { "shot": "welcome-b#0", "at": { "line": 1, "word": 0 }, "clip": null },
+            ],
+        })
     );
 }
 
-/// A captured clip is served as video; nothing else in the cache is.
+/// A cued shot's clip is served as video; nothing else in the cache is.
 #[test]
 fn a_cued_clip_is_served_and_nothing_else() {
     let (addr, clips) = prompting(&[]);
     let captured = Hash::of(b"welcome-a#0");
-    let mut s = TcpStream::connect(addr).unwrap();
-    write!(
-        s,
-        "GET /clips/{captured}.mp4 HTTP/1.1\r\nHost: localhost\r\n\r\n"
-    )
-    .unwrap();
-    let mut response = Vec::new();
-    s.read_to_end(&mut response).unwrap();
+    let response = get(addr, &format!("/api/v1/clips/{captured}.mp4"));
     let text = String::from_utf8_lossy(&response);
     assert!(text.starts_with("HTTP/1.1 200"), "{text}");
     assert!(text.contains("Content-Type: video/mp4"), "{text}");
@@ -164,19 +310,27 @@ fn a_cued_clip_is_served_and_nothing_else() {
     let stray = Hash::of(b"not a cued shot");
     std::fs::write(clips.join(format!("{stray}.mp4")), CLIP).unwrap();
     for path in [
-        format!("/clips/{stray}.mp4"),
-        "/clips/../secret.mp4".to_string(),
+        format!("/api/v1/clips/{stray}.mp4"),
+        "/api/v1/clips/../secret.mp4".to_string(),
     ] {
-        let mut s = TcpStream::connect(addr).unwrap();
-        write!(s, "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
-        let mut response = String::new();
-        s.read_to_string(&mut response).unwrap();
+        let response = String::from_utf8_lossy(&get(addr, &path)).to_string();
+        assert!(response.starts_with("HTTP/1.1 404"), "{path}: {response}");
+    }
+}
+
+/// The API is versioned; the unversioned routes of before are gone, and an
+/// unknown version is not served.
+#[test]
+fn only_version_1_is_served() {
+    let (addr, _clips) = prompting(&[]);
+    for path in ["/script.json", "/api/v2/script", "/api/script"] {
+        let response = String::from_utf8_lossy(&get(addr, path)).to_string();
         assert!(response.starts_with("HTTP/1.1 404"), "{path}: {response}");
     }
 }
 
 /// The page is served at the root, and it is the one that reads the script
-/// and posts the microphone.
+/// and opens the session.
 #[test]
 fn the_prompter_page_is_served_at_the_root() {
     let (addr, _clips) = prompting(&[]);
@@ -186,7 +340,17 @@ fn the_prompter_page_is_served_at_the_root() {
         "{}",
         &page[..page.len().min(80)]
     );
-    assert!(page.contains("/script.json") && page.contains("/listen"));
+    assert!(page.contains(r#"const API = "/api/v1";"#));
+    assert!(page.contains("${API}/script") && page.contains("${API}/session"));
+}
+
+/// Browsers ask for an icon on every visit; the answer is "none", not an
+/// error in the page's console.
+#[test]
+fn the_icon_request_is_answered_with_nothing() {
+    let (addr, _clips) = prompting(&[]);
+    let response = String::from_utf8_lossy(&get(addr, "/favicon.ico")).to_string();
+    assert!(response.starts_with("HTTP/1.1 204"), "{response}");
 }
 
 fn tp_prompt(tag: &str, extra: &[&str]) -> std::process::Output {
@@ -222,18 +386,6 @@ fn without_a_model_the_command_says_which_to_download() {
         stderr.contains("sherpa-onnx-streaming-zipformer-en"),
         "{stderr}"
     );
-}
-
-/// Browsers ask for an icon on every visit; the answer is "none", not an
-/// error in the page's console.
-#[test]
-fn the_icon_request_is_answered_with_nothing() {
-    let (addr, _clips) = prompting(&[]);
-    let mut s = TcpStream::connect(addr).unwrap();
-    write!(s, "GET /favicon.ico HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
-    let mut response = String::new();
-    s.read_to_string(&mut response).unwrap();
-    assert!(response.starts_with("HTTP/1.1 204"), "{response}");
 }
 
 const TOUR: &str = "\
@@ -301,47 +453,4 @@ fn each_shot_is_cued_where_its_policy_starts_it() {
         .collect();
     let cued: Vec<&str> = cues.iter().map(|c| c.shot.as_str()).collect();
     assert_eq!(cued, shots, "every shot, in timeline order");
-}
-
-/// The page sends the microphone at its own rate; the recognizer hears it
-/// at the rate it was made for.
-#[test]
-fn audio_at_the_microphones_rate_reaches_the_recognizer_at_its_own() {
-    let (addr, _dir, heard) = prompting_counted(&[]);
-    request(addr, "POST", "/listen?rate=48000", &samples(4_800));
-    request(addr, "POST", "/listen?rate=48000", &samples(4_800));
-    let n = heard.load(Ordering::SeqCst);
-    assert!((3_100..=3_200).contains(&n), "{n} samples at 16 kHz");
-}
-
-/// A take can start at a line, to read it again; the shots before it do not
-/// play.
-#[test]
-fn a_take_can_start_at_a_line() {
-    let (addr, _dir) = prompting(&["deployment is"]);
-    let top: serde_json::Value =
-        serde_json::from_str(&request(addr, "POST", "/start?from=1", &[])).unwrap();
-    assert_eq!(
-        top,
-        serde_json::json!({ "line": 1, "word": 0, "play": ["welcome-b#0"] })
-    );
-    let at: serde_json::Value =
-        serde_json::from_str(&request(addr, "POST", "/listen", &samples(1600))).unwrap();
-    assert_eq!(
-        (at["line"].as_u64(), at["word"].as_u64()),
-        (Some(1), Some(2))
-    );
-}
-
-/// Stopping answers the ids of the lines kept, and the script says which
-/// lines are recorded.
-#[test]
-fn stopping_answers_the_lines_kept() {
-    let (addr, _dir) = prompting(&[]);
-    let stopped: serde_json::Value =
-        serde_json::from_str(&request(addr, "POST", "/stop", &[])).unwrap();
-    assert_eq!(stopped, serde_json::json!({ "saved": [] }));
-    let script: serde_json::Value =
-        serde_json::from_str(&request(addr, "GET", "/script.json", &[])).unwrap();
-    assert_eq!(script["recorded"], serde_json::json!([false, false]));
 }

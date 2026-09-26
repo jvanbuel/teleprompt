@@ -258,7 +258,7 @@ takes, every command that compiles names the lines it still synthesizes.
 
 `prompt` records takes. The prompter is `teleprompt-prompter`, a
 `Session` with typed calls (`start`, `listen`, `stop`, `script`, `clip`);
-`teleprompt prompt` is a REST API over it and the page that drives it, so
+`teleprompt prompt` serves it as an API and the page that drives it, so
 another front end, such as a native app, can drive the same session through
 the API or call the library directly. The page streams the microphone at
 its own rate; the session keeps that as the take and feeds the recognizer a
@@ -272,6 +272,38 @@ synthesized lines, because the manifest has one audio format. The
 conversion keeps the length to the millisecond, since the manifest
 publishes it. A take whose bytes no longer match their sidecar fails the
 command. `serve` plays a recorded line from its take.
+
+#### Prompter API, version 1
+
+Everything is under `/api/v1`, on loopback. The script and clips are plain
+HTTP; the session is a WebSocket, since the microphone is a stream.
+
+| route | does |
+|---|---|
+| `GET /api/v1/script` | `{"lines":[{"id","text","recorded"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured |
+| `GET /api/v1/clips/<key>.mp4` | a cued shot's clip; nothing else in the cache |
+| `GET /api/v1/session` | the session socket; one at a time, a second gets 409 |
+
+On the socket, the client sends:
+
+- `{"type":"start","from":N,"rate":HZ}`: a new take at line N, with audio
+  at HZ; a take not stopped is dropped.
+- binary messages: little-endian f32 mono samples at the take's rate.
+- `{"type":"stop"}`: keep the lines read in full.
+
+The server sends:
+
+- `{"type":"reached","line","word","play":[shot]}` after a start, and
+  whenever audio moves the reader or reaches a shot. `line` and `word` are
+  the next word to be said, words counted by splitting the line's text at
+  whitespace.
+- `{"type":"stopped","saved":[line id]}`.
+- `{"type":"error","message"}` for a message it did not understand or a
+  take it could not save; the session goes on.
+
+Within a version, the API only grows: new fields, messages and routes.
+Clients ignore what they do not know. A change that would break a client
+is `/api/v2`.
 
 ### Backend failure
 

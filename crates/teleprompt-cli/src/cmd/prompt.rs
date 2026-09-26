@@ -1,14 +1,20 @@
 //! `teleprompt prompt <script>`: a prompter that follows the reader's voice.
 //!
-//! The prompter itself is `teleprompt-prompter`; this is its REST API and
-//! the page that drives it. Hand-rolled over `TcpListener` like `serve`:
-//! one browser, on localhost.
+//! The prompter itself is `teleprompt-prompter`; this is its API, version
+//! 1, and the page that drives it: HTTP for the script and clips, and a
+//! WebSocket for the session. Hand-rolled over `TcpListener` like `serve`:
+//! one reader, on localhost.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use teleprompt_listen::Recognizer;
-use teleprompt_prompter::{Prompt, Reached, Script, Session, LISTEN_RATE};
+use teleprompt_prompter::{Position, Prompt, Reached, Script, Session, LISTEN_RATE};
+use tungstenite::handshake::derive_accept_key;
+use tungstenite::protocol::Role;
+use tungstenite::{Message, WebSocket};
 
 use crate::output::Outcome;
 use crate::project::Project;
@@ -94,72 +100,174 @@ pub fn run_prompt(
 const PAGE: &str = include_str!("prompt.html");
 
 /// Serves `prompt` on `listener` until the process ends: the page, and
-/// the [`Session`] as a REST API.
-///
-/// | route | does |
-/// |---|---|
-/// | `GET /script.json` | the lines, whether each is recorded, and each shot with its cue and clip URL |
-/// | `POST /start?from=N` | a new take from line N (default 0) |
-/// | `POST /listen?rate=HZ` | little-endian f32 mono samples (default 16 kHz); where the reader is |
-/// | `POST /stop` | ends the take; the ids of the lines kept |
-/// | `GET /clips/<key>.mp4` | a shot's captured clip |
-pub fn prompt_on<R: Recognizer>(
+/// the [`Session`] as API version 1 (`docs/design.md#prompter-api-version-1`):
+/// `GET /api/v1/script`, `GET /api/v1/clips/<key>.mp4`, and the session as
+/// a WebSocket at `GET /api/v1/session`.
+pub fn prompt_on<R: Recognizer + Send + 'static>(
     listener: TcpListener,
     prompt: Prompt,
     recognizer: R,
 ) -> std::io::Result<()> {
-    let mut session = Session::new(prompt, recognizer)?;
+    let server = Arc::new(Server {
+        session: Mutex::new(Session::new(prompt, recognizer)?),
+        open: AtomicBool::new(false),
+    });
     for stream in listener.incoming() {
-        let mut stream = stream?;
-        let Ok(request) = read_request(&mut stream) else {
-            continue;
-        };
-        let (status, kind, body) = route(&mut session, &request);
-        respond(&mut stream, status, kind, &body)?;
+        let stream = stream?;
+        let server = server.clone();
+        // A session socket stays open, so each connection has a thread.
+        std::thread::spawn(move || {
+            let _ = server.handle(stream);
+        });
     }
     Ok(())
 }
 
+struct Server<R> {
+    session: Mutex<Session<R>>,
+    /// Whether a session socket is open.
+    open: AtomicBool,
+}
+
 type Response = (&'static str, &'static str, Vec<u8>);
 
-fn route<R: Recognizer>(session: &mut Session<R>, request: &Request) -> Response {
-    let (path, query) = request
-        .path
-        .split_once('?')
-        .unwrap_or((request.path.as_str(), ""));
-    match (request.method.as_str(), path) {
-        ("POST", "/listen") => {
-            let rate = param(query, "rate").unwrap_or(LISTEN_RATE);
-            json(reached(session.listen(&samples(&request.body), rate)))
+impl<R: Recognizer> Server<R> {
+    fn session(&self) -> MutexGuard<'_, Session<R>> {
+        self.session.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn handle(&self, mut stream: TcpStream) -> std::io::Result<()> {
+        let request = read_request(&mut stream)?;
+        if request.method == "GET" && request.path == "/api/v1/session" {
+            return self.open_session(stream, &request);
         }
-        ("POST", "/start") => json(reached(session.start(param(query, "from").unwrap_or(0)))),
-        ("POST", "/stop") => match session.stop() {
-            Ok(saved) => json(serde_json::json!({ "saved": saved })),
-            Err(e) => failed(e),
-        },
-        ("GET", "/") => ("200 OK", "text/html; charset=utf-8", PAGE.into()),
-        ("GET", "/favicon.ico") => ("204 No Content", "text/plain", Vec::new()),
-        ("GET", "/script.json") => json(script(session.script())),
-        ("GET", path) => match path
-            .strip_prefix("/clips/")
-            .and_then(|name| name.strip_suffix(".mp4"))
-            .and_then(|key| session.clip(key))
-        {
-            Some(clip) => match std::fs::read(clip) {
-                Ok(bytes) => ("200 OK", "video/mp4", bytes),
-                Err(e) => failed(e),
+        let (status, kind, body) = self.route(&request);
+        respond(&mut stream, status, kind, &[], &body)
+    }
+
+    fn route(&self, request: &Request) -> Response {
+        if request.method != "GET" {
+            return not_found();
+        }
+        match request.path.as_str() {
+            "/" => ("200 OK", "text/html; charset=utf-8", PAGE.into()),
+            "/favicon.ico" => ("204 No Content", "text/plain", Vec::new()),
+            "/api/v1/script" => json(script(self.session().script())),
+            path => match path
+                .strip_prefix("/api/v1/clips/")
+                .and_then(|name| name.strip_suffix(".mp4"))
+                .and_then(|key| self.session().clip(key))
+            {
+                Some(clip) => match std::fs::read(clip) {
+                    Ok(bytes) => ("200 OK", "video/mp4", bytes),
+                    Err(e) => failed(e),
+                },
+                None => not_found(),
             },
-            None => not_found(),
-        },
-        _ => not_found(),
+        }
+    }
+
+    /// Upgrades `stream` to the session socket, unless one is open.
+    fn open_session(&self, mut stream: TcpStream, request: &Request) -> std::io::Result<()> {
+        let Some(key) = request.header("sec-websocket-key") else {
+            let body = b"the session is a WebSocket";
+            let upgrade = [("Upgrade", "websocket")];
+            return respond(
+                &mut stream,
+                "426 Upgrade Required",
+                "text/plain",
+                &upgrade,
+                body,
+            );
+        };
+        if self.open.swap(true, Ordering::SeqCst) {
+            let body = b"a session is already open";
+            return respond(&mut stream, "409 Conflict", "text/plain", &[], body);
+        }
+        let result = self.run_session(stream, key);
+        self.open.store(false, Ordering::SeqCst);
+        result
+    }
+
+    fn run_session(&self, mut stream: TcpStream, key: &str) -> std::io::Result<()> {
+        write!(
+            stream,
+            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\
+             Connection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n",
+            derive_accept_key(key.as_bytes())
+        )?;
+        let mut ws = WebSocket::from_raw_socket(stream, Role::Server, None);
+        let mut rate = LISTEN_RATE;
+        let mut at = None;
+        loop {
+            let answer = match ws.read() {
+                Ok(Message::Text(text)) => self.command(text.as_str(), &mut rate, &mut at),
+                Ok(Message::Binary(audio)) => {
+                    let reached = self.session().listen(&samples(&audio), rate);
+                    let news = at != Some(reached.at) || !reached.play.is_empty();
+                    at = Some(reached.at);
+                    news.then(|| reached_json(&reached))
+                }
+                Ok(Message::Close(_))
+                | Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
+                    return Ok(())
+                }
+                Ok(_) => None,
+                Err(e) => return Err(std::io::Error::other(e)),
+            };
+            if let Some(answer) = answer {
+                ws.send(Message::text(answer.to_string()))
+                    .map_err(std::io::Error::other)?;
+            }
+        }
+    }
+
+    /// A JSON message from the client, and the answer to it.
+    fn command(
+        &self,
+        text: &str,
+        rate: &mut u32,
+        at: &mut Option<Position>,
+    ) -> Option<serde_json::Value> {
+        let message: serde_json::Value = match serde_json::from_str(text) {
+            Ok(message) => message,
+            Err(e) => return Some(error(format!("not JSON: {e}"))),
+        };
+        match message["type"].as_str() {
+            Some("start") => {
+                let from = message["from"].as_u64().unwrap_or(0) as usize;
+                *rate = message["rate"]
+                    .as_u64()
+                    .and_then(|r| u32::try_from(r).ok())
+                    .filter(|&r| r > 0)
+                    .unwrap_or(LISTEN_RATE);
+                let reached = self.session().start(from);
+                *at = Some(reached.at);
+                Some(reached_json(&reached))
+            }
+            Some("stop") => Some(match self.session().stop() {
+                Ok(saved) => serde_json::json!({ "type": "stopped", "saved": saved }),
+                Err(e) => error(e.to_string()),
+            }),
+            _ => Some(error(format!("not a message this server knows: {text}"))),
+        }
     }
 }
 
-fn reached(r: Reached) -> serde_json::Value {
-    serde_json::json!({ "line": r.at.line, "word": r.at.word, "play": r.play })
+fn reached_json(r: &Reached) -> serde_json::Value {
+    serde_json::json!({ "type": "reached", "line": r.at.line, "word": r.at.word, "play": r.play })
+}
+
+fn error(message: String) -> serde_json::Value {
+    serde_json::json!({ "type": "error", "message": message })
 }
 
 fn script(s: Script) -> serde_json::Value {
+    let lines: Vec<_> = s
+        .lines
+        .iter()
+        .map(|l| serde_json::json!({ "id": l.id, "text": l.text, "recorded": l.recorded }))
+        .collect();
     let shots: Vec<_> = s
         .shots
         .iter()
@@ -167,13 +275,11 @@ fn script(s: Script) -> serde_json::Value {
             serde_json::json!({
                 "shot": shot.shot,
                 "at": { "line": shot.at.line, "word": shot.at.word },
-                "clip": shot.clip.as_ref().map(|_| format!("/clips/{}.mp4", shot.capture_key)),
+                "clip": shot.clip.as_ref().map(|_| format!("/api/v1/clips/{}.mp4", shot.capture_key)),
             })
         })
         .collect();
-    let lines: Vec<_> = s.lines.iter().map(|l| &l.text).collect();
-    let recorded: Vec<_> = s.lines.iter().map(|l| l.recorded).collect();
-    serde_json::json!({ "lines": lines, "recorded": recorded, "shots": shots })
+    serde_json::json!({ "lines": lines, "shots": shots })
 }
 
 fn json(value: serde_json::Value) -> Response {
@@ -192,21 +298,23 @@ fn not_found() -> Response {
     ("404 Not Found", "text/plain", b"not found".to_vec())
 }
 
-/// `name`'s value in a query string.
-fn param<T: std::str::FromStr>(query: &str, name: &str) -> Option<T> {
-    query
-        .split('&')
-        .filter_map(|pair| pair.split_once('='))
-        .find(|(key, _)| *key == name)
-        .and_then(|(_, value)| value.parse().ok())
-}
-
 struct Request {
     method: String,
     path: String,
-    body: Vec<u8>,
+    /// Names lowercased.
+    headers: Vec<(String, String)>,
 }
 
+impl Request {
+    fn header(&self, name: &str) -> Option<&str> {
+        self.headers
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
+    }
+}
+
+/// The request line and headers. No route takes a body.
 fn read_request(stream: &mut TcpStream) -> std::io::Result<Request> {
     let mut reader = BufReader::new(&*stream);
     let mut first = String::new();
@@ -214,7 +322,7 @@ fn read_request(stream: &mut TcpStream) -> std::io::Result<Request> {
     let mut parts = first.split_whitespace();
     let method = parts.next().unwrap_or_default().to_string();
     let path = parts.next().unwrap_or_default().to_string();
-    let mut length = 0;
+    let mut headers = Vec::new();
     loop {
         let mut header = String::new();
         reader.read_line(&mut header)?;
@@ -223,14 +331,14 @@ fn read_request(stream: &mut TcpStream) -> std::io::Result<Request> {
             break;
         }
         if let Some((name, value)) = header.split_once(':') {
-            if name.eq_ignore_ascii_case("content-length") {
-                length = value.trim().parse().unwrap_or(0);
-            }
+            headers.push((name.trim().to_ascii_lowercase(), value.trim().to_string()));
         }
     }
-    let mut body = vec![0; length];
-    reader.read_exact(&mut body)?;
-    Ok(Request { method, path, body })
+    Ok(Request {
+        method,
+        path,
+        headers,
+    })
 }
 
 /// Little-endian f32 samples, as the page sends them.
@@ -240,12 +348,22 @@ fn samples(body: &[u8]) -> Vec<f32> {
         .collect()
 }
 
-fn respond(stream: &mut TcpStream, status: &str, kind: &str, body: &[u8]) -> std::io::Result<()> {
-    let head = format!(
+fn respond(
+    stream: &mut TcpStream,
+    status: &str,
+    kind: &str,
+    headers: &[(&str, &str)],
+    body: &[u8],
+) -> std::io::Result<()> {
+    let mut head = format!(
         "HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n\
-         Cache-Control: no-store\r\nConnection: close\r\n\r\n",
+         Cache-Control: no-store\r\nConnection: close\r\n",
         body.len()
     );
+    for (name, value) in headers {
+        head.push_str(&format!("{name}: {value}\r\n"));
+    }
+    head.push_str("\r\n");
     stream.write_all(head.as_bytes())?;
     stream.write_all(body)?;
     stream.flush()

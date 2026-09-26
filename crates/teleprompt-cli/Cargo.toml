@@ -51,8 +51,13 @@ serde_yaml.workspace = true
 # the command reached for when something is broken, so it must not itself
 # wait out a hanging server's full synthesis `timeout_ms`.
 tokio = { workspace = true, features = ["sync", "time"] }
+# `prompt`'s session socket. Blocking, like the rest of its server; only
+# the handshake, no TLS or URL client.
+tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 
 [dev-dependencies]
+# A client for `prompt`'s session socket.
+tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 teleprompt-testkit = { path = "../teleprompt-testkit" }
 insta.workspace = true
 tempfile.workspace = true

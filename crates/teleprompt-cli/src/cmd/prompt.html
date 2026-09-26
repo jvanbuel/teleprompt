@@ -68,7 +68,8 @@
 </div>
 <script>
 "use strict";
-const SEND_EVERY_MS = 100;   // how much audio each POST carries, at most
+const API = "/api/v1";
+const SEND_EVERY_MS = 100;   // how much audio each message carries, at most
 const $ = (id) => document.getElementById(id);
 
 let words = [];              // per line, the word spans, split as the server splits
@@ -77,7 +78,7 @@ let queue = [];              // shots to play after the one playing
 let listening = false;
 let pending = [];            // samples not yet sent, at the microphone's rate
 let rate = 0;                // the microphone's rate, once it is open
-let inFlight = false;
+let ws = null;               // the session socket, once open
 
 function status(text, bad = false) {
   $("status").textContent = text;
@@ -85,9 +86,9 @@ function status(text, bad = false) {
 }
 
 async function loadScript() {
-  const script = await (await fetch("/script.json")).json();
+  const script = await (await fetch(`${API}/script`)).json();
   const root = $("script");
-  words = script.lines.map((text, l) => {
+  words = script.lines.map(({ text }, l) => {
     const p = document.createElement("p");
     p.className = "line";
     p.addEventListener("click", () => take(l));
@@ -102,13 +103,13 @@ async function loadScript() {
     return spans;
   });
   for (const shot of script.shots) markShot(shot);
-  markRecorded(script.recorded);
+  markRecorded(script.lines);
   document.body.classList.toggle("with-screen", script.shots.length > 0);
   show({ line: 0, word: 0 });
 }
 
-function markRecorded(recorded) {
-  [...$("script").children].forEach((p, l) => p.classList.toggle("recorded", !!recorded[l]));
+function markRecorded(lines) {
+  [...$("script").children].forEach((p, l) => p.classList.toggle("recorded", !!lines[l]?.recorded));
 }
 
 /** A marker in the text where a shot starts: before the word that starts
@@ -178,20 +179,43 @@ function show(at) {
   window.scrollTo({ top, behavior: "smooth" });
 }
 
-async function send() {
-  if (inFlight || pending.length === 0) return;
-  inFlight = true;
-  const chunk = Float32Array.from(pending);
+/** Sends the audio not yet sent, as one binary message. */
+function send() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || pending.length === 0) return;
+  ws.send(Float32Array.from(pending).buffer);
   pending = [];
-  try {
-    const r = await fetch(`/listen?rate=${rate}`, { method: "POST", body: chunk.buffer });
-    const heard = await r.json();
-    show(heard);
-    play(heard.play);
-  } catch (e) {
-    status(`lost the server: ${e}`, true);
-  } finally {
-    inFlight = false;
+}
+
+/** Opens the session socket; its messages drive the page from then on. */
+function openSession() {
+  if (ws && ws.readyState === WebSocket.OPEN) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://${location.host}${API}/session`);
+    socket.binaryType = "arraybuffer";
+    socket.onopen = () => {
+      ws = socket;
+      resolve();
+    };
+    socket.onerror = () => reject(new Error("no session: is another prompter page open?"));
+    socket.onclose = () => {
+      if (ws === socket) status("lost the server", true);
+      ws = null;
+      listening = false;
+    };
+    socket.onmessage = (e) => onMessage(JSON.parse(e.data));
+  });
+}
+
+async function onMessage(message) {
+  if (message.type === "reached") {
+    show(message);
+    play(message.play);
+  } else if (message.type === "stopped") {
+    const { saved } = message;
+    status(saved.length ? `kept ${saved.length} line(s): ${saved.join(", ")}` : "nothing read in full to keep");
+    markRecorded((await (await fetch(`${API}/script`)).json()).lines);
+  } else if (message.type === "error") {
+    status(message.message, true);
   }
 }
 
@@ -227,7 +251,8 @@ async function openMic() {
   mic = stream;
 }
 
-/** A new take from line `from`; the server drops any take not kept. */
+/** A new take from line `from`; the server drops any take not kept. The
+ *  answer to the start shows where it begins. */
 async function take(from = 0) {
   $("start")?.remove();
   try {
@@ -236,26 +261,28 @@ async function take(from = 0) {
     status(`no microphone: ${e.message ?? e}`, true);
     return;
   }
+  try {
+    await openSession();
+  } catch (e) {
+    status(e.message, true);
+    return;
+  }
   listening = false;
   pending = [];
   queue = [];
   for (const { marker } of shots.values()) marker.classList.remove("playing", "played");
   shownLine = -1;
-  const top = await (await fetch(`/start?from=${from}`, { method: "POST" })).json();
-  show(top);
-  play(top.play);
+  ws.send(JSON.stringify({ type: "start", from, rate }));
   listening = true;
   status(`recording from line ${from + 1}`);
 }
 
 /** Ends the take, keeping the lines read in full. */
-async function keep() {
+function keep() {
+  if (!ws) return;
   listening = false;
-  await send();
-  const { saved } = await (await fetch("/stop", { method: "POST" })).json();
-  status(saved.length ? `kept ${saved.length} line(s): ${saved.join(", ")}` : "nothing read in full to keep");
-  const script = await (await fetch("/script.json")).json();
-  markRecorded(script.recorded);
+  send();
+  ws.send(JSON.stringify({ type: "stop" }));
 }
 
 document.addEventListener("keydown", (e) => {
