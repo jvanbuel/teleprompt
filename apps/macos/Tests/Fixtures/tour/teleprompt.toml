@@ -1,0 +1,10 @@
+# teleprompt project configuration
+[locales]
+source = "en"
+targets = []
+
+[voice]
+backend = "null"
+
+[scene.mock]
+adapter = "mock"

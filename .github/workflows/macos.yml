@@ -1,0 +1,58 @@
+name: macOS app
+
+# The app and what it talks to: the prompter's API and the crates behind it.
+on:
+  push:
+    paths:
+      - apps/macos/**
+      - docs/api/**
+      - crates/teleprompt-cli/src/cmd/prompt*
+      - crates/teleprompt-prompter/**
+      - crates/teleprompt-listen/**
+      - crates/teleprompt-listen-sherpa/**
+      - .github/workflows/macos.yml
+  pull_request:
+    paths:
+      - apps/macos/**
+      - docs/api/**
+      - crates/teleprompt-cli/src/cmd/prompt*
+      - crates/teleprompt-prompter/**
+      - crates/teleprompt-listen/**
+      - crates/teleprompt-listen-sherpa/**
+      - .github/workflows/macos.yml
+
+jobs:
+  app:
+    runs-on: macos-15
+    env:
+      CARGO_INCREMENTAL: "0"
+      MODEL: sherpa-onnx-streaming-zipformer-en-2023-06-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The server the app launches, with the recognizer.
+      - run: cargo build -p teleprompt-cli --features listen
+      - uses: actions/cache@v4
+        with:
+          path: model
+          key: ${{ env.MODEL }}
+      - name: Speech model
+        run: |
+          if [ ! -d "model/$MODEL" ]; then
+            mkdir -p model
+            curl -sSfL "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$MODEL.tar.bz2" | tar xj -C model
+          fi
+      - name: Build and test the app
+        working-directory: apps/macos
+        env:
+          TELEPROMPT_BIN: ${{ github.workspace }}/target/debug/teleprompt
+          TELEPROMPT_MODEL: ${{ github.workspace }}/model/${{ env.MODEL }}
+          # Turns the end-to-end test's skip into a failure.
+          TELEPROMPT_REQUIRE_E2E: "1"
+        run: |
+          swift build
+          swift test
+      - name: Bundle
+        working-directory: apps/macos
+        run: ./bundle.sh
