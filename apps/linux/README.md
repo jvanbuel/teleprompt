@@ -1,5 +1,7 @@
 # Teleprompt for Linux
 
+![The prompter mid-take](../../docs/images/prompter.png)
+
 A native prompter for teleprompt, in GTK 4 and libadwaita. Open a script
 and read: the text follows your voice, each shot plays as you reach it, and
 every line you read in full is kept as that line's take.

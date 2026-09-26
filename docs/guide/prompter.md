@@ -1,5 +1,7 @@
 # Reading from a prompter
 
+![The prompter mid-take: the next word in amber on the reading line, the shot playing in the monitor, the rundown, and the tally bar.](../images/prompter.png)
+
 `teleprompt prompt <script>` shows the script's narration as a prompter that
 follows your voice. It listens through the microphone, works out where you
 are by matching what a local speech model hears against the script, and
