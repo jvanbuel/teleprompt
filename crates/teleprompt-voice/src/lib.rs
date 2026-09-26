@@ -15,4 +15,4 @@ pub use contract::{
 };
 pub use estimator::{DurationEstimator, WpmEstimator, DEFAULT_WPM};
 pub use registry::VoiceRegistry;
-pub use resample::resample;
+pub use resample::{resample, Resampler};

@@ -74,3 +74,26 @@ fn resampled_audio_keeps_its_length_to_the_millisecond() {
         assert_eq!(after.duration_ms(), before, "{from} → {to}");
     }
 }
+
+/// Audio that arrives in chunks, as a microphone's does, comes out as it
+/// would all at once: no seam at the edges of the chunks.
+#[test]
+fn resampling_in_chunks_is_resampling_all_at_once() {
+    let s = sine(440.0, 48_000, 1.0);
+    for (from, to) in [(48_000, 16_000), (44_100, 16_000), (16_000, 48_000)] {
+        let whole = resample(&s, from, to);
+        let mut streaming = teleprompt_voice::Resampler::new(from, to);
+        let mut pieces = Vec::new();
+        for chunk in s.chunks(4_801) {
+            pieces.extend(streaming.push(chunk));
+        }
+        pieces.extend(streaming.finish());
+        assert_eq!(pieces.len(), whole.len(), "{from} → {to}");
+        let worst = pieces
+            .iter()
+            .zip(&whole)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0, f32::max);
+        assert!(worst < 1e-6, "{from} → {to}: off by {worst}");
+    }
+}
