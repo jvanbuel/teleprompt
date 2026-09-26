@@ -454,3 +454,88 @@ fn each_shot_is_cued_where_its_policy_starts_it() {
     let cued: Vec<&str> = cues.iter().map(|c| c.shot.as_str()).collect();
     assert_eq!(cued, shots, "every shot, in timeline order");
 }
+
+/// An example from `docs/api/v1/examples`: the contract the app is tested
+/// against too.
+fn example(name: &str) -> serde_json::Value {
+    let path = format!(
+        "{}/../../docs/api/v1/examples/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
+    serde_json::from_str(&text).unwrap_or_else(|e| panic!("{path}: {e}"))
+}
+
+fn send_example(ws: &mut Socket, name: &str) {
+    send(ws, example(name));
+}
+
+/// The documented examples are what the server says and accepts.
+#[test]
+fn the_examples_are_what_the_server_says() {
+    let (addr, _clips) = prompting(&["deployment is"]);
+    assert_eq!(json_at(addr, "/api/v1/script"), example("script.json"));
+    let mut ws = session(addr);
+    send_example(&mut ws, "start.json");
+    assert_eq!(next(&mut ws), example("reached.json"));
+    ws.send(tungstenite::Message::text(r#"{"type":"rewind"}"#))
+        .unwrap();
+    assert_eq!(next(&mut ws), example("error.json"));
+}
+
+/// 16 kHz audio: `spans` of (seconds, loud), as the bytes the socket takes.
+fn audio(spans: &[(f32, bool)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for &(seconds, loud) in spans {
+        for i in 0..(seconds * 16_000.0) as usize {
+            let v = if loud {
+                0.3 * (i as f32 * 0.2).sin()
+            } else {
+                0.0
+            };
+            out.extend(v.to_le_bytes());
+        }
+    }
+    out
+}
+
+/// A take read over the socket and stopped answers as the example does.
+#[test]
+fn a_take_stopped_over_the_socket_answers_as_the_example() {
+    const LINE_0: &str = "welcome to acme let me show you around";
+    let mut heard = vec![""; 5];
+    heard.extend(["welcome to"; 6]);
+    heard.extend([LINE_0; 7]);
+    heard.extend([""; 5]);
+    heard.extend(["deployment is"; 7]);
+    let (addr, _dir) = prompting(&heard);
+    let mut ws = session(addr);
+    send(
+        &mut ws,
+        serde_json::json!({ "type": "start", "from": 0, "rate": 16000 }),
+    );
+    let take = audio(&[(0.3, false), (1.2, true), (0.8, false), (0.7, true)]);
+    for chunk in take.chunks(1_600 * 4) {
+        ws.send(tungstenite::Message::binary(chunk.to_vec()))
+            .unwrap();
+    }
+    send_example(&mut ws, "stop.json");
+    let stopped = loop {
+        let message = next(&mut ws);
+        if message["type"] != "reached" {
+            break message;
+        }
+    };
+    assert_eq!(stopped, example("stopped.json"));
+}
+
+/// Launched by an app with `--format json`, the command says where it
+/// listens, on stdout, as the example does.
+#[test]
+fn the_listening_event_is_the_example() {
+    let addr: SocketAddr = "127.0.0.1:7879".parse().unwrap();
+    assert_eq!(
+        teleprompt_cli::cmd::prompt::listening_event(addr),
+        example("listening.json")
+    );
+}

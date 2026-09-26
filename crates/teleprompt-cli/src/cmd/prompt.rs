@@ -6,7 +6,7 @@
 //! one reader, on localhost.
 
 use std::io::{BufRead, BufReader, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -16,7 +16,7 @@ use tungstenite::handshake::derive_accept_key;
 use tungstenite::protocol::Role;
 use tungstenite::{Message, WebSocket};
 
-use crate::output::Outcome;
+use crate::output::{Format, Outcome};
 use crate::project::Project;
 
 /// The speech model `prompt` is tested with: sherpa-onnx's streaming
@@ -49,6 +49,7 @@ pub fn run_prompt(
     locale: &str,
     port: u16,
     model: Option<&std::path::Path>,
+    format: Format,
 ) -> Result<(), PromptError> {
     let dir = model.ok_or_else(|| {
         PromptError::Runtime(format!(
@@ -77,6 +78,13 @@ pub fn run_prompt(
         .local_addr()
         .map_err(|e| PromptError::Runtime(e.to_string()))?;
     eprintln!("prompting at http://{addr}/ — open it, click, and read");
+    if format == Format::Json {
+        // An app that launched the command reads where to connect from this.
+        println!("{}", listening_event(addr));
+        std::io::stdout()
+            .flush()
+            .map_err(|e| PromptError::Runtime(e.to_string()))?;
+    }
     prompt_on(listener, prompt, recognizer).map_err(|e| PromptError::Runtime(e.to_string()))
 }
 
@@ -89,12 +97,19 @@ pub fn run_prompt(
     _locale: &str,
     _port: u16,
     _model: Option<&std::path::Path>,
+    _format: Format,
 ) -> Result<(), PromptError> {
     Err(PromptError::Runtime(
         "this teleprompt was built without a speech recognizer; \
          rebuild it with `--features listen`"
             .to_string(),
     ))
+}
+
+/// Where the command listens, for `--format json`: the API's origin and
+/// the path its version is served under.
+pub fn listening_event(addr: SocketAddr) -> serde_json::Value {
+    serde_json::json!({ "event": "listening", "url": format!("http://{addr}"), "api": "/api/v1" })
 }
 
 const PAGE: &str = include_str!("prompt.html");

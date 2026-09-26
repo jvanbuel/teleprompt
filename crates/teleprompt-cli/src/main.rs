@@ -331,6 +331,7 @@ fn run(command: Command, format: Format) -> Run {
                 &args.locale,
                 port,
                 model.as_deref(),
+                format,
             )?;
             Ok(Outcome::Ok)
         }

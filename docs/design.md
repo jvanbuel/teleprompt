@@ -276,7 +276,12 @@ command. `serve` plays a recorded line from its take.
 #### Prompter API, version 1
 
 Everything is under `/api/v1`, on loopback. The script and clips are plain
-HTTP; the session is a WebSocket, since the microphone is a stream.
+HTTP; the session is a WebSocket, since the microphone is a stream. With
+`--format json` and `--port 0`, the command picks a free port and prints
+`{"event":"listening","url","api"}` on stdout once it listens, so an app
+that launched it knows where to connect. `docs/api/v1/examples` has one of
+each message; the server and the macOS app (`apps/macos`) are both tested
+against them.
 
 | route | does |
 |---|---|

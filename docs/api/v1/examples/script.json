@@ -1,0 +1,15 @@
+{
+  "lines": [
+    { "id": "welcome", "text": "Welcome to Acme. Let me show you around.", "recorded": false },
+    { "id": "deploy", "text": "Deployment is one command.", "recorded": false }
+  ],
+  "shots": [
+    { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },
+    {
+      "shot": "welcome-a#0",
+      "at": { "line": 0, "word": 3 },
+      "clip": "/api/v1/clips/0c32aa7e44f8c4c6c07481bbf5ef837588f2ada0346c12c7ea60b37fc0761810.mp4"
+    },
+    { "shot": "welcome-b#0", "at": { "line": 1, "word": 0 }, "clip": null }
+  ]
+}
