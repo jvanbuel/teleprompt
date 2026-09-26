@@ -71,7 +71,7 @@ opens on the item you just changed, and `build` renders the video.
 | `plan <script>` | compile the timeline and print it |
 | `diff <script>` | compare against the committed timeline; `--exit-code` exits 3 on drift |
 | `serve <script>` | serve a live preview that opens on the item that changed |
-| `prompt <script>` | show the script as a prompter that follows your voice (opt-in build) |
+| `prompt <script>` | show the script as a prompter that follows your voice, and play its shots as you reach them (opt-in build) |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |

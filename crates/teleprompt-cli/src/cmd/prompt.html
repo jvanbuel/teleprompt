@@ -18,6 +18,28 @@
   /* For beam-splitter glass, which shows the screen reversed. */
   body.mirrored #script { transform: scaleX(-1); }
   #script { padding: 35vh 8vw 70vh; }
+  /* With shots, the screen takes the right of the window, as the video's
+     picture will, and the text the left. */
+  body.with-screen { --size: 3.4vw; }
+  body.with-screen #script { margin-right: 46vw; padding-right: 3vw; }
+  #screen {
+    display: none; position: fixed; top: 0; right: 0; bottom: 34px; width: 46vw;
+    background: #000; align-items: center; justify-content: center;
+  }
+  body.with-screen #screen { display: flex; }
+  body.with-screen.no-screen #screen { display: none; }
+  body.with-screen.no-screen #script { margin-right: 0; }
+  #screen video { max-width: 100%; max-height: 100%; }
+  #slate { color: var(--dim); font: 15px/1.5 var(--mono); padding: 2em; text-align: center; }
+  #slate:empty, #clip[hidden] { display: none; }
+  .shot {
+    font: 0.4em/1 var(--mono); color: var(--dim); border: 1px solid currentColor;
+    border-radius: 4px; padding: 0.15em 0.4em; margin: 0 0.3em; vertical-align: middle;
+    white-space: nowrap;
+  }
+  .shot.missing { border-style: dashed; }
+  .shot.playing { color: var(--now); }
+  .shot.played { opacity: 0.45; }
   .line { margin: 0 0 0.9em; }
   .w.said { color: var(--said); }
   .w.now { color: var(--now); text-decoration: underline; text-underline-offset: 0.18em; }
@@ -36,10 +58,11 @@
 </head>
 <body>
 <div id="script"></div>
+<div id="screen"><video id="clip" muted playsinline></video><div id="slate"></div></div>
 <button id="start">click to start listening</button>
 <div id="bar">
   <span id="status">not listening</span>
-  <span>space pause · m mirror · + − size</span>
+  <span>space pause · m mirror · + − size · s screen</span>
 </div>
 <script>
 "use strict";
@@ -48,6 +71,8 @@ const SEND_EVERY_MS = 100;   // how much audio each POST carries, at most
 const $ = (id) => document.getElementById(id);
 
 let words = [];              // per line, the word spans, split as the server splits
+let shots = new Map();       // shot id to { clip, marker }
+let queue = [];              // shots to play after the one playing
 let listening = false;
 let pending = [];            // 16 kHz samples not yet sent
 let inFlight = false;
@@ -58,9 +83,9 @@ function status(text, bad = false) {
 }
 
 async function loadScript() {
-  const { lines } = await (await fetch("/script.json")).json();
+  const script = await (await fetch("/script.json")).json();
   const root = $("script");
-  words = lines.map((text) => {
+  words = script.lines.map((text) => {
     const p = document.createElement("p");
     p.className = "line";
     const spans = text.split(/\s+/).filter(Boolean).map((w) => {
@@ -73,7 +98,55 @@ async function loadScript() {
     root.append(p);
     return spans;
   });
+  for (const shot of script.shots) markShot(shot);
+  document.body.classList.toggle("with-screen", script.shots.length > 0);
   show({ line: 0, word: 0 });
+}
+
+/** A marker in the text where a shot starts: before the word that starts
+ *  it, or after the line it follows. */
+function markShot({ shot, at, clip }) {
+  const marker = document.createElement("span");
+  marker.className = "shot" + (clip ? "" : " missing");
+  marker.textContent = "▶ " + shot + (clip ? "" : " (not captured)");
+  shots.set(shot, { clip, marker });
+  const lines = $("script").children;
+  // A shot starts once word `at.word` is said; the marker goes after it.
+  const said = at.word > 0 ? words[at.line]?.[at.word - 1] : null;
+  if (said) said.after(" ", marker);
+  else if (at.line > 0) lines[at.line - 1]?.append(marker);
+  else lines[0]?.prepend(marker);
+}
+
+/** Plays `ids` in turn, cutting whatever is playing: the reader has moved
+ *  on, and the screen follows the reader. */
+function play(ids) {
+  if (!ids || ids.length === 0) return;
+  queue = [...ids];
+  next();
+}
+
+function next() {
+  const video = $("clip");
+  for (const { marker } of shots.values()) {
+    if (marker.classList.contains("playing")) {
+      marker.classList.replace("playing", "played");
+    }
+  }
+  const id = queue.shift();
+  if (id === undefined) return;          // hold the last frame
+  const { clip, marker } = shots.get(id);
+  marker.classList.add("playing");
+  if (clip) {
+    $("slate").textContent = "";
+    video.hidden = false;
+    video.src = clip;
+    video.play().catch(() => {});
+  } else {
+    video.hidden = true;
+    $("slate").textContent = `${id} has not been captured: run teleprompt capture`;
+    setTimeout(() => { if (marker.classList.contains("playing")) next(); }, 2000);
+  }
 }
 
 let shownLine = -1;
@@ -115,7 +188,9 @@ async function send() {
   pending = [];
   try {
     const r = await fetch("/listen", { method: "POST", body: chunk.buffer });
-    show(await r.json());
+    const heard = await r.json();
+    show(heard);
+    play(heard.play);
   } catch (e) {
     status(`lost the server: ${e}`, true);
   } finally {
@@ -148,7 +223,10 @@ async function start() {
     };
     ctx.createMediaStreamSource(mic).connect(tap);
     // A new take: the server forgets any earlier one.
-    show(await (await fetch("/start", { method: "POST" })).json());
+    for (const { marker } of shots.values()) marker.classList.remove("playing", "played");
+    const top = await (await fetch("/start", { method: "POST" })).json();
+    show(top);
+    play(top.play);
     listening = true;
     status("listening");
     setInterval(send, SEND_EVERY_MS);
@@ -162,6 +240,8 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     listening = !listening;
     status(listening ? "listening" : "paused");
+  } else if (e.key === "s") {
+    document.body.classList.toggle("no-screen");
   } else if (e.key === "m") {
     document.body.classList.toggle("mirrored");
   } else if (e.key === "+" || e.key === "-") {
@@ -172,6 +252,11 @@ document.addEventListener("keydown", (e) => {
 });
 
 $("start").addEventListener("click", start);
+$("clip").addEventListener("ended", next);
+$("clip").addEventListener("error", (e) => {
+  e.target.hidden = true;
+  $("slate").textContent = `this browser cannot play ${e.target.src.split("/").pop()}`;
+});
 loadScript();
 </script>
 </body>

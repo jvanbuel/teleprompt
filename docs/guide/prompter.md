@@ -40,11 +40,34 @@ new take from the top.
 | space | pause and resume listening |
 | m | mirror the text, for beam-splitter glass |
 | + and − | text size |
+| s | hide or show the screen |
 
 It follows you, not a clock: stop, and it waits; misread a word, add an
 aside or skip a sentence, and it keeps its place. It jumps ahead only when
 several words in a row match further on, so a single word that happens to
 occur later does not make the text lurch.
 
-The prompter shows narration only. Recording what you read, and pacing the
-screen to it, are not built yet.
+## The screen follows you
+
+When the script has action blocks, the prompter shows their captured clips
+beside the text, and starts each one when your voice gets to it. A marker in
+the text shows where each shot starts:
+
+| the block's policy | the shot starts |
+|---|---|
+| `hold` | when you finish the line above it |
+| `concurrent` | on the line's first word, or on its `cue=` phrase |
+| no line of its own | when you finish the line before it |
+
+A shot the video would start part-way through its line (`align=end` or
+`center`) starts on the word the plan puts it at.
+
+Capture the clips first, with `teleprompt capture`. A shot without a clip
+shows as missing, both in the text and on the screen. If you read on before
+a clip ends, the next shot cuts it off, because the screen follows you and
+not the clock. Press `s` to hide or show the screen.
+
+Clips are H.264, which Chrome, Edge and Safari play. Chromium builds without
+proprietary codecs cannot play them.
+
+Recording what you read is not built yet.
