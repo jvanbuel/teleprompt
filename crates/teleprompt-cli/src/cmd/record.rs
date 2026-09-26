@@ -17,6 +17,8 @@ use crate::project::Project;
 pub struct Record<'a> {
     pub script: &'a Path,
     pub model: &'a Path,
+    /// A punctuation model's directory, as for `import`.
+    pub punctuation: Option<&'a Path>,
     /// ffmpeg's input arguments for the microphone; the platform's default
     /// input when empty.
     pub mic: Vec<String>,
@@ -46,6 +48,9 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
     }
     if !r.model.is_dir() {
         return Err(format!("no speech model at {}", r.model.display()));
+    }
+    if let Some(dir) = r.punctuation.filter(|d| !d.is_dir()) {
+        return Err(format!("no punctuation model at {}", dir.display()));
     }
     let project = Project::for_script(r.script).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now()
@@ -85,6 +90,7 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
         script: r.script,
         words: Words::Model(r.model),
         offset_ms: signed_ms(mic_started, started),
+        punctuation: r.punctuation,
         force: r.force,
     })
 }

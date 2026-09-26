@@ -13,8 +13,9 @@ with the microphone. Exit the shell when you're done. It then writes
 `scripts/tour.md`:
 
 - **What you said is the narration**, cut into lines wherever you paused.
-  It's written out verbatim: the recognizer's words, a capital at the start
-  of each line and a full stop at the end. Expect to edit it.
+  It's written out verbatim, so expect to edit it. The speech model hears
+  no punctuation: pass `--punctuation <dir>` with the punctuation model
+  below to get sentences, or each line is one long sentence.
 - **What you typed is terminal tapes**, typed at the speed you typed, with
   your pauses kept and your Backspaces already applied. The `exit` that
   ended the session is left out.
@@ -52,6 +53,12 @@ nothing about the voice. The recording itself, `session.cast` and
 
 - A build with the recognizer and a speech model, set up as for
   [`prompt`](prompter.md#setting-it-up).
+- Optionally, sherpa-onnx's punctuation model (36 MB), for `--punctuation`:
+
+  ```bash
+  curl -LO https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2
+  tar xjf sherpa-onnx-online-punct-en-2024-08-06.tar.bz2
+  ```
 - ffmpeg, which records the microphone. By default it uses the system's
   default input (PulseAudio on Linux, AVFoundation on macOS). Pass another
   as ffmpeg's input arguments with `--mic`, for example

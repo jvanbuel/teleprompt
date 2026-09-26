@@ -29,6 +29,9 @@ pub struct Import<'a> {
     pub words: Words<'a>,
     /// How long after the cast started the voice recording did.
     pub offset_ms: i64,
+    /// A sherpa-onnx punctuation model's directory: the words are
+    /// punctuated. Without one, each line is only capitalized and stopped.
+    pub punctuation: Option<&'a Path>,
     /// Overwrite the script and its lines' takes.
     pub force: bool,
 }
@@ -76,6 +79,10 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
     if words.is_empty() {
         return Err(format!("nothing was heard in {}", imp.voice.display()));
     }
+    let words = match imp.punctuation {
+        Some(dir) => punctuated(dir, &words)?,
+        None => words,
+    };
 
     let options = Options {
         title: title_of(imp.script),
@@ -163,6 +170,23 @@ fn transcribe(dir: &Path, pcm: &Pcm) -> Result<Vec<(String, u64, u64)>, String> 
         .into_iter()
         .map(|w| (w.text, w.start_ms, w.end_ms))
         .collect())
+}
+
+/// `words` with the punctuation model's capitals and punctuation.
+#[cfg(feature = "listen")]
+fn punctuated(dir: &Path, words: &[Word]) -> Result<Vec<Word>, String> {
+    let text: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
+    let text = teleprompt_listen_sherpa::punctuate(dir, &text.join(" "))?;
+    Ok(teleprompt_derive::punctuate(words, &text))
+}
+
+#[cfg(not(feature = "listen"))]
+fn punctuated(_: &Path, _: &[Word]) -> Result<Vec<Word>, String> {
+    Err(
+        "this teleprompt was built without speech models: rebuild it with \
+         `--features listen` to use --punctuation"
+            .to_string(),
+    )
 }
 
 #[cfg(not(feature = "listen"))]

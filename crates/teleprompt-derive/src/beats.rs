@@ -149,9 +149,11 @@ fn spoken(words: &[Word]) -> Vec<String> {
 }
 
 /// Words as a sentence: capitalized, and ending in a full stop unless it
-/// already ends in punctuation.
+/// already ends a sentence. A line cut at a pause after a comma ends in the
+/// full stop instead.
 fn sentence(words: &[String]) -> String {
-    let mut text = capitalized(&words.join(" "));
+    let joined = words.join(" ");
+    let mut text = capitalized(joined.trim_end_matches([',', ';', ':']));
     if !text.ends_with(['.', '!', '?']) {
         text.push('.');
     }

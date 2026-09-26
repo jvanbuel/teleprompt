@@ -57,6 +57,7 @@ fn a_spoken_session_becomes_two_lines_and_a_tape_between() {
         script: &script,
         words: Words::Model(&model),
         offset_ms: 0,
+        punctuation: None,
         force: false,
     })
     .unwrap();
@@ -70,4 +71,29 @@ fn a_spoken_session_becomes_two_lines_and_a_tape_between() {
     let tape = md.find("Type \"ls\"").unwrap_or_else(|| panic!("{md}"));
     let second = md.rfind("Welcome to acme").unwrap();
     assert!(first < tape && tape < second, "{md}");
+
+    // With the punctuation model, the same session reads as sentences.
+    let punct = std::env::var_os("TELEPROMPT_PUNCT_MODEL").map(PathBuf::from);
+    assert!(
+        punct.is_some() || std::env::var_os("TELEPROMPT_REQUIRE_LISTEN").is_none(),
+        "TELEPROMPT_REQUIRE_LISTEN is set and TELEPROMPT_PUNCT_MODEL is not"
+    );
+    let Some(punct) = punct else { return };
+    run_import(&Import {
+        cast: &cast_path,
+        voice: &voice,
+        script: &script,
+        words: Words::Model(&model),
+        offset_ms: 0,
+        punctuation: Some(&punct),
+        force: true,
+    })
+    .unwrap();
+    let md = std::fs::read_to_string(&script).unwrap();
+    let line = md
+        .lines()
+        .find(|l| l.to_lowercase().starts_with("welcome to acme"))
+        .unwrap_or_else(|| panic!("{md}"));
+    let marks = line.matches(['.', ',', '?', '!']).count();
+    assert!(marks >= 2, "punctuated within the line: {md}");
 }

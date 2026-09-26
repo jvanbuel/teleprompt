@@ -94,6 +94,7 @@ fn import(
         script,
         words: Words::File(&s.words),
         offset_ms: 0,
+        punctuation: None,
         force,
     })
 }

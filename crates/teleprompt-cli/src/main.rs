@@ -52,6 +52,30 @@ struct FrameArgs {
     fps: Option<u32>,
 }
 
+/// What `record` records, and where it writes.
+#[derive(Args)]
+struct RecordArgs {
+    /// The script to write, e.g. scripts/tour.md
+    script: PathBuf,
+    /// Directory of an unpacked sherpa-onnx streaming zipformer model
+    #[arg(long)]
+    model: PathBuf,
+    /// Directory of an unpacked sherpa-onnx punctuation model, to give the
+    /// narration capitals and punctuation
+    #[arg(long)]
+    punctuation: Option<PathBuf>,
+    /// ffmpeg's input for the microphone, e.g. "-f alsa -i default";
+    /// defaults to the system's default input
+    #[arg(long, allow_hyphen_values = true)]
+    mic: Option<String>,
+    /// Replace the script, and its lines' takes, if they exist
+    #[arg(long)]
+    force: bool,
+    /// The program to record instead of $SHELL, with its arguments
+    #[arg(last = true)]
+    shell: Vec<String>,
+}
+
 /// What `import` reads, and where it writes.
 #[derive(Args)]
 struct ImportArgs {
@@ -72,6 +96,10 @@ struct ImportArgs {
     /// How many milliseconds after the cast the voice recording started
     #[arg(long, default_value_t = 0, allow_negative_numbers = true)]
     offset_ms: i64,
+    /// Directory of an unpacked sherpa-onnx punctuation model, to give the
+    /// narration capitals and punctuation
+    #[arg(long)]
+    punctuation: Option<PathBuf>,
     /// Replace the script, and its lines' takes, if they exist
     #[arg(long)]
     force: bool,
@@ -127,23 +155,7 @@ enum Command {
     /// you typed is the tapes. The recording is kept in
     /// .teleprompt/traces. Needs ffmpeg, and a build with `--features
     /// listen`.
-    Record {
-        /// The script to write, e.g. scripts/tour.md
-        script: PathBuf,
-        /// Directory of an unpacked sherpa-onnx streaming zipformer model
-        #[arg(long)]
-        model: PathBuf,
-        /// ffmpeg's input for the microphone, e.g. "-f alsa -i default";
-        /// defaults to the system's default input
-        #[arg(long, allow_hyphen_values = true)]
-        mic: Option<String>,
-        /// Replace the script, and its lines' takes, if they exist
-        #[arg(long)]
-        force: bool,
-        /// The program to record instead of $SHELL, with its arguments
-        #[arg(last = true)]
-        shell: Vec<String>,
-    },
+    Record(RecordArgs),
     /// Parse and validate; no side effects, no cost
     Check(ScriptArgs),
     /// Compile the timeline and print it
@@ -330,23 +342,18 @@ fn warn(warnings: &[String]) {
 }
 
 #[cfg(unix)]
-fn run_record(
-    format: Format,
-    script: &std::path::Path,
-    model: &std::path::Path,
-    mic: Option<&str>,
-    force: bool,
-    shell: Vec<String>,
-) -> Run {
+fn run_record(format: Format, args: RecordArgs) -> Run {
     use teleprompt_cli::cmd::record::{run_record, Record};
+    let mic = args.mic.as_deref().map_or_else(Vec::new, |m| {
+        m.split_whitespace().map(str::to_string).collect()
+    });
     let report = run_record(&Record {
-        script,
-        model,
-        mic: mic
-            .map(|m| m.split_whitespace().map(str::to_string).collect())
-            .unwrap_or_default(),
-        shell,
-        force,
+        script: &args.script,
+        model: &args.model,
+        punctuation: args.punctuation.as_deref(),
+        mic,
+        shell: args.shell,
+        force: args.force,
     })
     .map_err(Outcome::RuntimeFailure)?;
     emit(format, &report, &report.render());
@@ -354,14 +361,7 @@ fn run_record(
 }
 
 #[cfg(not(unix))]
-fn run_record(
-    _: Format,
-    _: &std::path::Path,
-    _: &std::path::Path,
-    _: Option<&str>,
-    _: bool,
-    _: Vec<String>,
-) -> Run {
+fn run_record(_: Format, _: RecordArgs) -> Run {
     Err(Outcome::RuntimeFailure(
         "`record` needs a Unix terminal; record with asciinema and use `import`".to_string(),
     ))
@@ -383,6 +383,7 @@ fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
         script: &script,
         words,
         offset_ms: args.offset_ms,
+        punctuation: args.punctuation.as_deref(),
         force: args.force,
     })
     .map_err(Outcome::RuntimeFailure)?;
@@ -425,13 +426,7 @@ fn run(command: Command, format: Format) -> Run {
             Ok(Outcome::Ok)
         }
         Command::Import(args) => run_import_cmd(format, args),
-        Command::Record {
-            script,
-            model,
-            mic,
-            force,
-            shell,
-        } => run_record(format, &script, &model, mic.as_deref(), force, shell),
+        Command::Record(args) => run_record(format, args),
         Command::Cache { prune_to_mb } => {
             let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;
             let report = cache::run_cache(&project, prune_to_mb).map_err(runtime_failure)?;

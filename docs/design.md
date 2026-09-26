@@ -343,8 +343,12 @@ script, purely, from the keystrokes and the words the recognizer heard
 with their times:
 
 - Speech is cut into lines where a silence reaches 700 ms. The prose is
-  verbatim, since the result is a first draft: a recognizer that hears in
-  capitals is lowered, and each line gets a capital and a full stop.
+  verbatim, since the result is a first draft. With a punctuation model,
+  the whole transcript is punctuated once and each word takes its
+  punctuated form back, matched by its letters, so no word's time moves
+  and a word the punctuator rewrote is kept as heard. Without one, a
+  recognizer that hears in capitals is lowered. Either way each line
+  starts with a capital and ends a sentence.
 - Keystrokes are cut into commands at Enter, Ctrl+C and Ctrl+D, and each
   command is placed by when its first key was pressed. Started during a
   line (or up to 150 ms before it), it runs `concurrent` with the line,

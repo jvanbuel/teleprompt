@@ -8,11 +8,13 @@ mod beats;
 mod cast;
 mod keys;
 mod markdown;
+mod punctuate;
 mod tape;
 
 pub use beats::{derive, Beat, Block, Line, Mode};
 pub use cast::{read_cast, Trace};
 pub use keys::{decode, Key};
+pub use punctuate::punctuate;
 
 /// A word the recognizer heard, and when, in milliseconds from the start
 /// of the trace.
