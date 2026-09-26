@@ -51,10 +51,10 @@ jobs:
             curl -sSfL "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$MODEL.tar.bz2" | tar xj -C model
           fi
       # sherpa-onnx-sys unpacks its native library into
-      # target/sherpa-onnx-prebuilt, which the Rust cache does not keep
-      # while it keeps the build script's result: rerun the script so the
-      # library is there to link.
-      - run: cargo clean -p sherpa-onnx-sys
+      # target/sherpa-onnx-prebuilt, and trusts that directory if it
+      # exists. The Rust cache restores it without the library in it, so
+      # remove it and rerun the build script to download it again.
+      - run: rm -rf target/sherpa-onnx-prebuilt && cargo clean -p sherpa-onnx-sys
       - name: Recognizer tests, with the model
         env:
           TELEPROMPT_LISTEN_MODEL: ${{ github.workspace }}/model/${{ env.MODEL }}
