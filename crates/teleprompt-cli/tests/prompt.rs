@@ -4,15 +4,20 @@
 use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use teleprompt_cli::cmd::prompt::{prompt_on, Prompt, ShotCue};
 use teleprompt_core::Hash;
 use teleprompt_listen::{Heard, Position, Recognizer};
 
-struct Scripted(VecDeque<&'static str>);
+/// Hears what the test says, one hypothesis per chunk, and counts the
+/// samples it was given.
+struct Scripted(VecDeque<&'static str>, Arc<AtomicUsize>);
 
 impl Recognizer for Scripted {
-    fn listen(&mut self, _samples: &[f32]) -> Heard {
+    fn listen(&mut self, samples: &[f32]) -> Heard {
+        self.1.fetch_add(samples.len(), Ordering::SeqCst);
         Heard {
             text: self.0.pop_front().unwrap_or_default().to_string(),
             is_final: false,
@@ -26,6 +31,8 @@ const LINES: &[&str] = &[
     "Welcome to Acme. Let me show you around.",
     "Deployment is one command.",
 ];
+
+const IDS: &[&str] = &["welcome", "deploy"];
 
 /// A shot before the first line, one three words in, and one after the
 /// first line; only the second has been captured.
@@ -47,6 +54,14 @@ const CLIP: &[u8] = b"the bytes of a captured clip";
 /// A prompter served on a port the OS picks, hearing `heard` in turn. The
 /// directory holds its clips, and lives as long as the test keeps it.
 fn prompting(heard: &[&'static str]) -> (SocketAddr, teleprompt_testkit::TestDir) {
+    let (addr, dir, _) = prompting_counted(heard);
+    (addr, dir)
+}
+
+/// [`prompting`], and a count of the samples the recognizer was given.
+fn prompting_counted(
+    heard: &[&'static str],
+) -> (SocketAddr, teleprompt_testkit::TestDir, Arc<AtomicUsize>) {
     let clips = teleprompt_testkit::test_dir("prompt-clips");
     let captured = Hash::of(b"welcome-a#0");
     std::fs::write(clips.join(format!("{captured}.mp4")), CLIP).unwrap();
@@ -54,12 +69,15 @@ fn prompting(heard: &[&'static str]) -> (SocketAddr, teleprompt_testkit::TestDir
     let addr = listener.local_addr().unwrap();
     let prompt = Prompt {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| l.to_string()).collect(),
         shots: shots(),
         clips: clips.to_path_buf(),
+        takes: clips.join("takes"),
     };
-    let recognizer = Scripted(heard.iter().copied().collect());
+    let count = Arc::new(AtomicUsize::new(0));
+    let recognizer = Scripted(heard.iter().copied().collect(), count.clone());
     std::thread::spawn(move || prompt_on(listener, prompt, recognizer));
-    (addr, clips)
+    (addr, clips, count)
 }
 
 /// One request, and the response body.
@@ -309,4 +327,86 @@ fn each_shot_is_cued_where_its_policy_starts_it() {
         .collect();
     let cued: Vec<&str> = cues.iter().map(|c| c.shot.as_str()).collect();
     assert_eq!(cued, shots, "every shot, in timeline order");
+}
+
+/// The page sends the microphone at its own rate; the recognizer hears it
+/// at the rate it was made for.
+#[test]
+fn audio_at_the_microphones_rate_reaches_the_recognizer_at_its_own() {
+    let (addr, _dir, heard) = prompting_counted(&[]);
+    request(addr, "POST", "/listen?rate=48000", &samples(4_800));
+    request(addr, "POST", "/listen?rate=48000", &samples(4_800));
+    let n = heard.load(Ordering::SeqCst);
+    assert!((3_100..=3_200).contains(&n), "{n} samples at 16 kHz");
+}
+
+/// Little-endian f32 audio: `spans` of (seconds, loud) at 16 kHz.
+fn audio(spans: &[(f32, bool)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for &(seconds, loud) in spans {
+        for i in 0..(seconds * 16_000.0) as usize {
+            let v = if loud {
+                0.3 * (i as f32 * 0.2).sin()
+            } else {
+                0.0
+            };
+            out.extend(v.to_le_bytes());
+        }
+    }
+    out
+}
+
+/// A take's lines read in full are kept as takes, each with the text it
+/// was read from; a line broken off is not.
+#[test]
+fn stopping_a_take_keeps_each_line_read_in_full() {
+    const LINE_0: &str = "welcome to acme let me show you around";
+    let mut heard = vec![""; 5];
+    heard.extend(["welcome to"; 6]);
+    heard.extend([LINE_0; 7]);
+    heard.extend([""; 5]);
+    heard.extend(["deployment is"; 7]);
+    let (addr, dir) = prompting(&heard);
+    request(addr, "POST", "/start", &[]);
+    let take = audio(&[(0.3, false), (1.2, true), (0.8, false), (0.7, true)]);
+    for chunk in take.chunks(1_600 * 4) {
+        request(addr, "POST", "/listen?rate=16000", chunk);
+    }
+    let stopped: serde_json::Value =
+        serde_json::from_str(&request(addr, "POST", "/stop", &[])).unwrap();
+    assert_eq!(stopped, serde_json::json!({ "saved": ["welcome"] }));
+
+    let takes = teleprompt_voice::takes::Takes::load(&dir.join("takes")).unwrap();
+    let welcome = takes
+        .current("welcome", LINES[0])
+        .expect("a take of line 0");
+    assert!(
+        (1_200..=1_320).contains(&welcome.duration_ms),
+        "{}",
+        welcome.duration_ms
+    );
+    assert!(takes.current("deploy", LINES[1]).is_none());
+
+    let script: serde_json::Value =
+        serde_json::from_str(&request(addr, "GET", "/script.json", &[])).unwrap();
+    assert_eq!(script["recorded"], serde_json::json!([true, false]));
+}
+
+/// A take can start at a line, to read it again; the shots before it do not
+/// play.
+#[test]
+fn a_take_can_start_at_a_line() {
+    let (addr, _dir) = prompting(&["deployment is"]);
+    let top: serde_json::Value =
+        serde_json::from_str(&request(addr, "POST", "/start?from=1", &[])).unwrap();
+    assert_eq!(
+        top,
+        serde_json::json!({ "line": 1, "word": 0, "play": ["welcome-b#0"] })
+    );
+    let at: serde_json::Value =
+        serde_json::from_str(&request(addr, "POST", "/listen", &samples(1600))).unwrap();
+    assert_eq!(
+        (at["line"].as_u64(), at["word"].as_u64()),
+        (Some(1), Some(2))
+    );
 }

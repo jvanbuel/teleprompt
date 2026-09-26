@@ -255,6 +255,12 @@ the line `recorded`. Editing the line leaves its take behind, and the line
 is synthesized again until it is re-recorded. Once a project has any
 takes, every command that compiles names the lines it still synthesizes.
 
+`prompt` records takes. The page streams the microphone at its own rate;
+the server keeps that as the take and feeds the recognizer a 16 kHz copy.
+When the take is kept, it is cut at the silence between lines, found
+between where the follower heard one line end and the next begin, and each
+line read in full is saved.
+
 `dub` publishes a take converted to the rate and channels of the
 synthesized lines, because the manifest has one audio format. The
 conversion keeps the length to the millisecond, since the manifest

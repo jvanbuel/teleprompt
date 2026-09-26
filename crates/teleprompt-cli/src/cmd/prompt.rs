@@ -11,7 +11,9 @@ use std::path::PathBuf;
 
 use teleprompt_compile::CompileOutput;
 use teleprompt_core::Hash;
-use teleprompt_listen::{Cues, Follower, Position, Recognizer};
+use teleprompt_listen::{Cues, Follower, Position, Recognizer, TakeLog};
+use teleprompt_voice::takes::Takes;
+use teleprompt_voice::{Pcm, Resampler};
 
 use crate::output::Outcome;
 use crate::project::Project;
@@ -59,8 +61,14 @@ pub fn run_prompt(
         .map_err(PromptError::Validation)?;
     let prompt = Prompt {
         shots: shot_cues(&compiled),
+        ids: compiled
+            .narration
+            .iter()
+            .map(|n| n.line_id.clone())
+            .collect(),
         lines: compiled.narration.into_iter().map(|n| n.text).collect(),
         clips: project.caches().clips(),
+        takes: project.takes_dir(),
     };
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
         .map_err(|e| PromptError::Runtime(format!("cannot listen on port {port}: {e}")))?;
@@ -167,11 +175,19 @@ fn word_at(text: &str, offset_ms: u64, duration_ms: u64) -> usize {
 pub struct Prompt {
     /// The narration, a line per paragraph.
     pub lines: Vec<String>,
+    /// Each line's id, which names its take.
+    pub ids: Vec<String>,
     /// Every shot, in script order.
     pub shots: Vec<ShotCue>,
     /// Where captured clips are, named by capture key.
     pub clips: PathBuf,
+    /// Where takes are recorded to.
+    pub takes: PathBuf,
 }
+
+/// The rate the recognizer listens at. The page sends the microphone at
+/// its own rate, which is what a take keeps.
+const LISTEN_RATE: u32 = 16_000;
 
 /// Serves `prompt` on `listener` until the process ends.
 pub fn prompt_on<R: Recognizer>(
@@ -179,88 +195,212 @@ pub fn prompt_on<R: Recognizer>(
     prompt: Prompt,
     recognizer: R,
 ) -> std::io::Result<()> {
-    let texts: Vec<&str> = prompt.lines.iter().map(String::as_str).collect();
-    let mut follower = Follower::new(recognizer, &texts);
-    let mut cues = Cues::new(prompt.shots.iter().map(|s| s.at).collect());
-    let clips: BTreeMap<String, PathBuf> = prompt
-        .shots
-        .iter()
-        .map(|s| format!("{}.mp4", s.capture_key))
-        .map(|name| (format!("/clips/{name}"), prompt.clips.join(name)))
-        .filter(|(_, path)| path.is_file())
-        .collect();
-    let script = script_json(&prompt, &clips);
-    let mut at = Position { line: 0, word: 0 };
+    let mut session = Session::new(prompt, recognizer)?;
     for stream in listener.incoming() {
         let mut stream = stream?;
         let Ok(request) = read_request(&mut stream) else {
             continue;
         };
-        let (status, body) = match (request.method.as_str(), request.path.as_str()) {
+        let (path, query) = request
+            .path
+            .split_once('?')
+            .unwrap_or((request.path.as_str(), ""));
+        let (status, kind, body) = match (request.method.as_str(), path) {
             ("POST", "/listen") => {
-                if let Some(now) = follower.listen(&samples(&request.body)) {
-                    at = now;
-                }
-                ("200 OK", heard_json(at, &prompt.shots[cues.reach(at)]))
+                let rate = param(query, "rate").unwrap_or(LISTEN_RATE);
+                json(session.listen(&samples(&request.body), rate))
             }
-            ("POST", "/start") => {
-                follower.restart();
-                cues.restart();
-                at = Position { line: 0, word: 0 };
-                ("200 OK", heard_json(at, &prompt.shots[cues.reach(at)]))
-            }
-            ("GET", "/") => {
-                respond(
-                    &mut stream,
-                    "200 OK",
-                    "text/html; charset=utf-8",
-                    PAGE.as_bytes(),
-                )?;
-                continue;
-            }
-            ("GET", path) if clips.contains_key(path) => {
-                match std::fs::read(&clips[path]) {
-                    Ok(clip) => respond(&mut stream, "200 OK", "video/mp4", &clip)?,
-                    Err(e) => respond(
-                        &mut stream,
+            ("POST", "/start") => json(session.start(param(query, "from").unwrap_or(0))),
+            ("POST", "/stop") => match session.stop() {
+                Ok(saved) => json(saved),
+                Err(e) => (
+                    "500 Internal Server Error",
+                    "text/plain",
+                    e.to_string().into(),
+                ),
+            },
+            ("GET", "/") => ("200 OK", "text/html; charset=utf-8", PAGE.into()),
+            ("GET", path) if session.clips.contains_key(path) => {
+                match std::fs::read(&session.clips[path]) {
+                    Ok(clip) => ("200 OK", "video/mp4", clip),
+                    Err(e) => (
                         "500 Internal Server Error",
                         "text/plain",
-                        e.to_string().as_bytes(),
-                    )?,
+                        e.to_string().into(),
+                    ),
                 }
-                continue;
             }
-            ("GET", "/favicon.ico") => ("204 No Content", String::new()),
-            ("GET", "/script.json") => ("200 OK", script.clone()),
-            _ => ("404 Not Found", "not found".to_string()),
+            ("GET", "/favicon.ico") => ("204 No Content", "text/plain", Vec::new()),
+            ("GET", "/script.json") => json(session.script()),
+            _ => ("404 Not Found", "text/plain", b"not found".to_vec()),
         };
-        respond(&mut stream, status, "application/json", body.as_bytes())?;
+        respond(&mut stream, status, kind, &body)?;
     }
     Ok(())
 }
 
-/// The lines, and each shot with where it starts and the path of its clip,
-/// if it was captured.
-fn script_json(prompt: &Prompt, clips: &BTreeMap<String, PathBuf>) -> String {
-    let shots: Vec<_> = prompt
-        .shots
-        .iter()
-        .map(|s| {
-            let clip = format!("/clips/{}.mp4", s.capture_key);
-            serde_json::json!({
-                "shot": s.shot,
-                "at": { "line": s.at.line, "word": s.at.word },
-                "clip": clips.contains_key(&clip).then_some(clip),
-            })
-        })
-        .collect();
-    serde_json::json!({ "lines": prompt.lines, "shots": shots }).to_string()
+fn json(value: serde_json::Value) -> (&'static str, &'static str, Vec<u8>) {
+    ("200 OK", "application/json", value.to_string().into_bytes())
 }
 
-/// Where the reader is, and the shots that just reached their cue.
-fn heard_json(at: Position, play: &[ShotCue]) -> String {
-    let play: Vec<&str> = play.iter().map(|s| s.shot.as_str()).collect();
-    serde_json::json!({ "line": at.line, "word": at.word, "play": play }).to_string()
+/// `name`'s value in a query string.
+fn param<T: std::str::FromStr>(query: &str, name: &str) -> Option<T> {
+    query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find(|(key, _)| *key == name)
+        .and_then(|(_, value)| value.parse().ok())
+}
+
+/// The prompter's state between requests.
+struct Session<R> {
+    prompt: Prompt,
+    follower: Follower<R>,
+    cues: Cues,
+    takes: Takes,
+    /// Request path to file, for the clips of cued shots that exist.
+    clips: BTreeMap<String, PathBuf>,
+    at: Position,
+    /// The microphone's rate, and its conversion to [`LISTEN_RATE`].
+    resampler: Option<(u32, Resampler)>,
+    /// The take under way, from `/start` to `/stop`.
+    take: Option<Take>,
+}
+
+struct Take {
+    rate: u32,
+    audio: Vec<f32>,
+    log: TakeLog,
+}
+
+impl<R: Recognizer> Session<R> {
+    fn new(prompt: Prompt, recognizer: R) -> std::io::Result<Self> {
+        let texts: Vec<&str> = prompt.lines.iter().map(String::as_str).collect();
+        let follower = Follower::new(recognizer, &texts);
+        let cues = Cues::new(prompt.shots.iter().map(|s| s.at).collect());
+        let clips = prompt
+            .shots
+            .iter()
+            .map(|s| format!("{}.mp4", s.capture_key))
+            .map(|name| (format!("/clips/{name}"), prompt.clips.join(name)))
+            .filter(|(_, path)| path.is_file())
+            .collect();
+        Ok(Self {
+            takes: Takes::load(&prompt.takes)?,
+            prompt,
+            follower,
+            cues,
+            clips,
+            at: Position { line: 0, word: 0 },
+            resampler: None,
+            take: None,
+        })
+    }
+
+    /// A new take from line `from`; any take not stopped is dropped.
+    fn start(&mut self, from: usize) -> serde_json::Value {
+        self.at = Position {
+            line: from,
+            word: 0,
+        };
+        self.follower.restart_at(from);
+        self.cues.restart_at(self.at);
+        self.resampler = None;
+        let mut log = TakeLog::new(from);
+        log.heard(self.at, 0);
+        self.take = Some(Take {
+            rate: LISTEN_RATE,
+            audio: Vec::new(),
+            log,
+        });
+        self.heard()
+    }
+
+    /// Microphone samples at `rate`: kept for the take, and heard.
+    fn listen(&mut self, samples: &[f32], rate: u32) -> serde_json::Value {
+        if let Some(take) = &mut self.take {
+            if take.audio.is_empty() {
+                take.rate = rate;
+            }
+            take.audio.extend_from_slice(samples);
+        }
+        let heard = if rate == LISTEN_RATE {
+            samples.to_vec()
+        } else {
+            if self.resampler.as_ref().is_none_or(|(r, _)| *r != rate) {
+                self.resampler = Some((rate, Resampler::new(rate, LISTEN_RATE)));
+            }
+            let (_, resampler) = self.resampler.as_mut().expect("just set");
+            resampler.push(samples)
+        };
+        if let Some(now) = self.follower.listen(&heard) {
+            self.at = now;
+            if let Some(take) = &mut self.take {
+                take.log.heard(now, take.audio.len());
+            }
+        }
+        self.heard()
+    }
+
+    /// Ends the take, keeping each line read in full as that line's take.
+    fn stop(&mut self) -> std::io::Result<serde_json::Value> {
+        let mut saved = Vec::new();
+        if let Some(take) = self.take.take() {
+            for (line, span) in take.log.lines(&take.audio, take.rate) {
+                let (Some(id), Some(text)) =
+                    (self.prompt.ids.get(line), self.prompt.lines.get(line))
+                else {
+                    continue;
+                };
+                let pcm = Pcm {
+                    sample_rate: take.rate,
+                    channels: 1,
+                    samples: take.audio[span]
+                        .iter()
+                        .map(|&s| (s * 32768.0).round().clamp(-32768.0, 32767.0) as i16)
+                        .collect(),
+                };
+                self.takes.save(id, text, &pcm)?;
+                saved.push(id.clone());
+            }
+        }
+        Ok(serde_json::json!({ "saved": saved }))
+    }
+
+    /// Where the reader is, and the shots that just reached their cue.
+    fn heard(&mut self) -> serde_json::Value {
+        let play: Vec<&str> = self.prompt.shots[self.cues.reach(self.at)]
+            .iter()
+            .map(|s| s.shot.as_str())
+            .collect();
+        serde_json::json!({ "line": self.at.line, "word": self.at.word, "play": play })
+    }
+
+    /// The lines and whether each has a current take, and each shot with
+    /// where it starts and the path of its clip, if it was captured.
+    fn script(&self) -> serde_json::Value {
+        let shots: Vec<_> = self
+            .prompt
+            .shots
+            .iter()
+            .map(|s| {
+                let clip = format!("/clips/{}.mp4", s.capture_key);
+                serde_json::json!({
+                    "shot": s.shot,
+                    "at": { "line": s.at.line, "word": s.at.word },
+                    "clip": self.clips.contains_key(&clip).then_some(clip),
+                })
+            })
+            .collect();
+        let recorded: Vec<bool> = self
+            .prompt
+            .ids
+            .iter()
+            .zip(&self.prompt.lines)
+            .map(|(id, text)| self.takes.current(id, text).is_some())
+            .collect();
+        serde_json::json!({ "lines": self.prompt.lines, "recorded": recorded, "shots": shots })
+    }
 }
 
 struct Request {

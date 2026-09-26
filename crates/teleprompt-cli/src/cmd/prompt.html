@@ -40,7 +40,9 @@
   .shot.missing { border-style: dashed; }
   .shot.playing { color: var(--now); }
   .shot.played { opacity: 0.45; }
-  .line { margin: 0 0 0.9em; }
+  .line { margin: 0 0 0.9em; cursor: pointer; border-left: 0.12em solid transparent; padding-left: 0.4em; margin-left: -0.52em; }
+  /* A line with a current take. */
+  .line.recorded { border-left-color: var(--now); }
   .w.said { color: var(--said); }
   .w.now { color: var(--now); text-decoration: underline; text-underline-offset: 0.18em; }
   #bar {
@@ -59,14 +61,13 @@
 <body>
 <div id="script"></div>
 <div id="screen"><video id="clip" muted playsinline></video><div id="slate"></div></div>
-<button id="start">click to start listening</button>
+<button id="start">click to start a take</button>
 <div id="bar">
   <span id="status">not listening</span>
-  <span>space pause · m mirror · + − size · s screen</span>
+  <span>click a line to take it from there · enter keep the take · space pause · m mirror · + − size · s screen</span>
 </div>
 <script>
 "use strict";
-const RATE = 16000;          // what the recognizer listens at
 const SEND_EVERY_MS = 100;   // how much audio each POST carries, at most
 const $ = (id) => document.getElementById(id);
 
@@ -74,7 +75,8 @@ let words = [];              // per line, the word spans, split as the server sp
 let shots = new Map();       // shot id to { clip, marker }
 let queue = [];              // shots to play after the one playing
 let listening = false;
-let pending = [];            // 16 kHz samples not yet sent
+let pending = [];            // samples not yet sent, at the microphone's rate
+let rate = 0;                // the microphone's rate, once it is open
 let inFlight = false;
 
 function status(text, bad = false) {
@@ -85,9 +87,10 @@ function status(text, bad = false) {
 async function loadScript() {
   const script = await (await fetch("/script.json")).json();
   const root = $("script");
-  words = script.lines.map((text) => {
+  words = script.lines.map((text, l) => {
     const p = document.createElement("p");
     p.className = "line";
+    p.addEventListener("click", () => take(l));
     const spans = text.split(/\s+/).filter(Boolean).map((w) => {
       const s = document.createElement("span");
       s.className = "w";
@@ -99,8 +102,13 @@ async function loadScript() {
     return spans;
   });
   for (const shot of script.shots) markShot(shot);
+  markRecorded(script.recorded);
   document.body.classList.toggle("with-screen", script.shots.length > 0);
   show({ line: 0, word: 0 });
+}
+
+function markRecorded(recorded) {
+  [...$("script").children].forEach((p, l) => p.classList.toggle("recorded", !!recorded[l]));
 }
 
 /** A marker in the text where a shot starts: before the word that starts
@@ -170,24 +178,13 @@ function show(at) {
   window.scrollTo({ top, behavior: "smooth" });
 }
 
-/** Linear resampling of one block from the device rate to 16 kHz. */
-function resample(block, from) {
-  if (from === RATE) return block;
-  const out = new Float32Array(Math.floor(block.length * RATE / from));
-  for (let i = 0; i < out.length; i++) {
-    const x = i * from / RATE, j = Math.floor(x), f = x - j;
-    out[i] = block[j] * (1 - f) + (block[j + 1] ?? block[j]) * f;
-  }
-  return out;
-}
-
 async function send() {
   if (inFlight || pending.length === 0) return;
   inFlight = true;
   const chunk = Float32Array.from(pending);
   pending = [];
   try {
-    const r = await fetch("/listen", { method: "POST", body: chunk.buffer });
+    const r = await fetch(`/listen?rate=${rate}`, { method: "POST", body: chunk.buffer });
     const heard = await r.json();
     show(heard);
     play(heard.play);
@@ -208,35 +205,64 @@ class Tap extends AudioWorkletProcessor {
 }
 registerProcessor("tap", Tap);`;
 
-async function start() {
-  $("start").remove();
+let mic = null;               // opened once, on the first take
+
+/** Opens the microphone and starts sending it. What it hears is the take,
+ *  so the browser is asked not to clean it up. */
+async function openMic() {
+  if (mic) return;
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+  });
+  const ctx = new AudioContext();
+  rate = ctx.sampleRate;
+  const url = URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" }));
+  await ctx.audioWorklet.addModule(url);
+  const tap = new AudioWorkletNode(ctx, "tap");
+  tap.port.onmessage = (e) => {
+    if (listening) for (const v of e.data) pending.push(v);
+  };
+  ctx.createMediaStreamSource(stream).connect(tap);
+  setInterval(send, SEND_EVERY_MS);
+  mic = stream;
+}
+
+/** A new take from line `from`; the server drops any take not kept. */
+async function take(from = 0) {
+  $("start")?.remove();
   try {
-    const mic = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true },
-    });
-    const ctx = new AudioContext();
-    const url = URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" }));
-    await ctx.audioWorklet.addModule(url);
-    const tap = new AudioWorkletNode(ctx, "tap");
-    tap.port.onmessage = (e) => {
-      if (listening) for (const v of resample(e.data, ctx.sampleRate)) pending.push(v);
-    };
-    ctx.createMediaStreamSource(mic).connect(tap);
-    // A new take: the server forgets any earlier one.
-    for (const { marker } of shots.values()) marker.classList.remove("playing", "played");
-    const top = await (await fetch("/start", { method: "POST" })).json();
-    show(top);
-    play(top.play);
-    listening = true;
-    status("listening");
-    setInterval(send, SEND_EVERY_MS);
+    await openMic();
   } catch (e) {
     status(`no microphone: ${e.message ?? e}`, true);
+    return;
   }
+  listening = false;
+  pending = [];
+  queue = [];
+  for (const { marker } of shots.values()) marker.classList.remove("playing", "played");
+  shownLine = -1;
+  const top = await (await fetch(`/start?from=${from}`, { method: "POST" })).json();
+  show(top);
+  play(top.play);
+  listening = true;
+  status(`recording from line ${from + 1}`);
+}
+
+/** Ends the take, keeping the lines read in full. */
+async function keep() {
+  listening = false;
+  await send();
+  const { saved } = await (await fetch("/stop", { method: "POST" })).json();
+  status(saved.length ? `kept ${saved.length} line(s): ${saved.join(", ")}` : "nothing read in full to keep");
+  const script = await (await fetch("/script.json")).json();
+  markRecorded(script.recorded);
 }
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === " ") {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    keep();
+  } else if (e.key === " ") {
     e.preventDefault();
     listening = !listening;
     status(listening ? "listening" : "paused");
@@ -251,7 +277,7 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-$("start").addEventListener("click", start);
+$("start").addEventListener("click", () => take(0));
 $("clip").addEventListener("ended", next);
 $("clip").addEventListener("error", (e) => {
   e.target.hidden = true;

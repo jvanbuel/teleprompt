@@ -32,11 +32,14 @@ cheaper but misses the first words of a take.
 teleprompt prompt scripts/tour.md --model path/to/sherpa-onnx-streaming-zipformer-en-2023-06-26
 ```
 
-Open the address it prints, click to start, and read. Each click starts a
-new take from the top.
+Open the address it prints, click to start, and read. Everything you read
+is a take: press Enter to keep it. Click any line to start a new take from
+there, which is how you read one line again.
 
 | key | does |
 |---|---|
+| Enter | keep the take |
+| click a line | start a new take from that line |
 | space | pause and resume listening |
 | m | mirror the text, for beam-splitter glass |
 | + and − | text size |
@@ -70,4 +73,19 @@ not the clock. Press `s` to hide or show the screen.
 Clips are H.264, which Chrome, Edge and Safari play. Chromium builds without
 proprietary codecs cannot play them.
 
-Recording what you read is not built yet.
+## Recording
+
+When you keep a take, each line you read in full is saved as that line's
+recording, `takes/<line>.wav`, replacing any earlier one. A line you broke
+off or skipped is not saved. The take is cut between lines at the pause
+after each one, so leave a breath between paragraphs. Lines with a
+recording are marked at their left edge.
+
+A recorded line is the line's voice from then on: `plan`, `dub`, `build`
+and `serve` use it, paced to its real length, and the lines without one
+are synthesized. Every command names those. Edit a line and its recording
+no longer matches it, so the line is synthesized until you read it again.
+
+Recordings are source, like the script: commit `takes/`. The microphone is
+recorded as it is, without the browser's noise suppression, so record
+somewhere quiet.

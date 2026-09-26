@@ -64,12 +64,15 @@ impl TakeLog {
             if self.begun.get(&(line + 1)) == Some(&begun) {
                 continue;
             }
-            let before = match line.checked_sub(1).and_then(|l| self.finished.get(&l)) {
-                Some(&previous) if line > self.from => previous.saturating_sub(lookback),
+            // Nobody reads before a take starts, so its first line starts
+            // with it; a pause inside that line is not a break.
+            let start = match line.checked_sub(1).and_then(|l| self.finished.get(&l)) {
+                Some(&previous) if line > self.from => {
+                    loudness.break_in(previous.saturating_sub(lookback)..begun)
+                }
                 _ => 0,
             };
             let after = self.begun.get(&(line + 1)).copied().unwrap_or(audio.len());
-            let start = loudness.break_in(before..begun);
             let stop = loudness.break_in(end.saturating_sub(lookback)..after);
             if let Some(speech) = loudness.trim(start..stop, samples(MARGIN_MS)) {
                 out.push((line, speech));

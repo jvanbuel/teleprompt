@@ -146,3 +146,30 @@ fn a_skipped_line_is_not_kept() {
     let numbers: Vec<usize> = lines.iter().map(|(l, _)| *l).collect();
     assert_eq!(numbers, [1]);
 }
+
+/// Nobody reads before a take starts, so its first line starts there: a
+/// pause inside that line, before the follower heard it begin, is not a
+/// break, however long.
+#[test]
+fn the_first_line_of_a_take_starts_with_the_take() {
+    let tone = |ms_: usize| {
+        (0..ms(ms_))
+            .map(|i| 0.3 * (i as f32 * 0.2).sin())
+            .collect::<Vec<_>>()
+    };
+    let quiet = |ms_: usize| vec![0.0; ms(ms_)];
+    let mut audio = quiet(100);
+    audio.extend(tone(800));
+    audio.extend(quiet(400));
+    audio.extend(tone(1000));
+    let line_end = audio.len();
+    audio.extend(quiet(700));
+    let mut log = TakeLog::new(0);
+    log.heard(at(0, 0), 0);
+    // Heard begun only once the words after the pause were heard.
+    log.heard(at(0, 4), ms(1700));
+    log.heard(at(1, 0), line_end + LAG);
+    let lines = log.lines(&audio, RATE);
+    assert_eq!(lines.len(), 1);
+    assert_holds(&lines[0].1, &(ms(100)..line_end));
+}
