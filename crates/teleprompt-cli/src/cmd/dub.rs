@@ -6,9 +6,9 @@ use teleprompt_compile::manifest;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
 use teleprompt_core::Hash;
-use teleprompt_manifest::captions;
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
+use teleprompt_manifest::{captions, chapters};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm, VoiceBackend};
 
@@ -609,11 +609,13 @@ fn write_output(
         written.push(path);
     }
 
-    // Beside the manifest, so a player serving the audio finds them too.
+    // Beside the manifest, so a player serving the audio finds them too,
+    // and chapters to paste into a video's description.
     let cues = captions::cues(built);
     for (name, text) in [
         ("captions.srt", captions::srt(&cues)),
         ("captions.vtt", captions::vtt(&cues)),
+        ("chapters.txt", chapters::youtube(built).0),
     ] {
         let path = dir.join(name);
         std::fs::write(&path, text)

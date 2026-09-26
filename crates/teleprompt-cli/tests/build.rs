@@ -119,6 +119,9 @@ async fn a_script_renders_to_a_video_as_long_as_its_timeline() {
         (seconds - expected).abs() < 0.25,
         "the timeline says {expected}s and the video runs {seconds}s"
     );
+    // Chapters for a YouTube description, beside it too.
+    let chapters = std::fs::read_to_string(report.output.with_extension("chapters.txt")).unwrap();
+    assert!(chapters.starts_with("0:00 "), "{chapters}");
     // Captions beside the video, named after it, for a player to pick up.
     for ext in ["srt", "vtt"] {
         let path = report.output.with_extension(ext);

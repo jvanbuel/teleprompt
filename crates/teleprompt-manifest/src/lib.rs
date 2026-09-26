@@ -118,4 +118,5 @@ pub fn audio_path(line_id: &str, format: &str) -> String {
 }
 
 pub mod captions;
+pub mod chapters;
 pub mod diff;

@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_manifest::{captions, NarrationManifest};
+use teleprompt_manifest::{captions, chapters, NarrationManifest};
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::{Picture, Progress, RenderError};
@@ -71,6 +71,8 @@ pub struct BuildReport {
     pub output: PathBuf,
     /// Subtitles beside the video, as SubRip and WebVTT.
     pub captions: Vec<PathBuf>,
+    /// The chapters beside the video, as a YouTube description lists them.
+    pub chapters: PathBuf,
     pub duration_ms: u64,
     /// Which renderer did the work.
     pub renderer: &'static str,
@@ -97,7 +99,7 @@ impl BuildReport {
         };
         format!(
             "  {}\n  {} via {}{reused}\n  {} line(s), {} item(s), {} slate(s)\n  \
-             captions beside it: {}\n",
+             captions and chapters beside it: {}, chapters.txt\n",
             self.output.display(),
             clock(self.duration_ms),
             self.renderer,
@@ -264,11 +266,20 @@ pub async fn run_build_with_capture(
     }
 
     let captions = write_captions(&rendered.path, &dubbed.manifest)?;
+    let (list, problems) = chapters::youtube(&dubbed.manifest);
+    let chapters = rendered.path.with_extension("chapters.txt");
+    std::fs::write(&chapters, list)
+        .map_err(|e| BuildError::Runtime(format!("cannot write {}: {e}", chapters.display())))?;
+    // Only worth saying when there are chapters to show.
+    if dubbed.manifest.chapters.len() > 1 {
+        all.extend(problems);
+    }
 
     Ok(BuildReport {
         ok: true,
         output: rendered.path,
         captions,
+        chapters,
         duration_ms: rendered.duration_ms,
         renderer: renderer.id(),
         lines: dubbed.manifest.lines.len(),

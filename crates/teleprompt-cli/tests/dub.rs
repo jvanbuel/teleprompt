@@ -66,6 +66,8 @@ fn dub_writes_captions_beside_the_manifest() {
     );
     assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
     let dir = root.join("public/narration/en");
+    let chapters = std::fs::read_to_string(dir.join("chapters.txt")).unwrap();
+    assert!(chapters.starts_with("0:00 Quick start\n"), "{chapters}");
     let vtt = std::fs::read_to_string(dir.join("captions.vtt")).unwrap();
     let srt = std::fs::read_to_string(dir.join("captions.srt")).unwrap();
     assert!(vtt.starts_with("WEBVTT\n\n00:00:"), "{vtt}");

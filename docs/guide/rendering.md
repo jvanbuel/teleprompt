@@ -33,6 +33,20 @@ They're the narration, as it's spoken:
   that reports word timings, that's exact. With one that doesn't, the
   line's time is shared out by the length of each part.
 
+### Chapters
+
+A build also writes `build/tour.en.chapters.txt`, the script's headings
+with where each starts, ready to paste into a YouTube description:
+
+```
+0:00 Introduction
+1:12 Configuration
+3:05 Deploying
+```
+
+YouTube shows chapters only when there are at least three, each at least
+ten seconds long. When that isn't so, `build` says which rule fails.
+
 ### Rebuilds are incremental
 
 The picture is encoded in pieces, and each piece is kept. A piece's key
@@ -66,6 +80,7 @@ public/narration/en/narration.json
 public/narration/en/audio/welcome.wav
 public/narration/en/captions.srt
 public/narration/en/captions.vtt
+public/narration/en/chapters.txt
 ```
 
 The manifest gives each line its id, text, absolute `start_ms` and
