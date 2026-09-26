@@ -100,9 +100,12 @@ pub fn resolve(
 ) -> Result<Program, Diagnostics> {
     let mut diags = Vec::new();
     let front = config_layer(&script.front_matter, "front matter", &mut diags);
-    let base = Config::merged(&[project.clone(), front.clone(), cli.clone()]);
+    // Each layer with its section for this locale over it.
+    let project = project.in_locale(locale);
+    let front = front.in_locale(locale);
+    let base = Config::merged(&[project.clone(), front.clone(), vec![cli.clone()]].concat());
     let mut r = Resolver {
-        project,
+        project: &project,
         front,
         cli,
         diags,
@@ -169,8 +172,8 @@ fn config_layer(yaml: &str, what: &str, diags: &mut Vec<Diagnostic>) -> PartialC
 /// The script-wide config layers and everything `resolve` collects while
 /// walking the chapters.
 struct Resolver<'a> {
-    project: &'a PartialConfig,
-    front: PartialConfig,
+    project: &'a [PartialConfig],
+    front: Vec<PartialConfig>,
     cli: &'a PartialConfig,
     diags: Vec<Diagnostic>,
     /// Merged-config problems, keyed by message so one bad `voice.speed` in
@@ -184,13 +187,12 @@ struct Resolver<'a> {
 
 impl Resolver<'_> {
     fn merged(&self, chapter_cfg: &PartialConfig, item: PartialConfig) -> Config {
-        Config::merged(&[
-            self.project.clone(),
+        let layers = [
+            self.project.to_vec(),
             self.front.clone(),
-            chapter_cfg.clone(),
-            item,
-            self.cli.clone(),
-        ])
+            vec![chapter_cfg.clone(), item, self.cli.clone()],
+        ];
+        Config::merged(&layers.concat())
     }
 
     fn resolve_line(

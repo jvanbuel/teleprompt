@@ -262,6 +262,9 @@ pub struct PartialConfig {
     pub output: Option<PartialOutput>,
     pub scene: Option<PartialScenes>,
     pub backends: Option<BTreeMap<String, serde_yaml::Value>>,
+    /// `[locale.nl]`: settings for compiling in one locale, a Dutch voice
+    /// say, applied over the rest of the layer they are written in.
+    pub locale: Option<BTreeMap<String, PartialConfig>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -435,6 +438,17 @@ impl PartialConfig {
 
     pub fn from_toml(s: &str) -> Result<Self, ConfigError> {
         Ok(toml::from_str(s)?)
+    }
+
+    /// This layer as it applies in `locale`: itself, then its section for
+    /// that locale over it.
+    pub fn in_locale(&self, locale: &str) -> Vec<PartialConfig> {
+        let own = self
+            .locale
+            .as_ref()
+            .and_then(|sections| sections.get(locale))
+            .cloned();
+        std::iter::once(self.clone()).chain(own).collect()
     }
 
     /// Builds a layer from a line's attributes.
