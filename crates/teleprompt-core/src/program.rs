@@ -225,7 +225,9 @@ impl Resolver<'_> {
             self.diags.push(
                 Diagnostic::error("action block has no `scene`")
                     .at(block.span)
-                    .with_help("write ```teleprompt scene=browser"),
+                    .with_help(
+                        "write ```teleprompt scene=<adapter or declared scene>, e.g. scene=vhs",
+                    ),
             );
             return;
         };

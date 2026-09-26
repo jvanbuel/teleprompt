@@ -440,11 +440,15 @@ without re-planning.
 
 ## Scenes
 
-A scene is a domain and an adapter is a tool. A fence names the scene
-(`scene=terminal`), and configuration chooses the adapter
-(`[scene.terminal] adapter = "vhs"`). The block body is adapter-native
-either way. The indirection keeps the choice of tool out of every script,
-so swapping it is a configuration change, not a find-and-replace.
+A scene is a running instance of an adapter: one session, with its
+settings. A fence names it (`scene=vhs`). An adapter's name is a scene
+without being declared; declaring one (`[scene.server] adapter = "vhs"`)
+gives it settings, or a second instance of an adapter under another name.
+The block body is adapter-native, so a scene's name does not abstract
+over tools: moving a block to another adapter means rewriting it. A name
+that is neither declared nor an adapter is an error, not a placeholder.
+`terminal` and `browser` are kept as older names for `vhs` and
+`playwright`.
 
 ### Scene contract
 

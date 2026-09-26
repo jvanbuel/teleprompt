@@ -265,10 +265,17 @@ fn chain_capture_keys(
         }
 
         // name(n): recipe, adapter, scene settings, inputs, shot source.
-        let scene = config.scenes.get(&action.scene);
-        let settings = scene
+        let declared = config.scenes.get(&action.scene);
+        // An undeclared scene has no settings, which fingerprint as nothing,
+        // but its adapter may still read files.
+        let settings = declared
             .map(SceneConfig::settings_fingerprint)
             .unwrap_or_default();
+        let implicit = SceneConfig {
+            adapter: action.adapter.clone(),
+            settings: BTreeMap::new(),
+        };
+        let scene = Some(declared.unwrap_or(&implicit));
         // Scene-wide inputs are read once per scene.
         let inputs = inputs
             .entry(action.scene.clone())
@@ -739,18 +746,26 @@ Read it, then remove the attribute.",
         scene: &str,
         config: &Config,
     ) -> Option<(String, &'a dyn SceneCompiler)> {
-        let adapter_name = config
-            .scenes
-            .get(scene)
-            .map(|s| s.adapter.clone())
-            .unwrap_or_else(|| default_adapter(scene).to_string());
+        let declared = config.scenes.get(scene);
+        let adapter_name =
+            declared.map_or_else(|| default_adapter(scene).to_string(), |s| s.adapter.clone());
         let registry = self.registry;
         let Some(adapter) = registry.get(&adapter_name) else {
+            let available = registry.available().join(", ");
+            if declared.is_none() && adapter_name == scene {
+                self.diags.push(
+                    Diagnostic::error(format!("unknown scene `{scene}`")).with_help(format!(
+                        "use an adapter's name as the scene ({available}), or declare \
+                             it under [scene.{scene}] in teleprompt.toml with its adapter"
+                    )),
+                );
+                return None;
+            }
             self.diags.push(
                 Diagnostic::error(format!(
                     "scene `{scene}` needs adapter `{adapter_name}`, but no adapter `{adapter_name}` is available"
                 ))
-                .with_help(format!("available adapters: {}", registry.available().join(", "))),
+                .with_help(format!("available adapters: {available}")),
             );
             return None;
         };

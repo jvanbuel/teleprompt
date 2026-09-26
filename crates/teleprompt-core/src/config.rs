@@ -230,13 +230,14 @@ impl Default for Config {
     }
 }
 
-/// Default adapter for a scene name, used when config omits it.
-pub fn default_adapter(scene: &str) -> &'static str {
+/// The adapter a scene uses when none is declared for it: the adapter of
+/// the same name.
+pub fn default_adapter(scene: &str) -> &str {
     match scene {
+        // Older names, from before an adapter's name was a scene of its own.
         "browser" => "playwright",
         "terminal" => "vhs",
-        "media" => "media",
-        _ => "mock",
+        name => name,
     }
 }
 

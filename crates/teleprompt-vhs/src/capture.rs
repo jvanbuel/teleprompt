@@ -75,7 +75,7 @@ fn path_with_fallback(scene: &str, inherited: Option<&str>) -> String {
     out.join(":")
 }
 
-/// Records `terminal` scenes by handing a re-timed tape to `vhs`.
+/// Records `vhs` scenes by handing a re-timed tape to `vhs`.
 #[derive(Debug, Clone)]
 pub struct VhsRender {
     pub vhs: String,

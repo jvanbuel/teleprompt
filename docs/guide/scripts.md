@@ -15,7 +15,7 @@ output:
 
 Every video here is built from a script you can read. {#welcome}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Type "teleprompt plan scripts/tour.md"
 Enter
 Sleep 2s
@@ -65,7 +65,7 @@ when the voice reaches a phrase instead:
 ````markdown
 One command registers a server. flowrs config add asks for a name. {#config}
 
-```teleprompt scene=terminal policy=concurrent cue="flowrs config add"
+```teleprompt scene=vhs policy=concurrent cue="flowrs config add"
 Type "flowrs config add"
 Enter
 ```

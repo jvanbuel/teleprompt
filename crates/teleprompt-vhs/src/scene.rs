@@ -1,4 +1,4 @@
-//! The `terminal` scene, served by VHS tapes.
+//! Terminal scenes, served by VHS tapes.
 //!
 //! The block body is real VHS tape syntax and stays runnable by `vhs`
 //! itself. See `docs/design.md#adapters` for what is refused and why a shot
@@ -304,7 +304,7 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, CommandEr
         // first runs, so a block cannot choose it.
         "Shell" => Err(CommandError::new(
             "`Set Shell` is set by teleprompt, not by the tape",
-            "remove the line; configure the shell under `scene.terminal`",
+            "remove the line; configure the shell in the scene's settings",
         )),
 
         "PlaybackSpeed" => Err(CommandError::new(

@@ -219,13 +219,33 @@ fn the_scene_records_both_its_name_and_its_adapter() {
     assert_eq!(a.adapter, "mock");
 }
 
+/// An adapter's name is a scene without declaring one.
 #[test]
-fn an_unconfigured_scene_falls_back_to_its_default_adapter() {
+fn an_undeclared_scene_named_after_an_adapter_uses_it() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock\nwait 100ms\n```\n";
     let out = run(src);
+    let action = out.timeline.entries[0].action.as_ref().unwrap();
     assert_eq!(
-        out.timeline.entries[0].action.as_ref().unwrap().adapter,
-        "mock"
+        (action.scene.as_str(), action.adapter.as_str()),
+        ("mock", "mock")
+    );
+}
+
+/// A name that is neither declared nor an adapter is a mistake, not a
+/// placeholder video.
+#[test]
+fn an_unknown_scene_is_an_error_naming_the_adapters() {
+    let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=moc\nwait 100ms\n```\n";
+    let e = compile_program(&program(src)).unwrap_err();
+    assert!(
+        e.0[0].message.contains("unknown scene `moc`"),
+        "{:?}",
+        e.0[0]
+    );
+    let help = e.0[0].help.as_deref().unwrap();
+    assert!(
+        help.contains("[scene.moc]") && help.contains("mock"),
+        "{help}"
     );
 }
 

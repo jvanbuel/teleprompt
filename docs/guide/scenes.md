@@ -1,19 +1,33 @@
 # Scenes
 
-An action block names a **scene**, and configuration chooses the
-**adapter** that serves it:
+An action block names a **scene**: what it shows, and what records it.
+The simplest scene is an adapter's own name:
 
 ````markdown
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Type "cargo build --release"
 Enter
 ```
 ````
 
+Declare a scene when you want settings for it, or more than one of an
+adapter. The name is yours; the adapter does the work:
+
 ```toml
-[scene.terminal]
+[scene.server]
 adapter = "vhs"
+
+[scene.client]
+adapter = "vhs"
+env = { API = "http://localhost:8080" }
 ```
+
+Blocks of one scene run in one session (see [below](#a-scene-is-a-session)),
+so `server` and `client` are two terminals, each carrying on where it left
+off. A declared scene named after an adapter, like `[scene.vhs]`, just
+gives that adapter settings. A name that is neither declared nor an
+adapter is an error. `terminal` and `browser` still work, as older names
+for `vhs` and `playwright`.
 
 | adapter | shows | a shot is | needs |
 |---|---|---|---|
@@ -65,7 +79,7 @@ paragraph changes start times but no keys.
 script that quits a program and starts it again:
 
 ````markdown
-```teleprompt scene=terminal session=retry
+```teleprompt scene=vhs session=retry
 Type "flowrs"
 Enter
 ```
@@ -81,11 +95,11 @@ in the directory the build was run from.
 
 ## Terminals
 
-A `terminal` block is a [VHS](https://github.com/charmbracelet/vhs) tape,
+A `vhs` block is a [VHS](https://github.com/charmbracelet/vhs) tape,
 and `vhs` records it:
 
 ````markdown
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 35ms
 Type "cargo build --release"
 Enter
@@ -137,13 +151,12 @@ Settings persist across a `# mark` but not across blocks, so a block that
 wants a non-default typing speed sets it itself.
 
 ```toml
-[scene.terminal]
-adapter = "vhs"
+[scene.vhs]
 # settle_ms = 800       # hidden time for the shell to start
 # font_size = 22
 # theme = "Dracula"
 
-[scene.terminal.env]
+[scene.vhs.env]
 PATH = "target/release:/usr/local/bin:/usr/bin:/bin"
 ```
 
@@ -209,7 +222,7 @@ A `playwright` block is a Playwright script, run as written, with `page`
 in scope:
 
 ````markdown
-```teleprompt scene=browser
+```teleprompt scene=playwright
 await page.goto('http://localhost:3000');
 await page.getByText('Get started').click();
 // mark
@@ -224,8 +237,7 @@ takes the length of its sentence, and if the script finishes early the
 page holds still for the rest of the slot.
 
 ```toml
-[scene.browser]
-adapter = "playwright"
+[scene.playwright]
 # executable = "/path/to/chromium"
 # cursor = "pointer"           # the pointer drawn over clicks
 # labels = "bottom-right"      # where action labels appear

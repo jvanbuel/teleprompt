@@ -33,7 +33,7 @@ Here is what a short session becomes:
 
 Let's see what is here.
 
-```teleprompt scene=terminal policy=concurrent cue="what is"
+```teleprompt scene=vhs policy=concurrent cue="what is"
 Set TypingSpeed 60ms
 Type "ls -la"
 Enter

@@ -112,7 +112,7 @@ fn a_session_becomes_a_script_that_checks() {
     );
     assert!(md.contains("Let's see what is here.\n"), "{md}");
     assert!(
-        md.contains("```teleprompt scene=terminal policy=concurrent cue=\"what is\"\n"),
+        md.contains("```teleprompt scene=vhs policy=concurrent cue=\"what is\"\n"),
         "{md}"
     );
     assert!(md.contains("Type \"cat notes.txt\"\n"), "{md}");

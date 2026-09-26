@@ -17,7 +17,7 @@ exactly how before anything renders.
 
 Every video here is built from a script you can read. {#welcome}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Type "teleprompt plan scripts/tour.md"
 Enter
 Sleep 2s

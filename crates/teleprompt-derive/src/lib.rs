@@ -28,7 +28,8 @@ pub struct Word {
 pub struct Options {
     /// A silence at least this long ends a line.
     pub pause_ms: u64,
-    /// The scene the tapes run in.
+    /// The scene the tapes run in: VHS's own, unless the project declares
+    /// another.
     pub scene: String,
     /// The script's one heading.
     pub title: String,
@@ -38,7 +39,7 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             pause_ms: 700,
-            scene: "terminal".to_string(),
+            scene: "vhs".to_string(),
             title: "Recording".to_string(),
         }
     }

@@ -29,7 +29,7 @@ fn a_shell_fence_becomes_a_tape_that_types_the_command() {
     // The command is typed and never run. A draft that executed what it
     // found in someone's README would be a very sharp edge indeed.
     let out = draft("Install it.\n\n```bash\nnpm install acme\n```\n", "Acme");
-    assert!(out.contains("```teleprompt scene=terminal"), "{out}");
+    assert!(out.contains("```teleprompt scene=vhs"), "{out}");
     assert!(out.contains("Type \"npm install acme\""), "{out}");
     assert!(out.contains("Enter"), "{out}");
     assert!(
@@ -43,14 +43,14 @@ fn a_drafted_tape_is_marked_unreviewed() {
     // A command lifted out of someone's README has not been read by anyone
     // yet. The attribute is the record of that, and `check` is what nags.
     let out = draft("Install it.\n\n```bash\nnpm install acme\n```\n", "Acme");
-    assert!(out.contains("scene=terminal review=pending"), "{out}");
+    assert!(out.contains("scene=vhs review=pending"), "{out}");
 }
 
 #[test]
 fn a_non_shell_fence_survives_as_ordinary_markdown() {
     let out = draft("Here is the payload.\n\n```json\n{\"a\": 1}\n```\n", "Acme");
     assert!(out.contains("```json\n{\"a\": 1}\n```"), "{out}");
-    assert!(!out.contains("scene=terminal"), "{out}");
+    assert!(!out.contains("scene=vhs"), "{out}");
 }
 
 #[test]
@@ -118,17 +118,17 @@ not a separator
         let d = draft_slidev(DECK, "deck/slides.md", &|_| None);
         let s = &d.script;
         assert!(
-            s.contains("    adapter: slidev\n    deck: deck/slides.md\n"),
+            s.contains("scene:\n  slidev:\n    deck: deck/slides.md\n"),
             "{s}"
         );
-        assert!(s.contains("# Narrated slides\n\nThis is a deck, narrated. {#this-is-a}\n\n```teleprompt scene=slides policy=concurrent\n1\n```"), "{s}");
+        assert!(s.contains("# Narrated slides\n\nThis is a deck, narrated. {#this-is-a}\n\n```teleprompt scene=slidev policy=concurrent\n1\n```"), "{s}");
         assert!(
             s.contains("The deck does not change. {#the-deck-does}"),
             "{s}"
         );
-        assert!(s.contains("You can still present it. {#you-can-still}\n\n```teleprompt scene=slides policy=concurrent\n2?clicks=1\n```"), "{s}");
+        assert!(s.contains("You can still present it. {#you-can-still}\n\n```teleprompt scene=slidev policy=concurrent\n2?clicks=1\n```"), "{s}");
         // `[click:2]` adds two, as it does in Slidev.
-        assert!(s.contains("You can still export it. {#you-can-still-2}\n\n```teleprompt scene=slides policy=concurrent\n2?clicks=3\n```"), "{s}");
+        assert!(s.contains("You can still export it. {#you-can-still-2}\n\n```teleprompt scene=slidev policy=concurrent\n2?clicks=3\n```"), "{s}");
     }
 
     /// A slide with nothing to say is left out and reported, since a block
@@ -172,7 +172,7 @@ not a separator
     /// The slide number each paragraph's block names, in order.
     fn numbers(script: &str) -> Vec<String> {
         script
-            .split("```teleprompt scene=slides policy=concurrent\n")
+            .split("```teleprompt scene=slidev policy=concurrent\n")
             .skip(1)
             .map(|b| b.lines().next().unwrap_or("").to_string())
             .collect()
@@ -189,7 +189,7 @@ not a separator
         assert_eq!(numbers(&d.script), ["1", "2"], "{}", d.script);
         assert!(d
             .script
-            .contains("four {#four}\n\n```teleprompt scene=slides policy=concurrent\n2\n"));
+            .contains("four {#four}\n\n```teleprompt scene=slidev policy=concurrent\n2\n"));
         assert!(!d.script.contains("two {#two}"));
         assert_eq!(
             d.warnings.len(),

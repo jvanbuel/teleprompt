@@ -101,7 +101,7 @@ fn fence(out: &mut String, info: &str, body: &[&str]) {
         return;
     }
 
-    let mut tape = String::from("```teleprompt scene=terminal review=pending\n");
+    let mut tape = String::from("```teleprompt scene=vhs review=pending\n");
     for command in body.iter().map(|l| l.trim()).filter(|l| !l.is_empty()) {
         tape.push_str(&format!("Type \"{}\"\nEnter\nSleep 1s\n", escape(command)));
     }
@@ -150,9 +150,7 @@ pub fn draft_slidev(
     let mut warnings = Vec::new();
     load(deck_source, "", None, &[], read, &mut loaded, &mut warnings);
 
-    let mut out = format!(
-        "---\nteleprompt: 1\nscene:\n  slides:\n    adapter: slidev\n    deck: {deck}\n---\n\n"
-    );
+    let mut out = format!("---\nteleprompt: 1\nscene:\n  slidev:\n    deck: {deck}\n---\n\n");
     let mut seen = BTreeMap::new();
     let mut silent = Vec::new();
     for (index, slide) in loaded.iter().enumerate() {
@@ -175,7 +173,7 @@ pub fn draft_slidev(
                 format!("{number}?clicks={clicks}")
             };
             out.push_str(&format!(
-                "{text} {{#{id}}}\n\n```teleprompt scene=slides policy=concurrent\n{shot}\n```\n\n"
+                "{text} {{#{id}}}\n\n```teleprompt scene=slidev policy=concurrent\n{shot}\n```\n\n"
             ));
         }
     }

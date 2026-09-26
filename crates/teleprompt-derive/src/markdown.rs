@@ -4,10 +4,7 @@ use crate::{Block, Draft, Mode, Options};
 
 pub(crate) fn render(draft: &Draft, options: &Options) -> String {
     let scene = &options.scene;
-    let mut out = format!(
-        "---\nteleprompt: 1\nscene:\n  {scene}:\n    adapter: vhs\n---\n\n# {}\n",
-        options.title
-    );
+    let mut out = format!("---\nteleprompt: 1\n---\n\n# {}\n", options.title);
     for beat in &draft.beats {
         if let Some(line) = &beat.line {
             out.push('\n');
