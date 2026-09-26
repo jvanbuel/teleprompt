@@ -8,7 +8,7 @@ use serde::Serialize;
 use teleprompt_core::translation::{items, merged, pending, Translation};
 use teleprompt_translate::{Known, Request, Translator, Wanted};
 
-use crate::cmd::check::{source_program, translation_path};
+use crate::cmd::check::{resolved, source_program, translation_path};
 use crate::project::Project;
 
 pub enum TranslateError {
@@ -45,6 +45,38 @@ impl TranslateReport {
         s.push_str("  read it over: it is spoken exactly as written\n");
         s
     }
+}
+
+/// What to translate with, overriding `[translate]` for one run.
+#[derive(Default)]
+pub struct Choice<'a> {
+    pub provider: Option<&'a str>,
+    pub model: Option<&'a str>,
+    /// A shell command to translate with: the `command` provider.
+    pub command: Option<&'a str>,
+}
+
+/// The translator `[translate]` names for `target`, as `choice` overrides it.
+pub fn translator(
+    project: &Project,
+    script: &Path,
+    target: &str,
+    choice: &Choice,
+) -> Result<Translator, TranslateError> {
+    if let Some(cmd) = choice.command {
+        return Ok(Translator::Command(cmd.to_string()));
+    }
+    let config = resolved(project, script, target)
+        .map_err(TranslateError::Validation)?
+        .config;
+    let provider = choice.provider.unwrap_or(&config.translate.provider);
+    // A model named for one provider means nothing to another.
+    let model = choice.model.or(if choice.provider.is_none() {
+        config.translate.model.as_deref()
+    } else {
+        None
+    });
+    Translator::new(provider, model, config.backends.get(provider)).map_err(TranslateError::Runtime)
 }
 
 pub async fn run_translate(

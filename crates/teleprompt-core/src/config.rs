@@ -29,6 +29,16 @@ pub struct Config {
     /// this layer — `voice.backend` selection reports that, with the
     /// available list.
     pub backends: BTreeMap<String, serde_yaml::Value>,
+    pub translate: TranslateConfig,
+}
+
+/// What `translate` translates with. The provider's own settings (where
+/// to reach it, a key) are under `backends.<provider>`, as a voice's are.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TranslateConfig {
+    pub provider: String,
+    /// The provider's model; its own default when unset.
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -230,6 +240,11 @@ impl Default for Config {
             scenes: BTreeMap::new(),
             default_scene: None,
             backends: BTreeMap::new(),
+            // Local, so a script is translated on the machine by default.
+            translate: TranslateConfig {
+                provider: "ollama".into(),
+                model: None,
+            },
         }
     }
 }
@@ -265,6 +280,14 @@ pub struct PartialConfig {
     /// `[locale.nl]`: settings for compiling in one locale, a Dutch voice
     /// say, applied over the rest of the layer they are written in.
     pub locale: Option<BTreeMap<String, PartialConfig>>,
+    pub translate: Option<PartialTranslate>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PartialTranslate {
+    pub provider: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -577,6 +600,12 @@ impl Config {
                     for (k, v) in &ps.settings {
                         entry.settings.insert(k.clone(), v.clone());
                     }
+                }
+            }
+            if let Some(t) = &layer.translate {
+                set!(c.translate.provider, t.provider.clone());
+                if t.model.is_some() {
+                    c.translate.model = t.model.clone();
                 }
             }
             if let Some(bs) = &layer.backends {

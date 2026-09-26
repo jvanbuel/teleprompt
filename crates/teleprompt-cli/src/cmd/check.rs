@@ -321,6 +321,19 @@ pub fn run_check(
 /// `script` resolved in its own language, for reading its narration rather
 /// than compiling it.
 pub(crate) fn source_program(project: &Project, script: &Path) -> Result<Program, Vec<String>> {
+    let source = teleprompt_core::config::Config::merged(std::slice::from_ref(&project.config))
+        .locales
+        .source;
+    resolved(project, script, &source)
+}
+
+/// `script` resolved for `locale`, untranslated: its configuration as that
+/// locale sees it.
+pub(crate) fn resolved(
+    project: &Project,
+    script: &Path,
+    locale: &str,
+) -> Result<Program, Vec<String>> {
     let display = script.display().to_string();
     let name = script
         .file_name()
@@ -332,13 +345,10 @@ pub(crate) fn source_program(project: &Project, script: &Path) -> Result<Program
     if id_diags.iter().any(Diagnostic::is_error) {
         return Err(render(&Diagnostics(id_diags), &display));
     }
-    let source = teleprompt_core::config::Config::merged(std::slice::from_ref(&project.config))
-        .locales
-        .source;
     resolve(
         &parsed,
         &name,
-        &source,
+        locale,
         &project.config,
         &PartialConfig::default(),
     )

@@ -11,15 +11,16 @@ targets = []
 [voice]
 backend = "null"
 
-[scene.mock]
-adapter = "mock"
+# `teleprompt translate` translates with a model run locally by Ollama
+# (ollama.com) unless you choose another provider: ollama, openai (any
+# OpenAI-compatible server), claude, or command (a program of your own).
+# [translate]
+# provider = "ollama"
+# model = "gemma3:12b"
 "#;
 
 const DEMO_SCRIPT: &str = r#"---
 teleprompt: 1
-scene:
-  mock:
-    adapter: mock
 ---
 
 # Getting started

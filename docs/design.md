@@ -157,7 +157,7 @@ reading the manifest it just published.
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
 | `teleprompt-listen-sherpa` | the recognizer, a streaming sherpa-onnx model; empty without its opt-in `sherpa` feature, so the default build stays offline |
 | `teleprompt-derive` | deriving a script from a recorded terminal session: keystrokes and timed words in, lines and the tapes between them out. Pure, no dependencies |
-| `teleprompt-translate` | translators for `translate`: the request every one of them is sent, Claude over the Messages API, and a shell command of the author's |
+| `teleprompt-translate` | translation providers for `translate`, chosen by name: a local model through Ollama (the default), any OpenAI-compatible server, Claude, and a command of the author's; the request each is sent and the prompt the model-backed ones share |
 | `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler and capture backend |
@@ -394,7 +394,12 @@ when the translation kept its words, as it keeps a command; and failing
 that the shot starts on the words as far into the translated line as the
 phrase was into the source, with a warning.
 
-`translate` fills the file in. It asks only for what is missing or
+`translate` fills the file in, with the provider `[translate]` names. The
+default runs a model locally through Ollama, so, like speech recognition
+and synthesis, translation needs no service. A provider is a name, its own
+settings under `backends.<name>` as a voice backend's are, and a
+`translate` method; `openai` and `command` reach anything else without a
+new build. It asks only for what is missing or
 stale, and for the cues of lines it retranslates, and sends what is
 already translated along so terminology holds. Answers are merged in
 script order, and entries for lines the script no longer has are

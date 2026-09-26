@@ -130,3 +130,97 @@ async fn a_failing_command_says_what_it_said() {
         .unwrap_err();
     assert!(err.contains("nope") && err.contains('3'), "{err}");
 }
+
+fn settings(yaml: &str) -> serde_yaml::Value {
+    serde_yaml::from_str(yaml).unwrap()
+}
+
+/// The default: a model run by Ollama, asked for JSON in its own format.
+#[tokio::test]
+async fn ollama_is_the_default_and_asked_for_json() {
+    let answer = json!({"items": [{"id": "line:welcome", "text": "Welkom bij Acme."}]});
+    let (url, server) = serve_once(json!({
+        "message": {"role": "assistant", "content": format!("```json\n{answer}\n```")},
+        "done": true,
+    }))
+    .await;
+    let t = Translator::new(
+        teleprompt_translate::PROVIDERS[0],
+        None,
+        Some(&settings(&format!("url: {url}"))),
+    )
+    .unwrap();
+    let out = t.translate(&request()).await.unwrap();
+    assert_eq!(
+        out,
+        [("line:welcome".to_string(), "Welkom bij Acme.".to_string())]
+    );
+
+    let (head, body) = server.await.unwrap();
+    assert!(head.to_lowercase().starts_with("post /api/chat "), "{head}");
+    assert_eq!(body["model"], teleprompt_translate::ollama::DEFAULT_MODEL);
+    assert_eq!(body["stream"], false);
+    assert_eq!(body["format"]["required"][0], "items");
+    assert_eq!(body["messages"][0]["role"], "system");
+}
+
+/// A model Ollama has not pulled says how to get it.
+#[tokio::test]
+async fn a_missing_ollama_model_says_how_to_pull_it() {
+    let (url, _server) =
+        serve_once(json!({"error": "model \"gemma3:12b\" not found, try pulling it first"})).await;
+    let t = Translator::new("ollama", None, Some(&settings(&format!("url: {url}")))).unwrap();
+    let err = t.translate(&request()).await.unwrap_err();
+    assert!(err.contains("ollama pull gemma3:12b"), "{err}");
+}
+
+/// No Ollama running is an error naming what to install, not a hang.
+#[tokio::test]
+async fn no_ollama_says_how_to_get_one() {
+    let t = Translator::new("ollama", None, Some(&settings("url: http://127.0.0.1:9"))).unwrap();
+    let err = t.translate(&request()).await.unwrap_err();
+    assert!(
+        err.contains("ollama.com") && err.contains("[translate]"),
+        "{err}"
+    );
+}
+
+/// Any OpenAI-compatible server: LM Studio, llama.cpp, vLLM.
+#[tokio::test]
+async fn an_openai_compatible_server_is_asked_the_same() {
+    let answer = json!({"items": [{"id": "line:welcome", "text": "Welkom bij Acme."}]});
+    let (url, server) = serve_once(json!({
+        "choices": [{"message": {"role": "assistant", "content": answer.to_string()}}],
+    }))
+    .await;
+    std::env::set_var("TP_TEST_KEY", "sk-local");
+    let t = Translator::new(
+        "openai",
+        Some("qwen2.5-7b-instruct"),
+        Some(&settings(&format!(
+            "url: {url}/v1\napi_key_env: TP_TEST_KEY"
+        ))),
+    )
+    .unwrap();
+    let out = t.translate(&request()).await.unwrap();
+    assert_eq!(out.len(), 1);
+    let (head, body) = server.await.unwrap();
+    let head = head.to_lowercase();
+    assert!(head.starts_with("post /v1/chat/completions "), "{head}");
+    assert!(head.contains("authorization: bearer sk-local"), "{head}");
+    assert_eq!(body["model"], "qwen2.5-7b-instruct");
+    assert_eq!(body["response_format"]["type"], "json_schema");
+}
+
+#[test]
+fn providers_say_what_they_are_missing() {
+    let err = |p: &str, s: Option<&str>| {
+        Translator::new(p, None, s.map(settings).as_ref())
+            .err()
+            .unwrap()
+    };
+    assert!(err("deepl", None).contains("ollama, openai, claude, command"));
+    assert!(err("openai", None).contains("[backends.openai]"));
+    assert!(err("command", None).contains("[backends.command]"));
+    assert!(err("ollama", Some("adress: x")).contains("backends.ollama"));
+}

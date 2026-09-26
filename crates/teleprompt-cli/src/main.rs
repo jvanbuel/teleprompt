@@ -152,18 +152,21 @@ enum Command {
     /// Writes <script>.<locale>.yaml beside the script, translating only
     /// what is missing or has changed in the English since; read it over,
     /// since it is spoken as written. Compile, dub or build with
-    /// `--locale <locale>` to use it. Translates with Claude by default,
-    /// which needs ANTHROPIC_API_KEY.
+    /// `--locale <locale>` to use it. Translates with a model run locally by
+    /// Ollama unless [translate] in teleprompt.toml says otherwise.
     Translate {
         script: PathBuf,
         /// The locale to translate into, e.g. nl, fr, pt-BR
         #[arg(long)]
         to: String,
-        /// The Claude model to translate with
+        /// Translate with this provider: ollama, openai, claude or command
+        #[arg(long, conflicts_with = "command")]
+        provider: Option<String>,
+        /// The provider's model
         #[arg(long, conflicts_with = "command")]
         model: Option<String>,
-        /// Translate with this shell command instead: it gets the request as
-        /// JSON on stdin and answers {"items": [{"id", "text"}]} on stdout
+        /// Translate with this shell command: it gets the request as JSON on
+        /// stdin and answers {"items": [{"id", "text"}]} on stdout
         #[arg(long)]
         command: Option<String>,
     },
@@ -391,23 +394,19 @@ fn run_translate_cmd(
     format: Format,
     script: &std::path::Path,
     to: &str,
-    model: Option<&str>,
-    command: Option<String>,
+    choice: &teleprompt_cli::cmd::translate::Choice,
 ) -> Run {
-    use teleprompt_cli::cmd::translate::{run_translate, TranslateError};
-    use teleprompt_translate::{Claude, Translator};
+    use teleprompt_cli::cmd::translate::{run_translate, translator, TranslateError};
     let project = project_for(script)?;
-    let translator = match command {
-        Some(cmd) => Translator::Command(cmd),
-        None => Translator::Claude(Claude::from_env(model).map_err(Outcome::RuntimeFailure)?),
+    let failed = |e| match e {
+        TranslateError::Validation(v) => Outcome::ValidationError(v),
+        TranslateError::Runtime(r) => Outcome::RuntimeFailure(r),
     };
+    let translator = translator(&project, script, to, choice).map_err(failed)?;
     let report = tokio::runtime::Runtime::new()
         .map_err(|e| Outcome::RuntimeFailure(e.to_string()))?
         .block_on(run_translate(&project, script, to, &translator))
-        .map_err(|e| match e {
-            TranslateError::Validation(v) => Outcome::ValidationError(v),
-            TranslateError::Runtime(r) => Outcome::RuntimeFailure(r),
-        })?;
+        .map_err(failed)?;
     emit(format, &report, &report.render());
     Ok(Outcome::Ok)
 }
@@ -474,9 +473,17 @@ fn run(command: Command, format: Format) -> Run {
         Command::Translate {
             script,
             to,
+            provider,
             model,
             command,
-        } => run_translate_cmd(format, &script, &to, model.as_deref(), command),
+        } => {
+            let choice = teleprompt_cli::cmd::translate::Choice {
+                provider: provider.as_deref(),
+                model: model.as_deref(),
+                command: command.as_deref(),
+            };
+            run_translate_cmd(format, &script, &to, &choice)
+        }
         Command::Record(args) => run_record(format, args),
         Command::Cache { prune_to_mb } => {
             let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;

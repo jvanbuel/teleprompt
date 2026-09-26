@@ -131,3 +131,44 @@ fn the_source_locale_is_not_a_target() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// The provider comes from teleprompt.toml, with its own settings under
+/// [backends.<provider>].
+#[test]
+fn the_provider_is_configured_in_the_project() {
+    let dir = project("configured");
+    let toml = std::fs::read_to_string(dir.join("teleprompt.toml")).unwrap();
+    std::fs::write(
+        dir.join("teleprompt.toml"),
+        format!("{toml}\n[translate]\nprovider = \"command\"\n\n[backends.command]\nrun = '''{FAKE}'''\n"),
+    )
+    .unwrap();
+    let out = tp(&dir, &["translate", "scripts/tour.md", "--to", "nl"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(std::fs::read_to_string(dir.join("scripts/tour.nl.yaml"))
+        .unwrap()
+        .contains("[nl] Welcome"));
+}
+
+/// By default a local model translates; with none running, the error says
+/// how to get one.
+#[test]
+fn the_default_is_a_local_model() {
+    let dir = project("default");
+    let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .current_dir(&dir)
+        .env("OLLAMA_HOST", "127.0.0.1:9")
+        .args(["translate", "scripts/tour.md", "--to", "nl"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("Ollama") && err.contains("ollama pull gemma3:12b"),
+        "{err}"
+    );
+}

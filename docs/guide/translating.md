@@ -62,24 +62,62 @@ Dutch line as it was into the English one, and `plan` says so.
 
 ## Choosing a translator
 
-By default `translate` uses Claude, through the Anthropic API. Set your
-API key first:
+By default `translate` uses a model running on your own machine, through
+[Ollama](https://ollama.com). Nothing leaves the machine and nothing needs
+a key. Install Ollama, then fetch the model once:
 
 ```bash
-export ANTHROPIC_API_KEY=...
-teleprompt translate scripts/tour.md --to fr
-teleprompt translate scripts/tour.md --to fr --model claude-sonnet-5
+ollama pull gemma3:12b
+teleprompt translate scripts/tour.md --to nl
 ```
 
-This sends the script's narration to Anthropic.
+`gemma3:12b` is a multilingual open model, about an 8 GB download. On a
+smaller machine `gemma3:4b` works too; a bigger model translates better.
+Choose one in `teleprompt.toml`:
 
-To use another service, or a model on your own machine, give a command
-instead. It's run by the shell, gets the request as JSON on stdin, and
-answers on stdout:
+```toml
+[translate]
+provider = "ollama"
+model = "gemma3:4b"
+
+# only if Ollama isn't at localhost:11434 (OLLAMA_HOST is read too)
+[backends.ollama]
+url = "http://gpu-box:11434"
+```
+
+Other providers are chosen the same way, each with its own settings under
+`[backends.<provider>]`:
+
+| provider | translates with | settings |
+|---|---|---|
+| `ollama` | a model run by Ollama (the default) | `url` |
+| `openai` | any server with the OpenAI chat API: LM Studio, llama.cpp, vLLM, or a hosted service | `url` (up to `/v1`), `api_key_env` |
+| `claude` | Claude, through the Anthropic API; reads `ANTHROPIC_API_KEY` and sends the narration to Anthropic | |
+| `command` | a program of your own | `run` |
+
+```toml
+# LM Studio
+[translate]
+provider = "openai"
+model = "qwen2.5-7b-instruct"
+
+[backends.openai]
+url = "http://localhost:1234/v1"
+```
+
+`--provider` and `--model` choose for one run, and `[locale.ja.translate]`
+for one language:
 
 ```bash
-teleprompt translate scripts/tour.md --to de --command ./my-translator
+teleprompt translate scripts/tour.md --to fr --provider claude
 ```
+
+### Your own translator
+
+A `command` provider gets the request as JSON on stdin and answers on
+stdout, so any service can be plugged in with a short script. Set it
+under `[backends.command]` as `run = "./my-translator"`, or pass
+`--command ./my-translator` for one run.
 
 ```json
 {

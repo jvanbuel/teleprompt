@@ -10,6 +10,7 @@ teleprompt-core = { path = "../teleprompt-core" }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 tokio = { workspace = true, features = ["process", "io-util"] }
 
 [dev-dependencies]

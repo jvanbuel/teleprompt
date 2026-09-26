@@ -48,3 +48,25 @@ fn front_matter_can_have_locale_sections_too() {
     assert_eq!(voice(&program(front, "en")), (Some("af_heart".into()), 1.2));
     assert_eq!(voice(&program(front, "nl")), (Some("nl_voice".into()), 0.9));
 }
+
+/// `[translate]` picks the translator, local by default, and can differ
+/// per target language.
+#[test]
+fn translate_settings_default_to_a_local_model_and_layer_like_the_rest() {
+    let defaults = teleprompt_core::config::Config::default();
+    assert_eq!(defaults.translate.provider, "ollama");
+    assert_eq!(defaults.translate.model, None);
+
+    let project = PartialConfig::from_toml(
+        "[translate]\nprovider = \"openai\"\nmodel = \"local-model\"\n\n\
+         [locale.ja.translate]\nmodel = \"bigger-model\"\n",
+    )
+    .unwrap();
+    let merged = |locale: &str| teleprompt_core::config::Config::merged(&project.in_locale(locale));
+    assert_eq!(merged("nl").translate.provider, "openai");
+    assert_eq!(merged("nl").translate.model.as_deref(), Some("local-model"));
+    assert_eq!(
+        merged("ja").translate.model.as_deref(),
+        Some("bigger-model")
+    );
+}

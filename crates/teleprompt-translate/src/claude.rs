@@ -3,6 +3,7 @@
 
 use serde_json::{json, Value};
 
+use crate::prompt::{answer, schema, SYSTEM};
 use crate::{Request, Response};
 
 /// The model asked unless the author names another.
@@ -12,24 +13,6 @@ const API: &str = "https://api.anthropic.com";
 
 /// Enough for a batch of lines translated in full.
 const MAX_TOKENS: u32 = 16_000;
-
-const SYSTEM: &str = "\
-You translate the narration of a narrated software video. Each line is \
-spoken aloud by a text-to-speech voice over a screen recording, so write \
-what a native speaker would say: natural, spoken, and about as long as the \
-original, since the pictures are timed to it.
-
-Keep product names, commands, code, file names, flags and keys exactly as \
-written. Keep the terminology of the translations already made. A chapter \
-is a short heading.
-
-A cue is a phrase of a line that a shot starts on. For each cue, answer \
-with the words of your translation of that line (given by `line`, or in \
-`existing` when it is not being translated now) that say the same thing, \
-copied exactly, character for character. When the phrase is a command \
-kept as written, answer with it unchanged.
-
-Answer every item in `translate`, by its `id`.";
 
 /// Claude, reached with an API key.
 pub struct Claude {
@@ -45,7 +28,7 @@ impl Claude {
     pub fn from_env(model: Option<&str>) -> Result<Self, String> {
         let api_key = std::env::var("ANTHROPIC_API_KEY").map_err(|_| {
             "translating with Claude needs an Anthropic API key in ANTHROPIC_API_KEY \
-             (console.anthropic.com), or translate with --with command"
+             (console.anthropic.com); the default provider, ollama, needs none"
                 .to_string()
         })?;
         Ok(Claude {
@@ -119,29 +102,5 @@ fn read(message: &Value) -> Result<Response, String> {
         .filter(|block| block["type"] == "text")
         .filter_map(|block| block["text"].as_str())
         .collect();
-    serde_json::from_str(&text)
-        .map_err(|e| format!("Claude's answer is not the JSON asked for: {e}"))
-}
-
-/// The answer's shape: `{"items": [{"id", "text"}]}`.
-fn schema() -> Value {
-    json!({
-        "type": "object",
-        "properties": {
-            "items": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "id": { "type": "string" },
-                        "text": { "type": "string" },
-                    },
-                    "required": ["id", "text"],
-                    "additionalProperties": false,
-                },
-            },
-        },
-        "required": ["items"],
-        "additionalProperties": false,
-    })
+    answer(&text, "Claude")
 }
