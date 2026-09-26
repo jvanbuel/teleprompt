@@ -127,7 +127,7 @@ startup.
 - `Source`, because its marks would be invisible until run time. Use
   `include=` instead.
 - `Set PlaybackSpeed`, because re-timing the finished recording would slide
-  the narration out from under it. `policy=stretch-action` is the way to
+  the narration out from under it. `policy=fit-action` is the way to
   change a shot's pace.
 - A setting it doesn't recognise. `Set TypingSped 10ms` is a typo, and
   passing it through would type at a speed you didn't choose while `check`
@@ -170,12 +170,12 @@ cast that [`asciinema rec`](https://asciinema.org) already made:
 ````markdown
 First, it checks a script, which costs nothing and changes nothing. {#check}
 
-```teleprompt scene=recording policy=stretch-action include=casts/tour.cast#check
+```teleprompt scene=recording policy=fit-action include=casts/tour.cast#check
 ```
 
 Then it plans the script. {#plan}
 
-```teleprompt scene=recording policy=stretch-action include=casts/tour.cast#plan
+```teleprompt scene=recording policy=fit-action include=casts/tour.cast#plan
 ```
 ````
 
@@ -188,7 +188,7 @@ terminal carries on from one to the next.
 
 A cast states its timing in full, so every shot is `exact`, with the
 recording's `idle_time_limit` applied the way `asciinema play` applies it.
-`policy=stretch-action` re-times a shot by moving its pauses, never its
+`policy=fit-action` re-times a shot by moving its pauses, never its
 keystrokes. `check` reads the cast and reports a bad line at its line
 number in the cast file.
 

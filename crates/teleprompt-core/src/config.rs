@@ -53,7 +53,7 @@ pub struct TimingConfig {
     pub tail_ms: DurationMs,
     pub max_stretch: f64,
     pub min_stretch: f64,
-    pub max_speedup: f64,
+    pub trim_warn_above: f64,
 }
 
 /// The shape of the rendered video.
@@ -215,7 +215,7 @@ impl Default for Config {
                 tail_ms: DurationMs::millis(150),
                 max_stretch: 3.0,
                 min_stretch: 0.33,
-                max_speedup: 2.0,
+                trim_warn_above: 2.0,
             },
             transition: TransitionConfig {
                 kind: TransitionKind::Crossfade,
@@ -285,7 +285,24 @@ pub struct PartialTiming {
     pub tail_ms: Option<DurationMs>,
     pub max_stretch: Option<f64>,
     pub min_stretch: Option<f64>,
-    pub max_speedup: Option<f64>,
+    pub trim_warn_above: Option<f64>,
+    /// Renamed to `trim_warn_above`. Read only to say so: as an unknown
+    /// field it would fail without naming the new key.
+    #[serde(default, deserialize_with = "renamed_max_speedup")]
+    pub max_speedup: Option<Renamed>,
+}
+
+/// A config key that was renamed; it never deserializes.
+#[derive(Debug, Clone, Copy)]
+pub enum Renamed {}
+
+fn renamed_max_speedup<'de, D: serde::Deserializer<'de>>(
+    _: D,
+) -> Result<Option<Renamed>, D::Error> {
+    Err(serde::de::Error::custom(
+        "`timing.max_speedup` was renamed to `timing.trim_warn_above`: \
+         it sets when trimming is reported, and never sped anything up",
+    ))
 }
 
 /// The `output:` front-matter block: frame size, rate and transitions.
@@ -439,7 +456,7 @@ impl PartialConfig {
             timing: Some(PartialTiming {
                 max_stretch: a.max_stretch,
                 min_stretch: a.min_stretch,
-                max_speedup: a.max_speedup,
+                trim_warn_above: a.trim_warn_above,
                 ..PartialTiming::default()
             }),
             voice: Some(PartialVoice::default()),
@@ -514,7 +531,7 @@ impl Config {
                 set!(c.timing.tail_ms, t.tail_ms);
                 set!(c.timing.max_stretch, t.max_stretch);
                 set!(c.timing.min_stretch, t.min_stretch);
-                set!(c.timing.max_speedup, t.max_speedup);
+                set!(c.timing.trim_warn_above, t.trim_warn_above);
             }
             if let Some(o) = &layer.output {
                 // A resolution is a pair or it is nothing: half of one is

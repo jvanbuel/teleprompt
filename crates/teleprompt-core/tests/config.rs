@@ -10,7 +10,7 @@ fn defaults_match_the_spec() {
     assert_eq!(c.timing.tail_ms, DurationMs::millis(150));
     assert_eq!(c.timing.max_stretch, 3.0);
     assert_eq!(c.timing.min_stretch, 0.33);
-    assert_eq!(c.timing.max_speedup, 2.0);
+    assert_eq!(c.timing.trim_warn_above, 2.0);
     assert_eq!(c.transition.max_ms, DurationMs::millis(600));
     assert_eq!(c.transition.min_ms, DurationMs::millis(0));
     assert_eq!(c.transition.duration, TransitionDuration::Auto);
@@ -370,4 +370,25 @@ fn voice_source_is_not_a_config_setting() {
         let yaml = format!("voice:\n  {tier}: {{ backend: kokoro }}\n");
         assert!(PartialConfig::from_yaml(&yaml).is_err(), "{yaml}");
     }
+}
+
+/// An old key in `teleprompt.toml` or front matter names its replacement
+/// instead of failing as an unknown field (issue #15).
+#[test]
+fn a_renamed_timing_key_names_its_replacement() {
+    let toml = PartialConfig::from_toml("[timing]\nmax_speedup = 2.5\n")
+        .unwrap_err()
+        .to_string();
+    let yaml = PartialConfig::from_yaml("timing:\n  max_speedup: 2.5\n")
+        .unwrap_err()
+        .to_string();
+    for e in [toml, yaml] {
+        assert!(
+            e.contains("`timing.max_speedup` was renamed to `timing.trim_warn_above`"),
+            "{e}"
+        );
+    }
+    let c =
+        Config::merged(&[PartialConfig::from_toml("[timing]\ntrim_warn_above = 2.5\n").unwrap()]);
+    assert_eq!(c.timing.trim_warn_above, 2.5);
 }

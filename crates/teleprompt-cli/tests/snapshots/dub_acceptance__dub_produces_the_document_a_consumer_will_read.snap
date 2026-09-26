@@ -126,7 +126,7 @@ expression: manifest
       "duration_ms": 5200,
       "duration_source": "exact",
       "line": "deploy",
-      "policy": "stretch-action",
+      "policy": "fit-action",
       "scene": "mock",
       "shot": "deploy-a#0",
       "shot_hash": "119eafa3963016bb979bc7cf347a6ccd38aa4c5b7ee16421ae48781153dcf681",

@@ -310,7 +310,7 @@ fn setting(name: Option<&str>, value: Option<&str>) -> Result<Command, CommandEr
         "PlaybackSpeed" => Err(CommandError::new(
             "`Set PlaybackSpeed` re-times the recording after the fact, which would slide the \
              narration out from under it",
-            "pace the shot against its narration with `policy=stretch-action` on the fence",
+            "pace the shot against its narration with `policy=fit-action` on the fence",
         )),
 
         "LoopOffset" => Err(CommandError::new(

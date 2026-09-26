@@ -109,7 +109,7 @@ fn at_offset_ms(
             "`cue=\"{phrase}\"` needs `policy=concurrent`, not `{policy}`"
         ))
         .with_help(
-            "hold runs the action after the narration and the stretch policies \
+            "hold runs the action after the narration, and fit-action and trim-action \
              size it to fit; a shot only means something where the two run together",
         ));
     }
@@ -206,7 +206,7 @@ fn retime_stretched_shots(
             continue;
         };
 
-        // Only `stretch-action` and `trim-action` change the number.
+        // Only `fit-action` and `trim-action` change the number.
         let shot = Shot {
             id: published.id.clone(),
             source: published.source.clone(),

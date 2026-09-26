@@ -103,7 +103,7 @@ fn a_bad_number_value_is_a_diagnostic() {
     let (_, d) = LineAttrs::parse("voice.speed=fast", SPAN);
     assert_eq!(d.len(), 1, "{d:?}");
     assert!(d[0].message.contains("not a number"), "{}", d[0].message);
-    for raw in ["max_stretch=lots", "min_stretch=", "max_speedup=2x"] {
+    for raw in ["max_stretch=lots", "min_stretch=", "trim_warn_above=2x"] {
         let (_, d) = BlockAttrs::parse(raw, SPAN);
         assert_eq!(d.len(), 1, "{raw}: {d:?}");
         assert!(
@@ -126,7 +126,7 @@ fn policy_and_align_are_parsed_at_the_block() {
 
     for (raw, says) in [
         ("policy=sideways", "unknown policy `sideways`"),
-        ("policy=stretch", "renamed to `stretch-action`"),
+        ("policy=stretch", "renamed to `fit-action`"),
         ("align=middle", "unknown align `middle`"),
     ] {
         let (_, d) = BlockAttrs::parse(raw, SPAN);
@@ -145,13 +145,17 @@ fn policy_names_parse_and_the_old_ones_name_their_replacement() {
     for (name, kind) in [
         ("hold", PolicyKind::Hold),
         ("concurrent", PolicyKind::Concurrent),
-        ("stretch-action", PolicyKind::StretchAction),
+        ("fit-action", PolicyKind::FitAction),
         ("trim-action", PolicyKind::TrimAction),
     ] {
         assert_eq!(PolicyKind::parse(name), Ok(kind));
         assert_eq!(kind.label(), name);
     }
-    for (old, new) in [("stretch", "stretch-action"), ("trim", "trim-action")] {
+    for (old, new) in [
+        ("stretch", "fit-action"),
+        ("stretch-action", "fit-action"),
+        ("trim", "trim-action"),
+    ] {
         let (message, help) = PolicyKind::parse(old).unwrap_err();
         assert!(message.contains(new), "{message}");
         assert!(help.contains(&format!("policy={new}")), "{help}");
@@ -171,4 +175,24 @@ fn voice_source_is_not_a_line_attribute() {
         "{}",
         d[0].message
     );
+}
+
+/// A renamed block key is an error naming its replacement, like a renamed
+/// policy, rather than an unknown key with a spelling guess (issue #15:
+/// `max_speedup` never sped anything up).
+#[test]
+fn a_renamed_block_key_names_its_replacement() {
+    let (a, d) = BlockAttrs::parse("trim_warn_above=2", SPAN);
+    assert!(d.is_empty(), "{d:?}");
+    assert_eq!(a.trim_warn_above, Some(2.0));
+
+    let (_, d) = BlockAttrs::parse("max_speedup=2", SPAN);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert!(
+        d[0].message
+            .contains("`max_speedup` was renamed to `trim_warn_above`"),
+        "{}",
+        d[0].message
+    );
+    assert_eq!(d[0].span, Some(SPAN));
 }

@@ -9,7 +9,7 @@ fn timing() -> TimingConfig {
         tail_ms: DurationMs::millis(150),
         max_stretch: 3.0,
         min_stretch: 0.33,
-        max_speedup: 2.0,
+        trim_warn_above: 2.0,
     }
 }
 
@@ -59,7 +59,7 @@ fn concurrent_center_centres_the_shorter_one() {
 
 #[test]
 fn stretch_makes_the_action_exactly_fill_the_narration() {
-    let l = layout(Policy::Stretch, 5000, 2500, &timing());
+    let l = layout(Policy::Fit, 5000, 2500, &timing());
     assert_eq!(l.action_duration_ms, 5000);
     assert_eq!(l.item_duration_ms, 5000);
     assert!(l.warnings.is_empty());
@@ -67,14 +67,14 @@ fn stretch_makes_the_action_exactly_fill_the_narration() {
 
 #[test]
 fn stretch_compresses_a_long_action_too() {
-    let l = layout(Policy::Stretch, 2000, 4000, &timing());
+    let l = layout(Policy::Fit, 2000, 4000, &timing());
     assert_eq!(l.action_duration_ms, 2000);
 }
 
 #[test]
 fn stretch_beyond_the_maximum_is_clamped_and_warns() {
     // 500ms action asked to fill 5000ms is a factor of 10, above max_stretch 3.0
-    let l = layout(Policy::Stretch, 5000, 500, &timing());
+    let l = layout(Policy::Fit, 5000, 500, &timing());
     assert_eq!(l.action_duration_ms, 1500, "500 * 3.0");
     assert_eq!(l.item_duration_ms, 5000, "narration still governs");
     assert!(l.warnings[0].contains("max_stretch"));
@@ -89,7 +89,7 @@ fn stretch_beyond_the_maximum_is_clamped_and_warns() {
 #[test]
 fn stretch_below_the_minimum_is_clamped_and_warns() {
     // 10000ms action asked to fit 1000ms is a factor of 0.1, below min_stretch 0.33
-    let l = layout(Policy::Stretch, 1000, 10_000, &timing());
+    let l = layout(Policy::Fit, 1000, 10_000, &timing());
     assert_eq!(l.action_duration_ms, 3300, "10000 * 0.33");
     assert_eq!(l.item_duration_ms, 3300, "the clamped action now governs");
     assert!(l.warnings[0].contains("min_stretch"));
@@ -103,7 +103,7 @@ fn stretch_below_the_minimum_is_clamped_and_warns() {
 
 #[test]
 fn stretch_with_a_zero_length_action_does_not_divide_by_zero() {
-    let l = layout(Policy::Stretch, 5000, 0, &timing());
+    let l = layout(Policy::Fit, 5000, 0, &timing());
     assert_eq!(l.action_duration_ms, 0);
     assert_eq!(l.item_duration_ms, 5000);
 }
@@ -123,12 +123,12 @@ fn trim_speeds_up_an_over_long_action_within_the_bound() {
 }
 
 #[test]
-fn trim_beyond_max_speedup_cuts_and_warns() {
-    // 20000ms into 5000ms needs 4x, above max_speedup 2.0
+fn trim_beyond_trim_warn_above_cuts_and_warns() {
+    // 20000ms into 5000ms needs 4x, above trim_warn_above 2.0
     let l = layout(Policy::Trim, 5000, 20_000, &timing());
     assert_eq!(l.action_duration_ms, 5000, "cut to the narration length");
     assert_eq!(l.item_duration_ms, 5000);
-    assert!(l.warnings[0].contains("max_speedup"));
+    assert!(l.warnings[0].contains("trim_warn_above"));
 }
 
 /// The divide-by-zero this guards against is real; zeroing the action to
@@ -149,8 +149,8 @@ fn a_named_policy_becomes_its_layout_policy() {
         Policy::Concurrent(Align::End)
     );
     assert_eq!(
-        Policy::new(PolicyKind::StretchAction, Align::Start),
-        Policy::Stretch
+        Policy::new(PolicyKind::FitAction, Align::Start),
+        Policy::Fit
     );
     assert_eq!(
         Policy::new(PolicyKind::TrimAction, Align::Start),
@@ -172,7 +172,7 @@ fn no_policy_ever_denies_the_narration_its_full_length() {
         Policy::Concurrent(Align::Start),
         Policy::Concurrent(Align::End),
         Policy::Concurrent(Align::Center),
-        Policy::Stretch,
+        Policy::Fit,
         Policy::Trim,
     ];
     // Ratios spanning both clamp directions: action far shorter than
@@ -205,7 +205,7 @@ fn no_policy_ever_denies_the_narration_its_full_length() {
 
 #[test]
 fn labels_name_what_the_policy_adjusts() {
-    assert_eq!(Policy::Stretch.label(), "stretch-action");
+    assert_eq!(Policy::Fit.label(), "fit-action");
     assert_eq!(Policy::Trim.label(), "trim-action");
     assert_eq!(Policy::Hold.label(), "hold");
     assert_eq!(Policy::Concurrent(Align::Start).label(), "concurrent");
@@ -218,7 +218,7 @@ fn labels_name_what_the_policy_adjusts() {
 /// says, which is the scheduler rewriting a tape it was never asked about.
 #[test]
 fn stretching_against_no_narration_leaves_the_action_alone() {
-    let l = layout(Policy::Stretch, 0, 4000, &timing());
+    let l = layout(Policy::Fit, 0, 4000, &timing());
     assert_eq!(l.action_duration_ms, 4000);
     assert_eq!(l.item_duration_ms, 4000);
     assert!(l.warnings.is_empty(), "{:?}", l.warnings);

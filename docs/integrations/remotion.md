@@ -115,7 +115,7 @@ export type Shot = {
   start_ms: number;
   duration_ms: number;
   duration_source: "exact" | "measured" | "estimated" | "unknown";
-  policy: "hold" | "concurrent" | "stretch-action" | "trim-action";
+  policy: "hold" | "concurrent" | "fit-action" | "trim-action";
   transition: { kind: string; duration_ms: number };
   shot_hash: string;
   capture_key: string;

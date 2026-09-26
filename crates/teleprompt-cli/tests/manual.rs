@@ -106,7 +106,7 @@ fn the_manual_demonstrates_every_pacing_policy() {
         .iter()
         .map(|e| e.policy.label())
         .collect();
-    for expected in ["hold", "concurrent", "stretch-action", "trim-action"] {
+    for expected in ["hold", "concurrent", "fit-action", "trim-action"] {
         assert!(policies.contains(expected), "missing policy {expected}");
     }
 }

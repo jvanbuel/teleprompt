@@ -31,7 +31,7 @@ wait 600ms
 
 Deployment is one command, and it streams progress as it goes. {#deploy}
 
-```teleprompt scene=mock policy=stretch-action
+```teleprompt scene=mock policy=fit-action
 wait 2200ms
 ```
 

@@ -343,18 +343,20 @@ The scheduler is a pure function from items, with their durations, to a
 |---|---|
 | `hold` (default) | The line plays over the picture left by the item before it, and the action runs after the line ends. |
 | `concurrent` | The action and the line overlap. `align=start` (the default), `end` or `center` places the shorter within the longer. A [cue](#cues) moves the action to a phrase. |
-| `stretch-action` | The action is re-timed to last exactly as long as the line, within `min_stretch` and `max_stretch`. The bound is applied with a warning. |
-| `trim-action` | An action longer than its line is cut to the line's length, with a warning above `max_speedup`. A shorter action is left alone. |
+| `fit-action` | The action is re-timed, slower or faster, to last exactly as long as the line, within `min_stretch` and `max_stretch`. The bound is applied with a warning. |
+| `trim-action` | An action longer than its line is cut to the line's length, with a warning when it is more than `trim_warn_above` times the line's length. A shorter action is left alone. |
 
 A policy only changes a picture if the adapter can re-time its source (see
 `retime` under [the scene contract](#scene-contract)). Where the adapter
 cannot, the renderer holds the last frame for the rest of the slot.
 
-The names `stretch-action`, `trim-action` and `max_speedup` do not describe
-what they do. `stretch-action` also compresses, and `max_speedup` is a
-warning threshold, not a speed. Renaming them is decided but not done:
-issue #15. The old spellings `stretch` and `trim` are errors that name
-their replacement.
+`align` on any policy but `concurrent` is an error naming the combination,
+since it would change nothing. Renamed spellings are errors that name
+their replacement, never aliases, so scripts converge on one name:
+`stretch` and `stretch-action` (it compresses too) became `fit-action`,
+`trim` became `trim-action`, and `max_speedup` (it only ever set when a
+trim is reported) became `trim_warn_above`, as a block attribute and as a
+`timing` key.
 
 ### Cues
 
@@ -423,7 +425,7 @@ IO, which is why `check` and `plan` stay offline however heavy the tool is.
   `Estimated` for a bound, and `Unknown` for a source that cannot say. A
   shot of unknown length takes its line's length.
 - `retime` rewrites a shot so it lasts a target length, or returns `None`
-  where the source does not state its timing. This is how `stretch-action`
+  where the source does not state its timing. This is how `fit-action`
   reaches inside a tape.
 - `continues` says whether a shot opens on the screen the previous shot
   left behind. It is true by default, and false for adapters whose shots

@@ -172,7 +172,7 @@ fn policy_warnings_are_collected_with_the_shot_id() {
     let mut cfg = no_transition();
     cfg.timing.max_stretch = 2.0;
     let t = schedule(
-        &[item("b1", Some(10_000), Some(500), Policy::Stretch, cfg)],
+        &[item("b1", Some(10_000), Some(500), Policy::Fit, cfg)],
         "s.md",
         "en",
         "0.1.0",

@@ -229,6 +229,17 @@ impl Resolver<'_> {
             );
             return;
         };
+        let policy = attrs.policy.unwrap_or(PolicyKind::Hold);
+        if let (Some(_), false) = (attrs.align, policy == PolicyKind::Concurrent) {
+            self.diags.push(
+                Diagnostic::error(format!("`align` has no effect with `policy={policy}`"))
+                    .at(block.span)
+                    .with_help(
+                        "align places a `concurrent` action against its line; \
+                         write `policy=concurrent`, or drop `align`",
+                    ),
+            );
+        }
         let config = self.merged(chapter_cfg, PartialConfig::from_block(&attrs));
         self.elements.push(Element::Action {
             block_id: block.id.clone().unwrap_or_default(),
@@ -236,7 +247,7 @@ impl Resolver<'_> {
             body: block.body.clone(),
             include: attrs.include,
             review: attrs.review,
-            policy: attrs.policy.unwrap_or(PolicyKind::Hold),
+            policy,
             align: attrs.align.unwrap_or(Align::Start),
             cue: attrs.cue,
             session: attrs.session,

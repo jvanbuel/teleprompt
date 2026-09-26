@@ -6,7 +6,7 @@ use teleprompt_core::PolicyKind;
 pub enum Policy {
     Hold,
     Concurrent(Align),
-    Stretch,
+    Fit,
     Trim,
 }
 
@@ -17,7 +17,7 @@ impl Policy {
         match kind {
             PolicyKind::Hold => Policy::Hold,
             PolicyKind::Concurrent => Policy::Concurrent(align),
-            PolicyKind::StretchAction => Policy::Stretch,
+            PolicyKind::FitAction => Policy::Fit,
             PolicyKind::TrimAction => Policy::Trim,
         }
     }
@@ -26,7 +26,7 @@ impl Policy {
         match self {
             Policy::Hold => PolicyKind::Hold,
             Policy::Concurrent(_) => PolicyKind::Concurrent,
-            Policy::Stretch => PolicyKind::StretchAction,
+            Policy::Fit => PolicyKind::FitAction,
             Policy::Trim => PolicyKind::TrimAction,
         }
     }
@@ -94,7 +94,7 @@ pub fn layout_at(
             }
         }
 
-        Policy::Stretch => {
+        Policy::Fit => {
             let mut warnings = Vec::new();
             let adjusted = if action_ms == 0 {
                 0
@@ -141,10 +141,10 @@ pub fn layout_at(
                 action_ms
             } else {
                 let needed = action_ms as f64 / narration_ms as f64;
-                if needed > timing.max_speedup {
+                if needed > timing.trim_warn_above {
                     warnings.push(format!(
-                        "action needs {needed:.2}x speedup, above max_speedup {:.2}; cut to fit",
-                        timing.max_speedup
+                        "action needs {needed:.2}x speedup, above trim_warn_above {:.2}; cut to fit",
+                        timing.trim_warn_above
                     ));
                 }
                 narration_ms

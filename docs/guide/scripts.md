@@ -49,9 +49,9 @@ slowed down or cut. Only the action adapts.
 | policy | what happens |
 |---|---|
 | `hold` (default) | The line plays over the previous picture, then the action runs. |
-| `concurrent` | The action runs during the line. `align=start` (default), `end` or `center` places the shorter one within the longer. |
-| `stretch-action` | The action is re-timed to last exactly as long as the line, between `min_stretch` (0.33) and `max_stretch` (3.0) times its own pace. |
-| `trim-action` | An action longer than its line is cut to the line's length, with a warning when it's more than `max_speedup` (2.0) times too long. |
+| `concurrent` | The action runs during the line. `align=start` (default), `end` or `center` places the shorter one within the longer. `align` means nothing to the other policies, so there it's an error. |
+| `fit-action` | The action is sped up or slowed down to last exactly as long as the line, between `min_stretch` (0.33) and `max_stretch` (3.0) times its own pace. |
+| `trim-action` | An action longer than its line is cut to the line's length, with a warning when it's more than `trim_warn_above` (2.0) times too long. |
 
 Re-timing needs an adapter that can rewrite its source: tapes and
 recordings can, while scripts and compositions take their line's length
@@ -124,7 +124,7 @@ and a `pause`). The same limit applies to the `_ms` settings in
 | on | keys |
 |---|---|
 | a line | `voice.backend`, `voice.voice`, `voice.speed`, `lead_in`, `tail`, `lang` |
-| a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `max_speedup`, `max_stretch`, `min_stretch`, `review` |
+| a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `trim_warn_above`, `max_stretch`, `min_stretch`, `review` |
 
 `include=path` takes the block's body from a file, so a tape or a
 Playwright spec stays a real file its own tools can run.
@@ -145,7 +145,7 @@ Settings merge from these layers, with later ones winning:
 | section | keys | defaults |
 |---|---|---|
 | `voice` | `source`, `backend`, `voice`, `speed`, `pronounce` | `synthetic`, `null`, none, `1.0` |
-| `timing` | `lead_in_ms`, `tail_ms`, `max_stretch`, `min_stretch`, `max_speedup` | `150`, `150`, `3.0`, `0.33`, `2.0` |
+| `timing` | `lead_in_ms`, `tail_ms`, `max_stretch`, `min_stretch`, `trim_warn_above` | `150`, `150`, `3.0`, `0.33`, `2.0` |
 | `output` | `resolution`, `fps`, `transition` | `[1920, 1080]`, `30`, see above |
 | `scene.<name>` | `adapter`, plus the adapter's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |
 | `backends.<id>` | the backend's own settings, only in `teleprompt.toml` | |

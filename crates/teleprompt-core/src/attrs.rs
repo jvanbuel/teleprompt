@@ -30,7 +30,7 @@ pub const BLOCK_KEYS: &[&str] = &[
     // a script that quits something and starts it again.
     "session",
     "id",
-    "max_speedup",
+    "trim_warn_above",
     "max_stretch",
     "min_stretch",
 ];
@@ -93,7 +93,7 @@ pub struct BlockAttrs {
     pub cue: Option<String>,
     pub session: Option<String>,
     pub id: Option<String>,
-    pub max_speedup: Option<f64>,
+    pub trim_warn_above: Option<f64>,
     pub max_stretch: Option<f64>,
     pub min_stretch: Option<f64>,
 }
@@ -115,7 +115,7 @@ impl BlockAttrs {
             cue: v.text("cue"),
             session: v.text("session"),
             id: v.text("id"),
-            max_speedup: v.parsed("max_speedup", number),
+            trim_warn_above: v.parsed("trim_warn_above", number),
             max_stretch: v.parsed("max_stretch", number),
             min_stretch: v.parsed("min_stretch", number),
         };
@@ -176,6 +176,15 @@ pub fn parse_duration_ms(v: &str) -> Result<u64, String> {
     DurationMs::parse(v).map(DurationMs::ms)
 }
 
+/// Keys that were renamed, and what to write instead. An old key is an
+/// error naming its replacement, never an alias, so scripts converge on one
+/// spelling (`docs/design.md#policies`).
+const RENAMED_KEYS: &[(&str, &str, &str)] = &[(
+    "max_speedup",
+    "trim_warn_above",
+    "it sets when trimming is reported, and never sped anything up",
+)];
+
 pub fn parse_attrs(raw: &str, allowed: &[&str], span: SourceSpan) -> (Attributes, Vec<Diagnostic>) {
     let mut map = BTreeMap::new();
     let mut diags = Vec::new();
@@ -190,6 +199,17 @@ pub fn parse_attrs(raw: &str, allowed: &[&str], span: SourceSpan) -> (Attributes
             continue;
         };
         let key = key.trim();
+        if let Some((_, new, why)) = RENAMED_KEYS
+            .iter()
+            .find(|(old, new, _)| *old == key && allowed.contains(new))
+        {
+            diags.push(
+                Diagnostic::error(format!("`{key}` was renamed to `{new}`"))
+                    .at(span)
+                    .with_help(format!("write `{new}=`; {why}")),
+            );
+            continue;
+        }
         if !allowed.contains(&key) {
             let mut d = Diagnostic::error(format!("unknown attribute key `{key}`")).at(span);
             if let Some(sug) = nearest(key, allowed) {

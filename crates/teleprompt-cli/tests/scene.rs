@@ -46,7 +46,7 @@ fn an_unknown_adapter_is_not_served() {
     assert!(scenes().get("selenium").is_none());
 }
 
-/// The other half of `stretch-action`: the scheduler decides the action
+/// The other half of `fit-action`: the scheduler decides the action
 /// should fill the sentence over it, and the tape that gets captured is
 /// re-timed to last that long. Without this the number moves and the tape
 /// does not — a capture runs at the authored pace and the rest of the slot
@@ -67,7 +67,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
          which is the whole point of asking the action to stretch: it should fill \
          the sentence rather than finish early and leave the picture sitting \
          still. {#long}\n\n\
-         ```teleprompt scene=terminal policy=stretch-action\n\
+         ```teleprompt scene=terminal policy=fit-action\n\
          Set TypingSpeed 50ms\n\
          Type \"ls -la\"\n\
          Enter\n\

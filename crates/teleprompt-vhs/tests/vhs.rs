@@ -317,7 +317,7 @@ fn set_playback_speed_is_rejected_and_names_the_policy_that_replaces_it() {
         .help
         .as_deref()
         .unwrap_or_default()
-        .contains("stretch-action"));
+        .contains("fit-action"));
 }
 
 #[test]
@@ -380,7 +380,7 @@ fn the_adapter_answers_to_the_name_the_terminal_scene_resolves_to() {
     );
 }
 
-/// `stretch-action` says the action fills the narration above it. Until
+/// `fit-action` says the action fills the narration above it. Until
 /// something re-times the tape, that is a number on a timeline and nothing
 /// else: a capture still runs the tape at its authored pace, and the
 /// difference is a frozen frame.

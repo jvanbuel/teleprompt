@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 pub enum PolicyKind {
     Hold,
     Concurrent,
-    StretchAction,
+    FitAction,
     TrimAction,
 }
 
@@ -21,10 +21,14 @@ impl PolicyKind {
         match s {
             "hold" => Ok(Self::Hold),
             "concurrent" => Ok(Self::Concurrent),
-            "stretch-action" => Ok(Self::StretchAction),
+            "fit-action" => Ok(Self::FitAction),
             "trim-action" => Ok(Self::TrimAction),
-            "stretch" | "trim" => {
-                let current = format!("{s}-action");
+            "stretch" | "stretch-action" | "trim" => {
+                let current = if s == "trim" {
+                    "trim-action"
+                } else {
+                    "fit-action"
+                };
                 Err((
                     format!("policy `{s}` was renamed to `{current}`"),
                     format!("write `policy={current}`; it adjusts the action, never the narration"),
@@ -32,7 +36,7 @@ impl PolicyKind {
             }
             _ => Err((
                 format!("unknown policy `{s}`"),
-                "policy is hold|concurrent|stretch-action|trim-action".to_string(),
+                "policy is hold|concurrent|fit-action|trim-action".to_string(),
             )),
         }
     }
@@ -41,7 +45,7 @@ impl PolicyKind {
         match self {
             Self::Hold => "hold",
             Self::Concurrent => "concurrent",
-            Self::StretchAction => "stretch-action",
+            Self::FitAction => "fit-action",
             Self::TrimAction => "trim-action",
         }
     }

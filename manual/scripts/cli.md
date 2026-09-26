@@ -116,9 +116,9 @@ duration that is not a duration, a tape directive teleprompt cannot run:
 each is reported at the line that carries it, with the spelling it should
 have had. {#diagnostics}
 
-```teleprompt scene=terminal policy=stretch-action
+```teleprompt scene=terminal policy=fit-action
 # One span, no `Mark`: the whole exchange is paced against the sentence
-# above it, which is what `stretch-action` is for.
+# above it, which is what `fit-action` is for.
 Set TypingSpeed 60ms
 Type "teleprompt check demo/scripts/broken.md"
 Enter
@@ -181,8 +181,8 @@ Sleep 600ms
 Now edit a paragraph. Not the code, not the tape — the prose. A longer
 sentence takes longer to say, and everything scheduled after it moves. {#edit-the-prose}
 
-```teleprompt scene=terminal policy=stretch-action
-# Typing speed is the knob `stretch-action` turns: teleprompt re-paces
+```teleprompt scene=terminal policy=fit-action
+# Typing speed is the knob `fit-action` turns: teleprompt re-paces
 # these keystrokes to fill the sentence rather than cutting it short.
 Set TypingSpeed 80ms
 Type "sed -i 's/whole point/whole point of the tool/' demo/scripts/demo.md"

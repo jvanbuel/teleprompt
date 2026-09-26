@@ -404,3 +404,38 @@ fn a_line_level_speed_override_is_validated_too() {
         e.0
     );
 }
+
+/// `align` only places a `concurrent` action, so on any other policy it is
+/// an error naming the combination rather than a value silently dropped
+/// (issue #15).
+#[test]
+fn align_is_rejected_where_it_has_no_effect() {
+    let resolve_block = |info: &str| {
+        let src = format!("# A\n\nOne.\n\n```teleprompt scene=mock {info}\nwait 1s\n```\n");
+        let mut s = parse_script(&src).unwrap();
+        assign_ids(&mut s);
+        resolve(
+            &s,
+            "d.md",
+            "en",
+            &PartialConfig::default(),
+            &PartialConfig::default(),
+        )
+    };
+    for (info, policy) in [
+        ("align=end", "hold"),
+        ("policy=hold align=end", "hold"),
+        ("policy=fit-action align=center", "fit-action"),
+        ("policy=trim-action align=start", "trim-action"),
+    ] {
+        let e = resolve_block(info).unwrap_err();
+        assert_eq!(e.0.len(), 1, "{info}: {:?}", e.0);
+        let message = &e.0[0].message;
+        assert!(
+            message.contains("`align` has no effect with `policy=") && message.contains(policy),
+            "{info}: {message}"
+        );
+        assert!(e.0[0].span.is_some(), "{info}");
+    }
+    assert!(resolve_block("policy=concurrent align=end").is_ok());
+}
