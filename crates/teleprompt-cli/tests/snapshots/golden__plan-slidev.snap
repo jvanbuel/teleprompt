@@ -13,10 +13,10 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "991e780670fd51d0c9fe007266f41825793ee2674c3fd59a8c1c86f25513de81",
+          "capture_key": "dcc6b50c657131892263c3e2eaa9dc680e7298d483a4827caccc6dec2d8b1abf",
           "duration_ms": 13850,
           "duration_source": "unknown",
-          "scene": "slides",
+          "scene": "slidev",
           "shot": "this-video-is-a#0",
           "shot_hash": "9cc9e00fe88431b22d1dae6f5c4dd58963cfd080c85a51ca09f3846a06f77627",
           "start_ms": 0
@@ -41,10 +41,10 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "82f0650aad2b59f5939a0ea3ac551b5923f6e34f53179ac9475a8353f33d18d1",
+          "capture_key": "2612c3d7639601a3b488aa8537f2acc158e9b9a97ee7ed144287d76db68a5c94",
           "duration_ms": 3850,
           "duration_source": "unknown",
-          "scene": "slides",
+          "scene": "slidev",
           "shot": "the-deck-does-a#0",
           "shot_hash": "91683a8348ea1d2705f6e957986b4508c3b63eaa2607333644789dc2ce00e1c4",
           "start_ms": 13850
@@ -69,10 +69,10 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "8e9015a7838f0493ced79b47274df70bc76e7ca6e0ecacd673584ea10c448261",
+          "capture_key": "2222149b57da35282133ff54ecbff95b9d1dc11d3a660547df8edcc2562a3b04",
           "duration_ms": 3850,
           "duration_source": "unknown",
-          "scene": "slides",
+          "scene": "slidev",
           "shot": "you-can-still-a#0",
           "shot_hash": "87687f3fd24cbcdb6bcc958268cdb6f08faed289cbe87dc4030b544bec18d08d",
           "start_ms": 17700
@@ -97,10 +97,10 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "dd08f6afb2c5db9b6f30a8510f898172b0bb301d3af6bb61e5e9f0d1f87709cd",
+          "capture_key": "bee8c8258b4cf7ba5472182cba117f3c4cb02b330757721d2ffcdcd75b538bf1",
           "duration_ms": 2650,
           "duration_source": "unknown",
-          "scene": "slides",
+          "scene": "slidev",
           "shot": "you-can-still-2-a#0",
           "shot_hash": "426c4b2501bfb43f187a75cb4bca8b11187ab6a20c8d346a2d9bff0b8a253ae5",
           "start_ms": 21550
@@ -125,10 +125,10 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "86c14148f4802d6931f2583b1766f5bf19f05c2ffdc04aaaf533e988c114517e",
+          "capture_key": "9ecb94c16e07c63574d4746e2f50d754e534681f69a853f4a0a0403be73192d7",
           "duration_ms": 6000,
           "duration_source": "unknown",
-          "scene": "slides",
+          "scene": "slidev",
           "shot": "teleprompt-only-names-a#0",
           "shot_hash": "481f24bec98eabd22a2810cef7b3def085adcc08dae1da75fd70374339ec7f44",
           "start_ms": 24200
@@ -153,10 +153,10 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "fbae33336b9513b9c321bfaeb577fa4b659a1cac999a2c1bd4ddad68015a175b",
+          "capture_key": "8995018f114aadb8f4f000a16d4496403c0bd47b9bd108fbb42122470ace3469",
           "duration_ms": 13950,
           "duration_source": "unknown",
-          "scene": "slides",
+          "scene": "slidev",
           "shot": "a-block-names-a#0",
           "shot_hash": "e246f8a7896798c8c8b45b535d141591bdcfabd2943dc59a120b7a12a631523d",
           "start_ms": 30200
@@ -181,10 +181,10 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "2ac0fb92d075af91fa809bbef6ed8aa72bed64c11a14aa2be3c8c4ee35fe9dc4",
+          "capture_key": "0ef5da9b18d4c06912a918f158f50a6a52a75394276de5e40b41a5cf0fee2153",
           "duration_ms": 10750,
           "duration_source": "unknown",
-          "scene": "slides",
+          "scene": "slidev",
           "shot": "each-slide-stays-a#0",
           "shot_hash": "7b66b9b07882047d680f2ca73b73f031c42a0690e2865d07176006e3588de494",
           "start_ms": 44150
@@ -209,10 +209,10 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "929c209b81ed9a68bfe6a3270523f976fd24596c86ee7978e39098ab8657e8e1",
+          "capture_key": "cbb6256f52013953956d914291e6700d6a5e8c89e61dfb59483485af10b69736",
           "duration_ms": 10250,
           "duration_source": "unknown",
-          "scene": "slides",
+          "scene": "slidev",
           "shot": "the-draft-is-a#0",
           "shot_hash": "7bef38282036d8c0696cff129e4bf634d05eaecffa40dcf85de85bbce254584b",
           "start_ms": 54900

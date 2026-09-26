@@ -15,11 +15,10 @@ targets = []
 # `kokoro` (and start a server) to hear it.
 backend = "null"
 
-[scene.terminal]
-adapter = "vhs"
+[scene.vhs]
 
 # The manual's tapes run the tool the manual is about, so the terminal a
 # capture opens has to be able to find it. `target/release` is relative to
 # the directory the build runs from, which is the repository root.
-[scene.terminal.env]
+[scene.vhs.env]
 PATH = "target/release:/usr/local/bin:/usr/bin:/bin"

@@ -24,6 +24,5 @@ concurrency = 2
 
 # `project` is an ordinary Remotion project, relative to the directory the
 # build runs from; `entry` (default `src/index.ts`) is relative to it.
-[scene.motion]
-adapter = "remotion"
+[scene.remotion]
 project = "examples/remotion/motion"

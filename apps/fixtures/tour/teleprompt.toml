@@ -6,5 +6,3 @@ targets = []
 [voice]
 backend = "null"
 
-[scene.mock]
-adapter = "mock"

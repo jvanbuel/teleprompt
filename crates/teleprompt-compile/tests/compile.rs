@@ -909,3 +909,19 @@ fn a_cue_only_makes_sense_where_the_two_run_together() {
     let rendered = format!("{errors:?}");
     assert!(rendered.contains("concurrent"), "{rendered}");
 }
+
+/// Declaring a scene with nothing in it changes nothing, so it captures to
+/// the same clips as not declaring it.
+#[test]
+fn a_scene_declared_empty_keys_as_one_left_undeclared() {
+    let body = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock\nwait 100ms\n```\n";
+    let declared = format!("---\nscene:\n  mock:\n    adapter: mock\n---\n\n{body}");
+    let key = |src: &str| {
+        run(src).timeline.entries[0]
+            .action
+            .as_ref()
+            .unwrap()
+            .capture_key
+    };
+    assert_eq!(key(body), key(&declared));
+}

@@ -19,7 +19,6 @@ concurrency = 2
 # `dir` is relative to the directory the build runs from, and its
 # contents are in every shot's capture key.
 [scene.media]
-adapter = "media"
 dir = "examples/media/scripts/media"
 background = "#0b0d10"
 color = "#eef3f8"

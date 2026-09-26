@@ -2,9 +2,6 @@
 teleprompt: 1
 locales:
   source: en
-scene:
-  mock:
-    adapter: mock
 output:
   transition: { duration: auto, max_ms: 600 }
 ---

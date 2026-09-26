@@ -16,7 +16,7 @@ expression: transcript(&out)
           "capture_key": "d70a6aa9c45ab359382dbc5e55ed085266e1b234604f3467c24010b728995be2",
           "duration_ms": 11600,
           "duration_source": "exact",
-          "scene": "recording",
+          "scene": "asciinema",
           "shot": "check-a#0",
           "shot_hash": "e906e3fd76c3105ac3ac634f0a6809036ea0d383dd841ad8123ffa98d6ab377b",
           "start_ms": 0
@@ -44,7 +44,7 @@ expression: transcript(&out)
           "capture_key": "8bd9818f0d70d5c5012a77b19c80875cbcea9ec75ae148271cdda151e9290096",
           "duration_ms": 13950,
           "duration_source": "exact",
-          "scene": "recording",
+          "scene": "asciinema",
           "shot": "plan-a#0",
           "shot_hash": "9a4543d602d1094f5941f2f680474f20efa576e1c474c5776beac3cd7ba56367",
           "start_ms": 11600
@@ -72,7 +72,7 @@ expression: transcript(&out)
           "capture_key": "a1ba18099551fe173365b0f3d7b82d724ac620e59524c1643f8f5303aa0acbb1",
           "duration_ms": 12402,
           "duration_source": "exact",
-          "scene": "recording",
+          "scene": "asciinema",
           "shot": "doctor-a#0",
           "shot_hash": "aa443a38f71ec512af38593f3c1cb858e7b9eb5e1544e7ab9e83db0910d0d6a7",
           "start_ms": 25550

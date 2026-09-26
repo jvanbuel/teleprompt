@@ -1,20 +1,17 @@
 ---
 teleprompt: 1
-scene:
-  demo:
-    adapter: mock
 ---
 
 # A tour
 
 Welcome to Acme. Let me show you around. {#welcome}
 
-```teleprompt scene=demo
+```teleprompt scene=mock
 wait 1500ms
 ```
 
 Deployment is one command, and it streams progress as it goes. {#deploy}
 
-```teleprompt scene=demo policy=concurrent cue="streams progress"
+```teleprompt scene=mock policy=concurrent cue="streams progress"
 wait 2000ms
 ```

@@ -41,7 +41,7 @@ The deck does not change to be narrated.
 ~~~text
 The second point is the one that matters.
 
-```teleprompt scene=slides
+```teleprompt scene=slidev
 2?clicks=2
 ```
 ~~~

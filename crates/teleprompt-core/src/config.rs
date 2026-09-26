@@ -189,6 +189,10 @@ impl SceneConfig {
     /// knows what its settings are: YAML of a `BTreeMap` is ordered and
     /// round-trips, where `{:?}` is a debug format nothing promises to keep.
     pub fn settings_fingerprint(&self) -> String {
+        // No settings is nothing to hash, declared or not.
+        if self.settings.is_empty() {
+            return String::new();
+        }
         serde_yaml::to_string(&self.settings).unwrap_or_default()
     }
 }

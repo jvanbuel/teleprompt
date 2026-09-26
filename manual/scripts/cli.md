@@ -2,9 +2,6 @@
 teleprompt: 1
 locales:
   source: en
-scene:
-  terminal:
-    adapter: vhs
 output:
   resolution: [1920, 1080]
   fps: 30
@@ -18,7 +15,7 @@ documents. Every sentence you are hearing is a paragraph of Markdown in one
 file, and every command you watch run is a tape in that same file, a few
 lines below the sentence about it. {#welcome}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 35ms
 Type "teleprompt --help"
 Enter
@@ -30,7 +27,7 @@ screen does, and the length of the speech decides how long the picture
 holds. Rewrite this paragraph and the terminal below it waits longer,
 because it is waiting for me. {#prose-and-action}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 35ms
 Type "teleprompt check manual/scripts/cli.md"
 Enter
@@ -43,7 +40,7 @@ timings so that every span lasts exactly as long as the sentence over it,
 and hands that tape to VHS. Waiting for narration is a number in the input,
 not a renderer of our own. {#vhs}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 # The tape teleprompt is reading to draw this very shot. It is written
 # into a file rather than typed at the prompt, because the shell would
 # only tell you that `Set` is not a command.
@@ -63,7 +60,7 @@ mark is spelled as a comment. VHS ignores it, so the file stays a tape VHS
 itself will run — which is the whole reason to keep a demo in a real tape
 file rather than in a dialect only teleprompt reads. {#the-mark}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 60ms
 Type "# mark"
 Enter
@@ -76,7 +73,7 @@ Sleep 1200ms
 and a timelines directory for the compiled output you commit alongside the
 prose. {#new}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 35ms
 Type "teleprompt new demo"
 Enter
@@ -91,7 +88,7 @@ The demo script it leaves behind is two paragraphs and two action blocks —
 small enough to read in one breath, and complete enough to compile. Nothing
 else has to be installed for it to work. {#scaffold}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 25ms
 Type "cat demo/scripts/demo.md"
 Enter
@@ -104,7 +101,7 @@ Sleep 2s
 synthesis, no network, no files written — so it costs nothing to run it on
 every keystroke, and plenty of editors will. {#check}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 30ms
 Type "teleprompt check demo/scripts/demo.md"
 Enter
@@ -116,7 +113,7 @@ duration that is not a duration, a tape directive teleprompt cannot run:
 each is reported at the line that carries it, with the spelling it should
 have had. {#diagnostics}
 
-```teleprompt scene=terminal policy=fit-action
+```teleprompt scene=vhs policy=fit-action
 # One span, no `Mark`: the whole exchange is paced against the sentence
 # above it, which is what `fit-action` is for.
 Set TypingSpeed 60ms
@@ -134,7 +131,7 @@ Sleep 4s
 per beat: when it starts, which pacing policy governs it, and how long its
 narration runs. {#plan}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 30ms
 Type "teleprompt plan demo/scripts/demo.md"
 Enter
@@ -146,7 +143,7 @@ before, and from a word-count estimate when it has not. Plan never
 synthesizes anything, which is why it answers instantly on a laptop with no
 voice backend anywhere near it. {#estimated-vs-measured}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 25ms
 Type "teleprompt plan demo/scripts/demo.md --format json | grep duration_source"
 Enter
@@ -158,7 +155,7 @@ sleep is written down and every keystroke has a speed, so teleprompt adds
 them up rather than guessing, and never has to run the terminal to find out
 how long the terminal takes. {#exact-actions}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 30ms
 Type "teleprompt plan demo/scripts/demo.md --format json | grep -A2 action"
 Enter
@@ -171,7 +168,7 @@ Commit the timeline that `plan` produced, and `teleprompt diff` will compare
 the next compile against it. This is the loop the whole tool is built
 around. {#commit-the-timeline}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 25ms
 Type "teleprompt plan demo/scripts/demo.md --format json > demo/timelines/demo.en.json"
 Enter
@@ -181,7 +178,7 @@ Sleep 600ms
 Now edit a paragraph. Not the code, not the tape — the prose. A longer
 sentence takes longer to say, and everything scheduled after it moves. {#edit-the-prose}
 
-```teleprompt scene=terminal policy=fit-action
+```teleprompt scene=vhs policy=fit-action
 # Typing speed is the knob `fit-action` turns: teleprompt re-paces
 # these keystrokes to fill the sentence rather than cutting it short.
 Set TypingSpeed 80ms
@@ -195,7 +192,7 @@ beats moved, by how long, and what the video now runs to end to end. That
 report is the review surface. It is what a pull request argues about instead
 of arguing about a video file nobody can read. {#the-diff}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 30ms
 Type "teleprompt diff demo/scripts/demo.md"
 Enter
@@ -209,7 +206,7 @@ segment, writes the audio, and publishes a manifest: one entry per segment,
 with its prose, its offset, its length, and the voice that produced
 it. {#dub}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 30ms
 Type "teleprompt dub demo/scripts/demo.md --out public/narration"
 Enter
@@ -225,7 +222,7 @@ web player, your own compositor — and it reads the manifest. Deriving its
 length from the manifest is what keeps the central property alive on the
 other side of that boundary: narration still drives the pacing. {#manifest}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 25ms
 Type "cat public/narration/en/narration.json"
 Enter
@@ -236,7 +233,7 @@ Having spoken the script once, teleprompt has also measured it. The same
 `plan` is still instant, and now every duration in it is a recording rather
 than an estimate. {#measured}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 25ms
 Type "teleprompt plan demo/scripts/demo.md --format json | grep duration_source"
 Enter
@@ -250,7 +247,7 @@ three when they disagree. Put that in continuous integration and a change
 to the prose can no longer be merged with last week's narration still
 attached to it. {#dub-check}
 
-```teleprompt scene=terminal policy=trim-action
+```teleprompt scene=vhs policy=trim-action
 Set TypingSpeed 30ms
 Type "teleprompt dub demo/scripts/demo.md --out public/narration --check"
 Enter
@@ -269,7 +266,7 @@ Sleep 1500ms
 adapters this build ships, which voice backends it knows, how warm the cache
 is, and whether the server your project points at is answering. {#doctor}
 
-```teleprompt scene=terminal
+```teleprompt scene=vhs
 Set TypingSpeed 35ms
 Type "teleprompt doctor"
 Enter
@@ -282,7 +279,7 @@ point: the loop you run a hundred times a day stays offline and instant, and
 the one command that needs a machine to speak is the only one that asks for
 it. {#offline-by-default}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 30ms
 Type "teleprompt doctor --format json | grep -A3 voice_probe"
 Enter
@@ -295,7 +292,7 @@ flag, the sentence about it and the tape demonstrating it are in the same
 file, in version control, and the build says so when they fall out of
 step. {#self-hosting}
 
-```teleprompt scene=terminal policy=concurrent
+```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 30ms
 Type "teleprompt diff manual/scripts/cli.md"
 Enter

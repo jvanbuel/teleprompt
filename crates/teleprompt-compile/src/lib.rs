@@ -265,17 +265,14 @@ fn chain_capture_keys(
         }
 
         // name(n): recipe, adapter, scene settings, inputs, shot source.
-        let declared = config.scenes.get(&action.scene);
-        // An undeclared scene has no settings, which fingerprint as nothing,
-        // but its adapter may still read files.
-        let settings = declared
-            .map(SceneConfig::settings_fingerprint)
-            .unwrap_or_default();
         let implicit = SceneConfig {
             adapter: action.adapter.clone(),
             settings: BTreeMap::new(),
         };
-        let scene = Some(declared.unwrap_or(&implicit));
+        let scene = Some(config.scenes.get(&action.scene).unwrap_or(&implicit));
+        let settings = scene
+            .map(SceneConfig::settings_fingerprint)
+            .unwrap_or_default();
         // Scene-wide inputs are read once per scene.
         let inputs = inputs
             .entry(action.scene.clone())

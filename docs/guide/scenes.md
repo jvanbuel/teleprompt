@@ -183,12 +183,12 @@ cast that [`asciinema rec`](https://asciinema.org) already made:
 ````markdown
 First, it checks a script, which costs nothing and changes nothing. {#check}
 
-```teleprompt scene=recording policy=fit-action include=casts/tour.cast#check
+```teleprompt scene=asciinema policy=fit-action include=casts/tour.cast#check
 ```
 
 Then it plans the script. {#plan}
 
-```teleprompt scene=recording policy=fit-action include=casts/tour.cast#plan
+```teleprompt scene=asciinema policy=fit-action include=casts/tour.cast#plan
 ```
 ````
 
@@ -206,8 +206,7 @@ keystrokes. `check` reads the cast and reports a bad line at its line
 number in the cast file.
 
 ```toml
-[scene.recording]
-adapter = "asciinema"
+[scene.asciinema]
 theme = "dracula"   # any agg theme
 font_size = 32
 ```
@@ -255,7 +254,7 @@ them:
 ````markdown
 The words decide the timing. {#timing}
 
-```teleprompt scene=motion policy=concurrent
+```teleprompt scene=remotion policy=concurrent
 Pipeline {"steps": ["Markdown", "Kokoro", "Timeline", "Video"]}
 ```
 ````
@@ -267,8 +266,7 @@ as the paragraph above it, so each composition gets a paragraph and block
 of its own.
 
 ```toml
-[scene.motion]
-adapter = "remotion"
+[scene.remotion]
 project = "motion"          # the Remotion project, with node_modules installed
 # entry = "src/index.ts"    # its registerRoot file; Remotion's default
 # browser = "/path/to/chrome-headless-shell"
@@ -305,14 +303,13 @@ two of its `v-click`s, so a list can be revealed a sentence at a time:
 ````markdown
 You can still present it with Slidev. {#present}
 
-```teleprompt scene=slides policy=concurrent
+```teleprompt scene=slidev policy=concurrent
 2?clicks=1
 ```
 ````
 
 ```toml
-[scene.slides]
-adapter = "slidev"
+[scene.slidev]
 deck = "talk/slides.md"     # Slidev is found in a node_modules beside or above it
 # dark = true
 # browser = "/path/to/chrome"
@@ -357,7 +354,6 @@ included.
 
 ```toml
 [scene.media]
-adapter = "media"
 dir = "media"            # what `src` is relative to, from where the build runs
 background = "#0b0d10"   # behind letterboxing, and a title's colour
 color = "#eef3f8"        # a title's text

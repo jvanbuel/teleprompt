@@ -16,7 +16,7 @@ expression: transcript(&out)
           "capture_key": "43db66d3f11880ec51bfc9820efcf8a78f913ae0b25ae6e23077292a74580a91",
           "duration_ms": 14500,
           "duration_source": "exact",
-          "scene": "motion",
+          "scene": "remotion",
           "shot": "welcome-a#0",
           "shot_hash": "677d9b91311c94feecc15eec6aea5691d8a09f5195d838391b9e308feaad7400",
           "start_ms": 0
@@ -44,7 +44,7 @@ expression: transcript(&out)
           "capture_key": "449f164af6efcb5f014a80a8257e32a0a0bb607532e0f446cd7ea5ec67bee16e",
           "duration_ms": 11950,
           "duration_source": "exact",
-          "scene": "motion",
+          "scene": "remotion",
           "shot": "timing-a#0",
           "shot_hash": "6586eec86e81a775c126db02136fa8b5b201e8feec70c05f1d2cc04e641c30fa",
           "start_ms": 14500
@@ -69,12 +69,12 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "remotion",
-          "capture_key": "75fa607083660f1398ea429a5f35aea3a9c2a69b44989b77e4dffae0faa844a9",
+          "capture_key": "07b2ed600453d5353870b07dfa9ed73898b9a2108cae303bcb5e904ca1c2caa3",
           "duration_ms": 11150,
           "duration_source": "exact",
-          "scene": "motion",
+          "scene": "remotion",
           "shot": "blocks-a#0",
-          "shot_hash": "5561d0640b40e5b9aa654dbc76caac60c38fa1c79e0df0b1c5f32ef05ef9e021",
+          "shot_hash": "51e264c48b9d24c745119177420f9eaccb3aa1910cdd8b0b93a51aa869432193",
           "start_ms": 26450
         },
         "duration_ms": 11150,
@@ -100,7 +100,7 @@ expression: transcript(&out)
           "capture_key": "1606e78bdaf0520b19658c8122517e76dc1987c966f2ed24d373ff493c894949",
           "duration_ms": 3850,
           "duration_source": "exact",
-          "scene": "motion",
+          "scene": "remotion",
           "shot": "short-a#0",
           "shot_hash": "d42fdb5decc614b5cc595953991d29ff16cd06984ac5a326097dad278ba6ca89",
           "start_ms": 37600
@@ -128,7 +128,7 @@ expression: transcript(&out)
           "capture_key": "8d46ff37f1269effc4bf43e6e5926c03ba3f31e80ac009092f2e48b1aadf0e4e",
           "duration_ms": 20850,
           "duration_source": "exact",
-          "scene": "motion",
+          "scene": "remotion",
           "shot": "long-a#0",
           "shot_hash": "bd94ff9cfdcdf77a7e69bb7835e0db6ad1dd8077023ff52b85c43b8addbdf82a",
           "start_ms": 41450
@@ -156,7 +156,7 @@ expression: transcript(&out)
           "capture_key": "365e29b123ad80628c902f183dd7c99eac93480dfbf7bb64d78248456998b68c",
           "duration_ms": 8200,
           "duration_source": "exact",
-          "scene": "motion",
+          "scene": "remotion",
           "shot": "cache-a#0",
           "shot_hash": "e0b34ab34472184b4dcf2420ff82bf37a467d8c669f598feb226a3327a9c6bbc",
           "start_ms": 62300
