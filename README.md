@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/icons/teleprompt-lockup-dark.svg">
+  <img alt="teleprompt" src="apps/icons/teleprompt-lockup-light.svg" width="360">
+</picture>
+
 # teleprompt
 
 Compile narrated videos from version-controlled Markdown.
