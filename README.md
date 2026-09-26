@@ -72,6 +72,8 @@ opens on the item you just changed, and `build` renders the video.
 |---|---|
 | `new <path>` | scaffold a new project |
 | `from <doc>` | draft a script from a Markdown document or Slidev deck you already have |
+| `record <script>` | record yourself using a terminal while you talk, and get a script spoken in your voice (opt-in build) |
+| `import <cast>` | the same, from an asciicast and a recording you already have |
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it |
 | `diff <script>` | compare against the committed timeline; `--exit-code` exits 3 on drift |
@@ -94,6 +96,8 @@ for a runtime failure, `2` for an invalid script and `3` for drift.
 - [Voices](docs/guide/voices.md): backends, the voice cache, and Kokoro
 - [Reading from a prompter](docs/guide/prompter.md): `prompt`, which
   follows your voice
+- [Recording a session](docs/guide/recording.md): `record` and `import`,
+  which draft a script from a terminal session you narrated
 - [Rendering](docs/guide/rendering.md): `build`, `dub` and the manifest,
   and the live preview
 - [Rendering with Remotion](docs/integrations/remotion.md): consuming the

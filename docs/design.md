@@ -333,6 +333,38 @@ applies to synthesis only. Captions, the manifest and the script keep the
 spelling, and because the mapped text is in the cache key, correcting a
 pronunciation re-renders exactly the lines that use that word.
 
+### Recording a session
+
+`record` runs a shell in a pseudo-terminal and records it as an asciicast
+with its keystrokes, while ffmpeg records the microphone; `import` takes
+such a pair from elsewhere. The voice is placed on the cast's clock by
+when its first sample was taken. `teleprompt-derive` then drafts the
+script, purely, from the keystrokes and the words the recognizer heard
+with their times:
+
+- Speech is cut into lines where a silence reaches 700 ms. The prose is
+  verbatim, since the result is a first draft: a recognizer that hears in
+  capitals is lowered, and each line gets a capital and a full stop.
+- Keystrokes are cut into commands at Enter, Ctrl+C and Ctrl+D, and each
+  command is placed by when its first key was pressed. Started during a
+  line (or up to 150 ms before it), it runs `concurrent` with the line,
+  and if it started more than 600 ms in, it is cued to the phrase being
+  said then, grown until it occurs once in the line. Started in a pause,
+  it holds after the line before. Commands placed alike, one after
+  another, share one tape.
+- A tape replays the keys as the terminal scene's language: the median
+  gap between typed characters as `TypingSpeed`, Backspaces applied to
+  the text, named keys counted, pauses of 700 ms or more as `Sleep`, and
+  after the last command, a wait until 300 ms past its last output before
+  the session's next keystroke. The command that closed the shell is
+  dropped. So an imported script reads like a written one, and is edited
+  like one.
+
+`import` compiles what it wrote to learn its line ids, and saves each
+line's stretch of the recording as its [take](#takes): from 150 ms before
+its first word to 250 ms after its last, never past halfway to the next
+line.
+
 ## Scheduling
 
 The scheduler is a pure function from items, with their durations, to a
@@ -646,8 +678,9 @@ Named here so the rest of this document is not read as covering them:
   synthesized.
 - **Localization sidecars.** `--locale` selects configuration, but
   translated narration files and their staleness ledger do not exist.
-- **Deriving a script from a live session.** `from` drafts from documents
-  and Slidev decks, not from recorded screen sessions.
+- **Deriving a script from a browser session.** `record` derives one from
+  a terminal session; a browser would need its actions recorded as a
+  replayable script, which nothing does yet.
 - **Runtime-loaded plugins.** Backends and adapters are compiled in.
 - **Narration-constrained scheduling**, where a fixed picture sets a
   budget and over-long prose becomes a diagnostic.
