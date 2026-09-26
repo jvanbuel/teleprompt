@@ -90,3 +90,16 @@ fn encoding_is_byte_stable() {
     };
     assert_eq!(wav::encode(&pcm), wav::encode(&pcm));
 }
+
+/// A take is read back from the WAV it was saved as.
+#[test]
+fn decoding_what_was_encoded_gives_it_back() {
+    let pcm = teleprompt_voice::Pcm {
+        sample_rate: 24_000,
+        channels: 1,
+        samples: vec![0, 1, -1, i16::MAX, i16::MIN, 1234],
+    };
+    let wav = teleprompt_voice::wav::encode(&pcm);
+    assert_eq!(teleprompt_voice::wav::decode(&wav).unwrap(), pcm);
+    assert!(teleprompt_voice::wav::decode(b"RIFF....WAVEnot a wav").is_err());
+}

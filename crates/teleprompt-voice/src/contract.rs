@@ -68,6 +68,41 @@ impl Pcm {
         let frames = self.samples.len() as u64 / channels;
         frames * 1000 / rate
     }
+
+    /// The same audio at `rate`, exactly as many milliseconds long: the
+    /// frame count is rounded up to the length's, and never by a whole
+    /// millisecond.
+    pub fn resampled(&self, rate: u32) -> Pcm {
+        let channels = self.channels.max(1) as usize;
+        let frames = (self.duration_ms() * rate as u64).div_ceil(1000) as usize;
+        let per_channel: Vec<Vec<f32>> = (0..channels)
+            .map(|c| {
+                let mono: Vec<f32> = self
+                    .samples
+                    .iter()
+                    .skip(c)
+                    .step_by(channels)
+                    .map(|&s| s as f32 / 32768.0)
+                    .collect();
+                let mut out = crate::resample(&mono, self.sample_rate, rate);
+                out.resize(frames, 0.0);
+                out
+            })
+            .collect();
+        let samples = (0..frames)
+            .flat_map(|f| per_channel.iter().map(move |ch| ch[f]))
+            .map(|s| {
+                (s * 32768.0)
+                    .round()
+                    .clamp(i16::MIN as f32, i16::MAX as f32) as i16
+            })
+            .collect();
+        Pcm {
+            sample_rate: rate,
+            channels: self.channels,
+            samples,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

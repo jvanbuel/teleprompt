@@ -37,3 +37,42 @@ pub fn encode(pcm: &Pcm) -> Vec<u8> {
 
     out
 }
+
+/// 16-bit PCM WAVE, as [`encode`] writes it; other chunks are skipped.
+pub fn decode(bytes: &[u8]) -> Result<Pcm, String> {
+    if bytes.len() < 12 || &bytes[..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
+        return Err("not a WAVE file".to_string());
+    }
+    let u16_at = |b: &[u8], i: usize| u16::from_le_bytes([b[i], b[i + 1]]);
+    let u32_at = |b: &[u8], i: usize| u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
+    let mut format: Option<(u32, u16)> = None;
+    let mut at = 12;
+    while at + 8 <= bytes.len() {
+        let len = u32_at(bytes, at + 4) as usize;
+        let body = bytes
+            .get(at + 8..at + 8 + len)
+            .ok_or("a chunk runs past the end of the file")?;
+        match &bytes[at..at + 4] {
+            b"fmt " if len >= 16 => {
+                if u16_at(body, 0) != 1 || u16_at(body, 14) != BITS_PER_SAMPLE {
+                    return Err("only 16-bit PCM is supported".to_string());
+                }
+                format = Some((u32_at(body, 4), u16_at(body, 2)));
+            }
+            b"data" => {
+                let (sample_rate, channels) = format.ok_or("no `fmt ` chunk before the data")?;
+                return Ok(Pcm {
+                    sample_rate,
+                    channels,
+                    samples: body
+                        .chunks_exact(2)
+                        .map(|s| i16::from_le_bytes([s[0], s[1]]))
+                        .collect(),
+                });
+            }
+            _ => {}
+        }
+        at += 8 + len + len % 2;
+    }
+    Err("no `data` chunk".to_string())
+}

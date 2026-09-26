@@ -53,3 +53,24 @@ fn what_the_new_rate_cannot_hold_is_removed_not_aliased() {
     let (a, b) = (out.len() / 10, out.len() * 9 / 10);
     assert!(rms(&out[a..b]) < 0.02, "rms {}", rms(&out[a..b]));
 }
+
+/// A take at the microphone's rate joins narration at another rate without
+/// its length moving by a millisecond, since the manifest publishes it.
+#[test]
+fn resampled_audio_keeps_its_length_to_the_millisecond() {
+    for (from, to, ms) in [
+        (44_100, 24_000, 1234),
+        (48_000, 44_100, 1001),
+        (16_000, 48_000, 7),
+    ] {
+        let pcm = teleprompt_voice::Pcm {
+            sample_rate: from,
+            channels: 1,
+            samples: vec![100; (ms * from as u64 / 1000) as usize],
+        };
+        let before = pcm.duration_ms();
+        let after = pcm.resampled(to);
+        assert_eq!(after.sample_rate, to);
+        assert_eq!(after.duration_ms(), before, "{from} → {to}");
+    }
+}
