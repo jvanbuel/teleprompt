@@ -26,6 +26,7 @@ teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = true }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
+teleprompt-prompter = { path = "../teleprompt-prompter" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-render = { path = "../teleprompt-render" }
 teleprompt-media = { path = "../teleprompt-media" }

@@ -1,5 +1,6 @@
-//! `teleprompt prompt`'s server, driven over a real socket with a
-//! recognizer that hears what the test says.
+//! `teleprompt prompt`'s REST API, driven over a real socket with a
+//! recognizer that hears what the test says. What the prompter does is
+//! tested in `teleprompt-prompter`; these pin the routes and the JSON.
 
 use std::collections::VecDeque;
 use std::io::{Read, Write};
@@ -7,9 +8,10 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use teleprompt_cli::cmd::prompt::{prompt_on, Prompt, ShotCue};
+use teleprompt_cli::cmd::prompt::prompt_on;
 use teleprompt_core::Hash;
 use teleprompt_listen::{Heard, Position, Recognizer};
+use teleprompt_prompter::{Prompt, ShotCue};
 
 /// Hears what the test says, one hypothesis per chunk, and counts the
 /// samples it was given.
@@ -110,19 +112,6 @@ fn posting_audio_answers_where_the_reader_is() {
         (at["line"].as_u64(), at["word"].as_u64()),
         (Some(0), Some(2))
     );
-}
-
-/// Reaching a shot's cue says to play it, once; the page plays what it is
-/// told, in order.
-#[test]
-fn reaching_a_shot_says_to_play_it_once() {
-    let (addr, _clips) = prompting(&["welcome to acme", "welcome to acme let"]);
-    let first: serde_json::Value =
-        serde_json::from_str(&request(addr, "POST", "/listen", &samples(1600))).unwrap();
-    assert_eq!(first["play"], serde_json::json!(["intro#0", "welcome-a#0"]));
-    let second: serde_json::Value =
-        serde_json::from_str(&request(addr, "POST", "/listen", &samples(1600))).unwrap();
-    assert_eq!(second["play"], serde_json::json!([]));
 }
 
 /// The page shows the lines exactly as the aligner counts their words, so a
@@ -247,21 +236,6 @@ fn the_icon_request_is_answered_with_nothing() {
     assert!(response.starts_with("HTTP/1.1 204"), "{response}");
 }
 
-/// Clicking start begins a take from the top, whatever the last one
-/// reached, and says so, so the page redraws from there.
-#[test]
-fn starting_a_take_goes_back_to_the_top() {
-    let (addr, _clips) = prompting(&["welcome to acme"]);
-    request(addr, "POST", "/listen", &samples(1600));
-    let body = request(addr, "POST", "/start", &[]);
-    let at: serde_json::Value = serde_json::from_str(&body).expect(&body);
-    assert_eq!(
-        at,
-        serde_json::json!({ "line": 0, "word": 0, "play": ["intro#0"] }),
-        "a take opens on the shot before the first line, again"
-    );
-}
-
 const TOUR: &str = "\
 ---
 teleprompt: 1
@@ -313,7 +287,7 @@ fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
 fn each_shot_is_cued_where_its_policy_starts_it() {
     use teleprompt_listen::Position;
     let compiled = compiled_tour("prompt-cues");
-    let cues = teleprompt_cli::cmd::prompt::shot_cues(&compiled);
+    let cues = teleprompt_prompter::shot_cues(&compiled);
     let at: Vec<Position> = cues.iter().map(|c| c.at).collect();
     let pos = |line, word| Position { line, word };
     assert_eq!(at, [pos(0, 0), pos(1, 0), pos(1, 7), pos(2, 1)]);
@@ -340,58 +314,6 @@ fn audio_at_the_microphones_rate_reaches_the_recognizer_at_its_own() {
     assert!((3_100..=3_200).contains(&n), "{n} samples at 16 kHz");
 }
 
-/// Little-endian f32 audio: `spans` of (seconds, loud) at 16 kHz.
-fn audio(spans: &[(f32, bool)]) -> Vec<u8> {
-    let mut out = Vec::new();
-    for &(seconds, loud) in spans {
-        for i in 0..(seconds * 16_000.0) as usize {
-            let v = if loud {
-                0.3 * (i as f32 * 0.2).sin()
-            } else {
-                0.0
-            };
-            out.extend(v.to_le_bytes());
-        }
-    }
-    out
-}
-
-/// A take's lines read in full are kept as takes, each with the text it
-/// was read from; a line broken off is not.
-#[test]
-fn stopping_a_take_keeps_each_line_read_in_full() {
-    const LINE_0: &str = "welcome to acme let me show you around";
-    let mut heard = vec![""; 5];
-    heard.extend(["welcome to"; 6]);
-    heard.extend([LINE_0; 7]);
-    heard.extend([""; 5]);
-    heard.extend(["deployment is"; 7]);
-    let (addr, dir) = prompting(&heard);
-    request(addr, "POST", "/start", &[]);
-    let take = audio(&[(0.3, false), (1.2, true), (0.8, false), (0.7, true)]);
-    for chunk in take.chunks(1_600 * 4) {
-        request(addr, "POST", "/listen?rate=16000", chunk);
-    }
-    let stopped: serde_json::Value =
-        serde_json::from_str(&request(addr, "POST", "/stop", &[])).unwrap();
-    assert_eq!(stopped, serde_json::json!({ "saved": ["welcome"] }));
-
-    let takes = teleprompt_voice::takes::Takes::load(&dir.join("takes")).unwrap();
-    let welcome = takes
-        .current("welcome", LINES[0])
-        .expect("a take of line 0");
-    assert!(
-        (1_200..=1_320).contains(&welcome.duration_ms),
-        "{}",
-        welcome.duration_ms
-    );
-    assert!(takes.current("deploy", LINES[1]).is_none());
-
-    let script: serde_json::Value =
-        serde_json::from_str(&request(addr, "GET", "/script.json", &[])).unwrap();
-    assert_eq!(script["recorded"], serde_json::json!([true, false]));
-}
-
 /// A take can start at a line, to read it again; the shots before it do not
 /// play.
 #[test]
@@ -409,4 +331,17 @@ fn a_take_can_start_at_a_line() {
         (at["line"].as_u64(), at["word"].as_u64()),
         (Some(1), Some(2))
     );
+}
+
+/// Stopping answers the ids of the lines kept, and the script says which
+/// lines are recorded.
+#[test]
+fn stopping_answers_the_lines_kept() {
+    let (addr, _dir) = prompting(&[]);
+    let stopped: serde_json::Value =
+        serde_json::from_str(&request(addr, "POST", "/stop", &[])).unwrap();
+    assert_eq!(stopped, serde_json::json!({ "saved": [] }));
+    let script: serde_json::Value =
+        serde_json::from_str(&request(addr, "GET", "/script.json", &[])).unwrap();
+    assert_eq!(script["recorded"], serde_json::json!([false, false]));
 }

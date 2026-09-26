@@ -1528,6 +1528,7 @@ dependencies = [
  "teleprompt-manifest",
  "teleprompt-media",
  "teleprompt-playwright",
+ "teleprompt-prompter",
  "teleprompt-remotion",
  "teleprompt-render",
  "teleprompt-scene",
@@ -1610,6 +1611,17 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-scene",
  "tempfile",
+]
+
+[[package]]
+name = "teleprompt-prompter"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-compile",
+ "teleprompt-core",
+ "teleprompt-listen",
+ "teleprompt-testkit",
+ "teleprompt-voice",
 ]
 
 [[package]]

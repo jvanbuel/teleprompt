@@ -156,6 +156,7 @@ reading the manifest it just published.
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
 | `teleprompt-listen-sherpa` | the recognizer, a streaming sherpa-onnx model; empty without its opt-in `sherpa` feature, so the default build stays offline |
+| `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler and capture backend |
 | `teleprompt-cli` | the `teleprompt` binary, and the registries every adapter and backend is composed into |
@@ -255,8 +256,13 @@ the line `recorded`. Editing the line leaves its take behind, and the line
 is synthesized again until it is re-recorded. Once a project has any
 takes, every command that compiles names the lines it still synthesizes.
 
-`prompt` records takes. The page streams the microphone at its own rate;
-the server keeps that as the take and feeds the recognizer a 16 kHz copy.
+`prompt` records takes. The prompter is `teleprompt-prompter`, a
+`Session` with typed calls (`start`, `listen`, `stop`, `script`, `clip`);
+`teleprompt prompt` is a REST API over it and the page that drives it, so
+another front end, such as a native app, can drive the same session through
+the API or call the library directly. The page streams the microphone at
+its own rate; the session keeps that as the take and feeds the recognizer a
+16 kHz copy.
 When the take is kept, it is cut at the silence between lines, found
 between where the follower heard one line end and the next begin, and each
 line read in full is saved.

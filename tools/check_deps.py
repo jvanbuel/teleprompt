@@ -38,6 +38,7 @@ ALLOWED = {
     "media": ADAPTER,
     "listen": set(),
     "listen-sherpa": {"listen"},
+    "prompter": {"core", "compile", "listen", "voice"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
     "cli": None,  # the composition root: may depend on anything
 }

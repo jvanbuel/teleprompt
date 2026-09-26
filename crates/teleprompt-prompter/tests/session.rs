@@ -1,0 +1,219 @@
+//! A prompter session driven directly, with a recognizer that hears what
+//! the test says.
+
+use std::cell::Cell;
+use std::collections::VecDeque;
+use std::rc::Rc;
+
+use teleprompt_core::Hash;
+use teleprompt_listen::{Heard, Recognizer};
+use teleprompt_prompter::{Position, Prompt, Reached, Session, ShotCue};
+
+/// Hears what the test says, one hypothesis per chunk, and counts the
+/// samples it was given.
+struct Scripted(VecDeque<&'static str>, Rc<Cell<usize>>);
+
+impl Recognizer for Scripted {
+    fn listen(&mut self, samples: &[f32]) -> Heard {
+        self.1.set(self.1.get() + samples.len());
+        Heard {
+            text: self.0.pop_front().unwrap_or_default().to_string(),
+            is_final: false,
+        }
+    }
+
+    fn reset(&mut self) {}
+}
+
+const LINES: &[&str] = &[
+    "Welcome to Acme. Let me show you around.",
+    "Deployment is one command.",
+];
+
+fn pos(line: usize, word: usize) -> Position {
+    Position { line, word }
+}
+
+/// A shot before the first line, one three words in, and one after the
+/// first line; only the second has been captured.
+fn prompt(dir: &std::path::Path) -> Prompt {
+    let cue = |shot: &str, at| ShotCue {
+        shot: shot.to_string(),
+        capture_key: Hash::of(shot.as_bytes()),
+        at,
+    };
+    std::fs::write(
+        dir.join(format!("{}.mp4", Hash::of(b"welcome-a#0"))),
+        b"clip",
+    )
+    .unwrap();
+    Prompt {
+        lines: LINES.iter().map(|l| l.to_string()).collect(),
+        ids: vec!["welcome".into(), "deploy".into()],
+        shots: vec![
+            cue("intro#0", pos(0, 0)),
+            cue("welcome-a#0", pos(0, 3)),
+            cue("welcome-b#0", pos(1, 0)),
+        ],
+        clips: dir.to_path_buf(),
+        takes: dir.join("takes"),
+    }
+}
+
+struct Fixture {
+    session: Session<Scripted>,
+    heard: Rc<Cell<usize>>,
+    dir: teleprompt_testkit::TestDir,
+}
+
+fn session(tag: &str, heard: &[&'static str]) -> Fixture {
+    let dir = teleprompt_testkit::test_dir(tag);
+    let count = Rc::new(Cell::new(0));
+    let recognizer = Scripted(heard.iter().copied().collect(), count.clone());
+    Fixture {
+        session: Session::new(prompt(&dir), recognizer).unwrap(),
+        heard: count,
+        dir,
+    }
+}
+
+fn silence(n: usize) -> Vec<f32> {
+    vec![0.0; n]
+}
+
+fn plays(shots: &[&str]) -> Vec<String> {
+    shots.iter().map(|s| s.to_string()).collect()
+}
+
+/// Reaching a shot's cue says to play it, once.
+#[test]
+fn reaching_a_shot_says_to_play_it_once() {
+    let mut f = session("prompter-once", &["welcome to acme", "welcome to acme let"]);
+    let first = f.session.listen(&silence(1600), 16_000);
+    assert_eq!(first.play, plays(&["intro#0", "welcome-a#0"]));
+    assert_eq!(f.session.listen(&silence(1600), 16_000).play, plays(&[]));
+}
+
+/// Starting a take goes back to the top, whatever the last one reached,
+/// and the shot before the first line plays again.
+#[test]
+fn starting_a_take_goes_back_to_the_top() {
+    let mut f = session("prompter-top", &["welcome to acme"]);
+    f.session.listen(&silence(1600), 16_000);
+    assert_eq!(
+        f.session.start(0),
+        Reached {
+            at: pos(0, 0),
+            play: plays(&["intro#0"])
+        }
+    );
+}
+
+/// A take can start at a line, to read it again; the shots before it do
+/// not play.
+#[test]
+fn a_take_can_start_at_a_line() {
+    let mut f = session("prompter-from", &["deployment is"]);
+    assert_eq!(
+        f.session.start(1),
+        Reached {
+            at: pos(1, 0),
+            play: plays(&["welcome-b#0"])
+        }
+    );
+    assert_eq!(f.session.listen(&silence(1600), 16_000).at, pos(1, 2));
+}
+
+/// Audio at the microphone's rate reaches the recognizer at its own.
+#[test]
+fn audio_at_another_rate_is_heard_at_the_recognizers() {
+    let mut f = session("prompter-rate", &[]);
+    f.session.listen(&silence(4_800), 48_000);
+    f.session.listen(&silence(4_800), 48_000);
+    let n = f.heard.get();
+    assert!((3_100..=3_200).contains(&n), "{n} samples at 16 kHz");
+}
+
+/// 16 kHz audio: `spans` of (seconds, loud).
+fn audio(spans: &[(f32, bool)]) -> Vec<f32> {
+    spans
+        .iter()
+        .flat_map(|&(seconds, loud)| {
+            (0..(seconds * 16_000.0) as usize).map(move |i| {
+                if loud {
+                    0.3 * (i as f32 * 0.2).sin()
+                } else {
+                    0.0
+                }
+            })
+        })
+        .collect()
+}
+
+/// A take's lines read in full are kept as takes, each with the text it
+/// was read from; a line broken off is not.
+#[test]
+fn stopping_a_take_keeps_each_line_read_in_full() {
+    const LINE_0: &str = "welcome to acme let me show you around";
+    let mut heard = vec![""; 5];
+    heard.extend(["welcome to"; 6]);
+    heard.extend([LINE_0; 7]);
+    heard.extend([""; 5]);
+    heard.extend(["deployment is"; 7]);
+    let mut f = session("prompter-stop", &heard);
+    f.session.start(0);
+    let take = audio(&[(0.3, false), (1.2, true), (0.8, false), (0.7, true)]);
+    for chunk in take.chunks(1_600) {
+        f.session.listen(chunk, 16_000);
+    }
+    assert_eq!(f.session.stop().unwrap(), ["welcome"]);
+
+    let takes = teleprompt_voice::takes::Takes::load(&f.dir.join("takes")).unwrap();
+    let welcome = takes
+        .current("welcome", LINES[0])
+        .expect("a take of line 0");
+    assert!(
+        (1_200..=1_320).contains(&welcome.duration_ms),
+        "{}",
+        welcome.duration_ms
+    );
+    assert!(takes.current("deploy", LINES[1]).is_none());
+
+    let recorded: Vec<bool> = f
+        .session
+        .script()
+        .lines
+        .iter()
+        .map(|l| l.recorded)
+        .collect();
+    assert_eq!(recorded, [true, false]);
+}
+
+/// Stopping with no take under way keeps nothing.
+#[test]
+fn stopping_without_a_take_keeps_nothing() {
+    let mut f = session("prompter-nostop", &[]);
+    assert!(f.session.stop().unwrap().is_empty());
+}
+
+/// The script names each shot with its cue and its clip; one never
+/// captured has none. Only a cued shot's clip is handed out.
+#[test]
+fn the_script_names_each_shot_and_its_clip() {
+    let f = session("prompter-script", &[]);
+    let script = f.session.script();
+    let texts: Vec<&str> = script.lines.iter().map(|l| l.text.as_str()).collect();
+    assert_eq!(texts, LINES);
+    let captured = f.dir.join(format!("{}.mp4", Hash::of(b"welcome-a#0")));
+    let clips: Vec<_> = script.shots.iter().map(|s| s.clip.clone()).collect();
+    assert_eq!(clips, [None, Some(captured.clone()), None]);
+
+    assert_eq!(
+        f.session.clip(&Hash::of(b"welcome-a#0").to_string()),
+        Some(captured)
+    );
+    let stray = Hash::of(b"not a cued shot");
+    std::fs::write(f.dir.join(format!("{stray}.mp4")), b"clip").unwrap();
+    assert_eq!(f.session.clip(&stray.to_string()), None);
+    assert_eq!(f.session.clip("../secret"), None);
+}
