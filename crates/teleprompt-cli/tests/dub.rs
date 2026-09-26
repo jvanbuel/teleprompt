@@ -55,6 +55,33 @@ fn read_manifest(root: &Path) -> serde_json::Value {
     serde_json::from_str(&raw).unwrap()
 }
 
+/// Captions sit beside the manifest, one cue or more per line, in both
+/// formats players read.
+#[test]
+fn dub_writes_captions_beside_the_manifest() {
+    let root = project_with("captions", SCRIPT);
+    let out = tp(
+        &root,
+        &["dub", "scripts/test.md", "--out", "public/narration"],
+    );
+    assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
+    let dir = root.join("public/narration/en");
+    let vtt = std::fs::read_to_string(dir.join("captions.vtt")).unwrap();
+    let srt = std::fs::read_to_string(dir.join("captions.srt")).unwrap();
+    assert!(vtt.starts_with("WEBVTT\n\n00:00:"), "{vtt}");
+    assert!(srt.starts_with("1\n00:00:"), "{srt}");
+    let m = read_manifest(&root);
+    for line in m["lines"].as_array().unwrap() {
+        let first = line["text"]
+            .as_str()
+            .unwrap()
+            .split_whitespace()
+            .next()
+            .unwrap();
+        assert!(vtt.contains(first), "{first} in {vtt}");
+    }
+}
+
 #[test]
 fn dub_writes_a_manifest_and_one_wav_per_line() {
     let root = project_with("write", SCRIPT);

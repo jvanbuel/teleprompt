@@ -119,6 +119,12 @@ async fn a_script_renders_to_a_video_as_long_as_its_timeline() {
         (seconds - expected).abs() < 0.25,
         "the timeline says {expected}s and the video runs {seconds}s"
     );
+    // Captions beside the video, named after it, for a player to pick up.
+    for ext in ["srt", "vtt"] {
+        let path = report.output.with_extension(ext);
+        assert!(report.captions.contains(&path), "{:?}", report.captions);
+        assert!(std::fs::read_to_string(&path).unwrap().contains("-->"));
+    }
 }
 
 #[tokio::test]

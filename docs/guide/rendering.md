@@ -21,6 +21,18 @@ A shot with no clip, because its scene can't be recorded here, holds its
 slot as a slate. The timing is still right, and `build` says how many
 slates it rendered.
 
+### Captions
+
+Every build writes subtitles beside the video, `build/tour.en.srt` and
+`build/tour.en.vtt`, named so that players and upload pages pick them up.
+They're the narration, as it's spoken:
+
+- A cue holds at most two rows of 42 characters. A longer line is split,
+  after a sentence or a comma where one falls far enough in.
+- Each part of a line appears when its first word is said. With a voice
+  that reports word timings, that's exact. With one that doesn't, the
+  line's time is shared out by the length of each part.
+
 ### Rebuilds are incremental
 
 The picture is encoded in pieces, and each piece is kept. A piece's key
@@ -52,6 +64,8 @@ teleprompt dub scripts/tour.md --out public/narration
 ```
 public/narration/en/narration.json
 public/narration/en/audio/welcome.wav
+public/narration/en/captions.srt
+public/narration/en/captions.vtt
 ```
 
 The manifest gives each line its id, text, absolute `start_ms` and

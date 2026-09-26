@@ -6,6 +6,7 @@ use teleprompt_compile::manifest;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
 use teleprompt_core::Hash;
+use teleprompt_manifest::captions;
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_voice::takes::Takes;
@@ -604,6 +605,18 @@ fn write_output(
     for (line_id, bytes, _) in &audio.lines {
         let path = dir.join(audio_path(line_id, "wav"));
         std::fs::write(&path, bytes)
+            .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
+        written.push(path);
+    }
+
+    // Beside the manifest, so a player serving the audio finds them too.
+    let cues = captions::cues(built);
+    for (name, text) in [
+        ("captions.srt", captions::srt(&cues)),
+        ("captions.vtt", captions::vtt(&cues)),
+    ] {
+        let path = dir.join(name);
+        std::fs::write(&path, text)
             .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
         written.push(path);
     }

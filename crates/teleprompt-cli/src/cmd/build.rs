@@ -5,6 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
+use teleprompt_manifest::{captions, NarrationManifest};
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::{Picture, Progress, RenderError};
@@ -68,6 +69,8 @@ pub struct BuildReport {
     /// every command rather than on this command's shape.
     pub ok: bool,
     pub output: PathBuf,
+    /// Subtitles beside the video, as SubRip and WebVTT.
+    pub captions: Vec<PathBuf>,
     pub duration_ms: u64,
     /// Which renderer did the work.
     pub renderer: &'static str,
@@ -93,13 +96,19 @@ impl BuildReport {
             _ => String::new(),
         };
         format!(
-            "  {}\n  {} via {}{reused}\n  {} line(s), {} item(s), {} slate(s)\n",
+            "  {}\n  {} via {}{reused}\n  {} line(s), {} item(s), {} slate(s)\n  \
+             captions beside it: {}\n",
             self.output.display(),
             clock(self.duration_ms),
             self.renderer,
             self.lines,
             self.items,
             self.slates,
+            self.captions
+                .iter()
+                .filter_map(|p| p.extension()?.to_str())
+                .collect::<Vec<_>>()
+                .join(", "),
         )
     }
 }
@@ -254,9 +263,12 @@ pub async fn run_build_with_capture(
         }
     }
 
+    let captions = write_captions(&rendered.path, &dubbed.manifest)?;
+
     Ok(BuildReport {
         ok: true,
         output: rendered.path,
+        captions,
         duration_ms: rendered.duration_ms,
         renderer: renderer.id(),
         lines: dubbed.manifest.lines.len(),
@@ -266,6 +278,21 @@ pub async fn run_build_with_capture(
         reused_ms: rendered.reused_ms,
         warnings: all,
     })
+}
+
+/// The video's subtitles, named after it (`tour.en.srt` beside
+/// `tour.en.mp4`), where players look for them.
+fn write_captions(video: &Path, manifest: &NarrationManifest) -> Result<Vec<PathBuf>, BuildError> {
+    let cues = captions::cues(manifest);
+    [("srt", captions::srt(&cues)), ("vtt", captions::vtt(&cues))]
+        .into_iter()
+        .map(|(ext, text)| {
+            let path = video.with_extension(ext);
+            std::fs::write(&path, text)
+                .map(|()| path.clone())
+                .map_err(|e| BuildError::Runtime(format!("cannot write {}: {e}", path.display())))
+        })
+        .collect()
 }
 
 /// A render failure, with the one thing the author can act on in front.

@@ -117,4 +117,5 @@ pub fn audio_path(line_id: &str, format: &str) -> String {
     format!("audio/{line_id}.{format}")
 }
 
+pub mod captions;
 pub mod diff;
