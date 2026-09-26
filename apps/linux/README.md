@@ -30,21 +30,26 @@ To install it with a launcher entry:
     cargo install --path apps/linux
     install -Dm644 apps/linux/io.github.jvanbuel.Teleprompt.desktop \
       ~/.local/share/applications/io.github.jvanbuel.Teleprompt.desktop
+    install -Dm644 apps/icons/teleprompt.svg \
+      ~/.local/share/icons/hicolor/scalable/apps/io.github.jvanbuel.Teleprompt.svg
 
 ## Keys
 
 | key | does |
 |---|---|
-| click a line | start a take there |
-| Ctrl+T | take from the top |
-| Return | keep the take |
+| click a line | record from there |
+| Record button | record from the line you are on |
+| Ctrl+T | record from the top |
+| Return | keep the take (during the count of three: cancel) |
 | space | pause or resume |
-| m | mirror the text |
+| m | mirror the text, for beam-splitter glass |
 | + / − | text size |
-| s | show or hide the screen |
-| Ctrl+Shift+S | the screen in its own window, for a second display |
+| s | show or hide the monitor |
+| Ctrl+Shift+S | the monitor in its own window, for a second display |
 
-The server stops with the app, even if the app is killed.
+A take starts after a count of three; Settings turns that off. The server
+stops with the app, even if the app is killed. The look is described in
+`apps/DESIGN.md`.
 
 ## Tests
 

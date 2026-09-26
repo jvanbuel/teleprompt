@@ -27,7 +27,8 @@ if [ "${1:-}" = --drive ]; then
   xdotool windowfocus --sync "$window"
   import -window root "$shots/00-opened.png"
   xdotool key ctrl+t
-  for i in $(seq -w 1 22); do
+  # The count of three, the reading, and the room tone after it.
+  for i in $(seq -w 1 30); do
     sleep 0.5
     import -window root "$shots/$i-reading.png"
   done
@@ -65,10 +66,11 @@ for line in welcome deploy; do
     echo "FAIL: $line was not kept"; fail=1
   fi
 done
-# The screen is the right-hand pane; a clip on it is anything but black.
+# The monitor is the top of the right-hand pane; a clip on it is anything
+# but black.
 lit=0
 for shot in "$shots"/*-reading.png; do
-  mean=$(convert "$shot" -crop 300x200+900+280 -format "%[fx:mean]" info:)
+  mean=$(convert "$shot" -crop 280x140+940+100 -format "%[fx:mean]" info:)
   if awk "BEGIN { exit !($mean > 0.1) }"; then lit=1; break; fi
 done
 if [ "$lit" = 1 ]; then echo "ok: a clip was on screen ($(basename "$shot"))"; else echo "FAIL: no clip was ever on screen"; fail=1; fi

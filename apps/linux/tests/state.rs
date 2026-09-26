@@ -63,9 +63,16 @@ fn stopping_says_what_was_kept() {
         saved: vec!["welcome".into()],
     });
     assert!(!state.listening);
-    assert_eq!(state.status, Status::info("kept 1 line(s): welcome"));
+    assert_eq!(state.status, Status::info("Kept 1 line: welcome"));
+    state.apply(ServerMessage::Stopped {
+        saved: vec!["welcome".into(), "deploy".into()],
+    });
+    assert_eq!(state.status, Status::info("Kept 2 lines: welcome, deploy"));
     state.apply(ServerMessage::Stopped { saved: vec![] });
-    assert_eq!(state.status, Status::info("nothing read in full to keep"));
+    assert_eq!(
+        state.status,
+        Status::info("Nothing was read in full, so nothing was kept")
+    );
 }
 
 #[test]
@@ -79,5 +86,5 @@ fn an_error_is_shown() {
 fn the_end_of_the_script_is_said() {
     let mut state = loaded();
     state.apply(reached(2, 0, &[]));
-    assert_eq!(state.status, Status::info("end of script"));
+    assert_eq!(state.status, Status::info("End of script"));
 }

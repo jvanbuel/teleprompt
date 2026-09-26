@@ -14,12 +14,25 @@ use ui::window::Window;
 const APP_ID: &str = "io.github.jvanbuel.Teleprompt";
 
 fn main() -> glib::ExitCode {
+    ui::fonts::register();
     let app = adw::Application::builder()
         .application_id(APP_ID)
         .flags(gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::NON_UNIQUE)
         .build();
     let window: Rc<std::cell::OnceCell<Rc<Window>>> = Rc::default();
     let shown = window.clone();
+    app.connect_startup(|_| {
+        install_icon();
+        // A prompter is a dark room: the glass is black whatever the desktop.
+        adw::StyleManager::default().set_color_scheme(adw::ColorScheme::ForceDark);
+        let css = gtk::CssProvider::new();
+        css.load_from_string(include_str!("ui/style.css"));
+        gtk::style_context_add_provider_for_display(
+            &gtk::gdk::Display::default().expect("a display"),
+            &css,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    });
     let window_for = move |app: &adw::Application| {
         shown
             .get_or_init(|| {
@@ -140,9 +153,23 @@ fn settings(window: &Rc<Window>) {
             window.set_config(config);
         }
     });
+    let countdown = adw::SwitchRow::builder()
+        .title("Count down before a take")
+        .subtitle("Three beats to settle before the prompter listens")
+        .active(config.countdown())
+        .build();
+    let weak = Rc::downgrade(window);
+    countdown.connect_active_notify(move |row| {
+        if let Some(window) = weak.upgrade() {
+            let mut config = window.config();
+            config.countdown = Some(row.is_active());
+            window.set_config(config);
+        }
+    });
     group.add(&binary);
     group.add(&model);
     group.add(&locale);
+    group.add(&countdown);
     let page = adw::PreferencesPage::new();
     page.add(&group);
     let dialog = adw::PreferencesDialog::builder().title("Settings").build();
@@ -188,4 +215,20 @@ fn path_row(
     });
     row.add_suffix(&choose);
     row
+}
+
+/// Puts the app's icon where GTK looks for it, so the window and the
+/// launcher show it without an install step.
+fn install_icon() {
+    let icons = glib::user_cache_dir().join("teleprompt/icons");
+    let dir = icons.join("hicolor/scalable/apps");
+    let svg = include_bytes!("../../icons/teleprompt.svg");
+    if std::fs::create_dir_all(&dir).is_ok()
+        && std::fs::write(dir.join(format!("{APP_ID}.svg")), svg).is_ok()
+    {
+        if let Some(display) = gtk::gdk::Display::default() {
+            gtk::IconTheme::for_display(&display).add_search_path(&icons);
+        }
+        gtk::Window::set_default_icon_name(APP_ID);
+    }
 }

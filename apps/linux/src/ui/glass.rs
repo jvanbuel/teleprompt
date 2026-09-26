@@ -1,0 +1,287 @@
+//! The glass: the script on black, a gutter of line numbers, a fixed
+//! reading line with a cue arrow a third of the way down, and the text
+//! gliding up to it as the reader goes.
+
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+use gtk::prelude::*;
+use gtk::{cairo, glib};
+use teleprompt_gtk::state::PrompterState;
+
+use super::fonts::FAMILY;
+use super::mirror::Mirror;
+use super::prompter::{self, Layout};
+
+/// Where the reading line is, as a fraction of the glass's height.
+const READING_LINE: f64 = 0.36;
+/// How quickly the text settles on the reading line, in seconds.
+const GLIDE: f64 = 0.22;
+const GUTTER: i32 = 76;
+
+#[derive(Clone)]
+pub struct Glass {
+    pub root: Mirror,
+    pub view: gtk::TextView,
+    countdown: gtk::Label,
+    gutter: gtk::DrawingArea,
+    shared: Rc<Shared>,
+}
+
+#[derive(Default)]
+struct Shared {
+    layout: RefCell<Layout>,
+    /// Per line: recorded.
+    recorded: RefCell<Vec<bool>>,
+    current: Cell<usize>,
+    /// The buffer offset the reading line should hold.
+    target: Cell<Option<i32>>,
+    gliding: Cell<bool>,
+    size: Cell<f64>,
+}
+
+impl Glass {
+    pub fn new() -> Self {
+        let view = gtk::TextView::builder()
+            .editable(false)
+            .cursor_visible(false)
+            .wrap_mode(gtk::WrapMode::Word)
+            .left_margin(28)
+            .right_margin(72)
+            .pixels_below_lines(28)
+            .css_classes(["glass"])
+            .focusable(true)
+            .build();
+        prompter::tags(&view.buffer());
+        let gutter = gtk::DrawingArea::builder().width_request(GUTTER).build();
+        view.set_gutter(gtk::TextWindowType::Left, Some(&gutter));
+        let scrolled = gtk::ScrolledWindow::builder()
+            .child(&view)
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .vscrollbar_policy(gtk::PolicyType::External)
+            .build();
+        let reading = gtk::DrawingArea::builder().can_target(false).build();
+        let countdown = gtk::Label::builder()
+            .css_classes(["countdown"])
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Center)
+            .hexpand(true)
+            .vexpand(true)
+            .build();
+        // The count sits on a scrim, so it is never read as part of the text.
+        let scrim = gtk::Box::builder()
+            .css_classes(["scrim"])
+            .can_target(false)
+            .visible(false)
+            .build();
+        scrim.append(&countdown);
+        let overlay = gtk::Overlay::builder()
+            .child(&scrolled)
+            .css_classes(["glass-frame"])
+            .build();
+        overlay.add_overlay(&reading);
+        overlay.add_overlay(&scrim);
+        let glass = Self {
+            root: Mirror::new(&overlay),
+            view,
+            countdown,
+            gutter,
+            shared: Rc::new(Shared {
+                size: Cell::new(48.0),
+                ..Shared::default()
+            }),
+        };
+        glass.draw_gutter();
+        draw_reading_line(&reading);
+        // The margins let the first line and the last reach the reading
+        // line; they follow the glass's height.
+        let view = glass.view.clone();
+        scrolled
+            .vadjustment()
+            .connect_page_size_notify(move |adjustment| {
+                let page = adjustment.page_size();
+                view.set_top_margin((page * READING_LINE) as i32);
+                view.set_bottom_margin((page * (1.0 - READING_LINE)) as i32);
+            });
+        let gutter = glass.gutter.clone();
+        scrolled
+            .vadjustment()
+            .connect_value_changed(move |_| gutter.queue_draw());
+        glass
+    }
+
+    pub fn render(&self, state: &PrompterState) {
+        let layout = prompter::render(&self.view.buffer(), state);
+        *self.shared.layout.borrow_mut() = layout;
+        *self.shared.recorded.borrow_mut() =
+            state.script.lines.iter().map(|l| l.recorded).collect();
+        self.show_position(state);
+    }
+
+    pub fn show_position(&self, state: &PrompterState) {
+        let target =
+            prompter::show_position(&self.view.buffer(), &self.shared.layout.borrow(), state);
+        self.shared.current.set(state.at.line);
+        self.shared.target.set(target);
+        self.gutter.queue_draw();
+        self.glide();
+    }
+
+    /// The script line at a point in the view, for a click.
+    pub fn line_at(&self, x: f64, y: f64) -> Option<usize> {
+        let (bx, by) =
+            self.view
+                .window_to_buffer_coords(gtk::TextWindowType::Widget, x as i32, y as i32);
+        let iter = self.view.iter_at_location(bx, by)?;
+        self.shared.layout.borrow().line_at(iter.offset())
+    }
+
+    pub fn set_text_size(&self, css: &gtk::CssProvider, size: f64) {
+        self.shared.size.set(size);
+        css.load_from_string(&format!(
+            "textview.glass, textview.glass > text {{ font-size: {size}px; }}"
+        ));
+        self.glide();
+    }
+
+    pub fn text_size(&self) -> f64 {
+        self.shared.size.get()
+    }
+
+    /// Shows `n` large over the glass, or nothing.
+    pub fn show_countdown(&self, n: Option<u32>) {
+        let scrim = self.countdown.parent().expect("in its scrim");
+        match n {
+            Some(n) => {
+                self.countdown.set_label(&n.to_string());
+                scrim.set_visible(true);
+            }
+            None => scrim.set_visible(false),
+        }
+    }
+
+    /// Eases the scroll so the next word's line sits on the reading line.
+    fn glide(&self) {
+        if self.shared.gliding.replace(true) {
+            return;
+        }
+        let shared = self.shared.clone();
+        let last: Cell<Option<i64>> = Cell::new(None);
+        self.view.add_tick_callback(move |view, clock| {
+            let now = clock.frame_time();
+            let dt = last
+                .replace(Some(now))
+                .map_or(1.0 / 60.0, |t| (now - t) as f64 / 1e6);
+            let Some(goal) = scroll_goal(view, shared.target.get()) else {
+                shared.gliding.set(false);
+                return glib::ControlFlow::Break;
+            };
+            let adjustment = view.vadjustment().expect("scrollable");
+            let value = adjustment.value();
+            if (goal - value).abs() < 0.5 {
+                adjustment.set_value(goal);
+                shared.gliding.set(false);
+                return glib::ControlFlow::Break;
+            }
+            adjustment.set_value(value + (goal - value) * (1.0 - (-dt / GLIDE).exp()));
+            glib::ControlFlow::Continue
+        });
+    }
+
+    fn draw_gutter(&self) {
+        let (view, shared) = (self.view.clone(), self.shared.clone());
+        self.gutter.set_draw_func(move |area, cr, width, height| {
+            // The gutter is part of the glass.
+            cr.set_source_rgb(0.0, 0.0, 0.0);
+            cr.rectangle(0.0, 0.0, f64::from(width), f64::from(height));
+            let _ = cr.fill();
+            let layout = shared.layout.borrow();
+            let recorded = shared.recorded.borrow();
+            let buffer = view.buffer();
+            for (line, &(start, _)) in layout.lines.iter().enumerate() {
+                let cy = line_centre(
+                    &view,
+                    &buffer.iter_at_offset(start),
+                    gtk::TextWindowType::Left,
+                );
+                let current = line == shared.current.get();
+                let text = area.create_pango_layout(Some(&(line + 1).to_string()));
+                let font = format!("{FAMILY} {} 14px", if current { "Bold" } else { "Medium" });
+                text.set_font_description(Some(&gtk::pango::FontDescription::from_string(&font)));
+                let (tw, th) = text.pixel_size();
+                cr.set_source_rgba(0.95, 0.96, 0.97, if current { 0.9 } else { 0.32 });
+                cr.move_to(f64::from(width - 22 - tw), cy - f64::from(th) / 2.0);
+                pangocairo::functions::show_layout(cr, &text);
+                if recorded.get(line).copied().unwrap_or(false) {
+                    tick(cr, 16.0, cy);
+                }
+            }
+        });
+    }
+}
+
+/// Where the adjustment should be for `offset`'s line to sit centred on the
+/// reading line: measured from where the line is on screen now, so it holds
+/// whatever the view's margins.
+fn scroll_goal(view: &gtk::TextView, offset: Option<i32>) -> Option<f64> {
+    let offset = offset?;
+    let adjustment = view.vadjustment()?;
+    let (page, value) = (adjustment.page_size(), adjustment.value());
+    let centre = line_centre(
+        view,
+        &view.buffer().iter_at_offset(offset),
+        gtk::TextWindowType::Widget,
+    );
+    let goal = value + centre - page * READING_LINE;
+    Some(goal.clamp(
+        adjustment.lower(),
+        (adjustment.upper() - page).max(adjustment.lower()),
+    ))
+}
+
+/// The vertical centre of the text on `iter`'s line, in `window`'s
+/// coordinates: the glyphs' line, not the space below it.
+fn line_centre(view: &gtk::TextView, iter: &gtk::TextIter, window: gtk::TextWindowType) -> f64 {
+    let (y, _) = view.line_yrange(iter);
+    let glyphs = view.iter_location(iter);
+    let (_, wy) = view.buffer_to_window_coords(window, 0, y);
+    f64::from(wy) + f64::from(glyphs.height()) / 2.0
+}
+
+/// The recorded mark: a small green tick.
+fn tick(cr: &cairo::Context, x: f64, y: f64) {
+    cr.set_source_rgb(0.24, 0.86, 0.52);
+    cr.set_line_width(2.2);
+    cr.set_line_cap(cairo::LineCap::Round);
+    cr.set_line_join(cairo::LineJoin::Round);
+    cr.move_to(x - 5.0, y);
+    cr.line_to(x - 1.5, y + 3.5);
+    cr.line_to(x + 5.0, y - 4.0);
+    let _ = cr.stroke();
+}
+
+/// The reading line: a cue arrow in the margin, with the glass fading out
+/// above and below so the eye stays on it.
+fn draw_reading_line(area: &gtk::DrawingArea) {
+    area.set_draw_func(|_, cr, width, height| {
+        let (w, h) = (f64::from(width), f64::from(height));
+        let y = h * READING_LINE;
+        let fade = |from: f64, to: f64, alpha_from: f64, alpha_to: f64| {
+            let gradient = cairo::LinearGradient::new(0.0, from, 0.0, to);
+            gradient.add_color_stop_rgba(0.0, 0.0, 0.0, 0.0, alpha_from);
+            gradient.add_color_stop_rgba(1.0, 0.0, 0.0, 0.0, alpha_to);
+            cr.rectangle(0.0, from.min(to), w, (to - from).abs());
+            let _ = cr.set_source(&gradient);
+            let _ = cr.fill();
+        };
+        fade(0.0, h * 0.2, 0.85, 0.0);
+        fade(h * 0.78, h, 0.0, 0.9);
+        // The arrow, in the gutter, pointing at the line.
+        cr.set_source_rgb(1.0, 0.72, 0.0);
+        cr.move_to(10.0, y - 8.0);
+        cr.line_to(22.0, y);
+        cr.line_to(10.0, y + 8.0);
+        cr.close_path();
+        let _ = cr.fill();
+    });
+}

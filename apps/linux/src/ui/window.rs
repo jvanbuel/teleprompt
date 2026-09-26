@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::{mpsc, Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use adw::prelude::*;
 use gtk::{gio, glib};
@@ -15,8 +16,9 @@ use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
 
 use super::config::Config;
-use super::mirror::Mirror;
-use super::prompter::{self, Layout};
+use super::glass::Glass;
+use super::monitor::Monitor;
+use super::tally::Tally;
 
 /// What background threads tell the window, tagged with the launch they
 /// belong to so a stale one is dropped.
@@ -29,6 +31,7 @@ enum Event {
     Incoming(u64, Incoming),
     Refreshed(u64, Script),
     Clip(u64, String, Result<PathBuf, String>),
+    Level(f32),
 }
 
 pub struct Window {
@@ -40,17 +43,17 @@ pub struct Window {
 
 struct Widgets {
     stack: gtk::Stack,
+    title: adw::WindowTitle,
+    record: gtk::Button,
+    record_label: gtk::Label,
     reopen: gtk::Button,
-    launching: adw::StatusPage,
+    loading_detail: gtk::Label,
     failed: adw::StatusPage,
-    text: gtk::TextView,
-    mirror: Mirror,
-    screen: gtk::Stack,
-    picture: gtk::Picture,
-    slate: gtk::Label,
-    status: gtk::Label,
-    recording: gtk::Image,
-    css: gtk::CssProvider,
+    glass: Glass,
+    monitor: Monitor,
+    tally: Tally,
+    toasts: adw::ToastOverlay,
+    text_css: gtk::CssProvider,
 }
 
 #[derive(Default)]
@@ -64,9 +67,12 @@ struct Model {
     /// The socket, for the microphone's thread.
     outlet: Arc<Mutex<Option<mpsc::Sender<Outgoing>>>>,
     mic: Option<Mic>,
-    layout: Layout,
-    text_size: f64,
     paused: bool,
+    /// A countdown is running; a second take waits for it.
+    counting: bool,
+    /// The take's running time: what ran before a pause, and since.
+    take_time: Duration,
+    take_since: Option<Instant>,
     media: Option<gtk::MediaFile>,
     /// Screens in windows of their own.
     screens: Vec<gtk::Picture>,
@@ -79,29 +85,37 @@ impl Window {
         let window = adw::ApplicationWindow::builder()
             .application(app)
             .title("Teleprompt")
-            .default_width(1200)
-            .default_height(760)
-            .content(&w.toolbar())
+            .default_width(1280)
+            .default_height(780)
+            .content(&w.layout())
             .build();
         let this = Rc::new(Self {
             window,
             w,
             model: RefCell::new(Model {
                 config: Config::load(),
-                text_size: 44.0,
                 ..Model::default()
             }),
             events,
         });
         this.connect(&this);
-        this.apply_css();
+        this.w.glass.set_text_size(&this.w.text_css, 48.0);
         this.show_welcome();
+        this.show_status();
         let weak = Rc::downgrade(&this);
         glib::spawn_future_local(async move {
             while let Ok(event) = received.recv().await {
                 let Some(this) = weak.upgrade() else { break };
                 this.handle(event);
             }
+        });
+        let weak = Rc::downgrade(&this);
+        glib::timeout_add_local(Duration::from_millis(100), move || {
+            let Some(this) = weak.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+            this.show_time();
+            glib::ControlFlow::Continue
         });
         this
     }
@@ -118,33 +132,36 @@ impl Window {
                 glib::Propagation::Proceed
             }
         });
-        self.w.text.add_controller(keys);
+        self.w.glass.view.add_controller(keys);
 
         let weak = Rc::downgrade(this);
         let click = gtk::GestureClick::new();
         click.connect_released(move |_, _, x, y| {
             let Some(this) = weak.upgrade() else { return };
-            let (bx, by) = this.w.text.window_to_buffer_coords(
-                gtk::TextWindowType::Widget,
-                x as i32,
-                y as i32,
-            );
-            let line = this
-                .w
-                .text
-                .iter_at_location(bx, by)
-                .and_then(|iter| this.model.borrow().layout.line_at(iter.offset()));
-            if let Some(line) = line {
+            if let Some(line) = this.w.glass.line_at(x, y) {
                 this.take(line);
             }
         });
-        self.w.text.add_controller(click);
+        self.w.glass.view.add_controller(click);
+
+        let weak = Rc::downgrade(this);
+        self.w.record.connect_clicked(move |_| {
+            let Some(this) = weak.upgrade() else { return };
+            if this.is_taking() {
+                this.keep();
+            } else {
+                let (at, lines) = {
+                    let model = this.model.borrow();
+                    (model.state.at.line, model.state.script.lines.len())
+                };
+                this.take(if at < lines { at } else { 0 });
+            }
+        });
 
         let weak = Rc::downgrade(this);
         self.w.reopen.connect_clicked(move |_| {
             let Some(this) = weak.upgrade() else { return };
-            let last = this.model.borrow().config.last_script.clone();
-            if let Some(last) = last {
+            if let Some(last) = this.last_script() {
                 this.open(last);
             }
         });
@@ -169,8 +186,16 @@ impl Window {
         match key {
             Key::Return | Key::KP_Enter => self.keep(),
             Key::space => self.toggle_pause(),
-            Key::m => self.toggle_mirror(),
-            Key::s => self.toggle_screen(),
+            Key::m => self
+                .w
+                .glass
+                .root
+                .set_mirrored(!self.w.glass.root.is_mirrored()),
+            Key::s => self
+                .w
+                .monitor
+                .root
+                .set_visible(!self.w.monitor.root.is_visible()),
             Key::plus | Key::equal | Key::KP_Add => self.resize(4.0),
             Key::minus | Key::KP_Subtract => self.resize(-4.0),
             _ => return false,
@@ -189,6 +214,13 @@ impl Window {
                 self.render();
             }
             Event::Clip(g, shot, clip) if g == generation => self.clip_fetched(&shot, clip),
+            Event::Level(rms) => {
+                if self.model.borrow().state.listening {
+                    self.w.tally.set_level(rms);
+                } else {
+                    self.w.tally.set_level(0.0);
+                }
+            }
             _ => {}
         }
     }
@@ -225,14 +257,12 @@ impl Window {
             }
         }
         drop(model);
-        let name = script
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        self.w
-            .launching
-            .set_description(Some(&format!("Starting teleprompt for {name}…")));
-        self.w.stack.set_visible_child_name("launching");
+        let name = file_name(&script);
+        self.w.title.set_title(&name);
+        self.w.title.set_subtitle(&project_name(&script));
+        self.w.loading_detail.set_label(&name);
+        self.w.stack.set_visible_child_name("loading");
+        self.show_record();
     }
 
     fn launched(&self, event: LaunchEvent) {
@@ -270,10 +300,23 @@ impl Window {
             model.socket = Some(socket);
             model.state = PrompterState::default();
             model.state.load(script);
+            model.state.status = Status::info("Click a line to record from there");
         }
+        // Opened now, so a take starts the moment it is asked for.
+        if let Err(e) = self.open_mic() {
+            self.model.borrow_mut().state.status = Status::error(e);
+        }
+        self.w.monitor.set_shots(&self.model.borrow().state);
+        self.w
+            .monitor
+            .root
+            .set_visible(!self.model.borrow().state.script.shots.is_empty());
         self.render();
+        self.play();
         self.w.stack.set_visible_child_name("ready");
-        self.w.text.grab_focus();
+        self.w.glass.view.grab_focus();
+        self.show_status();
+        self.show_record();
     }
 
     fn incoming(&self, incoming: Incoming) {
@@ -291,13 +334,21 @@ impl Window {
                 if played {
                     self.render();
                 } else {
-                    self.show_position();
+                    self.w.glass.show_position(&self.model.borrow().state);
                 }
                 if self.model.borrow().state.playing != before {
                     self.play();
                 }
                 if stopped {
+                    self.stop_clock();
                     self.refresh();
+                    self.show_record();
+                    let toast = adw::Toast::builder()
+                        .title(self.model.borrow().state.status.text.as_str())
+                        .timeout(4)
+                        .build();
+                    self.w.toasts.add_toast(toast);
+                    self.play();
                 }
             }
             Incoming::Closed(Some(why)) => {
@@ -324,49 +375,118 @@ impl Window {
         });
     }
 
-    /// Starts a take at `line`, opening the microphone the first time.
-    pub fn take(&self, line: usize) {
-        if self.model.borrow().socket.is_none() {
-            return;
+    fn is_taking(&self) -> bool {
+        let model = self.model.borrow();
+        model.state.listening || model.paused || model.counting
+    }
+
+    /// Starts a take at `line`, after a count of three if that is on.
+    pub fn take(self: &Rc<Self>, line: usize) {
+        {
+            let model = self.model.borrow();
+            if model.socket.is_none() || model.counting {
+                return;
+            }
         }
         if let Err(e) = self.open_mic() {
             self.model.borrow_mut().state.status = Status::error(e);
             return self.show_status();
         }
         {
+            // Nothing heard before the take starts is part of it.
             let mut model = self.model.borrow_mut();
             let mic = model.mic.as_ref().expect("opened");
             mic.set_sending(false);
             mic.flush();
-            model.state.start_take(line);
+            model.state.listening = false;
             model.paused = false;
-            let _ = model
-                .socket
-                .as_ref()
-                .expect("connected")
-                .send(Outgoing::Command(ClientMessage::Start {
-                    from: line,
-                    rate: RATE,
-                }));
+            model.state.at = teleprompt_gtk::api::Position { line, word: 0 };
+        }
+        self.w.glass.show_position(&self.model.borrow().state);
+        if !self.model.borrow().config.countdown() {
+            return self.begin_take(line);
+        }
+        self.model.borrow_mut().counting = true;
+        self.model.borrow_mut().state.status =
+            Status::info(format!("Recording from line {} in…", line + 1));
+        self.show_status();
+        self.show_record();
+        self.count(line, 3);
+    }
+
+    fn count(self: &Rc<Self>, line: usize, n: u32) {
+        if n == 0 {
+            self.w.glass.show_countdown(None);
+            self.model.borrow_mut().counting = false;
+            return self.begin_take(line);
+        }
+        self.w.glass.show_countdown(Some(n));
+        let weak = Rc::downgrade(self);
+        glib::timeout_add_local_once(Duration::from_millis(650), move || {
+            if let Some(this) = weak.upgrade() {
+                if this.model.borrow().counting {
+                    this.count(line, n - 1);
+                }
+            }
+        });
+    }
+
+    fn begin_take(&self, line: usize) {
+        {
+            let mut model = self.model.borrow_mut();
+            let Some(socket) = model.socket.clone() else {
+                return;
+            };
+            model.state.start_take(line);
+            model.state.status = Status::info(format!("Recording from line {}", line + 1));
+            model.paused = false;
+            model.take_time = Duration::ZERO;
+            model.take_since = Some(Instant::now());
+            let _ = socket.send(Outgoing::Command(ClientMessage::Start {
+                from: line,
+                rate: RATE,
+            }));
+            let started = model.mic.as_ref().expect("opened").start();
+            if let Err(e) = started {
+                model.state.status = Status::error(e);
+            }
             model.mic.as_ref().expect("opened").set_sending(true);
         }
         self.render();
         self.play();
         self.show_status();
-        self.w.text.grab_focus();
+        self.show_record();
+        self.w.glass.view.grab_focus();
     }
 
     /// Ends the take; the server keeps the lines read in full.
     pub fn keep(&self) {
-        let mut model = self.model.borrow_mut();
-        let (Some(mic), Some(socket)) = (model.mic.as_ref(), model.socket.as_ref()) else {
-            return;
-        };
-        mic.set_sending(false);
-        let _ = socket.send(Outgoing::Audio(mic.flush()));
-        let _ = socket.send(Outgoing::Command(ClientMessage::Stop));
-        model.state.listening = false;
-        model.paused = false;
+        {
+            let mut model = self.model.borrow_mut();
+            if model.counting {
+                model.counting = false;
+                model.state.status = Status::info("Click a line to record from there");
+                drop(model);
+                self.w.glass.show_countdown(None);
+                self.show_status();
+                return self.show_record();
+            }
+            let (Some(mic), Some(socket)) = (model.mic.as_ref(), model.socket.as_ref()) else {
+                return;
+            };
+            if !(model.state.listening || model.paused) {
+                return;
+            }
+            mic.set_sending(false);
+            let _ = socket.send(Outgoing::Audio(mic.flush()));
+            let _ = socket.send(Outgoing::Command(ClientMessage::Stop));
+            model.state.listening = false;
+            model.paused = false;
+            model.state.status = Status::info("Keeping the take…");
+        }
+        self.stop_clock();
+        self.show_status();
+        self.show_record();
     }
 
     fn toggle_pause(&self) {
@@ -379,9 +499,24 @@ impl Window {
             let paused = model.paused;
             model.mic.as_ref().expect("checked").set_sending(!paused);
             model.state.listening = !paused;
-            model.state.status = Status::info(if paused { "paused" } else { "listening" });
+            model.state.status = Status::info(if paused { "Paused" } else { "Recording" });
+            if paused {
+                if let Some(since) = model.take_since.take() {
+                    model.take_time += since.elapsed();
+                }
+            } else {
+                model.take_since = Some(Instant::now());
+            }
         }
         self.show_status();
+        self.show_record();
+    }
+
+    fn stop_clock(&self) {
+        let mut model = self.model.borrow_mut();
+        if let Some(since) = model.take_since.take() {
+            model.take_time += since.elapsed();
+        }
     }
 
     fn open_mic(&self) -> Result<(), String> {
@@ -390,28 +525,66 @@ impl Window {
             return Ok(());
         }
         let outlet = model.outlet.clone();
-        model.mic = Some(Mic::open(move |samples| {
-            if let Some(socket) = outlet.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
-                let _ = socket.send(Outgoing::Audio(samples));
-            }
-        })?);
+        let levels = self.events.clone();
+        model.mic = Some(Mic::open(
+            move |samples| {
+                if let Some(socket) = outlet.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
+                    let _ = socket.send(Outgoing::Audio(samples));
+                }
+            },
+            move |rms| {
+                let _ = levels.try_send(Event::Level(rms));
+            },
+        )?);
         Ok(())
     }
 
     /// Shows the shot that should be playing: fetches its clip, or shows
     /// why there is none.
     fn play(&self) {
-        let model = self.model.borrow();
-        let playing = model.state.playing.clone();
-        let clip = model.state.playing_clip().map(str::to_string);
-        drop(model);
+        let (playing, clip, started) = {
+            let model = self.model.borrow();
+            (
+                model.state.playing.clone(),
+                model.state.playing_clip().map(str::to_string),
+                !model.state.started.is_empty(),
+            )
+        };
+        self.w.monitor.update(&self.model.borrow().state);
         match (playing, clip) {
             (Some(shot), Some(path)) => self.fetch_clip(shot, path),
-            (Some(shot), None) => self.show_slate(&format!(
-                "{shot} was never captured: run teleprompt capture"
-            )),
-            (None, _) => self.show_slate(""),
+            (Some(shot), None) => self.show_slate(
+                "This shot was never captured. Run teleprompt capture to record it.",
+                Some(&shot),
+                true,
+            ),
+            (None, _) => {
+                let next = self.next_shot();
+                let text = match &next {
+                    Some((name, line)) => format!("Next: {name}, at line {line}"),
+                    None if started => "Every shot has played.".to_string(),
+                    None => "Each shot plays here as your reading reaches it.".to_string(),
+                };
+                self.show_slate(&text, None, false)
+            }
         }
+    }
+
+    /// The next captured shot the reader has yet to reach, and its line.
+    fn next_shot(&self) -> Option<(String, usize)> {
+        let model = self.model.borrow();
+        let state = &model.state;
+        state
+            .script
+            .shots
+            .iter()
+            .find(|s| s.clip.is_some() && !state.started.contains(&s.shot) && s.at >= state.at)
+            .map(|s| {
+                (
+                    s.shot.strip_suffix("#0").unwrap_or(&s.shot).to_string(),
+                    s.at.line + 1,
+                )
+            })
     }
 
     fn fetch_clip(&self, shot: String, path: String) {
@@ -443,7 +616,9 @@ impl Window {
         }
         let path = match clip {
             Ok(path) => path,
-            Err(e) => return self.show_slate(&format!("{shot}: {e}")),
+            Err(e) => {
+                return self.show_slate(&format!("The clip did not load: {e}"), Some(shot), true)
+            }
         };
         let media = gtk::MediaFile::for_filename(&path);
         // The clip's sound would be heard by the microphone.
@@ -456,12 +631,13 @@ impl Window {
                 }
             }
         });
+        let monitor = self.w.monitor.clone();
+        media.connect_timestamp_notify(move |media| monitor.show_progress(media));
         media.play();
-        self.w.picture.set_paintable(Some(&media));
+        self.w.monitor.show_clip(shot, &media);
         for screen in &self.model.borrow().screens {
             screen.set_paintable(Some(&media));
         }
-        self.w.screen.set_visible_child_name("video");
         self.model.borrow_mut().media = Some(media);
     }
 
@@ -470,43 +646,25 @@ impl Window {
         self.play();
     }
 
-    fn show_slate(&self, text: &str) {
+    fn show_slate(&self, text: &str, shot: Option<&str>, missing: bool) {
         let mut model = self.model.borrow_mut();
         if let Some(media) = model.media.take() {
             media.pause();
         }
-        self.w.picture.set_paintable(None::<&gtk::gdk::Paintable>);
         for screen in &model.screens {
             screen.set_paintable(None::<&gtk::gdk::Paintable>);
         }
-        let text = if text.is_empty() && model.state.started.is_empty() {
-            "shots play here as you reach them"
-        } else {
-            text
-        };
-        self.w.slate.set_label(text);
-        self.w.screen.set_visible_child_name("slate");
-    }
-
-    fn toggle_mirror(&self) {
-        self.w.mirror.set_mirrored(!self.w.mirror.is_mirrored());
-    }
-
-    fn toggle_screen(&self) {
-        self.w.screen.set_visible(!self.w.screen.is_visible());
+        self.w.monitor.show_slate(text, shot, missing);
     }
 
     fn resize(&self, by: f64) {
-        {
-            let mut model = self.model.borrow_mut();
-            model.text_size = (model.text_size + by).max(16.0);
-        }
-        self.apply_css();
+        let size = (self.w.glass.text_size() + by).clamp(24.0, 120.0);
+        self.w.glass.set_text_size(&self.w.text_css, size);
     }
 
     /// The screen in a window of its own, for a second display.
     pub fn screen_window(self: &Rc<Self>) {
-        let picture = gtk::Picture::builder().css_classes(["screen"]).build();
+        let picture = gtk::Picture::builder().css_classes(["monitor"]).build();
         if let Some(media) = &self.model.borrow().media {
             picture.set_paintable(Some(media));
         }
@@ -525,51 +683,71 @@ impl Window {
             }
             glib::Propagation::Proceed
         });
-        self.w.screen.set_visible(false);
+        self.w.monitor.root.set_visible(false);
         window.present();
     }
 
     fn render(&self) {
-        let layout = prompter::render(&self.w.text.buffer(), &self.model.borrow().state);
-        self.model.borrow_mut().layout = layout;
-        self.show_position();
-    }
-
-    fn show_position(&self) {
         let model = self.model.borrow();
-        prompter::show_position(&self.w.text, &model.layout, model.state.at);
+        self.w.glass.render(&model.state);
+        self.w.monitor.update(&model.state);
     }
 
     fn show_status(&self) {
         let model = self.model.borrow();
-        self.w.status.set_label(&model.state.status.text);
-        if model.state.status.is_error {
-            self.w.status.add_css_class("error");
+        self.w.tally.set_status(&model.state.status);
+        self.w.tally.set_on_air(model.state.listening);
+        let keys: &[(&str, &str)] = if model.counting {
+            &[("⏎", "Cancel")]
+        } else if model.paused {
+            &[("⏎", "Keep take"), ("Space", "Resume")]
+        } else if model.state.listening {
+            &[("⏎", "Keep take"), ("Space", "Pause")]
+        } else if model.socket.is_some() {
+            &[("Ctrl T", "Record from the top"), ("M", "Mirror")]
         } else {
-            self.w.status.remove_css_class("error");
+            &[]
+        };
+        self.w.tally.set_keys(keys);
+        if !model.state.listening {
+            self.w.tally.set_level(0.0);
         }
-        self.w.recording.set_visible(model.state.listening);
     }
 
-    fn apply_css(&self) {
-        let size = self.model.borrow().text_size;
-        self.w.css.load_from_string(&format!(
-            "textview.prompter, textview.prompter > text {{ background-color: #000; color: #fff; \
-             font-size: {size}px; font-weight: 500; }} \
-             .screen {{ background-color: #000; }} \
-             .slate {{ color: alpha(#fff, 0.5); }}"
-        ));
+    fn show_time(&self) {
+        let model = self.model.borrow();
+        let running = model.take_since.map_or(Duration::ZERO, |s| s.elapsed());
+        self.w
+            .tally
+            .set_time((model.take_time + running).as_secs_f64());
+    }
+
+    /// The header's one action: record, or keep the take under way.
+    fn show_record(&self) {
+        let taking = self.is_taking();
+        let ready = self.model.borrow().socket.is_some();
+        self.w.record.set_visible(ready);
+        self.w.tally.root.set_visible(ready);
+        self.w
+            .record_label
+            .set_label(if taking { "Keep take" } else { "Record" });
+        if taking {
+            self.w.record.add_css_class("keep");
+        } else {
+            self.w.record.remove_css_class("keep");
+        }
     }
 
     pub fn show_welcome(&self) {
-        let last = self.model.borrow().config.last_script.clone();
+        let last = self.last_script();
         self.w.reopen.set_visible(last.is_some());
-        if let Some(name) = last.as_ref().and_then(|p| p.file_name()) {
+        if let Some(last) = &last {
             self.w
                 .reopen
-                .set_label(&format!("Reopen {}", name.to_string_lossy()));
+                .set_label(&format!("Reopen {}", file_name(last)));
         }
         self.w.stack.set_visible_child_name("welcome");
+        self.show_record();
     }
 
     fn show_failed(&self, reasons: &[String]) {
@@ -577,6 +755,7 @@ impl Window {
             .failed
             .set_description(Some(&glib::markup_escape_text(&reasons.join("\n"))));
         self.w.stack.set_visible_child_name("failed");
+        self.show_record();
     }
 
     pub fn last_script(&self) -> Option<PathBuf> {
@@ -592,6 +771,7 @@ impl Window {
         *model.outlet.lock().unwrap_or_else(|p| p.into_inner()) = None;
         model.mic = None;
         model.client = None;
+        model.counting = false;
         if let Some(media) = model.media.take() {
             media.pause();
         }
@@ -612,122 +792,195 @@ impl Window {
     }
 }
 
+fn file_name(path: &std::path::Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// The project a script belongs to, by its directory's name: the parent of
+/// `scripts/`, or the script's own directory.
+fn project_name(script: &std::path::Path) -> String {
+    let dir = script.parent().unwrap_or(script);
+    let dir = if dir.file_name().is_some_and(|n| n == "scripts") {
+        dir.parent().unwrap_or(dir)
+    } else {
+        dir
+    };
+    file_name(dir)
+}
+
 impl Widgets {
     fn build() -> Self {
-        let (text, mirror) = Self::prompter();
-        let (screen, picture, slate) = Self::screen();
-        let paned = gtk::Paned::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .start_child(&mirror)
-            .end_child(&screen)
-            .resize_end_child(true)
-            .shrink_end_child(false)
-            .position(720)
-            .build();
-        let (welcome, reopen) = Self::welcome();
-        let spinner = gtk::Spinner::builder()
-            .spinning(true)
-            .width_request(32)
-            .height_request(32)
-            .build();
-        let launching = adw::StatusPage::builder()
-            .title("Starting")
-            .child(&spinner)
-            .build();
-        let failed = Self::failed();
-        let stack = gtk::Stack::new();
-        stack.add_named(&welcome, Some("welcome"));
-        stack.add_named(&launching, Some("launching"));
-        stack.add_named(&failed, Some("failed"));
-        stack.add_named(&paned, Some("ready"));
-
-        let css = gtk::CssProvider::new();
+        let text_css = gtk::CssProvider::new();
         gtk::style_context_add_provider_for_display(
             &gtk::gdk::Display::default().expect("a display"),
-            &css,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            &text_css,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
         );
+        let glass = Glass::new();
+        let monitor = Monitor::new();
+        let paned = gtk::Paned::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .start_child(&glass.root)
+            .end_child(&monitor.root)
+            .resize_end_child(false)
+            .shrink_end_child(false)
+            .shrink_start_child(false)
+            .wide_handle(false)
+            .build();
+        let (welcome, reopen) = Self::welcome();
+        let (loading, loading_detail) = Self::loading();
+        let failed = Self::failed();
+        let stack = gtk::Stack::builder()
+            .transition_type(gtk::StackTransitionType::Crossfade)
+            .transition_duration(220)
+            .build();
+        stack.add_named(&welcome, Some("welcome"));
+        stack.add_named(&loading, Some("loading"));
+        stack.add_named(&failed, Some("failed"));
+        stack.add_named(&paned, Some("ready"));
+        let record_label = gtk::Label::new(Some("Record"));
+        let record_inner = gtk::Box::builder().spacing(8).build();
+        record_inner.append(
+            &gtk::Box::builder()
+                .css_classes(["record-dot"])
+                .valign(gtk::Align::Center)
+                .build(),
+        );
+        record_inner.append(&record_label);
+        let record = gtk::Button::builder()
+            .child(&record_inner)
+            .css_classes(["record"])
+            .tooltip_text("Record from the line you are on (Ctrl+T from the top)")
+            .visible(false)
+            .build();
         Self {
             stack,
+            title: adw::WindowTitle::new("Teleprompt", ""),
+            record,
+            record_label,
             reopen,
-            launching,
+            loading_detail,
             failed,
-            text,
-            mirror,
-            screen,
-            picture,
-            slate,
-            status: gtk::Label::builder().xalign(0.0).hexpand(true).build(),
-            recording: gtk::Image::builder()
-                .icon_name("media-record-symbolic")
-                .css_classes(["error"])
-                .visible(false)
-                .build(),
-            css,
+            glass,
+            monitor,
+            tally: super::tally::Tally::new(),
+            toasts: adw::ToastOverlay::new(),
+            text_css,
         }
     }
 
-    /// The script's text, in a scroller that can be mirrored.
-    fn prompter() -> (gtk::TextView, Mirror) {
-        let text = gtk::TextView::builder()
-            .editable(false)
-            .cursor_visible(false)
-            .wrap_mode(gtk::WrapMode::Word)
-            .left_margin(48)
-            .right_margin(48)
-            .top_margin(120)
-            .bottom_margin(600)
-            .pixels_below_lines(24)
-            .css_classes(["prompter"])
-            .focusable(true)
+    fn welcome() -> (gtk::Box, gtk::Button) {
+        let column = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(18)
+            .valign(gtk::Align::Center)
             .build();
-        prompter::tags(&text.buffer());
-        let scrolled = gtk::ScrolledWindow::builder()
-            .child(&text)
-            .hscrollbar_policy(gtk::PolicyType::Never)
-            .build();
-        let mirror = Mirror::new(&scrolled);
-        (text, mirror)
-    }
-
-    /// The clip playing, or a slate.
-    fn screen() -> (gtk::Stack, gtk::Picture, gtk::Label) {
-        let picture = gtk::Picture::builder().css_classes(["screen"]).build();
-        let slate = gtk::Label::builder()
-            .wrap(true)
-            .css_classes(["slate"])
-            .build();
-        let screen = gtk::Stack::builder()
-            .css_classes(["screen"])
-            .width_request(320)
-            .build();
-        screen.add_named(&slate, Some("slate"));
-        screen.add_named(&picture, Some("video"));
-        (screen, picture, slate)
-    }
-
-    fn welcome() -> (adw::StatusPage, gtk::Button) {
-        let reopen = gtk::Button::builder().css_classes(["pill"]).build();
-        let open = gtk::Button::builder()
-            .label("Open Script…")
-            .action_name("app.open")
-            .css_classes(["pill", "suggested-action"])
-            .build();
-        let buttons = gtk::Box::builder()
-            .spacing(12)
+        let page = gtk::Box::builder()
+            .spacing(64)
             .halign(gtk::Align::Center)
+            .valign(gtk::Align::Center)
             .build();
+        page.append(&column);
+        page.append(&Self::glass_sample());
+        let page_for_column = page.clone();
+        let page = column;
+        page.append(
+            &gtk::Label::builder()
+                .label("Teleprompt")
+                .xalign(0.0)
+                .css_classes(["hero-title"])
+                .build(),
+        );
+        page.append(
+            &gtk::Label::builder()
+                .label(
+                    "Open a script and read it aloud. The words follow your voice, \
+                     each shot plays as you reach it, and every line you finish is \
+                     kept as a take.",
+                )
+                .wrap(true)
+                .max_width_chars(46)
+                .xalign(0.0)
+                .css_classes(["hero-body"])
+                .build(),
+        );
+        let open = gtk::Button::builder()
+            .label("Open script…")
+            .action_name("app.open")
+            .css_classes(["pill", "primary"])
+            .build();
+        let reopen = gtk::Button::builder().css_classes(["pill"]).build();
+        let buttons = gtk::Box::builder().spacing(12).margin_top(10).build();
         buttons.append(&open);
         buttons.append(&reopen);
-        let welcome = adw::StatusPage::builder()
-            .title("Teleprompt")
-            .description(
-                "Open a script to read it. The prompter follows your voice, \
-                 plays each shot as you reach it, and records your takes.",
-            )
-            .child(&buttons)
+        page.append(&buttons);
+        (page_for_column, reopen)
+    }
+
+    /// A slice of the glass, to show what the prompter does before a
+    /// script is open: the reading line, what is said, the next word.
+    fn glass_sample() -> gtk::Box {
+        let card = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(10)
+            .css_classes(["sample-glass"])
+            .valign(gtk::Align::Center)
             .build();
-        (welcome, reopen)
+        let lines = [
+            (false, "<span alpha='32%'>Every take starts here.</span>"),
+            (true, "<span alpha='32%'>The words follow</span> <span foreground='#ffb800' underline='single' underline_color='#ffb800'>your</span> voice,"),
+            (false, "<span alpha='55%'>and the shots play</span>"),
+            (false, "<span alpha='55%'>as you reach them.</span>"),
+        ];
+        for (current, markup) in lines {
+            let row = gtk::Box::builder().spacing(14).build();
+            let arrow = gtk::Label::builder()
+                .label("▶")
+                .css_classes(["sample-arrow"])
+                .opacity(if current { 1.0 } else { 0.0 })
+                .build();
+            row.append(&arrow);
+            row.append(
+                &gtk::Label::builder()
+                    .use_markup(true)
+                    .label(markup)
+                    .xalign(0.0)
+                    .css_classes(["sample-text"])
+                    .build(),
+            );
+            card.append(&row);
+        }
+        card
+    }
+
+    fn loading() -> (gtk::Box, gtk::Label) {
+        let page = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(10)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Center)
+            .build();
+        page.append(
+            &gtk::Spinner::builder()
+                .spinning(true)
+                .width_request(28)
+                .height_request(28)
+                .margin_bottom(8)
+                .build(),
+        );
+        page.append(
+            &gtk::Label::builder()
+                .label("Loading the speech model")
+                .css_classes(["loading-title"])
+                .build(),
+        );
+        let detail = gtk::Label::builder()
+            .css_classes(["loading-detail"])
+            .build();
+        page.append(&detail);
+        (page, detail)
     }
 
     fn failed() -> adw::StatusPage {
@@ -735,35 +988,37 @@ impl Widgets {
             .spacing(12)
             .halign(gtk::Align::Center)
             .build();
-        for (label, action) in [("Try Again", "app.reopen"), ("Settings", "app.settings")] {
+        for (label, action, classes) in [
+            ("Try again", "app.reopen", &["pill", "primary"][..]),
+            ("Settings", "app.settings", &["pill"][..]),
+        ] {
             buttons.append(
                 &gtk::Button::builder()
                     .label(label)
                     .action_name(action)
-                    .css_classes(["pill"])
+                    .css_classes(classes.to_vec())
                     .build(),
             );
         }
         adw::StatusPage::builder()
             .icon_name("dialog-warning-symbolic")
-            .title("teleprompt stopped")
+            .title("The prompter stopped")
             .child(&buttons)
             .build()
     }
 
-    fn toolbar(&self) -> adw::ToolbarView {
-        let header = adw::HeaderBar::new();
+    fn layout(&self) -> adw::ToolbarView {
+        let header = adw::HeaderBar::builder().title_widget(&self.title).build();
         header.pack_start(
             &gtk::Button::builder()
                 .icon_name("document-open-symbolic")
                 .action_name("app.open")
-                .tooltip_text("Open Script (Ctrl+O)")
+                .tooltip_text("Open script (Ctrl+O)")
                 .build(),
         );
         let menu = gio::Menu::new();
-        menu.append(Some("Take from the Top"), Some("app.take-top"));
-        menu.append(Some("Keep Take"), Some("app.keep"));
-        menu.append(Some("Screen in Its Own Window"), Some("app.screen-window"));
+        menu.append(Some("Record from the top"), Some("app.take-top"));
+        menu.append(Some("Screen in its own window"), Some("app.screen-window"));
         menu.append(Some("Settings"), Some("app.settings"));
         header.pack_end(
             &gtk::MenuButton::builder()
@@ -771,25 +1026,12 @@ impl Widgets {
                 .menu_model(&menu)
                 .build(),
         );
-
-        let bar = gtk::Box::builder()
-            .spacing(8)
-            .margin_start(12)
-            .margin_end(12)
-            .margin_top(6)
-            .margin_bottom(6)
-            .build();
-        bar.append(&self.recording);
-        bar.append(&self.status);
-        bar.append(&gtk::Label::builder()
-            .label("click a line to take it from there · ⏎ keep · space pause · m mirror · + − size · s screen")
-            .css_classes(["dim-label", "caption"])
-            .build());
-
+        header.pack_end(&self.record);
         let view = adw::ToolbarView::new();
         view.add_top_bar(&header);
-        view.set_content(Some(&self.stack));
-        view.add_bottom_bar(&bar);
+        self.toasts.set_child(Some(&self.stack));
+        view.set_content(Some(&self.toasts));
+        view.add_bottom_bar(&self.tally.root);
         view
     }
 }

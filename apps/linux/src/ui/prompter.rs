@@ -1,9 +1,9 @@
-//! The script as a prompter: a text view with each word styled by where the
-//! reader is, a mark where each shot starts, and one on recorded lines.
+//! The script as text: each word styled by where the reader is, and a small
+//! diamond where each shot starts, so the prose reads uninterrupted.
 
 use gtk::prelude::*;
 use teleprompt_gtk::api::Position;
-use teleprompt_gtk::state::PrompterState;
+use teleprompt_gtk::state::{PrompterState, Word};
 
 /// Where each line and word is in the buffer, as character offsets.
 #[derive(Default)]
@@ -22,48 +22,50 @@ impl Layout {
             .position(|&(start, end)| (start..=end).contains(&offset))
     }
 
-    /// The range of the next word, or the buffer's end past the last line.
-    fn next(&self, at: Position) -> Option<(i32, i32)> {
-        let line = self.words.get(at.line)?;
-        line.get(at.word)
-            .copied()
-            .or_else(|| self.lines.get(at.line).map(|&(_, end)| (end, end)))
+    /// The range of the next word; past a line's last word, its end; past
+    /// the last line, the end of the script.
+    pub fn next(&self, at: Position) -> Option<(i32, i32)> {
+        match self.words.get(at.line) {
+            Some(line) => line
+                .get(at.word)
+                .copied()
+                .or_else(|| self.lines.get(at.line).map(|&(_, end)| (end, end))),
+            None => self.lines.last().map(|&(_, end)| (end, end)),
+        }
     }
 }
 
 pub fn tags(buffer: &gtk::TextBuffer) {
     let rgba = |s: &str| gtk::gdk::RGBA::parse(s).expect("a colour");
-    buffer.create_tag(
-        Some("said"),
-        &[("foreground-rgba", &rgba("rgba(255,255,255,0.35)"))],
-    );
+    let ink = |alpha: f32| {
+        let mut c = rgba("#f2f4f7");
+        c.set_alpha(alpha);
+        c
+    };
+    buffer.create_tag(Some("said"), &[("foreground-rgba", &ink(0.3))]);
+    buffer.create_tag(Some("later"), &[("foreground-rgba", &ink(0.55))]);
     buffer.create_tag(
         Some("next"),
         &[
-            ("foreground-rgba", &rgba("#ffd84d")),
+            ("foreground-rgba", &rgba("#ffb800")),
             ("underline", &gtk::pango::Underline::Single),
+            ("underline-rgba", &rgba("#ffb800")),
         ],
     );
     for (name, colour) in [
-        ("shot", "#5fd7ff"),
-        ("shot-started", "#808080"),
-        ("shot-missing", "#ff6b6b"),
+        ("shot", ink(0.6)),
+        ("shot-aired", ink(0.22)),
+        ("shot-missing", rgba("#f28b82")),
     ] {
         buffer.create_tag(
             Some(name),
             &[
-                ("foreground-rgba", &rgba(colour)),
-                ("family", &"monospace"),
-                ("scale", &0.4f64),
-                ("weight", &700i32),
+                ("foreground-rgba", &colour),
+                ("scale", &0.5f64),
+                ("rise", &(6 * gtk::pango::SCALE)),
             ],
         );
     }
-    buffer.create_tag(Some("recorded"), &[("foreground-rgba", &rgba("#4cd964"))]);
-    buffer.create_tag(
-        Some("unrecorded"),
-        &[("foreground-rgba", &rgba("rgba(0,0,0,0)"))],
-    );
 }
 
 /// Writes the script into `buffer`; where each line and word landed.
@@ -73,12 +75,6 @@ pub fn render(buffer: &gtk::TextBuffer, state: &PrompterState) -> Layout {
     let mut end = buffer.end_iter();
     for (l, line) in state.script.lines.iter().enumerate() {
         let start = end.offset();
-        let mark = if line.recorded {
-            "recorded"
-        } else {
-            "unrecorded"
-        };
-        buffer.insert_with_tags_by_name(&mut end, "▌ ", &[mark]);
         let mut words = Vec::new();
         let count = line.words().count();
         for (w, word) in line.words().enumerate() {
@@ -99,46 +95,49 @@ pub fn render(buffer: &gtk::TextBuffer, state: &PrompterState) -> Layout {
         );
         layout.lines.push((start, end.offset()));
         layout.words.push(words);
-        buffer.insert(&mut end, "\n\n");
+        if l + 1 < state.script.lines.len() {
+            buffer.insert(&mut end, "\n");
+        }
     }
     layout
 }
 
 fn markers(buffer: &gtk::TextBuffer, end: &mut gtk::TextIter, state: &PrompterState, at: Position) {
     for shot in state.script.shots.iter().filter(|s| s.at == at) {
-        let (text, tag) = match &shot.clip {
-            None => (format!("▶ {} (not captured) ", shot.shot), "shot-missing"),
-            Some(_) if state.started.contains(&shot.shot) => {
-                (format!("▶ {} ", shot.shot), "shot-started")
-            }
-            Some(_) => (format!("▶ {} ", shot.shot), "shot"),
+        let tag = match &shot.clip {
+            None => "shot-missing",
+            Some(_) if state.started.contains(&shot.shot) => "shot-aired",
+            Some(_) => "shot",
         };
-        buffer.insert_with_tags_by_name(end, &text, &[tag]);
+        buffer.insert_with_tags_by_name(end, "◆", &[tag]);
+        buffer.insert(end, " ");
     }
 }
 
-/// Styles the words said and the next one, and scrolls it a third of the
-/// way down.
-pub fn show_position(view: &gtk::TextView, layout: &Layout, at: Position) {
-    let buffer = view.buffer();
+/// Dims what is said and what lies beyond the reader's line, and marks the
+/// next word. The next word's start, to glide to.
+pub fn show_position(
+    buffer: &gtk::TextBuffer,
+    layout: &Layout,
+    state: &PrompterState,
+) -> Option<i32> {
     let (start, end) = buffer.bounds();
-    buffer.remove_tag_by_name("said", &start, &end);
-    buffer.remove_tag_by_name("next", &start, &end);
-    let Some((from, to)) = layout.next(at).or_else(|| {
-        // Past the last line: all of it said.
-        layout.lines.last().map(|&(_, end)| (end, end))
-    }) else {
-        return;
-    };
+    for tag in ["said", "next", "later"] {
+        buffer.remove_tag_by_name(tag, &start, &end);
+    }
+    let (from, to) = layout.next(state.at)?;
     buffer.apply_tag_by_name("said", &start, &buffer.iter_at_offset(from));
     buffer.apply_tag_by_name(
         "next",
         &buffer.iter_at_offset(from),
         &buffer.iter_at_offset(to),
     );
-    let mark = buffer
-        .mark("reader")
-        .unwrap_or_else(|| buffer.create_mark(Some("reader"), &start, true));
-    buffer.move_mark(&mark, &buffer.iter_at_offset(from));
-    view.scroll_to_mark(&mark, 0.0, true, 0.0, 0.3);
+    if let Some(&(_, line_end)) = layout.lines.get(state.at.line) {
+        buffer.apply_tag_by_name("later", &buffer.iter_at_offset(line_end), &end);
+    }
+    debug_assert!(matches!(
+        state.word(state.at.line, state.at.word),
+        Word::Next
+    ));
+    Some(from)
 }

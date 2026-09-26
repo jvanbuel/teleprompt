@@ -10,6 +10,8 @@ pub struct Config {
     pub model: Option<PathBuf>,
     pub locale: Option<String>,
     pub last_script: Option<PathBuf>,
+    /// Whether a take counts down from three before it listens.
+    pub countdown: Option<bool>,
 }
 
 impl Config {
@@ -50,6 +52,10 @@ impl Config {
         std::env::var_os("TELEPROMPT_MODEL")
             .map(PathBuf::from)
             .or_else(|| self.model.clone())
+    }
+
+    pub fn countdown(&self) -> bool {
+        self.countdown.unwrap_or(true)
     }
 
     pub fn locale(&self) -> String {

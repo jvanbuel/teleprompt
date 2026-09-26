@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- A slice of the glass: black, the amber cue arrow on the reading line,
+       a line said, the line being read, a line to come. -->
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3d45"/>
+      <stop offset="1" stop-color="#1a1c20"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#edge)"/>
+  <rect x="10" y="10" width="108" height="108" rx="24" fill="#000"/>
+  <rect x="40" y="38" width="54" height="9" rx="4.5" fill="#f2f4f7" fill-opacity="0.28"/>
+  <path d="M24 55.5 L36 64 L24 72.5 Z" fill="#ffb800"/>
+  <rect x="44" y="59.5" width="22" height="9" rx="4.5" fill="#ffb800"/>
+  <rect x="70" y="59.5" width="30" height="9" rx="4.5" fill="#f2f4f7"/>
+  <rect x="40" y="81" width="44" height="9" rx="4.5" fill="#f2f4f7" fill-opacity="0.55"/>
+</svg>

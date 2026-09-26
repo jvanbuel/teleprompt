@@ -23,8 +23,13 @@ struct Shared {
 impl Mic {
     /// The default microphone, or the GStreamer source in `TELEPROMPT_MIC`,
     /// such as `filesrc location=reading.wav ! wavparse`, to read to it from
-    /// a recording. `sink` is called from GStreamer's thread.
-    pub fn open(sink: impl Fn(Vec<f32>) + Send + Sync + 'static) -> Result<Self, String> {
+    /// a recording. `sink` is called from GStreamer's thread, and so is
+    /// `level`, with the loudness of each buffer (RMS, 0 to 1) whether or
+    /// not sending is on.
+    pub fn open(
+        sink: impl Fn(Vec<f32>) + Send + Sync + 'static,
+        level: impl Fn(f32) + Send + Sync + 'static,
+    ) -> Result<Self, String> {
         gst::init().map_err(|e| e.to_string())?;
         let source = std::env::var("TELEPROMPT_MIC").unwrap_or_else(|_| "autoaudiosrc".into());
         let description = format!(
@@ -52,12 +57,18 @@ impl Mic {
                     let sample = appsink.pull_sample().map_err(|_| gst::FlowError::Eos)?;
                     let buffer = sample.buffer().ok_or(gst::FlowError::Error)?;
                     let map = buffer.map_readable().map_err(|_| gst::FlowError::Error)?;
-                    let samples = map
+                    let samples: Vec<f32> = map
                         .as_slice()
                         .as_chunks::<4>()
                         .0
                         .iter()
-                        .map(|&b| f32::from_le_bytes(b));
+                        .map(|&b| f32::from_le_bytes(b))
+                        .collect();
+                    if !samples.is_empty() {
+                        let power =
+                            samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32;
+                        level(power.sqrt());
+                    }
                     let ready = {
                         let mut shared = taken.lock().unwrap_or_else(|p| p.into_inner());
                         if !shared.sending {
@@ -73,10 +84,21 @@ impl Mic {
                 })
                 .build(),
         );
+        // Ready but not running: a live microphone gives nothing until
+        // `start`, and a recording played in its place starts where a take
+        // does.
         pipeline
-            .set_state(gst::State::Playing)
-            .map_err(|e| format!("the microphone did not start: {e}"))?;
+            .set_state(gst::State::Paused)
+            .map_err(|e| format!("the microphone did not open: {e}"))?;
         Ok(Self { pipeline, shared })
+    }
+
+    /// Starts listening; what it hears goes nowhere until sending is on.
+    pub fn start(&self) -> Result<(), String> {
+        self.pipeline
+            .set_state(gst::State::Playing)
+            .map(|_| ())
+            .map_err(|e| format!("the microphone did not start: {e}"))
     }
 
     /// Whether what the microphone hears is sent; while not, it is dropped.

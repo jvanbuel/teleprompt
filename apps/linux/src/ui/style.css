@@ -1,0 +1,308 @@
+/* The prompter's look: docs/design brief in apps/linux/README.md.
+   Glass is black because black is what a beam-splitter does not reflect.
+   Amber marks the next word and the reading line, and nothing else. Red is
+   the tally, and means recording. */
+
+@define-color glass #000000;
+@define-color ink #f2f4f7;
+@define-color cue #ffb800;
+@define-color tally #ff3b30;
+@define-color recorded #3ddc84;
+@define-color missing #f28b82;
+@define-color chrome #17181b;
+@define-color raised #202227;
+@define-color line_color #2c2f36;
+
+@define-color window_bg_color @chrome;
+@define-color view_bg_color @chrome;
+@define-color headerbar_bg_color @chrome;
+@define-color headerbar_backdrop_color @chrome;
+@define-color popover_bg_color @raised;
+@define-color dialog_bg_color @raised;
+@define-color accent_bg_color @ink;
+@define-color accent_fg_color #000000;
+@define-color accent_color @ink;
+
+window, label, button, entry, row {
+  font-family: "Atkinson Hyperlegible Next", sans-serif;
+}
+
+headerbar {
+  box-shadow: none;
+  border-bottom: 1px solid @line_color;
+}
+
+/* The glass. */
+textview.glass,
+textview.glass > text {
+  background-color: @glass;
+  color: @ink;
+  font-family: "Atkinson Hyperlegible Next";
+  font-weight: 500;
+  caret-color: transparent;
+}
+
+textview.glass > text > selection {
+  background-color: alpha(@ink, 0.12);
+}
+
+.glass-frame {
+  background-color: @glass;
+}
+
+.scrim {
+  background-color: alpha(@glass, 0.78);
+}
+
+.countdown {
+  font-size: 180px;
+  font-weight: 300;
+  color: alpha(@ink, 0.92);
+  font-feature-settings: "tnum";
+}
+
+/* The monitor: what the video shows at this point. */
+.monitor-pane {
+  background-color: @chrome;
+  border-left: 1px solid @line_color;
+}
+
+.monitor {
+  background-color: @glass;
+  border-radius: 10px;
+  border: 1px solid @line_color;
+}
+
+.slate {
+  color: alpha(@ink, 0.42);
+  font-size: 15px;
+}
+
+.slate.missing {
+  color: @missing;
+}
+
+.shot-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: @ink;
+}
+
+.shot-time {
+  font-size: 13px;
+  color: alpha(@ink, 0.55);
+  font-feature-settings: "tnum";
+}
+
+progressbar.clip-progress > trough {
+  min-height: 3px;
+  background-color: @line_color;
+  border-radius: 2px;
+}
+
+progressbar.clip-progress > trough > progress {
+  min-height: 3px;
+  background-color: @ink;
+  border-radius: 2px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: alpha(@ink, 0.55);
+}
+
+list.rundown {
+  background: none;
+}
+
+list.rundown > row {
+  padding: 7px 4px;
+  border-radius: 6px;
+}
+
+list.rundown > row:hover {
+  background-color: alpha(@ink, 0.04);
+}
+
+.rundown-name {
+  font-size: 14px;
+  color: @ink;
+}
+
+.rundown-where {
+  font-size: 13px;
+  color: alpha(@ink, 0.45);
+  font-feature-settings: "tnum";
+}
+
+.aired .rundown-name,
+.aired .rundown-where {
+  color: alpha(@ink, 0.35);
+}
+
+.on-screen .rundown-name {
+  font-weight: 700;
+}
+
+.on-screen .rundown-where {
+  color: @ink;
+}
+
+.not-captured .rundown-where {
+  color: @missing;
+}
+
+/* The tally bar. */
+.tally-bar {
+  background-color: @raised;
+  border-top: 1px solid @line_color;
+  padding: 8px 14px;
+}
+
+.tally {
+  min-width: 10px;
+  min-height: 10px;
+  border-radius: 5px;
+  background-color: alpha(@ink, 0.18);
+}
+
+.tally.on-air {
+  background-color: @tally;
+  box-shadow: 0 0 10px alpha(@tally, 0.7);
+}
+
+.timecode {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: alpha(@ink, 0.4);
+  font-feature-settings: "tnum";
+}
+
+.timecode.on-air {
+  color: @ink;
+}
+
+.status {
+  font-size: 14px;
+  color: alpha(@ink, 0.7);
+}
+
+.status.error {
+  color: @missing;
+}
+
+levelbar.meter > trough {
+  min-height: 4px;
+  min-width: 72px;
+  background-color: @line_color;
+  border-radius: 2px;
+  padding: 0;
+}
+
+levelbar.meter > trough > block.filled {
+  background-color: @recorded;
+  border-radius: 2px;
+}
+
+levelbar.meter > trough > block.empty {
+  background: none;
+}
+
+.keycap {
+  font-size: 12px;
+  font-weight: 700;
+  color: @ink;
+  background-color: @chrome;
+  border: 1px solid @line_color;
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 7px;
+  font-feature-settings: "tnum";
+}
+
+.key-action {
+  font-size: 13px;
+  color: alpha(@ink, 0.6);
+}
+
+/* Buttons. */
+button.record {
+  background-color: @tally;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 999px;
+}
+
+button.record:hover {
+  background-color: shade(@tally, 1.08);
+}
+
+button.record.keep {
+  background-color: @ink;
+  color: #000000;
+}
+
+.record-dot {
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 4px;
+  background-color: #ffffff;
+}
+
+button.record.keep .record-dot {
+  border-radius: 1px;
+  background-color: #000000;
+}
+
+/* Pages before the prompter. */
+.hero-title {
+  font-size: 44px;
+  font-weight: 800;
+  color: @ink;
+  letter-spacing: -0.5px;
+}
+
+.hero-body {
+  font-size: 18px;
+  line-height: 1.3;
+  color: alpha(@ink, 0.62);
+}
+
+button.pill.primary {
+  background-color: @ink;
+  color: #000000;
+  font-weight: 700;
+}
+
+.loading-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: @ink;
+}
+
+.loading-detail {
+  font-size: 15px;
+  color: alpha(@ink, 0.5);
+}
+
+.sample-glass {
+  background-color: @glass;
+  border-radius: 14px;
+  border: 1px solid @line_color;
+  padding: 34px 40px 34px 22px;
+  box-shadow: 0 24px 60px alpha(black, 0.45);
+}
+
+.sample-text {
+  font-size: 27px;
+  font-weight: 500;
+  color: @ink;
+}
+
+.sample-arrow {
+  font-size: 15px;
+  color: @cue;
+}

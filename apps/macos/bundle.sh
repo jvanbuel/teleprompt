@@ -9,12 +9,15 @@ app=Teleprompt.app
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
 cp "$bin/Teleprompt" "$app/Contents/MacOS/Teleprompt"
+mkdir -p "$app/Contents/Resources"
+iconutil -c icns AppIcon.iconset -o "$app/Contents/Resources/AppIcon.icns"
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key><string>Teleprompt</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>io.github.jvanbuel.teleprompt</string>
   <key>CFBundleName</key><string>Teleprompt</string>
   <key>CFBundlePackageType</key><string>APPL</string>

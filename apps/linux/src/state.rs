@@ -54,7 +54,7 @@ impl PrompterState {
     pub fn load(&mut self, script: Script) {
         self.script = script;
         self.at = Position::default();
-        self.status = Status::info("click a line, or press Ctrl+T, to start a take");
+        self.status = Status::info("Click a line to record from there");
     }
 
     /// A take is starting at line `from`: nothing has played in it yet.
@@ -67,7 +67,7 @@ impl PrompterState {
         self.queue.clear();
         self.started.clear();
         self.listening = true;
-        self.status = Status::info(format!("recording from line {}", from + 1));
+        self.status = Status::info(format!("Recording from line {}", from + 1));
     }
 
     pub fn apply(&mut self, message: ServerMessage) {
@@ -81,15 +81,15 @@ impl PrompterState {
                     self.started.extend(play.iter().cloned());
                 }
                 if at.line >= self.script.lines.len() && !self.script.lines.is_empty() {
-                    self.status = Status::info("end of script");
+                    self.status = Status::info("End of script");
                 }
             }
             ServerMessage::Stopped { saved } => {
                 self.listening = false;
-                self.status = Status::info(if saved.is_empty() {
-                    "nothing read in full to keep".to_string()
-                } else {
-                    format!("kept {} line(s): {}", saved.len(), saved.join(", "))
+                self.status = Status::info(match saved.len() {
+                    0 => "Nothing was read in full, so nothing was kept".to_string(),
+                    1 => format!("Kept 1 line: {}", saved[0]),
+                    n => format!("Kept {n} lines: {}", saved.join(", ")),
                 });
             }
             ServerMessage::Error(message) => self.status = Status::error(message),
