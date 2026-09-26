@@ -30,12 +30,12 @@ jobs:
       CARGO_INCREMENTAL: "0"
       MODEL: sherpa-onnx-streaming-zipformer-en-2023-06-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # The server the app launches, with the recognizer.
       - run: cargo build -p teleprompt-cli --features listen
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: model
           key: ${{ env.MODEL }}

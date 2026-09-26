@@ -40,7 +40,7 @@ jobs:
       PUNCT: sherpa-onnx-online-punct-en-2024-08-06
       TELEPROMPT_REQUIRE_LISTEN: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -51,7 +51,7 @@ jobs:
       - name: ffmpeg, which `record` records the microphone with
         if: runner.os == 'macOS'
         run: brew install ffmpeg
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: model
           key: ${{ env.MODEL }}-${{ env.PUNCT }}

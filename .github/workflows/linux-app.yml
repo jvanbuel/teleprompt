@@ -31,7 +31,7 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       MODEL: sherpa-onnx-streaming-zipformer-en-2023-06-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -49,7 +49,7 @@ jobs:
             libgtk-4-media-gstreamer xvfb xdotool imagemagick ffmpeg
       # The server the app launches, with the recognizer.
       - run: cargo build -p teleprompt-cli --features listen
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: model
           key: ${{ env.MODEL }}
@@ -73,7 +73,7 @@ jobs:
           UI_SHOTS=${{ runner.temp }}/shots tests/ui.sh
       - name: Screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-app-screenshots
           path: ${{ runner.temp }}/shots
