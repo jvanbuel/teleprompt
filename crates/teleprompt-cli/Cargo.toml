@@ -62,6 +62,8 @@ tungstenite = { version = "0.27", default-features = false, features = ["handsha
 [target.'cfg(unix)'.dependencies]
 portable-pty = "0.9"
 rustix = { version = "1", features = ["termios"] }
+# SIGTERM stops a recording and still imports it, for the app's Stop.
+signal-hook = "0.3"
 
 [dev-dependencies]
 # A client for `prompt`'s session socket.

@@ -14,6 +14,17 @@ use teleprompt_voice::{wav, Pcm};
 
 #[test]
 fn a_recorded_session_becomes_a_script_spoken_in_the_recording() {
+    session("record-listen", false);
+}
+
+/// The app's Stop: SIGTERM ends the shell, and the session is imported as
+/// if it had exited.
+#[test]
+fn a_recording_stopped_with_sigterm_is_still_imported() {
+    session("record-sigterm", true);
+}
+
+fn session(tag: &str, terminate: bool) {
     let required = std::env::var_os("TELEPROMPT_REQUIRE_LISTEN").is_some();
     let model = std::env::var_os("TELEPROMPT_LISTEN_MODEL").map(PathBuf::from);
     let ffmpeg = Command::new("ffmpeg").arg("-version").output().is_ok();
@@ -25,7 +36,7 @@ fn a_recorded_session_becomes_a_script_spoken_in_the_recording() {
         return;
     };
 
-    let dir = teleprompt_testkit::test_dir("record-listen");
+    let dir = teleprompt_testkit::test_dir(tag);
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../teleprompt-listen-sherpa/tests/fixtures/two-lines.wav");
@@ -62,7 +73,16 @@ fn a_recorded_session_becomes_a_script_spoken_in_the_recording() {
         std::thread::sleep(Duration::from_millis(80));
     }
     std::thread::sleep(reading + Duration::from_millis(4000));
-    keys.write_all(b"exit\r").unwrap();
+    if terminate {
+        let pid = record.id().to_string();
+        assert!(Command::new("kill")
+            .args(["-TERM", &pid])
+            .status()
+            .unwrap()
+            .success());
+    } else {
+        keys.write_all(b"exit\r").unwrap();
+    }
     let out = record.wait_with_output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "{stderr}");

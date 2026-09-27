@@ -6,6 +6,7 @@
 use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -69,12 +70,18 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
         "recording {} and the microphone: talk, type, and exit the shell to finish\r",
         dir.display()
     );
+    // SIGTERM ends the recording as exiting the shell does, and the session
+    // is still imported: it is how the app's Stop works.
+    let stop = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&stop))
+        .map_err(|e| format!("cannot listen for SIGTERM: {e}"))?;
     let raw = RawMode::enter();
     let recorded = record_pty(
         &r.shell,
         Box::new(std::io::stdin()),
         Box::new(std::io::stdout()),
         terminal_size(),
+        &stop,
     );
     drop(raw);
     let mic_started = mic.stop();
@@ -104,13 +111,14 @@ fn signed_ms(a: Instant, b: Instant) -> i64 {
 }
 
 /// Runs `shell` in a pseudo-terminal of `size` (columns, rows) until it
-/// exits, passing `input` to it and its output to `output`, and returns
+/// exits or `stop` is set, passing `input` to it and its output to `output`, and returns
 /// the session as an asciicast (version 2, with input) and when it began.
 pub fn record_pty(
     shell: &[String],
     input: Box<dyn Read + Send>,
     mut output: Box<dyn Write + Send>,
     size: (u16, u16),
+    stop: &AtomicBool,
 ) -> std::io::Result<(String, Instant)> {
     let pty = native_pty_system()
         .openpty(PtySize {
@@ -182,7 +190,16 @@ pub fn record_pty(
             }
         }
     });
-    child.wait()?;
+    // Until the shell exits, or `stop` ends it.
+    let mut killer = child.clone_killer();
+    while child.try_wait()?.is_none() {
+        if stop.load(Ordering::SeqCst) {
+            let _ = killer.kill();
+            child.wait()?;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
     let _ = out.join();
 
     let mut cast =

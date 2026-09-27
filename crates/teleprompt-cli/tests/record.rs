@@ -3,7 +3,9 @@
 #![cfg(unix)]
 
 use std::io::Read;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use teleprompt_cli::cmd::record::record_pty;
 use teleprompt_derive::{derive, read_cast, Options, Word};
@@ -48,6 +50,7 @@ fn a_shell_session_is_recorded_with_its_keystrokes() {
         Box::new(Typist(typed)),
         Box::new(std::io::sink()),
         (80, 24),
+        &AtomicBool::new(false),
     )
     .unwrap();
 
@@ -75,4 +78,36 @@ fn a_shell_session_is_recorded_with_its_keystrokes() {
         d.beats
     );
     assert!(!d.beats[0].blocks[0].tape.contains("exit"));
+}
+
+/// Stopped from outside, as the app stops it: the shell ends and what was
+/// recorded so far is returned.
+#[test]
+fn a_recording_stopped_from_outside_ends_its_shell() {
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&stop);
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(500));
+        flag.store(true, Ordering::SeqCst);
+    });
+    let shell = vec![
+        "sh".to_string(),
+        "-c".to_string(),
+        "echo ready; sleep 30".to_string(),
+    ];
+    let began = Instant::now();
+    let (cast, _) = record_pty(
+        &shell,
+        Box::new(Typist(Vec::new())),
+        Box::new(std::io::sink()),
+        (80, 24),
+        &stop,
+    )
+    .unwrap();
+    assert!(
+        began.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        began.elapsed()
+    );
+    assert!(cast.contains("ready"), "{cast}");
 }
