@@ -18,7 +18,7 @@ fn a_recorded_session_becomes_a_script_spoken_in_the_recording() {
 }
 
 /// The app's Stop: SIGTERM ends the shell, and the session is imported as
-/// if it had exited.
+/// if it had exited. The app runs it quiet, leaving its terminal to the shell.
 #[test]
 fn a_recording_stopped_with_sigterm_is_still_imported() {
     session("record-sigterm", true);
@@ -61,6 +61,7 @@ fn session(tag: &str, terminate: bool) {
         .arg(format!("-re -i {}", voice.display()))
         .arg("--status")
         .arg(dir.join("status.json"))
+        .args(terminate.then_some("--quiet"))
         .args(["--", "sh"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -88,6 +89,13 @@ fn session(tag: &str, terminate: bool) {
     let out = record.wait_with_output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "{stderr}");
+    if terminate {
+        let said = format!("{}{stderr}", String::from_utf8_lossy(&out.stdout));
+        assert!(
+            !said.contains("recording ") && !said.contains("transcribing"),
+            "{said}"
+        );
+    }
 
     let status: serde_json::Value =
         serde_json::from_slice(&std::fs::read(dir.join("status.json")).unwrap()).unwrap();

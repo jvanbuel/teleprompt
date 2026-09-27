@@ -29,6 +29,8 @@ pub struct Record<'a> {
     /// Where to say how the recording is going, as JSON, for the app that
     /// started it in a terminal of the author's and cannot wait on it.
     pub status: Option<&'a Path>,
+    /// Print nothing into the terminal but errors.
+    pub quiet: bool,
 }
 
 /// The rate the microphone is recorded at.
@@ -99,11 +101,13 @@ fn record(r: &Record, say: &dyn Fn(serde_json::Value)) -> Result<ImportReport, S
         "pid": std::process::id(),
         "trace": dir,
     }));
-    eprintln!(
-        "recording {} and the microphone: talk and type, then press Ctrl+Shift+Space \
+    if !r.quiet {
+        eprintln!(
+            "recording {} and the microphone: talk and type, then press Ctrl+Shift+Space \
          or exit the shell to finish\r",
-        dir.display()
-    );
+            dir.display()
+        );
+    }
     // SIGTERM ends the recording as exiting the shell does, and the session
     // is still imported: it is how the app's Stop works.
     let stop = Arc::new(AtomicBool::new(false));
@@ -125,7 +129,9 @@ fn record(r: &Record, say: &dyn Fn(serde_json::Value)) -> Result<ImportReport, S
     std::fs::write(&cast_path, cast)
         .map_err(|e| format!("cannot write {}: {e}", cast_path.display()))?;
     say(serde_json::json!({ "state": "drafting" }));
-    eprintln!("transcribing {}", voice.display());
+    if !r.quiet {
+        eprintln!("transcribing {}", voice.display());
+    }
     run_import(&Import {
         cast: &cast_path,
         voice: &voice,

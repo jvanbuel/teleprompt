@@ -307,26 +307,34 @@ button.pill.primary {
   color: @cue;
 }
 
-/* Session mode: the terminal, and what space does before it records. */
+/* Session mode: the terminal behind glass, framed like the welcome page's
+   sample, and ringed in the tally's red while it records. */
+.session-frame {
+  background-color: @glass;
+  border: 1px solid @line_color;
+  border-radius: 14px;
+  transition: border-color 200ms, box-shadow 200ms;
+}
+
+.session-frame.recording {
+  border: 2px solid @tally;
+}
+
 .session-terminal {
-  padding: 18px 22px;
+  padding: 16px 20px;
   background-color: @glass;
 }
 
-.session-hint {
-  background-color: alpha(@chrome, 0.92);
-  border: 1px solid @line_color;
-  border-radius: 14px;
-  padding: 36px 44px;
-  box-shadow: 0 24px 60px alpha(black, 0.45);
+.session-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: @ink;
 }
 
-.session-hint .hero-title {
-  font-size: 30px;
-}
-
-.session-hint .hero-body {
+.session-body {
   font-size: 15px;
+  line-height: 1.4;
+  color: alpha(@ink, 0.55);
 }
 
 .keycap-large {

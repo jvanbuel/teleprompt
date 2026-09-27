@@ -244,7 +244,7 @@ impl Window {
             });
             model.take_time = Duration::ZERO;
             model.take_since = None;
-            model.state.status = Status::info(format!("Drafting {}", file_name(&script)));
+            model.state.status = Status::info(format!("New script: {}", file_name(&script)));
         }
         self.w.title.set_title(&file_name(&script));
         self.w.title.set_subtitle("Draft from a session");
@@ -311,8 +311,7 @@ impl Window {
             model.take_time = Duration::ZERO;
             model.take_since = Some(Instant::now());
             model.state.listening = true;
-            model.state.status =
-                Status::info("Recording: talk as you work, and exit the shell to stop");
+            model.state.status = Status::info("Recording: talk as you work");
         }
         self.w.session.show_recording();
         self.show_status();
@@ -332,6 +331,7 @@ impl Window {
             libc::kill(pid.0, libc::SIGTERM);
         }
         self.model.borrow_mut().state.status = Status::info("Drafting the script…");
+        self.w.session.show_drafting();
         self.show_status();
         true
     }
@@ -911,10 +911,11 @@ impl Window {
             .visible_child_name()
             .is_some_and(|n| n == "session");
         let keys: &[(&str, &str)] = if session {
+            // Before recording, the page itself says what the key does.
             if model.state.listening {
                 &[(RECORD_KEY, "Stop")]
             } else {
-                &[(RECORD_KEY, "Record")]
+                &[]
             }
         } else if model.counting {
             &[(RECORD_KEY, "Cancel")]

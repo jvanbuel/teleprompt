@@ -75,6 +75,10 @@ struct RecordArgs {
     /// (with its pid), drafting, done or failed
     #[arg(long)]
     status: Option<PathBuf>,
+    /// Leave the terminal to the shell: say nothing but errors, for an app
+    /// that shows the recording's progress itself
+    #[arg(long, short)]
+    quiet: bool,
     /// The program to record instead of $SHELL, with its arguments
     #[arg(last = true)]
     shell: Vec<String>,
@@ -382,9 +386,12 @@ fn run_record(format: Format, args: RecordArgs) -> Run {
         shell: args.shell,
         force: args.force,
         status: args.status.as_deref(),
+        quiet: args.quiet,
     })
     .map_err(Outcome::RuntimeFailure)?;
-    emit(format, &report, &report.render());
+    if !args.quiet {
+        emit(format, &report, &report.render());
+    }
     Ok(Outcome::Ok)
 }
 

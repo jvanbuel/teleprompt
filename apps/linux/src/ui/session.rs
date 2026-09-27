@@ -6,10 +6,12 @@ use std::path::{Path, PathBuf};
 use gtk::prelude::*;
 use vte4::prelude::*;
 
-/// The session page: the terminal, and what to do before it records.
+/// The session page: the terminal behind glass, and what to do before it
+/// records.
 pub struct SessionPage {
     pub root: gtk::Overlay,
     pub terminal: vte4::Terminal,
+    frame: gtk::Box,
     hint: gtk::Box,
     hint_title: gtk::Label,
     hint_body: gtk::Label,
@@ -22,40 +24,62 @@ impl SessionPage {
             .vexpand(true)
             .css_classes(["session-terminal"])
             .build();
-        terminal.set_font(Some(&gtk::pango::FontDescription::from_string(
-            "Monospace 13",
-        )));
+        // The desktop's monospace, a little larger, for being read back.
+        terminal.set_font_scale(1.15);
+        terminal.set_cursor_blink_mode(vte4::CursorBlinkMode::Off);
         set_palette(&terminal);
+        let frame = gtk::Box::builder()
+            .css_classes(["session-frame"])
+            .margin_top(20)
+            .margin_bottom(20)
+            .margin_start(20)
+            .margin_end(20)
+            .overflow(gtk::Overflow::Hidden)
+            .build();
+        frame.append(&terminal);
         let hint_title = gtk::Label::builder()
-            .css_classes(["hero-title"])
+            .css_classes(["session-title"])
             .wrap(true)
             .build();
         let hint_body = gtk::Label::builder()
-            .css_classes(["hero-body"])
+            .css_classes(["session-body"])
             .wrap(true)
-            .max_width_chars(52)
+            .max_width_chars(46)
             .justify(gtk::Justification::Center)
             .build();
-        let keycap = gtk::Label::builder()
-            .label("Ctrl ⇧ Space")
-            .css_classes(["keycap-large"])
+        // "Press [Ctrl ⇧ Space] to start recording", the key drawn as one.
+        let press = gtk::Box::builder()
+            .spacing(12)
             .halign(gtk::Align::Center)
             .build();
+        press.append(
+            &gtk::Label::builder()
+                .label("Press")
+                .css_classes(["session-title"])
+                .build(),
+        );
+        press.append(
+            &gtk::Label::builder()
+                .label("Ctrl ⇧ Space")
+                .css_classes(["keycap-large"])
+                .valign(gtk::Align::Center)
+                .build(),
+        );
+        press.append(&hint_title);
         let hint = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(16)
             .halign(gtk::Align::Center)
             .valign(gtk::Align::Center)
-            .css_classes(["session-hint"])
             .build();
-        hint.append(&keycap);
-        hint.append(&hint_title);
+        hint.append(&press);
         hint.append(&hint_body);
-        let root = gtk::Overlay::builder().child(&terminal).build();
+        let root = gtk::Overlay::builder().child(&frame).build();
         root.add_overlay(&hint);
         Self {
             root,
             terminal,
+            frame,
             hint,
             hint_title,
             hint_body,
@@ -65,11 +89,11 @@ impl SessionPage {
     /// Before recording: what the record key does, and where the draft goes.
     pub fn show_idle(&self, script: &Path) {
         self.show_hint(
-            "Press Ctrl+Shift+Space to start recording",
+            "to start recording",
             &format!(
-                "Talk while you use the terminal, as if showing someone. Press it \
-                 again, or exit the shell, to stop, and the session becomes {}: \
-                 what you said as its lines, what you typed as its tapes.",
+                "Work in the terminal and talk as if showing someone. Press it \
+                 again to stop: what you said becomes the lines of {}, what \
+                 you typed its tapes.",
                 name(script)
             ),
         );
@@ -77,22 +101,30 @@ impl SessionPage {
 
     pub fn show_failed(&self) {
         self.show_hint(
-            "The recording did not become a script",
-            "The terminal behind says why. Press Ctrl+Shift+Space to record again.",
+            "to record again",
+            "The recording did not become a script. The terminal says why.",
         );
+        self.terminal.set_opacity(0.35);
     }
 
     fn show_hint(&self, title: &str, body: &str) {
         self.hint_title.set_label(title);
         self.hint_body.set_label(body);
         self.hint.set_visible(true);
-        self.terminal.set_opacity(0.25);
+        self.terminal.set_opacity(0.0);
+        self.frame.remove_css_class("recording");
     }
 
     pub fn show_recording(&self) {
         self.hint.set_visible(false);
         self.terminal.set_opacity(1.0);
+        self.frame.add_css_class("recording");
         self.terminal.grab_focus();
+    }
+
+    /// Recording stopped; the script is being drafted.
+    pub fn show_drafting(&self) {
+        self.frame.remove_css_class("recording");
     }
 }
 
@@ -129,6 +161,7 @@ pub fn record_argv(
     if let Some(p) = punctuation {
         argv.extend(["--punctuation".into(), p.display().to_string()]);
     }
+    argv.push("--quiet".into());
     if script.exists() {
         argv.push("--force".into());
     }
