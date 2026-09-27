@@ -3,7 +3,9 @@
 //! it, and the prompter's state. The window is in the binary.
 
 pub mod api;
+pub mod draft;
 pub mod launch;
 pub mod mic;
 pub mod session;
 pub mod state;
+pub mod terminal;

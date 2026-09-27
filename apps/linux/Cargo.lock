@@ -777,12 +777,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "io-lifetimes"
-version = "2.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06432fb54d3be7964ecd3649233cddf80db2832f47fec34c01f65b3d9d774983"
-
-[[package]]
 name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1233,7 +1227,6 @@ dependencies = [
  "serde_json",
  "tungstenite",
  "ureq",
- "vte4",
 ]
 
 [[package]]
@@ -1393,39 +1386,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "vte4"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7759016227e58e3239b8dca9c4a70086345844872b1f27cba0dba990fef5cb44"
-dependencies = [
- "cairo-rs",
- "gdk4",
- "gio",
- "glib",
- "gtk4",
- "io-lifetimes",
- "libc",
- "pango",
- "vte4-sys",
-]
-
-[[package]]
-name = "vte4-sys"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c1aa57d29283c6eeac2e34c16791436275d254ac02b8590b02698feef197234"
-dependencies = [
- "cairo-sys-rs",
- "gdk4-sys",
- "gio-sys",
- "glib-sys",
- "gtk4-sys",
- "libc",
- "pango-sys",
- "system-deps",
-]
 
 [[package]]
 name = "wasip2"

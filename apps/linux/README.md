@@ -13,11 +13,10 @@ prompter API (`docs/design.md#prompter-api-version-1`). It needs:
   `cargo install --path crates/teleprompt-cli --features listen`
 - a speech model: download and unpack
   [sherpa-onnx-streaming-zipformer-en-2023-06-26](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2)
-- GTK 4.14, libadwaita 1.5, VTE for GTK 4 (session mode's terminal),
-  GStreamer with the plugins to play the captured clips, and ffmpeg (a
-  session's microphone). On Ubuntu 24.04:
+- GTK 4.14, libadwaita 1.5, GStreamer with the plugins to play the
+  captured clips, and ffmpeg (a session's microphone). On Ubuntu 24.04:
 
-      sudo apt install libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev ffmpeg \
+      sudo apt install libgtk-4-dev libadwaita-1-dev ffmpeg \
         libgstreamer1.0-dev \
         libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good \
         gstreamer1.0-libav libgtk-4-media-gstreamer
@@ -56,22 +55,24 @@ A take starts after a count of three; Settings turns that off.
 ## Drafting from a session
 
 The app has a second mode for a script that doesn't exist yet: **Draft
-from a session…** on the start page, or Ctrl+N. Name the new script, and a
-terminal opens. Press Ctrl+Shift+Space to start recording, then talk
-while you use the terminal, as if showing someone. Press it again, exit the
-shell or click Stop to finish: `teleprompt record` drafts the script, with
-what you said as its lines and what you typed as its tapes, and it opens in
-the prompter to read back and re-take.
+from a session…** on the start page, or Ctrl+N. Name the new script and
+press Ctrl+Shift+Space: your own terminal opens, running
+`teleprompt record`. Talk while you use it, as if showing someone. Press
+Ctrl+Shift+Space in the terminal (or in the app), or exit the shell, to
+stop. The app drafts the script, with what you said as its lines and what
+you typed as its tapes, and opens it in the prompter to read back and
+re-take.
 
-Ctrl+Shift+Space starts and stops recording in both modes. It isn't typed
-into the terminal, and it isn't a desktop shortcut the way Ctrl+Space
-(switching input source) is.
+The terminal is the one set in Settings (as it takes a command: `kitty`,
+`ghostty -e`, `gnome-terminal --`), else `xdg-terminal-exec`, else
+`$TERMINAL`, else the first of ghostty, kitty, alacritty, foot, wezterm,
+konsole, gnome-terminal, xfce4-terminal and xterm found. The key stops the
+recording in any of them: terminals send Ctrl+Shift+Space as they send
+Ctrl+Space, and `record` takes it rather than passing it to the shell.
 
 Set a punctuation model in Settings to give the draft sentences (see
 `docs/guide/recording.md`). The microphone is the system's default
-input, or ffmpeg's input in `TELEPROMPT_RECORD_MIC`. The server
-stops with the app, even if the app is killed. The look is described in
-`apps/DESIGN.md`.
+input, or ffmpeg's input in `TELEPROMPT_RECORD_MIC`.
 
 ## Tests
 

@@ -307,12 +307,7 @@ button.pill.primary {
   color: @cue;
 }
 
-/* Session mode: the terminal, and what space does before it records. */
-.session-terminal {
-  padding: 18px 22px;
-  background-color: @glass;
-}
-
+/* Session mode: what is going on in the author's terminal. */
 .session-hint {
   background-color: alpha(@chrome, 0.92);
   border: 1px solid @line_color;

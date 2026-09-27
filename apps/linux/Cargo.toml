@@ -23,8 +23,6 @@ gst = { version = "0.23", package = "gstreamer" }
 gst-app = { version = "0.23", package = "gstreamer-app" }
 async-channel = "2"
 pangocairo = "0.20"
-# Session mode's terminal: `teleprompt record` runs in it.
-vte4 = "0.8"
 # The server stops with the app: prctl(PR_SET_PDEATHSIG).
 libc = "0.2"
 serde = { version = "1", features = ["derive"] }

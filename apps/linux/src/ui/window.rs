@@ -10,11 +10,11 @@ use std::time::{Duration, Instant};
 use adw::prelude::*;
 use gtk::{gio, glib};
 use teleprompt_gtk::api::{ClientMessage, Script, ServerMessage};
+use teleprompt_gtk::draft::{progress, Progress};
 use teleprompt_gtk::launch::{LaunchEvent, LaunchRequest, ServerProcess};
 use teleprompt_gtk::mic::{Mic, RATE};
 use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
-use vte4::prelude::*;
 
 use super::config::Config;
 use super::glass::Glass;
@@ -89,7 +89,11 @@ struct Model {
 
 struct Session {
     script: PathBuf,
-    recording: Option<glib::Pid>,
+    /// Where `teleprompt record` says how it is going.
+    status: PathBuf,
+    /// Once the terminal is opened: when, and what the status said last.
+    opened: Option<Instant>,
+    progress: Progress,
 }
 
 impl Window {
@@ -183,16 +187,6 @@ impl Window {
         });
 
         let weak = Rc::downgrade(this);
-        self.w
-            .session
-            .terminal
-            .connect_child_exited(move |_, status| {
-                if let Some(this) = weak.upgrade() {
-                    this.session_ended(status);
-                }
-            });
-
-        let weak = Rc::downgrade(this);
         self.w.reopen.connect_clicked(move |_| {
             let Some(this) = weak.upgrade() else { return };
             if let Some(last) = this.last_script() {
@@ -222,25 +216,32 @@ impl Window {
         true
     }
 
-    /// Whether session mode is recording; `None` outside session mode.
+    /// Whether session mode is under way, the terminal opened and not yet
+    /// done; `None` outside session mode.
     fn session_recording(&self) -> Option<bool> {
         if self.w.stack.visible_child_name().as_deref() != Some("session") {
             return None;
         }
         let model = self.model.borrow();
-        model.session.as_ref().map(|s| s.recording.is_some())
+        let session = model.session.as_ref()?;
+        Some(session.opened.is_some() && !matches!(session.progress, Progress::Failed(_)))
     }
 
     /// Session mode, drafting into `script`: the record key starts it.
     pub fn new_session(&self, script: PathBuf) {
         self.shutdown();
+        let status = glib::user_cache_dir()
+            .join("teleprompt")
+            .join(format!("session-{}.json", std::process::id()));
         {
             let mut model = self.model.borrow_mut();
             model.generation += 1;
             model.state = PrompterState::default();
             model.session = Some(Session {
                 script: script.clone(),
-                recording: None,
+                status,
+                opened: None,
+                progress: Progress::Starting,
             });
             model.take_time = Duration::ZERO;
             model.take_since = None;
@@ -248,17 +249,15 @@ impl Window {
         }
         self.w.title.set_title(&file_name(&script));
         self.w.title.set_subtitle("Draft from a session");
-        self.w.session.terminal.reset(true, true);
         self.w.session.show_idle(&script);
         self.w.stack.set_visible_child_name("session");
-        self.w.session.root.grab_focus();
         self.show_status();
         self.show_record();
     }
 
-    /// Runs `teleprompt record` in the session's terminal.
+    /// Opens the author's terminal on `teleprompt record`, and follows it.
     fn start_session(self: &Rc<Self>) {
-        let (argv, dir) = {
+        let line = {
             let model = self.model.borrow();
             let Some(session) = &model.session else {
                 return;
@@ -269,99 +268,156 @@ impl Window {
                     "Set the teleprompt binary and the speech model in Settings (Ctrl+,).".into(),
                 ]);
             };
-            (
-                super::session::record_argv(
-                    &binary,
-                    &session.script,
-                    &speech,
-                    model.config.punctuation.as_deref(),
-                ),
-                super::session::project_dir(&session.script),
+            let _ = std::fs::create_dir_all(session.status.parent().unwrap_or(&session.status));
+            let _ = std::fs::remove_file(&session.status);
+            let argv = super::session::record_argv(
+                &binary,
+                &session.script,
+                &speech,
+                model.config.punctuation.as_deref(),
+                &session.status,
+            );
+            teleprompt_gtk::terminal::command(
+                model.config.terminal.as_deref(),
+                std::env::var("TERMINAL").ok().as_deref(),
+                teleprompt_gtk::terminal::on_path,
+                &super::session::project_dir(&session.script),
+                &argv,
             )
         };
-        let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+        let spawned = line.and_then(|line| {
+            std::process::Command::new(&line[0])
+                .args(&line[1..])
+                .spawn()
+                .map_err(|e| format!("could not open {}: {e}", line[0]))
+        });
+        match spawned {
+            Ok(mut child) => {
+                // Reaped, whether it stays for the session or hands the
+                // window to a server and returns.
+                std::thread::spawn(move || child.wait());
+            }
+            Err(e) => return self.session_failed(&e),
+        }
+        if let Some(session) = self.model.borrow_mut().session.as_mut() {
+            session.opened = Some(Instant::now());
+            session.progress = Progress::Starting;
+        }
+        self.w.session.show_opening();
+        self.show_record();
         let weak = Rc::downgrade(self);
-        self.w.session.terminal.spawn_async(
-            vte4::PtyFlags::DEFAULT,
-            dir.to_str(),
-            &argv,
-            &[],
-            glib::SpawnFlags::DEFAULT,
-            || {},
-            -1,
-            gio::Cancellable::NONE,
-            move |spawned| {
-                let Some(this) = weak.upgrade() else { return };
-                match spawned {
-                    Ok(pid) => this.session_started(pid),
-                    Err(e) => this.show_failed(&[format!("Could not start recording: {e}")]),
-                }
-            },
-        );
+        glib::timeout_add_local(Duration::from_millis(250), move || match weak.upgrade() {
+            Some(this) if this.follow_session() => glib::ControlFlow::Continue,
+            _ => glib::ControlFlow::Break,
+        });
     }
 
-    fn session_started(&self, pid: glib::Pid) {
+    /// How long a terminal may take to start the recording.
+    const OPENING: Duration = Duration::from_secs(20);
+
+    /// Reads the session's status; false once there is nothing more to
+    /// follow.
+    fn follow_session(self: &Rc<Self>) -> bool {
+        let (now, before, opened, script) = {
+            let model = self.model.borrow();
+            let Some(session) = &model.session else {
+                return false;
+            };
+            let Some(opened) = session.opened else {
+                return false;
+            };
+            (
+                progress(&session.status),
+                session.progress.clone(),
+                opened,
+                session.script.clone(),
+            )
+        };
+        if now == before {
+            if now == Progress::Starting && opened.elapsed() > Self::OPENING {
+                self.session_failed(
+                    "Your terminal did not start the recording. Set it in Settings \
+                     (Ctrl+,), e.g. `kitty` or `ghostty -e`.",
+                );
+                return false;
+            }
+            return true;
+        }
+        if let Some(session) = self.model.borrow_mut().session.as_mut() {
+            session.progress = now.clone();
+        }
+        match now {
+            Progress::Starting => true,
+            Progress::Recording(_) => {
+                {
+                    let mut model = self.model.borrow_mut();
+                    model.take_time = Duration::ZERO;
+                    model.take_since = Some(Instant::now());
+                    model.state.listening = true;
+                    model.state.status = Status::info("Recording in your terminal");
+                }
+                self.w.session.show_recording();
+                self.show_status();
+                self.show_record();
+                true
+            }
+            Progress::Drafting => {
+                self.stop_clock();
+                {
+                    let mut model = self.model.borrow_mut();
+                    model.state.listening = false;
+                    model.state.status = Status::info("Drafting the script…");
+                }
+                self.w.session.show_drafting(&script);
+                self.show_status();
+                self.show_record();
+                true
+            }
+            Progress::Done(drafted) => {
+                self.model.borrow_mut().session = None;
+                self.open(drafted.clone());
+                self.w.toasts.add_toast(adw::Toast::new(&format!(
+                    "Drafted {}: read it back, and re-take any line",
+                    file_name(&drafted)
+                )));
+                false
+            }
+            Progress::Failed(why) => {
+                self.session_failed(&why);
+                false
+            }
+        }
+    }
+
+    fn session_failed(&self, why: &str) {
+        self.stop_clock();
         {
             let mut model = self.model.borrow_mut();
-            let Some(session) = model.session.as_mut() else {
-                return;
-            };
-            session.recording = Some(pid);
-            let model = &mut *model;
-            model.take_time = Duration::ZERO;
-            model.take_since = Some(Instant::now());
-            model.state.listening = true;
-            model.state.status =
-                Status::info("Recording: talk as you work, and exit the shell to stop");
-        }
-        self.w.session.show_recording();
-        self.show_status();
-        self.show_record();
-    }
-
-    /// Stops a session under way; `teleprompt record` drafts the script as
-    /// if the shell had exited. False when there is none.
-    fn stop_session(&self) -> bool {
-        let pid = {
-            let model = self.model.borrow();
-            model.session.as_ref().and_then(|s| s.recording)
-        };
-        let Some(pid) = pid else { return false };
-        // SAFETY: a signal to the child this terminal spawned.
-        unsafe {
-            libc::kill(pid.0, libc::SIGTERM);
-        }
-        self.model.borrow_mut().state.status = Status::info("Drafting the script…");
-        self.show_status();
-        true
-    }
-
-    /// `teleprompt record` ended: open the draft to read back, or say why
-    /// there is none.
-    fn session_ended(self: &Rc<Self>, status: i32) {
-        let script = {
-            let mut model = self.model.borrow_mut();
             model.state.listening = false;
-            let Some(session) = model.session.as_mut() else {
-                return;
-            };
-            session.recording = None;
-            session.script.clone()
-        };
-        self.stop_clock();
-        if status == 0 && script.exists() {
-            self.model.borrow_mut().session = None;
-            self.open(script.clone());
-            self.w.toasts.add_toast(adw::Toast::new(&format!(
-                "Drafted {}: read it back, and re-take any line",
-                file_name(&script)
-            )));
-            return;
+            model.state.status = Status::error("The session did not become a script");
+            if let Some(session) = model.session.as_mut() {
+                session.opened = None;
+                session.progress = Progress::Failed(why.to_string());
+            }
         }
-        self.model.borrow_mut().state.status = Status::error("The session did not become a script");
-        self.w.session.show_failed();
+        self.w.session.show_failed(why);
         self.show_status();
         self.show_record();
+    }
+
+    /// Stops a session recording in the author's terminal: `teleprompt
+    /// record` drafts the script as if the shell had exited. False when
+    /// nothing is recording.
+    fn stop_session(&self) -> bool {
+        let pid = match self.model.borrow().session.as_ref().map(|s| &s.progress) {
+            Some(Progress::Recording(pid)) => *pid,
+            _ => return false,
+        };
+        // SAFETY: a signal to the process the status file named.
+        unsafe {
+            libc::kill(pid, libc::SIGTERM);
+        }
+        true
     }
 
     /// A take from the line you are on, or
@@ -910,9 +966,15 @@ impl Window {
             .stack
             .visible_child_name()
             .is_some_and(|n| n == "session");
+        let under_way = model
+            .session
+            .as_ref()
+            .is_some_and(|s| s.opened.is_some() && !matches!(s.progress, Progress::Failed(_)));
         let keys: &[(&str, &str)] = if session {
             if model.state.listening {
                 &[(RECORD_KEY, "Stop")]
+            } else if under_way {
+                &[]
             } else {
                 &[(RECORD_KEY, "Record")]
             }
@@ -947,8 +1009,10 @@ impl Window {
 
     /// The header's one action: record, or keep the take under way.
     fn show_record(&self) {
-        if let Some(recording) = self.session_recording() {
-            self.w.record.set_visible(true);
+        if let Some(under_way) = self.session_recording() {
+            // Opening the terminal, or drafting: nothing to start or stop.
+            let recording = self.model.borrow().state.listening;
+            self.w.record.set_visible(!under_way || recording);
             self.w.tally.root.set_visible(true);
             self.w
                 .record_label
