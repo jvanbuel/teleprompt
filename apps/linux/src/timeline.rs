@@ -160,48 +160,6 @@ impl Edit {
     }
 }
 
-/// A shot's start dropped at `at_ms`: onto a word of a line (its own, or
-/// another's), or into the pause after one. `words` gives a line's word
-/// count, to find the word under the drop. `None` where there is no line
-/// to go with, before the first.
-pub fn moved(
-    timeline: &Timeline,
-    shot: &ShotSpan,
-    at_ms: u64,
-    words: impl Fn(&str) -> usize,
-) -> Option<Edit> {
-    let block = shot.block().to_string();
-    let home = shot.line.as_deref();
-    let during = timeline
-        .lines
-        .iter()
-        .find(|l| (l.start_ms..l.end_ms).contains(&at_ms));
-    if let Some(line) = during {
-        let count = words(&line.id).max(1);
-        let along = (at_ms - line.start_ms) as f64 / (line.end_ms - line.start_ms).max(1) as f64;
-        let word = ((along * count as f64) as usize).min(count - 1);
-        return Some(if home == Some(line.id.as_str()) {
-            Edit::Cue { block, word }
-        } else {
-            Edit::Move {
-                block,
-                after: line.id.clone(),
-                word: Some(word),
-            }
-        });
-    }
-    let before = timeline.lines.iter().rev().find(|l| l.end_ms <= at_ms)?;
-    Some(if home == Some(before.id.as_str()) {
-        Edit::Hold { block }
-    } else {
-        Edit::Move {
-            block,
-            after: before.id.clone(),
-            word: None,
-        }
-    })
-}
-
 /// A shot's end dragged to `end_ms`: the stretch that makes it that long.
 /// `None` for a shot that states no length, or a drag that changes nothing.
 pub fn stretched(shot: &ShotSpan, end_ms: u64) -> Option<Edit> {

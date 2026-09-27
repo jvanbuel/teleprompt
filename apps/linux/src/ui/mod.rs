@@ -7,5 +7,4 @@ pub mod prompter;
 pub mod ribbons;
 pub mod session;
 pub mod tally;
-pub mod timeline;
 pub mod window;

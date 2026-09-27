@@ -77,11 +77,20 @@ fn fake(body: &str) -> (PathBuf, tempdir::Dir) {
 fn launch(body: &str) -> (ServerProcess, mpsc::Receiver<LaunchEvent>, tempdir::Dir) {
     let (binary, dir) = fake(body);
     let (tx, rx) = mpsc::channel();
-    let server = ServerProcess::start(&request(binary), move |e| {
-        let _ = tx.send(e);
-    })
-    .unwrap();
-    (server, rx, dir)
+    // Another test forking while this one wrote its script holds it open
+    // for writing until that child execs: running it is busy, briefly.
+    for _ in 0..50 {
+        let tx = tx.clone();
+        match ServerProcess::start(&request(binary.clone()), move |e| {
+            let _ = tx.send(e);
+        }) {
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            started => return (started.unwrap(), rx, dir),
+        }
+    }
+    panic!("{} stayed busy", binary.display())
 }
 
 #[test]

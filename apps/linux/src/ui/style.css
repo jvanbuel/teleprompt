@@ -367,13 +367,7 @@ button.pill.primary {
   color: #000000;
 }
 
-/* The timeline: under the glass, on the chrome, a hairline above. */
-.timeline {
-  background-color: @chrome;
-  border-top: 1px solid @line_color;
-}
-
-/* How far a capture or build has got: a hairline in the tally's red. */
+/* How far a capture or build has got: a hairline over the tally. */
 progressbar.working > trough {
   min-height: 2px;
   background: none;

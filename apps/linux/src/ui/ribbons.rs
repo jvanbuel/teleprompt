@@ -15,7 +15,6 @@ use teleprompt_gtk::timeline::{Edit, Timeline};
 
 use super::fonts::FAMILY;
 use super::prompter::Layout;
-use super::timeline::{describe, hue, rounded};
 
 /// A ribbon's thickness, and its gap below the words.
 const BAR: (f64, f64) = (5.0, 3.0);
@@ -169,22 +168,27 @@ impl RibbonLayer {
         drag.set_propagation_phase(gtk::PropagationPhase::Capture);
         let (view, layout, state, area) = self.parts();
         drag.connect_drag_begin(move |gesture, x, y| {
-            let mut s = state.borrow_mut();
-            let grabbed = s.timeline.as_ref().filter(|_| s.editing).and_then(|t| {
-                let pieces = pieces(&view, &layout.borrow(), t, &s.lines);
-                grab(&pieces, x, y)
-            });
-            gesture.set_state(if grabbed.is_some() {
+            let grabbed = {
+                let mut s = state.borrow_mut();
+                let grabbed = s.timeline.as_ref().filter(|_| s.editing).and_then(|t| {
+                    let pieces = pieces(&view, &layout.borrow(), t, &s.lines);
+                    grab(&pieces, x, y)
+                });
+                s.drag = grabbed.map(|(shot, grip)| Dragging {
+                    shot,
+                    grip,
+                    x,
+                    y,
+                    moved: false,
+                });
+                grabbed.is_some()
+            };
+            // Denied ends the drag at once, in drag_end, which borrows the
+            // state again.
+            gesture.set_state(if grabbed {
                 gtk::EventSequenceState::Claimed
             } else {
                 gtk::EventSequenceState::Denied
-            });
-            s.drag = grabbed.map(|(shot, grip)| Dragging {
-                shot,
-                grip,
-                x,
-                y,
-                moved: false,
             });
             area.queue_draw();
         });
@@ -496,4 +500,74 @@ fn chip(view: &gtk::TextView, cr: &cairo::Context, said: &str, x: f64, y: f64) {
     cr.set_source_rgb(0.0, 0.0, 0.0);
     cr.move_to(x + 8.0, y + 4.0);
     pangocairo::functions::show_layout(cr, &layout);
+}
+
+/// What a drop will do, in the author's words; `home` is the line the
+/// shot is with now.
+fn describe(drop: &Edit, texts: &HashMap<String, String>, home: Option<&str>) -> String {
+    let word = |line: &str, n: usize| {
+        texts
+            .get(line)
+            .and_then(|t| t.split_whitespace().nth(n))
+            .unwrap_or("")
+            .trim_matches(|c: char| !c.is_alphanumeric())
+            .to_string()
+    };
+    let first_words = |line: &str| {
+        let words: Vec<&str> = texts
+            .get(line)
+            .map(|t| t.split_whitespace().take(3).collect())
+            .unwrap_or_default();
+        format!("“{}…”", words.join(" "))
+    };
+    match drop {
+        Edit::Cue { word: 0, .. } => "Start with the line".into(),
+        Edit::Cue { word: n, .. } => format!("Start on “{}”", word(home.unwrap_or(""), *n)),
+        Edit::Hold { .. } => "After the line".into(),
+        Edit::Move {
+            after,
+            word: Some(n),
+            ..
+        } => format!("Move to {} on “{}”", first_words(after), word(after, *n)),
+        Edit::Move { after, .. } => format!("Move after {}", first_words(after)),
+        Edit::Stretch { by, .. } => format!("Stretch ×{by:.2}"),
+    }
+}
+
+fn rounded(cr: &cairo::Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
+    let r = r.min(w / 2.0).min(h / 2.0);
+    cr.new_sub_path();
+    cr.arc(x + w - r, y + r, r, -std::f64::consts::FRAC_PI_2, 0.0);
+    cr.arc(x + w - r, y + h - r, r, 0.0, std::f64::consts::FRAC_PI_2);
+    cr.arc(
+        x + r,
+        y + h - r,
+        r,
+        std::f64::consts::FRAC_PI_2,
+        std::f64::consts::PI,
+    );
+    cr.arc(
+        x + r,
+        y + r,
+        r,
+        std::f64::consts::PI,
+        3.0 * std::f64::consts::FRAC_PI_2,
+    );
+    cr.close_path();
+}
+
+/// A scene's colour: steady for its name, muted to sit under the ink.
+fn hue(scene: &str) -> (f64, f64, f64) {
+    const PALETTE: [(f64, f64, f64); 6] = [
+        (0.48, 0.64, 1.0),
+        (0.83, 0.61, 1.0),
+        (0.37, 0.83, 0.88),
+        (0.95, 0.55, 0.51),
+        (0.43, 0.91, 0.65),
+        (0.85, 0.86, 0.88),
+    ];
+    let n = scene
+        .bytes()
+        .fold(0usize, |a, b| a.wrapping_mul(31).wrapping_add(b.into()));
+    PALETTE[n % PALETTE.len()]
 }

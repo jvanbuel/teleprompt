@@ -78,11 +78,15 @@ if [ "${1:-}" = --drive ]; then
   # The glass as the timeline: in Edit mode, a word hovered shows on the
   # monitor what is on screen as it is said.
   xdotool key e
-  xdotool mousemove 620 323
+  xdotool mousemove 540 375
   sleep 2
   import -window root "$shots/99-scrubbed.png"
-  # The timeline: drags edit the script. Pressed, moved in steps as a hand
-  # moves, and let go.
+  # A click on the words, off every ribbon, is the text's.
+  xdotool mousemove 200 300 click 1
+  sleep 1
+  kill -0 "$pid" && touch "$work/survived"
+  # Ribbons dragged on the glass edit the script. Pressed, moved in steps
+  # as a hand moves, and let go.
   drag() {
     local to_y=${4:-$2}
     xdotool mousemove "$1" "$2" mousedown 1
@@ -94,12 +98,12 @@ if [ "${1:-}" = --drive ]; then
     sleep 2.5
   }
   md="$work/project/scripts/tour.md"
-  # The second shot's end, pulled left: shorter.
-  drag 1255 708 1150
+  # The second shot's grip, onto "as" in its line: shorter.
+  drag 287 450 640 375
   cp "$md" "$work/stretched.md"
   import -window root "$shots/100-stretched.png"
-  # The first shot, onto its own line: it starts on a word there.
-  drag 560 708 250
+  # The first shot's pill, onto "Acme" in its own line: it starts there.
+  drag 430 206 430 130
   cp "$md" "$work/cued.md"
   import -window root "$shots/101-cued.png"
   # And undone.
@@ -107,7 +111,7 @@ if [ "${1:-}" = --drive ]; then
   sleep 1.5
   cp "$md" "$work/undone.md"
   # The first shot's pill, in the pause after its line, onto "show".
-  drag 400 167 740 103
+  drag 430 206 700 130
   cp "$md" "$work/glass.md"
   import -window root "$shots/101-glass.png"
   # Build: the shots the drags changed are captured again, then the video.
@@ -159,7 +163,12 @@ for shot in "$shots"/*-reading.png; do
   if awk "BEGIN { exit !($mean > 0.1) }"; then lit=1; break; fi
 done
 if [ "$lit" = 1 ]; then echo "ok: a clip was on screen ($(basename "$shot"))"; else echo "FAIL: no clip was ever on screen"; fail=1; fi
-# The timeline's drags, written into the script and undone.
+if [ -f "$work/survived" ]; then
+  echo "ok: a click off the ribbons in Edit mode is the text's"
+else
+  echo "FAIL: a click off the ribbons in Edit mode ended the app"; fail=1
+fi
+# The ribbons' drags, written into the script and undone.
 if grep -q 'cue="streams progress" stretch=0\.' "$work/stretched.md"; then
   echo "ok: a shot's end dragged is a stretch"
 else

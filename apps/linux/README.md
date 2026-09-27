@@ -53,7 +53,7 @@ To install it with a launcher entry:
 | + / − | text size |
 | s | show or hide the monitor |
 | Ctrl+Shift+S | the monitor in its own window, for a second display |
-| Ctrl+Z | undo the last timeline drag |
+| Ctrl+Z | undo the last drag on the glass |
 | Ctrl+Shift+C | capture the shots not yet captured, or changed since |
 | Ctrl+B | capture, then build the video |
 
@@ -78,37 +78,31 @@ current: nothing to record again. **Keep the Script** leaves it, to read
 again. A small recognizer mishears, so a word a letter off, or heard as
 two ("a round"), doesn't count as other words.
 
-## The timeline
+## Editing shots on the glass
 
-Under the glass, the timeline shows the lines as the voice says them (green
-once recorded) and the shots on screen, in time. Drag a shot onto a word of
-its line to start it there, past the line to run it after, or onto another
-line to move it; drag its end to stretch or shorten it. A chip says what a
-drop will do before you let go. Each drop is written into the script with
+The glass is the timeline. Press E, or the pencil in the header, for Edit
+mode: each shot shows on the glass itself, as a ribbon under the words it
+plays over, or as a pill in the pause after its line when it plays after
+it. Drag a ribbon onto a word to start the shot there, into the pause
+after a line to play it after, or onto another line to move it; drag its
+grip onto a word of its line to end it there. A chip says what a drop will
+do before you let go. Each drop is written into the script with
 `teleprompt edit`, and refused if the script would no longer compile;
 Ctrl+Z undoes the last. Lines don't move: they're as long as the voice
-says them. A shot that states no length of its own (a Playwright script,
-a composition) moves but doesn't stretch.
+says them. A shot that states no length of its own (a Playwright script, a
+composition) moves but doesn't stretch.
 
-A moved or stretched shot needs capturing again: Ctrl+Shift+C captures
-what's missing, and Ctrl+B captures and builds the video, with its progress
-across the top of the timeline. When it's built, the toast plays it.
-
-## Editing on the glass
-
-Press E, or the pencil in the header, for Edit mode: each shot shows on
-the glass itself, as a ribbon under the words it plays over, or as a pill
-in the pause after its line when it plays after it. Drag a ribbon onto a
-word to start the shot there, into the pause after a line to play it
-after, or onto another line to move it; drag its grip onto a word of its
-line to end it there. The drops are the timeline's, with its chip, its
-checks and Ctrl+Z. Hover a word and the monitor shows, still, what is on
-screen as it is said. A click on a line doesn't start a take in Edit mode,
-and a take always starts in Read mode, with the shots out of the way.
+Hover a word and the monitor shows, still, what is on screen as it is
+said. A click on a line doesn't start a take in Edit mode, and a take
+always starts in Read mode, with the shots out of the way.
 
 Where a take was recorded, a word's moment is estimated from its share of
 the line's letters, as the markers are, so a ribbon may sit a word off
 from where the shot starts in the video.
+
+A moved or stretched shot needs capturing again: Ctrl+Shift+C captures
+what's missing, and Ctrl+B captures and builds the video, its progress a
+hairline over the tally. When it's built, the toast plays it.
 
 ## Drafting from a session
 

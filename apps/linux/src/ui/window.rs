@@ -28,7 +28,6 @@ use super::glass::Glass;
 use super::monitor::Monitor;
 use super::session::SessionPage;
 use super::tally::Tally;
-use super::timeline::TimelineStrip;
 
 /// Starts and stops recording, in every mode.
 const RECORD_KEY: &str = "Ctrl ⇧ Space";
@@ -79,7 +78,8 @@ struct Widgets {
     edit: gtk::ToggleButton,
     monitor: Monitor,
     session: SessionPage,
-    timeline: TimelineStrip,
+    /// How far a capture or build has got, over the tally.
+    working: gtk::ProgressBar,
     tally: Tally,
     toasts: adw::ToastOverlay,
     text_css: gtk::CssProvider,
@@ -155,12 +155,6 @@ impl Window {
             events,
         });
         this.connect(&this);
-        let weak = Rc::downgrade(&this);
-        this.w.timeline.connect_drop(move |edit, said| {
-            if let Some(this) = weak.upgrade() {
-                this.timeline_drop(edit, said);
-            }
-        });
         let weak = Rc::downgrade(&this);
         this.w.glass.ribbons.connect_drop(move |edit, said| {
             if let Some(this) = weak.upgrade() {
@@ -562,7 +556,7 @@ impl Window {
             Event::Edited(g, edited) if g == generation => self.edited(edited),
             Event::Reworded(g, reworded) if g == generation => self.reworded(reworded),
             Event::Making(g, progress) if g == generation => {
-                self.w.timeline.set_working(Some(progress.fraction()));
+                self.w.set_working(Some(progress.fraction()));
                 self.model.borrow_mut().state.status = Status::info(progress.label());
                 self.show_status();
             }
@@ -705,8 +699,6 @@ impl Window {
             .collect();
         self.model.borrow_mut().timeline = Some(timeline.clone());
         self.w.glass.ribbons.set(timeline.clone(), lines.clone());
-        self.w.timeline.set(timeline, lines.into_iter().collect());
-        self.show_current_line();
     }
 
     /// A drag on the timeline: `teleprompt edit` writes it, if the script
@@ -787,7 +779,7 @@ impl Window {
         let (events, generation) = (self.events.clone(), model.generation);
         drop(model);
         self.model.borrow_mut().making = true;
-        self.w.timeline.set_working(Some(0.0));
+        self.w.set_working(Some(0.0));
         std::thread::spawn(move || {
             let progress = events.clone();
             let made = make::run(&binary, &script, job, |p| {
@@ -799,7 +791,7 @@ impl Window {
 
     fn made(self: &Rc<Self>, made: Result<Option<PathBuf>, String>) {
         self.model.borrow_mut().making = false;
-        self.w.timeline.set_working(None);
+        self.w.set_working(None);
         let (status, toast) = match made {
             Ok(Some(video)) => {
                 let name = file_name(&video);
@@ -845,18 +837,6 @@ impl Window {
             self.w.toasts.add_toast(adw::Toast::new("Undone"));
             self.refresh();
         }
-    }
-
-    /// The timeline marks the line the prompter is on.
-    fn show_current_line(&self) {
-        let model = self.model.borrow();
-        let line = model
-            .state
-            .script
-            .lines
-            .get(model.state.at.line)
-            .map(|l| l.id.clone());
-        self.w.timeline.set_current(line);
     }
 
     fn incoming(self: &Rc<Self>, incoming: Incoming) {
@@ -1554,7 +1534,6 @@ impl Window {
         self.w.glass.render(&model.state);
         self.w.monitor.update(&model.state);
         drop(model);
-        self.show_current_line();
     }
 
     fn show_status(&self) {
@@ -1716,6 +1695,11 @@ fn project_name(script: &std::path::Path) -> String {
 }
 
 impl Widgets {
+    fn set_working(&self, fraction: Option<f64>) {
+        self.working.set_visible(fraction.is_some());
+        self.working.set_fraction(fraction.unwrap_or(0.0));
+    }
+
     fn build() -> Self {
         let text_css = gtk::CssProvider::new();
         gtk::style_context_add_provider_for_display(
@@ -1745,14 +1729,10 @@ impl Widgets {
         stack.add_named(&loading, Some("loading"));
         stack.add_named(&failed, Some("failed"));
         stack.add_named(&paned, Some("ready"));
-        // Under the glass and the monitor, on the reading page only: a bar
-        // of its own, so toasts float above it rather than over it.
-        let timeline = TimelineStrip::new();
-        timeline.root.set_visible(false);
-        let strip = timeline.root.clone();
-        stack.connect_visible_child_name_notify(move |stack| {
-            strip.set_visible(stack.visible_child_name().as_deref() == Some("ready"));
-        });
+        let working = gtk::ProgressBar::builder()
+            .css_classes(["working"])
+            .visible(false)
+            .build();
         let session = SessionPage::new();
         stack.add_named(&session.root, Some("session"));
         let record_label = gtk::Label::new(Some("Record"));
@@ -1786,7 +1766,7 @@ impl Widgets {
                 .build(),
             monitor,
             session,
-            timeline,
+            working,
             tally: super::tally::Tally::new(),
             toasts: adw::ToastOverlay::new(),
             text_css,
@@ -1966,7 +1946,7 @@ impl Widgets {
         view.add_top_bar(&header);
         self.toasts.set_child(Some(&self.stack));
         view.set_content(Some(&self.toasts));
-        view.add_bottom_bar(&self.timeline.root);
+        view.add_bottom_bar(&self.working);
         view.add_bottom_bar(&self.tally.root);
         view
     }
