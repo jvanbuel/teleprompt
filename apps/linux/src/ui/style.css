@@ -366,3 +366,9 @@ button.pill.primary {
   background-color: @ink;
   color: #000000;
 }
+
+/* The timeline: under the glass, on the chrome, a hairline above. */
+.timeline {
+  background-color: @chrome;
+  border-top: 1px solid @line_color;
+}

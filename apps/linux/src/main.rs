@@ -80,6 +80,7 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
         }),
     );
     action("take-top", &["<Control>t"], Box::new(|w| w.take(0)));
+    action("undo", &["<Control>z"], Box::new(|w| w.undo()));
     action("keep", &["<Control>Return"], Box::new(|w| w.keep()));
     action(
         "screen-window",

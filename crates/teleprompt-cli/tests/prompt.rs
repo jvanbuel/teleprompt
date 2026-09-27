@@ -554,3 +554,41 @@ fn the_page_s_typeface_is_served() {
     let page = request(addr, "GET", "/", &[]);
     assert!(page.contains("/fonts/atkinson-hyperlegible-next.woff2"));
 }
+
+/// A script edited while it is read: the next fetch of it places its
+/// shots again, as the edit left them.
+#[test]
+fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
+    let clips = teleprompt_testkit::test_dir("prompt-reload");
+    let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let prompt = Prompt {
+        name: "tour.md".into(),
+        lines: LINES.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        shots: shots(),
+        clips: clips.to_path_buf(),
+        takes: clips.join("takes"),
+    };
+    // Edited once: the second shot moved to the first line's sixth word.
+    let edited = std::sync::Mutex::new(Some({
+        let mut moved = shots();
+        moved[1].at = Position { line: 0, word: 5 };
+        moved
+    }));
+    let reload: teleprompt_cli::cmd::prompt::Reload =
+        Box::new(move || edited.lock().unwrap().take());
+    std::thread::spawn(move || {
+        teleprompt_cli::cmd::prompt::prompt_watching(
+            listener,
+            prompt,
+            Scripted(Default::default(), Default::default()),
+            Some(reload),
+        )
+    });
+    let script = json_at(addr, "/api/v1/script");
+    assert_eq!(script["shots"][1]["at"]["word"], 5, "{script}");
+    // Not edited since: as it was left.
+    let again = json_at(addr, "/api/v1/script");
+    assert_eq!(again["shots"][1]["at"]["word"], 5, "{again}");
+}

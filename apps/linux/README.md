@@ -53,6 +53,18 @@ To install it with a launcher entry:
 
 A take starts after a count of three; Settings turns that off.
 
+## The timeline
+
+Under the glass, the timeline shows the lines as the voice says them (green
+once recorded) and the shots on screen, in time. Drag a shot onto a word of
+its line to start it there, past the line to run it after, or onto another
+line to move it; drag its end to stretch or shorten it. A chip says what a
+drop will do before you let go. Each drop is written into the script with
+`teleprompt edit`, and refused if the script would no longer compile;
+Ctrl+Z undoes the last. Lines don't move: they're as long as the voice
+says them. A shot that states no length of its own (a Playwright script,
+a composition) moves but doesn't stretch.
+
 ## Drafting from a session
 
 The app has a second mode for a script that doesn't exist yet: **Draft

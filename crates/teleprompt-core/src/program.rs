@@ -73,6 +73,8 @@ pub enum Element {
         /// blocks naming a scene continue the screen the previous one left
         /// behind. A name here starts — or rejoins — a different run.
         session: Option<String>,
+        /// `stretch=`: its shots run this many times their own length.
+        stretch: Option<f64>,
         /// `review=pending` on a block `from` generated: the command in
         /// it came out of someone else's document and has been read by
         /// nobody. Carried to `compile`, which is where `check`'s warnings
@@ -244,6 +246,16 @@ impl Resolver<'_> {
                     ),
             );
         }
+        if let (Some(_), PolicyKind::FitAction | PolicyKind::TrimAction) = (attrs.stretch, policy) {
+            self.diags.push(
+                Diagnostic::error(format!("`stretch` and `policy={policy}` both set the pace"))
+                    .at(block.span)
+                    .with_help(
+                        "`fit-action` and `trim-action` pace the action to its line; \
+                         `stretch` paces it as you say. Keep one",
+                    ),
+            );
+        }
         let config = self.merged(chapter_cfg, PartialConfig::from_block(&attrs));
         self.elements.push(Element::Action {
             block_id: block.id.clone().unwrap_or_default(),
@@ -255,6 +267,7 @@ impl Resolver<'_> {
             align: attrs.align.unwrap_or(Align::Start),
             cue: attrs.cue,
             session: attrs.session,
+            stretch: attrs.stretch,
             config,
             span: block.span,
         });

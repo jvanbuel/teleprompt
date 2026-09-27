@@ -134,6 +134,46 @@ struct ImportArgs {
     force: bool,
 }
 
+/// One edit `edit` makes, naming blocks and lines by their ids in `plan`.
+#[derive(Subcommand)]
+enum EditCommand {
+    /// Run the block with its line, from the line's WORDth word (0: with
+    /// the line)
+    Cue {
+        block: String,
+        #[arg(long)]
+        word: usize,
+    },
+    /// Run the block after its line
+    Hold { block: String },
+    /// Put the block after another line: held, or cued at --word
+    Move {
+        block: String,
+        #[arg(long)]
+        after: String,
+        #[arg(long)]
+        word: Option<usize>,
+    },
+    /// Make the block's shots BY times longer (above 1) or shorter
+    Stretch {
+        block: String,
+        #[arg(long)]
+        by: f64,
+    },
+}
+
+impl EditCommand {
+    fn into_edit(self) -> teleprompt_core::edit::Edit {
+        use teleprompt_core::edit::Edit;
+        match self {
+            EditCommand::Cue { block, word } => Edit::Cue { block, word },
+            EditCommand::Hold { block } => Edit::Hold { block },
+            EditCommand::Move { block, after, word } => Edit::Move { block, after, word },
+            EditCommand::Stretch { block, by } => Edit::Stretch { block, by },
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Scaffold a new project
@@ -177,6 +217,17 @@ enum Command {
     /// `--capture-input`) or `vhs record` and your voice at the same time,
     /// or use `teleprompt record`.
     Import(ImportArgs),
+    /// Move or stretch a shot, as a timeline drag does
+    ///
+    /// Writes the change into the script as the attributes or place a
+    /// person would give the block: `policy=concurrent cue="…"`, a move
+    /// after another line, `stretch=`. Lines are never changed. Nothing is
+    /// written if the script would then not compile.
+    Edit {
+        script: PathBuf,
+        #[command(subcommand)]
+        edit: EditCommand,
+    },
     /// Translate a script's narration into another locale
     ///
     /// Writes <script>.<locale>.yaml beside the script, translating only
@@ -526,6 +577,18 @@ fn run(command: Command, format: Format) -> Run {
             Ok(Outcome::Ok)
         }
         Command::Import(args) => run_import_cmd(format, args),
+        Command::Edit { script, edit } => {
+            let project = project_for(&script)?;
+            let report = teleprompt_cli::cmd::edit::run_edit(&project, &script, &edit.into_edit())
+                .map_err(|e| Outcome::ValidationError(vec![e]))?;
+            let human = if report.changed {
+                format!("edited {}\n", report.script.display())
+            } else {
+                "nothing to change\n".to_string()
+            };
+            emit(format, &report, &human);
+            Ok(Outcome::Ok)
+        }
         Command::Translate {
             script,
             to,

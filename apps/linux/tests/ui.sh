@@ -41,6 +41,30 @@ if [ "${1:-}" = --drive ]; then
   xdotool key ctrl+shift+space
   sleep 2
   import -window root "$shots/99-kept.png"
+  # The timeline: drags edit the script. Pressed, moved in steps as a hand
+  # moves, and let go.
+  drag() {
+    xdotool mousemove "$1" "$2" mousedown 1
+    for i in $(seq 1 12); do
+      xdotool mousemove $(( $1 + ($3 - $1) * i / 12 )) "$2"
+      sleep 0.03
+    done
+    xdotool mouseup 1
+    sleep 2.5
+  }
+  md="$work/project/scripts/tour.md"
+  # The second shot's end, pulled left: shorter.
+  drag 1255 708 1150
+  cp "$md" "$work/stretched.md"
+  import -window root "$shots/100-stretched.png"
+  # The first shot, onto its own line: it starts on a word there.
+  drag 560 708 250
+  cp "$md" "$work/cued.md"
+  import -window root "$shots/101-cued.png"
+  # And undone.
+  xdotool key ctrl+z
+  sleep 1.5
+  cp "$md" "$work/undone.md"
   kill "$pid"
   wait "$pid" || true
   exit 0
@@ -80,6 +104,23 @@ for shot in "$shots"/*-reading.png; do
   if awk "BEGIN { exit !($mean > 0.1) }"; then lit=1; break; fi
 done
 if [ "$lit" = 1 ]; then echo "ok: a clip was on screen ($(basename "$shot"))"; else echo "FAIL: no clip was ever on screen"; fail=1; fi
+# The timeline's drags, written into the script and undone.
+if grep -q 'cue="streams progress" stretch=0\.' "$work/stretched.md"; then
+  echo "ok: a shot's end dragged is a stretch"
+else
+  echo "FAIL: no stretch"; cat "$work/stretched.md"; fail=1
+fi
+if grep -Eq '^```teleprompt scene=mock policy=concurrent cue=("[^"]*"|[^ ]+)$' "$work/cued.md" \
+  && [ "$(grep -c 'cue=' "$work/cued.md")" = 2 ]; then
+  echo "ok: a shot dragged onto its line is cued there"
+else
+  echo "FAIL: no cue"; cat "$work/cued.md"; fail=1
+fi
+if cmp -s "$work/stretched.md" "$work/undone.md"; then
+  echo "ok: Ctrl+Z undoes the last drag"
+else
+  echo "FAIL: not undone"; diff "$work/stretched.md" "$work/undone.md"; fail=1
+fi
 # The app was killed, not closed: its server must have gone with it.
 for _ in $(seq 10); do
   pgrep -f "$work/project/scripts/tour.md" >/dev/null || break

@@ -405,6 +405,7 @@ pub fn compile(
                 align,
                 cue,
                 session,
+                stretch,
                 review,
                 span,
             } => walker.action(&Block {
@@ -417,6 +418,7 @@ pub fn compile(
                 align: *align,
                 cue: cue.as_deref(),
                 session,
+                stretch: *stretch,
                 review: review.as_deref(),
                 span,
             }),
@@ -473,6 +475,7 @@ struct Block<'e> {
     align: Align,
     cue: Option<&'e str>,
     session: &'e Option<String>,
+    stretch: Option<f64>,
     review: Option<&'e str>,
     span: &'e SourceSpan,
 }
@@ -818,7 +821,9 @@ Read it, then remove the attribute.",
                 adapter: how.adapter_name.clone(),
                 source: shot.source.clone(),
             });
-            let measured = how.adapter.estimate(shot);
+            let Some(measured) = self.stretched(b, how, how.adapter.estimate(shot)) else {
+                continue;
+            };
             // An `Unknown` shot takes its line's length, so one with no line
             // would silently last no time at all.
             let narrated = i == 0 && self.pending.is_some();
@@ -871,6 +876,43 @@ Read it, then remove the attribute.",
                 policy: how.policy,
                 pacing: Pacing::from(b.config),
             });
+        }
+    }
+
+    /// A shot's length with the block's `stretch=` applied. Only a shot that
+    /// states its own length can be stretched: the adapter re-times it to
+    /// the new length ([`retime_stretched_shots`]). `None` once reported.
+    fn stretched(&mut self, b: &Block, how: &Placing, measured: Measured) -> Option<Measured> {
+        let Some(factor) = b.stretch else {
+            return Some(measured);
+        };
+        let timing = &b.config.timing;
+        if !(timing.min_stretch..=timing.max_stretch).contains(&factor) {
+            self.diags.push(
+                Diagnostic::error(format!(
+                    "`stretch={factor}` is outside {} to {}",
+                    timing.min_stretch, timing.max_stretch
+                ))
+                .at(*b.span)
+                .with_help("widen `min_stretch` or `max_stretch` to go further"),
+            );
+            return None;
+        }
+        let scale = |ms: u64| (ms as f64 * factor).round() as u64;
+        match measured {
+            Measured::Exact(ms) => Some(Measured::Exact(scale(ms))),
+            Measured::Estimated(ms) => Some(Measured::Estimated(scale(ms))),
+            Measured::Unknown => {
+                self.diags.push(
+                    Diagnostic::error(format!(
+                        "a `{}` shot states no length of its own, so it cannot be stretched",
+                        how.adapter_name
+                    ))
+                    .at(*b.span)
+                    .with_help("it takes its line's length: lengthen the line instead"),
+                );
+                None
+            }
         }
     }
 

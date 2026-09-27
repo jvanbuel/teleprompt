@@ -247,6 +247,19 @@ impl<R: Recognizer> Session<R> {
         Ok(saved)
     }
 
+    /// The script's shots, placed again: after an edit moved or stretched
+    /// one, its lines as they were. Not during a take, whose shots are
+    /// already playing: false then, and nothing changes.
+    pub fn replace_shots(&mut self, shots: Vec<ShotCue>) -> bool {
+        if self.take.is_some() {
+            return false;
+        }
+        self.cues = Cues::new(shots.iter().map(|s| s.at).collect());
+        self.cues.restart_at(self.at);
+        self.prompt.shots = shots;
+        true
+    }
+
     pub fn script(&self) -> Script {
         let lines = self
             .prompt

@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use teleprompt_listen::Recognizer;
-use teleprompt_prompter::{Position, Prompt, Reached, Script, Session, LISTEN_RATE};
+use teleprompt_prompter::{Position, Prompt, Reached, Script, Session, ShotCue, LISTEN_RATE};
 use tungstenite::handshake::derive_accept_key;
 use tungstenite::protocol::Role;
 use tungstenite::{Message, WebSocket};
@@ -89,8 +89,47 @@ pub fn run_prompt(
             .flush()
             .map_err(|e| PromptError::Runtime(e.to_string()))?;
     }
-    prompt_on(listener, prompt, recognizer).map_err(|e| PromptError::Runtime(e.to_string()))
+    let edited = edits_to(project, script, locale, &prompt.lines);
+    prompt_watching(listener, prompt, recognizer, Some(edited))
+        .map_err(|e| PromptError::Runtime(e.to_string()))
 }
+
+/// The script's shots again whenever its file has changed since last
+/// asked, for a script edited while it is being read: a shot moved or
+/// stretched. `None` when it has not changed, does not compile, or its
+/// lines changed too, which only reopening it can follow.
+#[cfg(feature = "listen")]
+fn edits_to(project: &Project, script: &std::path::Path, locale: &str, lines: &[String]) -> Reload {
+    let modified = |p: &std::path::Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
+    let seen = Mutex::new(modified(script));
+    let (project, script, locale, lines) = (
+        project.clone(),
+        script.to_path_buf(),
+        locale.to_string(),
+        lines.to_vec(),
+    );
+    Box::new(move || {
+        let now = modified(&script);
+        let mut seen = seen.lock().unwrap_or_else(PoisonError::into_inner);
+        if now == *seen {
+            return None;
+        }
+        *seen = now;
+        let (compiled, _) = crate::cmd::check::compile_script(&project, &script, &locale).ok()?;
+        let same = compiled.narration.iter().map(|n| &n.text).eq(lines.iter());
+        if !same {
+            eprintln!(
+                "{}'s lines changed: reopen it to read them",
+                script.display()
+            );
+            return None;
+        }
+        Some(teleprompt_prompter::shot_cues(&compiled))
+    })
+}
+
+/// The script's shots anew, if it has changed.
+pub type Reload = Box<dyn Fn() -> Option<Vec<ShotCue>> + Send + Sync>;
 
 /// A build without the recognizer cannot follow anyone; it says how to get
 /// one.
@@ -131,9 +170,21 @@ pub fn prompt_on<R: Recognizer + Send + 'static>(
     prompt: Prompt,
     recognizer: R,
 ) -> std::io::Result<()> {
+    prompt_watching(listener, prompt, recognizer, None)
+}
+
+/// [`prompt_on`], placing the shots again when `reload` has them: asked
+/// each time the script is fetched, which a client does after an edit.
+pub fn prompt_watching<R: Recognizer + Send + 'static>(
+    listener: TcpListener,
+    prompt: Prompt,
+    recognizer: R,
+    reload: Option<Reload>,
+) -> std::io::Result<()> {
     let server = Arc::new(Server {
         session: Mutex::new(Session::new(prompt, recognizer)?),
         open: AtomicBool::new(false),
+        reload,
     });
     for stream in listener.incoming() {
         let stream = stream?;
@@ -150,6 +201,7 @@ struct Server<R> {
     session: Mutex<Session<R>>,
     /// Whether a session socket is open.
     open: AtomicBool,
+    reload: Option<Reload>,
 }
 
 type Response = (&'static str, &'static str, Vec<u8>);
@@ -176,7 +228,15 @@ impl<R: Recognizer> Server<R> {
             "/" => ("200 OK", "text/html; charset=utf-8", PAGE.into()),
             "/favicon.ico" => ("204 No Content", "text/plain", Vec::new()),
             FONT_PATH => ("200 OK", "font/woff2", FONT.to_vec()),
-            "/api/v1/script" => json(script(self.session().script())),
+            "/api/v1/script" => {
+                // Compiled outside the lock, which the session needs.
+                let shots = self.reload.as_ref().and_then(|r| r());
+                let mut session = self.session();
+                if let Some(shots) = shots {
+                    session.replace_shots(shots);
+                }
+                json(script(session.script()))
+            }
             path => match path
                 .strip_prefix("/api/v1/clips/")
                 .and_then(|name| name.strip_suffix(".mp4"))

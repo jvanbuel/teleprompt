@@ -6,4 +6,5 @@ pub mod monitor;
 pub mod prompter;
 pub mod session;
 pub mod tally;
+pub mod timeline;
 pub mod window;

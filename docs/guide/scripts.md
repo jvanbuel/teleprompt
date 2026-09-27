@@ -57,6 +57,23 @@ Re-timing needs an adapter that can rewrite its source: tapes and
 recordings can, while scripts and compositions take their line's length
 anyway.
 
+`stretch=` re-times the action as you say rather than to its line:
+`stretch=1.5` runs its shots half as long again, `stretch=0.8` a fifth
+faster, between `min_stretch` and `max_stretch`. It goes with `hold` and
+`concurrent`; `fit-action` and `trim-action` set the pace themselves. The
+narration is never stretched, only the action, and only one that states
+its own length.
+
+## Editing from a timeline
+
+`teleprompt edit` makes the edits a timeline drag does, as the attributes
+you would write: `cue <block> --word N` starts a block on a word of its
+line, `hold <block>` runs it after the line, `move <block> --after <line>`
+pairs it with another line, and `stretch <block> --by F` scales its
+stretch. Blocks and lines are named by their ids in `plan`. Nothing is
+written if the script would then not compile. The Linux app's timeline
+drags shots with it, with Ctrl+Z to undo.
+
 ## Starting on a phrase
 
 A concurrent action starts with its paragraph by default. `cue=` starts it
@@ -141,7 +158,7 @@ and a `pause`). The same limit applies to the `_ms` settings in
 | on | keys |
 |---|---|
 | a line | `voice.backend`, `voice.voice`, `voice.speed`, `lead_in`, `tail`, `lang` |
-| a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `trim_warn_above`, `max_stretch`, `min_stretch`, `review` |
+| a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `stretch`, `trim_warn_above`, `max_stretch`, `min_stretch`, `review` |
 
 `include=path` takes the block's body from a file, so a tape or a
 Playwright spec stays a real file its own tools can run.

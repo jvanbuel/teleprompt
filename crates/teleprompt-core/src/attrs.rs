@@ -33,6 +33,9 @@ pub const BLOCK_KEYS: &[&str] = &[
     "trim_warn_above",
     "max_stretch",
     "min_stretch",
+    // How much longer (above 1) or shorter its shots run than their own
+    // pace: an author's own re-timing, where `fit-action` is the line's.
+    "stretch",
 ];
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -96,6 +99,7 @@ pub struct BlockAttrs {
     pub trim_warn_above: Option<f64>,
     pub max_stretch: Option<f64>,
     pub min_stretch: Option<f64>,
+    pub stretch: Option<f64>,
 }
 
 impl BlockAttrs {
@@ -118,6 +122,7 @@ impl BlockAttrs {
             trim_warn_above: v.parsed("trim_warn_above", number),
             max_stretch: v.parsed("max_stretch", number),
             min_stretch: v.parsed("min_stretch", number),
+            stretch: v.parsed("stretch", factor),
         };
         (attrs, diags)
     }
@@ -169,6 +174,15 @@ impl Values<'_> {
 fn number(v: &str) -> Result<f64, String> {
     v.parse::<f64>()
         .map_err(|_| format!("`{v}` is not a number"))
+}
+
+/// A factor: a number above zero, such as `1.5` or `0.8`.
+fn factor(v: &str) -> Result<f64, String> {
+    number(v).and_then(|f| {
+        (f.is_finite() && f > 0.0)
+            .then_some(f)
+            .ok_or_else(|| format!("`{v}` is not a factor above zero, such as 1.5"))
+    })
 }
 
 /// [`DurationMs::parse`] as milliseconds, for adapters that count in `u64`.

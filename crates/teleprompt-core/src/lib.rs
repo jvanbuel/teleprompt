@@ -2,6 +2,7 @@ pub mod ast;
 pub mod attrs;
 pub mod config;
 pub mod duration;
+pub mod edit;
 pub mod error;
 pub mod hash;
 pub mod ident;

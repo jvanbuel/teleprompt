@@ -14,6 +14,7 @@ use teleprompt_gtk::launch::{LaunchEvent, LaunchRequest, ServerProcess};
 use teleprompt_gtk::mic::{Mic, RATE};
 use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
+use teleprompt_gtk::timeline::{self as plan, Edit, Timeline};
 use teleprompt_gtk::tools::{self, Tool};
 use vte4::prelude::*;
 
@@ -22,6 +23,7 @@ use super::glass::Glass;
 use super::monitor::Monitor;
 use super::session::SessionPage;
 use super::tally::Tally;
+use super::timeline::TimelineStrip;
 
 /// Starts and stops recording, in every mode.
 const RECORD_KEY: &str = "Ctrl ⇧ Space";
@@ -40,6 +42,10 @@ enum Event {
     Level(f32),
     /// The tools a session can record with, for the session it was asked for.
     Tools(u64, Result<Vec<Tool>, String>),
+    /// The script's timeline, as `plan` lays it out.
+    Planned(u64, Result<Timeline, String>),
+    /// A drag's edit written, said as the author would; or why not.
+    Edited(u64, Result<String, String>),
 }
 
 pub struct Window {
@@ -60,6 +66,7 @@ struct Widgets {
     glass: Glass,
     monitor: Monitor,
     session: SessionPage,
+    timeline: TimelineStrip,
     tally: Tally,
     toasts: adw::ToastOverlay,
     text_css: gtk::CssProvider,
@@ -88,6 +95,8 @@ struct Model {
     /// Session mode: the script a session is drafted into, and the
     /// `teleprompt record` recording it, once started.
     session: Option<Session>,
+    /// The script as it was before each timeline edit, latest last.
+    undo: Vec<String>,
 }
 
 struct Session {
@@ -118,6 +127,12 @@ impl Window {
             events,
         });
         this.connect(&this);
+        let weak = Rc::downgrade(&this);
+        this.w.timeline.connect_drop(move |edit, said| {
+            if let Some(this) = weak.upgrade() {
+                this.timeline_drop(edit, said);
+            }
+        });
         this.w.glass.set_text_size(&this.w.text_css, 48.0);
         this.show_welcome();
         this.show_status();
@@ -478,9 +493,12 @@ impl Window {
             Event::Refreshed(g, script) if g == generation => {
                 self.model.borrow_mut().state.script = script;
                 self.render();
+                self.replan();
             }
             Event::Clip(g, shot, clip) if g == generation => self.clip_fetched(&shot, clip),
             Event::Tools(g, tools) if g == generation => self.tools_listed(tools),
+            Event::Planned(g, planned) if g == generation => self.planned(planned),
+            Event::Edited(g, edited) if g == generation => self.edited(edited),
             Event::Level(rms) => {
                 if self.model.borrow().state.listening {
                     self.w.tally.set_level(rms);
@@ -588,6 +606,123 @@ impl Window {
         self.w.glass.view.grab_focus();
         self.show_status();
         self.show_record();
+        self.replan();
+    }
+
+    /// Lays the script out again, off the main thread, for the timeline.
+    fn replan(&self) {
+        let model = self.model.borrow();
+        let (Some(binary), Some(script)) =
+            (model.config.binary(), model.config.last_script.clone())
+        else {
+            return;
+        };
+        let (events, generation) = (self.events.clone(), model.generation);
+        std::thread::spawn(move || {
+            let _ = events.send_blocking(Event::Planned(generation, plan::plan(&binary, &script)));
+        });
+    }
+
+    fn planned(&self, planned: Result<Timeline, String>) {
+        // A script that does not plan keeps the timeline it had.
+        let Ok(timeline) = planned else { return };
+        let texts = self
+            .model
+            .borrow()
+            .state
+            .script
+            .lines
+            .iter()
+            .map(|l| (l.id.clone(), l.text.clone()))
+            .collect();
+        self.w.timeline.set(timeline, texts);
+        self.show_current_line();
+    }
+
+    /// A drag on the timeline: `teleprompt edit` writes it, if the script
+    /// still compiles with it. The script before is kept to undo to.
+    fn timeline_drop(&self, edit: Edit, said: String) {
+        if self.is_taking() {
+            return;
+        }
+        let model = self.model.borrow();
+        let (Some(binary), Some(script)) =
+            (model.config.binary(), model.config.last_script.clone())
+        else {
+            return;
+        };
+        let (events, generation) = (self.events.clone(), model.generation);
+        drop(model);
+        let Ok(before) = std::fs::read_to_string(&script) else {
+            return;
+        };
+        self.model.borrow_mut().undo.push(before);
+        std::thread::spawn(move || {
+            let out = std::process::Command::new(&binary)
+                .arg("edit")
+                .arg(&script)
+                .args(edit.args())
+                .output();
+            let result = match out {
+                Ok(o) if o.status.success() => Ok(said),
+                Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
+                Err(e) => Err(format!("cannot run {}: {e}", binary.display())),
+            };
+            let _ = events.send_blocking(Event::Edited(generation, result));
+        });
+    }
+
+    fn edited(self: &Rc<Self>, edited: Result<String, String>) {
+        match edited {
+            Ok(said) => {
+                let toast = adw::Toast::builder()
+                    .title(said.as_str())
+                    .button_label("Undo")
+                    .action_name("app.undo")
+                    .timeout(5)
+                    .build();
+                self.w.toasts.add_toast(toast);
+            }
+            Err(why) => {
+                self.model.borrow_mut().undo.pop();
+                // The compiler's reason, on its first line.
+                let reason = why
+                    .lines()
+                    .find(|l| l.starts_with("error:"))
+                    .map_or(why.as_str(), |l| l.trim_start_matches("error:").trim());
+                self.w
+                    .toasts
+                    .add_toast(adw::Toast::new(&format!("Not moved: {reason}")));
+            }
+        }
+        // The prompter places its shots again as it fetches the script.
+        self.refresh();
+    }
+
+    /// Puts the script back as it was before the last timeline edit.
+    pub fn undo(&self) {
+        let (Some(before), Some(script)) = ({
+            let mut model = self.model.borrow_mut();
+            (model.undo.pop(), model.config.last_script.clone())
+        }) else {
+            return;
+        };
+        if std::fs::write(&script, before).is_ok() {
+            self.w.toasts.add_toast(adw::Toast::new("Undone"));
+            self.refresh();
+        }
+    }
+
+    /// The timeline marks the line the prompter is on.
+    fn show_current_line(&self) {
+        let model = self.model.borrow();
+        let line = model
+            .state
+            .script
+            .lines
+            .get(model.state.at.line)
+            .map(|l| l.id.clone());
+        self.w.timeline.set_current(line);
     }
 
     fn incoming(&self, incoming: Incoming) {
@@ -959,6 +1094,8 @@ impl Window {
         let model = self.model.borrow();
         self.w.glass.render(&model.state);
         self.w.monitor.update(&model.state);
+        drop(model);
+        self.show_current_line();
     }
 
     fn show_status(&self) {
@@ -1138,6 +1275,14 @@ impl Widgets {
         stack.add_named(&loading, Some("loading"));
         stack.add_named(&failed, Some("failed"));
         stack.add_named(&paned, Some("ready"));
+        // Under the glass and the monitor, on the reading page only: a bar
+        // of its own, so toasts float above it rather than over it.
+        let timeline = TimelineStrip::new();
+        timeline.root.set_visible(false);
+        let strip = timeline.root.clone();
+        stack.connect_visible_child_name_notify(move |stack| {
+            strip.set_visible(stack.visible_child_name().as_deref() == Some("ready"));
+        });
         let session = SessionPage::new();
         stack.add_named(&session.root, Some("session"));
         let record_label = gtk::Label::new(Some("Record"));
@@ -1166,6 +1311,7 @@ impl Widgets {
             glass,
             monitor,
             session,
+            timeline,
             tally: super::tally::Tally::new(),
             toasts: adw::ToastOverlay::new(),
             text_css,
@@ -1340,6 +1486,7 @@ impl Widgets {
         view.add_top_bar(&header);
         self.toasts.set_child(Some(&self.stack));
         view.set_content(Some(&self.toasts));
+        view.add_bottom_bar(&self.timeline.root);
         view.add_bottom_bar(&self.tally.root);
         view
     }

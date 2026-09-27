@@ -79,3 +79,11 @@ fn a_shot_after_a_mark_is_refused_not_dropped() {
     assert!(err.0[0].message.contains("no sentence"), "{err:?}");
     assert!(err.0[0].help.as_deref().unwrap_or("").contains("paragraph"));
 }
+
+/// Stretching needs a length to stretch.
+#[test]
+fn a_shot_with_no_length_cannot_be_stretched() {
+    let err = compile_it("One sentence. {#a}\n\n```teleprompt scene=s stretch=2\nwait 1ms\n```\n")
+        .expect_err("refused");
+    assert!(err.0[0].message.contains("cannot be stretched"), "{err:?}");
+}

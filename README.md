@@ -72,9 +72,10 @@ opens on the item you just changed, and `build` renders the video.
 |---|---|
 | `new <path>` | scaffold a new project |
 | `from <doc>` | draft a script from a Markdown document or Slidev deck you already have |
-| `record <script>` | record yourself using a terminal while you talk, and get a script spoken in your voice (opt-in build) |
+| `record <script>` | record yourself working (asciinema, VHS or Playwright) while you talk, and get a script spoken in your voice (opt-in build) |
 | `translate <script> --to <locale>` | translate the narration, for a video in another language |
-| `import <cast>` | the same, from an asciicast and a recording you already have |
+| `import <recording>` | the same, from a cast or tape and a recording of your voice you already have |
+| `edit <script> <edit>` | move a shot onto a word or line, or stretch it, as a timeline drag does |
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it |
 | `diff <script>` | compare against the committed timeline; `--exit-code` exits 3 on drift |
