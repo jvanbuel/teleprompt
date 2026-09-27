@@ -51,12 +51,12 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: ffmpeg, which `record` records the microphone with
+      - name: ffmpeg, which `record` records the microphone with, and asciinema the shell
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - name: ffmpeg, which `record` records the microphone with
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg asciinema
+      - name: ffmpeg, which `record` records the microphone with, and asciinema the shell
         if: runner.os == 'macOS'
-        run: brew install ffmpeg
+        run: brew install ffmpeg asciinema
       - uses: actions/cache@v6
         with:
           path: model

@@ -546,3 +546,10 @@ fn the_commands_a_capture_honours_all_compile() {
 fn a_bare_wait_is_estimated_at_the_vhs_default_timeout() {
     assert_eq!(total_ms("Wait\n"), 15_000);
 }
+
+#[test]
+fn a_fragment_is_a_part_of_the_tape_between_marks() {
+    let tape = "Type \"ls\"\nEnter\n# mark\nType \"pwd\"\nEnter\n";
+    assert_eq!(VhsScene.select(tape, "2").unwrap(), "Type \"pwd\"\nEnter\n");
+    assert!(VhsScene.select(tape, "3").is_err());
+}

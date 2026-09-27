@@ -3,8 +3,7 @@ use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::policy::PolicyKind;
 use teleprompt_core::program::{resolve, Element};
-use teleprompt_derive::{derive, Options, Trace, Word};
-use teleprompt_vhs::scene::classify;
+use teleprompt_derive::{derive, Options, Word};
 
 fn say(at: u64, text: &str) -> Vec<Word> {
     text.split_whitespace()
@@ -17,18 +16,10 @@ fn say(at: u64, text: &str) -> Vec<Word> {
         .collect()
 }
 
-fn session() -> (Trace, Vec<Word>) {
-    let mut trace = Trace::default();
-    for (i, c) in "clear\r".chars().enumerate() {
-        trace.input.push((i as u64 * 60, c.to_string()));
-    }
-    for (i, c) in "ls -la\r".chars().enumerate() {
-        trace.input.push((1850 + i as u64 * 60, c.to_string()));
-    }
-    for (i, c) in "cat \"a b\".txt\r".chars().enumerate() {
-        trace.input.push((30_000 + i as u64 * 60, c.to_string()));
-    }
-    trace.output = vec![2400, 30_900];
+/// Steps at 0 and 1.85 s, before and during the first line, and one at
+/// 30 s after the second.
+fn session() -> (Vec<u64>, Vec<Word>) {
+    let starts = vec![0, 1850, 30_000];
     let words = [
         say(1000, "LET'S SEE WHAT IS HERE"),
         say(
@@ -38,20 +29,21 @@ fn session() -> (Trace, Vec<Word>) {
         ),
     ]
     .concat();
-    (trace, words)
+    (starts, words)
 }
 
 /// What `derive` writes is a script: it parses and resolves, its policies
-/// and cues are ones the compiler accepts, and its tapes are tapes the
-/// terminal scene reads.
+/// and cues are ones the compiler accepts, and each block includes its
+/// part of the recording.
 #[test]
 fn a_derived_script_is_a_script() {
-    let (trace, words) = session();
+    let (starts, words) = session();
     let options = Options {
         title: "Tour".to_string(),
+        include: "recordings/tour.cast".to_string(),
         ..Options::default()
     };
-    let md = derive(&trace, &words, &options).markdown(&options);
+    let md = derive(&starts, &words, &options).markdown(&options);
 
     let mut script = parse_script(&md).unwrap();
     assign_ids(&mut script);
@@ -70,12 +62,16 @@ fn a_derived_script_is_a_script() {
         match element {
             Element::Narration { text, .. } => narration.push(text.clone()),
             Element::Action {
-                body, policy, cue, ..
+                body,
+                policy,
+                cue,
+                include,
+                scene,
+                ..
             } => {
-                for line in body.lines() {
-                    classify(line).unwrap_or_else(|e| panic!("{line}: {e:?}"));
-                }
-                actions.push((*policy, cue.clone()));
+                assert!(body.trim().is_empty(), "{body}");
+                assert_eq!(scene, "asciinema");
+                actions.push((include.clone().unwrap(), *policy, cue.clone()));
             }
             _ => {}
         }
@@ -83,13 +79,23 @@ fn a_derived_script_is_a_script() {
     let long = "And now the file which I wrote earlier today so that this line runs \
                 longer than one line of a script is wide.";
     assert_eq!(narration, ["Let's see what is here.", long]);
-    assert!(md.lines().all(|l| l.len() <= 76), "wrapped:\n{md}");
+    // Prose is wrapped; a fence's attributes cannot be.
+    assert!(
+        md.lines()
+            .filter(|l| !l.starts_with("```"))
+            .all(|l| l.len() <= 76),
+        "wrapped:\n{md}"
+    );
     assert_eq!(
         actions,
         [
-            (PolicyKind::Hold, None),
-            (PolicyKind::Concurrent, Some("what is".to_string())),
-            (PolicyKind::Hold, None),
+            ("recordings/tour.cast#1".to_string(), PolicyKind::Hold, None),
+            (
+                "recordings/tour.cast#2".to_string(),
+                PolicyKind::Concurrent,
+                Some("what is".to_string())
+            ),
+            ("recordings/tour.cast#3".to_string(), PolicyKind::Hold, None),
         ]
     );
     assert!(md.contains("# Tour\n"), "{md}");

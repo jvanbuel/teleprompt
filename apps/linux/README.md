@@ -57,11 +57,13 @@ A take starts after a count of three; Settings turns that off.
 
 The app has a second mode for a script that doesn't exist yet: **Draft
 from a session…** on the start page, or Ctrl+N. Name the new script, and a
-terminal opens. Press Ctrl+Shift+Space to start recording, then talk
-while you use the terminal, as if showing someone. Press it again, exit the
-shell or click Stop to finish: `teleprompt record` drafts the script, with
-what you said as its lines and what you typed as its tapes, and it opens in
-the prompter to read back and re-take.
+terminal opens with the tools `teleprompt record --tools` found: asciinema
+or VHS for the terminal, Playwright for a browser, which opens its own
+window. Press Ctrl+Shift+Space to start recording, then talk while you
+work, as if showing someone. Press it again, exit the shell (or close the
+browser) or click Stop to finish: `teleprompt record` drafts the script,
+with what you said as its lines and the recording between them, and it
+opens in the prompter to read back and re-take.
 
 Ctrl+Shift+Space starts and stops recording in both modes. It isn't typed
 into the terminal, and it isn't a desktop shortcut the way Ctrl+Space

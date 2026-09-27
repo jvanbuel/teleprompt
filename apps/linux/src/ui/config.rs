@@ -15,6 +15,8 @@ pub struct Config {
     /// A sherpa-onnx punctuation model, for a session's draft to have
     /// sentences. Optional.
     pub punctuation: Option<PathBuf>,
+    /// The tool session mode last recorded with.
+    pub record_with: Option<String>,
 }
 
 impl Config {

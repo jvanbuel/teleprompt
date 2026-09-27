@@ -1681,7 +1681,6 @@ dependencies = [
  "clap",
  "insta",
  "portable-pty",
- "rustix",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1748,9 +1747,7 @@ dependencies = [
 name = "teleprompt-derive"
 version = "0.1.0"
 dependencies = [
- "serde_json",
  "teleprompt-core",
- "teleprompt-vhs",
 ]
 
 [[package]]

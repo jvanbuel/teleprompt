@@ -1,9 +1,13 @@
 //! Session mode: a terminal that `teleprompt record` runs in, drafting a
-//! script from what is typed and said while it records.
+//! script from what is done and said while it records, with the tool the
+//! author picks: one recording the terminal, or one opening a browser.
 
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use gtk::prelude::*;
+use teleprompt_gtk::tools::Tool;
 use vte4::prelude::*;
 
 /// The session page: the terminal behind glass, and what to do before it
@@ -13,8 +17,12 @@ pub struct SessionPage {
     pub terminal: vte4::Terminal,
     frame: gtk::Box,
     hint: gtk::Box,
+    press: gtk::Box,
     hint_title: gtk::Label,
     hint_body: gtk::Label,
+    /// The tool picker: one toggle per tool, under the hint.
+    tools: gtk::Box,
+    chosen: Rc<RefCell<Option<String>>>,
 }
 
 impl SessionPage {
@@ -72,8 +80,14 @@ impl SessionPage {
             .halign(gtk::Align::Center)
             .valign(gtk::Align::Center)
             .build();
+        let tools = gtk::Box::builder()
+            .css_classes(["linked", "session-tools"])
+            .halign(gtk::Align::Center)
+            .margin_top(12)
+            .build();
         hint.append(&press);
         hint.append(&hint_body);
+        hint.append(&tools);
         let root = gtk::Overlay::builder().child(&frame).build();
         root.add_overlay(&hint);
         Self {
@@ -81,9 +95,59 @@ impl SessionPage {
             terminal,
             frame,
             hint,
+            press,
             hint_title,
             hint_body,
+            tools,
+            chosen: Rc::default(),
         }
+    }
+
+    /// Offers `tools`, with `chosen` selected; a tool that cannot record
+    /// here is shown, greyed, with why. `on_choose` hears a new choice.
+    pub fn set_tools(
+        &self,
+        tools: &[Tool],
+        chosen: Option<&str>,
+        on_choose: impl Fn(&str) + 'static,
+    ) {
+        while let Some(child) = self.tools.first_child() {
+            self.tools.remove(&child);
+        }
+        *self.chosen.borrow_mut() = chosen.map(str::to_string);
+        let on_choose = Rc::new(on_choose);
+        let mut group: Option<gtk::ToggleButton> = None;
+        for tool in tools {
+            let button = gtk::ToggleButton::builder()
+                .label(tool.label())
+                .active(Some(tool.adapter.as_str()) == chosen)
+                .sensitive(tool.unavailable.is_none())
+                .build();
+            if let Some(why) = &tool.unavailable {
+                button.set_tooltip_text(Some(why));
+            }
+            button.set_group(group.as_ref());
+            let (adapter, chosen, on_choose) = (
+                tool.adapter.clone(),
+                Rc::clone(&self.chosen),
+                Rc::clone(&on_choose),
+            );
+            button.connect_toggled(move |b| {
+                if b.is_active() {
+                    *chosen.borrow_mut() = Some(adapter.clone());
+                    on_choose(&adapter);
+                }
+            });
+            self.tools.append(&button);
+            group.get_or_insert(button);
+        }
+        // One tool is no choice.
+        self.tools.set_visible(tools.len() > 1);
+    }
+
+    /// The tool picked, if the tools are known yet.
+    pub fn chosen(&self) -> Option<String> {
+        self.chosen.borrow().clone()
     }
 
     /// Before recording: what the record key does, and where the draft goes.
@@ -91,12 +155,15 @@ impl SessionPage {
         self.show_hint(
             "to start recording",
             &format!(
-                "Work in the terminal and talk as if showing someone. Press it \
-                 again to stop: what you said becomes the lines of {}, what \
-                 you typed its tapes.",
+                "Work and talk as if showing someone, then press it again to \
+                 stop. What you said becomes the lines of {}, with what you \
+                 did recorded between them.",
                 name(script)
             ),
         );
+        self.tools.set_sensitive(true);
+        let choices = std::iter::successors(self.tools.first_child(), |c| c.next_sibling());
+        self.tools.set_visible(choices.count() > 1);
     }
 
     pub fn show_failed(&self) {
@@ -110,16 +177,29 @@ impl SessionPage {
     fn show_hint(&self, title: &str, body: &str) {
         self.hint_title.set_label(title);
         self.hint_body.set_label(body);
+        self.press.set_visible(true);
         self.hint.set_visible(true);
         self.terminal.set_opacity(0.0);
         self.frame.remove_css_class("recording");
     }
 
-    pub fn show_recording(&self) {
-        self.hint.set_visible(false);
-        self.terminal.set_opacity(1.0);
+    /// Recording: in the terminal, or in the tool's own window, which the
+    /// page then points to.
+    pub fn show_recording(&self, in_terminal: bool) {
         self.frame.add_css_class("recording");
-        self.terminal.grab_focus();
+        self.tools.set_sensitive(false);
+        if in_terminal {
+            self.hint.set_visible(false);
+            self.terminal.set_opacity(1.0);
+            self.terminal.grab_focus();
+        } else {
+            self.press.set_visible(false);
+            self.hint_body.set_label(
+                "Work in the browser window that opened, and talk as you go. \
+                 Close it, or press Ctrl ⇧ Space here, to stop.",
+            );
+            self.tools.set_visible(false);
+        }
     }
 
     /// Recording stopped; the script is being drafted.
@@ -143,11 +223,13 @@ fn set_palette(terminal: &vte4::Terminal) {
     terminal.set_colors(Some(&rgba("#f2f4f7")), Some(&rgba("#000000")), &refs);
 }
 
-/// What a session runs: `teleprompt record` for `script`, replacing it if it
-/// exists (the save dialog has asked), with punctuation if there is a model.
+/// What a session runs: `teleprompt record` for `script` with the tool
+/// picked, replacing it if it exists (the save dialog has asked), with
+/// punctuation if there is a model.
 pub fn record_argv(
     binary: &Path,
     script: &Path,
+    with: Option<&str>,
     model: &Path,
     punctuation: Option<&Path>,
 ) -> Vec<String> {
@@ -158,6 +240,9 @@ pub fn record_argv(
         "--model".into(),
         model.display().to_string(),
     ];
+    if let Some(tool) = with {
+        argv.extend(["--with".into(), tool.to_string()]);
+    }
     if let Some(p) = punctuation {
         argv.extend(["--punctuation".into(), p.display().to_string()]);
     }

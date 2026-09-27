@@ -31,7 +31,8 @@ if [ "${1:-}" = --drive ]; then
   xdotool key ctrl+a
   xdotool type --delay 5 "$work/project/scripts/session.md"
   xdotool key Return
-  sleep 1.5
+  # Long enough for the tools to be listed.
+  sleep 3
   import -window root "$shots/01-idle.png"
   xdotool key ctrl+shift+space
   sleep "$reading"
@@ -75,7 +76,10 @@ fail=0
 md="$work/project/scripts/session.md"
 if [ -f "$md" ]; then
   echo "ok: the session was drafted"
-  grep -q 'Type "ls"' "$md" && echo "ok: the typing is a tape" || { echo "FAIL: no tape of ls"; cat "$md"; fail=1; }
+  cast="$work/project/scripts/recordings/session.cast"
+  grep -q 'include=recordings/session.cast#' "$md" && grep -q '"i", *"l' "$cast" \
+    && echo "ok: the typing is recorded and included" \
+    || { echo "FAIL: no recording of ls"; cat "$md" "$cast"; fail=1; }
   grep -qi 'welcome to acme' "$md" && echo "ok: the reading is a line" || { echo "FAIL: no line"; cat "$md"; fail=1; }
 else
   echo "FAIL: no script was drafted"; cat "$work/app.log"; fail=1

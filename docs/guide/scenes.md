@@ -114,7 +114,8 @@ Sleep 1s
 `# mark` ends a shot, which is where the next paragraph of narration can
 start. It's a comment on purpose: VHS ignores it, so the block stays a
 tape `vhs` itself will run. You can also point the fence's `include=` at a
-real `.tape` file.
+real `.tape` file, and at one part of it with `include=file.tape#2`: `#2`
+is the part after the first `# mark`, `#2-3` a range.
 
 **A tape states its own timing, so its shots are timed exactly.** Every
 `Sleep` is written down and every keystroke costs `Set TypingSpeed` (50 ms
@@ -234,6 +235,18 @@ a script you could paste into a test. A script doesn't state its own
 timing, since `page.click()` takes as long as the page takes. So each shot
 takes the length of its sentence, and if the script finishes early the
 page holds still for the rest of the slot.
+
+A block can instead run one test of a test file you already have,
+named by its title. Its body is run as the shots, without the test's hooks
+or fixtures beyond `page`:
+
+````markdown
+```teleprompt scene=playwright include="e2e/checkout.spec.ts#pays by card"
+```
+````
+
+In a plain script, `include=script.js#2` is the part after its first
+`// mark`, as for a tape.
 
 ```toml
 [scene.playwright]

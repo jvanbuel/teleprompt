@@ -1,33 +1,38 @@
-//! `teleprompt record <script>`: a shell in a pseudo-terminal, recorded
-//! keystroke by keystroke as an asciicast, and the microphone recorded
-//! beside it by ffmpeg. When the shell exits, the two are imported into
-//! `<script>` (`crate::cmd::import`).
+//! `teleprompt record <script> --with <adapter>`: the adapter's own tool
+//! records the author at work (asciinema, `vhs record`, `playwright
+//! codegen`), and ffmpeg records the microphone beside it. When the tool
+//! finishes, the two are drafted into `<script>` (`crate::cmd::import`).
 
 use std::io::{Read, Write};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use serde::Serialize;
+use teleprompt_capture::record::{Recorder, Start};
 
-use crate::cmd::import::{run_import, Import, ImportReport, Words};
+use crate::cmd::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
 use crate::project::Project;
 
 pub struct Record<'a> {
     pub script: &'a Path,
+    /// The adapter whose tool records; asciinema when `None`.
+    pub with: Option<&'a str>,
     pub model: &'a Path,
     /// A punctuation model's directory, as for `import`.
     pub punctuation: Option<&'a Path>,
     /// ffmpeg's input arguments for the microphone; the platform's default
     /// input when empty.
     pub mic: Vec<String>,
-    /// The program to record; `$SHELL` when empty.
+    /// A terminal tool's shell; `$SHELL` when empty.
     pub shell: Vec<String>,
+    /// A browser tool's first page.
+    pub url: Option<&'a str>,
     pub force: bool,
-    /// Where to say how the recording is going, as JSON, for the app that
-    /// started it in a terminal of the author's and cannot wait on it.
+    /// Where to say how the recording is going, as JSON, for an app that
+    /// cannot wait on it.
     pub status: Option<&'a Path>,
     /// Print nothing into the terminal but errors.
     pub quiet: bool,
@@ -44,28 +49,37 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
                 .and_then(|()| std::fs::rename(&partial, path));
         }
     };
-    let result = check(r).and_then(|()| record(r, &say));
+    let result = recorder(r.with).and_then(|recorder| {
+        check(r, &*recorder)?;
+        record(r, &*recorder, &say)
+    });
     say(match &result {
         Ok(report) => serde_json::json!({
             "state": "done",
             "script": report.created,
             "lines": report.lines,
-            "tapes": report.tapes,
+            "blocks": report.blocks,
         }),
         Err(e) => serde_json::json!({ "state": "failed", "error": e }),
     });
     result
 }
 
-/// Everything that could stop the import, checked before anything is
+/// The recorder `with` names, asciinema's by default.
+fn recorder(with: Option<&str>) -> Result<Box<dyn Recorder>, String> {
+    let all = crate::scene::recorders();
+    let names: Vec<&str> = all.iter().map(|r| r.adapter()).collect();
+    let names = names.join(", ");
+    let wanted = with.unwrap_or("asciinema");
+    all.into_iter()
+        .find(|r| r.adapter() == wanted)
+        .ok_or_else(|| format!("`{wanted}` cannot record a session; these can: {names}"))
+}
+
+/// Everything that could stop the draft, checked before anything is
 /// recorded rather than after the author has talked for ten minutes.
-fn check(r: &Record) -> Result<(), String> {
-    if r.script.exists() && !r.force {
-        return Err(format!(
-            "{} already exists; pass --force to replace it and its lines' takes",
-            r.script.display()
-        ));
-    }
+fn check(r: &Record, recorder: &dyn Recorder) -> Result<(), String> {
+    refuse_to_replace(r.script, r.force)?;
     if !cfg!(feature = "listen") {
         return Err(
             "this teleprompt was built without a speech recognizer: rebuild it \
@@ -79,10 +93,17 @@ fn check(r: &Record) -> Result<(), String> {
     if let Some(dir) = r.punctuation.filter(|d| !d.is_dir()) {
         return Err(format!("no punctuation model at {}", dir.display()));
     }
+    if let Some(why) = recorder.unavailable() {
+        return Err(format!("cannot record with {}: {why}", recorder.adapter()));
+    }
     Ok(())
 }
 
-fn record(r: &Record, say: &dyn Fn(serde_json::Value)) -> Result<ImportReport, String> {
+fn record(
+    r: &Record,
+    recorder: &dyn Recorder,
+    say: &dyn Fn(serde_json::Value),
+) -> Result<ImportReport, String> {
     let project = Project::for_script(r.script).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -94,6 +115,12 @@ fn record(r: &Record, say: &dyn Fn(serde_json::Value)) -> Result<ImportReport, S
         .join(format!("{stem}-{stamp}"));
     std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
 
+    // SIGTERM ends the recording as the tool's own stop would, and the
+    // session is still drafted: it is how the app's Stop works.
+    let stop = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&stop))
+        .map_err(|e| format!("cannot listen for SIGTERM: {e}"))?;
+
     let voice = dir.join("voice.wav");
     let mic = Mic::start(&voice, &r.mic)?;
     say(serde_json::json!({
@@ -102,41 +129,44 @@ fn record(r: &Record, say: &dyn Fn(serde_json::Value)) -> Result<ImportReport, S
         "trace": dir,
     }));
     if !r.quiet {
+        let how = if recorder.in_terminal() {
+            "talk as you work, then exit the shell to finish"
+        } else {
+            "talk as you work in its window, then close it to finish"
+        };
         eprintln!(
-            "recording {} and the microphone: talk and type, then press Ctrl+Shift+Space \
-         or exit the shell to finish\r",
-            dir.display()
+            "recording with {} and the microphone: {how}\r",
+            recorder.adapter()
         );
     }
-    // SIGTERM ends the recording as exiting the shell does, and the session
-    // is still imported: it is how the app's Stop works.
-    let stop = Arc::new(AtomicBool::new(false));
-    signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&stop))
-        .map_err(|e| format!("cannot listen for SIGTERM: {e}"))?;
-    let raw = RawMode::enter();
-    let recorded = record_pty(
-        &r.shell,
-        Box::new(std::io::stdin()),
-        Box::new(std::io::stdout()),
-        terminal_size(),
-        Arc::clone(&stop),
-    );
-    drop(raw);
+    let file = dir.join(format!("session.{}", recorder.extension()));
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let recorded = recorder
+        .start(
+            &file,
+            &Start {
+                cwd: &cwd,
+                shell: &r.shell,
+                url: r.url,
+            },
+        )
+        .and_then(|recording| {
+            let started = recording.started();
+            recording.wait(&stop).map(|rec| (rec, started))
+        });
     let mic_started = mic.stop();
-    let (cast, started) = recorded.map_err(|e| format!("the recording failed: {e}"))?;
+    let (recorded, started) = recorded?;
 
-    let cast_path = dir.join("session.cast");
-    std::fs::write(&cast_path, cast)
-        .map_err(|e| format!("cannot write {}: {e}", cast_path.display()))?;
     say(serde_json::json!({ "state": "drafting" }));
     if !r.quiet {
         eprintln!("transcribing {}", voice.display());
     }
-    run_import(&Import {
-        cast: &cast_path,
-        voice: &voice,
+    draft_session(&Session {
         script: r.script,
-        words: Words::Model(r.model),
+        recorder,
+        recorded: &recorded,
+        voice: &voice,
+        words: &Words::Model(r.model),
         offset_ms: signed_ms(mic_started, started),
         punctuation: r.punctuation,
         force: r.force,
@@ -151,138 +181,26 @@ fn signed_ms(a: Instant, b: Instant) -> i64 {
     }
 }
 
-/// Runs `shell` in a pseudo-terminal of `size` (columns, rows) until it
-/// exits, `stop` is set, or the record key is typed, passing `input` to it and its output to `output`, and returns
-/// the session as an asciicast (version 2, with input) and when it began.
-pub fn record_pty(
-    shell: &[String],
-    input: Box<dyn Read + Send>,
-    mut output: Box<dyn Write + Send>,
-    size: (u16, u16),
-    stop: Arc<AtomicBool>,
-) -> std::io::Result<(String, Instant)> {
-    let pty = native_pty_system()
-        .openpty(PtySize {
-            cols: size.0,
-            rows: size.1,
-            pixel_width: 0,
-            pixel_height: 0,
+/// A recorder, as `record --tools` lists it for an app to offer.
+#[derive(Debug, Serialize)]
+pub struct Tool {
+    pub adapter: &'static str,
+    /// Whether the author works in the terminal, or a window of its own.
+    pub in_terminal: bool,
+    /// Why it cannot record here, if it cannot.
+    pub unavailable: Option<String>,
+}
+
+/// Every recorder this build has, the default first.
+pub fn tools() -> Vec<Tool> {
+    crate::scene::recorders()
+        .iter()
+        .map(|r| Tool {
+            adapter: r.adapter(),
+            in_terminal: r.in_terminal(),
+            unavailable: r.unavailable(),
         })
-        .map_err(std::io::Error::other)?;
-    let mut command = match shell.split_first() {
-        Some((program, args)) => {
-            let mut c = CommandBuilder::new(program);
-            c.args(args);
-            c
-        }
-        None => CommandBuilder::new_default_prog(),
-    };
-    command.cwd(std::env::current_dir()?);
-    let mut child = pty
-        .slave
-        .spawn_command(command)
-        .map_err(std::io::Error::other)?;
-    // The shell holds the only end of the terminal now, so reading ours
-    // ends when it exits.
-    drop(pty.slave);
-    let started = Instant::now();
-    let events = Arc::new(Mutex::new(Vec::<(f64, &'static str, String)>::new()));
-    let at = move || started.elapsed().as_secs_f64();
-
-    let mut reader = pty
-        .master
-        .try_clone_reader()
-        .map_err(std::io::Error::other)?;
-    let mut writer = pty.master.take_writer().map_err(std::io::Error::other)?;
-    let log = Arc::clone(&events);
-    let pressed = Arc::clone(&stop);
-    std::thread::spawn(move || {
-        let mut input = input;
-        let mut buf = [0u8; 1024];
-        let mut text = Utf8::default();
-        while let Ok(n @ 1..) = input.read(&mut buf) {
-            // The record key: Ctrl+Shift+Space arrives as NUL, as
-            // Ctrl+Space does. What came before it still counts.
-            let key = buf[..n].iter().position(|&b| b == 0);
-            let keys = &buf[..key.unwrap_or(n)];
-            let s = text.push(keys);
-            if !s.is_empty() {
-                lock(&log).push((at(), "i", s));
-            }
-            let sent = writer.write_all(keys).and_then(|()| writer.flush());
-            if key.is_some() {
-                pressed.store(true, Ordering::SeqCst);
-            }
-            if sent.is_err() || key.is_some() {
-                break;
-            }
-        }
-    });
-    let log = Arc::clone(&events);
-    let out = std::thread::spawn(move || {
-        let mut buf = [0u8; 8192];
-        let mut text = Utf8::default();
-        while let Ok(n @ 1..) = reader.read(&mut buf) {
-            let s = text.push(&buf[..n]);
-            if !s.is_empty() {
-                lock(&log).push((at(), "o", s));
-            }
-            if output
-                .write_all(&buf[..n])
-                .and_then(|()| output.flush())
-                .is_err()
-            {
-                break;
-            }
-        }
-    });
-    // Until the shell exits, or `stop` ends it.
-    let mut killer = child.clone_killer();
-    while child.try_wait()?.is_none() {
-        if stop.load(Ordering::SeqCst) {
-            let _ = killer.kill();
-            child.wait()?;
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    let _ = out.join();
-
-    let mut cast =
-        serde_json::json!({ "version": 2, "width": size.0, "height": size.1 }).to_string();
-    cast.push('\n');
-    for (t, kind, data) in lock(&events).iter() {
-        cast.push_str(&serde_json::json!([(t * 1000.0).round() / 1000.0, kind, data]).to_string());
-        cast.push('\n');
-    }
-    Ok((cast, started))
-}
-
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// Bytes into text, holding back a character split between two reads.
-#[derive(Default)]
-struct Utf8 {
-    pending: Vec<u8>,
-}
-
-impl Utf8 {
-    fn push(&mut self, bytes: &[u8]) -> String {
-        self.pending.extend_from_slice(bytes);
-        let valid = match std::str::from_utf8(&self.pending) {
-            Ok(_) => self.pending.len(),
-            // An incomplete character at the end waits for the next read;
-            // anything else invalid is replaced.
-            Err(e) if e.error_len().is_none() => e.valid_up_to(),
-            Err(_) => self.pending.len(),
-        };
-        let rest = self.pending.split_off(valid);
-        let text = String::from_utf8_lossy(&self.pending).into_owned();
-        self.pending = rest;
-        text
-    }
+        .collect()
 }
 
 /// The microphone, recorded to a WAV by ffmpeg.
@@ -360,39 +278,4 @@ fn default_mic() -> &'static [&'static str] {
     } else {
         &["-f", "pulse", "-i", "default"]
     }
-}
-
-/// Our terminal in raw mode while the shell runs, so each key goes to it
-/// as pressed; restored when dropped. Nothing when stdin is no terminal.
-struct RawMode {
-    saved: Option<rustix::termios::Termios>,
-}
-
-impl RawMode {
-    fn enter() -> RawMode {
-        let stdin = std::io::stdin();
-        let saved = rustix::termios::tcgetattr(&stdin).ok();
-        if let Some(saved) = &saved {
-            let mut raw = saved.clone();
-            raw.make_raw();
-            let _ = rustix::termios::tcsetattr(&stdin, rustix::termios::OptionalActions::Now, &raw);
-        }
-        RawMode { saved }
-    }
-}
-
-impl Drop for RawMode {
-    fn drop(&mut self) {
-        if let Some(saved) = &self.saved {
-            let stdin = std::io::stdin();
-            let _ =
-                rustix::termios::tcsetattr(&stdin, rustix::termios::OptionalActions::Now, saved);
-        }
-    }
-}
-
-/// Our terminal's columns and rows, for the shell's.
-fn terminal_size() -> (u16, u16) {
-    rustix::termios::tcgetwinsize(std::io::stdout())
-        .map_or((80, 24), |w| (w.ws_col.max(20), w.ws_row.max(5)))
 }

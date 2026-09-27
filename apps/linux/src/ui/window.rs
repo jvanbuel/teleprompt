@@ -14,6 +14,7 @@ use teleprompt_gtk::launch::{LaunchEvent, LaunchRequest, ServerProcess};
 use teleprompt_gtk::mic::{Mic, RATE};
 use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
+use teleprompt_gtk::tools::{self, Tool};
 use vte4::prelude::*;
 
 use super::config::Config;
@@ -37,6 +38,8 @@ enum Event {
     Refreshed(u64, Script),
     Clip(u64, String, Result<PathBuf, String>),
     Level(f32),
+    /// The tools a session can record with, for the session it was asked for.
+    Tools(u64, Result<Vec<Tool>, String>),
 }
 
 pub struct Window {
@@ -90,6 +93,8 @@ struct Model {
 struct Session {
     script: PathBuf,
     recording: Option<glib::Pid>,
+    /// What it can record with, once `teleprompt record --tools` has said.
+    tools: Vec<Tool>,
 }
 
 impl Window {
@@ -241,6 +246,7 @@ impl Window {
             model.session = Some(Session {
                 script: script.clone(),
                 recording: None,
+                tools: Vec::new(),
             });
             model.take_time = Duration::ZERO;
             model.take_since = None;
@@ -249,11 +255,57 @@ impl Window {
         self.w.title.set_title(&file_name(&script));
         self.w.title.set_subtitle("Draft from a session");
         self.w.session.terminal.reset(true, true);
+        self.w.session.set_tools(&[], None, |_| {});
         self.w.session.show_idle(&script);
         self.w.stack.set_visible_child_name("session");
         self.w.session.root.grab_focus();
         self.show_status();
         self.show_record();
+        self.list_tools();
+    }
+
+    /// Asks `teleprompt` what it can record with, off the main thread.
+    fn list_tools(&self) {
+        let model = self.model.borrow();
+        let Some(binary) = model.config.binary() else {
+            return;
+        };
+        let (events, generation) = (self.events.clone(), model.generation);
+        std::thread::spawn(move || {
+            let _ = events.send_blocking(Event::Tools(generation, tools::list(&binary)));
+        });
+    }
+
+    /// Offers the tools, the last one used picked. A `teleprompt` too old
+    /// to list them records with its own default, and no choice is shown.
+    fn tools_listed(self: &Rc<Self>, listed: Result<Vec<Tool>, String>) {
+        let Ok(listed) = listed else { return };
+        let chosen = {
+            let model = self.model.borrow();
+            tools::pick(&listed, model.config.record_with.as_deref()).map(|t| t.adapter.clone())
+        };
+        let weak = Rc::downgrade(self);
+        self.w
+            .session
+            .set_tools(&listed, chosen.as_deref(), move |adapter| {
+                if let Some(this) = weak.upgrade() {
+                    let mut config = this.config();
+                    config.record_with = Some(adapter.to_string());
+                    this.set_config(config);
+                }
+            });
+        if let Some(session) = self.model.borrow_mut().session.as_mut() {
+            session.tools = listed;
+        }
+        if let Some(script) = self
+            .model
+            .borrow()
+            .session
+            .as_ref()
+            .map(|s| s.script.clone())
+        {
+            self.w.session.show_idle(&script);
+        }
     }
 
     /// Runs `teleprompt record` in the session's terminal.
@@ -273,6 +325,7 @@ impl Window {
                 super::session::record_argv(
                     &binary,
                     &session.script,
+                    self.w.session.chosen().as_deref(),
                     &speech,
                     model.config.punctuation.as_deref(),
                 ),
@@ -313,7 +366,17 @@ impl Window {
             model.state.listening = true;
             model.state.status = Status::info("Recording: talk as you work");
         }
-        self.w.session.show_recording();
+        let in_terminal = {
+            let model = self.model.borrow();
+            let chosen = self.w.session.chosen();
+            model.session.as_ref().is_none_or(|s| {
+                s.tools
+                    .iter()
+                    .find(|t| Some(&t.adapter) == chosen.as_ref())
+                    .is_none_or(|t| t.in_terminal)
+            })
+        };
+        self.w.session.show_recording(in_terminal);
         self.show_status();
         self.show_record();
     }
@@ -417,6 +480,7 @@ impl Window {
                 self.render();
             }
             Event::Clip(g, shot, clip) if g == generation => self.clip_fetched(&shot, clip),
+            Event::Tools(g, tools) if g == generation => self.tools_listed(tools),
             Event::Level(rms) => {
                 if self.model.borrow().state.listening {
                     self.w.tally.set_level(rms);

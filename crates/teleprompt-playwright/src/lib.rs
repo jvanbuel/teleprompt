@@ -4,7 +4,10 @@
 //! [`capture`] runs Playwright and records.
 
 pub mod capture;
+pub mod record;
 pub mod scene;
+pub mod spec;
 
 pub use capture::PlaywrightRender;
+pub use record::PlaywrightRecorder;
 pub use scene::PlaywrightScene;

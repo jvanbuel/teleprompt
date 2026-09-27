@@ -144,6 +144,32 @@ pub fn split_at_mark(body: &str, mark: &str) -> Vec<(usize, String)> {
     out
 }
 
+/// The parts of a marked body that `include=file#fragment` names: `2` is
+/// the second part (after the first mark), `2-3` a range of them, kept
+/// with the mark between so they stay two shots.
+pub fn select_marked(body: &str, mark: &str, fragment: &str) -> Result<String, String> {
+    let parts = split_at_mark(body, mark);
+    let count = parts.len();
+    let numbered = |s: &str| {
+        s.trim()
+            .parse::<usize>()
+            .ok()
+            .filter(|n| (1..=count).contains(n))
+    };
+    let range = match fragment.split_once('-') {
+        Some((a, b)) => numbered(a).zip(numbered(b)).filter(|(a, b)| a <= b),
+        None => numbered(fragment).map(|n| (n, n)),
+    };
+    let (first, last) = range.ok_or_else(|| {
+        format!("`#{fragment}` names no part of this file, which has {count} part(s) between its `{mark}` lines")
+    })?;
+    Ok(parts[first - 1..last]
+        .iter()
+        .map(|(_, part)| part.as_str())
+        .collect::<Vec<_>>()
+        .join(&format!("{mark}\n")))
+}
+
 /// Validates each part of a body between marks with `check`, reporting a
 /// part's failure at its first line of content.
 pub fn validate_parts(

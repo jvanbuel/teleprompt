@@ -353,3 +353,16 @@ button.pill.primary {
   border-radius: 8px;
   padding: 6px 28px;
 }
+
+/* The tool a session records with: a quiet choice under the hint. */
+.session-tools > button {
+  padding: 6px 16px;
+  font-weight: 600;
+  background-color: @raised;
+  color: alpha(@ink, 0.7);
+}
+
+.session-tools > button:checked {
+  background-color: @ink;
+  color: #000000;
+}

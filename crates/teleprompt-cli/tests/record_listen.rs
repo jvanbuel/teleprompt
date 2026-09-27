@@ -1,6 +1,6 @@
-//! `teleprompt record` end to end: the binary, a shell typed into through
-//! a pipe, ffmpeg playing the recognizer's fixture in real time as the
-//! microphone, and the model transcribing it. Needs ffmpeg and a model
+//! `teleprompt record` end to end: the binary, asciinema recording a shell
+//! typed into through a pipe, ffmpeg playing the recognizer's fixture in
+//! real time as the microphone, and the model transcribing it. Needs ffmpeg and a model
 //! (`TELEPROMPT_LISTEN_MODEL`); skipped without them unless
 //! `TELEPROMPT_REQUIRE_LISTEN` is set.
 #![cfg(all(unix, feature = "listen"))]
@@ -107,11 +107,18 @@ fn session(tag: &str, terminate: bool) {
 
     let md = std::fs::read_to_string(dir.join("scripts/session.md")).unwrap();
     let first = md.find("Welcome to acme").unwrap_or_else(|| panic!("{md}"));
-    let tape = md.find("Type \"ls\"").unwrap_or_else(|| panic!("{md}"));
+    let block = md
+        .find("scene=asciinema include=recordings/session.cast#1")
+        .unwrap_or_else(|| panic!("{md}"));
     let second = md.rfind("Welcome to acme").unwrap();
-    assert!(first < tape && tape < second, "{md}");
-    assert!(md.contains("Set TypingSpeed 80ms"), "{md}");
-    assert!(!md.contains("exit"), "{md}");
+    assert!(first < block && block < second, "{md}");
+    // Recorded by asciinema, and cut before the closing `exit`.
+    let cast = std::fs::read_to_string(dir.join("scripts/recordings/session.cast")).unwrap();
+    assert!(
+        cast.contains(r#""i","l""#) || cast.contains(r#""i","ls"#),
+        "{cast}"
+    );
+    assert!(!cast.contains("exit"), "{cast}");
     let takes = std::fs::read_dir(dir.join("takes")).unwrap().count();
     assert_eq!(takes, 4, "two takes, each a WAV and a sidecar");
 }

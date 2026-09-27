@@ -56,10 +56,19 @@ struct FrameArgs {
 #[derive(Args)]
 struct RecordArgs {
     /// The script to write, e.g. scripts/tour.md
-    script: PathBuf,
-    /// Directory of an unpacked sherpa-onnx streaming zipformer model
+    #[arg(required_unless_present = "tools")]
+    script: Option<PathBuf>,
+    /// The tool to record with, by its adapter: asciinema (the default),
+    /// vhs or playwright
     #[arg(long)]
-    model: PathBuf,
+    with: Option<String>,
+    /// List the tools this build can record with, and whether each is
+    /// installed
+    #[arg(long)]
+    tools: bool,
+    /// Directory of an unpacked sherpa-onnx streaming zipformer model
+    #[arg(long, required_unless_present = "tools")]
+    model: Option<PathBuf>,
     /// Directory of an unpacked sherpa-onnx punctuation model, to give the
     /// narration capitals and punctuation
     #[arg(long)]
@@ -68,7 +77,11 @@ struct RecordArgs {
     /// defaults to the system's default input
     #[arg(long, allow_hyphen_values = true, env = "TELEPROMPT_RECORD_MIC")]
     mic: Option<String>,
-    /// Replace the script, and its lines' takes, if they exist
+    /// The page a browser tool starts on
+    #[arg(long)]
+    url: Option<String>,
+    /// Replace the script, its recording and its lines' takes, if they
+    /// exist
     #[arg(long)]
     force: bool,
     /// Write how the recording is going to this file, as JSON: recording
@@ -79,7 +92,7 @@ struct RecordArgs {
     /// that shows the recording's progress itself
     #[arg(long, short)]
     quiet: bool,
-    /// The program to record instead of $SHELL, with its arguments
+    /// A terminal tool's shell instead of $SHELL, with its arguments
     #[arg(last = true)]
     shell: Vec<String>,
 }
@@ -87,12 +100,18 @@ struct RecordArgs {
 /// What `import` reads, and where it writes.
 #[derive(Args)]
 struct ImportArgs {
-    /// The asciicast, with keystrokes
-    cast: PathBuf,
+    /// The recording: an asciicast with keystrokes, or a tape `vhs record`
+    /// wrote
+    recording: PathBuf,
+    /// The tool that made it, by its adapter; found by its extension
+    /// otherwise
+    #[arg(long)]
+    with: Option<String>,
     /// The voice, as a WAV
     #[arg(long)]
     voice: PathBuf,
-    /// Where to write the script; defaults to scripts/<cast>.md in the project
+    /// Where to write the script; defaults to scripts/<recording>.md in the
+    /// project
     #[arg(long)]
     out: Option<PathBuf>,
     /// Directory of an unpacked sherpa-onnx streaming zipformer model
@@ -101,14 +120,16 @@ struct ImportArgs {
     /// Timed words as JSON ([{text, start_ms, end_ms}]) instead of --model
     #[arg(long, conflicts_with = "model")]
     words: Option<PathBuf>,
-    /// How many milliseconds after the cast the voice recording started
+    /// How many milliseconds after the recording the voice recording
+    /// started
     #[arg(long, default_value_t = 0, allow_negative_numbers = true)]
     offset_ms: i64,
     /// Directory of an unpacked sherpa-onnx punctuation model, to give the
     /// narration capitals and punctuation
     #[arg(long)]
     punctuation: Option<PathBuf>,
-    /// Replace the script, and its lines' takes, if they exist
+    /// Replace the script, its recording and its lines' takes, if they
+    /// exist
     #[arg(long)]
     force: bool,
 }
@@ -146,14 +167,15 @@ enum Command {
         #[arg(long)]
         slidev: bool,
     },
-    /// Draft a script from a terminal session you recorded while talking
+    /// Draft a script from a session you recorded while talking
     ///
     /// What you said becomes the narration, cut into lines where you
-    /// paused; what you typed becomes terminal tapes, run with the line you
-    /// were saying or after the one before, as they were. Each line is
-    /// then spoken from your recording. Record the session with
-    /// `asciinema rec --stdin` (asciinema 3: `--capture-input`) and your
-    /// voice at the same time, or use `teleprompt record`.
+    /// paused; what you did becomes blocks that include the recording's
+    /// parts, run with the line you were saying or after the one before,
+    /// as they were. Each line is then spoken from your recording. Record
+    /// the session with `asciinema rec --stdin` (asciinema 3:
+    /// `--capture-input`) or `vhs record` and your voice at the same time,
+    /// or use `teleprompt record`.
     Import(ImportArgs),
     /// Translate a script's narration into another locale
     ///
@@ -178,14 +200,15 @@ enum Command {
         #[arg(long)]
         command: Option<String>,
     },
-    /// Record yourself using a terminal while you talk, and get a script
+    /// Record yourself working while you talk, and get a script
     ///
-    /// Opens your shell and records it and the microphone until you exit
-    /// the shell, then drafts <script> from the session as `import` does:
-    /// what you said is the narration, spoken from your recording, and what
-    /// you typed is the tapes. The recording is kept in
-    /// .teleprompt/traces. Needs ffmpeg, and a build with `--features
-    /// listen`.
+    /// Records with the tool you pick (asciinema, vhs or playwright) and
+    /// the microphone until you exit the shell or close the browser, then
+    /// drafts <script> from the session as `import` does: what you said is
+    /// the narration, spoken from your recording, and what you did is the
+    /// recording, saved beside the script and included in parts. The raw
+    /// recording is kept in .teleprompt/traces. Needs ffmpeg, the tool,
+    /// and a build with `--features listen`.
     Record(RecordArgs),
     /// Parse and validate; no side effects, no cost
     Check(ScriptArgs),
@@ -374,16 +397,36 @@ fn warn(warnings: &[String]) {
 
 #[cfg(unix)]
 fn run_record(format: Format, args: RecordArgs) -> Run {
-    use teleprompt_cli::cmd::record::{run_record, Record};
+    use teleprompt_cli::cmd::record::{run_record, tools, Record};
+    if args.tools {
+        let tools = tools();
+        let human: String = tools
+            .iter()
+            .map(|t| {
+                format!(
+                    "{:<12}{}\n",
+                    t.adapter,
+                    t.unavailable.as_deref().unwrap_or("ready")
+                )
+            })
+            .collect();
+        emit(format, &tools, &human);
+        return Ok(Outcome::Ok);
+    }
+    let (Some(script), Some(model)) = (&args.script, &args.model) else {
+        unreachable!("clap requires both without --tools");
+    };
     let mic = args.mic.as_deref().map_or_else(Vec::new, |m| {
         m.split_whitespace().map(str::to_string).collect()
     });
     let report = run_record(&Record {
-        script: &args.script,
-        model: &args.model,
+        script,
+        with: args.with.as_deref(),
+        model,
         punctuation: args.punctuation.as_deref(),
         mic,
         shell: args.shell,
+        url: args.url.as_deref(),
         force: args.force,
         status: args.status.as_deref(),
         quiet: args.quiet,
@@ -426,7 +469,7 @@ fn run_translate_cmd(
 fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
     let script = match args.out {
         Some(out) => out,
-        None => default_import_script(&args.cast)?,
+        None => default_import_script(&args.recording)?,
     };
     let words = match (&args.words, &args.model) {
         (Some(path), _) => Words::File(path),
@@ -434,7 +477,8 @@ fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
         (None, None) => unreachable!("clap requires one"),
     };
     let report = import::run_import(&Import {
-        cast: &args.cast,
+        recording: &args.recording,
+        with: args.with.as_deref(),
         voice: &args.voice,
         script: &script,
         words,
@@ -447,10 +491,10 @@ fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
     Ok(Outcome::Ok)
 }
 
-/// `scripts/<cast>.md` in the project around the working directory.
-fn default_import_script(cast: &std::path::Path) -> Result<PathBuf, Outcome> {
+/// `scripts/<recording>.md` in the project around the working directory.
+fn default_import_script(recording: &std::path::Path) -> Result<PathBuf, Outcome> {
     let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;
-    let stem = cast.file_stem().unwrap_or_default().to_string_lossy();
+    let stem = recording.file_stem().unwrap_or_default().to_string_lossy();
     Ok(project.root.join("scripts").join(format!("{stem}.md")))
 }
 

@@ -1,12 +1,14 @@
-//! `teleprompt import <cast> --voice <wav>`: a recorded terminal session
-//! and the voice recorded with it become a script, and the takes its lines
-//! are spoken from. The deriving is `teleprompt-derive`; this reads the
-//! files, hears the voice, and writes the results.
+//! `teleprompt import <recording> --voice <wav>`: a session recorded with
+//! an adapter's tool (a cast, a tape) and the voice recorded with it
+//! become a script, and the takes its lines are spoken from. The deriving
+//! is `teleprompt-derive`; reading the recording is its adapter's; this
+//! hears the voice and writes the results.
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use teleprompt_derive::{derive, read_cast, Draft, Line, Options, Word};
+use teleprompt_capture::record::{Recorded, Recorder};
+use teleprompt_derive::{derive, Draft, Line, Options, Word};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
@@ -23,24 +25,28 @@ pub enum Words<'a> {
 }
 
 pub struct Import<'a> {
-    pub cast: &'a Path,
+    pub recording: &'a Path,
+    /// The adapter whose tool made it; found by its extension when `None`.
+    pub with: Option<&'a str>,
     pub voice: &'a Path,
     pub script: &'a Path,
     pub words: Words<'a>,
-    /// How long after the cast started the voice recording did.
+    /// How long after the recording started the voice recording did.
     pub offset_ms: i64,
     /// A sherpa-onnx punctuation model's directory: the words are
     /// punctuated. Without one, each line is only capitalized and stopped.
     pub punctuation: Option<&'a Path>,
-    /// Overwrite the script and its lines' takes.
+    /// Overwrite the script, its recording and its lines' takes.
     pub force: bool,
 }
 
 #[derive(Debug, Serialize)]
 pub struct ImportReport {
     pub created: PathBuf,
+    /// The recording the script's blocks include, marked into parts.
+    pub recording: PathBuf,
     pub lines: usize,
-    pub tapes: usize,
+    pub blocks: usize,
     /// The lines now spoken from the recording, by id.
     pub takes: Vec<String>,
 }
@@ -48,12 +54,13 @@ pub struct ImportReport {
 impl ImportReport {
     pub fn render(&self) -> String {
         format!(
-            "drafted {} from the session: {} line(s), {} tape(s), {} take(s) recorded\n  \
+            "drafted {} from the session: {} line(s), {} block(s) of {}, {} take(s) recorded\n  \
              the prose is what was said, verbatim: edit it, then record the lines you \
              change again with `teleprompt prompt`\n",
             self.created.display(),
             self.lines,
-            self.tapes,
+            self.blocks,
+            self.recording.display(),
             self.takes.len()
         )
     }
@@ -64,41 +71,113 @@ const LEAD_MS: u64 = 150;
 const TAIL_MS: u64 = 250;
 
 pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
-    if imp.script.exists() && !imp.force {
+    refuse_to_replace(imp.script, imp.force)?;
+    let recorder = recorder_for(imp.with, imp.recording)?;
+    let text = std::fs::read_to_string(imp.recording)
+        .map_err(|e| format!("cannot read {}: {e}", imp.recording.display()))?;
+    let recorded = recorder
+        .read(&text)
+        .map_err(|e| format!("{}: {e}", imp.recording.display()))?;
+    draft_session(&Session {
+        script: imp.script,
+        recorder: &*recorder,
+        recorded: &recorded,
+        voice: imp.voice,
+        words: &imp.words,
+        offset_ms: imp.offset_ms,
+        punctuation: imp.punctuation,
+        force: imp.force,
+    })
+}
+
+/// The recorder `with` names, or the one whose recordings have
+/// `recording`'s extension.
+pub fn recorder_for(with: Option<&str>, recording: &Path) -> Result<Box<dyn Recorder>, String> {
+    let all = crate::scene::recorders();
+    let names: Vec<&str> = all.iter().map(|r| r.adapter()).collect();
+    let names = names.join(", ");
+    let ext = recording.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let found = all.into_iter().find(|r| match with {
+        Some(name) => r.adapter() == name,
+        None => r.extension() == ext,
+    });
+    found.ok_or_else(|| match with {
+        Some(name) => format!("`{name}` cannot record a session; these can: {names}"),
+        None => format!(
+            "cannot tell which tool made {}; name it with --with ({names})",
+            recording.display()
+        ),
+    })
+}
+
+/// A script about to be drafted over an existing one without `--force`.
+pub fn refuse_to_replace(script: &Path, force: bool) -> Result<(), String> {
+    if script.exists() && !force {
         return Err(format!(
             "{} already exists; pass --force to replace it and its lines' takes",
-            imp.script.display()
+            script.display()
         ));
     }
-    let project = Project::for_script(imp.script).map_err(|e| e.to_string())?;
-    let cast = std::fs::read_to_string(imp.cast)
-        .map_err(|e| format!("cannot read {}: {e}", imp.cast.display()))?;
-    let trace = read_cast(&cast).map_err(|e| format!("{}: {e}", imp.cast.display()))?;
-    let pcm = read_voice(imp.voice)?;
-    let words = hear(&imp.words, &pcm, imp.offset_ms)?;
+    Ok(())
+}
+
+/// A recorded session, and the voice recorded beside it.
+pub struct Session<'a> {
+    pub script: &'a Path,
+    pub recorder: &'a dyn Recorder,
+    pub recorded: &'a Recorded,
+    pub voice: &'a Path,
+    pub words: &'a Words<'a>,
+    /// How long after the recording's clock started the voice did.
+    pub offset_ms: i64,
+    pub punctuation: Option<&'a Path>,
+    pub force: bool,
+}
+
+/// Drafts `session.script`: the recording saved beside it in parts, the
+/// script including each part after the line it goes with, and each line
+/// spoken from the voice.
+pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
+    let project = Project::for_script(session.script).map_err(|e| e.to_string())?;
+    let pcm = read_voice(session.voice)?;
+    let words = hear(session.words, &pcm, session.offset_ms)?;
     if words.is_empty() {
-        return Err(format!("nothing was heard in {}", imp.voice.display()));
+        return Err(format!("nothing was heard in {}", session.voice.display()));
     }
-    let words = match imp.punctuation {
+    let words = match session.punctuation {
         Some(dir) => punctuated(dir, &words)?,
         None => words,
     };
 
+    let stem = session
+        .script
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy();
+    let include = format!("recordings/{stem}.{}", session.recorder.extension());
+    let recording = crate::project::script_dir(session.script).join(&include);
+    if recording.exists() && !session.force {
+        return Err(format!(
+            "{} already exists; pass --force to replace it",
+            recording.display()
+        ));
+    }
     let options = Options {
-        title: title_of(imp.script),
+        title: title_of(session.script),
+        scene: session.recorder.adapter().to_string(),
+        include,
         ..Options::default()
     };
-    let draft = derive(&trace, &words, &options);
-    let partial = imp.script.with_extension("md.partial");
-    std::fs::write(&partial, draft.markdown(&options))
-        .and_then(|()| std::fs::rename(&partial, imp.script))
-        .map_err(|e| format!("cannot write {}: {e}", imp.script.display()))?;
+    let starts: Vec<u64> = session.recorded.steps.iter().map(|s| s.start_ms).collect();
+    let draft = derive(&starts, &words, &options);
+    write(&recording, &session.recorded.marked(&draft.cuts()))?;
+    write(session.script, &draft.markdown(&options))?;
 
     // The script as the compiler reads it, which is what names its lines.
-    let (compiled, _) = compile_script(&project, imp.script, "en").map_err(|errors| {
+    let (compiled, _) = compile_script(&project, session.script, "en").map_err(|errors| {
         format!(
             "the drafted {} does not compile, which is a bug in `import`:\n{}",
-            imp.script.display(),
+            session.script.display(),
             errors.join("\n")
         )
     })?;
@@ -107,13 +186,27 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
         .iter()
         .map(|n| (n.line_id.clone(), n.text.clone()))
         .collect();
-    let takes = save_takes(&project, &draft, &lines, &pcm, imp.offset_ms)?;
+    let takes = save_takes(&project, &draft, &lines, &pcm, session.offset_ms)?;
     Ok(ImportReport {
-        created: imp.script.to_path_buf(),
+        created: session.script.to_path_buf(),
+        recording,
         lines: lines.len(),
-        tapes: draft.beats.iter().map(|b| b.blocks.len()).sum(),
+        blocks: draft.blocks().count(),
         takes,
     })
+}
+
+/// Writes `text` to `path` whole or not at all, making its directory.
+fn write(path: &Path, text: &str) -> Result<(), String> {
+    let fail = |e: std::io::Error| format!("cannot write {}: {e}", path.display());
+    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).map_err(fail)?;
+    }
+    let mut partial = path.as_os_str().to_owned();
+    partial.push(".partial");
+    std::fs::write(&partial, text)
+        .and_then(|()| std::fs::rename(&partial, path))
+        .map_err(fail)
 }
 
 fn read_voice(path: &Path) -> Result<Pcm, String> {
@@ -137,7 +230,7 @@ struct WordEntry {
     end_ms: u64,
 }
 
-/// The words in the voice, on the cast's clock.
+/// The words in the voice, on the recording's clock.
 fn hear(words: &Words, pcm: &Pcm, offset_ms: i64) -> Result<Vec<Word>, String> {
     let heard = match words {
         Words::File(path) => {
@@ -228,7 +321,7 @@ fn save_takes(
             .map_or(u64::MAX, |n| (line.end_ms + n.start_ms) / 2);
         let start = line.start_ms.saturating_sub(LEAD_MS).max(after_prev);
         let end = (line.end_ms + TAIL_MS).min(before_next);
-        // From the cast's clock to the recording's.
+        // From the recording's clock to the voice's.
         let at = |ms: u64| {
             let ms = ms.saturating_add_signed(-offset_ms);
             ((ms * rate / 1000) as usize).min(audio.len())

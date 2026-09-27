@@ -89,7 +89,8 @@ fn import(
     force: bool,
 ) -> Result<teleprompt_cli::cmd::import::ImportReport, String> {
     run_import(&Import {
-        cast: &s.cast,
+        recording: &s.cast,
+        with: None,
         voice: &s.voice,
         script,
         words: Words::File(&s.words),
@@ -104,7 +105,7 @@ fn a_session_becomes_a_script_that_checks() {
     let s = session();
     let script = s.root.join("scripts/tour.md");
     let report = import(&s, &script, false).unwrap();
-    assert_eq!((report.lines, report.tapes), (2, 2));
+    assert_eq!((report.lines, report.blocks), (2, 2));
 
     let md = std::fs::read_to_string(&script).unwrap();
     assert!(
@@ -113,10 +114,24 @@ fn a_session_becomes_a_script_that_checks() {
     );
     assert!(md.contains("Let's see what is here.\n"), "{md}");
     assert!(
-        md.contains("```teleprompt scene=vhs policy=concurrent cue=\"what is\"\n"),
+        md.contains(
+            "```teleprompt scene=asciinema include=recordings/tour.cast#1 \
+             policy=concurrent cue=\"what is\"\n```\n"
+        ),
         "{md}"
     );
-    assert!(md.contains("Type \"cat notes.txt\"\n"), "{md}");
+    assert!(
+        md.contains("```teleprompt scene=asciinema include=recordings/tour.cast#2\n"),
+        "{md}"
+    );
+
+    // The recording beside the script, cut where the second block begins.
+    let cast = std::fs::read_to_string(s.root.join("scripts/recordings/tour.cast")).unwrap();
+    assert_eq!(
+        report.recording,
+        s.root.join("scripts/recordings/tour.cast")
+    );
+    assert!(cast.contains(r#"[4.0,"m",""]"#), "{cast}");
 
     let project = Project::for_script(&script).unwrap();
     let warnings = run_check(&project, &script, "en").unwrap();
@@ -166,8 +181,8 @@ fn each_line_gets_its_take() {
     assert_eq!(recorded.count(), 2);
 }
 
-/// Importing twice would overwrite the script and its takes: refused
-/// without `--force`.
+/// Importing twice would overwrite the script, its recording and its
+/// takes: refused without `--force`.
 #[test]
 fn an_existing_script_is_not_overwritten() {
     let s = session();
@@ -178,12 +193,67 @@ fn an_existing_script_is_not_overwritten() {
     import(&s, &script, true).unwrap();
 }
 
-/// Without a speech model or a words file there is nothing to hear the
-/// voice with, and without keystrokes nothing to script.
+/// Without keystrokes there is nothing to script.
 #[test]
 fn a_cast_without_keystrokes_is_refused() {
     let s = session();
     std::fs::write(&s.cast, "{\"version\": 2}\n[0.5, \"o\", \"$ \"]\n").unwrap();
     let e = import(&s, &s.root.join("scripts/tour.md"), false).unwrap_err();
     assert!(e.contains("no keystrokes"), "{e}");
+}
+
+/// A recording whose tool cannot be told from its name asks for `--with`.
+#[test]
+fn an_unknown_recording_asks_which_tool_made_it() {
+    let s = session();
+    let odd = s.root.join("session.log");
+    std::fs::copy(&s.cast, &odd).unwrap();
+    let e = run_import(&Import {
+        recording: &odd,
+        with: None,
+        voice: &s.voice,
+        script: &s.root.join("scripts/tour.md"),
+        words: Words::File(&s.words),
+        offset_ms: 0,
+        punctuation: None,
+        force: false,
+    })
+    .unwrap_err();
+    assert!(e.contains("--with") && e.contains("asciinema"), "{e}");
+}
+
+/// A tape `vhs record` wrote drafts into blocks that include its parts.
+#[test]
+fn a_vhs_tape_drafts_as_vhs_blocks() {
+    let s = session();
+    let tape = s.root.join("session.tape");
+    std::fs::write(
+        &tape,
+        "Sleep 1.9s\nType \"ls -la\"\nEnter\nSleep 1.7s\nType \"cat notes.txt\"\nEnter\n",
+    )
+    .unwrap();
+    let script = s.root.join("scripts/tour.md");
+    let report = run_import(&Import {
+        recording: &tape,
+        with: None,
+        voice: &s.voice,
+        script: &script,
+        words: Words::File(&s.words),
+        offset_ms: 0,
+        punctuation: None,
+        force: false,
+    })
+    .unwrap();
+    assert_eq!(report.blocks, 2);
+    let md = std::fs::read_to_string(&script).unwrap();
+    assert!(
+        md.contains("scene=vhs include=recordings/tour.tape#2"),
+        "{md}"
+    );
+    let project = Project::for_script(&script).unwrap();
+    let warnings = run_check(&project, &script, "en").unwrap();
+    assert!(
+        warnings.iter().all(|w| !w.contains("error")),
+        "{warnings:?}"
+    );
 }

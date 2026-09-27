@@ -151,16 +151,16 @@ reading the manifest it just published.
 | `teleprompt-voice-kokoro` | HTTP against a Kokoro-FastAPI server |
 | `teleprompt-cache` | the content-addressed voice cache |
 | `teleprompt-scene` | the `SceneCompiler` contract and the `mock` adapter |
-| `teleprompt-capture` | the `CaptureBackend` contract and the mock backend |
+| `teleprompt-capture` | the `CaptureBackend` contract and the mock backend, and the `Recorder` contract for recording a session |
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest |
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
 | `teleprompt-listen-sherpa` | the recognizer, a streaming sherpa-onnx model; empty without its opt-in `sherpa` feature, so the default build stays offline |
-| `teleprompt-derive` | deriving a script from a recorded terminal session: keystrokes and timed words in, lines and the tapes between them out. Pure, no dependencies |
+| `teleprompt-derive` | deriving a script from a recorded session: when each step began and timed words in, lines and the blocks between them out. Pure, no dependencies |
 | `teleprompt-translate` | translation providers for `translate`, chosen by name: a local model through Ollama (the default), any OpenAI-compatible server, Claude, and a command of the author's; the request each is sent and the prompt the model-backed ones share |
 | `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
-| `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler and capture backend |
+| `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder |
 | `teleprompt-cli` | the `teleprompt` binary, and the registries every adapter and backend is composed into |
 
 `core`, `schedule`, `voice` and `scene` do not depend on one another.
@@ -336,12 +336,20 @@ pronunciation re-renders exactly the lines that use that word.
 
 ### Recording a session
 
-`record` runs a shell in a pseudo-terminal and records it as an asciicast
-with its keystrokes, while ffmpeg records the microphone; `import` takes
-such a pair from elsewhere. The voice is placed on the cast's clock by
-when its first sample was taken. `teleprompt-derive` then drafts the
-script, purely, from the keystrokes and the words the recognizer heard
-with their times:
+Recording is an adapter's, like compiling and capturing: `record --with
+<adapter>` has the adapter's own tool record the author (`asciinema rec`
+with its keystrokes, `vhs record`, `playwright codegen`), while ffmpeg
+records the microphone; `import` takes a recording and a voice from
+elsewhere. A `Recorder` starts the tool, stops it as its own stop would
+(the recorded shell hung up, `vhs` sent SIGTERM), and reads what it wrote
+back as steps: when each began, its part of the file, and the mark that
+cuts the file before it in the adapter's scene. A cast's step is a command,
+from its first key to the next command's; a tape's, a command through its
+`Enter`, timed as `vhs` would play it; a codegen script's, a statement,
+timed by when it appeared in the file, which the recorder watches. The
+voice is placed on the recording's clock by when its first sample was
+taken. `teleprompt-derive` then drafts the script, purely, from the steps'
+start times and the words the recognizer heard with their times:
 
 - Speech is cut into lines where a silence reaches 700 ms. The prose is
   verbatim, since the result is a first draft. With a punctuation model,
@@ -350,20 +358,16 @@ with their times:
   and a word the punctuator rewrote is kept as heard. Without one, a
   recognizer that hears in capitals is lowered. Either way each line
   starts with a capital and ends a sentence.
-- Keystrokes are cut into commands at Enter, Ctrl+C and Ctrl+D, and each
-  command is placed by when its first key was pressed. Started during a
-  line (or up to 150 ms before it), it runs `concurrent` with the line,
-  and if it started more than 600 ms in, it is cued to the phrase being
-  said then, grown until it occurs once in the line. Started in a pause,
-  it holds after the line before. Commands placed alike, one after
-  another, share one tape.
-- A tape replays the keys as the terminal scene's language: the median
-  gap between typed characters as `TypingSpeed`, Backspaces applied to
-  the text, named keys counted, pauses of 700 ms or more as `Sleep`, and
-  after the last command, a wait until 300 ms past its last output before
-  the session's next keystroke. The command that closed the shell is
-  dropped. So an imported script reads like a written one, and is edited
-  like one.
+- Each step is placed by when it began. Started during a line (or up to
+  150 ms before it), it runs `concurrent` with the line, and if it started
+  more than 600 ms in, it is cued to the phrase being said then, grown
+  until it occurs once in the line. Started in a pause, it holds after the
+  line before. Steps placed alike, one after another, are one block.
+- The recording is saved beside the script, in `recordings/`, with a mark
+  before each block's first step, and each block is an
+  `include=recordings/<script>.<ext>#<part>` of it: the author's own
+  session in the tool's own format, not a translation of it. The command
+  that closed the shell is left out.
 
 `import` compiles what it wrote to learn its line ids, and saves each
 line's stretch of the recording as its [take](#takes): from 150 ms before
@@ -721,9 +725,6 @@ Named here so the rest of this document is not read as covering them:
 
 - **Cloned voices.** There is no voice enrollment: a line is recorded or
   synthesized.
-- **Deriving a script from a browser session.** `record` derives one from
-  a terminal session; a browser would need its actions recorded as a
-  replayable script, which nothing does yet.
 - **Runtime-loaded plugins.** Backends and adapters are compiled in.
 - **Narration-constrained scheduling**, where a fixed picture sets a
   budget and over-long prose becomes a diagnostic.

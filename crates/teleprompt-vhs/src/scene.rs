@@ -458,6 +458,11 @@ impl SceneCompiler for VhsScene {
         "vhs"
     }
 
+    /// `#2` is the part of a tape after its first `# mark`, `#2-3` a range.
+    fn select(&self, body: &str, fragment: &str) -> Result<String, String> {
+        teleprompt_scene::select_marked(body, MARK, fragment)
+    }
+
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
         validate_commands(src, classify)
     }

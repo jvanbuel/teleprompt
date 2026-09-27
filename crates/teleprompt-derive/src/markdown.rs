@@ -3,8 +3,8 @@
 use crate::{Block, Draft, Mode, Options};
 
 pub(crate) fn render(draft: &Draft, options: &Options) -> String {
-    let scene = &options.scene;
     let mut out = format!("---\nteleprompt: 1\n---\n\n# {}\n", options.title);
+    let mut part = 0;
     for beat in &draft.beats {
         if let Some(line) = &beat.line {
             out.push('\n');
@@ -12,10 +12,10 @@ pub(crate) fn render(draft: &Draft, options: &Options) -> String {
             out.push('\n');
         }
         for block in &beat.blocks {
+            part += 1;
             out.push_str(&format!(
-                "\n```teleprompt {}\n{}```\n",
-                info(block, scene),
-                block.tape
+                "\n```teleprompt {}\n```\n",
+                info(block, options, part)
             ));
         }
     }
@@ -24,8 +24,14 @@ pub(crate) fn render(draft: &Draft, options: &Options) -> String {
 
 /// The fence's attributes: `hold` is the default, so it is left unsaid, as
 /// a person writing the script would.
-fn info(block: &Block, scene: &str) -> String {
-    let mut info = format!("scene={scene}");
+fn info(block: &Block, options: &Options, part: usize) -> String {
+    let include = format!("{}#{part}", options.include);
+    let include = if include.contains(char::is_whitespace) {
+        format!("\"{include}\"")
+    } else {
+        include
+    };
+    let mut info = format!("scene={} include={include}", options.scene);
     if block.mode == Mode::Concurrent {
         info.push_str(" policy=concurrent");
     }

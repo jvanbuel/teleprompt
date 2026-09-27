@@ -1,4 +1,4 @@
-use teleprompt_derive::{derive, punctuate, Options, Trace, Word};
+use teleprompt_derive::{derive, punctuate, Options, Word};
 
 fn heard(text: &str) -> Vec<Word> {
     text.split_whitespace()
@@ -60,7 +60,7 @@ fn a_line_ending_in_a_comma_ends_in_a_full_stop() {
         w.start_ms += 3000;
         w.end_ms += 3000;
     }
-    let d = derive(&Trace::default(), &words, &Options::default());
+    let d = derive(&[], &words, &Options::default());
     let lines: Vec<&str> = d
         .beats
         .iter()

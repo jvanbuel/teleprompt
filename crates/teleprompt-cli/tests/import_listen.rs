@@ -19,7 +19,7 @@ fn model() -> Option<PathBuf> {
 }
 
 #[test]
-fn a_spoken_session_becomes_two_lines_and_a_tape_between() {
+fn a_spoken_session_becomes_two_lines_and_a_block_between() {
     let Some(model) = model() else {
         return;
     };
@@ -41,7 +41,7 @@ fn a_spoken_session_becomes_two_lines_and_a_tape_between() {
     )
     .unwrap();
 
-    let mut cast = String::from("{\"version\": 2}\n");
+    let mut cast = String::from("{\"version\": 2, \"width\": 80, \"height\": 24}\n");
     let mut t = (reading_ms + 1500) as f64 / 1000.0;
     for c in ["l", "s", "\\r"] {
         cast.push_str(&format!("[{t:.3}, \"i\", \"{c}\"]\n"));
@@ -52,7 +52,8 @@ fn a_spoken_session_becomes_two_lines_and_a_tape_between() {
 
     let script = dir.join("scripts/session.md");
     let report = run_import(&Import {
-        cast: &cast_path,
+        recording: &cast_path,
+        with: None,
         voice: &voice,
         script: &script,
         words: Words::Model(&model),
@@ -63,14 +64,16 @@ fn a_spoken_session_becomes_two_lines_and_a_tape_between() {
     .unwrap();
     let md = std::fs::read_to_string(&script).unwrap();
     assert_eq!(
-        (report.lines, report.tapes, report.takes.len()),
+        (report.lines, report.blocks, report.takes.len()),
         (2, 1, 2),
         "{md}"
     );
     let first = md.find("Welcome to acme").unwrap_or_else(|| panic!("{md}"));
-    let tape = md.find("Type \"ls\"").unwrap_or_else(|| panic!("{md}"));
+    let block = md
+        .find("include=recordings/session.cast#1")
+        .unwrap_or_else(|| panic!("{md}"));
     let second = md.rfind("Welcome to acme").unwrap();
-    assert!(first < tape && tape < second, "{md}");
+    assert!(first < block && block < second, "{md}");
 
     // With the punctuation model, the same session reads as sentences.
     let punct = std::env::var_os("TELEPROMPT_PUNCT_MODEL").map(PathBuf::from);
@@ -80,7 +83,8 @@ fn a_spoken_session_becomes_two_lines_and_a_tape_between() {
     );
     let Some(punct) = punct else { return };
     run_import(&Import {
-        cast: &cast_path,
+        recording: &cast_path,
+        with: None,
         voice: &voice,
         script: &script,
         words: Words::Model(&model),

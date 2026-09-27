@@ -7,6 +7,7 @@
 //! shot still runs: the next shot opens on the screen it leaves.
 
 pub mod mock;
+pub mod record;
 pub mod reel;
 pub mod tool;
 

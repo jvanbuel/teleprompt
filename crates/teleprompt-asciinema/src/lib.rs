@@ -6,7 +6,9 @@
 //! migration, a cold build — where a `vhs` tape would run every command.
 
 pub mod capture;
+pub mod record;
 pub mod scene;
 
 pub use capture::AsciinemaRender;
+pub use record::AsciinemaRecorder;
 pub use scene::AsciinemaScene;

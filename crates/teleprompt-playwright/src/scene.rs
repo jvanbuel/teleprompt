@@ -3,6 +3,7 @@
 //! The block *is* the script, run as written. A script states no timing,
 //! so `estimate` is [`Measured::Unknown`], `retime` keeps the contract's
 //! `None`, and the shot takes its line's length (`docs/design.md#adapters`).
+//! A block may instead include one test of a test file ([`crate::spec`]).
 
 use teleprompt_core::Diagnostic;
 use teleprompt_core::Hash;
@@ -27,6 +28,12 @@ impl SceneCompiler for PlaywrightScene {
     }
 
     fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
+        if crate::spec::is_spec(&v.body) {
+            return Err(vec![Diagnostic::error(
+                "this is a Playwright test file: name the test to run, \
+                 e.g. `include=\"checkout.spec.ts#pays by card\"`",
+            )]);
+        }
         let mut out = Vec::new();
         for chunk in v.body.split('\n').fold(vec![Vec::new()], |mut acc, line| {
             if line.trim() == MARK {
@@ -50,6 +57,16 @@ impl SceneCompiler for PlaywrightScene {
 
     fn estimate(&self, _shot: &Shot) -> Measured {
         Measured::Unknown
+    }
+
+    /// In a test file, the test with that title; in a script, `#2` is the
+    /// part after its first `// mark` and `#2-3` a range.
+    fn select(&self, body: &str, fragment: &str) -> Result<String, String> {
+        if crate::spec::is_spec(body) {
+            crate::spec::test_body(body, fragment)
+        } else {
+            teleprompt_scene::select_marked(body, MARK, fragment)
+        }
     }
 }
 

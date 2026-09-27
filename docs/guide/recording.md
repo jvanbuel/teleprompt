@@ -1,28 +1,39 @@
 # Recording a session
 
-The quickest first draft of a terminal demo is to give it once: open a
-shell, talk about what you're doing while you do it, and let teleprompt
-turn that into a script.
+The quickest first draft of a demo is to give it once: work in a terminal
+or a browser, talk about what you're doing while you do it, and let
+teleprompt turn that into a script.
 
 ```bash
 teleprompt record scripts/tour.md --model path/to/model
 ```
 
-`record` opens your shell and records it, keystroke by keystroke, together
-with the microphone. Exit the shell when you're done. It then writes
-`scripts/tour.md`:
+`record` hands the recording to a tool you already use, and records the
+microphone beside it. Pick the tool with `--with`:
+
+| `--with` | Records | You finish by | Timing |
+|---|---|---|---|
+| `asciinema` (default) | your shell, with `asciinema rec` | exiting the shell | exact |
+| `vhs` | your shell, with `vhs record` | exiting the shell | close: rebuilt from the tape's `Sleep`s |
+| `playwright` | a browser, with `playwright codegen` | closing its window | when each step appeared in its script |
+
+`teleprompt record --tools` lists them and says which are installed. When
+you're done it writes `scripts/tour.md`, and the recording beside it in
+`scripts/recordings/`:
 
 - **What you said is the narration**, cut into lines wherever you paused.
   It's written out verbatim, so expect to edit it. The speech model hears
   no punctuation: pass `--punctuation <dir>` with the punctuation model
   below to get sentences, or each line is one long sentence.
-- **What you typed is terminal tapes**, typed at the speed you typed, with
-  your pauses kept and your Backspaces already applied. The `exit` that
-  ended the session is left out.
-- **Each tape runs where it happened.** A command you started while you
+- **What you did is the recording itself**, in the tool's own format: a
+  cast, a tape, a Playwright script. It's cut into parts between the lines,
+  with the tool's own marks, and the script includes each part where it
+  happened with `include=file#part`. The `exit` that ended the session is
+  left out.
+- **Each part runs where it happened.** A command you started while you
   were talking runs `concurrent` with that line, cued to the words you were
-  saying when you started typing. A command you typed in a pause holds
-  after the line before it.
+  saying when you started. One you gave in a pause holds after the line
+  before it.
 - **Every line is spoken from your recording.** Each line's stretch of the
   recording is saved as its take in `takes/`, so `plan` and `build` use
   your voice from the start (see [takes](prompter.md)).
@@ -34,25 +45,29 @@ Here is what a short session becomes:
 
 Let's see what is here.
 
-```teleprompt scene=vhs policy=concurrent cue="what is"
-Set TypingSpeed 60ms
-Type "ls -la"
-Enter
-Sleep 700ms
+```teleprompt scene=asciinema include=recordings/tour.cast#1 policy=concurrent cue="what is"
 ```
 
 And now the file.
+
+```teleprompt scene=asciinema include=recordings/tour.cast#2
+```
 ````
 
-Editing a line leaves its take behind, and the line is synthesized until
-you record it again with [`prompt`](prompter.md). Editing a tape changes
-nothing about the voice. The recording itself, `session.cast` and
-`voice.wav`, is kept under `.teleprompt/traces/`, which is not committed.
+An asciinema part is played back exactly as it was recorded; a VHS or
+Playwright part runs again when the video is built. Editing a line leaves
+its take behind, and the line is synthesized until you record it again
+with [`prompt`](prompter.md). Editing the recording, or where a block's
+`include=` points, changes nothing about the voice. The raw recordings and
+`voice.wav` are kept under `.teleprompt/traces/`, which is not committed.
 
 ## What it needs
 
 - A build with the recognizer and a speech model, set up as for
   [`prompt`](prompter.md#setting-it-up).
+- The tool you record with: [asciinema](https://asciinema.org) 2 or 3,
+  [VHS](https://github.com/charmbracelet/vhs), or Playwright (`npm install
+  playwright`, found with `npx`).
 - Optionally, sherpa-onnx's punctuation model (36 MB), for `--punctuation`:
 
   ```bash
@@ -66,30 +81,34 @@ nothing about the voice. The recording itself, `session.cast` and
 - A Unix terminal.
 
 The Linux app records sessions too: **Draft from a session…** opens a
-terminal, Ctrl+Shift+Space starts and stops recording, and the draft opens
-in the prompter when you stop.
+terminal and offers the tools that are installed, Ctrl+Shift+Space starts
+and stops recording, and the draft opens in the prompter when you stop.
 
-To record something other than your shell, put it after `--`:
-`teleprompt record scripts/tour.md --model … -- bash --norc`.
+To record a terminal tool with something other than your shell, put it
+after `--`: `teleprompt record scripts/tour.md --model … -- bash --norc`.
+To start a browser on a page, pass `--url`.
 
 ## From a recording you already have
 
-`import` does the second half on its own, from an asciicast with
-keystrokes and a WAV of your voice:
+`import` does the second half on its own, from a recording and a WAV of
+your voice:
 
 ```bash
 asciinema rec --stdin session.cast   # asciinema 3: --capture-input
 teleprompt import session.cast --voice voice.wav --model path/to/model
 ```
 
-If the voice recording started later than the cast, say by how much with
-`--offset-ms`. To use another recognizer, or a transcript you corrected,
-pass its words as JSON with `--words` instead of `--model`:
+The tool is told by the extension (`.cast`, `.tape`), or name it with
+`--with`. A Playwright script says nothing about when each step happened,
+so one can only be drafted by `record`. If the voice recording started
+later than the session, say by how much with `--offset-ms`. To use another
+recognizer, or a transcript you corrected, pass its words as JSON with
+`--words` instead of `--model`:
 
 ```json
 [{"text": "let's", "start_ms": 1000, "end_ms": 1350}, …]
 ```
 
-The script goes to `scripts/<cast>.md` unless you name it with `--out`.
-Neither command overwrites a script without `--force`, since that would
-also replace its lines' takes.
+The script goes to `scripts/<recording>.md` unless you name it with
+`--out`. Neither command overwrites a script or its recording without
+`--force`, since that would also replace its lines' takes.

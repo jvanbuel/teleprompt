@@ -57,13 +57,13 @@ tokio = { workspace = true, features = ["sync", "time"] }
 # the handshake, no TLS or URL client.
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 
-# `record`'s terminal: a shell in a pseudo-terminal, and ours in raw mode
-# while it runs, so every key reaches the shell as it was pressed.
 [target.'cfg(unix)'.dependencies]
-portable-pty = "0.9"
-rustix = { version = "1", features = ["termios"] }
-# SIGTERM stops a recording and still imports it, for the app's Stop.
+# SIGTERM stops a recording and still drafts it, for the app's Stop.
 signal-hook = "0.3"
+
+# `record`'s tests give it a terminal, as the recording tools need one.
+[target.'cfg(unix)'.dev-dependencies]
+portable-pty = "0.9"
 
 [dev-dependencies]
 # A client for `prompt`'s session socket.

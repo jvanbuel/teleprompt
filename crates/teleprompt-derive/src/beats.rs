@@ -1,7 +1,8 @@
-//! Speech into lines, and each command placed against them.
+//! Speech into lines, and each step placed against them.
 
-use crate::tape::{commands, tape};
-use crate::{Draft, Options, Trace, Word};
+use std::ops::Range;
+
+use crate::{Draft, Options, Word};
 
 /// A narration line: what was said, as the script will read it, and when.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,7 +12,7 @@ pub struct Line {
     pub end_ms: u64,
 }
 
-/// How a tape runs against its line: the policy the script will name.
+/// How a block runs against its line: the policy the script will name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     /// Started in the pause after the line: runs after it.
@@ -20,17 +21,18 @@ pub enum Mode {
     Concurrent,
 }
 
-/// A tape, and how it runs against the line above it.
+/// A run of the recording's steps, and how it runs against the line above
+/// it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
     pub mode: Mode,
-    /// The phrase being said when a concurrent tape started, if it started
-    /// after the line's first words.
+    /// The phrase being said when a concurrent block started, if it
+    /// started after the line's first words.
     pub cue: Option<String>,
-    pub tape: String,
+    pub steps: Range<usize>,
 }
 
-/// A line and the tapes that follow it; no line for tapes typed before
+/// A line and the blocks that follow it; no line for steps taken before
 /// anything was said.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Beat {
@@ -38,22 +40,22 @@ pub struct Beat {
     pub blocks: Vec<Block>,
 }
 
-/// A command this far into its line or more is cued to where it started;
+/// A step this far into its line or more is cued to where it started;
 /// sooner, it just starts with the line.
 const CUE_AFTER_MS: u64 = 600;
-/// A command started this soon before a line's first word runs with it.
+/// A step started this soon before a line's first word runs with it.
 const EARLY_MS: u64 = 150;
 
 /// The script a session makes: `words` cut into lines at pauses, and each
-/// command run with the line it was typed during, or after the line it
-/// followed.
-pub fn derive(trace: &Trace, words: &[Word], options: &Options) -> Draft {
+/// step, by when it began (`starts`, in order), run with the line it was
+/// taken during, or after the line it followed. Steps placed alike in a
+/// row are one block.
+pub fn derive(starts: &[u64], words: &[Word], options: &Options) -> Draft {
     let segments = segment(words, options.pause_ms);
-    let cmds = commands(trace);
 
-    // Where each command goes: its segment (none before the first) and mode.
+    // Where each step goes: its segment (none before the first) and mode.
     let placed: Vec<(Option<usize>, Mode)> =
-        cmds.iter().map(|c| place(c.start(), &segments)).collect();
+        starts.iter().map(|&at| place(at, &segments)).collect();
 
     let mut beats: Vec<Beat> = Vec::new();
     if placed.iter().any(|(seg, _)| seg.is_none()) {
@@ -68,15 +70,12 @@ pub fn derive(trace: &Trace, words: &[Word], options: &Options) -> Draft {
     }));
 
     let mut i = 0;
-    while i < cmds.len() {
+    while i < starts.len() {
         let group = placed[i];
         let len = placed[i..].iter().take_while(|p| **p == group).count();
-        // The session's next keystroke, even one of a command left out.
-        let end = cmds[i + len - 1].end();
-        let next = trace.input.iter().map(|(t, _)| *t).find(|&t| t > end);
         let (seg, mode) = group;
         let cue = match (seg, mode) {
-            (Some(s), Mode::Concurrent) => cue(&segments[s], cmds[i].start()),
+            (Some(s), Mode::Concurrent) => cue(&segments[s], starts[i]),
             _ => None,
         };
         let beat = match seg {
@@ -86,7 +85,7 @@ pub fn derive(trace: &Trace, words: &[Word], options: &Options) -> Draft {
         beats[beat].blocks.push(Block {
             mode,
             cue,
-            tape: tape(&cmds[i..i + len], &trace.output, next, options.pause_ms),
+            steps: i..i + len,
         });
         i += len;
     }
