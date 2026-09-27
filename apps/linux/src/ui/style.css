@@ -306,3 +306,36 @@ button.pill.primary {
   font-size: 15px;
   color: @cue;
 }
+
+/* Session mode: the terminal, and what space does before it records. */
+.session-terminal {
+  padding: 18px 22px;
+  background-color: @glass;
+}
+
+.session-hint {
+  background-color: alpha(@chrome, 0.92);
+  border: 1px solid @line_color;
+  border-radius: 14px;
+  padding: 36px 44px;
+  box-shadow: 0 24px 60px alpha(black, 0.45);
+}
+
+.session-hint .hero-title {
+  font-size: 30px;
+}
+
+.session-hint .hero-body {
+  font-size: 15px;
+}
+
+.keycap-large {
+  font-size: 15px;
+  font-weight: 700;
+  color: @ink;
+  background-color: @raised;
+  border: 1px solid @line_color;
+  border-bottom-width: 3px;
+  border-radius: 8px;
+  padding: 6px 28px;
+}

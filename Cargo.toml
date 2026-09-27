@@ -35,7 +35,7 @@ unexpected_cfgs = "warn"
 async-trait = "0.1"
 base64 = "0.22"
 blake3 = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 insta = { version = "1", features = ["json"] }
 pulldown-cmark = { version = "0.11", default-features = false }
 # `idna_adapter` (a transitive dependency, pulled in via `url`) is pinned to

@@ -12,6 +12,9 @@ pub struct Config {
     pub last_script: Option<PathBuf>,
     /// Whether a take counts down from three before it listens.
     pub countdown: Option<bool>,
+    /// A sherpa-onnx punctuation model, for a session's draft to have
+    /// sentences. Optional.
+    pub punctuation: Option<PathBuf>,
 }
 
 impl Config {

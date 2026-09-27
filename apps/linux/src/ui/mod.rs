@@ -4,5 +4,6 @@ pub mod glass;
 pub mod mirror;
 pub mod monitor;
 pub mod prompter;
+pub mod session;
 pub mod tally;
 pub mod window;

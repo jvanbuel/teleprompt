@@ -69,6 +69,7 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
         app.set_accels_for_action(&format!("app.{name}"), accels);
     };
     action("open", &["<Control>o"], Box::new(choose_script));
+    action("session", &["<Control>n"], Box::new(choose_draft));
     action(
         "reopen",
         &[],
@@ -121,6 +122,30 @@ fn choose_script(window: &Rc<Window>) {
     );
 }
 
+/// Session mode: where the draft goes, then the terminal to record in.
+fn choose_draft(window: &Rc<Window>) {
+    let dialog = gtk::FileDialog::builder()
+        .title("Name the New Script")
+        .initial_name("session.md")
+        .build();
+    if let Some(dir) = window
+        .last_script()
+        .and_then(|s| s.parent().map(gio::File::for_path))
+    {
+        dialog.set_initial_folder(Some(&dir));
+    }
+    let weak = Rc::downgrade(window);
+    dialog.save(
+        Some(window.file_dialog_parent()),
+        gio::Cancellable::NONE,
+        move |result| {
+            if let (Some(window), Ok(Some(path))) = (weak.upgrade(), result.map(|f| f.path())) {
+                window.new_session(path);
+            }
+        },
+    );
+}
+
 /// Where `teleprompt` and the speech model are, and the locale.
 fn settings(window: &Rc<Window>) {
     let config = window.config();
@@ -141,6 +166,16 @@ fn settings(window: &Rc<Window>) {
         true,
         |c, p| c.model = Some(p),
     );
+    let punctuation = path_row(
+        window,
+        "Punctuation model (optional)",
+        config.punctuation.as_deref(),
+        true,
+        |c, p| c.punctuation = Some(p),
+    );
+    punctuation.set_tooltip_text(Some(
+        "sherpa-onnx online-punct-en: gives a session's draft sentences",
+    ));
     // What the app will use: the environment's, when it overrides.
     for (row, var) in [(&binary, "TELEPROMPT_BIN"), (&model, "TELEPROMPT_MODEL")] {
         if std::env::var_os(var).is_some() {
@@ -175,6 +210,7 @@ fn settings(window: &Rc<Window>) {
     });
     group.add(&binary);
     group.add(&model);
+    group.add(&punctuation);
     group.add(&locale);
     group.add(&countdown);
     let page = adw::PreferencesPage::new();

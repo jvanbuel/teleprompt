@@ -13,10 +13,12 @@ prompter API (`docs/design.md#prompter-api-version-1`). It needs:
   `cargo install --path crates/teleprompt-cli --features listen`
 - a speech model: download and unpack
   [sherpa-onnx-streaming-zipformer-en-2023-06-26](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2)
-- GTK 4.14, libadwaita 1.5 and GStreamer, with the plugins to play the
-  captured clips. On Ubuntu 24.04:
+- GTK 4.14, libadwaita 1.5, VTE for GTK 4 (session mode's terminal),
+  GStreamer with the plugins to play the captured clips, and ffmpeg (a
+  session's microphone). On Ubuntu 24.04:
 
-      sudo apt install libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev \
+      sudo apt install libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev ffmpeg \
+        libgstreamer1.0-dev \
         libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good \
         gstreamer1.0-libav libgtk-4-media-gstreamer
 
@@ -49,7 +51,22 @@ To install it with a launcher entry:
 | s | show or hide the monitor |
 | Ctrl+Shift+S | the monitor in its own window, for a second display |
 
-A take starts after a count of three; Settings turns that off. The server
+A take starts after a count of three; Settings turns that off.
+
+## Drafting from a session
+
+The app has a second mode for a script that doesn't exist yet: **Draft
+from a session…** on the start page, or Ctrl+N. Name the new script, and a
+terminal opens. Press space to start recording, then talk while you use
+the terminal, as if showing someone. Exit the shell, press Ctrl+Space or
+click Stop to finish: `teleprompt record` drafts the script, with what you
+said as its lines and what you typed as its tapes, and it opens in the
+prompter to read back and re-take. Space types into the terminal while it
+records, so it only starts the recording.
+
+Set a punctuation model in Settings to give the draft sentences (see
+`docs/guide/recording.md`). The microphone is the system's default
+input, or ffmpeg's input in `TELEPROMPT_RECORD_MIC`. The server
 stops with the app, even if the app is killed. The look is described in
 `apps/DESIGN.md`.
 
@@ -58,6 +75,7 @@ stops with the app, even if the app is killed. The look is described in
     cargo test                        # the API, launching, the state
     TELEPROMPT_BIN=… TELEPROMPT_MODEL=… cargo test   # and the real server
     TELEPROMPT_BIN=… TELEPROMPT_MODEL=… tests/ui.sh  # and the window
+    TELEPROMPT_BIN=… TELEPROMPT_MODEL=… tests/session.sh  # and session mode
 
 `tests/end_to_end.rs` launches the real server and reads it a recording of
 `apps/fixtures/tour`. `tests/ui.sh` runs the app itself under Xvfb with that

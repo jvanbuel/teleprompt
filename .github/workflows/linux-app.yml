@@ -44,7 +44,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
             libgtk-4-media-gstreamer xvfb xdotool imagemagick ffmpeg
       # The server the app launches, with the recognizer.
@@ -71,6 +71,7 @@ jobs:
           cargo clippy --all-targets -- -D warnings
           cargo test
           UI_SHOTS=${{ runner.temp }}/shots tests/ui.sh
+          UI_SHOTS=${{ runner.temp }}/shots/session tests/session.sh
       - name: Screenshots
         if: always()
         uses: actions/upload-artifact@v7

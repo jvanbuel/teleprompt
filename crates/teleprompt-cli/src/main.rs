@@ -66,7 +66,7 @@ struct RecordArgs {
     punctuation: Option<PathBuf>,
     /// ffmpeg's input for the microphone, e.g. "-f alsa -i default";
     /// defaults to the system's default input
-    #[arg(long, allow_hyphen_values = true)]
+    #[arg(long, allow_hyphen_values = true, env = "TELEPROMPT_RECORD_MIC")]
     mic: Option<String>,
     /// Replace the script, and its lines' takes, if they exist
     #[arg(long)]

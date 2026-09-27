@@ -14,10 +14,12 @@ use teleprompt_gtk::launch::{LaunchEvent, LaunchRequest, ServerProcess};
 use teleprompt_gtk::mic::{Mic, RATE};
 use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
+use vte4::prelude::*;
 
 use super::config::Config;
 use super::glass::Glass;
 use super::monitor::Monitor;
+use super::session::SessionPage;
 use super::tally::Tally;
 
 /// What background threads tell the window, tagged with the launch they
@@ -51,6 +53,7 @@ struct Widgets {
     failed: adw::StatusPage,
     glass: Glass,
     monitor: Monitor,
+    session: SessionPage,
     tally: Tally,
     toasts: adw::ToastOverlay,
     text_css: gtk::CssProvider,
@@ -76,6 +79,14 @@ struct Model {
     media: Option<gtk::MediaFile>,
     /// Screens in windows of their own.
     screens: Vec<gtk::Picture>,
+    /// Session mode: the script a session is drafted into, and the
+    /// `teleprompt record` recording it, once started.
+    session: Option<Session>,
+}
+
+struct Session {
+    script: PathBuf,
+    recording: Option<glib::Pid>,
 }
 
 impl Window {
@@ -151,7 +162,12 @@ impl Window {
             let plain = !modifiers.intersects(
                 gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::ALT_MASK,
             );
-            if key == gtk::gdk::Key::space && plain && !typing && this.space() {
+            let control = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
+            if key != gtk::gdk::Key::space {
+                return glib::Propagation::Proceed;
+            }
+            // Ctrl+Space stops a session: space itself is typed into it.
+            if (control && this.stop_session()) || (plain && !typing && this.space()) {
                 glib::Propagation::Stop
             } else {
                 glib::Propagation::Proceed
@@ -171,10 +187,25 @@ impl Window {
 
         let weak = Rc::downgrade(this);
         self.w.record.connect_clicked(move |_| {
-            if let Some(this) = weak.upgrade() {
+            let Some(this) = weak.upgrade() else { return };
+            if this.session_recording() == Some(true) {
+                this.stop_session();
+            } else if this.session_recording() == Some(false) {
+                this.start_session();
+            } else {
                 this.record_or_keep();
             }
         });
+
+        let weak = Rc::downgrade(this);
+        self.w
+            .session
+            .terminal
+            .connect_child_exited(move |_, status| {
+                if let Some(this) = weak.upgrade() {
+                    this.session_ended(status);
+                }
+            });
 
         let weak = Rc::downgrade(this);
         self.w.reopen.connect_clicked(move |_| {
@@ -192,13 +223,157 @@ impl Window {
         });
     }
 
-    /// Space, in whichever mode is showing; false when it has nothing to do.
+    /// Space, in whichever mode is showing; false when it has nothing to do
+    /// (a session under way, where space is typed).
     fn space(self: &Rc<Self>) -> bool {
-        if self.w.stack.visible_child_name().as_deref() != Some("ready") {
-            return false;
+        match self.w.stack.visible_child_name().as_deref() {
+            Some("ready") => self.record_or_keep(),
+            Some("session") if self.session_recording() == Some(false) => self.start_session(),
+            _ => return false,
         }
-        self.record_or_keep();
         true
+    }
+
+    /// Whether session mode is recording; `None` outside session mode.
+    fn session_recording(&self) -> Option<bool> {
+        if self.w.stack.visible_child_name().as_deref() != Some("session") {
+            return None;
+        }
+        let model = self.model.borrow();
+        model.session.as_ref().map(|s| s.recording.is_some())
+    }
+
+    /// Session mode, drafting into `script`: space starts it recording.
+    pub fn new_session(&self, script: PathBuf) {
+        self.shutdown();
+        {
+            let mut model = self.model.borrow_mut();
+            model.generation += 1;
+            model.state = PrompterState::default();
+            model.session = Some(Session {
+                script: script.clone(),
+                recording: None,
+            });
+            model.take_time = Duration::ZERO;
+            model.take_since = None;
+            model.state.status = Status::info(format!("Drafting {}", file_name(&script)));
+        }
+        self.w.title.set_title(&file_name(&script));
+        self.w.title.set_subtitle("Draft from a session");
+        self.w.session.terminal.reset(true, true);
+        self.w.session.show_idle(&script);
+        self.w.stack.set_visible_child_name("session");
+        self.w.session.root.grab_focus();
+        self.show_status();
+        self.show_record();
+    }
+
+    /// Runs `teleprompt record` in the session's terminal.
+    fn start_session(self: &Rc<Self>) {
+        let (argv, dir) = {
+            let model = self.model.borrow();
+            let Some(session) = &model.session else {
+                return;
+            };
+            let (Some(binary), Some(speech)) = (model.config.binary(), model.config.model()) else {
+                drop(model);
+                return self.show_failed(&[
+                    "Set the teleprompt binary and the speech model in Settings (Ctrl+,).".into(),
+                ]);
+            };
+            (
+                super::session::record_argv(
+                    &binary,
+                    &session.script,
+                    &speech,
+                    model.config.punctuation.as_deref(),
+                ),
+                super::session::project_dir(&session.script),
+            )
+        };
+        let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+        let weak = Rc::downgrade(self);
+        self.w.session.terminal.spawn_async(
+            vte4::PtyFlags::DEFAULT,
+            dir.to_str(),
+            &argv,
+            &[],
+            glib::SpawnFlags::DEFAULT,
+            || {},
+            -1,
+            gio::Cancellable::NONE,
+            move |spawned| {
+                let Some(this) = weak.upgrade() else { return };
+                match spawned {
+                    Ok(pid) => this.session_started(pid),
+                    Err(e) => this.show_failed(&[format!("Could not start recording: {e}")]),
+                }
+            },
+        );
+    }
+
+    fn session_started(&self, pid: glib::Pid) {
+        {
+            let mut model = self.model.borrow_mut();
+            let Some(session) = model.session.as_mut() else {
+                return;
+            };
+            session.recording = Some(pid);
+            let model = &mut *model;
+            model.take_time = Duration::ZERO;
+            model.take_since = Some(Instant::now());
+            model.state.listening = true;
+            model.state.status =
+                Status::info("Recording: talk as you work, and exit the shell to stop");
+        }
+        self.w.session.show_recording();
+        self.show_status();
+        self.show_record();
+    }
+
+    /// Stops a session under way; `teleprompt record` drafts the script as
+    /// if the shell had exited. False when there is none.
+    fn stop_session(&self) -> bool {
+        let pid = {
+            let model = self.model.borrow();
+            model.session.as_ref().and_then(|s| s.recording)
+        };
+        let Some(pid) = pid else { return false };
+        // SAFETY: a signal to the child this terminal spawned.
+        unsafe {
+            libc::kill(pid.0, libc::SIGTERM);
+        }
+        self.model.borrow_mut().state.status = Status::info("Drafting the script…");
+        self.show_status();
+        true
+    }
+
+    /// `teleprompt record` ended: open the draft to read back, or say why
+    /// there is none.
+    fn session_ended(self: &Rc<Self>, status: i32) {
+        let script = {
+            let mut model = self.model.borrow_mut();
+            model.state.listening = false;
+            let Some(session) = model.session.as_mut() else {
+                return;
+            };
+            session.recording = None;
+            session.script.clone()
+        };
+        self.stop_clock();
+        if status == 0 && script.exists() {
+            self.model.borrow_mut().session = None;
+            self.open(script.clone());
+            self.w.toasts.add_toast(adw::Toast::new(&format!(
+                "Drafted {}: read it back, and re-take any line",
+                file_name(&script)
+            )));
+            return;
+        }
+        self.model.borrow_mut().state.status = Status::error("The session did not become a script");
+        self.w.session.show_failed();
+        self.show_status();
+        self.show_record();
     }
 
     /// Space and the Record button: a take from the line you are on, or
@@ -340,6 +515,9 @@ impl Window {
             model.socket = Some(socket);
             model.state = PrompterState::default();
             model.state.load(script);
+            // A clock left from a session, or another script, starts over.
+            model.take_time = Duration::ZERO;
+            model.take_since = None;
             model.state.status = Status::info("Press space to record from here, or click a line");
         }
         // Opened now, so a take starts the moment it is asked for.
@@ -738,7 +916,18 @@ impl Window {
         let model = self.model.borrow();
         self.w.tally.set_status(&model.state.status);
         self.w.tally.set_on_air(model.state.listening);
-        let keys: &[(&str, &str)] = if model.counting {
+        let session = self
+            .w
+            .stack
+            .visible_child_name()
+            .is_some_and(|n| n == "session");
+        let keys: &[(&str, &str)] = if session {
+            if model.state.listening {
+                &[("Ctrl Space", "Stop")]
+            } else {
+                &[("Space", "Record")]
+            }
+        } else if model.counting {
             &[("Space", "Cancel")]
         } else if model.paused {
             &[("Space", "Keep take"), ("P", "Resume")]
@@ -769,6 +958,19 @@ impl Window {
 
     /// The header's one action: record, or keep the take under way.
     fn show_record(&self) {
+        if let Some(recording) = self.session_recording() {
+            self.w.record.set_visible(true);
+            self.w.tally.root.set_visible(true);
+            self.w
+                .record_label
+                .set_label(if recording { "Stop" } else { "Record" });
+            if recording {
+                self.w.record.add_css_class("keep");
+            } else {
+                self.w.record.remove_css_class("keep");
+            }
+            return;
+        }
         let taking = self.is_taking();
         let ready = self.model.borrow().socket.is_some();
         self.w.record.set_visible(ready);
@@ -809,6 +1011,7 @@ impl Window {
 
     /// Stops the microphone, the session and the server.
     pub fn shutdown(&self) {
+        self.stop_session();
         let mut model = self.model.borrow_mut();
         if let Some(socket) = model.socket.take() {
             let _ = socket.send(Outgoing::Close);
@@ -896,6 +1099,8 @@ impl Widgets {
         stack.add_named(&loading, Some("loading"));
         stack.add_named(&failed, Some("failed"));
         stack.add_named(&paned, Some("ready"));
+        let session = SessionPage::new();
+        stack.add_named(&session.root, Some("session"));
         let record_label = gtk::Label::new(Some("Record"));
         let record_inner = gtk::Box::builder().spacing(8).build();
         record_inner.append(
@@ -921,6 +1126,7 @@ impl Widgets {
             failed,
             glass,
             monitor,
+            session,
             tally: super::tally::Tally::new(),
             toasts: adw::ToastOverlay::new(),
             text_css,
@@ -954,7 +1160,8 @@ impl Widgets {
                 .label(
                     "Open a script and read it aloud. The words follow your voice, \
                      each shot plays as you reach it, and every line you finish is \
-                     kept as a take.",
+                     kept as a take. Or draft a new script by talking while you use \
+                     a terminal.",
                 )
                 .wrap(true)
                 .max_width_chars(46)
@@ -968,9 +1175,15 @@ impl Widgets {
             .css_classes(["pill", "primary"])
             .build();
         let reopen = gtk::Button::builder().css_classes(["pill"]).build();
+        let session = gtk::Button::builder()
+            .label("Draft from a session…")
+            .action_name("app.session")
+            .css_classes(["pill"])
+            .build();
         let buttons = gtk::Box::builder().spacing(12).margin_top(10).build();
         buttons.append(&open);
         buttons.append(&reopen);
+        buttons.append(&session);
         page.append(&buttons);
         (page_for_column, reopen)
     }
@@ -1074,6 +1287,7 @@ impl Widgets {
         );
         let menu = gio::Menu::new();
         menu.append(Some("Record from the top"), Some("app.take-top"));
+        menu.append(Some("Draft from a session…"), Some("app.session"));
         menu.append(Some("Screen in its own window"), Some("app.screen-window"));
         menu.append(Some("Settings"), Some("app.settings"));
         header.pack_end(
