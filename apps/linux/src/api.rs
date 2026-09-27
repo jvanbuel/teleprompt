@@ -26,6 +26,10 @@ pub struct Line {
     pub text: String,
     /// Whether the line has a take read from it as it now reads.
     pub recorded: bool,
+    /// Whether it has a take of other words: reworded since, to be
+    /// recorded again. Absent from servers before it was added.
+    #[serde(default)]
+    pub stale: bool,
 }
 
 impl Line {

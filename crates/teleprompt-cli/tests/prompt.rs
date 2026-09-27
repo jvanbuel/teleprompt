@@ -285,8 +285,8 @@ fn the_script_lists_lines_and_shots() {
         serde_json::json!({
             "name": "tour.md",
             "lines": [
-                { "id": "welcome", "text": LINES[0], "recorded": false },
-                { "id": "deploy", "text": LINES[1], "recorded": false },
+                { "id": "welcome", "text": LINES[0], "recorded": false, "stale": false },
+                { "id": "deploy", "text": LINES[1], "recorded": false, "stale": false },
             ],
             "shots": [
                 { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },
@@ -572,8 +572,8 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
     };
     // Edited once: the second shot moved to the first line's sixth word.
     let edited = std::sync::Mutex::new(Some({
-        let mut moved = shots();
-        moved[1].at = Position { line: 0, word: 5 };
+        let mut moved = prompt.clone();
+        moved.shots[1].at = Position { line: 0, word: 5 };
         moved
     }));
     let reload: teleprompt_cli::cmd::prompt::Reload =

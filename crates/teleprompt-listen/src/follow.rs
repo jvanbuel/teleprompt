@@ -34,6 +34,14 @@ impl<R: Recognizer> Follower<R> {
         }
     }
 
+    /// The script's lines as they now read, after an edit; the reader is
+    /// back at the top.
+    pub fn set_lines(&mut self, lines: &[&str]) {
+        self.aligner = Aligner::new(lines);
+        self.recognizer.reset();
+        self.reported = None;
+    }
+
     /// A new take: the reader is back at the top, and nothing heard before
     /// carries into it.
     pub fn restart(&mut self) {

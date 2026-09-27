@@ -220,17 +220,41 @@ fn the_script_names_each_shot_and_its_clip() {
     assert_eq!(f.session.clip("../secret"), None);
 }
 
-/// An edit places the shots again, but never under a take already
-/// playing them: only between takes.
+/// An edit reloads the script, but never under a take already playing
+/// it: only between takes.
 #[test]
-fn shots_are_placed_again_only_between_takes() {
+fn a_script_is_reloaded_only_between_takes() {
     let mut f = session("prompter-replace", &[]);
-    let mut moved = prompt(&f.dir).shots;
-    moved[1].at = pos(0, 1);
+    let mut edited = prompt(&f.dir);
+    edited.shots[1].at = pos(0, 1);
     f.session.start(0);
-    assert!(!f.session.replace_shots(moved.clone()));
+    assert!(!f.session.replace(edited.clone()));
     assert_eq!(f.session.script().shots[1].at, pos(0, 3));
     f.session.stop().unwrap();
-    assert!(f.session.replace_shots(moved));
+    assert!(f.session.replace(edited));
     assert_eq!(f.session.script().shots[1].at, pos(0, 1));
+}
+
+/// A line reworded since its take is stale, to be recorded again; the
+/// reader is followed through its new words.
+#[test]
+fn a_reworded_line_is_stale_and_followed_as_it_now_reads() {
+    let mut f = session("prompter-reworded", &["deployment is just"]);
+    let takes = f.dir.join("takes");
+    let pcm = teleprompt_voice::Pcm {
+        sample_rate: 16_000,
+        channels: 1,
+        samples: vec![0; 16_000],
+    };
+    let mut store = teleprompt_voice::takes::Takes::load(&takes).unwrap();
+    store.save("deploy", LINES[1], &pcm).unwrap();
+    let mut edited = prompt(&f.dir);
+    edited.lines[1] = "Deployment is just one command.".into();
+    assert!(f.session.replace(edited));
+    let script = f.session.script();
+    assert_eq!(script.lines[1].text, "Deployment is just one command.");
+    assert!(script.lines[1].stale && !script.lines[1].recorded);
+    assert!(!script.lines[0].stale);
+    f.session.start(1);
+    assert_eq!(f.session.listen(&silence(1600), 16_000).at, pos(1, 3));
 }

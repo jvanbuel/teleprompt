@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use teleprompt_listen::Recognizer;
-use teleprompt_prompter::{Position, Prompt, Reached, Script, Session, ShotCue, LISTEN_RATE};
+use teleprompt_prompter::{Position, Prompt, Reached, Script, Session, LISTEN_RATE};
 use tungstenite::handshake::derive_accept_key;
 use tungstenite::protocol::Role;
 use tungstenite::{Message, WebSocket};
@@ -59,23 +59,7 @@ pub fn run_prompt(
     })?;
     let recognizer =
         teleprompt_listen_sherpa::SherpaRecognizer::new(dir).map_err(PromptError::Runtime)?;
-    let (compiled, _) = crate::cmd::check::compile_script(project, script, locale)
-        .map_err(PromptError::Validation)?;
-    let prompt = Prompt {
-        name: script
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default(),
-        shots: teleprompt_prompter::shot_cues(&compiled),
-        ids: compiled
-            .narration
-            .iter()
-            .map(|n| n.line_id.clone())
-            .collect(),
-        lines: compiled.narration.into_iter().map(|n| n.text).collect(),
-        clips: project.caches().clips(),
-        takes: project.takes_dir(),
-    };
+    let prompt = prompt_of(project, script, locale).map_err(PromptError::Validation)?;
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
         .map_err(|e| PromptError::Runtime(format!("cannot listen on port {port}: {e}")))?;
     let addr = listener
@@ -89,29 +73,42 @@ pub fn run_prompt(
             .flush()
             .map_err(|e| PromptError::Runtime(e.to_string()))?;
     }
-    let edited = reload_on_edit(project, script, locale, &prompt.lines);
+    let edited = reload_on_edit(project, script, locale);
     prompt_watching(listener, prompt, recognizer, Some(edited))
         .map_err(|e| PromptError::Runtime(e.to_string()))
 }
 
-/// The script's shots again whenever its file has changed since last
-/// asked, for a script edited while it is being read: a shot moved or
-/// stretched. `None` when it has not changed, does not compile, or its
-/// lines changed too, which only reopening it can follow.
-pub fn reload_on_edit(
+/// What the prompter shows of `script`, as it now reads.
+fn prompt_of(
     project: &Project,
     script: &std::path::Path,
     locale: &str,
-    lines: &[String],
-) -> Reload {
+) -> Result<Prompt, Vec<String>> {
+    let (compiled, _) = crate::cmd::check::compile_script(project, script, locale)?;
+    Ok(Prompt {
+        name: script
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        shots: teleprompt_prompter::shot_cues(&compiled),
+        ids: compiled
+            .narration
+            .iter()
+            .map(|n| n.line_id.clone())
+            .collect(),
+        lines: compiled.narration.into_iter().map(|n| n.text).collect(),
+        clips: project.caches().clips(),
+        takes: project.takes_dir(),
+    })
+}
+
+/// The script again whenever its file has changed since last asked, for
+/// one edited while it is being read: a shot moved or stretched, a line
+/// reworded. `None` when it has not changed, or does not compile.
+pub fn reload_on_edit(project: &Project, script: &std::path::Path, locale: &str) -> Reload {
     let modified = |p: &std::path::Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
     let seen = Mutex::new(modified(script));
-    let (project, script, locale, lines) = (
-        project.clone(),
-        script.to_path_buf(),
-        locale.to_string(),
-        lines.to_vec(),
-    );
+    let (project, script, locale) = (project.clone(), script.to_path_buf(), locale.to_string());
     Box::new(move || {
         let now = modified(&script);
         let mut seen = seen.lock().unwrap_or_else(PoisonError::into_inner);
@@ -119,21 +116,12 @@ pub fn reload_on_edit(
             return None;
         }
         *seen = now;
-        let (compiled, _) = crate::cmd::check::compile_script(&project, &script, &locale).ok()?;
-        let same = compiled.narration.iter().map(|n| &n.text).eq(lines.iter());
-        if !same {
-            eprintln!(
-                "{}'s lines changed: reopen it to read them",
-                script.display()
-            );
-            return None;
-        }
-        Some(teleprompt_prompter::shot_cues(&compiled))
+        prompt_of(&project, &script, &locale).ok()
     })
 }
 
-/// The script's shots anew, if it has changed.
-pub type Reload = Box<dyn Fn() -> Option<Vec<ShotCue>> + Send + Sync>;
+/// The script anew, if it has changed.
+pub type Reload = Box<dyn Fn() -> Option<Prompt> + Send + Sync>;
 
 /// A build without the recognizer cannot follow anyone; it says how to get
 /// one.
@@ -234,10 +222,10 @@ impl<R: Recognizer> Server<R> {
             FONT_PATH => ("200 OK", "font/woff2", FONT.to_vec()),
             "/api/v1/script" => {
                 // Compiled outside the lock, which the session needs.
-                let shots = self.reload.as_ref().and_then(|r| r());
+                let edited = self.reload.as_ref().and_then(|r| r());
                 let mut session = self.session();
-                if let Some(shots) = shots {
-                    session.replace_shots(shots);
+                if let Some(prompt) = edited {
+                    session.replace(prompt);
                 }
                 json(script(session.script()))
             }
@@ -354,7 +342,7 @@ fn script(s: Script) -> serde_json::Value {
     let lines: Vec<_> = s
         .lines
         .iter()
-        .map(|l| serde_json::json!({ "id": l.id, "text": l.text, "recorded": l.recorded }))
+        .map(|l| serde_json::json!({ "id": l.id, "text": l.text, "recorded": l.recorded, "stale": l.stale }))
         .collect();
     let shots: Vec<_> = s
         .shots

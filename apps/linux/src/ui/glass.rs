@@ -33,6 +33,8 @@ struct Shared {
     layout: RefCell<Layout>,
     /// Per line: recorded.
     recorded: RefCell<Vec<bool>>,
+    /// Per line: reworded since its take.
+    stale: RefCell<Vec<bool>>,
     current: Cell<usize>,
     /// The buffer offset the reading line should hold.
     target: Cell<Option<i32>>,
@@ -115,6 +117,7 @@ impl Glass {
         *self.shared.layout.borrow_mut() = layout;
         *self.shared.recorded.borrow_mut() =
             state.script.lines.iter().map(|l| l.recorded).collect();
+        *self.shared.stale.borrow_mut() = state.script.lines.iter().map(|l| l.stale).collect();
         self.show_position(state);
     }
 
@@ -197,6 +200,7 @@ impl Glass {
             let _ = cr.fill();
             let layout = shared.layout.borrow();
             let recorded = shared.recorded.borrow();
+            let stale = shared.stale.borrow();
             let buffer = view.buffer();
             for (line, &(start, _)) in layout.lines.iter().enumerate() {
                 let cy = line_centre(
@@ -216,6 +220,8 @@ impl Glass {
                 // Beside its number, clear of the reading line's arrow.
                 if recorded.get(line).copied().unwrap_or(false) {
                     tick(cr, x - 12.0, cy);
+                } else if stale.get(line).copied().unwrap_or(false) {
+                    reworded(cr, x - 12.0, cy);
                 }
             }
         });
@@ -248,6 +254,16 @@ fn line_centre(view: &gtk::TextView, iter: &gtk::TextIter, window: gtk::TextWind
     let glyphs = view.iter_location(iter);
     let (_, wy) = view.buffer_to_window_coords(window, 0, y);
     f64::from(wy) + f64::from(glyphs.height()) / 2.0
+}
+
+/// The mark of a line reworded since its take: an amber ring, to be read
+/// again.
+fn reworded(cr: &cairo::Context, x: f64, y: f64) {
+    cr.set_source_rgb(1.0, 0.72, 0.0);
+    cr.set_line_width(2.0);
+    cr.new_sub_path();
+    cr.arc(x, y, 4.5, 0.0, std::f64::consts::TAU);
+    let _ = cr.stroke();
 }
 
 /// The recorded mark: a small green tick.

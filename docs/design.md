@@ -287,7 +287,7 @@ are all tested against them.
 
 | route | does |
 |---|---|
-| `GET /api/v1/script` | `{"lines":[{"id","text","recorded"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. If the script's file changed since last asked, its shots are placed again first (a timeline edit moved or stretched one); a change to its lines needs it reopened |
+| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded |
 | `GET /api/v1/clips/<key>.mp4` | a cued shot's clip; nothing else in the cache |
 | `GET /api/v1/session` | the session socket; one at a time, a second gets 409 |
 

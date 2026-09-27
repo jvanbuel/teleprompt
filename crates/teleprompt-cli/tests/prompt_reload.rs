@@ -1,7 +1,6 @@
-//! A script edited while it is read: the prompter places its shots again
-//! when only its shots changed, and leaves them when its lines did.
+//! A script edited while it is read: the prompter reloads it, shots moved
+//! and lines reworded alike.
 
-use teleprompt_cli::cmd::check::compile_script;
 use teleprompt_cli::cmd::prompt::reload_on_edit;
 use teleprompt_cli::project::Project;
 
@@ -11,14 +10,12 @@ fn later() {
 }
 
 #[test]
-fn a_moved_shot_is_placed_again_and_changed_lines_are_not() {
+fn an_edited_script_is_reloaded_shots_and_lines_alike() {
     let dir = teleprompt_testkit::test_dir("prompt-reload-edit");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
     let project = Project::for_script(&script).unwrap();
-    let (compiled, _) = compile_script(&project, &script, "en").unwrap();
-    let lines: Vec<String> = compiled.narration.iter().map(|n| n.text.clone()).collect();
-    let reload = reload_on_edit(&project, &script, "en", &lines);
+    let reload = reload_on_edit(&project, &script, "en");
 
     // Unchanged: nothing to place.
     assert!(reload().is_none());
@@ -34,8 +31,8 @@ fn a_moved_shot_is_placed_again_and_changed_lines_are_not() {
         ),
     )
     .unwrap();
-    let shots = reload().expect("the shots, placed again");
-    assert!(shots[0].at.word > 0, "{:?}", shots[0].at);
+    let prompt = reload().expect("the script, reloaded");
+    assert!(prompt.shots[0].at.word > 0, "{:?}", prompt.shots[0].at);
     // Asked again without an edit since: nothing new.
     assert!(reload().is_none());
 
@@ -46,5 +43,10 @@ fn a_moved_shot_is_placed_again_and_changed_lines_are_not() {
         text.replacen("Welcome to teleprompt.", "Hello there.", 1),
     )
     .unwrap();
-    assert!(reload().is_none(), "changed lines need the script reopened");
+    let prompt = reload().expect("reworded lines, reloaded");
+    assert!(
+        prompt.lines[0].starts_with("Hello there."),
+        "{:?}",
+        prompt.lines
+    );
 }

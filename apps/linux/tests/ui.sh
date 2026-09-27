@@ -9,6 +9,33 @@
 # Needs xvfb-run, xdotool, ImageMagick and ffmpeg. Screenshots are left in
 # $UI_SHOTS (default: a temporary directory), one every half second.
 set -euo pipefail
+if [ "${1:-}" = --retake ]; then
+  # A second run, with the takes the first kept: a line reworded while the
+  # script is open is re-recorded on its own, with R.
+  export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1
+  export XDG_CONFIG_HOME="$work/config" XDG_CACHE_HOME="$work/cache"
+  export TELEPROMPT_MIC="filesrc location=$work/reading.wav ! wavparse"
+  "$app" "$work/project/scripts/tour.md" >"$work/app2.log" 2>&1 &
+  pid=$!
+  for _ in $(seq 120); do
+    red=$(import -window root -crop 1x1+1030+27 -format "%[fx:r>0.8&&g<0.4]" info: 2>/dev/null || echo 0)
+    [ "$red" = 1 ] && break
+    sleep 0.5
+  done
+  window=$(xdotool search --name '^Teleprompt$' | head -1)
+  xdotool windowfocus --sync "$window"
+  sed -i 's/Let me show you around\./Let me show you around!/' "$work/project/scripts/tour.md"
+  sleep 3
+  import -window root "$shots/200-reworded.png"
+  xdotool key r
+  for i in $(seq -w 1 24); do
+    sleep 0.5
+    import -window root "$shots/2$i-retaking.png"
+  done
+  kill "$pid"
+  wait "$pid" || true
+  exit 0
+fi
 if [ "${1:-}" = --drive ]; then
   # Inside xvfb-run, with $app, $work and $shots set by the outer run.
   export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1
@@ -135,6 +162,13 @@ if [ -s "$work/project/build/tour.en.mp4" ]; then
   echo "ok: Ctrl+B built the video"
 else
   echo "FAIL: no video built"; fail=1
+fi
+xvfb-run -a -s "-screen 0 1400x860x24" "$0" --retake
+if grep -q 'show you around!' "$work/project/takes/welcome.json" \
+  && grep -q 'Deployment is one command' "$work/project/takes/deploy.json"; then
+  echo "ok: R re-recorded the reworded line, and only it"
+else
+  echo "FAIL: the reworded line was not re-recorded"; cat "$work/project/takes/"*.json; tail -5 "$work/app2.log"; fail=1
 fi
 # The app was killed, not closed: its server must have gone with it.
 for _ in $(seq 10); do

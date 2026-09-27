@@ -71,6 +71,12 @@ impl Takes {
         self.meta.get(id).filter(|t| t.text == text)
     }
 
+    /// Whether line `id` has a take of other words than `text`: reworded
+    /// since it was recorded, so due to be recorded again.
+    pub fn stale(&self, id: &str, text: &str) -> bool {
+        self.meta.get(id).is_some_and(|t| t.text != text)
+    }
+
     /// Records `pcm` as the take of line `id`, read from `text`, replacing
     /// any earlier one. The audio is written before the sidecar that
     /// vouches for it, each renamed into place.

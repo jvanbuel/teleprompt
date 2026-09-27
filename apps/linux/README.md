@@ -46,6 +46,7 @@ To install it with a launcher entry:
 | Ctrl+T | record from the top |
 | Return | keep the take |
 | p | pause or resume |
+| r | record the lines reworded since their takes again, one after another |
 | m | mirror the text, for beam-splitter glass |
 | + / − | text size |
 | s | show or hide the monitor |
@@ -55,6 +56,13 @@ To install it with a launcher entry:
 | Ctrl+B | capture, then build the video |
 
 A take starts after a count of three; Settings turns that off.
+
+## Rewording a line
+
+Edit the script while it's open, in any editor: the app reloads it, and a
+line reworded since its take gets an amber ring in the margin, since its
+take no longer says what it says. Press R to record those lines again,
+one after another: each is kept as you read past it, and the next starts.
 
 ## The timeline
 

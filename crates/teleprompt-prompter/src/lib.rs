@@ -91,6 +91,7 @@ fn word_at(text: &str, offset_ms: u64, duration_ms: u64) -> usize {
 }
 
 /// What the prompter shows and plays.
+#[derive(Debug, Clone)]
 pub struct Prompt {
     /// The script's name, as its reader knows it: its file name.
     pub name: String,
@@ -128,6 +129,9 @@ pub struct ScriptLine {
     pub text: String,
     /// Whether the line has a take read from it as it now reads.
     pub recorded: bool,
+    /// Whether it has a take of other words: reworded since, to be
+    /// recorded again.
+    pub stale: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -247,16 +251,28 @@ impl<R: Recognizer> Session<R> {
         Ok(saved)
     }
 
-    /// The script's shots, placed again: after an edit moved or stretched
-    /// one, its lines as they were. Not during a take, whose shots are
-    /// already playing: false then, and nothing changes.
-    pub fn replace_shots(&mut self, shots: Vec<ShotCue>) -> bool {
+    /// The script as it was edited: a shot moved or stretched, a line
+    /// reworded. Not during a take, which is reading the script it began
+    /// with: false then, and nothing changes.
+    pub fn replace(&mut self, prompt: Prompt) -> bool {
         if self.take.is_some() {
             return false;
         }
-        self.cues = Cues::new(shots.iter().map(|s| s.at).collect());
+        let texts: Vec<&str> = prompt.lines.iter().map(String::as_str).collect();
+        self.follower.set_lines(&texts);
+        self.cues = Cues::new(prompt.shots.iter().map(|s| s.at).collect());
+        let last = prompt.lines.len().saturating_sub(1);
+        self.at = Position {
+            line: self.at.line.min(last),
+            word: 0,
+        };
         self.cues.restart_at(self.at);
-        self.prompt.shots = shots;
+        // Its takes as they are now, too: which lines are recorded, and of
+        // what words.
+        if let Ok(takes) = Takes::load(&prompt.takes) {
+            self.takes = takes;
+        }
+        self.prompt = prompt;
         true
     }
 
@@ -270,6 +286,7 @@ impl<R: Recognizer> Session<R> {
                 id: id.clone(),
                 text: text.clone(),
                 recorded: self.takes.current(id, text).is_some(),
+                stale: self.takes.stale(id, text),
             })
             .collect();
         let shots = self

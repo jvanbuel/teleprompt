@@ -13,6 +13,7 @@ use teleprompt_gtk::api::{ClientMessage, Script, ServerMessage};
 use teleprompt_gtk::launch::{LaunchEvent, LaunchRequest, ServerProcess};
 use teleprompt_gtk::make::{self, Job, Progress};
 use teleprompt_gtk::mic::{Mic, RATE};
+use teleprompt_gtk::retake::Queue;
 use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
 use teleprompt_gtk::timeline::{self as plan, Edit, Timeline};
@@ -104,6 +105,10 @@ struct Model {
     undo: Vec<String>,
     /// A capture or build is under way.
     making: bool,
+    /// The reworded lines being recorded again, one after another.
+    queue: Option<Queue>,
+    /// The script file, watched for edits made elsewhere.
+    watch: Option<gio::FileMonitor>,
 }
 
 struct Session {
@@ -474,6 +479,7 @@ impl Window {
         match key {
             Key::Return | Key::KP_Enter => self.keep(),
             Key::p => self.toggle_pause(),
+            Key::r => self.retake(),
             Key::m => self
                 .w
                 .glass
@@ -495,12 +501,16 @@ impl Window {
         let generation = self.model.borrow().generation;
         match event {
             Event::Launch(g, e) if g == generation => self.launched(e),
-            Event::Connected(g, result) if g == generation => self.connected(result),
+            Event::Connected(g, result) if g == generation => {
+                self.connected(result);
+                self.watch_script();
+            }
             Event::Incoming(g, incoming) if g == generation => self.incoming(incoming),
             Event::Refreshed(g, script) if g == generation => {
                 self.model.borrow_mut().state.script = script;
                 self.render();
                 self.replan();
+                self.show_reworded();
             }
             Event::Clip(g, shot, clip) if g == generation => self.clip_fetched(&shot, clip),
             Event::Tools(g, tools) if g == generation => self.tools_listed(tools),
@@ -802,7 +812,7 @@ impl Window {
         self.w.timeline.set_current(line);
     }
 
-    fn incoming(&self, incoming: Incoming) {
+    fn incoming(self: &Rc<Self>, incoming: Incoming) {
         match incoming {
             Incoming::Message(message) => {
                 let (before, stopped, played) = {
@@ -828,6 +838,9 @@ impl Window {
                     // The status bar says what was kept, and the gutter ticks it.
                     self.show_record();
                     self.play();
+                    self.retake_next();
+                } else if self.queued_line_read() {
+                    self.keep();
                 }
             }
             Incoming::Closed(Some(why)) => {
@@ -838,6 +851,109 @@ impl Window {
             Incoming::Closed(None) => {}
         }
         self.show_status();
+    }
+
+    /// Starts the retake queue: the lines reworded since their takes,
+    /// recorded one after another.
+    pub fn retake(self: &Rc<Self>) {
+        if self.is_taking() || self.model.borrow().queue.is_some() {
+            return;
+        }
+        let queue = Queue::of(&self.model.borrow().state.script);
+        let Some(line) = queue.line() else {
+            self.w
+                .toasts
+                .add_toast(adw::Toast::new("No line has been reworded since its take"));
+            return;
+        };
+        self.model.borrow_mut().queue = Some(queue);
+        self.take(line);
+        self.show_queue();
+    }
+
+    /// Whether the line the queue is re-recording has been read.
+    fn queued_line_read(&self) -> bool {
+        let model = self.model.borrow();
+        model.state.listening && model.queue.as_ref().is_some_and(|q| q.read(model.state.at))
+    }
+
+    /// A queued line kept: on to the next, once its take is saved.
+    fn retake_next(self: &Rc<Self>) {
+        let next = {
+            let mut model = self.model.borrow_mut();
+            let Some(queue) = model.queue.as_mut() else {
+                return;
+            };
+            let next = queue.advance();
+            if next.is_none() {
+                let done = queue.len();
+                model.queue = None;
+                model.state.status = Status::info(format!(
+                    "Re-recorded {done} line{}",
+                    if done == 1 { "" } else { "s" }
+                ));
+            }
+            next
+        };
+        let Some(line) = next else {
+            return self.show_status();
+        };
+        let weak = Rc::downgrade(self);
+        glib::timeout_add_local_once(Duration::from_millis(600), move || {
+            if let Some(this) = weak.upgrade() {
+                this.take(line);
+                this.show_queue();
+            }
+        });
+    }
+
+    fn show_queue(&self) {
+        let says = self.model.borrow().queue.as_ref().map(Queue::says);
+        if let Some(says) = says {
+            self.model.borrow_mut().state.status = Status::info(format!("Re-recording {says}"));
+            self.show_status();
+        }
+    }
+
+    /// Says how many lines were reworded since their takes, when no take
+    /// or queue is under way.
+    fn show_reworded(&self) {
+        if self.is_taking() || self.model.borrow().queue.is_some() {
+            return;
+        }
+        let n = Queue::of(&self.model.borrow().state.script).len();
+        if n > 0 {
+            self.model.borrow_mut().state.status = Status::info(format!(
+                "{n} line{} reworded since recorded · R to record {}",
+                if n == 1 { "" } else { "s" },
+                if n == 1 { "it again" } else { "them again" }
+            ));
+            self.show_status();
+        }
+    }
+
+    /// Watches the script file: an edit made elsewhere reloads it.
+    fn watch_script(self: &Rc<Self>) {
+        let Some(script) = self.model.borrow().config.last_script.clone() else {
+            return;
+        };
+        let Ok(monitor) = gio::File::for_path(&script)
+            .monitor_file(gio::FileMonitorFlags::NONE, gio::Cancellable::NONE)
+        else {
+            return;
+        };
+        let weak = Rc::downgrade(self);
+        monitor.connect_changed(move |_, _, _, event| {
+            if matches!(
+                event,
+                gio::FileMonitorEvent::ChangesDoneHint | gio::FileMonitorEvent::Created
+            ) {
+                if let Some(this) = weak.upgrade() {
+                    this.refresh();
+                }
+            }
+        });
+        self.model.borrow_mut().watch = Some(monitor);
     }
 
     /// Reads the script again, for which lines are now recorded.
@@ -1550,6 +1666,7 @@ impl Widgets {
         );
         let menu = gio::Menu::new();
         menu.append(Some("Record from the top"), Some("app.take-top"));
+        menu.append(Some("Record reworded lines again"), Some("app.retake"));
         menu.append(Some("Capture shots"), Some("app.capture"));
         menu.append(Some("Build video"), Some("app.build"));
         menu.append(Some("Draft from a session…"), Some("app.session"));

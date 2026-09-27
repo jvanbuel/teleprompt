@@ -86,3 +86,17 @@ fn a_line_id_cannot_write_outside_the_takes_directory() {
         assert!(takes.save(id, TEXT, &pcm(10)).is_err(), "{id:?}");
     }
 }
+
+/// A line reworded since its take is stale: it has a take, of other words.
+/// One never recorded has none, and is not.
+#[test]
+fn a_take_of_other_words_is_stale_and_no_take_is_not() {
+    let dir = teleprompt_testkit::test_dir("takes-stale");
+    let mut takes = Takes::load(&dir).unwrap();
+    takes
+        .save("welcome", "Welcome to Acme.", &pcm(500))
+        .unwrap();
+    assert!(takes.stale("welcome", "Welcome to Acme, everyone."));
+    assert!(!takes.stale("welcome", "Welcome to Acme."));
+    assert!(!takes.stale("deploy", "Deploying is one command."));
+}
