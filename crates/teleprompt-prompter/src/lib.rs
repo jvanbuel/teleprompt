@@ -132,6 +132,9 @@ pub struct ScriptLine {
     /// Whether it has a take of other words: reworded since, to be
     /// recorded again.
     pub stale: bool,
+    /// The line as its take was heard to say it, where that is other
+    /// words: to keep instead of reading it again.
+    pub said: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -157,6 +160,8 @@ pub struct Session<R> {
 }
 
 struct Take {
+    /// The line it started on.
+    from: usize,
     rate: u32,
     audio: Vec<f32>,
     log: TakeLog,
@@ -192,6 +197,7 @@ impl<R: Recognizer> Session<R> {
         let mut log = TakeLog::new(from);
         log.heard(self.at, 0);
         self.take = Some(Take {
+            from,
             rate: LISTEN_RATE,
             audio: Vec::new(),
             log,
@@ -225,30 +231,55 @@ impl<R: Recognizer> Session<R> {
         self.reached()
     }
 
-    /// Ends the take, keeping each line read in full as that line's take;
-    /// the ids of the lines kept.
+    /// Ends the take, keeping each line read in full as that line's take,
+    /// with what it is heard to say on its own; the ids of the lines kept.
     pub fn stop(&mut self) -> std::io::Result<Vec<String>> {
         let mut saved = Vec::new();
-        if let Some(take) = self.take.take() {
-            for (line, span) in take.log.lines(&take.audio, take.rate) {
-                let (Some(id), Some(text)) =
-                    (self.prompt.ids.get(line), self.prompt.lines.get(line))
-                else {
-                    continue;
-                };
-                let pcm = Pcm {
-                    sample_rate: take.rate,
-                    channels: 1,
-                    samples: take.audio[span]
-                        .iter()
-                        .map(|&s| (s * 32768.0).round().clamp(-32768.0, 32767.0) as i16)
-                        .collect(),
-                };
-                self.takes.save(id, text, &pcm)?;
-                saved.push(id.clone());
+        let Some(take) = self.take.take() else {
+            return Ok(saved);
+        };
+        let lines = take.log.lines(&take.audio, take.rate);
+        let heard = if lines.is_empty() {
+            Vec::new()
+        } else {
+            self.heard(&take)
+        };
+        for (line, span) in lines {
+            let (Some(id), Some(text)) = (self.prompt.ids.get(line), self.prompt.lines.get(line))
+            else {
+                continue;
+            };
+            let pcm = Pcm {
+                sample_rate: take.rate,
+                channels: 1,
+                samples: take.audio[span]
+                    .iter()
+                    .map(|&s| (s * 32768.0).round().clamp(-32768.0, 32767.0) as i16)
+                    .collect(),
+            };
+            match heard.get(line - take.from).filter(|h| !h.is_empty()) {
+                Some(heard) => self.takes.save_heard(id, text, heard, &pcm)?,
+                None => self.takes.save(id, text, &pcm)?,
             }
+            saved.push(id.clone());
         }
         Ok(saved)
+    }
+
+    /// What `take` says, heard again whole, so no word is heard cut, and
+    /// split among the lines from the one it started on.
+    fn heard(&mut self, take: &Take) -> Vec<String> {
+        let transcript = if take.rate == LISTEN_RATE {
+            self.follower.transcribe(&take.audio)
+        } else {
+            let at_rate = Resampler::new(take.rate, LISTEN_RATE).push(&take.audio);
+            self.follower.transcribe(&at_rate)
+        };
+        let lines: Vec<&str> = self.prompt.lines[take.from.min(self.prompt.lines.len())..]
+            .iter()
+            .map(String::as_str)
+            .collect();
+        teleprompt_core::said::per_line(&lines, &transcript)
     }
 
     /// The script as it was edited: a shot moved or stretched, a line
@@ -287,6 +318,7 @@ impl<R: Recognizer> Session<R> {
                 text: text.clone(),
                 recorded: self.takes.current(id, text).is_some(),
                 stale: self.takes.stale(id, text),
+                said: self.takes.said(id, text),
             })
             .collect();
         let shots = self

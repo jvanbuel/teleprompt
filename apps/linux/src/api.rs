@@ -30,6 +30,10 @@ pub struct Line {
     /// recorded again. Absent from servers before it was added.
     #[serde(default)]
     pub stale: bool,
+    /// The line as its take was heard to say it, where that is other
+    /// words: to keep instead of reading it again.
+    #[serde(default)]
+    pub said: Option<String>,
 }
 
 impl Line {

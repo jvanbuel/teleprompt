@@ -14,6 +14,7 @@ fn script(stale: &[bool]) -> Script {
                 text: "Some words here.".into(),
                 recorded: !stale,
                 stale,
+                said: None,
             })
             .collect(),
         shots: Vec::new(),

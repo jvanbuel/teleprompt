@@ -2,6 +2,7 @@
 //! server, the microphone and the screen.
 
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::{mpsc, Arc, Mutex};
@@ -15,6 +16,7 @@ use teleprompt_gtk::make::{self, Job, Progress};
 use teleprompt_gtk::mic::{Mic, RATE};
 use teleprompt_gtk::retake::Queue;
 use teleprompt_gtk::ribbons;
+use teleprompt_gtk::said;
 use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
 use teleprompt_gtk::timeline::{self as plan, Edit, Timeline};
@@ -49,6 +51,8 @@ enum Event {
     Planned(u64, Result<Timeline, String>),
     /// A drag's edit written, said as the author would; or why not.
     Edited(u64, Result<String, String>),
+    /// A line reworded to what its take says; or why not.
+    Reworded(u64, Result<String, String>),
     /// How far a capture or build has got.
     Making(u64, Progress),
     /// A capture or build done: the video, for a build; or why it failed.
@@ -115,6 +119,10 @@ struct Model {
     /// The shot the monitor shows still, for a word hovered in Edit mode,
     /// and how far into it.
     scrub: Option<(String, u64)>,
+    /// Lines said as other words, by id and those words: offered once, and
+    /// the ones the author kept the script for.
+    said_offered: HashSet<(String, String)>,
+    said_declined: HashSet<(String, String)>,
     /// The script file, watched for edits made elsewhere.
     watch: Option<gio::FileMonitor>,
 }
@@ -513,6 +521,7 @@ impl Window {
             Key::Return | Key::KP_Enter => self.keep(),
             Key::p => self.toggle_pause(),
             Key::r => self.retake(),
+            Key::w => self.review_said(),
             Key::e => self.w.edit.set_active(!self.w.edit.is_active()),
             Key::m => self
                 .w
@@ -545,11 +554,13 @@ impl Window {
                 self.render();
                 self.replan();
                 self.show_reworded();
+                self.offer_said();
             }
             Event::Clip(g, shot, clip) if g == generation => self.clip_fetched(&shot, clip),
             Event::Tools(g, tools) if g == generation => self.tools_listed(tools),
             Event::Planned(g, planned) if g == generation => self.planned(planned),
             Event::Edited(g, edited) if g == generation => self.edited(edited),
+            Event::Reworded(g, reworded) if g == generation => self.reworded(reworded),
             Event::Making(g, progress) if g == generation => {
                 self.w.timeline.set_working(Some(progress.fraction()));
                 self.model.borrow_mut().state.status = Status::info(progress.label());
@@ -953,6 +964,142 @@ impl Window {
 
     /// Says how many lines were reworded since their takes, when no take
     /// or queue is under way.
+    /// A take kept of other words than its line's: a toast offers to keep
+    /// what was said, once for those words.
+    fn offer_said(&self) {
+        if self.is_taking() || self.model.borrow().queue.is_some() {
+            return;
+        }
+        let fresh: Vec<(usize, (String, String))> = {
+            let model = self.model.borrow();
+            model
+                .state
+                .script
+                .lines
+                .iter()
+                .enumerate()
+                .filter_map(|(i, l)| Some((i, (l.id.clone(), l.said.clone()?))))
+                .filter(|(_, key)| !model.said_offered.contains(key))
+                .collect()
+        };
+        let Some(&(first, _)) = fresh.first() else {
+            return;
+        };
+        self.model
+            .borrow_mut()
+            .said_offered
+            .extend(fresh.iter().map(|(_, k)| k.clone()));
+        let title = if fresh.len() == 1 {
+            format!("Line {} was said in other words", first + 1)
+        } else {
+            format!("{} lines were said in other words", fresh.len())
+        };
+        let toast = adw::Toast::builder()
+            .title(title)
+            .button_label("Review")
+            .action_name("app.review-said")
+            .timeout(8)
+            .build();
+        self.w.toasts.add_toast(toast);
+    }
+
+    /// The next line said in other words than it reads, as a diff: keep
+    /// what was said, or the script.
+    pub fn review_said(self: &Rc<Self>) {
+        if self.is_taking() {
+            return;
+        }
+        let next = {
+            let model = self.model.borrow();
+            model
+                .state
+                .script
+                .lines
+                .iter()
+                .enumerate()
+                .find_map(|(i, l)| {
+                    let said = l.said.clone()?;
+                    let key = (l.id.clone(), said.clone());
+                    (!model.said_declined.contains(&key)).then(|| (i, l.text.clone(), key))
+                })
+        };
+        let Some((line, text, (id, said))) = next else {
+            self.w
+                .toasts
+                .add_toast(adw::Toast::new("Every line reads as it was said"));
+            return;
+        };
+        let body = gtk::Label::builder()
+            .use_markup(true)
+            .wrap(true)
+            .css_classes(["said"])
+            .label(said::markup(&said::diff(&text, &said)))
+            .build();
+        let dialog = adw::AlertDialog::builder()
+            .heading(format!("Keep what you said on line {}?", line + 1))
+            .body("The take says this, not what the line reads. Keep it, and the line is reworded to match: nothing to record again.")
+            .extra_child(&body)
+            .build();
+        dialog.add_responses(&[("script", "Keep the Script"), ("said", "Use What I Said")]);
+        dialog.set_response_appearance("said", adw::ResponseAppearance::Suggested);
+        dialog.set_default_response(Some("said"));
+        dialog.set_close_response("script");
+        let weak = Rc::downgrade(self);
+        dialog.connect_response(None, move |_, response| {
+            let Some(this) = weak.upgrade() else { return };
+            if response == "said" {
+                this.keep_said(id.clone(), line);
+            } else {
+                this.model
+                    .borrow_mut()
+                    .said_declined
+                    .insert((id.clone(), said.clone()));
+            }
+        });
+        dialog.present(Some(&self.window));
+    }
+
+    /// `teleprompt edit <script> said <id>`, off the main thread.
+    fn keep_said(&self, id: String, line: usize) {
+        let model = self.model.borrow();
+        let (Some(binary), Some(script)) =
+            (model.config.binary(), model.config.last_script.clone())
+        else {
+            return;
+        };
+        let (events, generation) = (self.events.clone(), model.generation);
+        std::thread::spawn(move || {
+            let out = std::process::Command::new(&binary)
+                .arg("edit")
+                .arg(&script)
+                .args(["said", &id])
+                .output();
+            let result = match out {
+                Ok(o) if o.status.success() => {
+                    Ok(format!("Line {} now reads as you said it", line + 1))
+                }
+                Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
+                Err(e) => Err(format!("cannot run {}: {e}", binary.display())),
+            };
+            let _ = events.send_blocking(Event::Reworded(generation, result));
+        });
+    }
+
+    fn reworded(&self, reworded: Result<String, String>) {
+        let text = match reworded {
+            Ok(said) => said,
+            Err(why) => {
+                let reason = why
+                    .lines()
+                    .find(|l| l.starts_with("error:"))
+                    .map_or(why.as_str(), |l| l.trim_start_matches("error:").trim());
+                format!("Not reworded: {reason}")
+            }
+        };
+        self.w.toasts.add_toast(adw::Toast::new(&text));
+        self.refresh();
+    }
+
     fn show_reworded(&self) {
         if self.is_taking() || self.model.borrow().queue.is_some() {
             return;
@@ -1177,6 +1324,10 @@ impl Window {
     /// Shows the shot that should be playing: fetches its clip, or shows
     /// why there is none.
     fn play(&self) {
+        // A still hovered in Edit mode stays until the pointer leaves it.
+        if self.model.borrow().scrub.is_some() && !self.is_taking() {
+            return;
+        }
         let (playing, clip, started) = {
             let model = self.model.borrow();
             (
@@ -1797,6 +1948,7 @@ impl Widgets {
         let menu = gio::Menu::new();
         menu.append(Some("Record from the top"), Some("app.take-top"));
         menu.append(Some("Record reworded lines again"), Some("app.retake"));
+        menu.append(Some("Keep what you said…"), Some("app.review-said"));
         menu.append(Some("Capture shots"), Some("app.capture"));
         menu.append(Some("Build video"), Some("app.build"));
         menu.append(Some("Draft from a session…"), Some("app.session"));

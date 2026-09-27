@@ -1,9 +1,10 @@
 //! Editing a script where a timeline drag says: a block's start moved
-//! along its line, off it, or onto another line, or its shots stretched.
+//! along its line, off it, or onto another line, or its shots stretched;
+//! or a line reworded to what its take says.
 //!
 //! Every edit is to the text, the fence's attributes or a block's place,
-//! and leaves the rest of the file as the author wrote it. Lines are never
-//! touched: narration is never re-timed, only the shots are.
+//! and leaves the rest of the file as the author wrote it. A drag never
+//! touches a line: narration is never re-timed, only the shots are.
 
 use std::ops::Range;
 
@@ -28,6 +29,8 @@ pub enum Edit {
     /// Multiply the block's stretch by `by`; a stretch that comes to 1
     /// is removed.
     Stretch { block: String, by: f64 },
+    /// Say line `line` as `text`, keeping its attributes.
+    Reword { line: String, text: String },
 }
 
 /// Applies `edit` to the script `src`.
@@ -57,6 +60,22 @@ pub fn apply(src: &str, edit: &Edit) -> Result<String, String> {
             let value = (next != 1.0).then(|| format!("{next}"));
             let info = with(&b.info, &[("stretch", value.as_deref())]);
             Ok(replace(src, b.info_range.clone(), &info))
+        }
+        Edit::Reword { line, text } => {
+            let range = map.line(line)?.range.clone();
+            let paragraph = &src[range.clone()];
+            // Its `{#id …}`, after the words.
+            let attrs = paragraph
+                .ends_with('}')
+                .then(|| paragraph.rfind('{'))
+                .flatten()
+                .map_or("", |at| &paragraph[at..]);
+            let reworded = if attrs.is_empty() {
+                text.trim().to_string()
+            } else {
+                format!("{} {attrs}", text.trim())
+            };
+            Ok(replace(src, range, &reworded))
         }
         Edit::Move { block, after, word } => {
             let b = map.block(block)?;

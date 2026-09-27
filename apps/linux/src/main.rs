@@ -82,6 +82,7 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
     action("take-top", &["<Control>t"], Box::new(|w| w.take(0)));
     action("undo", &["<Control>z"], Box::new(|w| w.undo()));
     action("retake", &[], Box::new(|w| w.retake()));
+    action("review-said", &[], Box::new(|w| w.review_said()));
     action(
         "capture",
         &["<Control><Shift>c"],

@@ -55,6 +55,36 @@ impl<R: Recognizer> Follower<R> {
         self.reported = None;
     }
 
+    /// Every word in `samples` (at the recognizer's rate), heard afresh:
+    /// what a line's take says. The reader is back at the top after it.
+    pub fn transcribe(&mut self, samples: &[f32]) -> String {
+        const CHUNK: usize = 1600;
+        self.recognizer.reset();
+        // Silence after the end, so the last word is heard out.
+        let tail = [0.0; CHUNK];
+        let mut said = Vec::new();
+        let mut pending = String::new();
+        for chunk in samples
+            .chunks(CHUNK)
+            .chain(std::iter::repeat_n(&tail[..], 10))
+        {
+            let heard = self.recognizer.listen(chunk);
+            if heard.is_final {
+                said.push(heard.text);
+                pending.clear();
+            } else {
+                pending = heard.text;
+            }
+        }
+        said.push(pending);
+        self.restart();
+        said.iter()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     /// Feeds a chunk of audio; where the reader now is, if they moved.
     pub fn listen(&mut self, samples: &[f32]) -> Option<Position> {
         let heard = self.recognizer.listen(samples);

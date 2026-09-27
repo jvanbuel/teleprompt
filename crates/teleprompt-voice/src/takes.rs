@@ -19,6 +19,9 @@ pub struct TakeMeta {
     pub duration_ms: u64,
     /// Of the WAV's bytes.
     pub audio_hash: Hash,
+    /// What the recognizer heard, where it listened.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heard: Option<String>,
 }
 
 /// The takes in one directory, by line id.
@@ -81,6 +84,46 @@ impl Takes {
     /// any earlier one. The audio is written before the sidecar that
     /// vouches for it, each renamed into place.
     pub fn save(&mut self, id: &str, text: &str, pcm: &Pcm) -> std::io::Result<()> {
+        self.save_take(id, text, None, pcm)
+    }
+
+    /// As [`save`](Self::save), with what the recognizer heard said.
+    pub fn save_heard(
+        &mut self,
+        id: &str,
+        text: &str,
+        heard: &str,
+        pcm: &Pcm,
+    ) -> std::io::Result<()> {
+        self.save_take(id, text, Some(heard), pcm)
+    }
+
+    /// Line `id` as its current take was heard to say it, where that is
+    /// other words than `text` (`teleprompt_core::said`).
+    pub fn said(&self, id: &str, text: &str) -> Option<String> {
+        let heard = self.current(id, text)?.heard.as_deref()?;
+        teleprompt_core::said::reworded(text, heard)
+    }
+
+    /// Line `id`'s take, now of the words `text`: the line was reworded to
+    /// what the take says.
+    pub fn retext(&mut self, id: &str, text: &str) -> std::io::Result<()> {
+        let path = self.dir.join(format!("{id}.json"));
+        let Some(take) = self.meta.get_mut(id) else {
+            return Err(named(&path, Error::from(ErrorKind::NotFound)));
+        };
+        take.text = text.to_string();
+        let sidecar = serde_json::to_vec_pretty(take).map_err(Error::other)?;
+        write_atomic(&path, &sidecar)
+    }
+
+    fn save_take(
+        &mut self,
+        id: &str,
+        text: &str,
+        heard: Option<&str>,
+        pcm: &Pcm,
+    ) -> std::io::Result<()> {
         if id.is_empty() || id.starts_with('.') || id.contains(['/', '\\']) {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -93,6 +136,7 @@ impl Takes {
             text: text.to_string(),
             duration_ms: pcm.duration_ms(),
             audio_hash: Hash::of(&bytes),
+            heard: heard.map(str::to_string),
         };
         let sidecar = serde_json::to_vec_pretty(&take).map_err(Error::other)?;
         write_atomic(&self.dir.join(format!("{id}.wav")), &bytes)?;

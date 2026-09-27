@@ -10,6 +10,7 @@ fn the_script_example_reads() {
     assert_eq!(ids, ["welcome", "deploy"]);
     assert_eq!(script.lines[0].words().count(), 8);
     assert!(!script.lines[0].stale);
+    assert_eq!(script.lines[0].said, None);
     let at: Vec<Position> = script.shots.iter().map(|s| s.at).collect();
     let pos = |line, word| Position { line, word };
     assert_eq!(at, [pos(0, 0), pos(0, 3), pos(1, 0)]);

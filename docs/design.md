@@ -258,6 +258,18 @@ the line `recorded`. Editing the line leaves its take behind, and the line
 is synthesized again until it is re-recorded. Once a project has any
 takes, every command that compiles names the lines it still synthesizes.
 
+A take kept by the prompter also holds what the recognizer heard in it,
+`heard`: the take is transcribed again whole when it stops, so no word is
+heard cut at a line's edge, and its words are split among the lines it
+read. Where they are other words than the line's, the prompter offers the
+line as it was said (`teleprompt_core::said`): the script's own words
+with their capitals and punctuation, the words heard where they differ,
+and a dropped sentence end moved to the word before. A small streaming
+model mishears, so a word a letter off in three, or heard split in two
+("a round"), counts as the script's word and offers nothing. `teleprompt edit <script>
+said <line>` writes it into the script and gives the take the new words,
+so it stays current: keeping what you said instead of reading it again.
+
 `prompt` records takes. The prompter is `teleprompt-prompter`, a
 `Session` with typed calls (`start`, `listen`, `stop`, `script`, `clip`);
 `teleprompt prompt` serves it as an API and the page that drives it, so
@@ -287,7 +299,7 @@ are all tested against them.
 
 | route | does |
 |---|---|
-| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded |
+| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `teleprompt edit <script> said <line>` keeps it. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded |
 | `GET /api/v1/clips/<key>.mp4` | a cued shot's clip; nothing else in the cache |
 | `GET /api/v1/session` | the session socket; one at a time, a second gets 409 |
 

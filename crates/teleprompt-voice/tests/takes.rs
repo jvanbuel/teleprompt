@@ -100,3 +100,54 @@ fn a_take_of_other_words_is_stale_and_no_take_is_not() {
     assert!(!takes.stale("welcome", "Welcome to Acme."));
     assert!(!takes.stale("deploy", "Deploying is one command."));
 }
+
+/// What the recognizer heard is kept with the take: where it is other
+/// words than the line's, the line as it was said.
+#[test]
+fn a_take_heard_saying_other_words_offers_them() {
+    let dir = teleprompt_testkit::test_dir("takes-heard");
+    let takes = dir.join("takes");
+    let text = "Let me show you around the office!";
+    let mut store = Takes::load(&takes).unwrap();
+    store
+        .save_heard("welcome", text, "LET ME SHOW YOU AROUND", &pcm(500))
+        .unwrap();
+    store
+        .save_heard("deploy", "Deploy it.", "DEPLOY IT", &pcm(500))
+        .unwrap();
+    store.save("plain", "No ears.", &pcm(500)).unwrap();
+
+    let loaded = Takes::load(&takes).unwrap();
+    assert_eq!(
+        loaded.said("welcome", text).as_deref(),
+        Some("Let me show you around!")
+    );
+    assert_eq!(loaded.said("deploy", "Deploy it."), None, "said as written");
+    assert_eq!(loaded.said("plain", "No ears."), None, "nothing heard");
+    assert_eq!(loaded.said("welcome", "Reworded since."), None, "stale");
+    // A take saved without hearing it says nothing of it.
+    let sidecar = std::fs::read_to_string(takes.join("plain.json")).unwrap();
+    assert!(!sidecar.contains("heard"), "{sidecar}");
+}
+
+/// The line reworded to what was said: the take is current for it, the
+/// same audio.
+#[test]
+fn a_take_retexted_is_current_for_its_new_words() {
+    let dir = teleprompt_testkit::test_dir("takes-retext");
+    let takes = dir.join("takes");
+    let text = "Let me show you around the office!";
+    let mut store = Takes::load(&takes).unwrap();
+    store
+        .save_heard("welcome", text, "LET ME SHOW YOU AROUND", &pcm(500))
+        .unwrap();
+    let said = store.said("welcome", text).unwrap();
+    store.retext("welcome", &said).unwrap();
+
+    let loaded = Takes::load(&takes).unwrap();
+    assert!(loaded.current("welcome", &said).is_some());
+    assert!(loaded.current("welcome", text).is_none());
+    assert_eq!(loaded.said("welcome", &said), None);
+    assert!(loaded.read("welcome").is_ok(), "the audio is still its own");
+    assert!(Takes::load(&takes).unwrap().retext("nope", "x").is_err());
+}

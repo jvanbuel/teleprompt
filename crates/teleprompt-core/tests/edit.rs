@@ -243,3 +243,27 @@ fn a_block_moved_onto_its_own_line_is_cued_in_place() {
     });
     assert_eq!(moved, cued);
 }
+
+#[test]
+fn a_line_reworded_keeps_its_id_and_everything_else() {
+    let out = edit(Edit::Reword {
+        line: "look".into(),
+        text: "Let's see what's here.".into(),
+    });
+    assert_eq!(
+        out,
+        SCRIPT.replace(
+            "Let's see what is here, and what it does. {#look}",
+            "Let's see what's here. {#look}"
+        )
+    );
+    let err = apply(
+        SCRIPT,
+        &Edit::Reword {
+            line: "nope".into(),
+            text: "x".into(),
+        },
+    )
+    .unwrap_err();
+    assert!(err.contains("nope"), "{err}");
+}

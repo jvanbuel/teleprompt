@@ -342,7 +342,7 @@ fn script(s: Script) -> serde_json::Value {
     let lines: Vec<_> = s
         .lines
         .iter()
-        .map(|l| serde_json::json!({ "id": l.id, "text": l.text, "recorded": l.recorded, "stale": l.stale }))
+        .map(|l| serde_json::json!({ "id": l.id, "text": l.text, "recorded": l.recorded, "stale": l.stale, "said": l.said }))
         .collect();
     let shots: Vec<_> = s
         .shots

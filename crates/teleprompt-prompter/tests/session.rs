@@ -258,3 +258,38 @@ fn a_reworded_line_is_stale_and_followed_as_it_now_reads() {
     f.session.start(1);
     assert_eq!(f.session.listen(&silence(1600), 16_000).at, pos(1, 3));
 }
+
+/// The take is heard again whole, and each line kept gets its part of
+/// what was heard: where it is other words, the script offers the line as
+/// said.
+#[test]
+fn a_line_kept_saying_other_words_offers_them() {
+    const LINE_0: &str = "welcome to acme let me show you around";
+    let mut heard = vec![""; 5];
+    heard.extend(["welcome to"; 6]);
+    heard.extend([LINE_0; 7]);
+    heard.extend([""; 5]);
+    heard.extend(["deployment is"; 7]);
+    // Heard again, the kept line says less, and the next one begins.
+    heard.extend(["welcome to acme let me show you deployment is"; 40]);
+    let mut f = session("prompter-said", &heard);
+    f.session.start(0);
+    let take = audio(&[(0.3, false), (1.2, true), (0.8, false), (0.7, true)]);
+    for chunk in take.chunks(1_600) {
+        f.session.listen(chunk, 16_000);
+    }
+    assert_eq!(f.session.stop().unwrap(), ["welcome"]);
+
+    let script = f.session.script();
+    assert!(script.lines[0].recorded);
+    assert_eq!(
+        script.lines[0].said.as_deref(),
+        Some("Welcome to Acme. Let me show you.")
+    );
+    assert_eq!(script.lines[1].said, None);
+    let sidecar = std::fs::read_to_string(f.dir.join("takes/welcome.json")).unwrap();
+    assert!(
+        sidecar.contains("\"heard\": \"welcome to acme let me show you\""),
+        "{sidecar}"
+    );
+}

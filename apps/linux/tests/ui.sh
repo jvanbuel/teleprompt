@@ -24,7 +24,7 @@ if [ "${1:-}" = --retake ]; then
   done
   window=$(xdotool search --name '^Teleprompt$' | head -1)
   xdotool windowfocus --sync "$window"
-  sed -i 's/Let me show you around\./Let me show you around!/' "$work/project/scripts/tour.md"
+  sed -i 's/Let me show you around\./Let me show you around the office!/' "$work/project/scripts/tour.md"
   sleep 3
   import -window root "$shots/200-reworded.png"
   xdotool key r
@@ -32,6 +32,13 @@ if [ "${1:-}" = --retake ]; then
     sleep 0.5
     import -window root "$shots/2$i-retaking.png"
   done
+  # The reading never said "the office": keep what was said instead.
+  xdotool key w
+  sleep 1.5
+  import -window root "$shots/230-said.png"
+  xdotool key Return
+  sleep 4
+  import -window root "$shots/231-kept-said.png"
   kill "$pid"
   wait "$pid" || true
   exit 0
@@ -187,11 +194,12 @@ else
   echo "FAIL: no video built"; fail=1
 fi
 xvfb-run -a -s "-screen 0 1400x860x24" "$0" --retake
-if grep -q 'show you around!' "$work/project/takes/welcome.json" \
+if grep -q '"text": "Welcome to Acme. Let me show you around!"' "$work/project/takes/welcome.json" \
+  && grep -q '^Welcome to Acme. Let me show you around! {#welcome}$' "$work/project/scripts/tour.md" \
   && grep -q 'Deployment is one command' "$work/project/takes/deploy.json"; then
-  echo "ok: R re-recorded the reworded line, and only it"
+  echo "ok: R re-recorded the reworded line, and only it; W kept what was said"
 else
-  echo "FAIL: the reworded line was not re-recorded"; cat "$work/project/takes/"*.json; tail -5 "$work/app2.log"; fail=1
+  echo "FAIL: the reworded line was not re-recorded, or what was said not kept"; cat "$work/project/scripts/tour.md" "$work/project/takes/"*.json; tail -5 "$work/app2.log"; fail=1
 fi
 # The app was killed, not closed: its server must have gone with it.
 for _ in $(seq 10); do

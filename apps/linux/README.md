@@ -48,6 +48,7 @@ To install it with a launcher entry:
 | p | pause or resume |
 | r | record the lines reworded since their takes again, one after another |
 | e | Edit mode: the shots on the glass, to drag (again: Read mode) |
+| w | review a line said in other words than it reads: keep what you said, or the script |
 | m | mirror the text, for beam-splitter glass |
 | + / − | text size |
 | s | show or hide the monitor |
@@ -64,6 +65,18 @@ Edit the script while it's open, in any editor: the app reloads it, and a
 line reworded since its take gets an amber ring in the margin, since its
 take no longer says what it says. Press R to record those lines again,
 one after another: each is kept as you read past it, and the next starts.
+
+## Keeping what you said
+
+When a take stops, the recognizer hears it again whole, and a line you
+said in other words than it reads gets a blue dot beside its tick, and a
+toast. Press W (or **Review** on the toast, or **Keep what you said…** in
+the menu) to see the difference: the words you didn't say struck through,
+the ones you said instead in bold. **Use What I Said** rewords the line
+to match with `teleprompt edit <script> said <line>`, and its take stays
+current: nothing to record again. **Keep the Script** leaves it, to read
+again. A small recognizer mishears, so a word a letter off, or heard as
+two ("a round"), doesn't count as other words.
 
 ## The timeline
 

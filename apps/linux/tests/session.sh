@@ -49,7 +49,13 @@ if [ "${1:-}" = --drive ]; then
     sleep 1
     [ -f "$work/project/scripts/session.md" ] && break
   done
-  sleep 6
+  # The draft opens in the prompter, whose server loads the model first:
+  # the red Record button shows when it has.
+  for _ in $(seq 60); do
+    red=$(import -window root -crop 1x1+1030+27 -format "%[fx:r>0.8&&g<0.4]" info: 2>/dev/null || echo 0)
+    [ "$red" = 1 ] && break
+    sleep 0.5
+  done
   import -window root "$shots/04-drafted.png"
   kill "$pid"
   wait "$pid" || true

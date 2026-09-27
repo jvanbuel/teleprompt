@@ -92,3 +92,45 @@ fn an_edit_that_breaks_the_script_is_not_written() {
     let after = std::fs::read_to_string(dir.join("scripts/demo.md")).unwrap();
     assert_eq!(before, after);
 }
+
+/// A line whose take was heard saying other words is reworded to them,
+/// and its take is current for the new words: nothing to record again.
+#[test]
+fn said_rewords_a_line_to_what_its_take_says() {
+    let dir = teleprompt_testkit::test_dir("edit-said");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let text = "Welcome to teleprompt. This paragraph is a narration line, and its spoken \
+                length decides how long the visuals below stay on screen.";
+    let pcm = teleprompt_voice::Pcm {
+        sample_rate: 16_000,
+        channels: 1,
+        samples: vec![0; 16_000],
+    };
+    let mut takes = teleprompt_voice::takes::Takes::load(&dir.join("takes")).unwrap();
+    takes
+        .save_heard(
+            "welcome",
+            text,
+            "WELCOME TO TELEPROMPT THIS PARAGRAPH IS A NARRATION LINE",
+            &pcm,
+        )
+        .unwrap();
+
+    let out = tp(&dir, &["edit", "scripts/demo.md", "said", "welcome"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let said = "Welcome to teleprompt. This paragraph is a narration line.";
+    let md = std::fs::read_to_string(dir.join("scripts/demo.md")).unwrap();
+    assert!(md.contains(&format!("{said} {{#welcome}}")), "{md}");
+    let takes = teleprompt_voice::takes::Takes::load(&dir.join("takes")).unwrap();
+    assert!(takes.current("welcome", said).is_some());
+
+    // Said as it now reads: nothing to reword.
+    let again = tp(&dir, &["edit", "scripts/demo.md", "said", "welcome"]);
+    assert!(!again.status.success());
+    let err = String::from_utf8_lossy(&again.stderr);
+    assert!(err.contains("welcome"), "{err}");
+}

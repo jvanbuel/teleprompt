@@ -85,3 +85,43 @@ fn a_take_started_at_a_line_follows_from_it() {
     f.restart_at(1);
     assert_eq!(f.listen(&[0.0; 160]), Some(Position { line: 1, word: 2 }));
 }
+
+/// A recognizer dictating from a list, a hypothesis per chunk; once done,
+/// it holds its last word until reset.
+struct Dictating(VecDeque<Heard>, Heard);
+
+impl Recognizer for Dictating {
+    fn listen(&mut self, _samples: &[f32]) -> Heard {
+        if let Some(next) = self.0.pop_front() {
+            self.1 = next;
+        } else if self.1.is_final {
+            self.1 = partial("");
+        }
+        self.1.clone()
+    }
+
+    fn reset(&mut self) {
+        self.1 = partial("");
+    }
+}
+
+/// A line's audio, heard afresh: every utterance in it, and the last one
+/// heard out by the silence after it.
+#[test]
+fn a_line_s_audio_is_transcribed_across_utterances() {
+    let heard = Dictating(
+        VecDeque::from([
+            partial("welcome to"),
+            Heard {
+                text: "welcome to acme".into(),
+                is_final: true,
+            },
+            partial("let me"),
+        ]),
+        partial(""),
+    );
+    let mut f = Follower::new(heard, SCRIPT);
+    assert_eq!(f.transcribe(&[0.0; 4000]), "welcome to acme let me");
+    // Nothing of it carries into the next take.
+    assert_eq!(f.transcribe(&[0.0; 10]), "");
+}

@@ -285,8 +285,8 @@ fn the_script_lists_lines_and_shots() {
         serde_json::json!({
             "name": "tour.md",
             "lines": [
-                { "id": "welcome", "text": LINES[0], "recorded": false, "stale": false },
-                { "id": "deploy", "text": LINES[1], "recorded": false, "stale": false },
+                { "id": "welcome", "text": LINES[0], "recorded": false, "stale": false, "said": null },
+                { "id": "deploy", "text": LINES[1], "recorded": false, "stale": false, "said": null },
             ],
             "shots": [
                 { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },

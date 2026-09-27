@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
@@ -160,6 +160,8 @@ enum EditCommand {
         #[arg(long)]
         by: f64,
     },
+    /// Reword the line to what its take was heard to say, keeping the take
+    Said { line: String },
 }
 
 impl EditCommand {
@@ -170,6 +172,7 @@ impl EditCommand {
             EditCommand::Hold { block } => Edit::Hold { block },
             EditCommand::Move { block, after, word } => Edit::Move { block, after, word },
             EditCommand::Stretch { block, by } => Edit::Stretch { block, by },
+            EditCommand::Said { .. } => unreachable!("said is run on its own"),
         }
     }
 }
@@ -217,12 +220,14 @@ enum Command {
     /// `--capture-input`) or `vhs record` and your voice at the same time,
     /// or use `teleprompt record`.
     Import(ImportArgs),
-    /// Move or stretch a shot, as a timeline drag does
+    /// Move or stretch a shot, as a timeline drag does; or reword a line
+    /// to what its take says
     ///
     /// Writes the change into the script as the attributes or place a
     /// person would give the block: `policy=concurrent cue="…"`, a move
-    /// after another line, `stretch=`. Lines are never changed. Nothing is
-    /// written if the script would then not compile.
+    /// after another line, `stretch=`. A shot's edit never changes a line;
+    /// `said` rewords one, to keep its take. Nothing is written if the
+    /// script would then not compile.
     Edit {
         script: PathBuf,
         #[command(subcommand)]
@@ -575,6 +580,22 @@ fn main() -> ExitCode {
     ExitCode::from(exit_code_for(&outcome) as u8)
 }
 
+fn run_edit_cmd(format: Format, script: &Path, edit: EditCommand) -> Run {
+    let project = project_for(script)?;
+    let report = match edit {
+        EditCommand::Said { line } => teleprompt_cli::cmd::edit::run_said(&project, script, &line),
+        edit => teleprompt_cli::cmd::edit::run_edit(&project, script, &edit.into_edit()),
+    }
+    .map_err(|e| Outcome::ValidationError(vec![e]))?;
+    let human = if report.changed {
+        format!("edited {}\n", report.script.display())
+    } else {
+        "nothing to change\n".to_string()
+    };
+    emit(format, &report, &human);
+    Ok(Outcome::Ok)
+}
+
 fn run(command: Command, format: Format) -> Run {
     match command {
         Command::New { path } => {
@@ -590,18 +611,7 @@ fn run(command: Command, format: Format) -> Run {
             Ok(Outcome::Ok)
         }
         Command::Import(args) => run_import_cmd(format, args),
-        Command::Edit { script, edit } => {
-            let project = project_for(&script)?;
-            let report = teleprompt_cli::cmd::edit::run_edit(&project, &script, &edit.into_edit())
-                .map_err(|e| Outcome::ValidationError(vec![e]))?;
-            let human = if report.changed {
-                format!("edited {}\n", report.script.display())
-            } else {
-                "nothing to change\n".to_string()
-            };
-            emit(format, &report, &human);
-            Ok(Outcome::Ok)
-        }
+        Command::Edit { script, edit } => run_edit_cmd(format, &script, edit),
         Command::Translate {
             script,
             to,

@@ -38,6 +38,8 @@ struct Shared {
     recorded: RefCell<Vec<bool>>,
     /// Per line: reworded since its take.
     stale: RefCell<Vec<bool>>,
+    /// Per line: its take says other words.
+    said: RefCell<Vec<bool>>,
     current: Cell<usize>,
     /// The buffer offset the reading line should hold.
     target: Cell<Option<i32>>,
@@ -127,6 +129,12 @@ impl Glass {
         *self.shared.recorded.borrow_mut() =
             state.script.lines.iter().map(|l| l.recorded).collect();
         *self.shared.stale.borrow_mut() = state.script.lines.iter().map(|l| l.stale).collect();
+        *self.shared.said.borrow_mut() = state
+            .script
+            .lines
+            .iter()
+            .map(|l| l.said.is_some())
+            .collect();
         self.show_position(state);
     }
 
@@ -210,6 +218,7 @@ impl Glass {
             let layout = shared.layout.borrow();
             let recorded = shared.recorded.borrow();
             let stale = shared.stale.borrow();
+            let said = shared.said.borrow();
             let buffer = view.buffer();
             for (line, &(start, _)) in layout.lines.iter().enumerate() {
                 let cy = line_centre(
@@ -229,6 +238,9 @@ impl Glass {
                 // Beside its number, clear of the reading line's arrow.
                 if recorded.get(line).copied().unwrap_or(false) {
                     tick(cr, x - 12.0, cy);
+                    if said.get(line).copied().unwrap_or(false) {
+                        said_otherwise(cr, x - 12.0, cy);
+                    }
                 } else if stale.get(line).copied().unwrap_or(false) {
                     reworded(cr, x - 12.0, cy);
                 }
@@ -273,6 +285,15 @@ fn reworded(cr: &cairo::Context, x: f64, y: f64) {
     cr.new_sub_path();
     cr.arc(x, y, 4.5, 0.0, std::f64::consts::TAU);
     let _ = cr.stroke();
+}
+
+/// Beside the tick of a take that says other words than its line: a blue
+/// dot, for W to review.
+fn said_otherwise(cr: &cairo::Context, x: f64, y: f64) {
+    cr.set_source_rgb(0.54, 0.71, 0.97);
+    cr.new_sub_path();
+    cr.arc(x - 12.0, y, 3.5, 0.0, std::f64::consts::TAU);
+    let _ = cr.fill();
 }
 
 /// The recorded mark: a small green tick.
