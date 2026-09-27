@@ -50,7 +50,7 @@ fn a_shell_session_is_recorded_with_its_keystrokes() {
         Box::new(Typist(typed)),
         Box::new(std::io::sink()),
         (80, 24),
-        &AtomicBool::new(false),
+        Arc::new(AtomicBool::new(false)),
     )
     .unwrap();
 
@@ -101,7 +101,7 @@ fn a_recording_stopped_from_outside_ends_its_shell() {
         Box::new(Typist(Vec::new())),
         Box::new(std::io::sink()),
         (80, 24),
-        &stop,
+        stop,
     )
     .unwrap();
     assert!(
@@ -110,4 +110,68 @@ fn a_recording_stopped_from_outside_ends_its_shell() {
         began.elapsed()
     );
     assert!(cast.contains("ready"), "{cast}");
+}
+
+/// The record key in the terminal: Ctrl+Shift+Space (like Ctrl+Space)
+/// reaches the program as a NUL byte. It stops the recording, and the
+/// shell never sees it.
+#[test]
+fn the_record_key_typed_in_the_terminal_stops_it() {
+    let typed: Vec<(u64, &'static str)> = vec![
+        (300, "e"),
+        (40, "c"),
+        (40, "h"),
+        (40, "o"),
+        (40, " "),
+        (40, "h"),
+        (40, "i"),
+        (40, "\r"),
+        (500, "\0"),
+        // Never read: the recording is over.
+        (20_000, "x"),
+    ];
+    let shell = vec!["sh".to_string()];
+    let began = Instant::now();
+    let (cast, _) = record_pty(
+        &shell,
+        Box::new(Typist(typed)),
+        Box::new(std::io::sink()),
+        (80, 24),
+        Arc::new(AtomicBool::new(false)),
+    )
+    .unwrap();
+    assert!(
+        began.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        began.elapsed()
+    );
+    let trace = read_cast(&cast).unwrap();
+    let typed: String = trace.input.iter().map(|(_, k)| k.as_str()).collect();
+    assert_eq!(typed, "echo hi\r", "{cast}");
+}
+
+/// What the app reads, since it cannot wait on a terminal it did not
+/// start itself: a recording that cannot start says so in its status file.
+#[test]
+fn a_recording_that_cannot_start_says_why_in_its_status() {
+    let dir = teleprompt_testkit::test_dir("record-status");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let status = dir.join("status.json");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .current_dir(dir.path())
+        .args([
+            "record",
+            "scripts/session.md",
+            "--model",
+            "no-such-model",
+            "--status",
+        ])
+        .arg(&status)
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let status: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&status).unwrap()).unwrap();
+    assert_eq!(status["state"], "failed", "{status}");
+    assert!(status["error"].as_str().unwrap().len() > 10, "{status}");
 }

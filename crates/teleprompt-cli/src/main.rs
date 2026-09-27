@@ -71,6 +71,10 @@ struct RecordArgs {
     /// Replace the script, and its lines' takes, if they exist
     #[arg(long)]
     force: bool,
+    /// Write how the recording is going to this file, as JSON: recording
+    /// (with its pid), drafting, done or failed
+    #[arg(long)]
+    status: Option<PathBuf>,
     /// The program to record instead of $SHELL, with its arguments
     #[arg(last = true)]
     shell: Vec<String>,
@@ -377,6 +381,7 @@ fn run_record(format: Format, args: RecordArgs) -> Run {
         mic,
         shell: args.shell,
         force: args.force,
+        status: args.status.as_deref(),
     })
     .map_err(Outcome::RuntimeFailure)?;
     emit(format, &report, &report.render());

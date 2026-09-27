@@ -59,6 +59,8 @@ fn session(tag: &str, terminate: bool) {
         .arg(&model)
         .arg("--mic")
         .arg(format!("-re -i {}", voice.display()))
+        .arg("--status")
+        .arg(dir.join("status.json"))
         .args(["--", "sh"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -86,6 +88,14 @@ fn session(tag: &str, terminate: bool) {
     let out = record.wait_with_output().unwrap();
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "{stderr}");
+
+    let status: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("status.json")).unwrap()).unwrap();
+    assert_eq!(status["state"], "done", "{status}");
+    assert!(
+        status["script"].as_str().unwrap().ends_with("session.md"),
+        "{status}"
+    );
 
     let md = std::fs::read_to_string(dir.join("scripts/session.md")).unwrap();
     let first = md.find("Welcome to acme").unwrap_or_else(|| panic!("{md}"));

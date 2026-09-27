@@ -26,20 +26,44 @@ pub struct Record<'a> {
     /// The program to record; `$SHELL` when empty.
     pub shell: Vec<String>,
     pub force: bool,
+    /// Where to say how the recording is going, as JSON, for the app that
+    /// started it in a terminal of the author's and cannot wait on it.
+    pub status: Option<&'a Path>,
 }
 
 /// The rate the microphone is recorded at.
 const MIC_RATE: u64 = 48_000;
 
 pub fn run_record(r: &Record) -> Result<ImportReport, String> {
+    let say = |state: serde_json::Value| {
+        if let Some(path) = r.status {
+            let partial = path.with_extension("partial");
+            let _ = std::fs::write(&partial, state.to_string())
+                .and_then(|()| std::fs::rename(&partial, path));
+        }
+    };
+    let result = check(r).and_then(|()| record(r, &say));
+    say(match &result {
+        Ok(report) => serde_json::json!({
+            "state": "done",
+            "script": report.created,
+            "lines": report.lines,
+            "tapes": report.tapes,
+        }),
+        Err(e) => serde_json::json!({ "state": "failed", "error": e }),
+    });
+    result
+}
+
+/// Everything that could stop the import, checked before anything is
+/// recorded rather than after the author has talked for ten minutes.
+fn check(r: &Record) -> Result<(), String> {
     if r.script.exists() && !r.force {
         return Err(format!(
             "{} already exists; pass --force to replace it and its lines' takes",
             r.script.display()
         ));
     }
-    // Everything that could stop the import is checked before anything is
-    // recorded, rather than after the author has talked for ten minutes.
     if !cfg!(feature = "listen") {
         return Err(
             "this teleprompt was built without a speech recognizer: rebuild it \
@@ -53,6 +77,10 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
     if let Some(dir) = r.punctuation.filter(|d| !d.is_dir()) {
         return Err(format!("no punctuation model at {}", dir.display()));
     }
+    Ok(())
+}
+
+fn record(r: &Record, say: &dyn Fn(serde_json::Value)) -> Result<ImportReport, String> {
     let project = Project::for_script(r.script).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -66,8 +94,14 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
 
     let voice = dir.join("voice.wav");
     let mic = Mic::start(&voice, &r.mic)?;
+    say(serde_json::json!({
+        "state": "recording",
+        "pid": std::process::id(),
+        "trace": dir,
+    }));
     eprintln!(
-        "recording {} and the microphone: talk, type, and exit the shell to finish\r",
+        "recording {} and the microphone: talk and type, then press Ctrl+Shift+Space \
+         or exit the shell to finish\r",
         dir.display()
     );
     // SIGTERM ends the recording as exiting the shell does, and the session
@@ -81,7 +115,7 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
         Box::new(std::io::stdin()),
         Box::new(std::io::stdout()),
         terminal_size(),
-        &stop,
+        Arc::clone(&stop),
     );
     drop(raw);
     let mic_started = mic.stop();
@@ -90,6 +124,7 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
     let cast_path = dir.join("session.cast");
     std::fs::write(&cast_path, cast)
         .map_err(|e| format!("cannot write {}: {e}", cast_path.display()))?;
+    say(serde_json::json!({ "state": "drafting" }));
     eprintln!("transcribing {}", voice.display());
     run_import(&Import {
         cast: &cast_path,
@@ -111,14 +146,14 @@ fn signed_ms(a: Instant, b: Instant) -> i64 {
 }
 
 /// Runs `shell` in a pseudo-terminal of `size` (columns, rows) until it
-/// exits or `stop` is set, passing `input` to it and its output to `output`, and returns
+/// exits, `stop` is set, or the record key is typed, passing `input` to it and its output to `output`, and returns
 /// the session as an asciicast (version 2, with input) and when it began.
 pub fn record_pty(
     shell: &[String],
     input: Box<dyn Read + Send>,
     mut output: Box<dyn Write + Send>,
     size: (u16, u16),
-    stop: &AtomicBool,
+    stop: Arc<AtomicBool>,
 ) -> std::io::Result<(String, Instant)> {
     let pty = native_pty_system()
         .openpty(PtySize {
@@ -154,20 +189,25 @@ pub fn record_pty(
         .map_err(std::io::Error::other)?;
     let mut writer = pty.master.take_writer().map_err(std::io::Error::other)?;
     let log = Arc::clone(&events);
+    let pressed = Arc::clone(&stop);
     std::thread::spawn(move || {
         let mut input = input;
         let mut buf = [0u8; 1024];
         let mut text = Utf8::default();
         while let Ok(n @ 1..) = input.read(&mut buf) {
-            let s = text.push(&buf[..n]);
+            // The record key: Ctrl+Shift+Space arrives as NUL, as
+            // Ctrl+Space does. What came before it still counts.
+            let key = buf[..n].iter().position(|&b| b == 0);
+            let keys = &buf[..key.unwrap_or(n)];
+            let s = text.push(keys);
             if !s.is_empty() {
                 lock(&log).push((at(), "i", s));
             }
-            if writer
-                .write_all(&buf[..n])
-                .and_then(|()| writer.flush())
-                .is_err()
-            {
+            let sent = writer.write_all(keys).and_then(|()| writer.flush());
+            if key.is_some() {
+                pressed.store(true, Ordering::SeqCst);
+            }
+            if sent.is_err() || key.is_some() {
                 break;
             }
         }
