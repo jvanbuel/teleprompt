@@ -4,6 +4,7 @@ name: Speech
 # transcribing a recording into timed words for `import`.
 on:
   push:
+    branches: [main]
     paths:
       - crates/teleprompt-listen/**
       - crates/teleprompt-listen-sherpa/**
@@ -23,6 +24,11 @@ on:
       - crates/teleprompt-cli/tests/import*
       - crates/teleprompt-cli/tests/record*
       - .github/workflows/speech.yml
+
+# A newer push supersedes a run still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   speech:
