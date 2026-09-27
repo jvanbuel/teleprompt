@@ -56,7 +56,10 @@ CI checks it with `cargo +1.85 check --workspace --locked`.
 
 - **Keep one theme per commit.** A refactor keeps behaviour identical, and
   a fix changes it on purpose and says so. Don't mix the two.
-- **Every fix comes with a test that fails without it.**
+- **Work test-first.** Write the test, run it and watch it fail for the
+  reason you expect, then write the code that makes it pass. That goes for
+  features as much as fixes: a test written after the code has never been
+  seen to fail, so it proves less.
 - **Keep functions small**: at most 100 lines and seven arguments. Clippy
   enforces both (`too_many_lines`, `too_many_arguments`), so split along
   the steps a function performs rather than raising the limit.
