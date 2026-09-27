@@ -8,6 +8,7 @@ pub mod launch;
 pub mod make;
 pub mod mic;
 pub mod retake;
+pub mod ribbons;
 pub mod session;
 pub mod state;
 pub mod timeline;

@@ -334,7 +334,7 @@ fn preview(
 
 /// What a drop will do, in the author's words; `home` is the line the
 /// shot is with now.
-fn describe(drop: &Edit, texts: &HashMap<String, String>, home: Option<&str>) -> String {
+pub(super) fn describe(drop: &Edit, texts: &HashMap<String, String>, home: Option<&str>) -> String {
     let word = |line: &str, n: usize| {
         texts
             .get(line)
@@ -427,7 +427,7 @@ fn hint(area: &gtk::DrawingArea, cr: &cairo::Context, text: &str, at: f64, width
     pangocairo::functions::show_layout(cr, &layout);
 }
 
-fn rounded(cr: &cairo::Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
+pub(super) fn rounded(cr: &cairo::Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
     let r = r.min(w / 2.0).min(h / 2.0);
     cr.new_sub_path();
     cr.arc(x + w - r, y + r, r, -std::f64::consts::FRAC_PI_2, 0.0);
@@ -450,7 +450,7 @@ fn rounded(cr: &cairo::Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
 }
 
 /// A scene's colour: steady for its name, muted to sit under the ink.
-fn hue(scene: &str) -> (f64, f64, f64) {
+pub(super) fn hue(scene: &str) -> (f64, f64, f64) {
     const PALETTE: [(f64, f64, f64); 6] = [
         (0.48, 0.64, 1.0),
         (0.83, 0.61, 1.0),

@@ -12,6 +12,7 @@ use teleprompt_gtk::state::PrompterState;
 use super::fonts::FAMILY;
 use super::mirror::Mirror;
 use super::prompter::{self, Layout};
+use super::ribbons::RibbonLayer;
 
 /// Where the reading line is, as a fraction of the glass's height.
 const READING_LINE: f64 = 0.36;
@@ -25,12 +26,14 @@ pub struct Glass {
     pub view: gtk::TextView,
     countdown: gtk::Label,
     gutter: gtk::DrawingArea,
+    /// The shots, in Edit mode.
+    pub ribbons: Rc<RibbonLayer>,
     shared: Rc<Shared>,
 }
 
 #[derive(Default)]
 struct Shared {
-    layout: RefCell<Layout>,
+    layout: Rc<RefCell<Layout>>,
     /// Per line: recorded.
     recorded: RefCell<Vec<bool>>,
     /// Per line: reworded since its take.
@@ -51,6 +54,7 @@ impl Glass {
             .left_margin(28)
             .right_margin(72)
             .pixels_below_lines(28)
+            .pixels_inside_wrap(12)
             .css_classes(["glass"])
             .focusable(true)
             .build();
@@ -81,6 +85,12 @@ impl Glass {
             .child(&scrolled)
             .css_classes(["glass-frame"])
             .build();
+        let shared = Rc::new(Shared {
+            size: Cell::new(48.0),
+            ..Shared::default()
+        });
+        let ribbons = Rc::new(RibbonLayer::new(&view, shared.layout.clone()));
+        overlay.add_overlay(&ribbons.area);
         overlay.add_overlay(&reading);
         overlay.add_overlay(&scrim);
         let glass = Self {
@@ -88,10 +98,8 @@ impl Glass {
             view,
             countdown,
             gutter,
-            shared: Rc::new(Shared {
-                size: Cell::new(48.0),
-                ..Shared::default()
-            }),
+            ribbons,
+            shared,
         };
         glass.draw_gutter();
         draw_reading_line(&reading);
@@ -115,6 +123,7 @@ impl Glass {
     pub fn render(&self, state: &PrompterState) {
         let layout = prompter::render(&self.view.buffer(), state);
         *self.shared.layout.borrow_mut() = layout;
+        self.ribbons.area.queue_draw();
         *self.shared.recorded.borrow_mut() =
             state.script.lines.iter().map(|l| l.recorded).collect();
         *self.shared.stale.borrow_mut() = state.script.lines.iter().map(|l| l.stale).collect();

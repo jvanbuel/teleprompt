@@ -14,6 +14,7 @@ use teleprompt_gtk::launch::{LaunchEvent, LaunchRequest, ServerProcess};
 use teleprompt_gtk::make::{self, Job, Progress};
 use teleprompt_gtk::mic::{Mic, RATE};
 use teleprompt_gtk::retake::Queue;
+use teleprompt_gtk::ribbons;
 use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
 use teleprompt_gtk::timeline::{self as plan, Edit, Timeline};
@@ -70,6 +71,8 @@ struct Widgets {
     loading_detail: gtk::Label,
     failed: adw::StatusPage,
     glass: Glass,
+    /// Edit mode: the shots on the glass, to drag.
+    edit: gtk::ToggleButton,
     monitor: Monitor,
     session: SessionPage,
     timeline: TimelineStrip,
@@ -107,6 +110,11 @@ struct Model {
     making: bool,
     /// The reworded lines being recorded again, one after another.
     queue: Option<Queue>,
+    /// The script's timeline, as last planned.
+    timeline: Option<Timeline>,
+    /// The shot the monitor shows still, for a word hovered in Edit mode,
+    /// and how far into it.
+    scrub: Option<(String, u64)>,
     /// The script file, watched for edits made elsewhere.
     watch: Option<gio::FileMonitor>,
 }
@@ -144,6 +152,27 @@ impl Window {
             if let Some(this) = weak.upgrade() {
                 this.timeline_drop(edit, said);
             }
+        });
+        let weak = Rc::downgrade(&this);
+        this.w.glass.ribbons.connect_drop(move |edit, said| {
+            if let Some(this) = weak.upgrade() {
+                this.timeline_drop(edit, said);
+            }
+        });
+        let weak = Rc::downgrade(&this);
+        this.w.glass.ribbons.connect_scrub(move |ms| {
+            if let Some(this) = weak.upgrade() {
+                this.scrub(ms);
+            }
+        });
+        let weak = Rc::downgrade(&this);
+        this.w.edit.connect_toggled(move |button| {
+            let Some(this) = weak.upgrade() else { return };
+            if button.is_active() && this.is_taking() {
+                return button.set_active(false);
+            }
+            this.w.glass.ribbons.set_editing(button.is_active());
+            this.show_status();
         });
         this.w.glass.set_text_size(&this.w.text_css, 48.0);
         this.show_welcome();
@@ -201,6 +230,10 @@ impl Window {
         let click = gtk::GestureClick::new();
         click.connect_released(move |_, _, x, y| {
             let Some(this) = weak.upgrade() else { return };
+            // In Edit mode a click is on the shots, not a take.
+            if this.w.edit.is_active() {
+                return;
+            }
             if let Some(line) = this.w.glass.line_at(x, y) {
                 this.take(line);
             }
@@ -480,6 +513,7 @@ impl Window {
             Key::Return | Key::KP_Enter => self.keep(),
             Key::p => self.toggle_pause(),
             Key::r => self.retake(),
+            Key::e => self.w.edit.set_active(!self.w.edit.is_active()),
             Key::m => self
                 .w
                 .glass
@@ -649,7 +683,7 @@ impl Window {
     fn planned(&self, planned: Result<Timeline, String>) {
         // A script that does not plan keeps the timeline it had.
         let Ok(timeline) = planned else { return };
-        let texts = self
+        let lines: Vec<(String, String)> = self
             .model
             .borrow()
             .state
@@ -658,7 +692,9 @@ impl Window {
             .iter()
             .map(|l| (l.id.clone(), l.text.clone()))
             .collect();
-        self.w.timeline.set(timeline, texts);
+        self.model.borrow_mut().timeline = Some(timeline.clone());
+        self.w.glass.ribbons.set(timeline.clone(), lines.clone());
+        self.w.timeline.set(timeline, lines.into_iter().collect());
         self.show_current_line();
     }
 
@@ -1027,6 +1063,9 @@ impl Window {
     }
 
     fn begin_take(&self, line: usize) {
+        // A take is read, not edited.
+        self.w.edit.set_active(false);
+        self.model.borrow_mut().scrub = None;
         {
             let mut model = self.model.borrow_mut();
             let Some(socket) = model.socket.clone() else {
@@ -1207,6 +1246,15 @@ impl Window {
     }
 
     fn clip_fetched(self: &Rc<Self>, shot: &str, clip: Result<PathBuf, String>) {
+        let scrub = self.model.borrow().scrub.clone();
+        if let Some((scrubbed, at)) = scrub {
+            if scrubbed == shot {
+                if let Ok(path) = clip {
+                    self.show_still(shot, &path, at);
+                }
+            }
+            return;
+        }
         if self.model.borrow().state.playing.as_deref() != Some(shot) {
             return;
         }
@@ -1235,6 +1283,73 @@ impl Window {
             screen.set_paintable(Some(&media));
         }
         self.model.borrow_mut().media = Some(media);
+    }
+
+    /// A word hovered in Edit mode: the monitor shows what is on screen as
+    /// it is said, still; `None` as the pointer leaves the words.
+    fn scrub(self: &Rc<Self>, ms: Option<u64>) {
+        if self.is_taking() {
+            return;
+        }
+        let Some(ms) = ms else {
+            if self.model.borrow_mut().scrub.take().is_some() {
+                if let Some(media) = self.model.borrow_mut().media.take() {
+                    media.pause();
+                }
+                self.play();
+            }
+            return;
+        };
+        let found = {
+            let model = self.model.borrow();
+            model.timeline.as_ref().and_then(|t| {
+                let (i, into) = ribbons::on_screen(t, ms)?;
+                let shot = t.shots[i].shot.clone();
+                let clip = model
+                    .state
+                    .script
+                    .shots
+                    .iter()
+                    .find(|s| s.shot == shot)
+                    .and_then(|s| s.clip.clone());
+                Some((shot, into, clip))
+            })
+        };
+        let Some((shot, into, clip)) = found else {
+            self.model.borrow_mut().scrub = None;
+            return self.show_slate("Nothing is on screen as this is said.", None, false);
+        };
+        let Some(path) = clip else {
+            self.model.borrow_mut().scrub = None;
+            return self.show_slate("This shot was never captured.", Some(&shot), true);
+        };
+        let mut model = self.model.borrow_mut();
+        let same = model.scrub.as_ref().is_some_and(|(s, _)| *s == shot);
+        model.scrub = Some((shot.clone(), into));
+        match (&model.media, same) {
+            (Some(media), true) => media.seek(into as i64 * 1000),
+            _ => {
+                drop(model);
+                self.fetch_clip(shot, path);
+            }
+        }
+    }
+
+    /// `shot`'s clip on the monitor, still at `at_ms`.
+    fn show_still(&self, shot: &str, path: &std::path::Path, at_ms: u64) {
+        let media = gtk::MediaFile::for_filename(path);
+        media.set_muted(true);
+        let monitor = self.w.monitor.clone();
+        media.connect_timestamp_notify(move |media| monitor.show_progress(media));
+        media.connect_prepared_notify(move |media| {
+            if media.is_prepared() {
+                media.seek(at_ms as i64 * 1000);
+            }
+        });
+        self.w.monitor.show_clip(shot, &media);
+        if let Some(old) = self.model.borrow_mut().media.replace(media) {
+            old.pause();
+        }
     }
 
     fn clip_ended(&self) {
@@ -1318,6 +1433,14 @@ impl Window {
                 (RECORD_KEY, "Record"),
                 ("Ctrl T", "From the top"),
                 ("Ctrl B", "Build"),
+                (
+                    "E",
+                    if self.w.edit.is_active() {
+                        "Read"
+                    } else {
+                        "Edit"
+                    },
+                ),
                 ("M", "Mirror"),
             ]
         } else {
@@ -1340,6 +1463,7 @@ impl Window {
     /// The header's one action: record, or keep the take under way.
     fn show_record(&self) {
         if let Some(recording) = self.session_recording() {
+            self.w.edit.set_visible(false);
             self.w.record.set_visible(true);
             self.w.tally.root.set_visible(true);
             self.w
@@ -1355,6 +1479,7 @@ impl Window {
         let taking = self.is_taking();
         let ready = self.model.borrow().socket.is_some();
         self.w.record.set_visible(ready);
+        self.w.edit.set_visible(ready);
         self.w.tally.root.set_visible(ready);
         self.w
             .record_label
@@ -1503,6 +1628,11 @@ impl Widgets {
             loading_detail,
             failed,
             glass,
+            edit: gtk::ToggleButton::builder()
+                .icon_name("document-edit-symbolic")
+                .tooltip_text("Edit shots on the glass (E)")
+                .visible(false)
+                .build(),
             monitor,
             session,
             timeline,
@@ -1679,6 +1809,7 @@ impl Widgets {
                 .build(),
         );
         header.pack_end(&self.record);
+        header.pack_end(&self.edit);
         let view = adw::ToolbarView::new();
         view.add_top_bar(&header);
         self.toasts.set_child(Some(&self.stack));

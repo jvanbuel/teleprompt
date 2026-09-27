@@ -68,12 +68,19 @@ if [ "${1:-}" = --drive ]; then
   xdotool key ctrl+shift+space
   sleep 2
   import -window root "$shots/99-kept.png"
+  # The glass as the timeline: in Edit mode, a word hovered shows on the
+  # monitor what is on screen as it is said.
+  xdotool key e
+  xdotool mousemove 620 323
+  sleep 2
+  import -window root "$shots/99-scrubbed.png"
   # The timeline: drags edit the script. Pressed, moved in steps as a hand
   # moves, and let go.
   drag() {
+    local to_y=${4:-$2}
     xdotool mousemove "$1" "$2" mousedown 1
     for i in $(seq 1 12); do
-      xdotool mousemove $(( $1 + ($3 - $1) * i / 12 )) "$2"
+      xdotool mousemove $(( $1 + ($3 - $1) * i / 12 )) $(( $2 + (to_y - $2) * i / 12 ))
       sleep 0.03
     done
     xdotool mouseup 1
@@ -92,6 +99,10 @@ if [ "${1:-}" = --drive ]; then
   xdotool key ctrl+z
   sleep 1.5
   cp "$md" "$work/undone.md"
+  # The first shot's pill, in the pause after its line, onto "show".
+  drag 400 167 740 103
+  cp "$md" "$work/glass.md"
+  import -window root "$shots/101-glass.png"
   # Build: the shots the drags changed are captured again, then the video.
   xdotool key ctrl+b
   sleep 1
@@ -157,6 +168,18 @@ if cmp -s "$work/stretched.md" "$work/undone.md"; then
   echo "ok: Ctrl+Z undoes the last drag"
 else
   echo "FAIL: not undone"; diff "$work/stretched.md" "$work/undone.md"; fail=1
+fi
+kept=$(convert "$shots/99-kept.png" -crop 280x140+940+100 -format "%[fx:mean]" info:)
+scrubbed=$(convert "$shots/99-scrubbed.png" -crop 280x140+940+100 -format "%[fx:mean]" info:)
+if awk "BEGIN { exit !($kept < 0.1 && $scrubbed > 0.1) }"; then
+  echo "ok: a word hovered in Edit mode shows its moment on the monitor"
+else
+  echo "FAIL: no scrub ($kept, then $scrubbed)"; fail=1
+fi
+if grep -Eq '^```teleprompt scene=mock policy=concurrent cue="show you"$' "$work/glass.md"; then
+  echo "ok: a shot's pill dragged onto a word of its line on the glass is cued there"
+else
+  echo "FAIL: no cue from the glass"; cat "$work/glass.md"; fail=1
 fi
 if [ -s "$work/project/build/tour.en.mp4" ]; then
   echo "ok: Ctrl+B built the video"

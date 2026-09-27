@@ -47,6 +47,7 @@ To install it with a launcher entry:
 | Return | keep the take |
 | p | pause or resume |
 | r | record the lines reworded since their takes again, one after another |
+| e | Edit mode: the shots on the glass, to drag (again: Read mode) |
 | m | mirror the text, for beam-splitter glass |
 | + / − | text size |
 | s | show or hide the monitor |
@@ -79,6 +80,22 @@ a composition) moves but doesn't stretch.
 A moved or stretched shot needs capturing again: Ctrl+Shift+C captures
 what's missing, and Ctrl+B captures and builds the video, with its progress
 across the top of the timeline. When it's built, the toast plays it.
+
+## Editing on the glass
+
+Press E, or the pencil in the header, for Edit mode: each shot shows on
+the glass itself, as a ribbon under the words it plays over, or as a pill
+in the pause after its line when it plays after it. Drag a ribbon onto a
+word to start the shot there, into the pause after a line to play it
+after, or onto another line to move it; drag its grip onto a word of its
+line to end it there. The drops are the timeline's, with its chip, its
+checks and Ctrl+Z. Hover a word and the monitor shows, still, what is on
+screen as it is said. A click on a line doesn't start a take in Edit mode,
+and a take always starts in Read mode, with the shots out of the way.
+
+Where a take was recorded, a word's moment is estimated from its share of
+the line's letters, as the markers are, so a ribbon may sit a word off
+from where the shot starts in the video.
 
 ## Drafting from a session
 
