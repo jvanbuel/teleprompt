@@ -31,6 +31,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var clipFraction: Double = 0
     @Published private(set) var clipTime = ""
     @Published private(set) var toast: String?
+    /// The line whose rewording is being reviewed.
+    @Published var reviewing: Int?
+    /// Rewordings a toast has told of, as line id and what was said.
+    private var saidOffered: Set<[String]> = []
     @Published private(set) var scriptName = ""
     @Published private(set) var projectName = ""
     /// The take's running time: what ran before a pause, and since when.
@@ -153,15 +157,61 @@ final class AppModel: ObservableObject {
         let before = state.playing
         state.apply(message)
         if state.playing != before { play(state.playing) }
-        if case .stopped = message {
+        switch message {
+        case .stopped:
             show(toast: state.status.text)
-            Task { await refreshRecorded() }
+            Task {
+                await refreshScript()
+                offerSaid()
+            }
+        case .keptSaid:
+            show(toast: state.status.text)
+            Task { await refreshScript() }
+        default:
+            break
         }
     }
 
-    private func refreshRecorded() async {
+    private func refreshScript() async {
         guard let script = try? await client?.script() else { return }
         state.script = script
+    }
+
+    /// Tells of the lines newly heard saying other words, once.
+    private func offerSaid() {
+        let fresh = state.script.lines.enumerated().filter { _, line in
+            line.said.map { !saidOffered.contains([line.id, $0]) } ?? false
+        }
+        guard let first = fresh.first else { return }
+        for (_, line) in fresh { saidOffered.insert([line.id, line.said ?? ""]) }
+        show(toast: fresh.count == 1
+            ? "Line \(first.offset + 1) was said in other words. Press W to review"
+            : "\(fresh.count) lines were said in other words. Press W to review")
+    }
+
+    /// Shows the next line said in other words, to keep what was said or
+    /// the script.
+    func reviewSaid() {
+        guard isReady, !isTaking else { return }
+        guard let line = state.saidOtherwise else {
+            return show(toast: "Every line reads as it was said")
+        }
+        reviewing = line
+    }
+
+    /// Rewords the line under review to what was said, as `teleprompt edit
+    /// <script> said <line>` does.
+    func keepSaid() {
+        guard let line = reviewing, let client else { return }
+        reviewing = nil
+        client.send(.keepSaid(line: state.script.lines[line].id))
+    }
+
+    /// Leaves the line under review as written.
+    func keepScript() {
+        guard let line = reviewing else { return }
+        reviewing = nil
+        state.keepScript(line: line)
     }
 
     /// Starts a take at `line`, after a count of three if that is on,

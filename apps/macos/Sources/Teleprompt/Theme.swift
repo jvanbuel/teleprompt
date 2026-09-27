@@ -13,6 +13,9 @@ enum Theme {
     static let tally = Color(red: 1.0, green: 0.231, blue: 0.188)
     static let recorded = Color(red: 0.239, green: 0.863, blue: 0.518)
     static let missing = Color(red: 0.949, green: 0.545, blue: 0.510)
+    /// A take heard saying other words than its line.
+    static let heard = Color(red: 0.541, green: 0.710, blue: 0.969)
+    static let brought = Color(red: 0.506, green: 0.788, blue: 0.584)
     static let chrome = Color(red: 0.090, green: 0.094, blue: 0.106)
     static let raised = Color(red: 0.125, green: 0.133, blue: 0.153)
     static let line = Color(red: 0.173, green: 0.184, blue: 0.212)

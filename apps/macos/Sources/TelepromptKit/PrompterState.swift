@@ -14,6 +14,9 @@ public struct PrompterState: Equatable, Sendable {
     /// Shots that have started this take.
     public var started: Set<String> = []
     public var status = Status("choose a script")
+    /// Rewordings turned down, as line id and what was said: not asked
+    /// about again unless the take says something else.
+    public var scriptKept: Set<[String]> = []
 
     public struct Status: Equatable, Sendable {
         public var text: String
@@ -64,11 +67,28 @@ public struct PrompterState: Equatable, Sendable {
             default: "Kept \(saved.count) lines: \(saved.joined(separator: ", "))"
             }
             status = Status(kept)
+        case let .keptSaid(line):
+            let n = (script.lines.firstIndex { $0.id == line } ?? 0) + 1
+            status = Status("Line \(n) now reads as you said it")
         case let .error(message):
             status = Status(message, isError: true)
         case .unknown:
             break
         }
+    }
+
+    /// The first line whose take said other words than it reads, and whose
+    /// rewording was not turned down.
+    public var saidOtherwise: Int? {
+        script.lines.firstIndex { line in
+            line.said.map { !scriptKept.contains([line.id, $0]) } ?? false
+        }
+    }
+
+    /// Turns down line `line`'s rewording: it stays as written.
+    public mutating func keepScript(line: Int) {
+        guard script.lines.indices.contains(line), let said = script.lines[line].said else { return }
+        scriptKept.insert([script.lines[line].id, said])
     }
 
     /// The shot on screen ended; the next one queued plays.

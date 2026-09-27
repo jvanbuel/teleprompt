@@ -40,11 +40,15 @@ public struct Script: Codable, Equatable, Sendable {
         public var text: String
         /// Whether the line has a take read from it as it now reads.
         public var recorded: Bool
+        /// The line as its take was heard to say it, where that is other
+        /// words; servers before it was added send none.
+        public var said: String?
 
-        public init(id: String, text: String, recorded: Bool) {
+        public init(id: String, text: String, recorded: Bool, said: String? = nil) {
             self.id = id
             self.text = text
             self.recorded = recorded
+            self.said = said
         }
 
         /// The words as the server counts them: split at whitespace.
@@ -74,6 +78,8 @@ public enum ServerMessage: Equatable, Sendable {
     case reached(at: Position, play: [String])
     /// The ids of the lines kept from the take.
     case stopped(saved: [String])
+    /// The line now reads as its take was heard to say it.
+    case keptSaid(line: String)
     case error(String)
     /// A message this client does not know; a later v1 server may send it.
     case unknown(type: String)
@@ -86,6 +92,8 @@ public enum ServerMessage: Equatable, Sendable {
             self = .reached(at: Position(line: m.line, word: m.word), play: m.play)
         case "stopped":
             self = .stopped(saved: try JSONDecoder().decode(Stopped.self, from: json).saved)
+        case "kept_said":
+            self = .keptSaid(line: try JSONDecoder().decode(Line.self, from: json).line)
         case "error":
             self = .error(try JSONDecoder().decode(Failure.self, from: json).message)
         default:
@@ -96,6 +104,7 @@ public enum ServerMessage: Equatable, Sendable {
     private struct Header: Decodable { var type: String }
     private struct Reached: Decodable { var line: Int; var word: Int; var play: [String] }
     private struct Stopped: Decodable { var saved: [String] }
+    private struct Line: Decodable { var line: String }
     private struct Failure: Decodable { var message: String }
 }
 
@@ -106,11 +115,14 @@ public enum ClientMessage: Equatable, Sendable {
     case start(from: Int, rate: Int)
     /// Keep the lines read in full.
     case stop
+    /// Reword a line to what its take was heard to say.
+    case keepSaid(line: String)
 
     public func json() -> Data {
         let object: [String: Any] = switch self {
         case let .start(from, rate): ["type": "start", "from": from, "rate": rate]
         case .stop: ["type": "stop"]
+        case let .keepSaid(line): ["type": "keep_said", "line": line]
         }
         // Sorted keys: the same command is the same bytes.
         return try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])

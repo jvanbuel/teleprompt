@@ -55,7 +55,7 @@ struct PrompterCommands: Commands {
             Button("Open Script…") { model.chooseScript = true }
                 .keyboardShortcut("o")
         }
-        // The plain keys (return, p, m, + −, s) are the prompter's own;
+        // The plain keys (return, p, m, w, + −, s) are the prompter's own;
         // see PrompterView. Here they would fire while typing in Settings.
         CommandMenu("Prompter") {
             // The record key, the same in every mode: ⌘⇧Space starts a take
@@ -72,6 +72,9 @@ struct PrompterCommands: Commands {
             Button(model.paused ? "Resume" : "Pause") { model.togglePause() }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(!model.isTaking)
+            // W on the glass, too.
+            Button("Keep What You Said…") { model.reviewSaid() }
+                .disabled(!model.isReady || model.isTaking || model.state.saidOtherwise == nil)
             Divider()
             Toggle("Mirror Text", isOn: $model.mirrored)
             Button("Larger Text") { model.textSize += 4 }

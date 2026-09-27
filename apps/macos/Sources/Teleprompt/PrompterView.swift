@@ -56,6 +56,15 @@ struct PrompterView: View {
             .scaleEffect(x: model.mirrored ? -1 : 1, y: 1)
             .overlay(alignment: .bottom) { toast }
         }
+        .sheet(isPresented: Binding(
+            get: { model.reviewing != nil },
+            set: { if !$0 { model.keepScript() } }
+        )) {
+            if let line = model.reviewing, model.state.script.lines.indices.contains(line) {
+                ReviewSaid(index: line, line: model.state.script.lines[line])
+                    .environmentObject(model)
+            }
+        }
         .background(Theme.glass)
         .focusable()
         .focusEffectDisabled()
@@ -65,9 +74,10 @@ struct PrompterView: View {
             model.keep()
             return .handled
         }
-        .onKeyPress(characters: CharacterSet(charactersIn: "pms+=-"), phases: .down) { press in
+        .onKeyPress(characters: CharacterSet(charactersIn: "pmsw+=-"), phases: .down) { press in
             switch press.characters {
             case "p": model.togglePause()
+            case "w": model.reviewSaid()
             case "m": model.mirrored.toggle()
             case "s": model.showsScreen.toggle()
             case "+", "=": model.textSize = min(120, model.textSize + 4)
@@ -155,6 +165,14 @@ private struct LineView: View {
                     .foregroundStyle(Theme.ink.opacity(current ? 0.9 : 0.32))
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.trailing, 22)
+                // Heard saying other words: W reviews it.
+                if line.said != nil {
+                    Circle()
+                        .fill(Theme.heard)
+                        .frame(width: 7, height: 7)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.trailing, 8)
+                }
             }
             .frame(width: 76, height: size * Theme.leading)
             text
@@ -195,6 +213,47 @@ private struct LineView: View {
                 .font(Theme.face(model.textSize * 0.5))
                 .baselineOffset(model.textSize * 0.12)
                 .foregroundColor(colour)
+        }
+    }
+}
+/// A line against what its take said: the words not said struck through,
+/// the ones said instead in bold, to keep either.
+private struct ReviewSaid: View {
+    @EnvironmentObject private var model: AppModel
+    let index: Int
+    let line: Script.Line
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Keep what you said on line \(index + 1)?")
+                .font(Theme.face(19, .bold))
+            Text("The take says this, not what the line reads. Keep it, and the line is reworded to match: nothing to record again.")
+                .font(Theme.face(14))
+                .foregroundStyle(Theme.ink.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
+            diff.font(Theme.face(20)).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Keep the Script") { model.keepScript() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Use What I Said") { model.keepSaid() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 520)
+        .foregroundStyle(Theme.ink)
+        .background(Theme.raised)
+    }
+
+    private var diff: Text {
+        saidDiff(line.text, line.said ?? line.text).reduce(Text("")) { text, change in
+            let words: Text = switch change {
+            case let .same(w): Text(w)
+            case let .gone(w): Text(w).strikethrough(color: Theme.missing).foregroundColor(Theme.missing)
+            case let .new(w): Text(w).bold().foregroundColor(Theme.brought)
+            }
+            return text + words + Text(" ")
         }
     }
 }

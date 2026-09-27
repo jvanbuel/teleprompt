@@ -31,6 +31,7 @@ behalf of your terminal.
 | ⌘T | record from the top |
 | return | keep the take |
 | p | pause or resume |
+| w | review a line said in other words than it reads: keep what you said, or the script |
 | m | mirror the text, for beam-splitter glass |
 | + / − | text size |
 | s | show or hide the monitor |
@@ -39,6 +40,16 @@ behalf of your terminal.
 A take starts after a count of three; Settings turns that off. The look is
 described in `apps/DESIGN.md`; the typeface and the icon are bundled by
 `bundle.sh`.
+
+## Keeping what you said
+
+A line read in full in other words than it reads gets a blue dot beside
+its tick after the take, and a toast. W (or **Prompter › Keep What You
+Said…**) shows the difference: the words not said struck through, the
+ones said instead in bold. **Use What I Said** rewords the line in the
+script, through the server, as `teleprompt edit <script> said <line>`
+does, and its take stays current. **Keep the Script**, or Escape, leaves
+it as written, and it isn't asked about again this session.
 
 ## Layout
 

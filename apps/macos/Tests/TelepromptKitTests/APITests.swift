@@ -12,6 +12,13 @@ final class APITests: XCTestCase {
         ])
         XCTAssertNil(script.shots[0].clip)
         XCTAssertEqual(script.shots[1].clip?.hasPrefix("/api/v1/clips/"), true)
+        XCTAssertNil(script.lines[0].said)
+    }
+
+    /// A server from before `said` sends none: every line reads as said.
+    func testALineWithoutSaidIsSaidAsItReads() throws {
+        let old = #"{"lines":[{"id":"welcome","text":"Hi.","recorded":true}],"shots":[]}"#
+        XCTAssertNil(try JSONDecoder().decode(Script.self, from: Data(old.utf8)).lines[0].said)
     }
 
     func testTheServerMessageExamplesDecode() throws {
@@ -20,6 +27,7 @@ final class APITests: XCTestCase {
             .reached(at: Position(line: 1, word: 0), play: ["welcome-b#0"])
         )
         XCTAssertEqual(try ServerMessage(json: example("stopped.json")), .stopped(saved: ["welcome"]))
+        XCTAssertEqual(try ServerMessage(json: example("kept_said.json")), .keptSaid(line: "welcome"))
         XCTAssertEqual(
             try ServerMessage(json: example("error.json")),
             .error(#"not a message this server knows: {"type":"rewind"}"#)
@@ -38,6 +46,10 @@ final class APITests: XCTestCase {
     func testCommandsAreTheExamples() throws {
         XCTAssertEqual(try jsonObject(ClientMessage.start(from: 1, rate: 48000).json()), try jsonObject(example("start.json")))
         XCTAssertEqual(try jsonObject(ClientMessage.stop.json()), try jsonObject(example("stop.json")))
+        XCTAssertEqual(
+            try jsonObject(ClientMessage.keepSaid(line: "welcome").json()),
+            try jsonObject(example("keep_said.json"))
+        )
     }
 
     func testSamplesAreLittleEndianFloats() {

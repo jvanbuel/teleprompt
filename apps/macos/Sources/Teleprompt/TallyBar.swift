@@ -49,6 +49,9 @@ struct TallyBar: View {
         if model.counting != nil { return [("⌘⇧Space", "Cancel")] }
         if model.paused { return [("⌘⇧Space", "Keep take"), ("P", "Resume")] }
         if model.state.listening { return [("⌘⇧Space", "Keep take"), ("P", "Pause")] }
+        if model.state.saidOtherwise != nil {
+            return [("⌘⇧Space", "Record"), ("⌘T", "From the top"), ("W", "Review"), ("M", "Mirror")]
+        }
         return [("⌘⇧Space", "Record"), ("⌘T", "From the top"), ("M", "Mirror")]
     }
 }
