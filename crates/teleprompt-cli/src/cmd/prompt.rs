@@ -73,8 +73,8 @@ pub fn run_prompt(
             .flush()
             .map_err(|e| PromptError::Runtime(e.to_string()))?;
     }
-    let edited = reload_on_edit(project, script, locale);
-    prompt_watching(listener, prompt, recognizer, Some(edited))
+    let edits = edits_of(project, script, locale);
+    prompt_watching(listener, prompt, recognizer, Some(edits))
         .map_err(|e| PromptError::Runtime(e.to_string()))
 }
 
@@ -123,6 +123,27 @@ pub fn reload_on_edit(project: &Project, script: &std::path::Path, locale: &str)
 /// The script anew, if it has changed.
 pub type Reload = Box<dyn Fn() -> Option<Prompt> + Send + Sync>;
 
+/// Rewords a line to what its take was heard to say, or says why not.
+pub type KeepSaid = Box<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
+
+/// What a prompter reading a script file can do to it.
+pub struct Edits {
+    pub reload: Reload,
+    pub keep_said: KeepSaid,
+}
+
+/// `script`'s edits: reloaded when changed, and a line reworded as
+/// `teleprompt edit <script> said <line>` does.
+pub fn edits_of(project: &Project, script: &std::path::Path, locale: &str) -> Edits {
+    let (keeper, path) = (project.clone(), script.to_path_buf());
+    Edits {
+        reload: reload_on_edit(project, script, locale),
+        keep_said: Box::new(move |line| {
+            crate::cmd::edit::run_said(&keeper, &path, line).map(|_| ())
+        }),
+    }
+}
+
 /// A build without the recognizer cannot follow anyone; it says how to get
 /// one.
 #[cfg(not(feature = "listen"))]
@@ -165,18 +186,19 @@ pub fn prompt_on<R: Recognizer + Send + 'static>(
     prompt_watching(listener, prompt, recognizer, None)
 }
 
-/// [`prompt_on`], placing the shots again when `reload` has them: asked
-/// each time the script is fetched, which a client does after an edit.
+/// [`prompt_on`] for a script file: placing the shots again when `edits`
+/// reloads them, asked each time the script is fetched, which a client
+/// does after an edit, and keeping what a take said when asked.
 pub fn prompt_watching<R: Recognizer + Send + 'static>(
     listener: TcpListener,
     prompt: Prompt,
     recognizer: R,
-    reload: Option<Reload>,
+    edits: Option<Edits>,
 ) -> std::io::Result<()> {
     let server = Arc::new(Server {
         session: Mutex::new(Session::new(prompt, recognizer)?),
         open: AtomicBool::new(false),
-        reload,
+        edits,
     });
     for stream in listener.incoming() {
         let stream = stream?;
@@ -193,7 +215,7 @@ struct Server<R> {
     session: Mutex<Session<R>>,
     /// Whether a session socket is open.
     open: AtomicBool,
-    reload: Option<Reload>,
+    edits: Option<Edits>,
 }
 
 type Response = (&'static str, &'static str, Vec<u8>);
@@ -222,7 +244,7 @@ impl<R: Recognizer> Server<R> {
             FONT_PATH => ("200 OK", "font/woff2", FONT.to_vec()),
             "/api/v1/script" => {
                 // Compiled outside the lock, which the session needs.
-                let edited = self.reload.as_ref().and_then(|r| r());
+                let edited = self.edits.as_ref().and_then(|e| (e.reload)());
                 let mut session = self.session();
                 if let Some(prompt) = edited {
                     session.replace(prompt);
@@ -325,6 +347,16 @@ impl<R: Recognizer> Server<R> {
                 Ok(saved) => serde_json::json!({ "type": "stopped", "saved": saved }),
                 Err(e) => error(e.to_string()),
             }),
+            Some("keep_said") => {
+                let line = message["line"].as_str().unwrap_or_default();
+                Some(match &self.edits {
+                    Some(edits) => match (edits.keep_said)(line) {
+                        Ok(()) => serde_json::json!({ "type": "kept_said", "line": line }),
+                        Err(e) => error(e),
+                    },
+                    None => error("this prompter has no script file to reword".into()),
+                })
+            }
             _ => Some(error(format!("not a message this server knows: {text}"))),
         }
     }

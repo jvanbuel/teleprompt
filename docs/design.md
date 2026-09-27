@@ -299,7 +299,7 @@ are all tested against them.
 
 | route | does |
 |---|---|
-| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `teleprompt edit <script> said <line>` keeps it. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded |
+| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded |
 | `GET /api/v1/clips/<key>.mp4` | a cued shot's clip; nothing else in the cache |
 | `GET /api/v1/session` | the session socket; one at a time, a second gets 409 |
 
@@ -309,6 +309,9 @@ On the socket, the client sends:
   at HZ; a take not stopped is dropped.
 - binary messages: little-endian f32 mono samples at the take's rate.
 - `{"type":"stop"}`: keep the lines read in full.
+- `{"type":"keep_said","line":id}`: reword the line to what its take was
+  heard to say, as `teleprompt edit <script> said <line>` does. Between
+  takes; the script's next fetch reads the new words.
 
 The server sends:
 
@@ -317,8 +320,9 @@ The server sends:
   the next word to be said, words counted by splitting the line's text at
   whitespace.
 - `{"type":"stopped","saved":[line id]}`.
+- `{"type":"kept_said","line":id}` once the line is reworded.
 - `{"type":"error","message"}` for a message it did not understand or a
-  take it could not save; the session goes on.
+  take it could not save or line it could not reword; the session goes on.
 
 Within a version, the API only grows: new fields, messages and routes.
 Clients ignore what they do not know. A change that would break a client

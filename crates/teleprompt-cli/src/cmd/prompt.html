@@ -17,7 +17,7 @@
   :root {
     color-scheme: dark;
     --glass: #000; --ink: #f2f4f7; --cue: #ffb800; --tally: #ff3b30;
-    --recorded: #3ddc84; --missing: #f28b82;
+    --recorded: #3ddc84; --missing: #f28b82; --heard: #8ab5f7; --brought: #81c995;
     --chrome: #17181b; --raised: #202227; --line: #2c2f36;
     --said: rgb(242 244 247 / 0.3); --later: rgb(242 244 247 / 0.55);
     --size: 48px;
@@ -71,6 +71,11 @@
     content: ""; position: absolute; left: 12px; top: calc(var(--size) * 0.66 - 5px);
     width: 9px; height: 5px; border: solid var(--recorded); border-width: 0 0 2.2px 2.2px;
     transform: rotate(-45deg);
+  }
+  /* Beside the tick of a take heard saying other words: W reviews it. */
+  .line.heard .gutter::after {
+    content: ""; position: absolute; right: 8px; top: calc(var(--size) * 0.66 - 3.5px);
+    width: 7px; height: 7px; border-radius: 50%; background: var(--heard);
   }
   .w.said { color: var(--said); }
   .w.next { color: var(--cue); text-decoration: underline; text-decoration-color: var(--cue);
@@ -151,6 +156,23 @@
     font-weight: 700; transition: opacity 180ms, transform 180ms; pointer-events: none;
   }
   #toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  #review {
+    max-width: min(560px, calc(100vw - 32px)); padding: 24px; border-radius: 14px;
+    background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+  }
+  #review::backdrop { background: rgb(0 0 0 / 0.55); }
+  #review h2 { margin: 0 0 8px; font-size: 19px; }
+  #review p { margin: 0 0 16px; color: rgb(242 244 247 / 0.7); }
+  #review blockquote { margin: 0 0 22px; font-size: 20px; line-height: 1.45; }
+  #review del { color: var(--missing); }
+  #review ins { color: var(--brought); font-weight: 800; text-decoration: none; }
+  #review menu { display: flex; justify-content: flex-end; gap: 10px; margin: 0; padding: 0; }
+  #review button {
+    font: 700 14px var(--face); border-radius: 8px; padding: 8px 16px; cursor: pointer;
+    background: var(--chrome); color: var(--ink); border: 1px solid var(--line);
+  }
+  #review button.suggested { background: var(--ink); color: #000; border-color: var(--ink); }
   @media (prefers-reduced-motion: reduce) { #toast, #meter > div { transition: none; } }
 </style>
 </head>
@@ -169,6 +191,15 @@
     <div id="countdown"></div>
     <div id="toast"></div>
   </section>
+  <dialog id="review">
+    <h2 id="review-title"></h2>
+    <p>The take says this, not what the line reads. Keep it, and the line is reworded to match: nothing to record again.</p>
+    <blockquote id="review-diff"></blockquote>
+    <menu>
+      <button id="review-script">Keep the Script</button>
+      <button id="review-said" class="suggested" autofocus>Use What I Said</button>
+    </menu>
+  </dialog>
   <aside id="monitor">
     <div id="screen"><video id="clip" muted playsinline hidden></video><div id="slate"></div></div>
     <div id="caption"><span id="shot-title"></span><span id="shot-time"></span></div>
@@ -206,6 +237,8 @@ let pending = [];            // samples not yet sent, at the microphone's rate
 let rate = 0;                // the microphone's rate, once it is open
 let ws = null;               // the session socket, once open
 let takeTime = 0, takeSince = null;
+let declined = new Set();    // "id\nsaid" of rewordings turned down this visit
+let offered = new Set();     // and of those a toast has told of
 
 function status(text, bad = false) {
   $("status").textContent = text;
@@ -221,6 +254,7 @@ function keys() {
   const pairs = counting ? [[RECORD_KEY, "Cancel"]]
     : paused ? [[RECORD_KEY, "Keep take"], ["P", "Resume"]]
     : listening ? [[RECORD_KEY, "Keep take"], ["P", "Pause"]]
+    : heardOtherwise() !== null ? [[RECORD_KEY, "Record"], ["W", "Review"], ["M", "Mirror"]]
     : [[RECORD_KEY, "Record"], ["M", "Mirror"]];
   $("keys").replaceChildren(...pairs.map(([k, action]) => {
     const pair = document.createElement("span");
@@ -272,8 +306,82 @@ async function loadScript() {
 }
 
 function markRecorded(scriptLines) {
-  lines.forEach((el, l) => el.classList.toggle("recorded", !!scriptLines[l]?.recorded));
+  script.lines = scriptLines;
+  lines.forEach((el, l) => {
+    el.classList.toggle("recorded", !!scriptLines[l]?.recorded);
+    el.classList.toggle("heard", !!scriptLines[l]?.said);
+  });
 }
+
+const key = ({ id, said }) => `${id}\n${said}`;
+
+/** The first line whose take said other words, not yet turned down. */
+function heardOtherwise() {
+  const l = script.lines.findIndex((line) => line.said && !declined.has(key(line)));
+  return l < 0 ? null : l;
+}
+
+/** Tells of the lines newly heard saying other words, once. */
+function offerSaid() {
+  const fresh = script.lines.map((line, l) => [line, l]).filter(([line]) => line.said && !offered.has(key(line)));
+  if (fresh.length === 0) return;
+  for (const [line] of fresh) offered.add(key(line));
+  toast(fresh.length === 1
+    ? `Line ${fresh[0][1] + 1} was said in other words. Press W to review`
+    : `${fresh.length} lines were said in other words. Press W to review`);
+}
+
+/** `line` against `said`, word by word, by their longest common run. */
+function diff(line, said) {
+  const a = line.split(/\s+/).filter(Boolean), b = said.split(/\s+/).filter(Boolean);
+  const common = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--)
+    for (let j = b.length - 1; j >= 0; j--)
+      common[i][j] = a[i] === b[j] ? common[i + 1][j + 1] + 1 : Math.max(common[i + 1][j], common[i][j + 1]);
+  const out = [];
+  let i = 0, j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) out.push(["same", a[i++]]), j++;
+    else if (i < a.length && (j === b.length || common[i + 1][j] >= common[i][j + 1])) out.push(["gone", a[i++]]);
+    else out.push(["new", b[j++]]);
+  }
+  return out;
+}
+
+/** Shows the next line said in other words, to keep what was said or not. */
+function reviewSaid() {
+  if (listening || paused || counting || $("review").open) return;
+  const l = heardOtherwise();
+  if (l === null) return toast("Every line reads as it was said");
+  const line = script.lines[l];
+  $("review-title").textContent = `Keep what you said on line ${l + 1}?`;
+  $("review-diff").replaceChildren(...diff(line.text, line.said).flatMap(([kind, word]) => {
+    const el = document.createElement(kind === "gone" ? "del" : kind === "new" ? "ins" : "span");
+    el.textContent = word;
+    return [el, " "];
+  }));
+  $("review").dataset.line = l;
+  $("review").showModal();
+}
+
+$("review-said").addEventListener("click", async () => {
+  const line = script.lines[$("review").dataset.line];
+  $("review").close();
+  try {
+    await openSession();
+    ws.send(JSON.stringify({ type: "keep_said", line: line.id }));
+  } catch (e) {
+    status(e.message, true);
+  }
+});
+/** Keeping the script, by its button or Escape: not asked again this visit. */
+function keepScript() {
+  declined.add(key(script.lines[$("review").dataset.line]));
+  $("review").close();
+  keys();
+}
+$("review-script").addEventListener("click", keepScript);
+$("review").addEventListener("cancel", (e) => { e.preventDefault(); keepScript(); });
 
 /** A diamond in the text where a shot starts, and its row in the rundown. */
 function markShot({ shot, at: cue, clip }) {
@@ -436,6 +544,14 @@ async function onMessage(message) {
     status(kept);
     toast(kept);
     markRecorded((await (await fetch(`${API}/script`)).json()).lines);
+    offerSaid();
+    keys();
+  } else if (message.type === "kept_said") {
+    const l = script.lines.findIndex((line) => line.id === message.line);
+    await loadScript();
+    status(`Line ${l + 1} now reads as you said it`);
+    toast(`Line ${l + 1} now reads as you said it`);
+    keys();
   } else if (message.type === "error") {
     status(message.message, true);
   }
@@ -560,10 +676,11 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     return recordOrKeep();
   }
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || $("review").open) return;
   const handled = {
     "Enter": keep,
     "p": togglePause,
+    "w": reviewSaid,
     "m": () => document.body.classList.toggle("mirrored"),
     "s": () => document.body.classList.toggle("no-monitor"),
     "+": () => resize(4), "=": () => resize(4), "-": () => resize(-4),
@@ -611,6 +728,7 @@ function margins() {
 addEventListener("resize", margins);
 margins();
 loadScript().then(() => {
+  offerSaid();
   status(`Press ${MAC ? "⌘⇧Space" : "Ctrl+Shift+Space"} to record from here, or click a line`);
   keys();
 });

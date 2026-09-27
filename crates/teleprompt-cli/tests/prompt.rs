@@ -583,7 +583,10 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
-            Some(reload),
+            Some(teleprompt_cli::cmd::prompt::Edits {
+                reload,
+                keep_said: Box::new(|_| Ok(())),
+            }),
         )
     });
     let script = json_at(addr, "/api/v1/script");
@@ -591,4 +594,77 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
     // Not edited since: as it was left.
     let again = json_at(addr, "/api/v1/script");
     assert_eq!(again["shots"][1]["at"]["word"], 5, "{again}");
+}
+
+/// Serves `prompt` with `keep_said` for the edits, and no reload.
+fn prompting_with_keep(
+    keep_said: teleprompt_cli::cmd::prompt::KeepSaid,
+) -> (SocketAddr, teleprompt_testkit::TestDir) {
+    let clips = teleprompt_testkit::test_dir("prompt-keep");
+    let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let prompt = Prompt {
+        name: "tour.md".into(),
+        lines: LINES.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        shots: shots(),
+        clips: clips.to_path_buf(),
+        takes: clips.join("takes"),
+    };
+    let edits = teleprompt_cli::cmd::prompt::Edits {
+        reload: Box::new(|| None),
+        keep_said,
+    };
+    std::thread::spawn(move || {
+        teleprompt_cli::cmd::prompt::prompt_watching(
+            listener,
+            prompt,
+            Scripted(Default::default(), Default::default()),
+            Some(edits),
+        )
+    });
+    (addr, clips)
+}
+
+/// Keeping what was said on a line rewords it, and says so; the page
+/// fetches the script again for the new words.
+#[test]
+fn keeping_what_was_said_rewords_the_line() {
+    let kept = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = kept.clone();
+    let (addr, _dir) = prompting_with_keep(Box::new(move |line| {
+        seen.lock().unwrap().push(line.to_string());
+        Ok(())
+    }));
+    let mut ws = session(addr);
+    send_example(&mut ws, "keep_said.json");
+    assert_eq!(next(&mut ws), example("kept_said.json"));
+    assert_eq!(*kept.lock().unwrap(), ["welcome"]);
+}
+
+#[test]
+fn keeping_what_was_said_that_fails_says_why() {
+    let (addr, _dir) = prompting_with_keep(Box::new(|line| Err(format!("no take for `{line}`"))));
+    let mut ws = session(addr);
+    send(
+        &mut ws,
+        serde_json::json!({ "type": "keep_said", "line": "deploy" }),
+    );
+    assert_eq!(
+        next(&mut ws),
+        serde_json::json!({ "type": "error", "message": "no take for `deploy`" })
+    );
+}
+
+/// A prompter with no script file behind it has nothing to reword.
+#[test]
+fn keeping_what_was_said_without_a_script_file_is_an_error() {
+    let (addr, _dir) = prompting(&[]);
+    let mut ws = session(addr);
+    send(
+        &mut ws,
+        serde_json::json!({ "type": "keep_said", "line": "welcome" }),
+    );
+    let answer = next(&mut ws);
+    assert_eq!(answer["type"], "error", "{answer}");
 }

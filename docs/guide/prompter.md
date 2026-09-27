@@ -50,6 +50,7 @@ line again.
 | Enter | keep the take |
 | click a line | start a new take from that line |
 | p | pause and resume listening |
+| w | review a line said in other words than it reads |
 | m | mirror the text, for beam-splitter glass |
 | + and − | text size |
 | s | hide or show the screen |
@@ -98,3 +99,16 @@ no longer matches it, so the line is synthesized until you read it again.
 Recordings are source, like the script: commit `takes/`. The microphone is
 recorded as it is, without the browser's noise suppression, so record
 somewhere quiet.
+
+## Keeping what you said
+
+A line you read in full in other words than it reads, a word swapped or
+left out, is still kept, and gets a blue dot beside its mark, with a
+toast. Press W to see the difference: the words you didn't say struck
+through, the ones you said instead in bold. **Use What I Said** rewords
+the line in the script to match, as `teleprompt edit <script> said
+<line>` does, and its recording stays current: nothing to read again.
+**Keep the Script**, or Escape, leaves the line as written, to read
+again; you aren't asked about it again until you reload the page. A small
+speech model mishears, so a word a letter off, or heard as two ("a
+round"), doesn't count as other words.
