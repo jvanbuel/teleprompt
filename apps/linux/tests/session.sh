@@ -1,8 +1,8 @@
 #!/bin/bash
 # Session mode, driven like a person would under a virtual X display: it
-# names a new script, presses space to record, types `ls` into the
+# names a new script, presses Ctrl+Shift+Space to record, types `ls` into the
 # terminal between two readings of the recognizer's fixture (played as the
-# microphone), presses Ctrl+Space to stop, and checks the draft and its
+# microphone), presses it again to stop, and checks the draft and its
 # takes, and that the draft opened in the prompter.
 #
 #   TELEPROMPT_BIN=…/teleprompt TELEPROMPT_MODEL=…/zipformer apps/linux/tests/session.sh
@@ -33,7 +33,7 @@ if [ "${1:-}" = --drive ]; then
   xdotool key Return
   sleep 1.5
   import -window root "$shots/01-idle.png"
-  xdotool key space
+  xdotool key ctrl+shift+space
   sleep "$reading"
   import -window root "$shots/02-recording.png"
   sleep 2
@@ -43,7 +43,7 @@ if [ "${1:-}" = --drive ]; then
   import -window root "$shots/03-typed.png"
   sleep "$reading"
   sleep 4
-  xdotool key ctrl+space
+  xdotool key ctrl+shift+space
   for i in $(seq -w 1 40); do
     sleep 1
     [ -f "$work/project/scripts/session.md" ] && break

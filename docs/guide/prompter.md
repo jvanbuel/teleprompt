@@ -39,13 +39,14 @@ cheaper but misses the first words of a take.
 teleprompt prompt scripts/tour.md --model path/to/sherpa-onnx-streaming-zipformer-en-2023-06-26
 ```
 
-Open the address it prints, press space to start, and read. Everything you
-read is a take: press space again to keep it. Click any line to start a new
-take from there, which is how you read one line again.
+Open the address it prints, press Ctrl+Shift+Space (⌘⇧Space on a Mac) to
+start, and read. Everything you read is a take: press it again to keep it.
+Click any line to start a new take from there, which is how you read one
+line again.
 
 | key | does |
 |---|---|
-| space | start a take from the line you are on; during one, keep it |
+| Ctrl+Shift+Space (⌘⇧Space on a Mac) | start a take from the line you are on; during one, keep it |
 | Enter | keep the take |
 | click a line | start a new take from that line |
 | p | pause and resume listening |

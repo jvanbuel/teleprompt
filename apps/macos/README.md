@@ -26,7 +26,7 @@ behalf of your terminal.
 
 | key | does |
 |---|---|
-| space | record from the line you are on; during a take, keep it (during the count of three: cancel) |
+| ⌘⇧Space | record from the line you are on; during a take, keep it (during the count of three: cancel) |
 | click a line | record from there |
 | ⌘T | record from the top |
 | return | keep the take |

@@ -41,7 +41,7 @@ To install it with a launcher entry:
 
 | key | does |
 |---|---|
-| space | record from the line you are on; during a take, keep it (during the count of three: cancel) |
+| Ctrl+Shift+Space | record from the line you are on; during a take, keep it (during the count of three: cancel) |
 | click a line | record from there |
 | Ctrl+T | record from the top |
 | Return | keep the take |
@@ -57,12 +57,15 @@ A take starts after a count of three; Settings turns that off.
 
 The app has a second mode for a script that doesn't exist yet: **Draft
 from a session…** on the start page, or Ctrl+N. Name the new script, and a
-terminal opens. Press space to start recording, then talk while you use
-the terminal, as if showing someone. Exit the shell, press Ctrl+Space or
-click Stop to finish: `teleprompt record` drafts the script, with what you
-said as its lines and what you typed as its tapes, and it opens in the
-prompter to read back and re-take. Space types into the terminal while it
-records, so it only starts the recording.
+terminal opens. Press Ctrl+Shift+Space to start recording, then talk
+while you use the terminal, as if showing someone. Press it again, exit the
+shell or click Stop to finish: `teleprompt record` drafts the script, with
+what you said as its lines and what you typed as its tapes, and it opens in
+the prompter to read back and re-take.
+
+Ctrl+Shift+Space starts and stops recording in both modes. It isn't typed
+into the terminal, and it isn't a desktop shortcut the way Ctrl+Space
+(switching input source) is.
 
 Set a punctuation model in Settings to give the draft sentences (see
 `docs/guide/recording.md`). The microphone is the system's default

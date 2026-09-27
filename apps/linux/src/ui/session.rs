@@ -37,7 +37,7 @@ impl SessionPage {
             .justify(gtk::Justification::Center)
             .build();
         let keycap = gtk::Label::builder()
-            .label("Space")
+            .label("Ctrl ⇧ Space")
             .css_classes(["keycap-large"])
             .halign(gtk::Align::Center)
             .build();
@@ -62,13 +62,13 @@ impl SessionPage {
         }
     }
 
-    /// Before recording: what space does, and where the draft goes.
+    /// Before recording: what the record key does, and where the draft goes.
     pub fn show_idle(&self, script: &Path) {
         self.show_hint(
-            "Press space to start recording",
+            "Press Ctrl+Shift+Space to start recording",
             &format!(
-                "Talk while you use the terminal, as if showing someone. Exit the \
-                 shell or press Ctrl+Space to stop, and the session becomes {}: \
+                "Talk while you use the terminal, as if showing someone. Press it \
+                 again, or exit the shell, to stop, and the session becomes {}: \
                  what you said as its lines, what you typed as its tapes.",
                 name(script)
             ),
@@ -78,7 +78,7 @@ impl SessionPage {
     pub fn show_failed(&self) {
         self.show_hint(
             "The recording did not become a script",
-            "The terminal behind says why. Press space to record again.",
+            "The terminal behind says why. Press Ctrl+Shift+Space to record again.",
         );
     }
 

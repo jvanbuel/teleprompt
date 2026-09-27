@@ -54,7 +54,7 @@ impl PrompterState {
     pub fn load(&mut self, script: Script) {
         self.script = script;
         self.at = Position::default();
-        self.status = Status::info("Press space to record from here, or click a line");
+        self.status = Status::info("Press Ctrl+Shift+Space to record from here, or click a line");
     }
 
     /// A take is starting at line `from`: nothing has played in it yet.

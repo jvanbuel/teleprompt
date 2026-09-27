@@ -55,9 +55,14 @@ struct PrompterCommands: Commands {
             Button("Open Script…") { model.chooseScript = true }
                 .keyboardShortcut("o")
         }
-        // The plain keys (space, return, p, m, + −, s) are the prompter's own;
+        // The plain keys (return, p, m, + −, s) are the prompter's own;
         // see PrompterView. Here they would fire while typing in Settings.
         CommandMenu("Prompter") {
+            // The record key, the same in every mode: ⌘⇧Space starts a take
+            // and keeps it. (⌘Space is Spotlight's.)
+            Button(model.isTaking ? "Keep Take" : "Record") { model.recordOrKeep() }
+                .keyboardShortcut(.space, modifiers: [.command, .shift])
+                .disabled(!model.isReady)
             Button("Record from the Top") { model.take(from: 0) }
                 .keyboardShortcut("t")
                 .disabled(!model.isReady)

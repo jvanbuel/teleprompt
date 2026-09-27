@@ -212,12 +212,16 @@ function status(text, bad = false) {
   $("status").classList.toggle("bad", bad);
 }
 
+/** Starts and stops recording: ⌘⇧Space on a Mac, Ctrl+Shift+Space elsewhere. */
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+const RECORD_KEY = MAC ? "⌘ ⇧ Space" : "Ctrl ⇧ Space";
+
 /** The keys that matter now, as keycaps. */
 function keys() {
-  const pairs = counting ? [["Space", "Cancel"]]
-    : paused ? [["Space", "Keep take"], ["P", "Resume"]]
-    : listening ? [["Space", "Keep take"], ["P", "Pause"]]
-    : [["Space", "Record"], ["M", "Mirror"]];
+  const pairs = counting ? [[RECORD_KEY, "Cancel"]]
+    : paused ? [[RECORD_KEY, "Keep take"], ["P", "Resume"]]
+    : listening ? [[RECORD_KEY, "Keep take"], ["P", "Pause"]]
+    : [[RECORD_KEY, "Record"], ["M", "Mirror"]];
   $("keys").replaceChildren(...pairs.map(([k, action]) => {
     const pair = document.createElement("span");
     const kbd = document.createElement("kbd");
@@ -520,7 +524,7 @@ async function take(from = 0) {
 function keep() {
   if (counting) {
     counting = false;
-    status("Press space to record from here, or click a line");
+    status(`Press ${MAC ? "⌘⇧Space" : "Ctrl+Shift+Space"} to record from here, or click a line`);
     return keys();
   }
   if (!ws || !(listening || paused)) return;
@@ -552,12 +556,13 @@ setInterval(() => {
 }, 100);
 
 document.addEventListener("keydown", (e) => {
+  if (e.key === " " && e.shiftKey && (MAC ? e.metaKey : e.ctrlKey)) {
+    e.preventDefault();
+    return recordOrKeep();
+  }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const handled = {
     "Enter": keep,
-    // Space records: a take from the line you are on, or keep the one under way.
-    " ": recordOrKeep,
-    "r": recordOrKeep,
     "p": togglePause,
     "m": () => document.body.classList.toggle("mirrored"),
     "s": () => document.body.classList.toggle("no-monitor"),
@@ -606,7 +611,7 @@ function margins() {
 addEventListener("resize", margins);
 margins();
 loadScript().then(() => {
-  status("Press space to record from here, or click a line");
+  status(`Press ${MAC ? "⌘⇧Space" : "Ctrl+Shift+Space"} to record from here, or click a line`);
   keys();
 });
 </script>

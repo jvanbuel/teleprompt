@@ -1,7 +1,7 @@
 #!/bin/bash
 # The app itself, driven like a person would: under a virtual X display,
 # with a recorded reading of apps/fixtures/tour as its microphone. It opens
-# the script, starts a take with space, keeps it with space, and checks
+# the script, starts and keeps a take with Ctrl+Shift+Space, and checks
 # that both lines were saved as takes and that a shot's clip was on screen.
 #
 #   TELEPROMPT_BIN=…/teleprompt TELEPROMPT_MODEL=…/zipformer apps/linux/tests/ui.sh
@@ -29,16 +29,16 @@ if [ "${1:-}" = --drive ]; then
     [ "$red" = 1 ] && break
     sleep 0.5
   done
-  [ "$red" = 1 ] || { echo "the prompter never became ready"; cat "$work/app.log"; exit 1; }
+  [ "$red" = 1 ] || { import -window root "$shots/never-ready.png"; echo "the prompter never became ready"; cat "$work/app.log"; exit 1; }
   xdotool windowfocus --sync "$window"
   import -window root "$shots/00-opened.png"
-  xdotool key space
+  xdotool key ctrl+shift+space
   # The count of three, the reading, and the room tone after it.
   for i in $(seq -w 1 30); do
     sleep 0.5
     import -window root "$shots/$i-reading.png"
   done
-  xdotool key space
+  xdotool key ctrl+shift+space
   sleep 2
   import -window root "$shots/99-kept.png"
   kill "$pid"

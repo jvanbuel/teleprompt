@@ -65,11 +65,6 @@ struct PrompterView: View {
             model.keep()
             return .handled
         }
-        // Space records: a take from the line you are on, or keep it.
-        .onKeyPress(.space) {
-            model.recordOrKeep()
-            return .handled
-        }
         .onKeyPress(characters: CharacterSet(charactersIn: "pms+=-"), phases: .down) { press in
             switch press.characters {
             case "p": model.togglePause()

@@ -203,7 +203,7 @@ final class AppModel: ObservableObject {
     func keep() {
         if counting != nil {
             counting = nil
-            state.status = .init("Press space to record from here, or click a line")
+            state.status = .init("Press ⌘⇧Space to record from here, or click a line")
             return
         }
         guard let client, let mic, state.listening || paused else { return }
@@ -217,8 +217,8 @@ final class AppModel: ObservableObject {
         state.status = .init("Keeping the take…")
     }
 
-    /// Space and the Record button: a take from the line you are on, or
-    /// keep the one under way.
+    /// The record key (⌘⇧Space) and the Record button: a take from the line
+    /// you are on, or keep the one under way.
     func recordOrKeep() {
         if isTaking { return keep() }
         let at = state.at.line

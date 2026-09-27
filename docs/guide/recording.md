@@ -66,8 +66,8 @@ nothing about the voice. The recording itself, `session.cast` and
 - A Unix terminal.
 
 The Linux app records sessions too: **Draft from a session…** opens a
-terminal, space starts recording, and the draft opens in the prompter when
-you stop.
+terminal, Ctrl+Shift+Space starts and stops recording, and the draft opens
+in the prompter when you stop.
 
 To record something other than your shell, put it after `--`:
 `teleprompt record scripts/tour.md --model … -- bash --norc`.

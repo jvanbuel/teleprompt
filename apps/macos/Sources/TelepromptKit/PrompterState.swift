@@ -30,7 +30,7 @@ public struct PrompterState: Equatable, Sendable {
     public mutating func load(_ script: Script) {
         self.script = script
         at = Position(line: 0, word: 0)
-        status = Status("Press space to record from here, or click a line")
+        status = Status("Press ⌘⇧Space to record from here, or click a line")
     }
 
     /// A take is starting at line `from`: nothing has played in it yet.

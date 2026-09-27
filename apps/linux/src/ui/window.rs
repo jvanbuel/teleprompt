@@ -22,6 +22,9 @@ use super::monitor::Monitor;
 use super::session::SessionPage;
 use super::tally::Tally;
 
+/// Starts and stops recording, in every mode.
+const RECORD_KEY: &str = "Ctrl ⇧ Space";
+
 /// What background threads tell the window, tagged with the launch they
 /// belong to so a stale one is dropped.
 enum Event {
@@ -145,35 +148,22 @@ impl Window {
         });
         self.w.glass.view.add_controller(keys);
 
-        // Space records wherever the focus is, as a button would otherwise
-        // take it; but it still types in a text field.
+        // The record key, Ctrl+Shift+Space: starts and stops recording in
+        // every mode, wherever the focus is, and is never typed into the
+        // session's shell.
         let weak = Rc::downgrade(this);
-        let space = gtk::EventControllerKey::new();
-        space.set_propagation_phase(gtk::PropagationPhase::Capture);
-        space.connect_key_pressed(move |controller, key, _, modifiers| {
-            let Some(this) = weak.upgrade() else {
-                return glib::Propagation::Proceed;
-            };
-            let typing = controller
-                .widget()
-                .and_then(|w| w.root())
-                .and_then(|r| r.focus())
-                .is_some_and(|f| typed_into(&f));
-            let plain = !modifiers.intersects(
-                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::ALT_MASK,
-            );
-            let control = modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK);
-            if key != gtk::gdk::Key::space {
-                return glib::Propagation::Proceed;
-            }
-            // Ctrl+Space stops a session: space itself is typed into it.
-            if (control && this.stop_session()) || (plain && !typing && this.space()) {
+        let record = gtk::EventControllerKey::new();
+        record.set_propagation_phase(gtk::PropagationPhase::Capture);
+        record.connect_key_pressed(move |_, key, _, modifiers| {
+            let both = gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK;
+            let pressed = key == gtk::gdk::Key::space && modifiers.contains(both);
+            if pressed && weak.upgrade().is_some_and(|this| this.record_key()) {
                 glib::Propagation::Stop
             } else {
                 glib::Propagation::Proceed
             }
         });
-        self.window.add_controller(space);
+        self.window.add_controller(record);
 
         let weak = Rc::downgrade(this);
         let click = gtk::GestureClick::new();
@@ -187,13 +177,8 @@ impl Window {
 
         let weak = Rc::downgrade(this);
         self.w.record.connect_clicked(move |_| {
-            let Some(this) = weak.upgrade() else { return };
-            if this.session_recording() == Some(true) {
-                this.stop_session();
-            } else if this.session_recording() == Some(false) {
-                this.start_session();
-            } else {
-                this.record_or_keep();
+            if let Some(this) = weak.upgrade() {
+                this.record_key();
             }
         });
 
@@ -223,13 +208,16 @@ impl Window {
         });
     }
 
-    /// Space, in whichever mode is showing; false when it has nothing to do
-    /// (a session under way, where space is typed).
-    fn space(self: &Rc<Self>) -> bool {
-        match self.w.stack.visible_child_name().as_deref() {
-            Some("ready") => self.record_or_keep(),
-            Some("session") if self.session_recording() == Some(false) => self.start_session(),
-            _ => return false,
+    /// The record key and the Record button: start or stop recording in
+    /// whichever mode is showing; false when there is nothing to record.
+    fn record_key(self: &Rc<Self>) -> bool {
+        match self.session_recording() {
+            Some(true) => {
+                self.stop_session();
+            }
+            Some(false) => self.start_session(),
+            None if self.model.borrow().socket.is_some() => self.record_or_keep(),
+            None => return false,
         }
         true
     }
@@ -243,7 +231,7 @@ impl Window {
         model.session.as_ref().map(|s| s.recording.is_some())
     }
 
-    /// Session mode, drafting into `script`: space starts it recording.
+    /// Session mode, drafting into `script`: the record key starts it.
     pub fn new_session(&self, script: PathBuf) {
         self.shutdown();
         {
@@ -376,7 +364,7 @@ impl Window {
         self.show_record();
     }
 
-    /// Space and the Record button: a take from the line you are on, or
+    /// A take from the line you are on, or
     /// keep the one under way.
     pub fn record_or_keep(self: &Rc<Self>) {
         if self.is_taking() {
@@ -518,7 +506,8 @@ impl Window {
             // A clock left from a session, or another script, starts over.
             model.take_time = Duration::ZERO;
             model.take_since = None;
-            model.state.status = Status::info("Press space to record from here, or click a line");
+            model.state.status =
+                Status::info("Press Ctrl+Shift+Space to record from here, or click a line");
         }
         // Opened now, so a take starts the moment it is asked for.
         if let Err(e) = self.open_mic() {
@@ -684,7 +673,7 @@ impl Window {
             if model.counting {
                 model.counting = false;
                 model.state.status =
-                    Status::info("Press space to record from here, or click a line");
+                    Status::info("Press Ctrl+Shift+Space to record from here, or click a line");
                 drop(model);
                 self.w.glass.show_countdown(None);
                 self.show_status();
@@ -923,19 +912,19 @@ impl Window {
             .is_some_and(|n| n == "session");
         let keys: &[(&str, &str)] = if session {
             if model.state.listening {
-                &[("Ctrl Space", "Stop")]
+                &[(RECORD_KEY, "Stop")]
             } else {
-                &[("Space", "Record")]
+                &[(RECORD_KEY, "Record")]
             }
         } else if model.counting {
-            &[("Space", "Cancel")]
+            &[(RECORD_KEY, "Cancel")]
         } else if model.paused {
-            &[("Space", "Keep take"), ("P", "Resume")]
+            &[(RECORD_KEY, "Keep take"), ("P", "Resume")]
         } else if model.state.listening {
-            &[("Space", "Keep take"), ("P", "Pause")]
+            &[(RECORD_KEY, "Keep take"), ("P", "Pause")]
         } else if model.socket.is_some() {
             &[
-                ("Space", "Record"),
+                (RECORD_KEY, "Record"),
                 ("Ctrl T", "From the top"),
                 ("M", "Mirror"),
             ]
@@ -1040,17 +1029,6 @@ impl Window {
     }
 }
 
-/// Whether a key pressed in `widget` is text being typed: an editable field,
-/// not the prompter's own read-only text.
-fn typed_into(widget: &gtk::Widget) -> bool {
-    if let Some(view) = widget.downcast_ref::<gtk::TextView>() {
-        return view.is_editable();
-    }
-    widget
-        .downcast_ref::<gtk::Editable>()
-        .is_some_and(gtk::prelude::EditableExt::is_editable)
-}
-
 fn file_name(path: &std::path::Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -1113,7 +1091,7 @@ impl Widgets {
         let record = gtk::Button::builder()
             .child(&record_inner)
             .css_classes(["record"])
-            .tooltip_text("Record from the line you are on, or keep the take (space)")
+            .tooltip_text("Record from the line you are on, or keep the take (Ctrl+Shift+Space)")
             .visible(false)
             .build();
         Self {
