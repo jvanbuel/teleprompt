@@ -169,11 +169,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
   "run": {
     "exit": 0,
     "stderr": [
-      "  [1/5] signin done",
-      "  [2/5] clicking done",
-      "  [3/5] flowrs done",
-      "  [4/5] filter done",
-      "  [5/5] drill done"
+      "{\"done\":1,\"event\":\"progress\",\"line\":\"signin\",\"of\":5,\"stage\":\"voice\"}",
+      "{\"done\":2,\"event\":\"progress\",\"line\":\"clicking\",\"of\":5,\"stage\":\"voice\"}",
+      "{\"done\":3,\"event\":\"progress\",\"line\":\"flowrs\",\"of\":5,\"stage\":\"voice\"}",
+      "{\"done\":4,\"event\":\"progress\",\"line\":\"filter\",\"of\":5,\"stage\":\"voice\"}",
+      "{\"done\":5,\"event\":\"progress\",\"line\":\"drill\",\"of\":5,\"stage\":\"voice\"}"
     ],
     "stdout": {
       "audio": {

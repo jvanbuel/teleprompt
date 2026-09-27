@@ -25,7 +25,15 @@ fn a_moved_shot_is_placed_again_and_changed_lines_are_not() {
 
     later();
     let text = std::fs::read_to_string(&script).unwrap();
-    std::fs::write(&script, text.replacen("```teleprompt scene=mock\n", "```teleprompt scene=mock policy=concurrent cue=\"This paragraph\"\n", 1)).unwrap();
+    std::fs::write(
+        &script,
+        text.replacen(
+            "```teleprompt scene=mock\n",
+            "```teleprompt scene=mock policy=concurrent cue=\"This paragraph\"\n",
+            1,
+        ),
+    )
+    .unwrap();
     let shots = reload().expect("the shots, placed again");
     assert!(shots[0].at.word > 0, "{:?}", shots[0].at);
     // Asked again without an edit since: nothing new.
@@ -33,6 +41,10 @@ fn a_moved_shot_is_placed_again_and_changed_lines_are_not() {
 
     later();
     let text = std::fs::read_to_string(&script).unwrap();
-    std::fs::write(&script, text.replacen("Welcome to teleprompt.", "Hello there.", 1)).unwrap();
+    std::fs::write(
+        &script,
+        text.replacen("Welcome to teleprompt.", "Hello there.", 1),
+    )
+    .unwrap();
     assert!(reload().is_none(), "changed lines need the script reopened");
 }

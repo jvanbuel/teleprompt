@@ -361,15 +361,16 @@ enum Command {
     },
 }
 
-/// A render's progress, shown only to a human at a terminal: the line
-/// rewrites itself with a carriage return, which a log or JSON cannot take.
+/// A render's progress, each percent of it: to a human at a terminal as a
+/// line that rewrites itself with a carriage return, which a log cannot
+/// take; with `--format json`, as progress events.
 fn progress_reporter(format: Format) -> impl FnMut(Progress) {
     use std::io::{IsTerminal, Write};
 
     let show = format == Format::Human && std::io::stderr().is_terminal();
     let mut last = u64::MAX;
     move |p: Progress| {
-        if !show || p.of_ms == 0 {
+        if p.of_ms == 0 {
             return;
         }
         let percent = (p.rendered_ms.min(p.of_ms) * 100) / p.of_ms;
@@ -377,6 +378,17 @@ fn progress_reporter(format: Format) -> impl FnMut(Progress) {
             return;
         }
         last = percent;
+        if format == Format::Json {
+            teleprompt_cli::output::progress(
+                "render",
+                String::new,
+                serde_json::json!({ "done_ms": p.rendered_ms.min(p.of_ms), "of_ms": p.of_ms }),
+            );
+            return;
+        }
+        if !show {
+            return;
+        }
         let mut err = std::io::stderr();
         let _ = write!(err, "\r  rendering  {percent:>3}%");
         if percent == 100 {
@@ -558,6 +570,7 @@ fn project_for(script: &std::path::Path) -> Result<Project, Outcome> {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let format = cli.format;
+    teleprompt_cli::output::set_progress_format(format);
     let outcome = run(cli.command, format).unwrap_or_else(|failure| fail(format, failure));
     ExitCode::from(exit_code_for(&outcome) as u8)
 }
@@ -772,9 +785,11 @@ fn run_capture(format: Format, args: &ScriptArgs, frame: &FrameArgs) -> Run {
         .transpose()
         .map_err(Outcome::RuntimeFailure)?;
     let mut progress = |p: teleprompt_capture::Progress| {
-        if format == Format::Human {
-            eprintln!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot);
-        }
+        teleprompt_cli::output::progress(
+            "capture",
+            || format!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot),
+            serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
+        );
     };
     let report = runtime()
         .map_err(runtime_failure)?

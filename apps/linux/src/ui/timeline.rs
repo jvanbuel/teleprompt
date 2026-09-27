@@ -24,6 +24,8 @@ const GRIP: f64 = 8.0;
 pub struct TimelineStrip {
     pub root: gtk::Box,
     area: gtk::DrawingArea,
+    /// How far a capture or build has got, across the strip's top.
+    working: gtk::ProgressBar,
     state: Rc<RefCell<State>>,
 }
 
@@ -51,10 +53,23 @@ impl TimelineStrip {
             .content_height(HEIGHT)
             .hexpand(true)
             .build();
-        let root = gtk::Box::builder().css_classes(["timeline"]).build();
+        let working = gtk::ProgressBar::builder()
+            .css_classes(["working"])
+            .visible(false)
+            .build();
+        let root = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .css_classes(["timeline"])
+            .build();
+        root.append(&working);
         root.append(&area);
         let state: Rc<RefCell<State>> = Rc::default();
-        let strip = Self { root, area, state };
+        let strip = Self {
+            root,
+            area,
+            working,
+            state,
+        };
         strip.draw();
         strip.interact();
         strip
@@ -68,6 +83,13 @@ impl TimelineStrip {
         state.drag = None;
         drop(state);
         self.area.queue_draw();
+    }
+
+    /// Shows how far a capture or build has got; `None` when none is under
+    /// way.
+    pub fn set_working(&self, fraction: Option<f64>) {
+        self.working.set_visible(fraction.is_some());
+        self.working.set_fraction(fraction.unwrap_or(0.0));
     }
 
     /// Marks the line the prompter is on.

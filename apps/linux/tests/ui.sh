@@ -65,6 +65,16 @@ if [ "${1:-}" = --drive ]; then
   xdotool key ctrl+z
   sleep 1.5
   cp "$md" "$work/undone.md"
+  # Build: the shots the drags changed are captured again, then the video.
+  xdotool key ctrl+b
+  sleep 1
+  import -window root "$shots/102-building.png"
+  for _ in $(seq 120); do
+    [ -f "$work/project/build/tour.en.mp4" ] && break
+    sleep 0.5
+  done
+  sleep 1.5
+  import -window root "$shots/103-built.png"
   kill "$pid"
   wait "$pid" || true
   exit 0
@@ -120,6 +130,11 @@ if cmp -s "$work/stretched.md" "$work/undone.md"; then
   echo "ok: Ctrl+Z undoes the last drag"
 else
   echo "FAIL: not undone"; diff "$work/stretched.md" "$work/undone.md"; fail=1
+fi
+if [ -s "$work/project/build/tour.en.mp4" ]; then
+  echo "ok: Ctrl+B built the video"
+else
+  echo "FAIL: no video built"; fail=1
 fi
 # The app was killed, not closed: its server must have gone with it.
 for _ in $(seq 10); do

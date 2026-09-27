@@ -11,6 +11,7 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 use teleprompt_gtk::api::{ClientMessage, Script, ServerMessage};
 use teleprompt_gtk::launch::{LaunchEvent, LaunchRequest, ServerProcess};
+use teleprompt_gtk::make::{self, Job, Progress};
 use teleprompt_gtk::mic::{Mic, RATE};
 use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
 use teleprompt_gtk::state::{PrompterState, Status};
@@ -46,6 +47,10 @@ enum Event {
     Planned(u64, Result<Timeline, String>),
     /// A drag's edit written, said as the author would; or why not.
     Edited(u64, Result<String, String>),
+    /// How far a capture or build has got.
+    Making(u64, Progress),
+    /// A capture or build done: the video, for a build; or why it failed.
+    Made(u64, Result<Option<PathBuf>, String>),
 }
 
 pub struct Window {
@@ -97,6 +102,8 @@ struct Model {
     session: Option<Session>,
     /// The script as it was before each timeline edit, latest last.
     undo: Vec<String>,
+    /// A capture or build is under way.
+    making: bool,
 }
 
 struct Session {
@@ -499,6 +506,12 @@ impl Window {
             Event::Tools(g, tools) if g == generation => self.tools_listed(tools),
             Event::Planned(g, planned) if g == generation => self.planned(planned),
             Event::Edited(g, edited) if g == generation => self.edited(edited),
+            Event::Making(g, progress) if g == generation => {
+                self.w.timeline.set_working(Some(progress.fraction()));
+                self.model.borrow_mut().state.status = Status::info(progress.label());
+                self.show_status();
+            }
+            Event::Made(g, made) if g == generation => self.made(made),
             Event::Level(rms) => {
                 if self.model.borrow().state.listening {
                     self.w.tally.set_level(rms);
@@ -696,6 +709,70 @@ impl Window {
             }
         }
         // The prompter places its shots again as it fetches the script.
+        self.refresh();
+    }
+
+    /// Captures the shots not yet captured, or changed since, and for a
+    /// build renders the video; one job at a time, never during a take.
+    pub fn make(&self, job: Job) {
+        if self.is_taking() || self.model.borrow().making {
+            return;
+        }
+        let model = self.model.borrow();
+        let (Some(binary), Some(script)) =
+            (model.config.binary(), model.config.last_script.clone())
+        else {
+            return;
+        };
+        if model.socket.is_none() {
+            return;
+        }
+        let (events, generation) = (self.events.clone(), model.generation);
+        drop(model);
+        self.model.borrow_mut().making = true;
+        self.w.timeline.set_working(Some(0.0));
+        std::thread::spawn(move || {
+            let progress = events.clone();
+            let made = make::run(&binary, &script, job, |p| {
+                let _ = progress.send_blocking(Event::Making(generation, p));
+            });
+            let _ = events.send_blocking(Event::Made(generation, made));
+        });
+    }
+
+    fn made(self: &Rc<Self>, made: Result<Option<PathBuf>, String>) {
+        self.model.borrow_mut().making = false;
+        self.w.timeline.set_working(None);
+        let (status, toast) = match made {
+            Ok(Some(video)) => {
+                let name = file_name(&video);
+                let toast = adw::Toast::builder()
+                    .title(format!("Built {name}"))
+                    .button_label("Play")
+                    .timeout(8)
+                    .build();
+                let uri = gio::File::for_path(&video).uri();
+                toast.connect_button_clicked(move |_| {
+                    let _ = gio::AppInfo::launch_default_for_uri(&uri, gio::AppLaunchContext::NONE);
+                });
+                (Status::info(format!("Built {name}")), toast)
+            }
+            Ok(None) => (
+                Status::info("Every shot is captured"),
+                adw::Toast::new("Every shot is captured"),
+            ),
+            Err(why) => {
+                let first = why.lines().next().unwrap_or("").to_string();
+                (
+                    Status::error(format!("Could not build: {first}")),
+                    adw::Toast::new(&format!("Could not build: {first}")),
+                )
+            }
+        };
+        self.model.borrow_mut().state.status = status;
+        self.show_status();
+        self.w.toasts.add_toast(toast);
+        // New clips for the monitor, and the shots' lengths as captured.
         self.refresh();
     }
 
@@ -1124,6 +1201,7 @@ impl Window {
             &[
                 (RECORD_KEY, "Record"),
                 ("Ctrl T", "From the top"),
+                ("Ctrl B", "Build"),
                 ("M", "Mirror"),
             ]
         } else {
@@ -1472,6 +1550,8 @@ impl Widgets {
         );
         let menu = gio::Menu::new();
         menu.append(Some("Record from the top"), Some("app.take-top"));
+        menu.append(Some("Capture shots"), Some("app.capture"));
+        menu.append(Some("Build video"), Some("app.build"));
         menu.append(Some("Draft from a session…"), Some("app.session"));
         menu.append(Some("Screen in its own window"), Some("app.screen-window"));
         menu.append(Some("Settings"), Some("app.settings"));

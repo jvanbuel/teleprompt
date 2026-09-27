@@ -50,6 +50,9 @@ To install it with a launcher entry:
 | + / − | text size |
 | s | show or hide the monitor |
 | Ctrl+Shift+S | the monitor in its own window, for a second display |
+| Ctrl+Z | undo the last timeline drag |
+| Ctrl+Shift+C | capture the shots not yet captured, or changed since |
+| Ctrl+B | capture, then build the video |
 
 A take starts after a count of three; Settings turns that off.
 
@@ -64,6 +67,10 @@ drop will do before you let go. Each drop is written into the script with
 Ctrl+Z undoes the last. Lines don't move: they're as long as the voice
 says them. A shot that states no length of its own (a Playwright script,
 a composition) moves but doesn't stretch.
+
+A moved or stretched shot needs capturing again: Ctrl+Shift+C captures
+what's missing, and Ctrl+B captures and builds the video, with its progress
+across the top of the timeline. When it's built, the toast plays it.
 
 ## Drafting from a session
 

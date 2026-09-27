@@ -81,6 +81,16 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
     );
     action("take-top", &["<Control>t"], Box::new(|w| w.take(0)));
     action("undo", &["<Control>z"], Box::new(|w| w.undo()));
+    action(
+        "capture",
+        &["<Control><Shift>c"],
+        Box::new(|w| w.make(teleprompt_gtk::make::Job::Capture)),
+    );
+    action(
+        "build",
+        &["<Control>b"],
+        Box::new(|w| w.make(teleprompt_gtk::make::Job::Build)),
+    );
     action("keep", &["<Control>Return"], Box::new(|w| w.keep()));
     action(
         "screen-window",

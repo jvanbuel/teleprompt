@@ -386,7 +386,11 @@ async fn render_all(
                 // Progress counts the script's lines, not requests.
                 for id in &line_ids {
                     let n = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                    eprintln!("  [{n}/{total}] {id} done");
+                    crate::output::progress(
+                        "voice",
+                        || format!("  [{n}/{total}] {id} done"),
+                        serde_json::json!({ "done": n, "of": total, "line": id }),
+                    );
                 }
             }
             (indices, r)

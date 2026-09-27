@@ -687,7 +687,11 @@ into the cache only once its whole session has succeeded.
 ## CLI
 
 The binary is a thin shell over the library crates. Every command takes
-`--format json`, and errors are reported in the format requested.
+`--format json`, and errors are reported in the format requested. With it,
+a long command's progress is one JSON event per line on stderr, for an app
+to show as it goes: `{"event": "progress", "stage": "voice" | "capture" |
+"render", …}` with `done` and `of` (lines, shots) or `done_ms` and `of_ms`
+(a render). The report is on stdout at the end.
 
 ### Exit codes
 
