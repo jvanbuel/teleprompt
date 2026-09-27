@@ -39,15 +39,16 @@ cheaper but misses the first words of a take.
 teleprompt prompt scripts/tour.md --model path/to/sherpa-onnx-streaming-zipformer-en-2023-06-26
 ```
 
-Open the address it prints, click to start, and read. Everything you read
-is a take: press Enter to keep it. Click any line to start a new take from
-there, which is how you read one line again.
+Open the address it prints, press space to start, and read. Everything you
+read is a take: press space again to keep it. Click any line to start a new
+take from there, which is how you read one line again.
 
 | key | does |
 |---|---|
+| space | start a take from the line you are on; during one, keep it |
 | Enter | keep the take |
 | click a line | start a new take from that line |
-| space | pause and resume listening |
+| p | pause and resume listening |
 | m | mirror the text, for beam-splitter glass |
 | + and − | text size |
 | s | hide or show the screen |

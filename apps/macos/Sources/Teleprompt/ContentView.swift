@@ -59,12 +59,7 @@ struct RecordButton: View {
     var body: some View {
         let taking = model.isTaking
         Button {
-            if taking {
-                model.keep()
-            } else {
-                let at = model.state.at.line
-                model.take(from: at < model.state.script.lines.count ? at : 0)
-            }
+            model.recordOrKeep()
         } label: {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: taking ? 1 : 4)

@@ -39,11 +39,11 @@ To install it with a launcher entry:
 
 | key | does |
 |---|---|
+| space | record from the line you are on; during a take, keep it (during the count of three: cancel) |
 | click a line | record from there |
-| Record button | record from the line you are on |
 | Ctrl+T | record from the top |
-| Return | keep the take (during the count of three: cancel) |
-| space | pause or resume |
+| Return | keep the take |
+| p | pause or resume |
 | m | mirror the text, for beam-splitter glass |
 | + / − | text size |
 | s | show or hide the monitor |

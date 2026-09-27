@@ -65,12 +65,14 @@ struct PrompterView: View {
             model.keep()
             return .handled
         }
+        // Space records: a take from the line you are on, or keep it.
         .onKeyPress(.space) {
-            model.togglePause()
+            model.recordOrKeep()
             return .handled
         }
-        .onKeyPress(characters: CharacterSet(charactersIn: "ms+=-"), phases: .down) { press in
+        .onKeyPress(characters: CharacterSet(charactersIn: "pms+=-"), phases: .down) { press in
             switch press.characters {
+            case "p": model.togglePause()
             case "m": model.mirrored.toggle()
             case "s": model.showsScreen.toggle()
             case "+", "=": model.textSize = min(120, model.textSize + 4)

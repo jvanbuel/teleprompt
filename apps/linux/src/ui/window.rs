@@ -134,6 +134,31 @@ impl Window {
         });
         self.w.glass.view.add_controller(keys);
 
+        // Space records wherever the focus is, as a button would otherwise
+        // take it; but it still types in a text field.
+        let weak = Rc::downgrade(this);
+        let space = gtk::EventControllerKey::new();
+        space.set_propagation_phase(gtk::PropagationPhase::Capture);
+        space.connect_key_pressed(move |controller, key, _, modifiers| {
+            let Some(this) = weak.upgrade() else {
+                return glib::Propagation::Proceed;
+            };
+            let typing = controller
+                .widget()
+                .and_then(|w| w.root())
+                .and_then(|r| r.focus())
+                .is_some_and(|f| typed_into(&f));
+            let plain = !modifiers.intersects(
+                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::ALT_MASK,
+            );
+            if key == gtk::gdk::Key::space && plain && !typing && this.space() {
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
+            }
+        });
+        self.window.add_controller(space);
+
         let weak = Rc::downgrade(this);
         let click = gtk::GestureClick::new();
         click.connect_released(move |_, _, x, y| {
@@ -146,15 +171,8 @@ impl Window {
 
         let weak = Rc::downgrade(this);
         self.w.record.connect_clicked(move |_| {
-            let Some(this) = weak.upgrade() else { return };
-            if this.is_taking() {
-                this.keep();
-            } else {
-                let (at, lines) = {
-                    let model = this.model.borrow();
-                    (model.state.at.line, model.state.script.lines.len())
-                };
-                this.take(if at < lines { at } else { 0 });
+            if let Some(this) = weak.upgrade() {
+                this.record_or_keep();
             }
         });
 
@@ -174,9 +192,31 @@ impl Window {
         });
     }
 
+    /// Space, in whichever mode is showing; false when it has nothing to do.
+    fn space(self: &Rc<Self>) -> bool {
+        if self.w.stack.visible_child_name().as_deref() != Some("ready") {
+            return false;
+        }
+        self.record_or_keep();
+        true
+    }
+
+    /// Space and the Record button: a take from the line you are on, or
+    /// keep the one under way.
+    pub fn record_or_keep(self: &Rc<Self>) {
+        if self.is_taking() {
+            return self.keep();
+        }
+        let (at, lines) = {
+            let model = self.model.borrow();
+            (model.state.at.line, model.state.script.lines.len())
+        };
+        self.take(if at < lines { at } else { 0 });
+    }
+
     /// The prompter's own keys, while it has focus. Ctrl combinations are
     /// the app's accelerators and pass through.
-    fn key(&self, key: gtk::gdk::Key, modifiers: gtk::gdk::ModifierType) -> bool {
+    fn key(self: &Rc<Self>, key: gtk::gdk::Key, modifiers: gtk::gdk::ModifierType) -> bool {
         use gtk::gdk::Key;
         if modifiers
             .intersects(gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::ALT_MASK)
@@ -185,7 +225,7 @@ impl Window {
         }
         match key {
             Key::Return | Key::KP_Enter => self.keep(),
-            Key::space => self.toggle_pause(),
+            Key::p => self.toggle_pause(),
             Key::m => self
                 .w
                 .glass
@@ -300,7 +340,7 @@ impl Window {
             model.socket = Some(socket);
             model.state = PrompterState::default();
             model.state.load(script);
-            model.state.status = Status::info("Click a line to record from there");
+            model.state.status = Status::info("Press space to record from here, or click a line");
         }
         // Opened now, so a take starts the moment it is asked for.
         if let Err(e) = self.open_mic() {
@@ -465,7 +505,8 @@ impl Window {
             let mut model = self.model.borrow_mut();
             if model.counting {
                 model.counting = false;
-                model.state.status = Status::info("Click a line to record from there");
+                model.state.status =
+                    Status::info("Press space to record from here, or click a line");
                 drop(model);
                 self.w.glass.show_countdown(None);
                 self.show_status();
@@ -698,13 +739,17 @@ impl Window {
         self.w.tally.set_status(&model.state.status);
         self.w.tally.set_on_air(model.state.listening);
         let keys: &[(&str, &str)] = if model.counting {
-            &[("⏎", "Cancel")]
+            &[("Space", "Cancel")]
         } else if model.paused {
-            &[("⏎", "Keep take"), ("Space", "Resume")]
+            &[("Space", "Keep take"), ("P", "Resume")]
         } else if model.state.listening {
-            &[("⏎", "Keep take"), ("Space", "Pause")]
+            &[("Space", "Keep take"), ("P", "Pause")]
         } else if model.socket.is_some() {
-            &[("Ctrl T", "Record from the top"), ("M", "Mirror")]
+            &[
+                ("Space", "Record"),
+                ("Ctrl T", "From the top"),
+                ("M", "Mirror"),
+            ]
         } else {
             &[]
         };
@@ -792,6 +837,17 @@ impl Window {
     }
 }
 
+/// Whether a key pressed in `widget` is text being typed: an editable field,
+/// not the prompter's own read-only text.
+fn typed_into(widget: &gtk::Widget) -> bool {
+    if let Some(view) = widget.downcast_ref::<gtk::TextView>() {
+        return view.is_editable();
+    }
+    widget
+        .downcast_ref::<gtk::Editable>()
+        .is_some_and(gtk::prelude::EditableExt::is_editable)
+}
+
 fn file_name(path: &std::path::Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -852,7 +908,7 @@ impl Widgets {
         let record = gtk::Button::builder()
             .child(&record_inner)
             .css_classes(["record"])
-            .tooltip_text("Record from the line you are on (Ctrl+T from the top)")
+            .tooltip_text("Record from the line you are on, or keep the take (space)")
             .visible(false)
             .build();
         Self {

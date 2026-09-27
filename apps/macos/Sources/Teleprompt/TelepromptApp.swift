@@ -55,7 +55,7 @@ struct PrompterCommands: Commands {
             Button("Open Script…") { model.chooseScript = true }
                 .keyboardShortcut("o")
         }
-        // The plain keys (return, space, m, + −, s) are the prompter's own;
+        // The plain keys (space, return, p, m, + −, s) are the prompter's own;
         // see PrompterView. Here they would fire while typing in Settings.
         CommandMenu("Prompter") {
             Button("Record from the Top") { model.take(from: 0) }

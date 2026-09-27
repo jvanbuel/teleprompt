@@ -26,11 +26,11 @@ behalf of your terminal.
 
 | key | does |
 |---|---|
+| space | record from the line you are on; during a take, keep it (during the count of three: cancel) |
 | click a line | record from there |
-| Record | record from the line you are on |
 | ⌘T | record from the top |
-| return | keep the take (during the count of three: cancel) |
-| space | pause or resume |
+| return | keep the take |
+| p | pause or resume |
 | m | mirror the text, for beam-splitter glass |
 | + / − | text size |
 | s | show or hide the monitor |

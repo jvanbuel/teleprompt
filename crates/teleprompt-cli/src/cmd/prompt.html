@@ -214,10 +214,10 @@ function status(text, bad = false) {
 
 /** The keys that matter now, as keycaps. */
 function keys() {
-  const pairs = counting ? [["⏎", "Cancel"]]
-    : paused ? [["⏎", "Keep take"], ["Space", "Resume"]]
-    : listening ? [["⏎", "Keep take"], ["Space", "Pause"]]
-    : [["R", "Record"], ["M", "Mirror"]];
+  const pairs = counting ? [["Space", "Cancel"]]
+    : paused ? [["Space", "Keep take"], ["P", "Resume"]]
+    : listening ? [["Space", "Keep take"], ["P", "Pause"]]
+    : [["Space", "Record"], ["M", "Mirror"]];
   $("keys").replaceChildren(...pairs.map(([k, action]) => {
     const pair = document.createElement("span");
     const kbd = document.createElement("kbd");
@@ -520,7 +520,7 @@ async function take(from = 0) {
 function keep() {
   if (counting) {
     counting = false;
-    status("Click a line to record from there");
+    status("Press space to record from here, or click a line");
     return keys();
   }
   if (!ws || !(listening || paused)) return;
@@ -555,8 +555,10 @@ document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const handled = {
     "Enter": keep,
-    " ": togglePause,
-    "r": () => (listening || paused || counting ? keep() : take(at.line < words.length ? at.line : 0)),
+    // Space records: a take from the line you are on, or keep the one under way.
+    " ": recordOrKeep,
+    "r": recordOrKeep,
+    "p": togglePause,
     "m": () => document.body.classList.toggle("mirrored"),
     "s": () => document.body.classList.toggle("no-monitor"),
     "+": () => resize(4), "=": () => resize(4), "-": () => resize(-4),
@@ -565,6 +567,11 @@ document.addEventListener("keydown", (e) => {
   e.preventDefault();
   handled();
 });
+
+function recordOrKeep() {
+  if (listening || paused || counting) keep();
+  else take(at.line < words.length ? at.line : 0);
+}
 
 function resize(by) {
   const now = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--size"));
@@ -599,7 +606,7 @@ function margins() {
 addEventListener("resize", margins);
 margins();
 loadScript().then(() => {
-  status("Click a line to record from there");
+  status("Press space to record from here, or click a line");
   keys();
 });
 </script>

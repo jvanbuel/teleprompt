@@ -46,10 +46,10 @@ struct TallyBar: View {
     }
 
     private var keys: [(String, String)] {
-        if model.counting != nil { return [("⏎", "Cancel")] }
-        if model.paused { return [("⏎", "Keep take"), ("Space", "Resume")] }
-        if model.state.listening { return [("⏎", "Keep take"), ("Space", "Pause")] }
-        return [("⌘T", "Record from the top"), ("M", "Mirror")]
+        if model.counting != nil { return [("Space", "Cancel")] }
+        if model.paused { return [("Space", "Keep take"), ("P", "Resume")] }
+        if model.state.listening { return [("Space", "Keep take"), ("P", "Pause")] }
+        return [("Space", "Record"), ("⌘T", "From the top"), ("M", "Mirror")]
     }
 }
 #endif
