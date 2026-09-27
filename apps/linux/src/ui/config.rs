@@ -15,9 +15,6 @@ pub struct Config {
     /// A sherpa-onnx punctuation model, for a session's draft to have
     /// sentences. Optional.
     pub punctuation: Option<PathBuf>,
-    /// The author's terminal, as it takes a command: `kitty`, `ghostty -e`.
-    /// Found when unset.
-    pub terminal: Option<String>,
 }
 
 impl Config {

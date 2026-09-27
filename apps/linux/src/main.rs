@@ -195,19 +195,6 @@ fn settings(window: &Rc<Window>) {
             window.set_config(config);
         }
     });
-    let terminal = adw::EntryRow::builder()
-        .title("Your terminal, for session mode (found when empty: kitty, ghostty -e, …)")
-        .text(config.terminal.clone().unwrap_or_default())
-        .build();
-    let weak = Rc::downgrade(window);
-    terminal.connect_changed(move |row| {
-        if let Some(window) = weak.upgrade() {
-            let mut config = window.config();
-            let text = row.text().trim().to_string();
-            config.terminal = (!text.is_empty()).then_some(text);
-            window.set_config(config);
-        }
-    });
     let countdown = adw::SwitchRow::builder()
         .title("Count down before a take")
         .subtitle("Three beats to settle before the prompter listens")
@@ -225,7 +212,6 @@ fn settings(window: &Rc<Window>) {
     group.add(&model);
     group.add(&punctuation);
     group.add(&locale);
-    group.add(&terminal);
     group.add(&countdown);
     let page = adw::PreferencesPage::new();
     page.add(&group);

@@ -1,10 +1,9 @@
 #!/bin/bash
 # Session mode, driven like a person would under a virtual X display: it
-# names a new script and presses Ctrl+Shift+Space, which opens the author's
-# terminal (xterm here, found through $TERMINAL) recording; types `ls` into
-# it between two readings of the recognizer's fixture (played as the
-# microphone); presses Ctrl+Shift+Space in the terminal to stop; and checks
-# the draft and its takes, and that the draft opened in the prompter.
+# names a new script, presses Ctrl+Shift+Space to record, types `ls` into the
+# terminal between two readings of the recognizer's fixture (played as the
+# microphone), presses it again to stop, and checks the draft and its
+# takes, and that the draft opened in the prompter.
 #
 #   TELEPROMPT_BIN=…/teleprompt TELEPROMPT_MODEL=…/zipformer apps/linux/tests/session.sh
 #
@@ -14,7 +13,7 @@ set -euo pipefail
 if [ "${1:-}" = --drive ]; then
   export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1
   export XDG_CONFIG_HOME="$work/config" XDG_CACHE_HOME="$work/cache"
-  export TELEPROMPT_RECORD_MIC="-re -i $work/voice.wav" TERMINAL=xterm
+  export TELEPROMPT_RECORD_MIC="-re -i $work/voice.wav"
   "$app" >"$work/app.log" 2>&1 &
   pid=$!
   window=""
@@ -35,29 +34,16 @@ if [ "${1:-}" = --drive ]; then
   sleep 1.5
   import -window root "$shots/01-idle.png"
   xdotool key ctrl+shift+space
-  # The terminal opens, recording.
-  term=""
-  for _ in $(seq 40); do
-    term=$(xdotool search --class xterm 2>/dev/null | head -1 || true)
-    [ -n "$term" ] && break
-    sleep 0.25
-  done
-  [ -n "$term" ] || { import -window root "$shots/no-terminal.png"; echo "no terminal opened"; cat "$work/app.log"; exit 1; }
   sleep "$reading"
   import -window root "$shots/02-recording.png"
   sleep 2
-  xdotool windowfocus --sync "$term"
   xdotool type --delay 80 "ls"
   xdotool key Return
   sleep 1
   import -window root "$shots/03-typed.png"
   sleep "$reading"
   sleep 4
-  # Stopped from inside the terminal, where the author is.
-  xdotool windowfocus --sync "$term"
   xdotool key ctrl+shift+space
-  sleep 1
-  import -window root "$shots/03b-stopped.png"
   for i in $(seq -w 1 40); do
     sleep 1
     [ -f "$work/project/scripts/session.md" ] && break

@@ -65,12 +65,9 @@ nothing about the voice. The recording itself, `session.cast` and
   `--mic "-f alsa -i hw:1"`.
 - A Unix terminal.
 
-Ctrl+Shift+Space stops the recording too: `record` takes it from the
-keyboard instead of passing it to the shell.
-
-The Linux app records sessions too: **Draft from a session…**, then
-Ctrl+Shift+Space opens your own terminal, recording. Stop as above, and
-the draft opens in the prompter.
+The Linux app records sessions too: **Draft from a session…** opens a
+terminal, Ctrl+Shift+Space starts and stops recording, and the draft opens
+in the prompter when you stop.
 
 To record something other than your shell, put it after `--`:
 `teleprompt record scripts/tour.md --model … -- bash --norc`.
