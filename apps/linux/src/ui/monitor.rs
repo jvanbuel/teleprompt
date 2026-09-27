@@ -229,6 +229,7 @@ impl Monitor {
         self.picture.set_visible(true);
         self.slate.set_visible(false);
         self.title.set_label(display_name(shot));
+        self.progress.set_visible(true);
         self.progress.set_fraction(0.0);
         self.time.set_label("");
     }
@@ -256,7 +257,8 @@ impl Monitor {
         self.slate.set_visible(true);
         self.title.set_label(shot.map(display_name).unwrap_or(""));
         self.time.set_label("");
-        self.progress.set_fraction(0.0);
+        // A clip's progress, with no clip, would be an empty bar.
+        self.progress.set_visible(false);
     }
 }
 

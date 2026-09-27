@@ -227,6 +227,12 @@ levelbar.meter > trough > block.empty {
   color: alpha(@ink, 0.6);
 }
 
+toast {
+  background-color: @raised;
+  color: @ink;
+  border: 1px solid @line_color;
+}
+
 /* Buttons. */
 button.record {
   background-color: @tally;

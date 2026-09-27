@@ -209,11 +209,13 @@ impl Glass {
                 let font = format!("{FAMILY} {} 14px", if current { "Bold" } else { "Medium" });
                 text.set_font_description(Some(&gtk::pango::FontDescription::from_string(&font)));
                 let (tw, th) = text.pixel_size();
-                cr.set_source_rgba(0.95, 0.96, 0.97, if current { 0.9 } else { 0.32 });
-                cr.move_to(f64::from(width - 22 - tw), cy - f64::from(th) / 2.0);
+                let x = f64::from(width - 22 - tw);
+                cr.set_source_rgba(0.95, 0.96, 0.97, if current { 0.9 } else { 0.45 });
+                cr.move_to(x, cy - f64::from(th) / 2.0);
                 pangocairo::functions::show_layout(cr, &text);
+                // Beside its number, clear of the reading line's arrow.
                 if recorded.get(line).copied().unwrap_or(false) {
-                    tick(cr, 16.0, cy);
+                    tick(cr, x - 12.0, cy);
                 }
             }
         });

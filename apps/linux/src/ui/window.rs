@@ -549,12 +549,8 @@ impl Window {
                 if stopped {
                     self.stop_clock();
                     self.refresh();
+                    // The status bar says what was kept, and the gutter ticks it.
                     self.show_record();
-                    let toast = adw::Toast::builder()
-                        .title(self.model.borrow().state.status.text.as_str())
-                        .timeout(4)
-                        .build();
-                    self.w.toasts.add_toast(toast);
                     self.play();
                 }
             }
