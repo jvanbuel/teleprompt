@@ -124,16 +124,16 @@ impl Recording for Session {
 }
 
 /// When each statement of the script was first seen.
-#[derive(Default)]
-struct Seen {
-    times: Vec<u64>,
+#[derive(Debug, Default)]
+pub struct Seen {
+    pub times: Vec<u64>,
 }
 
 impl Seen {
     /// codegen rewrites the file on every action, sometimes replacing its
     /// last statement (a `fill` grows as the author types): a statement
     /// keeps the time it first appeared at its place.
-    fn update(&mut self, statements: &[String], now: Duration) {
+    pub fn update(&mut self, statements: &[String], now: Duration) {
         self.times.truncate(statements.len());
         let now = now.as_millis() as u64;
         while self.times.len() < statements.len() {

@@ -89,7 +89,7 @@ pub fn run_prompt(
             .flush()
             .map_err(|e| PromptError::Runtime(e.to_string()))?;
     }
-    let edited = edits_to(project, script, locale, &prompt.lines);
+    let edited = reload_on_edit(project, script, locale, &prompt.lines);
     prompt_watching(listener, prompt, recognizer, Some(edited))
         .map_err(|e| PromptError::Runtime(e.to_string()))
 }
@@ -98,8 +98,12 @@ pub fn run_prompt(
 /// asked, for a script edited while it is being read: a shot moved or
 /// stretched. `None` when it has not changed, does not compile, or its
 /// lines changed too, which only reopening it can follow.
-#[cfg(feature = "listen")]
-fn edits_to(project: &Project, script: &std::path::Path, locale: &str, lines: &[String]) -> Reload {
+pub fn reload_on_edit(
+    project: &Project,
+    script: &std::path::Path,
+    locale: &str,
+    lines: &[String],
+) -> Reload {
     let modified = |p: &std::path::Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
     let seen = Mutex::new(modified(script));
     let (project, script, locale, lines) = (

@@ -70,11 +70,6 @@ pub fn apply(src: &str, edit: &Edit) -> Result<String, String> {
                 &src[b.range.start..b.info_range.start],
                 &src[b.info_range.end..b.range.end]
             );
-            let between = line.range.end.min(b.range.start)..line.range.end.max(b.range.start);
-            if line.range.end <= b.range.start && src[between].trim().is_empty() {
-                // Already right after that line: only its attributes change.
-                return Ok(replace(src, b.info_range.clone(), &info));
-            }
             // Cut the block with the blank lines before it, then insert it
             // after the line's paragraph, a blank line between.
             let cut = src[..b.range.start].trim_end_matches('\n').len() + 1..b.range.end;

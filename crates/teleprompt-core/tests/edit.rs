@@ -197,3 +197,49 @@ fn a_cue_at_a_sentence_s_end_is_that_word() {
         "{out}"
     );
 }
+
+/// A cue names one place: a phrase the line says twice grows until it
+/// is said once.
+#[test]
+fn a_cue_said_twice_grows_until_it_is_said_once() {
+    let src = "# T\n\nList the files, then list the files again. {#w}\n\n```teleprompt scene=mock\nwait 1s\n```\n";
+    let out = apply(
+        src,
+        &Edit::Cue {
+            block: "w-a".into(),
+            word: 5,
+        },
+    )
+    .unwrap();
+    assert!(out.contains("cue=\"the files again\""), "{out}");
+}
+
+/// `align` is for concurrent blocks; one that holds loses it, or the
+/// script would not compile.
+#[test]
+fn a_held_block_loses_its_align() {
+    let src = "# T\n\nOne line. {#w}\n\n```teleprompt scene=mock policy=concurrent align=end\nwait 1s\n```\n";
+    let out = apply(
+        src,
+        &Edit::Hold {
+            block: "w-a".into(),
+        },
+    )
+    .unwrap();
+    assert!(out.contains("```teleprompt scene=mock\n"), "{out}");
+}
+
+/// Moving a block onto the line it already follows is a cue there.
+#[test]
+fn a_block_moved_onto_its_own_line_is_cued_in_place() {
+    let moved = edit(Edit::Move {
+        block: "look-a".into(),
+        after: "look".into(),
+        word: Some(2),
+    });
+    let cued = edit(Edit::Cue {
+        block: "look-a".into(),
+        word: 2,
+    });
+    assert_eq!(moved, cued);
+}

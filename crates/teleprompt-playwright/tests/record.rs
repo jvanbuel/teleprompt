@@ -44,3 +44,21 @@ fn each_statement_is_a_step_at_the_time_it_appeared() {
         "await page.getByRole('link', { name: 'More' }).click();\n"
     );
 }
+
+/// codegen rewrites its last statement as the author types into a field:
+/// the statement keeps the time it first appeared. One taken back and
+/// replaced is a new step, at the time of its replacement.
+#[test]
+fn a_statement_keeps_the_time_it_first_appeared() {
+    use std::time::Duration;
+    use teleprompt_playwright::record::Seen;
+    let s = |xs: &[&str]| xs.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+    let mut seen = Seen::default();
+    seen.update(&s(&["goto"]), Duration::from_millis(100));
+    seen.update(&s(&["goto", "fill('h')"]), Duration::from_millis(500));
+    seen.update(&s(&["goto", "fill('hello')"]), Duration::from_millis(900));
+    assert_eq!(seen.times, [100, 500]);
+    seen.update(&s(&["goto"]), Duration::from_millis(1000));
+    seen.update(&s(&["goto", "click()"]), Duration::from_millis(1200));
+    assert_eq!(seen.times, [100, 1200]);
+}

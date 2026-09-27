@@ -219,3 +219,18 @@ fn the_script_names_each_shot_and_its_clip() {
     assert_eq!(f.session.clip(&stray.to_string()), None);
     assert_eq!(f.session.clip("../secret"), None);
 }
+
+/// An edit places the shots again, but never under a take already
+/// playing them: only between takes.
+#[test]
+fn shots_are_placed_again_only_between_takes() {
+    let mut f = session("prompter-replace", &[]);
+    let mut moved = prompt(&f.dir).shots;
+    moved[1].at = pos(0, 1);
+    f.session.start(0);
+    assert!(!f.session.replace_shots(moved.clone()));
+    assert_eq!(f.session.script().shots[1].at, pos(0, 3));
+    f.session.stop().unwrap();
+    assert!(f.session.replace_shots(moved));
+    assert_eq!(f.session.script().shots[1].at, pos(0, 1));
+}
