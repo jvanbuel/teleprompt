@@ -19,6 +19,8 @@
     --glass: #000; --ink: #f2f4f7; --cue: #ffb800; --tally: #ff3b30;
     --recorded: #3ddc84; --missing: #f28b82; --heard: #8ab5f7; --brought: #81c995;
     --chrome: #17181b; --raised: #202227; --line: #2c2f36;
+    /* The tally, deep enough to carry white text: 5.3:1. */
+    --on-air: #d70015;
     --said: rgb(242 244 247 / 0.3); --later: rgb(242 244 247 / 0.55);
     --size: 48px;
     --reading: 36%;
@@ -41,12 +43,13 @@
            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #record {
     justify-self: end; display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 16px; border: 0; border-radius: 999px; background: var(--tally);
-    color: #fff; font-weight: 700; cursor: pointer;
+    padding: 6px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised);
+    color: var(--ink); font-weight: 700; cursor: pointer;
   }
-  #record::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-  #record.keep { background: var(--ink); color: #000; }
-  #record.keep::before { border-radius: 1px; }
+  /* Red is the tally: idle, only its dot; on air, the whole button. */
+  #record::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--tally); }
+  #record.keep { background: var(--on-air); border-color: var(--on-air); color: #fff; }
+  #record.keep::before { border-radius: 1px; background: currentColor; }
   #record:focus-visible, .line:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 
   main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 0; }
@@ -101,6 +104,14 @@
     color: rgb(242 244 247 / 0.92); pointer-events: none;
   }
   #countdown.on { display: grid; }
+  /* On air, the glass itself says so, where the reader is looking, and
+     reads the same mirrored. Paused, it stays, faint. */
+  #glass::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    border: 6px solid var(--tally); opacity: 0; transition: opacity 120ms;
+  }
+  body.on-air #glass::after { opacity: 1; }
+  body.paused #glass::after { opacity: 0.35; }
 
   /* The monitor. */
   #monitor { border-left: 1px solid var(--line); padding: 20px; overflow: auto; }
@@ -152,12 +163,19 @@
     border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px;
   }
 
+  /* What a take did, large enough to read from where the reader sits. */
   #toast {
-    position: absolute; left: 50%; bottom: 72px; transform: translate(-50%, 12px); opacity: 0;
-    background: var(--raised); border: 1px solid var(--line); border-radius: 999px; padding: 10px 20px;
-    font-weight: 700; transition: opacity 180ms, transform 180ms; pointer-events: none;
+    position: absolute; left: 50%; bottom: 56px; transform: translate(-50%, 12px); opacity: 0;
+    display: flex; align-items: center; gap: 18px; max-width: calc(100% - 32px);
+    background: var(--raised); border: 1px solid var(--line); border-radius: 16px; padding: 14px 22px;
+    font-size: 24px; font-weight: 700; transition: opacity 180ms, transform 180ms; pointer-events: none;
   }
   #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  #toast.on:has(button) { pointer-events: auto; }
+  #toast button {
+    font: 700 16px var(--face); padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    background: var(--ink); color: #000; border: 0; white-space: nowrap;
+  }
 
   #review {
     max-width: min(560px, calc(100vw - 32px)); padding: 24px; border-radius: 14px;
@@ -278,9 +296,9 @@ const RECORD_KEY = MAC ? "⌘ ⇧ Space" : "Ctrl ⇧ Space";
 
 /** The keys that matter now, as keycaps. */
 function keys() {
-  const pairs = counting ? [[RECORD_KEY, "Cancel"]]
-    : paused ? [[RECORD_KEY, "Keep take"], ["P", "Resume"]]
-    : listening ? [[RECORD_KEY, "Keep take"], ["P", "Pause"]]
+  const pairs = counting ? [["Esc", "Cancel"]]
+    : paused ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Resume"]]
+    : listening ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Pause"]]
     : heardOtherwise() !== null ? [[RECORD_KEY, "Record"], ["W", "Review"], ["M", "Mirror"]]
     : [[RECORD_KEY, "Record"], ["M", "Mirror"]];
   $("keys").replaceChildren(...pairs.map(([k, action]) => {
@@ -291,9 +309,11 @@ function keys() {
     return pair;
   }));
   const taking = listening || paused || counting;
-  $("record").textContent = taking ? "Keep take" : "Record";
-  $("record").classList.toggle("keep", taking);
+  $("record").textContent = counting ? "Cancel" : taking ? "Keep take" : "Record";
+  $("record").classList.toggle("keep", listening || paused);
   for (const el of [$("tally"), $("timecode")]) el.classList.toggle("on-air", listening);
+  document.body.classList.toggle("on-air", listening);
+  document.body.classList.toggle("paused", paused);
 }
 
 function name(shot) { return shot.replace(/#0$/, ""); }
@@ -308,7 +328,10 @@ async function loadScript() {
     const line = document.createElement("div");
     line.className = "line";
     line.tabIndex = 0;
-    line.addEventListener("click", () => take(l));
+    line.addEventListener("click", () => {
+      if (listening || paused || counting) return status("Keep or discard this take first");
+      take(l);
+    });
     const gutter = document.createElement("span");
     gutter.className = "gutter";
     gutter.textContent = l + 1;
@@ -348,14 +371,17 @@ function heardOtherwise() {
   return l < 0 ? null : l;
 }
 
-/** Tells of the lines newly heard saying other words, once. */
-function offerSaid() {
+/** Tells of the lines newly heard saying other words, once: in a toast,
+ *  or, while a toast offers Undo, in the status line. */
+function offerSaid(quiet = false) {
   const fresh = script.lines.map((line, l) => [line, l]).filter(([line]) => line.said && !offered.has(key(line)));
   if (fresh.length === 0) return;
   for (const [line] of fresh) offered.add(key(line));
-  toast(fresh.length === 1
+  const said = fresh.length === 1
     ? `Line ${fresh[0][1] + 1} was said in other words. Press W to review`
-    : `${fresh.length} lines were said in other words. Press W to review`);
+    : `${fresh.length} lines were said in other words. Press W to review`;
+  if (quiet) status(`${$("status").textContent.replace(/\.?$/, ".")} ${said}`);
+  else toast(said);
 }
 
 /** Shows the next line said in other words, to keep what was said or not. */
@@ -535,11 +561,50 @@ function openSession() {
 }
 
 let toastTimer = null;
-function toast(text) {
-  $("toast").textContent = text;
-  $("toast").classList.add("on");
+/** Says `text` on the glass; with `action`, a button to act on it for longer. */
+function toast(text, action = null) {
+  const el = $("toast");
+  el.replaceChildren(text);
+  if (action) {
+    const button = document.createElement("button");
+    button.textContent = action.label;
+    button.addEventListener("click", () => { el.classList.remove("on"); action.run(); });
+    el.append(button);
+  }
+  el.classList.add("on");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $("toast").classList.remove("on"), 4000);
+  toastTimer = setTimeout(() => el.classList.remove("on"), action ? 8000 : 4000);
+}
+
+let undoable = false;         // the last take kept lines, which undo puts back
+
+function lineNames(ids) {
+  const n = ids.map((id) => script.lines.findIndex((line) => line.id === id) + 1).filter((n) => n > 0);
+  return n.length === 1 ? `line ${n[0]}` : `lines ${n.join(", ")}`;
+}
+
+/** Puts back what the last take kept replaced. */
+function undo() {
+  if (!undoable || !ws || listening || paused || counting) return;
+  undoable = false;
+  ws.send(JSON.stringify({ type: "undo" }));
+}
+
+/** Ends the take, or the count before it, keeping nothing. */
+function discard() {
+  if (counting) {
+    counting = false;
+    status(READY);
+    return keys();
+  }
+  if (!ws || !(listening || paused)) return;
+  listening = false;
+  paused = false;
+  if (takeSince !== null) { takeTime += performance.now() - takeSince; takeSince = null; }
+  pending = [];
+  ws.send(JSON.stringify({ type: "discard" }));
+  level(0);
+  keys();
 }
 
 async function onMessage(message) {
@@ -549,12 +614,25 @@ async function onMessage(message) {
     if (!playing) slate();
   } else if (message.type === "stopped") {
     const { saved } = message;
-    const kept = saved.length === 0 ? "Nothing was read in full, so nothing was kept"
-      : saved.length === 1 ? `Kept 1 line: ${saved[0]}` : `Kept ${saved.length} lines: ${saved.join(", ")}`;
-    status(kept);
-    toast(kept);
+    undoable = saved.length > 0;
+    if (saved.length === 0) {
+      status("Nothing kept: a line is kept once it is read to its end");
+      toast("Nothing kept: read a line to its end");
+    } else {
+      status(`Kept ${lineNames(saved)}. ${MAC ? "⌘Z" : "Ctrl+Z"} puts back what it replaced`);
+      toast(`Kept ${lineNames(saved)}`, { label: "Undo", run: undo });
+    }
     markRecorded((await (await fetch(`${API}/script`)).json()).lines);
-    offerSaid();
+    offerSaid(undoable);
+    keys();
+  } else if (message.type === "discarded") {
+    status("Take discarded: nothing kept");
+    toast("Take discarded");
+  } else if (message.type === "undone") {
+    const put = message.lines.length ? `Put back ${lineNames(message.lines)} as it was` : "Nothing to put back";
+    status(put);
+    toast(put);
+    markRecorded((await (await fetch(`${API}/script`)).json()).lines);
     keys();
   } else if (message.type === "kept_said") {
     const l = script.lines.findIndex((line) => line.id === message.line);
@@ -619,6 +697,7 @@ async function take(from = 0) {
   }
   listening = false;
   paused = false;
+  undoable = false;
   pending = [];
   queue = [];
   playing = null;
@@ -682,13 +761,19 @@ setInterval(() => {
 }, 100);
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === " " && e.shiftKey && (MAC ? e.metaKey : e.ctrlKey)) {
+  const command = MAC ? e.metaKey : e.ctrlKey;
+  if (e.key === " " && e.shiftKey && command) {
     e.preventDefault();
     return recordOrKeep();
   }
-  if (e.metaKey || e.ctrlKey || e.altKey || $("review").open) return;
+  if ($("review").open) return;
+  if (command && !e.shiftKey && (e.key === "Enter" || e.key === "z")) {
+    e.preventDefault();
+    return e.key === "Enter" ? keep() : undo();
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   const handled = {
-    "Enter": keep,
+    "Escape": discard,
     "p": togglePause,
     "w": reviewSaid,
     "m": () => document.body.classList.toggle("mirrored"),

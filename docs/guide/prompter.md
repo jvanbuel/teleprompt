@@ -42,15 +42,18 @@ teleprompt prompt scripts/tour.md
 ```
 
 Open the address it prints, press Ctrl+Shift+Space (⌘⇧Space on a Mac) to
-start, and read. Everything you read is a take: press it again to keep it.
-Click any line to start a new take from there, which is how you read one
-line again.
+start, and read. While you are on air, the glass has a red frame.
+Everything you read is a take: press the key again to keep it, or Escape to
+throw it away. Between takes, click any line to start a new take from
+there, which is how you read one line again.
 
 | key | does |
 |---|---|
 | Ctrl+Shift+Space (⌘⇧Space on a Mac) | start a take from the line you are on; during one, keep it |
-| Enter | keep the take |
-| click a line | start a new take from that line |
+| Ctrl+Enter (⌘Enter) | keep the take |
+| Escape | throw the take away, or cancel the count before it |
+| Ctrl+Z (⌘Z) | undo the take just kept: each line gets back the recording it replaced |
+| click a line | between takes, start a new take from that line |
 | p | pause and resume listening |
 | w | review a line said in other words than it reads |
 | m | mirror the text, for beam-splitter glass |
@@ -88,8 +91,9 @@ proprietary codecs cannot play them.
 ## Recording
 
 When you keep a take, each line you read in full is saved as that line's
-recording, `takes/<line>.wav`, replacing any earlier one. A line you broke
-off or skipped is not saved. The take is cut between lines at the pause
+recording, `takes/<line>.wav`. The recording it replaces is put aside, in
+`takes/.previous/`, and **Undo** on the message that says what was kept (or
+Ctrl+Z) puts it back. A line you broke off or skipped is not saved. The take is cut between lines at the pause
 after each one, so leave a breath between paragraphs. Lines with a
 recording are marked at their left edge.
 
