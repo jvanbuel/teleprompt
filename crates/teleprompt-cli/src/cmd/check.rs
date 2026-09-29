@@ -100,6 +100,28 @@ pub(crate) fn compile_script_with(
         .resolve(&program.config.voice.backend)
         .map_err(|d| render(&Diagnostics(vec![d]), &display))?;
 
+    let mixed = mixed_backends(&program);
+    if !mixed.is_empty() {
+        return Err(render(&Diagnostics(mixed), &display));
+    }
+
+    // `script_dir`, not `script.parent()`: a bare `demo.md` has
+    // `Some("")` for a parent, which is not the current directory.
+    let base_dir = crate::project::script_dir(script);
+
+    let mut out = compile_with_voice(project, &program, &*backend, base_dir, &display)?;
+
+    // The bare message, not `render()`'s output: like every other warning
+    // here it is a plain sentence, and callers add their own framing.
+    out.warnings
+        .extend(backend_override_diags.into_iter().map(|d| d.message));
+    out.warnings.extend(translation_warnings);
+
+    Ok((out, backend))
+}
+
+/// Lines whose own config picks another backend than the compile's.
+fn mixed_backends(program: &Program) -> Vec<Diagnostic> {
     // One backend per compile: `VoiceContext` carries a single `backend_id`.
     // A line attribute or a chapter block can still pick another, and the
     // merged config no longer says which, so the error names the effect,
@@ -122,49 +144,32 @@ pub(crate) fn compile_script_with(
             }
         }
     }
-    if !offenders.is_empty() {
-        let diags: Vec<Diagnostic> = offenders
-            .into_iter()
-            .map(|(backend, lines)| {
-                let shot = lines[0].1;
-                let names = lines
-                    .iter()
-                    .map(|(id, _)| format!("`{id}`"))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let (noun, verb) = if lines.len() == 1 {
-                    ("line", "resolves")
-                } else {
-                    ("lines", "resolve")
-                };
-                Diagnostic::error(format!(
-                    "{noun} {names} {verb} to voice backend `{backend}`, but this compile uses \
-                     `{}`",
-                    program.config.voice.backend
-                ))
-                .at(shot)
-                .with_help(
-                    "per-line and per-chapter voice backends are not supported yet; set \
-                     voice.backend at the project or script front-matter level instead",
-                )
-            })
-            .collect();
-        return Err(render(&Diagnostics(diags), &display));
-    }
-
-    // `script_dir`, not `script.parent()`: a bare `demo.md` has
-    // `Some("")` for a parent, which is not the current directory.
-    let base_dir = crate::project::script_dir(script);
-
-    let mut out = compile_with_voice(project, &program, &*backend, base_dir, &display)?;
-
-    // The bare message, not `render()`'s output: like every other warning
-    // here it is a plain sentence, and callers add their own framing.
-    out.warnings
-        .extend(backend_override_diags.into_iter().map(|d| d.message));
-    out.warnings.extend(translation_warnings);
-
-    Ok((out, backend))
+    offenders
+        .into_iter()
+        .map(|(backend, lines)| {
+            let shot = lines[0].1;
+            let names = lines
+                .iter()
+                .map(|(id, _)| format!("`{id}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let (noun, verb) = if lines.len() == 1 {
+                ("line", "resolves")
+            } else {
+                ("lines", "resolve")
+            };
+            Diagnostic::error(format!(
+                "{noun} {names} {verb} to voice backend `{backend}`, but this compile uses \
+                 `{}`",
+                program.config.voice.backend
+            ))
+            .at(shot)
+            .with_help(
+                "per-line and per-chapter voice backends are not supported yet; set \
+                 voice.backend at the project or script front-matter level instead",
+            )
+        })
+        .collect()
 }
 
 /// For a locale other than the script's own, puts the translation beside

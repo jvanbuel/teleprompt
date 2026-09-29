@@ -252,28 +252,10 @@ pub async fn run_build_with_capture(
     // pieces this render was about to copy.
     warnings.append(&mut plan_warnings);
     let mut all = warnings;
-    if let Some(dir) = &options.compose_dir {
-        let limit = options.cache_max_mb * 1_048_576;
-        match cache::prune(dir, limit) {
-            Ok(_) => {}
-            // A cache that will not shrink is a disk problem, not a reason
-            // to report a video that exists as a failure.
-            Err(e) => all.push(format!(
-                "could not prune the compose cache at {}: {e}",
-                dir.display()
-            )),
-        }
-    }
+    all.extend(prune_compose_cache(options));
 
     let captions = write_captions(&rendered.path, &dubbed.manifest)?;
-    let (list, problems) = chapters::youtube(&dubbed.manifest);
-    let chapters = rendered.path.with_extension("chapters.txt");
-    std::fs::write(&chapters, list)
-        .map_err(|e| BuildError::Runtime(format!("cannot write {}: {e}", chapters.display())))?;
-    // Only worth saying when there are chapters to show.
-    if dubbed.manifest.chapters.len() > 1 {
-        all.extend(problems);
-    }
+    let chapters = write_chapters(&rendered.path, &dubbed.manifest, &mut all)?;
 
     Ok(BuildReport {
         ok: true,
@@ -289,6 +271,37 @@ pub async fn run_build_with_capture(
         reused_ms: rendered.reused_ms,
         warnings: all,
     })
+}
+
+/// Shrinks the compose cache to `cache_max_mb`; what went wrong, if it did.
+/// A cache that will not shrink is a disk problem, not a reason to report a
+/// video that exists as a failure.
+fn prune_compose_cache(options: &BuildOptions) -> Option<String> {
+    let dir = options.compose_dir.as_ref()?;
+    let limit = options.cache_max_mb * 1_048_576;
+    cache::prune(dir, limit).err().map(|e| {
+        format!(
+            "could not prune the compose cache at {}: {e}",
+            dir.display()
+        )
+    })
+}
+
+/// YouTube chapter timestamps beside the video; what keeps them from
+/// counting as chapters goes into `warnings`, when there are any to show.
+fn write_chapters(
+    video: &Path,
+    manifest: &NarrationManifest,
+    warnings: &mut Vec<String>,
+) -> Result<PathBuf, BuildError> {
+    let (list, problems) = chapters::youtube(manifest);
+    let path = video.with_extension("chapters.txt");
+    std::fs::write(&path, list)
+        .map_err(|e| BuildError::Runtime(format!("cannot write {}: {e}", path.display())))?;
+    if manifest.chapters.len() > 1 {
+        warnings.extend(problems);
+    }
+    Ok(path)
 }
 
 /// The video's subtitles, named after it (`tour.en.srt` beside

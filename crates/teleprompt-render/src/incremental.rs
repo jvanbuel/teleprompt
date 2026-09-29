@@ -70,31 +70,9 @@ impl IncrementalRenderer {
         let mut done_frames = 0u64;
         let mut reused_frames = 0u64;
         for chunk in &chunks {
-            let key = ChunkKey::for_chunk(plan, chunk)
-                .hash(&mut |path| identity(&mut identities, path))
-                .map_err(|source| RenderError::Io {
-                    path: "a captured clip".into(),
-                    source,
-                })?;
-            let cached = self.cache_dir.join(format!("{key}.mp4"));
-
-            if self.reuse && is_usable(&cached) {
+            let (cached, reused) = self.chunk_file(plan, chunk, &mut identities)?;
+            if reused {
                 reused_frames += chunk.frames;
-                mark_used(&cached);
-            } else {
-                // Encoded beside the entry and renamed into place (atomic on
-                // one filesystem), or a killed render leaves a truncated mp4
-                // that every later build serves.
-                let partial = self.cache_dir.join(format!(".{key}.partial.mp4"));
-                ffmpeg::run(
-                    &self.program,
-                    &encode_args(plan, chunk, &partial),
-                    &mut |_| {},
-                )?;
-                std::fs::rename(&partial, &cached).map_err(|source| RenderError::Io {
-                    path: cached.display().to_string(),
-                    source,
-                })?;
             }
 
             // The concat demuxer's quoting: the cache directory is the
@@ -108,11 +86,69 @@ impl IncrementalRenderer {
             report(on_progress, on_the_clock(done_frames));
         }
 
+        self.assemble(plan, &list, &mut |rendered_ms| {
+            report(on_progress, rendered_ms);
+        })?;
+
+        on_progress(Progress {
+            rendered_ms: plan.duration_ms.ms(),
+            of_ms: plan.duration_ms.ms(),
+        });
+        Ok(Rendered {
+            path: plan.output.clone(),
+            duration_ms: plan.duration_ms.ms(),
+            reused_ms: self.reuse.then(|| on_the_clock(reused_frames)),
+        })
+    }
+
+    /// The chunk's cached encoding, encoding it first unless reuse is on
+    /// and it is there; and whether it was reused.
+    fn chunk_file(
+        &self,
+        plan: &RenderPlan,
+        chunk: &Chunk,
+        identities: &mut HashMap<PathBuf, Hash>,
+    ) -> Result<(PathBuf, bool), RenderError> {
+        let key = ChunkKey::for_chunk(plan, chunk)
+            .hash(&mut |path| identity(identities, path))
+            .map_err(|source| RenderError::Io {
+                path: "a captured clip".into(),
+                source,
+            })?;
+        let cached = self.cache_dir.join(format!("{key}.mp4"));
+
+        if self.reuse && is_usable(&cached) {
+            mark_used(&cached);
+            return Ok((cached, true));
+        }
+        // Encoded beside the entry and renamed into place (atomic on
+        // one filesystem), or a killed render leaves a truncated mp4
+        // that every later build serves.
+        let partial = self.cache_dir.join(format!(".{key}.partial.mp4"));
+        ffmpeg::run(
+            &self.program,
+            &encode_args(plan, chunk, &partial),
+            &mut |_| {},
+        )?;
+        std::fs::rename(&partial, &cached).map_err(|source| RenderError::Io {
+            path: cached.display().to_string(),
+            source,
+        })?;
+        Ok((cached, false))
+    }
+
+    /// Copies the chunks `list` names into the output, with the narration.
+    fn assemble(
+        &self,
+        plan: &RenderPlan,
+        list: &str,
+        on_out_ms: &mut dyn FnMut(u64),
+    ) -> Result<(), RenderError> {
         let list_path = self.cache_dir.join(format!(
             ".concat-{}.txt",
             Hash::of(plan.output.display().to_string().as_bytes()).short()
         ));
-        std::fs::write(&list_path, &list).map_err(|source| RenderError::Io {
+        std::fs::write(&list_path, list).map_err(|source| RenderError::Io {
             path: list_path.display().to_string(),
             source,
         })?;
@@ -122,9 +158,7 @@ impl IncrementalRenderer {
         let result = ffmpeg::run(
             &self.program,
             &assemble_args(plan, &list_path, &partial),
-            &mut |rendered_ms| {
-                report(on_progress, rendered_ms);
-            },
+            on_out_ms,
         )
         .and_then(|()| {
             std::fs::rename(&partial, &plan.output).map_err(|source| RenderError::Io {
@@ -136,17 +170,7 @@ impl IncrementalRenderer {
         if result.is_err() {
             let _ = std::fs::remove_file(&partial);
         }
-        result?;
-
-        on_progress(Progress {
-            rendered_ms: plan.duration_ms.ms(),
-            of_ms: plan.duration_ms.ms(),
-        });
-        Ok(Rendered {
-            path: plan.output.clone(),
-            duration_ms: plan.duration_ms.ms(),
-            reused_ms: self.reuse.then(|| on_the_clock(reused_frames)),
-        })
+        result
     }
 }
 
