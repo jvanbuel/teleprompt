@@ -117,14 +117,25 @@ impl IncrementalRenderer {
             source,
         })?;
 
+        // Like a chunk: a render killed part way leaves the last good video.
+        let partial = partial_beside(&plan.output);
         let result = ffmpeg::run(
             &self.program,
-            &assemble_args(plan, &list_path),
+            &assemble_args(plan, &list_path, &partial),
             &mut |rendered_ms| {
                 report(on_progress, rendered_ms);
             },
-        );
+        )
+        .and_then(|()| {
+            std::fs::rename(&partial, &plan.output).map_err(|source| RenderError::Io {
+                path: plan.output.display().to_string(),
+                source,
+            })
+        });
         let _ = std::fs::remove_file(&list_path);
+        if result.is_err() {
+            let _ = std::fs::remove_file(&partial);
+        }
         result?;
 
         on_progress(Progress {
@@ -260,7 +271,7 @@ fn encoder(fps: u32) -> Vec<String> {
 
 /// Concatenates the chunks with `-c:v copy` (no re-encode) and mixes the
 /// narration over them.
-fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
+fn assemble_args(plan: &RenderPlan, list: &Path, output: &Path) -> Vec<String> {
     let mut args: Vec<String> = vec!["-hide_banner".into(), "-y".into()];
     args.extend([
         "-f".into(),
@@ -318,6 +329,16 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         "[a]".into(),
     ]);
     ffmpeg::audio_encode(&mut args);
-    args.push(plan.output.display().to_string());
+    args.push(output.display().to_string());
     args
+}
+
+/// `out.mp4` → `.out.partial.mp4` in the same directory, so the rename is
+/// atomic and ffmpeg still picks the container from the extension.
+fn partial_beside(output: &Path) -> PathBuf {
+    let name = output
+        .file_name()
+        .map_or_else(Default::default, |n| n.to_string_lossy());
+    let (stem, ext) = name.rsplit_once('.').unwrap_or((&name, "mp4"));
+    output.with_file_name(format!(".{stem}.partial.{ext}"))
 }

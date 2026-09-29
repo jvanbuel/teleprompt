@@ -412,3 +412,47 @@ fn copying_from_a_chunk_marks_it_as_used() {
          prune would throw away exactly what is being used"
     );
 }
+
+/// A final pass that dies part way (Ctrl+C, a full disk) leaves the last
+/// good video at `--out`, not the half of a new one.
+#[cfg(unix)]
+#[test]
+fn a_render_that_fails_at_the_end_leaves_the_output_as_it_was() {
+    use std::os::unix::fs::PermissionsExt;
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = workdir("incr-atomic");
+    let clip = bright_clip(&dir, "clip.mp4");
+    let plan = plan(&dir, &clip, &[(0, 1_000)], 1_000);
+    std::fs::write(&plan.output, b"the last good render").unwrap();
+    // Real ffmpeg for the chunks; the concat pass writes half a file to
+    // the path it was given, and fails.
+    let wrapper = dir.join("ffmpeg-dies-at-the-end");
+    std::fs::write(
+        &wrapper,
+        "#!/bin/sh\ncase \"$*\" in *concat*) for last; do :; done; \
+         printf half > \"$last\"; exit 1;; esac\nexec ffmpeg \"$@\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let renderer = IncrementalRenderer {
+        program: wrapper.display().to_string(),
+        ..one_pass(&dir)
+    };
+    renderer
+        .render(&plan, &mut |_| {})
+        .expect_err("the final pass failed");
+    assert_eq!(
+        std::fs::read(&plan.output).unwrap(),
+        b"the last good render"
+    );
+    let left: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|n| n.contains("partial"))
+        .collect();
+    assert!(left.is_empty(), "a partial file was left: {left:?}");
+}
