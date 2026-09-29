@@ -663,7 +663,7 @@ fn run_edit_cmd(format: Format, script: &Path, edit: EditCommand) -> Run {
         EditCommand::Said { line } => teleprompt_cli::cmd::edit::run_said(&project, script, &line),
         edit => teleprompt_cli::cmd::edit::run_edit(&project, script, &edit.into_edit()),
     }
-    .map_err(|e| Outcome::ValidationError(vec![e]))?;
+    .map_err(Outcome::from)?;
     let human = if report.changed {
         format!("edited {}\n", report.script.display())
     } else {

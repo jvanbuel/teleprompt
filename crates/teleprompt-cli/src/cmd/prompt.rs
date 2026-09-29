@@ -138,7 +138,9 @@ pub fn edits_of(project: &Project, script: &std::path::Path, locale: &str) -> Ed
     Edits {
         reload: reload_on_edit(project, script, locale),
         keep_said: Box::new(move |line| {
-            crate::cmd::edit::run_said(&keeper, &path, line).map(|_| ())
+            crate::cmd::edit::run_said(&keeper, &path, line)
+                .map(|_| ())
+                .map_err(|e| e.to_string())
         }),
     }
 }

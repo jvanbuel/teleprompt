@@ -134,3 +134,46 @@ fn said_rewords_a_line_to_what_its_take_says() {
     let err = String::from_utf8_lossy(&again.stderr);
     assert!(err.contains("welcome"), "{err}");
 }
+
+/// Refused, the edit says why as a list an app can show line by line, and
+/// leaves nothing behind but the script as it was.
+#[test]
+fn a_refused_edit_lists_its_reasons_and_leaves_no_file() {
+    let dir = teleprompt_testkit::test_dir("edit-refused-json");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let args = [
+        "--format",
+        "json",
+        "edit",
+        "scripts/demo.md",
+        "stretch",
+        "welcome-a",
+        "--by",
+        "10",
+    ];
+    let out = tp(&dir, &args);
+    assert_eq!(out.status.code(), Some(2));
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(report["ok"], false);
+    let errors = report["errors"].as_array().unwrap();
+    assert!(errors.len() >= 2, "{errors:?}");
+    assert!(errors[0].as_str().unwrap().starts_with("not written"));
+    assert!(errors[1..]
+        .iter()
+        .any(|e| e.as_str().unwrap().contains("outside")));
+    let left: Vec<_> = std::fs::read_dir(dir.join("scripts"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(left, ["demo.md"]);
+}
+
+/// An edit naming no block in the script is the script's problem: 2.
+#[test]
+fn an_edit_of_an_unknown_block_is_invalid() {
+    let dir = teleprompt_testkit::test_dir("edit-unknown");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let out = tp(&dir, &["edit", "scripts/demo.md", "hold", "no-such-block"]);
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("no-such-block"));
+}

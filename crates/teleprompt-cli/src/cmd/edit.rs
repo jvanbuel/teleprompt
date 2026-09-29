@@ -11,6 +11,7 @@ use teleprompt_core::edit::{apply, Edit};
 use teleprompt_voice::takes::Takes;
 
 use crate::cmd::check::compile_script;
+use crate::output::Outcome;
 use crate::project::Project;
 
 #[derive(Debug, Serialize)]
@@ -19,49 +20,91 @@ pub struct EditReport {
     pub changed: bool,
 }
 
-pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditReport, String> {
+/// Why an edit was not made.
+#[derive(Debug)]
+pub enum EditError {
+    /// The script, or the edit asked of it: each reason on its own.
+    Invalid(Vec<String>),
+    /// The files could not be read or written.
+    Io(String),
+}
+
+impl std::fmt::Display for EditError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Invalid(reasons) => write!(f, "{}", reasons.join("\n")),
+            Self::Io(message) => write!(f, "{message}"),
+        }
+    }
+}
+
+impl From<EditError> for Outcome {
+    fn from(e: EditError) -> Self {
+        match e {
+            EditError::Invalid(reasons) => Self::ValidationError(reasons),
+            EditError::Io(message) => Self::RuntimeFailure(message),
+        }
+    }
+}
+
+fn invalid(reason: String) -> EditError {
+    EditError::Invalid(vec![reason])
+}
+
+pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditReport, EditError> {
     let before = std::fs::read_to_string(script)
-        .map_err(|e| format!("cannot read {}: {e}", script.display()))?;
-    let after = apply(&before, edit)?;
-    if after == before {
-        return Ok(EditReport {
-            script: script.to_path_buf(),
-            changed: false,
-        });
-    }
-    let write = |text: &str| {
-        std::fs::write(script, text).map_err(|e| format!("cannot write {}: {e}", script.display()))
-    };
-    write(&after)?;
-    if let Err(errors) = compile_script(project, script, &crate::cmd::check::source_locale(project))
-    {
-        write(&before)?;
-        return Err(format!(
-            "not written, since the script would not compile:\n{}",
-            errors.join("\n")
-        ));
-    }
-    Ok(EditReport {
+        .map_err(|e| invalid(format!("cannot read {}: {e}", script.display())))?;
+    let after = apply(&before, edit).map_err(invalid)?;
+    let report = |changed| EditReport {
         script: script.to_path_buf(),
-        changed: true,
-    })
+        changed,
+    };
+    if after == before {
+        return Ok(report(false));
+    }
+    // Compiled beside the script, where its includes resolve, and renamed
+    // over it only once it compiles: a script is never left half-edited.
+    let mut name = std::ffi::OsString::from(".");
+    name.push(script.file_name().unwrap_or_default());
+    name.push(".edit");
+    let edited = script.with_file_name(name);
+    let io = |e: std::io::Error| EditError::Io(format!("cannot write {}: {e}", script.display()));
+    std::fs::write(&edited, &after).map_err(io)?;
+    let locale = crate::cmd::check::source_locale(project);
+    if let Err(errors) = compile_script(project, &edited, &locale) {
+        let _ = std::fs::remove_file(&edited);
+        let mut reasons = vec!["not written, since the script would not compile:".to_string()];
+        reasons.extend(
+            errors
+                .iter()
+                .map(|e| e.replace(&*edited.to_string_lossy(), &script.to_string_lossy())),
+        );
+        return Err(EditError::Invalid(reasons));
+    }
+    std::fs::rename(&edited, script).map_err(|e| {
+        let _ = std::fs::remove_file(&edited);
+        io(e)
+    })?;
+    Ok(report(true))
 }
 
 /// Rewords line `line` to what its take was heard to say, and keeps the
 /// take as the line's: it says what the line now does.
-pub fn run_said(project: &Project, script: &Path, line: &str) -> Result<EditReport, String> {
+pub fn run_said(project: &Project, script: &Path, line: &str) -> Result<EditReport, EditError> {
     let (compiled, _) = compile_script(project, script, &crate::cmd::check::source_locale(project))
-        .map_err(|e| e.join("\n"))?;
+        .map_err(EditError::Invalid)?;
     let text = compiled
         .narration
         .iter()
         .find(|n| n.line_id == line)
         .map(|n| n.text.clone())
-        .ok_or_else(|| format!("no line `{line}` in the script"))?;
+        .ok_or_else(|| invalid(format!("no line `{line}` in the script")))?;
     let dir = project.takes_dir();
-    let mut takes = Takes::load(&dir).map_err(|e| e.to_string())?;
+    let mut takes = Takes::load(&dir).map_err(|e| EditError::Io(e.to_string()))?;
     let said = takes.said(line, &text).ok_or_else(|| {
-        format!("line `{line}` has no take heard saying other words than it does")
+        invalid(format!(
+            "line `{line}` has no take heard saying other words than it does"
+        ))
     })?;
     let report = run_edit(
         project,
@@ -71,6 +114,8 @@ pub fn run_said(project: &Project, script: &Path, line: &str) -> Result<EditRepo
             text: said.clone(),
         },
     )?;
-    takes.retext(line, &said).map_err(|e| e.to_string())?;
+    takes
+        .retext(line, &said)
+        .map_err(|e| EditError::Io(e.to_string()))?;
     Ok(report)
 }
