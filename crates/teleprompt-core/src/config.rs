@@ -64,6 +64,12 @@ pub struct TimingConfig {
     pub max_stretch: f64,
     pub min_stretch: f64,
     pub trim_warn_above: f64,
+    /// How much faster or slower `fit-line` may play a synthesized line,
+    /// and a recorded take (docs/design.md#led-by-the-picture).
+    pub min_line_speed: f64,
+    pub max_line_speed: f64,
+    pub min_take_speed: f64,
+    pub max_take_speed: f64,
 }
 
 /// The shape of the rendered video.
@@ -230,6 +236,10 @@ impl Default for Config {
                 max_stretch: 3.0,
                 min_stretch: 0.33,
                 trim_warn_above: 2.0,
+                min_line_speed: 0.9,
+                max_line_speed: 1.15,
+                min_take_speed: 0.95,
+                max_take_speed: 1.08,
             },
             transition: TransitionConfig {
                 kind: TransitionKind::Crossfade,
@@ -317,6 +327,10 @@ pub struct PartialTiming {
     pub max_stretch: Option<f64>,
     pub min_stretch: Option<f64>,
     pub trim_warn_above: Option<f64>,
+    pub min_line_speed: Option<f64>,
+    pub max_line_speed: Option<f64>,
+    pub min_take_speed: Option<f64>,
+    pub max_take_speed: Option<f64>,
     /// Renamed to `trim_warn_above`. Read only to say so: as an unknown
     /// field it would fail without naming the new key.
     #[serde(default, deserialize_with = "renamed_max_speedup")]
@@ -574,6 +588,10 @@ impl Config {
                 set!(c.timing.max_stretch, t.max_stretch);
                 set!(c.timing.min_stretch, t.min_stretch);
                 set!(c.timing.trim_warn_above, t.trim_warn_above);
+                set!(c.timing.min_line_speed, t.min_line_speed);
+                set!(c.timing.max_line_speed, t.max_line_speed);
+                set!(c.timing.min_take_speed, t.min_take_speed);
+                set!(c.timing.max_take_speed, t.max_take_speed);
             }
             if let Some(o) = &layer.output {
                 // A resolution is a pair or it is nothing: half of one is

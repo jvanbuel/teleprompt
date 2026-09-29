@@ -406,6 +406,7 @@ pub fn compile(
                 cue,
                 session,
                 stretch,
+                budget,
                 review,
                 span,
             } => walker.action(&Block {
@@ -419,6 +420,7 @@ pub fn compile(
                 cue: cue.as_deref(),
                 session,
                 stretch: *stretch,
+                budget: *budget,
                 review: review.as_deref(),
                 span,
             }),
@@ -476,6 +478,7 @@ struct Block<'e> {
     cue: Option<&'e str>,
     session: &'e Option<String>,
     stretch: Option<f64>,
+    budget: Option<DurationMs>,
     review: Option<&'e str>,
     span: &'e SourceSpan,
 }
@@ -578,6 +581,7 @@ impl<'a> Walker<'a, '_> {
                 duration_ms,
                 duration_source,
                 recorded: take.is_some(),
+                words: text.split_whitespace().count(),
                 // From the line's own config: the item it joins may carry
                 // the action block's config, which lacks a line-level
                 // `lead_in=` or `tail=`.
@@ -821,7 +825,10 @@ Read it, then remove the attribute.",
                 adapter: how.adapter_name.clone(),
                 source: shot.source.clone(),
             });
-            let Some(measured) = self.stretched(b, how, how.adapter.estimate(shot)) else {
+            let Some(measured) = self
+                .stretched(b, how, how.adapter.estimate(shot))
+                .and_then(|m| self.budgeted(b, how, m))
+            else {
                 continue;
             };
             // An `Unknown` shot takes its line's length, so one with no line
@@ -913,6 +920,43 @@ Read it, then remove the attribute.",
                 );
                 None
             }
+        }
+    }
+
+    /// A `fit-line` shot's length: its own, or the block's `budget=` for
+    /// one that states none. The picture leads, so it must have a length
+    /// (docs/design.md#led-by-the-picture). `None` once reported.
+    fn budgeted(&mut self, b: &Block, how: &Placing, measured: Measured) -> Option<Measured> {
+        if b.policy != PolicyKind::FitLine {
+            return Some(measured);
+        }
+        match (measured, b.budget) {
+            (Measured::Unknown, Some(budget)) => Some(Measured::Exact(budget.ms())),
+            (Measured::Unknown, None) => {
+                self.diags.push(
+                    Diagnostic::error(format!(
+                        "`fit-line` fits the line to its picture, and a `{}` shot \
+                         states no length",
+                        how.adapter_name
+                    ))
+                    .at(*b.span)
+                    .with_help("give the block the picture's length, e.g. `budget=6.5s`"),
+                );
+                None
+            }
+            (known, Some(_)) => {
+                self.diags.push(
+                    Diagnostic::error(format!(
+                        "`budget` on a `{}` shot that states its own length ({} ms)",
+                        how.adapter_name,
+                        known.duration_ms().unwrap_or(0)
+                    ))
+                    .at(*b.span)
+                    .with_help("the two could disagree: drop `budget`, it is for shots that state no length"),
+                );
+                None
+            }
+            (known, None) => Some(known),
         }
     }
 

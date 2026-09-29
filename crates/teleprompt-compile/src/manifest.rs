@@ -43,14 +43,20 @@ pub fn build(
                 source_hash: n.source_hash,
                 audio_hash: n.audio_hash,
                 words: detail.word_timings.as_ref().map(|ws| {
+                    // At the tempo the line is played at.
+                    let at = |ms: u64| {
+                        n.tempo_permille
+                            .map_or(ms, |t| ms * 1000 / u64::from(t.max(1)))
+                    };
                     ws.iter()
                         .map(|w| WordEntry {
                             text: w.word.clone(),
-                            start_ms: w.start_ms,
-                            end_ms: w.end_ms,
+                            start_ms: at(w.start_ms),
+                            end_ms: at(w.end_ms),
                         })
                         .collect()
                 }),
+                tempo_permille: n.tempo_permille,
             })
         })
         .collect();

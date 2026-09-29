@@ -24,6 +24,7 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
             lead_in_ms: Config::default().timing.lead_in_ms,
             tail_ms: Config::default().timing.tail_ms,
             recorded: false,
+            words: 0,
         }),
         action: None,
         policy: Policy::Hold,

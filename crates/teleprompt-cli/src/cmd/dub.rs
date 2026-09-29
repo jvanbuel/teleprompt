@@ -245,13 +245,14 @@ pub async fn run_dub_with(
         .collect();
     let rendered = render_all(&backend, &cache, &synthesized, limit).await?;
     let rendered = with_takes(&compiled.narration, rendered, &takes)?;
-    let audio = Audio::collect(rendered);
+    let mut audio = Audio::collect(rendered);
 
     // Recompile against the now-warm cache: the first compile ran before
     // anything was rendered, so on a cold project it holds estimates. This
     // makes `dub` idempotent, and costs no synthesis.
     let (compiled, _) =
         compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
+    audio.fit(&compiled.timeline)?;
     audio.check_lengths(&compiled.timeline)?;
     let built = audio.manifest(&compiled);
 
@@ -526,6 +527,31 @@ impl Audio {
             audio.lines.push((r.line_id, r.wav_bytes, r.rendered_ms));
         }
         audio
+    }
+
+    /// Each `fit-line` line at the tempo the timeline gives it, as long as
+    /// the timeline says (docs/design.md#led-by-the-picture). The cache
+    /// keeps the voice at its own pace.
+    fn fit(&mut self, timeline: &teleprompt_schedule::Timeline) -> Result<(), DubError> {
+        for (line_id, bytes, rendered_ms) in &mut self.lines {
+            let Some(n) = timeline
+                .entries
+                .iter()
+                .filter_map(|e| e.narration.as_ref())
+                .find(|n| &n.line == line_id)
+            else {
+                continue;
+            };
+            let Some(tempo) = n.tempo_permille else {
+                continue;
+            };
+            let pcm = teleprompt_voice::wav::decode(bytes)
+                .map_err(|e| DubError::Runtime(format!("line `{line_id}`: {e}")))?;
+            let fitted = teleprompt_voice::stretch::stretch_to(&pcm, tempo, n.duration_ms);
+            *rendered_ms = fitted.duration_ms();
+            *bytes = teleprompt_voice::wav::encode(&fitted);
+        }
+        Ok(())
     }
 
     /// Every rendered length against the (measured) timeline, before

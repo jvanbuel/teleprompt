@@ -74,7 +74,7 @@ drifts from the manifest, the manifest is right and this document is wrong —
 }
 ```
 
-Four fields that are easy to skip and worth wiring up:
+Five fields that are easy to skip and worth wiring up:
 
 - **`duration_source`** — `measured` from real audio, `estimated` from the
   word-count model. Render estimated lines with a visible marker during
@@ -88,6 +88,11 @@ Four fields that are easy to skip and worth wiring up:
 - **`words`** — per-word `start_ms`/`end_ms`, present only when the backend
   provides them. The key is absent rather than empty, so `line.words &&`
   is a real test.
+- **`tempo_permille`** — present on a `fit-line` line, which is sped up or
+  slowed down to fit its picture: 1150 is 15% faster. The audio file is
+  already at that tempo, and `duration_ms` and `words` are its, so there is
+  nothing to apply; show it only if you want to flag a line that was
+  pushed.
 
 ## Types
 
@@ -134,6 +139,7 @@ export type Line = {
   source_hash: string;
   audio_hash: string;
   words?: { text: string; start_ms: number; end_ms: number }[];
+  tempo_permille?: number;
 };
 
 /** Milliseconds to frames. Only ever called on an absolute offset — see

@@ -4,6 +4,7 @@ use crate::ast::{ActionBlock, Chapter, Directive, Line, Node, Script};
 use crate::attrs::{BlockAttrs, LineAttrs};
 use crate::config::{Config, PartialConfig};
 use crate::policy::{Align, PolicyKind};
+use crate::DurationMs;
 use crate::{Diagnostic, Diagnostics, Hash, SourceSpan};
 
 /// A chapter as the manifest and other consumers need it: identity and a
@@ -75,6 +76,8 @@ pub enum Element {
         session: Option<String>,
         /// `stretch=`: its shots run this many times their own length.
         stretch: Option<f64>,
+        /// `budget=`: a `fit-line` item's length, for a shot of unknown length.
+        budget: Option<DurationMs>,
         /// `review=pending` on a block `from` generated: the command in
         /// it came out of someone else's document and has been read by
         /// nobody. Carried to `compile`, which is where `check`'s warnings
@@ -256,6 +259,18 @@ impl Resolver<'_> {
                     ),
             );
         }
+        if let (Some(_), false) = (attrs.budget, policy == PolicyKind::FitLine) {
+            self.diags.push(
+                Diagnostic::error(format!(
+                    "`budget` has no effect with `policy={policy}`: it is a `fit-line` item's length"
+                ))
+                    .at(block.span)
+                    .with_help(
+                        "a budget is the length of an item its picture leads; \
+                         write `policy=fit-line`, or drop `budget`",
+                    ),
+            );
+        }
         let config = self.merged(chapter_cfg, PartialConfig::from_block(&attrs));
         self.elements.push(Element::Action {
             block_id: block.id.clone().unwrap_or_default(),
@@ -268,6 +283,7 @@ impl Resolver<'_> {
             cue: attrs.cue,
             session: attrs.session,
             stretch: attrs.stretch,
+            budget: attrs.budget,
             config,
             span: block.span,
         });

@@ -231,6 +231,20 @@ fn decode_percent(s: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
+/// A `fit-line` line's audio at the tempo and length the manifest gives it,
+/// as `dub` writes it; any other line's as it is.
+fn at_tempo(bytes: Vec<u8>, tempo: Option<(u32, u64)>) -> Vec<u8> {
+    let Some((tempo, ms)) = tempo else {
+        return bytes;
+    };
+    match teleprompt_voice::wav::decode(&bytes) {
+        Ok(pcm) => {
+            teleprompt_voice::wav::encode(&teleprompt_voice::stretch::stretch_to(&pcm, tempo, ms))
+        }
+        Err(_) => bytes,
+    }
+}
+
 /// The line id in `/audio/<id>.wav`, rejecting anything that could escape
 /// the cache: this server answers a browser, and a path is user input even
 /// when the user is its own author.
@@ -332,8 +346,17 @@ fn handle(
             let Some(file) = file else {
                 return respond(stream, "404 Not Found", "text/plain", b"no such line");
             };
+            let tempo = {
+                let preview = state.lock().expect("preview lock");
+                preview
+                    .manifest
+                    .lines
+                    .iter()
+                    .find(|l| l.id == id)
+                    .and_then(|l| l.tempo_permille.map(|t| (t, l.duration_ms)))
+            };
             match std::fs::read(file) {
-                Ok(bytes) => respond(stream, "200 OK", "audio/wav", &bytes),
+                Ok(bytes) => respond(stream, "200 OK", "audio/wav", &at_tempo(bytes, tempo)),
                 Err(_) => respond(stream, "404 Not Found", "text/plain", b"no audio yet"),
             }
         }

@@ -15,6 +15,7 @@ fn narration(id: &str, ms: u64) -> NarrationInput {
         lead_in_ms: defaults.lead_in_ms,
         tail_ms: defaults.tail_ms,
         recorded: false,
+        words: 0,
     }
 }
 

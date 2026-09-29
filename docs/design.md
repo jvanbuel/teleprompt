@@ -14,13 +14,19 @@ that link to it.
 duration, and the visuals are paced to it. Other programmatic video tools
 have the author write durations. Here the author writes prose. Editing a
 paragraph moves every transition after it, and `plan` and `diff` show that
-before anything renders.
+before anything renders. The one exception is a picture whose length is
+fixed, such as a recording or an animation: an item can be led by its
+picture instead ([`fit-line`](#led-by-the-picture)), and its length is the
+picture's own. A length is written only for a shot that cannot state one.
 
-**Narration is never altered.** Every policy takes the speech's length as
-fixed and adjusts only the action. Nothing resamples, compresses or cuts
-speech. `voice.speed` is a synthesis parameter the author sets, sent to the
-backend so the voice is generated at that rate. The scheduler never writes
-it. When pacing is wrong, the fix is to edit the prose.
+**Narration is never cut.** Every policy but one takes the speech's length
+as fixed and adjusts only the action. `voice.speed` is a synthesis
+parameter the author sets, sent to the backend so the voice is generated
+at that rate. The one policy that changes speech is `fit-line`, which the
+author asks for on an item led by its picture: it speeds the line up or
+slows it down, keeping its pitch, within bounds, and says how many words to
+cut past them. Nothing cuts speech. When pacing is wrong, the fix is to
+edit the prose.
 
 **A video is a function of a committed script and a cache.** Every derived
 artifact is content-addressed. An edit costs exactly the recomputation it
@@ -439,6 +445,7 @@ The scheduler is a pure function from items, with their durations, to a
 | `concurrent` | The action and the line overlap. `align=start` (the default), `end` or `center` places the shorter within the longer. A [cue](#cues) moves the action to a phrase. |
 | `fit-action` | The action is re-timed, slower or faster, to last exactly as long as the line, within `min_stretch` and `max_stretch`. The bound is applied with a warning. |
 | `trim-action` | An action longer than its line is cut to the line's length, with a warning when it is more than `trim_warn_above` times the line's length. A shorter action is left alone. |
+| `fit-line` | The line is sped up or slowed down to fit the action, which keeps its length: see [led by the picture](#led-by-the-picture). |
 
 A policy only changes a picture if the adapter can re-time its source (see
 `retime` under [the scene contract](#scene-contract)). Where the adapter
@@ -451,6 +458,36 @@ their replacement, never aliases, so scripts converge on one name:
 `trim` became `trim-action`, and `max_speedup` (it only ever set when a
 trim is reported) became `trim_warn_above`, as a block attribute and as a
 `timing` key.
+
+### Led by the picture
+
+Each item is led by its line or by its picture, and its policy says which;
+the line leads by default. Items follow one another, so a script mixes
+both: a slide held for as long as its line is spoken, then a recorded
+terminal session the next line must fit.
+
+`fit-line` makes the picture lead. The action's length is the item's, and
+the line's clip, between its lead-in and tail, is played at the tempo that
+fits it there, between `min_line_speed` and `max_line_speed` (0.9 and
+1.15), or `min_take_speed` and `max_take_speed` (0.95 and 1.08) for a
+recorded take, since stretching a real voice is more audible. Past a bound
+the tempo stops at it, and a warning says by how much the line is over or
+under, and, when over, about how many of its words to cut. A line shorter
+than its picture at the slowest tempo ends early, and the picture plays on.
+
+The action's length must be known: an `Exact` or `Estimated` duration, or
+`budget=` on the block for a shot whose length is `Unknown`, such as a
+Playwright script. `fit-line` without either is an error, and so is
+`budget=` on a shot that states its own length, since the two could
+disagree. `cue=` and `align=` are errors with `fit-line`: they place an
+action against its line, and here the line is placed against the action.
+
+The timeline and the manifest record the tempo as `tempo_permille` on the
+narration, absent when it is 1000, and the narration's duration is its
+length at that tempo. `dub` writes each line's audio at its tempo,
+stretched in time by `teleprompt_voice::stretch`, which keeps pitch; the
+cache keeps the voice as it was synthesized or recorded, so changing a
+tempo costs no synthesis.
 
 ### Cues
 
@@ -781,5 +818,3 @@ Named here so the rest of this document is not read as covering them:
   synthesized.
 - **Runtime-loaded plugins.** Backends and adapters are compiled in; see
   [What teleprompt ships](#what-teleprompt-ships) for the plan.
-- **Narration-constrained scheduling**, where a fixed picture sets a
-  budget and over-long prose becomes a diagnostic.

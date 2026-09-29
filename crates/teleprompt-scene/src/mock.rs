@@ -20,6 +20,8 @@ enum Command {
     Nothing,
     Mark,
     Wait(u64),
+    /// A shot that states no length, as a Playwright script does.
+    Open,
 }
 
 fn classify(line: &str) -> Result<Command, CommandError> {
@@ -37,6 +39,13 @@ fn classify(line: &str) -> Result<Command, CommandError> {
             Some(extra) => Err(CommandError::new(
                 format!("`mark` takes no arguments, found `{extra}`"),
                 "write `mark` on a line of its own",
+            )),
+        },
+        "open" => match parts.next() {
+            None => Ok(Command::Open),
+            Some(extra) => Err(CommandError::new(
+                format!("`open` takes no arguments, found `{extra}`"),
+                "write `open` on a line of its own",
             )),
         },
         "wait" => {
@@ -61,7 +70,7 @@ fn classify(line: &str) -> Result<Command, CommandError> {
         }
         other => Err(CommandError::new(
             format!("unknown mock directive `{other}`"),
-            "mock understands `wait <duration>` and `mark`",
+            "mock understands `wait <duration>`, `open` and `mark`",
         )),
     }
 }
@@ -104,13 +113,20 @@ impl SceneCompiler for MockScene {
     }
 
     fn estimate(&self, shot: &Shot) -> Measured {
+        if shot
+            .source
+            .lines()
+            .any(|l| matches!(classify(l), Ok(Command::Open)))
+        {
+            return Measured::Unknown;
+        }
         let total: u64 = shot
             .source
             .lines()
             .filter_map(|l| match classify(l) {
                 Ok(Command::Wait(ms)) => Some(ms),
                 // No catch-all, so a new directive must be handled here.
-                Ok(Command::Nothing | Command::Mark) | Err(_) => None,
+                Ok(Command::Nothing | Command::Mark | Command::Open) | Err(_) => None,
             })
             .sum();
         Measured::Exact(total)

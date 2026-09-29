@@ -36,6 +36,8 @@ pub const BLOCK_KEYS: &[&str] = &[
     // How much longer (above 1) or shorter its shots run than their own
     // pace: an author's own re-timing, where `fit-action` is the line's.
     "stretch",
+    // The length of a `fit-line` item whose shot cannot state one.
+    "budget",
 ];
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -96,6 +98,7 @@ pub struct BlockAttrs {
     pub cue: Option<String>,
     pub session: Option<String>,
     pub id: Option<String>,
+    pub budget: Option<DurationMs>,
     pub trim_warn_above: Option<f64>,
     pub max_stretch: Option<f64>,
     pub min_stretch: Option<f64>,
@@ -119,6 +122,7 @@ impl BlockAttrs {
             cue: v.text("cue"),
             session: v.text("session"),
             id: v.text("id"),
+            budget: v.parsed("budget", DurationMs::parse),
             trim_warn_above: v.parsed("trim_warn_above", number),
             max_stretch: v.parsed("max_stretch", number),
             min_stretch: v.parsed("min_stretch", number),

@@ -36,6 +36,10 @@ pub struct NarrationEntry {
     /// Spoken from a recorded take; absent for a synthesized line.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub recorded: bool,
+    /// The tempo `fit-line` plays it at, in thousandths; absent at 1000.
+    /// `duration_ms` is its length at this tempo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tempo_permille: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

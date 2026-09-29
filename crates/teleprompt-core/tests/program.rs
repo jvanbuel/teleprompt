@@ -439,3 +439,42 @@ fn align_is_rejected_where_it_has_no_effect() {
     }
     assert!(resolve_block("policy=concurrent align=end").is_ok());
 }
+
+fn errors_for(src: &str) -> Vec<String> {
+    let mut parsed = parse_script(src).expect("fixture parses");
+    assign_ids(&mut parsed);
+    match resolve(
+        &parsed,
+        "t.md",
+        "en",
+        &PartialConfig::default(),
+        &PartialConfig::default(),
+    ) {
+        Ok(_) => Vec::new(),
+        Err(d) => d.0.iter().map(|d| d.message.clone()).collect(),
+    }
+}
+
+/// A budget is the length of an item its picture leads; on any other it
+/// would change nothing.
+#[test]
+fn a_budget_needs_fit_line() {
+    let errs = errors_for("# A\n\nGo. {#go}\n\n```teleprompt scene=mock budget=5s\nopen\n```\n");
+    assert!(
+        errs.iter()
+            .any(|e| e.contains("budget") && e.contains("fit-line")),
+        "{errs:?}"
+    );
+    let ok = errors_for(
+        "# A\n\nGo. {#go}\n\n```teleprompt scene=mock policy=fit-line budget=5s\nopen\n```\n",
+    );
+    assert!(ok.is_empty(), "{ok:?}");
+}
+
+#[test]
+fn align_has_no_effect_with_fit_line() {
+    let errs = errors_for(
+        "# A\n\nGo. {#go}\n\n```teleprompt scene=mock policy=fit-line align=end\nwait 1s\n```\n",
+    );
+    assert!(errs.iter().any(|e| e.contains("align")), "{errs:?}");
+}

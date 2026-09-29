@@ -12,6 +12,8 @@ pub enum PolicyKind {
     Concurrent,
     FitAction,
     TrimAction,
+    /// The picture leads: the line is sped up or slowed to fit it.
+    FitLine,
 }
 
 impl PolicyKind {
@@ -23,6 +25,7 @@ impl PolicyKind {
             "concurrent" => Ok(Self::Concurrent),
             "fit-action" => Ok(Self::FitAction),
             "trim-action" => Ok(Self::TrimAction),
+            "fit-line" => Ok(Self::FitLine),
             "stretch" | "stretch-action" | "trim" => {
                 let current = if s == "trim" {
                     "trim-action"
@@ -36,7 +39,7 @@ impl PolicyKind {
             }
             _ => Err((
                 format!("unknown policy `{s}`"),
-                "policy is hold|concurrent|fit-action|trim-action".to_string(),
+                "policy is hold|concurrent|fit-action|trim-action|fit-line".to_string(),
             )),
         }
     }
@@ -47,6 +50,7 @@ impl PolicyKind {
             Self::Concurrent => "concurrent",
             Self::FitAction => "fit-action",
             Self::TrimAction => "trim-action",
+            Self::FitLine => "fit-line",
         }
     }
 }

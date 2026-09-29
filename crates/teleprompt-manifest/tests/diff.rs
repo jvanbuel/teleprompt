@@ -17,6 +17,7 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
         source_hash: Hash::of(text.as_bytes()),
         audio_hash: Hash::of(audio_seed.as_bytes()),
         words: None,
+        tempo_permille: None,
     }
 }
 

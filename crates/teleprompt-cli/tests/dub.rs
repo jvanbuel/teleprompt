@@ -1301,3 +1301,29 @@ fn dub_refuses_a_take_that_changed_on_disk() {
     assert_eq!(code(&out), 1, "{stderr}");
     assert!(stderr.contains("welcome.wav"), "{stderr}");
 }
+
+/// A `fit-line` line is written at the tempo that fits its picture: its
+/// audio is as long as the manifest says, and the manifest says the tempo
+/// (docs/design.md#led-by-the-picture).
+#[test]
+fn dub_writes_a_fit_line_line_at_its_tempo() {
+    let script = "---\nteleprompt: 1\n---\n\n# Fit\n\n\
+        Deployment is one command, and it streams progress as it goes. {#deploy}\n\n\
+        ```teleprompt scene=mock policy=fit-line\nwait 1000ms\n```\n";
+    let root = project_with("fit-line", script);
+    let out = tp(
+        &root,
+        &["dub", "scripts/test.md", "--out", "public/narration"],
+    );
+    assert_eq!(code(&out), 0, "{}", String::from_utf8_lossy(&out.stderr));
+    let m = read_manifest(&root);
+    let line = &m["lines"][0];
+    assert_eq!(line["tempo_permille"], 1150, "{line}");
+    let wav = std::fs::read(
+        root.join("public/narration/en")
+            .join(line["audio"].as_str().unwrap()),
+    )
+    .unwrap();
+    let pcm = teleprompt_voice::wav::decode(&wav).unwrap();
+    assert_eq!(pcm.duration_ms(), line["duration_ms"].as_u64().unwrap());
+}

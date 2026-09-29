@@ -196,3 +196,18 @@ fn a_renamed_block_key_names_its_replacement() {
     );
     assert_eq!(d[0].span, Some(SPAN));
 }
+
+/// `fit-line`: the picture leads, and `budget=` gives a picture's length
+/// where its shot cannot (docs/design.md#led-by-the-picture).
+#[test]
+fn fit_line_and_a_budget_parse() {
+    let (b, d) = BlockAttrs::parse("scene=mock policy=fit-line budget=6.5s", SPAN);
+    assert!(d.is_empty(), "{d:?}");
+    assert_eq!(b.policy, Some(PolicyKind::FitLine));
+    assert_eq!(PolicyKind::FitLine.label(), "fit-line");
+    assert_eq!(b.budget, Some(DurationMs::parse("6500ms").unwrap()));
+
+    let (b, d) = BlockAttrs::parse("scene=mock policy=fit-line budget=soon", SPAN);
+    assert_eq!(b.budget, None);
+    assert!(d[0].message.contains("budget"), "{d:?}");
+}

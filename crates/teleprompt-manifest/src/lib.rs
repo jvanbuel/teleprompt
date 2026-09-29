@@ -103,6 +103,11 @@ pub struct LineEntry {
     /// Omitted when the backend gave no word timings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub words: Option<Vec<WordEntry>>,
+    /// The tempo `fit-line` plays it at, in thousandths, and its audio
+    /// written at; absent at its own pace. `duration_ms` and `words` are
+    /// at this tempo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tempo_permille: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

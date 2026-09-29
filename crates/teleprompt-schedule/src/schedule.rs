@@ -3,7 +3,7 @@ use teleprompt_core::config::TransitionDuration;
 use teleprompt_core::DurationSource;
 
 use crate::item::{ActionInput, Item, NarrationInput};
-use crate::policy::{layout_at, Layout};
+use crate::policy::{fit_line, layout_at, Layout, Policy};
 use crate::timeline::{ActionEntry, Entry, NarrationEntry, Timeline, TransitionEntry};
 
 pub const TIMELINE_VERSION: u32 = 1;
@@ -24,6 +24,8 @@ pub fn schedule(
     let mut carried_in = 0u64;
 
     for (i, item) in items.iter().enumerate() {
+        let (fitted, tempo) = fitted(item, &mut warnings);
+        let item = fitted.as_ref().unwrap_or(item);
         let (narration_ms, l) = lay_out_item(item);
         for w in &l.warnings {
             warnings.push(format!("{}: {w}", item.id));
@@ -54,7 +56,7 @@ pub fn schedule(
         // plan could not be cut into chunks.
         .min(l.item_duration_ms.saturating_sub(carried_in));
 
-        entries.push(build_entry(item, cursor, &l, transition_ms));
+        entries.push(build_entry(item, cursor, &l, transition_ms, tempo));
         carried_in = transition_ms;
         cursor = cursor.saturating_add(l.item_duration_ms - transition_ms);
     }
@@ -75,6 +77,33 @@ pub fn schedule(
         },
         warnings,
     )
+}
+
+/// A `fit-line` item with its line at the tempo that fits its picture, and
+/// that tempo; `None` for any other item, or a line at its own pace.
+fn fitted(item: &Item, warnings: &mut Vec<String>) -> (Option<Item>, Option<u32>) {
+    let (Policy::FitLine, Some(n), Some(a)) = (item.policy, &item.narration, &item.action) else {
+        return (None, None);
+    };
+    let pads = n.lead_in_ms.ms().saturating_add(n.tail_ms.ms());
+    let available = a.duration_ms.saturating_sub(pads);
+    let Some(fit) = fit_line(
+        n.duration_ms,
+        n.words,
+        available,
+        n.recorded,
+        &item.pacing.timing,
+    ) else {
+        return (None, None);
+    };
+    if let Some(w) = fit.warning {
+        warnings.push(format!("{}: {w}", item.id));
+    }
+    let mut fitted = item.clone();
+    if let Some(n) = fitted.narration.as_mut() {
+        n.duration_ms = fit.clip_ms;
+    }
+    (Some(fitted), Some(fit.tempo_permille))
 }
 
 /// Lays out one item under its policy. Returns the padded narration length
@@ -165,7 +194,13 @@ fn size_transition(
 }
 
 /// The timeline entry for an item laid out as `l` and starting at `start_ms`.
-fn build_entry(item: &Item, start_ms: u64, l: &Layout, transition_ms: u64) -> Entry {
+fn build_entry(
+    item: &Item,
+    start_ms: u64,
+    l: &Layout,
+    transition_ms: u64,
+    tempo: Option<u32>,
+) -> Entry {
     Entry {
         item: item.id.clone(),
         start_ms,
@@ -174,7 +209,7 @@ fn build_entry(item: &Item, start_ms: u64, l: &Layout, transition_ms: u64) -> En
         narration: item
             .narration
             .as_ref()
-            .map(|n| narration_entry(n, start_ms.saturating_add(l.narration_start_ms))),
+            .map(|n| narration_entry(n, start_ms.saturating_add(l.narration_start_ms), tempo)),
         action: item.action.as_ref().map(|a| action_entry(a, start_ms, l)),
         transition: TransitionEntry {
             kind: item.pacing.transition.kind.clone(),
@@ -185,7 +220,7 @@ fn build_entry(item: &Item, start_ms: u64, l: &Layout, transition_ms: u64) -> En
 
 /// `slot_start_ms` is where the padded line begins; the entry records the
 /// first word, after the lead-in.
-fn narration_entry(n: &NarrationInput, slot_start_ms: u64) -> NarrationEntry {
+fn narration_entry(n: &NarrationInput, slot_start_ms: u64, tempo: Option<u32>) -> NarrationEntry {
     NarrationEntry {
         line: n.line_id.clone(),
         source_hash: n.source_hash,
@@ -194,6 +229,7 @@ fn narration_entry(n: &NarrationInput, slot_start_ms: u64) -> NarrationEntry {
         duration_ms: n.duration_ms,
         duration_source: n.duration_source,
         recorded: n.recorded,
+        tempo_permille: tempo,
     }
 }
 

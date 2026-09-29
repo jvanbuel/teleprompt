@@ -10,6 +10,7 @@ fn timing() -> TimingConfig {
         max_stretch: 3.0,
         min_stretch: 0.33,
         trim_warn_above: 2.0,
+        ..teleprompt_core::config::Config::default().timing
     }
 }
 
@@ -268,4 +269,16 @@ fn a_cue_near_the_end_lengthens_the_shot_rather_than_clipping_the_action() {
     );
     assert_eq!(l.action_start_ms, 8_000);
     assert_eq!(l.item_duration_ms, 12_000);
+}
+
+/// A recorded take is stretched less than a synthesized line: a real
+/// voice sounds stretched sooner.
+#[test]
+fn a_take_keeps_to_tighter_bounds_than_a_synthesized_line() {
+    use teleprompt_schedule::policy::fit_line;
+    let line = fit_line(2000, 10, 1000, false, &timing()).unwrap();
+    let take = fit_line(2000, 10, 1000, true, &timing()).unwrap();
+    assert_eq!(line.tempo_permille, 1150);
+    assert_eq!(take.tempo_permille, 1080);
+    assert!(take.warning.unwrap().contains("max_take_speed"));
 }

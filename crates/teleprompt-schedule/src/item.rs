@@ -20,6 +20,9 @@ pub struct NarrationInput {
     pub tail_ms: DurationMs,
     /// Spoken from a recorded take rather than synthesized.
     pub recorded: bool,
+    /// How many words it says: what `fit-line` counts in when a line is
+    /// too long for its picture.
+    pub words: usize,
 }
 
 impl NarrationInput {

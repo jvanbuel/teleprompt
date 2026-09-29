@@ -8,6 +8,9 @@ pub enum Policy {
     Concurrent(Align),
     Fit,
     Trim,
+    /// The picture leads: laid out as `concurrent` from the start, once
+    /// [`fit_line`] has set the line's tempo.
+    FitLine,
 }
 
 impl Policy {
@@ -19,6 +22,7 @@ impl Policy {
             PolicyKind::Concurrent => Policy::Concurrent(align),
             PolicyKind::FitAction => Policy::Fit,
             PolicyKind::TrimAction => Policy::Trim,
+            PolicyKind::FitLine => Policy::FitLine,
         }
     }
 
@@ -28,6 +32,7 @@ impl Policy {
             Policy::Concurrent(_) => PolicyKind::Concurrent,
             Policy::Fit => PolicyKind::FitAction,
             Policy::Trim => PolicyKind::TrimAction,
+            Policy::FitLine => PolicyKind::FitLine,
         }
     }
 
@@ -69,6 +74,10 @@ pub fn layout_at(
             warnings: Vec::new(),
         };
     }
+    let policy = match policy {
+        Policy::FitLine => Policy::Concurrent(Align::Start),
+        other => other,
+    };
     match policy {
         Policy::Hold => Layout {
             narration_start_ms: 0,
@@ -131,6 +140,8 @@ pub fn layout_at(
             }
         }
 
+        Policy::FitLine => unreachable!("laid out as concurrent"),
+
         Policy::Trim => {
             let mut warnings = Vec::new();
             let adjusted = if narration_ms == 0 {
@@ -158,4 +169,64 @@ pub fn layout_at(
             }
         }
     }
+}
+
+/// A `fit-line` line's tempo: its clip against the `available_ms` its
+/// picture leaves between lead-in and tail, within the bounds for a
+/// synthesized line or a recorded take. `None` at its own pace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Fit {
+    pub tempo_permille: u32,
+    /// The clip's length at that tempo.
+    pub clip_ms: u64,
+    pub warning: Option<String>,
+}
+
+pub fn fit_line(
+    clip_ms: u64,
+    words: usize,
+    available_ms: u64,
+    recorded: bool,
+    timing: &TimingConfig,
+) -> Option<Fit> {
+    if clip_ms == 0 {
+        return None;
+    }
+    let (min, max, which) = if recorded {
+        (timing.min_take_speed, timing.max_take_speed, "take")
+    } else {
+        (timing.min_line_speed, timing.max_line_speed, "line")
+    };
+    let wanted = clip_ms as f64 / available_ms.max(1) as f64;
+    let tempo = wanted.clamp(min, max);
+    let tempo_permille = (tempo * 1000.0).round() as u32;
+    if tempo_permille == 1000 {
+        return None;
+    }
+    let mut fitted_ms = (clip_ms as f64 * 1000.0 / f64::from(tempo_permille)).round() as u64;
+    if wanted <= max {
+        // A tempo in whole thousandths can leave a fitting line a
+        // millisecond over; it fits, so it ends with its picture.
+        fitted_ms = fitted_ms.min(available_ms);
+    }
+    let warning = if wanted > max {
+        let cut = (words as f64 * (1.0 - max / wanted)).ceil() as usize;
+        Some(format!(
+            "the line runs {clip_ms}ms against the {available_ms}ms its picture leaves: \
+             {wanted:.2}x, past max_{which}_speed {max:.2}; cut about {cut} of its {words} words"
+        ))
+    } else if wanted < min {
+        Some(format!(
+            "the line runs {clip_ms}ms against the {available_ms}ms its picture leaves: \
+             {wanted:.2}x, past min_{which}_speed {min:.2}; it ends {}ms early",
+            available_ms.saturating_sub(fitted_ms)
+        ))
+    } else {
+        None
+    };
+    Some(Fit {
+        tempo_permille,
+        clip_ms: fitted_ms,
+        warning,
+    })
 }

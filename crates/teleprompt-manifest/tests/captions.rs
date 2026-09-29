@@ -14,6 +14,7 @@ fn line(start_ms: u64, duration_ms: u64, text: &str) -> LineEntry {
         source_hash: Hash::of(text.as_bytes()),
         audio_hash: Hash::of(b""),
         words: None,
+        tempo_permille: None,
     }
 }
 

@@ -50,11 +50,19 @@ fn serving() -> (teleprompt_testkit::TestDir, PathBuf, SocketAddr) {
 fn serving_with(
     prepare: impl FnOnce(&std::path::Path),
 ) -> (teleprompt_testkit::TestDir, PathBuf, SocketAddr) {
+    serving_script(SCRIPT, prepare)
+}
+
+/// [`serving_with`], serving `source` rather than `SCRIPT`.
+fn serving_script(
+    source: &str,
+    prepare: impl FnOnce(&std::path::Path),
+) -> (teleprompt_testkit::TestDir, PathBuf, SocketAddr) {
     let dir = teleprompt_testkit::test_dir("serve");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     prepare(&dir);
     let script = dir.join("scripts/preview.md");
-    std::fs::write(&script, SCRIPT).unwrap();
+    std::fs::write(&script, source).unwrap();
 
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -378,4 +386,20 @@ fn an_edit_that_does_not_move_the_clock_is_still_noticed() {
         .map(|v| v.as_str().unwrap())
         .collect();
     assert!(changed.contains(&"second"), "{changed:?}");
+}
+
+/// A `fit-line` line is previewed at the tempo it will be published at:
+/// its audio is as long as the manifest says.
+#[test]
+fn a_fit_line_lines_audio_is_at_its_tempo() {
+    let script = "---\nteleprompt: 1\n---\n\n# Fit\n\n\
+        Deployment is one command, and it streams progress as it goes. {#deploy}\n\n\
+        ```teleprompt scene=mock policy=fit-line\nwait 1000ms\n```\n";
+    let (_dir, _script, addr) = serving_script(script, |_| {});
+    let manifest = json(addr, "/manifest.json");
+    let line = &manifest["lines"][0];
+    assert_eq!(line["tempo_permille"], 1150, "{manifest}");
+    let (_, body) = get(addr, "/audio/deploy.wav");
+    let pcm = teleprompt_voice::wav::decode(&body).unwrap();
+    assert_eq!(pcm.duration_ms(), line["duration_ms"].as_u64().unwrap());
 }
