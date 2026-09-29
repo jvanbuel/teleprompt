@@ -108,28 +108,7 @@ impl Glass {
             .can_target(false)
             .build();
         overlay.add_overlay(&frame);
-        let verdict_text = gtk::Label::builder()
-            .css_classes(["verdict-text"])
-            .wrap(true)
-            .build();
-        let verdict_undo = gtk::Button::builder()
-            .label("Undo")
-            .css_classes(["pill", "verdict-undo"])
-            .valign(gtk::Align::Center)
-            .build();
-        let verdict = gtk::Box::builder()
-            .css_classes(["verdict"])
-            .spacing(18)
-            .halign(gtk::Align::Center)
-            .valign(gtk::Align::End)
-            // Above where toasts appear, so one never covers the other.
-            .margin_bottom(120)
-            .margin_start(16)
-            .margin_end(16)
-            .visible(false)
-            .build();
-        verdict.append(&verdict_text);
-        verdict.append(&verdict_undo);
+        let (verdict, verdict_text, verdict_undo) = verdict();
         overlay.add_overlay(&verdict);
         let glass = Self {
             root: Mirror::new(&overlay),
@@ -159,6 +138,12 @@ impl Glass {
         scrolled
             .vadjustment()
             .connect_value_changed(move |_| gutter.queue_draw());
+        // And when the text reflows, which moves lines without a scroll: a
+        // resize, a new text size, the screen shown or hidden.
+        let gutter = glass.gutter.clone();
+        scrolled
+            .vadjustment()
+            .connect_changed(move |_| gutter.queue_draw());
         glass
     }
 
@@ -275,7 +260,9 @@ impl Glass {
             };
             let adjustment = view.vadjustment().expect("scrollable");
             let value = adjustment.value();
-            if (goal - value).abs() < 0.5 {
+            // With animations off in the desktop's settings, it jumps.
+            let animate = view.settings().is_gtk_enable_animations();
+            if (goal - value).abs() < 0.5 || !animate {
                 adjustment.set_value(goal);
                 shared.gliding.set(false);
                 return glib::ControlFlow::Break;
@@ -309,7 +296,7 @@ impl Glass {
                 text.set_font_description(Some(&gtk::pango::FontDescription::from_string(&font)));
                 let (tw, th) = text.pixel_size();
                 let x = f64::from(width - 22 - tw);
-                cr.set_source_rgba(0.95, 0.96, 0.97, if current { 0.9 } else { 0.45 });
+                cr.set_source_rgba(0.95, 0.96, 0.97, if current { 0.9 } else { 0.55 });
                 cr.move_to(x, cy - f64::from(th) / 2.0);
                 pangocairo::functions::show_layout(cr, &text);
                 // Beside its number, clear of the reading line's arrow.
@@ -409,4 +396,31 @@ fn draw_reading_line(area: &gtk::DrawingArea) {
         cr.close_path();
         let _ = cr.fill();
     });
+}
+
+/// What a take did, over the glass: its words, and Undo.
+fn verdict() -> (gtk::Box, gtk::Label, gtk::Button) {
+    let verdict_text = gtk::Label::builder()
+        .css_classes(["verdict-text"])
+        .wrap(true)
+        .build();
+    let verdict_undo = gtk::Button::builder()
+        .label("Undo")
+        .css_classes(["pill", "verdict-undo"])
+        .valign(gtk::Align::Center)
+        .build();
+    let verdict = gtk::Box::builder()
+        .css_classes(["verdict"])
+        .spacing(18)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::End)
+        // Above where toasts appear, so one never covers the other.
+        .margin_bottom(120)
+        .margin_start(16)
+        .margin_end(16)
+        .visible(false)
+        .build();
+    verdict.append(&verdict_text);
+    verdict.append(&verdict_undo);
+    (verdict, verdict_text, verdict_undo)
 }

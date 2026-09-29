@@ -80,6 +80,10 @@ struct Widgets {
     glass: Glass,
     /// Edit mode: the shots on the glass, to drag.
     edit: gtk::ToggleButton,
+    /// Says Edit mode is on, and ends it.
+    editing: adw::Banner,
+    /// The welcome page's sample of the glass, which a narrow window drops.
+    sample: gtk::Box,
     monitor: Monitor,
     session: SessionPage,
     /// How far a capture or build has got, over the tally.
@@ -123,6 +127,8 @@ struct Model {
     said_declined: HashSet<(String, String)>,
     /// The toast offering them, taken down if the take they are in is undone.
     said_toast: Option<adw::Toast>,
+    /// The window is too narrow for the monitor beside the glass.
+    narrow: bool,
     /// The script file, watched for edits made elsewhere.
     watch: Option<gio::FileMonitor>,
 }
@@ -174,8 +180,33 @@ impl Window {
                 return button.set_active(false);
             }
             this.w.glass.ribbons.set_editing(button.is_active());
+            this.w.editing.set_revealed(button.is_active());
             this.show_status();
         });
+        let edit = this.w.edit.clone();
+        this.w
+            .editing
+            .connect_button_clicked(move |_| edit.set_active(false));
+        // A narrow window keeps the glass and the controls: the monitor,
+        // the key hints and the welcome page's sample go.
+        let narrow = adw::Breakpoint::new(
+            adw::BreakpointCondition::parse("max-width: 900sp").expect("a condition"),
+        );
+        let hidden = false.to_value();
+        for (signal, is_narrow) in [("apply", true), ("unapply", false)] {
+            let weak = Rc::downgrade(&this);
+            narrow.connect_local(signal, false, move |_| {
+                if let Some(this) = weak.upgrade() {
+                    this.model.borrow_mut().narrow = is_narrow;
+                    this.show_monitor();
+                }
+                None
+            });
+        }
+        narrow.add_setter(this.w.tally.keys(), "visible", Some(&hidden));
+        narrow.add_setter(&this.w.sample, "visible", Some(&hidden));
+        this.window.add_breakpoint(narrow);
+        this.window.set_size_request(560, 420);
         this.w.glass.set_text_size(&this.w.text_css, 48.0);
         this.show_welcome();
         this.show_status();
@@ -198,18 +229,25 @@ impl Window {
     }
 
     fn connect(&self, this: &Rc<Self>) {
+        // The prompter's keys, wherever the focus is on its page: after the
+        // focused widget, so a dialog still takes its own Escape.
         let weak = Rc::downgrade(this);
         let keys = gtk::EventControllerKey::new();
-        keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         keys.connect_key_pressed(move |_, key, _, modifiers| {
-            let handled = weak.upgrade().is_some_and(|this| this.key(key, modifiers));
+            let handled = weak.upgrade().is_some_and(|this| {
+                this.w
+                    .stack
+                    .visible_child_name()
+                    .is_some_and(|page| page == "ready")
+                    && this.key(key, modifiers)
+            });
             if handled {
                 glib::Propagation::Stop
             } else {
                 glib::Propagation::Proceed
             }
         });
-        self.w.glass.view.add_controller(keys);
+        self.window.add_controller(keys);
 
         // The record key, Ctrl+Shift+Space: starts and stops recording in
         // every mode, wherever the focus is, and is never typed into the
@@ -521,7 +559,7 @@ impl Window {
             Key::p => self.toggle_pause(),
             Key::r => self.retake(),
             Key::w => self.review_said(),
-            Key::e => self.w.edit.set_active(!self.w.edit.is_active()),
+            Key::e | Key::E => self.w.edit.set_active(!self.w.edit.is_active()),
             Key::m => self
                 .w
                 .glass
@@ -660,10 +698,7 @@ impl Window {
             self.model.borrow_mut().state.status = Status::error(e);
         }
         self.w.monitor.set_shots(&self.model.borrow().state);
-        self.w
-            .monitor
-            .root
-            .set_visible(!self.model.borrow().state.script.shots.is_empty());
+        self.show_monitor();
         self.render();
         self.play();
         self.w.stack.set_visible_child_name("ready");
@@ -1569,6 +1604,15 @@ impl Window {
         window.present();
     }
 
+    /// The monitor beside the glass, when there are shots and room for it.
+    fn show_monitor(&self) {
+        let model = self.model.borrow();
+        self.w
+            .monitor
+            .root
+            .set_visible(!model.state.script.shots.is_empty() && !model.narrow);
+    }
+
     fn render(&self) {
         let model = self.model.borrow();
         self.w.glass.render(&model.state);
@@ -1617,7 +1661,7 @@ impl Window {
                 (
                     "E",
                     if self.w.edit.is_active() {
-                        "Read"
+                        "Done"
                     } else {
                         "Edit"
                     },
@@ -1774,7 +1818,16 @@ impl Widgets {
             .shrink_start_child(false)
             .wide_handle(false)
             .build();
-        let (welcome, reopen) = Self::welcome();
+        let (welcome, reopen, sample) = Self::welcome();
+        let editing = adw::Banner::builder()
+            .title("Editing shots: drag a shot onto a word, or its end to stretch it")
+            .button_label("Done")
+            .build();
+        let ready = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .build();
+        ready.append(&editing);
+        ready.append(&paned);
         let (loading, loading_detail) = Self::loading();
         let failed = Self::failed();
         let stack = gtk::Stack::builder()
@@ -1784,7 +1837,7 @@ impl Widgets {
         stack.add_named(&welcome, Some("welcome"));
         stack.add_named(&loading, Some("loading"));
         stack.add_named(&failed, Some("failed"));
-        stack.add_named(&paned, Some("ready"));
+        stack.add_named(&ready, Some("ready"));
         let working = gtk::ProgressBar::builder()
             .css_classes(["working"])
             .visible(false)
@@ -1815,21 +1868,27 @@ impl Widgets {
             loading_detail,
             failed,
             glass,
-            edit: gtk::ToggleButton::builder()
-                .icon_name("document-edit-symbolic")
-                .tooltip_text("Edit shots on the glass (E)")
-                .visible(false)
-                .build(),
+            edit: {
+                let edit = gtk::ToggleButton::builder()
+                    .icon_name("document-edit-symbolic")
+                    .tooltip_text("Edit shots on the glass (E)")
+                    .visible(false)
+                    .build();
+                labelled(&edit, "Edit shots");
+                edit
+            },
             monitor,
             session,
             working,
+            editing,
+            sample,
             tally: super::tally::Tally::new(),
             toasts: adw::ToastOverlay::new(),
             text_css,
         }
     }
 
-    fn welcome() -> (gtk::Box, gtk::Button) {
+    fn welcome() -> (gtk::Box, gtk::Button, gtk::Box) {
         let column = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(18)
@@ -1841,7 +1900,8 @@ impl Widgets {
             .valign(gtk::Align::Center)
             .build();
         page.append(&column);
-        page.append(&Self::glass_sample());
+        let sample = Self::glass_sample();
+        page.append(&sample);
         let page_for_column = page.clone();
         let page = column;
         page.append(
@@ -1881,7 +1941,7 @@ impl Widgets {
         buttons.append(&reopen);
         buttons.append(&session);
         page.append(&buttons);
-        (page_for_column, reopen)
+        (page_for_column, reopen, sample)
     }
 
     /// A slice of the glass, to show what the prompter does before a
@@ -1894,8 +1954,8 @@ impl Widgets {
             .valign(gtk::Align::Center)
             .build();
         let lines = [
-            (false, "<span alpha='32%'>Every take starts here.</span>"),
-            (true, "<span alpha='32%'>The words follow</span> <span foreground='#ffb800' underline='single' underline_color='#ffb800'>your</span> voice,"),
+            (false, "<span alpha='40%'>Every take starts here.</span>"),
+            (true, "<span alpha='40%'>The words follow</span> <span foreground='#ffb800' underline='single' underline_color='#ffb800'>your</span> voice,"),
             (false, "<span alpha='55%'>and the shots play</span>"),
             (false, "<span alpha='55%'>as you reach them.</span>"),
         ];
@@ -1974,28 +2034,47 @@ impl Widgets {
 
     fn layout(&self) -> adw::ToolbarView {
         let header = adw::HeaderBar::builder().title_widget(&self.title).build();
-        header.pack_start(
-            &gtk::Button::builder()
-                .icon_name("document-open-symbolic")
-                .action_name("app.open")
-                .tooltip_text("Open script (Ctrl+O)")
-                .build(),
-        );
+        let open = gtk::Button::builder()
+            .icon_name("document-open-symbolic")
+            .action_name("app.open")
+            .tooltip_text("Open script (Ctrl+O)")
+            .build();
+        labelled(&open, "Open script");
+        header.pack_start(&open);
         let menu = gio::Menu::new();
-        menu.append(Some("Record from the top"), Some("app.take-top"));
-        menu.append(Some("Record reworded lines again"), Some("app.retake"));
-        menu.append(Some("Keep what you said…"), Some("app.review-said"));
-        menu.append(Some("Capture shots"), Some("app.capture"));
-        menu.append(Some("Build video"), Some("app.build"));
-        menu.append(Some("Draft from a session…"), Some("app.session"));
-        menu.append(Some("Screen in its own window"), Some("app.screen-window"));
-        menu.append(Some("Settings"), Some("app.settings"));
-        header.pack_end(
-            &gtk::MenuButton::builder()
-                .icon_name("open-menu-symbolic")
-                .menu_model(&menu)
-                .build(),
-        );
+        let section = |items: &[(&str, &str)]| {
+            let part = gio::Menu::new();
+            for (label, action) in items {
+                part.append(Some(label), Some(action));
+            }
+            menu.append_section(None, &part);
+        };
+        section(&[
+            ("Record from the top", "app.take-top"),
+            ("Record reworded lines again", "app.retake"),
+            ("Keep what you said…", "app.review-said"),
+        ]);
+        section(&[
+            ("Capture shots", "app.capture"),
+            ("Build video", "app.build"),
+        ]);
+        section(&[
+            ("Draft from a session…", "app.session"),
+            ("Screen in its own window", "app.screen-window"),
+        ]);
+        section(&[
+            ("Settings", "app.settings"),
+            ("Keyboard shortcuts", "app.shortcuts"),
+            ("Quit", "app.quit"),
+        ]);
+        let menu_button = gtk::MenuButton::builder()
+            .icon_name("open-menu-symbolic")
+            .menu_model(&menu)
+            .tooltip_text("Menu")
+            .primary(true)
+            .build();
+        labelled(&menu_button, "Menu");
+        header.pack_end(&menu_button);
         header.pack_end(&self.record);
         header.pack_end(&self.edit);
         let view = adw::ToolbarView::new();
@@ -2006,4 +2085,10 @@ impl Widgets {
         view.add_bottom_bar(&self.tally.root);
         view
     }
+}
+
+/// Names an icon-only control for a screen reader; its tooltip is only a
+/// description.
+fn labelled(widget: &impl IsA<gtk::Accessible>, label: &str) {
+    widget.update_property(&[gtk::accessible::Property::Label(label)]);
 }

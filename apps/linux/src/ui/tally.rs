@@ -19,6 +19,7 @@ impl Tally {
     pub fn new() -> Self {
         let light = gtk::Box::builder()
             .css_classes(["tally"])
+            .accessible_role(gtk::AccessibleRole::Img)
             .valign(gtk::Align::Center)
             .build();
         let timecode = gtk::Label::builder()
@@ -72,6 +73,12 @@ impl Tally {
     }
 
     pub fn set_on_air(&self, on_air: bool) {
+        self.light
+            .update_property(&[gtk::accessible::Property::Label(if on_air {
+                "On air"
+            } else {
+                "Off air"
+            })]);
         for w in [
             self.light.upcast_ref::<gtk::Widget>(),
             self.timecode.upcast_ref(),
@@ -101,7 +108,17 @@ impl Tally {
     }
 
     pub fn set_status(&self, status: &Status) {
+        // Said aloud once, as it changes: a take started, kept, or failed.
+        if self.status.label() != status.text && !status.text.is_empty() {
+            let priority = if status.is_error {
+                gtk::AccessibleAnnouncementPriority::High
+            } else {
+                gtk::AccessibleAnnouncementPriority::Medium
+            };
+            self.status.announce(&status.text, priority);
+        }
         self.status.set_label(&status.text);
+        self.status.set_tooltip_text(Some(&status.text));
         if status.is_error {
             self.status.add_css_class("error");
         } else {
@@ -110,6 +127,11 @@ impl Tally {
     }
 
     /// The keys worth knowing now, as keycaps and what they do.
+    /// The key hints, which a narrow window leaves out.
+    pub fn keys(&self) -> &gtk::Box {
+        &self.keys
+    }
+
     pub fn set_keys(&self, keys: &[(&str, &str)]) {
         while let Some(child) = self.keys.first_child() {
             self.keys.remove(&child);

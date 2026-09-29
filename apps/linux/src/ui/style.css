@@ -110,7 +110,7 @@ button.verdict-undo {
 }
 
 .slate {
-  color: alpha(@ink, 0.42);
+  color: alpha(@ink, 0.6);
   font-size: 15px;
 }
 
@@ -168,13 +168,13 @@ list.rundown > row:hover {
 
 .rundown-where {
   font-size: 13px;
-  color: alpha(@ink, 0.45);
+  color: alpha(@ink, 0.6);
   font-feature-settings: "tnum";
 }
 
 .aired .rundown-name,
 .aired .rundown-where {
-  color: alpha(@ink, 0.35);
+  color: alpha(@ink, 0.58);
 }
 
 .on-screen .rundown-name {
@@ -196,23 +196,24 @@ list.rundown > row:hover {
   padding: 8px 14px;
 }
 
+/* Off air an outline, on air filled: a shape, not only a colour. */
 .tally {
   min-width: 10px;
   min-height: 10px;
-  border-radius: 5px;
-  background-color: alpha(@ink, 0.18);
+  border-radius: 6px;
+  border: 1.5px solid alpha(@ink, 0.45);
 }
 
 .tally.on-air {
   background-color: @tally;
-  box-shadow: 0 0 10px alpha(@tally, 0.7);
+  border-color: @tally;
 }
 
 .timecode {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.5px;
-  color: alpha(@ink, 0.4);
+  color: alpha(@ink, 0.58);
   font-feature-settings: "tnum";
 }
 

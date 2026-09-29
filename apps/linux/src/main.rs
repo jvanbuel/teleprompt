@@ -100,6 +100,7 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
         Box::new(|w| w.screen_window()),
     );
     action("settings", &["<Control>comma"], Box::new(settings));
+    action("shortcuts", &["<Control>question"], Box::new(shortcuts));
     let app_weak = app.downgrade();
     action(
         "quit",
@@ -160,6 +161,78 @@ fn choose_draft(window: &Rc<Window>) {
 }
 
 /// Where `teleprompt` and the speech model are, and the locale.
+/// Every key, where it can be looked up rather than remembered.
+const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
+    (
+        "Takes",
+        &[
+            (
+                "<Control><Shift>space",
+                "Record from the line you are on, or keep the take",
+            ),
+            ("<Control>Return", "Keep the take"),
+            ("Escape", "Throw the take away, or cancel the count"),
+            ("<Control>z", "Undo the take just kept, or the last edit"),
+            ("p", "Pause and resume"),
+            ("<Control>t", "Record from the top"),
+        ],
+    ),
+    (
+        "The glass",
+        &[
+            ("e", "Edit shots on the glass"),
+            ("m", "Mirror the text"),
+            ("plus minus", "Text size"),
+            ("s", "Hide or show the screen"),
+            ("w", "Review a line said in other words"),
+        ],
+    ),
+    (
+        "The project",
+        &[
+            ("<Control>o", "Open a script"),
+            ("<Control>n", "Draft from a session"),
+            ("<Control><Shift>c", "Capture shots"),
+            ("<Control>b", "Build the video"),
+            ("<Control>comma", "Settings"),
+            ("<Control>question", "Keyboard shortcuts"),
+            ("<Control>q", "Quit"),
+        ],
+    ),
+];
+
+fn shortcuts(window: &Rc<Window>) {
+    let escape = |s: &str| {
+        s.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+    };
+    let mut xml = String::from(
+        "<interface><object class='GtkShortcutsWindow' id='keys'><property name='modal'>1</property>\
+         <child><object class='GtkShortcutsSection'><property name='section-name'>keys</property>",
+    );
+    for (group, keys) in SHORTCUTS {
+        xml.push_str(&format!(
+            "<child><object class='GtkShortcutsGroup'><property name='title'>{group}</property>"
+        ));
+        for (accel, title) in *keys {
+            xml.push_str(&format!(
+                "<child><object class='GtkShortcutsShortcut'>\
+                 <property name='accelerator'>{}</property>\
+                 <property name='title'>{}</property></object></child>",
+                escape(accel),
+                escape(title)
+            ));
+        }
+        xml.push_str("</object></child>");
+    }
+    xml.push_str("</object></child></object></interface>");
+    let builder = gtk::Builder::from_string(&xml);
+    let keys: gtk::ShortcutsWindow = builder.object("keys").expect("in the interface");
+    keys.set_transient_for(Some(&window.window));
+    keys.present();
+}
+
 fn settings(window: &Rc<Window>) {
     let config = window.config();
     let group = adw::PreferencesGroup::builder()

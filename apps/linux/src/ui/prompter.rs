@@ -42,7 +42,8 @@ pub fn tags(buffer: &gtk::TextBuffer) {
         c.set_alpha(alpha);
         c
     };
-    buffer.create_tag(Some("said"), &[("foreground-rgba", &ink(0.3))]);
+    // Already read: dim, but 3:1 on the glass, as 48px text needs.
+    buffer.create_tag(Some("said"), &[("foreground-rgba", &ink(0.4))]);
     buffer.create_tag(Some("later"), &[("foreground-rgba", &ink(0.55))]);
     buffer.create_tag(
         Some("next"),
@@ -54,7 +55,7 @@ pub fn tags(buffer: &gtk::TextBuffer) {
     );
     for (name, colour) in [
         ("shot", ink(0.6)),
-        ("shot-aired", ink(0.22)),
+        ("shot-aired", ink(0.42)),
         ("shot-missing", rgba("#f28b82")),
     ] {
         buffer.create_tag(
