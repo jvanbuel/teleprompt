@@ -21,8 +21,28 @@ pub mod openai;
 mod prompt;
 
 pub use claude::Claude;
+pub use command::Program;
 pub use ollama::Ollama;
 pub use openai::OpenAi;
+
+/// How long one batch may take unless `timeout_ms` says otherwise: a model
+/// on a laptop can take minutes over twenty lines.
+pub const TIMEOUT_MS: u64 = 600_000;
+
+/// An HTTP client that gives up: on connecting after ten seconds, on the
+/// whole request after `timeout_ms`.
+fn client(timeout_ms: u64) -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_millis(timeout_ms))
+        .build()
+        .unwrap_or_default()
+}
+
+/// What to say when `who` has not answered within `timeout_ms`.
+fn unanswered(who: &str, timeout_ms: u64, section: &str) -> String {
+    format!("{who} did not answer within {timeout_ms} ms: raise `timeout_ms` under [backends.{section}]")
+}
 
 /// What a translator is asked, as JSON.
 #[derive(Debug, Clone, Serialize)]
@@ -94,7 +114,7 @@ pub enum Translator {
     Claude(Claude),
     /// A program of the author's, run by the shell, given the request on
     /// stdin and answering on stdout.
-    Command(String),
+    Command(Program),
 }
 
 /// `[backends.command]`.
@@ -102,6 +122,7 @@ pub enum Translator {
 #[serde(deny_unknown_fields)]
 struct CommandSettings {
     run: Option<String>,
+    timeout_ms: Option<u64>,
 }
 
 impl Translator {
@@ -136,7 +157,9 @@ impl Translator {
             "claude" => Ok(Translator::Claude(Claude::from_env(model)?)),
             "command" => {
                 let s: CommandSettings = read(provider, settings)?;
-                s.run.map(Translator::Command).ok_or_else(|| {
+                let timeout_ms = s.timeout_ms.unwrap_or(TIMEOUT_MS);
+                let program = s.run.map(|run| Program { run, timeout_ms });
+                program.map(Translator::Command).ok_or_else(|| {
                     "the command provider needs a program: set `run` under [backends.command], \
                      or pass --command"
                         .to_string()

@@ -103,6 +103,9 @@ pub fn resolve(
     project: &PartialConfig,
     cli: &PartialConfig,
 ) -> Result<Program, Diagnostics> {
+    if let Some(problem) = crate::config::locale_problem(locale) {
+        return Err(Diagnostics(vec![Diagnostic::error(problem)]));
+    }
     let mut diags = Vec::new();
     let front = config_layer(&script.front_matter, "front matter", &mut diags);
     // Each layer with its section for this locale over it.
@@ -299,13 +302,21 @@ fn report_config_problems(
     config_problems: BTreeMap<String, SourceSpan>,
     diags: &mut Vec<Diagnostic>,
 ) {
-    const HELP: &str = "voice.speed scales narration duration; 1.0 is unmodified";
+    let error = |problem: String| {
+        let speed = problem.starts_with("voice.speed");
+        let d = Diagnostic::error(problem);
+        if speed {
+            d.with_help("voice.speed scales narration duration; 1.0 is unmodified")
+        } else {
+            d
+        }
+    };
     for problem in base.problems() {
         if !config_problems.contains_key(&problem) {
-            diags.push(Diagnostic::error(problem).with_help(HELP));
+            diags.push(error(problem));
         }
     }
     for (problem, span) in config_problems {
-        diags.push(Diagnostic::error(problem).at(span).with_help(HELP));
+        diags.push(error(problem).at(span));
     }
 }

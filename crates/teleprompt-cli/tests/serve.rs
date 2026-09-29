@@ -221,6 +221,22 @@ fn nothing_outside_the_cache_can_be_asked_for() {
     }
 }
 
+/// A connection that sends nothing, as a browser's speculative one does,
+/// holds up no one else's request.
+#[test]
+fn a_silent_connection_does_not_hold_up_the_rest() {
+    let (_dir, _script, addr) = serving();
+    json(addr, "/state.json");
+    let _silent = TcpStream::connect(addr).unwrap();
+    let started = Instant::now();
+    json(addr, "/state.json");
+    assert!(
+        started.elapsed() < Duration::from_secs(2),
+        "answered after {:?}",
+        started.elapsed()
+    );
+}
+
 #[test]
 fn editing_a_paragraph_republishes_and_names_what_moved() {
     let (_dir, script, addr) = serving();

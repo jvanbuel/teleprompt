@@ -297,29 +297,38 @@ fn handle(
             PAGE.as_bytes(),
         ),
 
+        // Each body is made under the lock and sent after it is let go: a
+        // reader that stops reading must not stall the watcher.
         "/state.json" => {
-            let p = state.lock().expect("preview lock");
-            let body = serde_json::to_vec(&State {
-                generation: p.generation,
-                script: script_name,
-                duration_ms: p.manifest.duration_ms,
-                changed: &p.changed,
-                error: p.error.as_ref(),
-            })
-            .expect("state serializes");
+            let body = {
+                let p = state.lock().expect("preview lock");
+                serde_json::to_vec(&State {
+                    generation: p.generation,
+                    script: script_name,
+                    duration_ms: p.manifest.duration_ms,
+                    changed: &p.changed,
+                    error: p.error.as_ref(),
+                })
+                .expect("state serializes")
+            };
             respond(stream, "200 OK", "application/json", &body)
         }
 
         "/manifest.json" => {
-            let p = state.lock().expect("preview lock");
-            let body = serde_json::to_vec(&p.manifest).expect("manifest serializes");
+            let body = {
+                let p = state.lock().expect("preview lock");
+                serde_json::to_vec(&p.manifest).expect("manifest serializes")
+            };
             respond(stream, "200 OK", "application/json", &body)
         }
 
         p if shot_id(p).is_some() => {
             let id = shot_id(p).expect("just checked");
-            let preview = state.lock().expect("preview lock");
-            match preview.shots.get(id) {
+            let source = {
+                let preview = state.lock().expect("preview lock");
+                preview.shots.get(id).cloned()
+            };
+            match source {
                 Some(source) => respond(
                     stream,
                     "200 OK",
@@ -410,10 +419,11 @@ pub async fn serve_on(
     // The listener gets its own OS thread. `incoming()` blocks, and the
     // runtime is current-thread: an accept loop there would park the
     // executor, and the watcher below would never be polled again — a
-    // server that works and never notices a save.
+    // server that works and never notices a save. Each connection gets a
+    // thread too, so a browser's idle one holds up no one.
     {
         let state = state.clone();
-        let script_name = script_name.clone();
+        let script_name: Arc<str> = script_name.clone().into();
         std::thread::spawn(move || {
             for incoming in listener.incoming() {
                 let mut stream = match incoming {
@@ -423,9 +433,26 @@ pub async fn serve_on(
                         continue;
                     }
                 };
-                if let Err(e) = handle(&mut stream, &state, &script_name) {
-                    eprintln!("warning: {e}");
-                }
+                let (state, script_name) = (state.clone(), script_name.clone());
+                std::thread::spawn(move || {
+                    let limit = Some(std::time::Duration::from_secs(10));
+                    let answered = stream
+                        .set_read_timeout(limit)
+                        .and_then(|()| stream.set_write_timeout(limit))
+                        .and_then(|()| handle(&mut stream, &state, &script_name));
+                    // A browser opens connections it never uses; their
+                    // timing out is not worth a warning.
+                    let idle = |e: &std::io::Error| {
+                        matches!(
+                            e.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        )
+                    };
+                    match answered {
+                        Err(e) if !idle(&e) => eprintln!("warning: {e}"),
+                        _ => {}
+                    }
+                });
             }
         });
     }

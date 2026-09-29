@@ -378,12 +378,13 @@ fn slide(lines: &[&str]) -> Slide {
     let content = body.join("\n");
     let content = content.trim();
 
+    // `get`, not indexing: in `<!-->` the comment's ends overlap.
     let note = content
         .rfind("<!--")
-        .filter(|at| {
-            content.ends_with("-->") && !content[at + 4..content.len() - 3].contains("-->")
-        })
-        .map(|at| content[at + 4..content.len() - 3].trim().to_string());
+        .filter(|_| content.ends_with("-->"))
+        .and_then(|at| content.get(at + 4..content.len() - 3))
+        .filter(|inner| !inner.contains("-->"))
+        .map(|inner| inner.trim().to_string());
 
     let title = frontmatter
         .get("title")

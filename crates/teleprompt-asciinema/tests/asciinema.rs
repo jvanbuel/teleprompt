@@ -218,4 +218,10 @@ mod select {
         assert!(e.contains("3 part(s)") && e.contains("plan"), "{e}");
         assert!(select(&parse(CAST).unwrap(), "4").is_err());
     }
+
+    /// A range back to front names nothing; it is not a crash.
+    #[test]
+    fn a_reversed_range_names_nothing() {
+        assert!(select(&parse(CAST).unwrap(), "3-1").is_err());
+    }
 }

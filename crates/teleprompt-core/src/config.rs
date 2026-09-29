@@ -538,6 +538,20 @@ macro_rules! set {
     };
 }
 
+/// Why `locale` is not a language tag (`en`, `pt-BR`, `zh_Hant`), if it is
+/// not. A locale names a translation beside the script and a directory
+/// under `dub --out`, so a slash or a dot could name any file.
+pub fn locale_problem(locale: &str) -> Option<String> {
+    let tag = locale.len() <= 35
+        && locale.starts_with(|c: char| c.is_ascii_alphabetic())
+        && locale
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    (!tag).then(|| {
+        format!("`{locale}` is not a locale: use a language tag such as `en`, `nl` or `pt-BR`")
+    })
+}
+
 impl Config {
     /// Problems only the *merged* config can see, as messages ready to be
     /// wrapped in a [`crate::Diagnostic`]. `voice.speed` can come from any
@@ -569,6 +583,20 @@ impl Config {
                 "output.resolution must be greater than zero in both directions, but is `[{w}, {h}]`"
             ));
         }
+        let t = &self.timing;
+        for (what, min, max) in [
+            ("line", t.min_line_speed, t.max_line_speed),
+            ("take", t.min_take_speed, t.max_take_speed),
+        ] {
+            if !(min.is_finite() && max.is_finite() && min > 0.0 && min <= max) {
+                out.push(format!(
+                    "timing.min_{what}_speed and timing.max_{what}_speed must be finite, \
+                     above zero, and the least no more than the most, but are `{min}` and `{max}`"
+                ));
+            }
+        }
+        let locales = std::iter::once(&self.locales.source).chain(&self.locales.targets);
+        out.extend(locales.filter_map(|l| locale_problem(l)));
         out
     }
 

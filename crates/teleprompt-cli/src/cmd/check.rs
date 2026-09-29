@@ -330,10 +330,15 @@ pub fn run_check(
 /// `script` resolved in its own language, for reading its narration rather
 /// than compiling it.
 pub(crate) fn source_program(project: &Project, script: &Path) -> Result<Program, Vec<String>> {
-    let source = teleprompt_core::config::Config::merged(std::slice::from_ref(&project.config))
+    resolved(project, script, &source_locale(project))
+}
+
+/// The language the project's scripts are written in: the locale a command
+/// compiles for when none is given.
+pub fn source_locale(project: &Project) -> String {
+    teleprompt_core::config::Config::merged(std::slice::from_ref(&project.config))
         .locales
-        .source;
-    resolved(project, script, &source)
+        .source
 }
 
 /// `script` resolved for `locale`, untranslated: its configuration as that

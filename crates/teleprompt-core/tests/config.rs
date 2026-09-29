@@ -392,3 +392,45 @@ fn a_renamed_timing_key_names_its_replacement() {
         Config::merged(&[PartialConfig::from_toml("[timing]\ntrim_warn_above = 2.5\n").unwrap()]);
     assert_eq!(c.timing.trim_warn_above, 2.5);
 }
+
+/// A locale names files and directories, so it is a language tag and
+/// nothing a path could make more of.
+#[test]
+fn a_locale_is_a_language_tag() {
+    use teleprompt_core::config::locale_problem;
+    for good in ["en", "nl", "pt-BR", "zh_Hant", "sr-Latn-RS"] {
+        assert_eq!(locale_problem(good), None, "{good}");
+    }
+    for bad in ["", "../zz", "nl/x", "a b", "-en", "en.yaml"] {
+        assert!(locale_problem(bad).is_some(), "{bad:?}");
+    }
+    let bad = Config::merged(&[PartialConfig::from_yaml(
+        "locales:\n  source: en\n  targets: [nl, ../fr]\n",
+    )
+    .unwrap()]);
+    assert!(
+        bad.problems().iter().any(|p| p.contains("../fr")),
+        "{:?}",
+        bad.problems()
+    );
+}
+
+/// Each speed range must be one: finite, above zero, its least no more
+/// than its most. `min_line_speed: 1.2` under the default 1.15 was a panic.
+#[test]
+fn a_speed_range_that_is_not_one_is_reported() {
+    for yaml in [
+        "timing:\n  min_line_speed: 1.2\n",
+        "timing:\n  max_take_speed: 0.5\n",
+        "timing:\n  min_line_speed: -1\n",
+        "timing:\n  max_line_speed: .inf\n",
+    ] {
+        let c = Config::merged(&[PartialConfig::from_yaml(yaml).unwrap()]);
+        assert!(
+            c.problems().iter().any(|p| p.contains("speed")),
+            "{yaml}: {:?}",
+            c.problems()
+        );
+    }
+    assert!(Config::merged(&[]).problems().is_empty());
+}

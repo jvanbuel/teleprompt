@@ -515,3 +515,25 @@ fn the_binary_reports_and_prunes_the_cache() {
     assert!(after["pruned"]["removed"].as_u64().unwrap() > 0);
     assert_eq!(after["compose"]["bytes"], 0);
 }
+
+/// A frame that cannot exist is a mistake in the command, said as one
+/// (exit 2), not a failure of the build or a bug to report.
+#[test]
+fn an_impossible_frame_is_refused_as_a_usage_error() {
+    let (_dir, script) = project_with_script("bad-frame");
+    for args in [
+        ["--fps", "0"],
+        ["--resolution", "0x180"],
+        ["--resolution", "wide"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+            .arg("build")
+            .arg(&script)
+            .args(args)
+            .output()
+            .unwrap();
+        let err = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(2), "{args:?}: {err}");
+        assert!(!err.contains("please report"), "{err}");
+    }
+}

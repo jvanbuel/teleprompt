@@ -200,7 +200,14 @@ pub fn prompt_watching<R: Recognizer + Send + 'static>(
         edits,
     });
     for stream in listener.incoming() {
-        let stream = stream?;
+        // One connection that fails to arrive ends no one's session.
+        let stream = match stream {
+            Ok(stream) => stream,
+            Err(e) => {
+                eprintln!("warning: dropped connection: {e}");
+                continue;
+            }
+        };
         let server = server.clone();
         // A session socket stays open, so each connection has a thread.
         std::thread::spawn(move || {
@@ -281,9 +288,15 @@ impl<R: Recognizer> Server<R> {
             let body = b"a session is already open";
             return respond(&mut stream, "409 Conflict", "text/plain", &[], body);
         }
-        let result = self.run_session(stream, key);
-        self.open.store(false, Ordering::SeqCst);
-        result
+        // Let go when the session ends, a panic in it included.
+        struct Open<'a>(&'a AtomicBool);
+        impl Drop for Open<'_> {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::SeqCst);
+            }
+        }
+        let _open = Open(&self.open);
+        self.run_session(stream, key)
     }
 
     fn run_session(&self, mut stream: TcpStream, key: &str) -> std::io::Result<()> {

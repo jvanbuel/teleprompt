@@ -18,11 +18,13 @@ const DEFAULT_URL: &str = "http://localhost:11434";
 #[serde(deny_unknown_fields)]
 pub struct Settings {
     pub url: Option<String>,
+    pub timeout_ms: Option<u64>,
 }
 
 pub struct Ollama {
     pub url: String,
     pub model: String,
+    pub timeout_ms: u64,
 }
 
 impl Ollama {
@@ -34,6 +36,7 @@ impl Ollama {
         Ollama {
             url,
             model: model.unwrap_or(DEFAULT_MODEL).to_string(),
+            timeout_ms: settings.timeout_ms.unwrap_or(crate::TIMEOUT_MS),
         }
     }
 
@@ -49,12 +52,15 @@ impl Ollama {
             // The same words for the same line, run after run.
             "options": { "temperature": 0 },
         });
-        let reply = reqwest::Client::new()
+        let reply = crate::client(self.timeout_ms)
             .post(format!("{}/api/chat", self.url.trim_end_matches('/')))
             .json(&body)
             .send()
             .await
             .map_err(|e| {
+                if e.is_timeout() {
+                    return crate::unanswered("Ollama", self.timeout_ms, "ollama");
+                }
                 format!(
                     "cannot reach Ollama at {}: {e}\n  install it from ollama.com, then \
                      `ollama pull {}`; or choose another provider under [translate]",
@@ -62,10 +68,12 @@ impl Ollama {
                 )
             })?;
         let status = reply.status();
-        let message: Value = reply
-            .json()
-            .await
-            .map_err(|e| format!("Ollama answered {status} with no JSON: {e}"))?;
+        let message: Value = reply.json().await.map_err(|e| {
+            if e.is_timeout() {
+                return crate::unanswered("Ollama", self.timeout_ms, "ollama");
+            }
+            format!("Ollama answered {status} with no JSON: {e}")
+        })?;
         if let Some(error) = message["error"].as_str() {
             let help = if error.contains("not found") {
                 format!("\n  run `ollama pull {}`", self.model)

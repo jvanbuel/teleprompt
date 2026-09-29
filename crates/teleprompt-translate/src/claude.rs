@@ -52,7 +52,7 @@ impl Claude {
                 "content": serde_json::to_string_pretty(request).map_err(|e| e.to_string())?,
             }],
         });
-        let reply = reqwest::Client::new()
+        let reply = crate::client(crate::TIMEOUT_MS)
             .post(format!(
                 "{}/v1/messages",
                 self.base_url.trim_end_matches('/')
@@ -63,7 +63,15 @@ impl Claude {
             .json(&body)
             .send()
             .await
-            .map_err(|e| format!("cannot reach the Anthropic API: {e}"))?;
+            .map_err(|e| {
+                if e.is_timeout() {
+                    return format!(
+                        "the Anthropic API did not answer within {} ms",
+                        crate::TIMEOUT_MS
+                    );
+                }
+                format!("cannot reach the Anthropic API: {e}")
+            })?;
         let status = reply.status();
         let message: Value = reply
             .json()

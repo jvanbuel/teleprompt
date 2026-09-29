@@ -199,7 +199,10 @@ pub fn select(cast: &Cast, fragment: &str) -> Result<Cast, String> {
             .filter(|n| (1..=count).contains(n))
     };
     let range = match fragment.split_once('-') {
-        Some((a, b)) => numbered(a).zip(numbered(b)).map(|(a, b)| a..=b),
+        Some((a, b)) => numbered(a)
+            .zip(numbered(b))
+            .filter(|(a, b)| a <= b)
+            .map(|(a, b)| a..=b),
         None => numbered(fragment).map(|n| n..=n),
     };
     let chosen: Vec<&Cast> = match range {

@@ -33,7 +33,8 @@ pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditRep
         std::fs::write(script, text).map_err(|e| format!("cannot write {}: {e}", script.display()))
     };
     write(&after)?;
-    if let Err(errors) = compile_script(project, script, "en") {
+    if let Err(errors) = compile_script(project, script, &crate::cmd::check::source_locale(project))
+    {
         write(&before)?;
         return Err(format!(
             "not written, since the script would not compile:\n{}",
@@ -49,7 +50,8 @@ pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditRep
 /// Rewords line `line` to what its take was heard to say, and keeps the
 /// take as the line's: it says what the line now does.
 pub fn run_said(project: &Project, script: &Path, line: &str) -> Result<EditReport, String> {
-    let (compiled, _) = compile_script(project, script, "en").map_err(|e| e.join("\n"))?;
+    let (compiled, _) = compile_script(project, script, &crate::cmd::check::source_locale(project))
+        .map_err(|e| e.join("\n"))?;
     let text = compiled
         .narration
         .iter()

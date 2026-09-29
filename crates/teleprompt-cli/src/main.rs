@@ -38,18 +38,32 @@ struct Cli {
 #[derive(Args)]
 struct ScriptArgs {
     script: PathBuf,
-    #[arg(long, default_value = "en")]
-    locale: String,
+    /// The locale to compile for; the project's `locales.source` if not given
+    #[arg(long, value_parser = language_tag)]
+    locale: Option<String>,
+}
+
+impl ScriptArgs {
+    fn locale(&self, project: &Project) -> String {
+        self.locale
+            .clone()
+            .unwrap_or_else(|| check::source_locale(project))
+    }
+}
+
+/// A `--locale` or `--to` that is a language tag, refused before it names a file.
+fn language_tag(s: &str) -> Result<String, String> {
+    teleprompt_core::config::locale_problem(s).map_or_else(|| Ok(s.to_string()), Err)
 }
 
 /// A frame size and rate that override the script's `output:` block.
 #[derive(Args)]
 struct FrameArgs {
     /// Frame size, as WIDTHxHEIGHT
-    #[arg(long)]
-    resolution: Option<String>,
+    #[arg(long, value_parser = build::parse_resolution)]
+    resolution: Option<(u32, u32)>,
     /// Frames per second
-    #[arg(long)]
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
     fps: Option<u32>,
 }
 
@@ -277,7 +291,7 @@ enum Command {
     Translate {
         script: PathBuf,
         /// The locale to translate into, e.g. nl, fr, pt-BR
-        #[arg(long)]
+        #[arg(long, value_parser = language_tag)]
         to: String,
         /// Translate with this provider: ollama, openai, claude or command
         #[arg(long, conflicts_with = "command")]
@@ -711,36 +725,20 @@ fn run(command: Command, format: Format) -> Run {
         }
         Command::Check(args) => run_check(format, &args),
         Command::Plan(args) => run_plan(format, &args),
-        Command::Diff { args, exit_code } => {
-            let project = project_for(&args.script)?;
-            let d = diff_cmd::run_diff(&project, &args.script, &args.locale)
-                .map_err(Outcome::ValidationError)?;
-            emit(format, &d, &format!("{}\n", d.render()));
-            Ok(if exit_code && !d.is_empty() {
-                Outcome::Drift
-            } else {
-                Outcome::Ok
-            })
-        }
+        Command::Diff { args, exit_code } => run_diff(format, &args, exit_code),
         Command::Prompt { args, port, model } => {
             let project = project_for(&args.script)?;
             teleprompt_cli::cmd::prompt::run_prompt(
                 &project,
                 &args.script,
-                &args.locale,
+                &args.locale(&project),
                 port,
                 model.or_else(|| setup::speech_model(None).ok()).as_deref(),
                 format,
             )?;
             Ok(Outcome::Ok)
         }
-        Command::Serve { args, port } => {
-            let project = project_for(&args.script)?;
-            runtime()
-                .map_err(runtime_failure)?
-                .block_on(serve::run_serve(&project, &args.script, &args.locale, port))?;
-            Ok(Outcome::Ok)
-        }
+        Command::Serve { args, port } => run_serve(&args, port),
         Command::Build {
             args,
             out,
@@ -753,10 +751,31 @@ fn run(command: Command, format: Format) -> Run {
     }
 }
 
+fn run_diff(format: Format, args: &ScriptArgs, exit_code: bool) -> Run {
+    let project = project_for(&args.script)?;
+    let d = diff_cmd::run_diff(&project, &args.script, &args.locale(&project))
+        .map_err(Outcome::ValidationError)?;
+    emit(format, &d, &format!("{}\n", d.render()));
+    Ok(if exit_code && !d.is_empty() {
+        Outcome::Drift
+    } else {
+        Outcome::Ok
+    })
+}
+
+fn run_serve(args: &ScriptArgs, port: u16) -> Run {
+    let project = project_for(&args.script)?;
+    let locale = args.locale(&project);
+    runtime()
+        .map_err(runtime_failure)?
+        .block_on(serve::run_serve(&project, &args.script, &locale, port))?;
+    Ok(Outcome::Ok)
+}
+
 /// `check` reports its own failure: its JSON report has room for the errors.
 fn run_check(format: Format, args: &ScriptArgs) -> Run {
     let project = project_for(&args.script)?;
-    match check::run_check(&project, &args.script, &args.locale) {
+    match check::run_check(&project, &args.script, &args.locale(&project)) {
         Ok(warnings) => {
             warn(&warnings);
             let report = CheckReport {
@@ -786,8 +805,8 @@ fn run_check(format: Format, args: &ScriptArgs) -> Run {
 
 fn run_plan(format: Format, args: &ScriptArgs) -> Run {
     let project = project_for(&args.script)?;
-    let out =
-        plan::run_plan(&project, &args.script, &args.locale).map_err(Outcome::ValidationError)?;
+    let out = plan::run_plan(&project, &args.script, &args.locale(&project))
+        .map_err(Outcome::ValidationError)?;
     emit(format, &out.timeline, &plan::render_plan(&out));
 
     let narrated = out
@@ -818,13 +837,8 @@ fn run_build(
     cache_max_mb: Option<u64>,
 ) -> Run {
     let project = project_for(&args.script)?;
-    let size = frame
-        .resolution
-        .as_deref()
-        .map(build::parse_resolution)
-        .transpose()
-        .map_err(Outcome::RuntimeFailure)?;
-    let mut options = build::BuildOptions::defaults(&project, &args.script, &args.locale);
+    let size = frame.resolution;
+    let mut options = build::BuildOptions::defaults(&project, &args.script, &args.locale(&project));
     if let Some(path) = out {
         options.out = path;
     }
@@ -845,7 +859,7 @@ fn run_build(
             &renderer,
             &project,
             &args.script,
-            &args.locale,
+            &args.locale(&project),
             &options,
             &mut show,
         ))?;
@@ -856,12 +870,7 @@ fn run_build(
 
 fn run_capture(format: Format, args: &ScriptArgs, frame: &FrameArgs) -> Run {
     let project = project_for(&args.script)?;
-    let size = frame
-        .resolution
-        .as_deref()
-        .map(build::parse_resolution)
-        .transpose()
-        .map_err(Outcome::RuntimeFailure)?;
+    let size = frame.resolution;
     let mut progress = |p: teleprompt_capture::Progress| {
         teleprompt_cli::output::progress(
             "capture",
@@ -874,7 +883,7 @@ fn run_capture(format: Format, args: &ScriptArgs, frame: &FrameArgs) -> Run {
         .block_on(capture_cmd::capture_script(
             &project,
             &args.script,
-            &args.locale,
+            &args.locale(&project),
             size,
             frame.fps,
             &mut progress,
@@ -889,7 +898,7 @@ fn run_dub(format: Format, args: &ScriptArgs, out: &std::path::Path, check: bool
     let result = runtime().map_err(runtime_failure)?.block_on(dub::run_dub(
         &project,
         &args.script,
-        &args.locale,
+        &args.locale(&project),
         out,
         check,
     ))?;

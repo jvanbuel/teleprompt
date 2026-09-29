@@ -64,7 +64,7 @@ pub fn translator(
     choice: &Choice,
 ) -> Result<Translator, TranslateError> {
     if let Some(cmd) = choice.command {
-        return Ok(Translator::Command(cmd.to_string()));
+        return Ok(Translator::Command(teleprompt_translate::Program::new(cmd)));
     }
     let config = resolved(project, script, target)
         .map_err(TranslateError::Validation)?

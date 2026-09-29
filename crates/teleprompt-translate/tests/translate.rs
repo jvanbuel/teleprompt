@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use teleprompt_translate::{Claude, Request, Translator, Wanted};
+use teleprompt_translate::{Claude, Program, Request, Translator, Wanted};
 
 fn request() -> Request {
     Request {
@@ -109,7 +109,7 @@ async fn a_refusal_is_an_error_not_an_empty_translation() {
 async fn a_command_gets_the_request_on_stdin_and_answers_on_stdout() {
     // Echoes the first item's English back as its translation.
     let script = r#"python3 -c 'import json,sys; r=json.load(sys.stdin); i=r["translate"][0]; print(json.dumps({"items":[{"id":i["id"],"text":r["target"]+": "+i["english"]}]}))'"#;
-    let out = Translator::Command(script.into())
+    let out = Translator::Command(Program::new(script))
         .translate(&request())
         .await
         .unwrap();
@@ -124,7 +124,7 @@ async fn a_command_gets_the_request_on_stdin_and_answers_on_stdout() {
 
 #[tokio::test]
 async fn a_failing_command_says_what_it_said() {
-    let err = Translator::Command("echo nope >&2; exit 3".into())
+    let err = Translator::Command(Program::new("echo nope >&2; exit 3"))
         .translate(&request())
         .await
         .unwrap_err();
@@ -223,4 +223,44 @@ fn providers_say_what_they_are_missing() {
     assert!(err("openai", None).contains("[backends.openai]"));
     assert!(err("command", None).contains("[backends.command]"));
     assert!(err("ollama", Some("adress: x")).contains("backends.ollama"));
+}
+
+/// A server that takes the request and never answers, as a wedged model
+/// or a black-holing proxy does.
+async fn silent() -> (String, tokio::task::JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let held = tokio::spawn(async move {
+        let (_stream, _) = listener.accept().await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+    });
+    (url, held)
+}
+
+/// A provider that never answers is given up on after `timeout_ms`, saying
+/// so, rather than hanging `translate` for ever.
+#[tokio::test]
+async fn a_provider_that_never_answers_is_given_up_on() {
+    for provider in ["ollama", "openai"] {
+        let (url, _held) = silent().await;
+        let t = Translator::new(
+            provider,
+            Some("m"),
+            Some(&settings(&format!("url: {url}\ntimeout_ms: 300"))),
+        )
+        .unwrap();
+        let started = std::time::Instant::now();
+        let err = t.translate(&request()).await.unwrap_err();
+        assert!(started.elapsed().as_secs() < 5, "{provider}");
+        assert!(err.contains("timeout_ms"), "{provider}: {err}");
+    }
+    let mut slow = Program::new("sleep 30");
+    slow.timeout_ms = 300;
+    let started = std::time::Instant::now();
+    let err = Translator::Command(slow)
+        .translate(&request())
+        .await
+        .unwrap_err();
+    assert!(started.elapsed().as_secs() < 5);
+    assert!(err.contains("timeout_ms"), "{err}");
 }

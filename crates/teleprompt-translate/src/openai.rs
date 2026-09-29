@@ -15,12 +15,14 @@ pub struct Settings {
     pub url: Option<String>,
     /// The environment variable holding a key, for a server that wants one.
     pub api_key_env: Option<String>,
+    pub timeout_ms: Option<u64>,
 }
 
 pub struct OpenAi {
     pub url: String,
     pub model: String,
     pub api_key: Option<String>,
+    pub timeout_ms: u64,
 }
 
 impl OpenAi {
@@ -39,6 +41,7 @@ impl OpenAi {
             url,
             model: model.to_string(),
             api_key,
+            timeout_ms: settings.timeout_ms.unwrap_or(crate::TIMEOUT_MS),
         })
     }
 
@@ -55,7 +58,7 @@ impl OpenAi {
             },
             "temperature": 0,
         });
-        let mut post = reqwest::Client::new()
+        let mut post = crate::client(self.timeout_ms)
             .post(format!(
                 "{}/chat/completions",
                 self.url.trim_end_matches('/')
@@ -64,15 +67,19 @@ impl OpenAi {
         if let Some(key) = &self.api_key {
             post = post.bearer_auth(key);
         }
-        let reply = post
-            .send()
-            .await
-            .map_err(|e| format!("cannot reach {}: {e}", self.url))?;
+        let reply = post.send().await.map_err(|e| {
+            if e.is_timeout() {
+                return crate::unanswered(&self.url, self.timeout_ms, "openai");
+            }
+            format!("cannot reach {}: {e}", self.url)
+        })?;
         let status = reply.status();
-        let message: Value = reply
-            .json()
-            .await
-            .map_err(|e| format!("{} answered {status} with no JSON: {e}", self.url))?;
+        let message: Value = reply.json().await.map_err(|e| {
+            if e.is_timeout() {
+                return crate::unanswered(&self.url, self.timeout_ms, "openai");
+            }
+            format!("{} answered {status} with no JSON: {e}", self.url)
+        })?;
         if !status.is_success() {
             let why = message["error"]["message"]
                 .as_str()

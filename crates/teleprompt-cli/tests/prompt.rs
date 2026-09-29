@@ -264,6 +264,58 @@ fn one_session_at_a_time() {
     assert_eq!(next(&mut again)["type"], "stopped");
 }
 
+/// A recognizer that fails as a native library can: by panicking.
+struct Panics;
+
+impl Recognizer for Panics {
+    fn listen(&mut self, _: &[f32]) -> Heard {
+        panic!("the recognizer fell over")
+    }
+
+    fn reset(&mut self) {}
+}
+
+/// A session that ends in a panic still lets go: the next reader gets a
+/// session, not "already open" until the prompter is restarted.
+#[test]
+fn a_session_that_panics_lets_go_of_the_prompter() {
+    let dir = teleprompt_testkit::test_dir("prompt-panics");
+    let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let prompt = Prompt {
+        name: "tour.md".into(),
+        lines: LINES.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        shots: shots(),
+        clips: dir.to_path_buf(),
+        takes: dir.join("takes"),
+    };
+    std::thread::spawn(move || prompt_on(listener, prompt, Panics));
+
+    let mut first = session(addr);
+    send(
+        &mut first,
+        serde_json::json!({ "type": "start", "from": 0, "rate": 16000 }),
+    );
+    next(&mut first);
+    send_audio(&mut first, 1600);
+    while first.read().is_ok() {}
+
+    let again = (0..40).find_map(|_| {
+        let stream = TcpStream::connect(addr).unwrap();
+        let url = format!("ws://{addr}/api/v1/session");
+        let opened = tungstenite::client(url.as_str(), stream).ok();
+        if opened.is_none() {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        opened
+    });
+    assert!(
+        again.is_some(),
+        "the prompter still thinks a session is open"
+    );
+}
+
 /// The session route is a socket; a plain request is told so.
 #[test]
 fn the_session_route_needs_a_websocket() {

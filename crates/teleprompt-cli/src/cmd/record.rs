@@ -3,7 +3,7 @@
 //! codegen`), and ffmpeg records the microphone beside it. When the tool
 //! finishes, the two are drafted into `<script>` (`crate::cmd::import`).
 
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
@@ -217,6 +217,11 @@ impl Mic {
         } else {
             input.to_vec()
         };
+        // To a file, not a pipe nobody reads while recording: a full pipe
+        // would stop ffmpeg mid-session.
+        let log = path.with_extension("log");
+        let stderr = std::fs::File::create(&log)
+            .map_err(|e| format!("cannot create {}: {e}", log.display()))?;
         let mut child = Command::new("ffmpeg")
             .args(["-hide_banner", "-loglevel", "error"])
             .args(&input)
@@ -224,7 +229,7 @@ impl Mic {
             .arg(path)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
-            .stderr(Stdio::piped())
+            .stderr(stderr)
             .spawn()
             .map_err(|e| format!("`record` needs ffmpeg to record the microphone: {e}"))?;
         // Audio is flowing once the file holds more than its header.
@@ -239,10 +244,7 @@ impl Mic {
                 });
             }
             if let Ok(Some(_)) = child.try_wait() {
-                let mut err = String::new();
-                if let Some(mut stderr) = child.stderr.take() {
-                    let _ = stderr.read_to_string(&mut err);
-                }
+                let err = std::fs::read_to_string(&log).unwrap_or_default();
                 return Err(format!(
                     "ffmpeg could not record the microphone ({}): {}\n  \
                      pass ffmpeg's input with --mic, e.g. --mic \"-f alsa -i default\"",
@@ -252,6 +254,7 @@ impl Mic {
             }
             if Instant::now() > deadline {
                 let _ = child.kill();
+                let _ = child.wait();
                 return Err(format!(
                     "the microphone ({}) sent nothing for five seconds",
                     input.join(" ")
@@ -271,11 +274,46 @@ impl Mic {
     }
 }
 
+/// A recording that ends without [`Mic::stop`], on an error or a panic,
+/// still ends ffmpeg's: the microphone is not left recording.
+impl Drop for Mic {
+    fn drop(&mut self) {
+        if let Ok(None) = self.child.try_wait() {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+    }
+}
+
 /// ffmpeg's input for the platform's default microphone.
 fn default_mic() -> &'static [&'static str] {
     if cfg!(target_os = "macos") {
         &["-f", "avfoundation", "-i", ":0"]
     } else {
         &["-f", "pulse", "-i", "default"]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A recording that ends early, on an error or a panic, does not leave
+    /// ffmpeg recording the microphone.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_mic_dropped_unstopped_stops_recording() {
+        if Command::new("ffmpeg").arg("-version").output().is_err() {
+            return;
+        }
+        let dir = teleprompt_testkit::test_dir("record-mic-drop");
+        let tone: Vec<String> = ["-re", "-f", "lavfi", "-i", "sine=frequency=440"]
+            .map(String::from)
+            .to_vec();
+        let mic = Mic::start(&dir.join("voice.wav"), &tone).unwrap();
+        let ffmpeg = std::path::PathBuf::from(format!("/proc/{}", mic.child.id()));
+        assert!(ffmpeg.exists());
+        drop(mic);
+        assert!(!ffmpeg.exists(), "ffmpeg is still running, or unreaped");
     }
 }

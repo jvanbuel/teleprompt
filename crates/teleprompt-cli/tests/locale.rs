@@ -159,3 +159,58 @@ fn an_english_take_is_not_spoken_in_a_translation() {
     assert!(recorded("en"));
     assert!(!recorded("nl"));
 }
+
+/// A project written in Dutch is compiled in Dutch unless told otherwise:
+/// `--locale` defaults to the project's `locales.source`, not to `en`.
+#[test]
+fn a_project_s_own_language_is_the_default_locale() {
+    let dir = project("source-nl");
+    let toml = std::fs::read_to_string(dir.join("teleprompt.toml")).unwrap();
+    std::fs::write(
+        dir.join("teleprompt.toml"),
+        toml.replace("source = \"en\"", "source = \"nl\""),
+    )
+    .unwrap();
+    for args in [
+        &["check", "scripts/tour.md"][..],
+        &["plan", "scripts/tour.md"],
+        &[
+            "edit",
+            "scripts/tour.md",
+            "stretch",
+            "welcome-a",
+            "--by",
+            "2",
+        ],
+    ] {
+        let out = tp(&dir, args);
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
+
+/// A locale names a file beside the script and a directory under `--out`,
+/// so one that could name anything else is refused before it is used.
+#[test]
+fn a_locale_that_is_not_a_language_tag_is_refused() {
+    let dir = project("bad-locale");
+    for locale in ["../../zz", "nl/x", "", "a b"] {
+        let out = tp(
+            &dir,
+            &[
+                "--format",
+                "json",
+                "check",
+                "scripts/tour.md",
+                "--locale",
+                locale,
+            ],
+        );
+        assert_eq!(out.status.code(), Some(2), "{locale:?}");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(!err.contains("panicked"), "{err}");
+    }
+}

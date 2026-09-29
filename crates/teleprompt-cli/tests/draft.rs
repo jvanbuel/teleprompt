@@ -140,6 +140,17 @@ not a separator
         assert!(!d.script.contains("No notes here"));
     }
 
+    /// A slide that is only a comment's ends, `<!-->`, has no note.
+    #[test]
+    fn a_slide_of_a_bare_comment_has_no_note() {
+        let d = draft_slidev(
+            "# One\n\n<!-- Said. -->\n\n---\n\n<!-->\n",
+            "slides.md",
+            &|_| None,
+        );
+        assert_eq!(d.silent, vec![2]);
+    }
+
     /// A `---` inside a code fence is not a slide break, and a comment
     /// inside one is not a note — Slidev's parser skips fences, and so
     /// does this.
