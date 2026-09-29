@@ -41,6 +41,7 @@ teleprompt-translate = { path = "../teleprompt-translate" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
 teleprompt-voice-voicebox = { path = "../teleprompt-voice-voicebox" }
+teleprompt-voice-gemini = { path = "../teleprompt-voice-gemini" }
 teleprompt-voice-null = { path = "../teleprompt-voice-null" }
 clap.workspace = true
 serde.workspace = true
@@ -67,6 +68,8 @@ signal-hook = "0.3"
 portable-pty = "0.9"
 
 [dev-dependencies]
+# The Gemini stub answers audio as base64, as the API does.
+base64.workspace = true
 # A client for `prompt`'s session socket.
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 teleprompt-testkit = { path = "../teleprompt-testkit" }

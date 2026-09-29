@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use teleprompt_core::Diagnostic;
 use teleprompt_voice::{VoiceBackend, VoiceRegistry};
+use teleprompt_voice_gemini::{GeminiConfig, GeminiVoice};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
 use teleprompt_voice_null::NullVoice;
 use teleprompt_voice_voicebox::{VoiceboxConfig, VoiceboxVoice};
@@ -29,6 +30,7 @@ pub struct Backends {
     kokoro: Option<Arc<KokoroVoice>>,
     /// The concrete Voicebox handle; see [`Backends::voicebox`].
     voicebox: Option<Arc<VoiceboxVoice>>,
+    gemini: Option<Arc<GeminiVoice>>,
 }
 
 /// Every backend this build ships, each constructed from its own slice of
@@ -39,6 +41,7 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
     let mut unusable = BTreeMap::new();
     let mut kokoro_handle = None;
     let mut voicebox_handle = None;
+    let mut gemini_handle = None;
 
     registry.register(Arc::new(NullVoice::default()));
 
@@ -62,6 +65,16 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
             unusable.insert("voicebox".to_string(), e);
         }
     }
+    match gemini(settings.get("gemini")) {
+        Ok(v) => {
+            let v = Arc::new(v);
+            registry.register(v.clone());
+            gemini_handle = Some(v);
+        }
+        Err(e) => {
+            unusable.insert("gemini".to_string(), e);
+        }
+    }
 
     // Includes the unusable ones, so a bad block is not also called unknown.
     let shipped: Vec<String> = registry
@@ -83,7 +96,16 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
         config_file: config_file.to_string(),
         kokoro: kokoro_handle,
         voicebox: voicebox_handle,
+        gemini: gemini_handle,
     }
+}
+
+fn gemini(settings: Option<&serde_yaml::Value>) -> Result<GeminiVoice, String> {
+    let cfg = match settings {
+        Some(v) => GeminiConfig::from_value(v)?,
+        None => GeminiConfig::default(),
+    };
+    GeminiVoice::new(cfg)
 }
 
 fn voicebox(settings: Option<&serde_yaml::Value>) -> Result<VoiceboxVoice, String> {
@@ -120,6 +142,7 @@ impl Backends {
             config_file: "teleprompt.toml".to_string(),
             kokoro: None,
             voicebox: None,
+            gemini: None,
         }
     }
 
@@ -171,6 +194,10 @@ impl Backends {
         self.kokoro(id)
             .map(|k| k.concurrency())
             .or_else(|| self.voicebox(id).map(|v| v.concurrency()))
+            .or_else(|| {
+                let gemini = self.gemini.as_ref().filter(|_| id == "gemini");
+                gemini.map(|g| g.concurrency())
+            })
             .unwrap_or(1)
     }
 

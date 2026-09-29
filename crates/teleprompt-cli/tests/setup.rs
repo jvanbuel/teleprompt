@@ -231,3 +231,16 @@ fn voicebox_is_explained_with_its_models_licenses() {
         voicebox.license
     );
 }
+
+/// Gemini is a service, not a program: `setup` says where the key comes
+/// from and that the narration goes to Google, and installs nothing.
+#[test]
+fn gemini_is_explained_as_a_service() {
+    let gemini = &resolve(&["gemini".to_string()]).unwrap()[0];
+    assert_eq!(gemini.command(&mac()), None);
+    let guide = gemini.guide.unwrap();
+    assert!(
+        guide.contains("GEMINI_API_KEY") && guide.contains("Google"),
+        "{guide}"
+    );
+}

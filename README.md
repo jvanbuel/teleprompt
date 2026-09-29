@@ -37,8 +37,10 @@ ffmpeg:
 | images, clips, title cards | ffmpeg alone |
 
 Narration comes from a local [Kokoro](https://github.com/remsky/Kokoro-FastAPI)
-server, or from the built-in `null` voice, which is silent but correctly
-timed and needs nothing installed.
+server, a [Voicebox](https://voicebox.sh) voice made from your own takes,
+Google's [Gemini TTS](docs/guide/voices.md#gemini-tts) with your API key,
+or the built-in `null` voice, which is silent but correctly timed and
+needs nothing installed.
 
 ## Try it
 

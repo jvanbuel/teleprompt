@@ -1696,6 +1696,7 @@ dependencies = [
 name = "teleprompt-cli"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "clap",
  "insta",
  "portable-pty",
@@ -1724,6 +1725,7 @@ dependencies = [
  "teleprompt-translate",
  "teleprompt-vhs",
  "teleprompt-voice",
+ "teleprompt-voice-gemini",
  "teleprompt-voice-kokoro",
  "teleprompt-voice-null",
  "teleprompt-voice-voicebox",
@@ -1907,6 +1909,19 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-testkit",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "teleprompt-voice-gemini"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "teleprompt-voice",
+ "tokio",
 ]
 
 [[package]]

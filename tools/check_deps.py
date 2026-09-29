@@ -29,6 +29,7 @@ ALLOWED = {
     "voice-null": {"core", "voice"},
     "voice-kokoro": {"core", "voice"},
     "voice-voicebox": {"voice"},
+    "voice-gemini": {"voice"},
     "compile": {"core", "scene", "schedule", "voice", "cache", "manifest"},
     "render": {"core", "manifest"},
     "vhs": ADAPTER,

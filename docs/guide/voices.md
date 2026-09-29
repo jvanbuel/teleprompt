@@ -6,8 +6,9 @@ installed. `kokoro` talks HTTP to a
 [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) server you run
 yourself, in Docker or with pip, and `voicebox` to a
 [Voicebox](https://voicebox.sh) app, which can speak in [your own
-voice](#your-own-voice-voicebox). teleprompt bundles no model and runs no
-Python.
+voice](#your-own-voice-voicebox). `gemini` is the one that isn't local:
+[Google's Gemini TTS](#gemini-tts), with your own API key. teleprompt
+bundles no model and runs no Python.
 
 ```toml
 # teleprompt.toml
@@ -134,6 +135,45 @@ LuxTTS and Kokoro are Apache-2.0, Chatterbox MIT (and watermarks its
 audio), and TADA's weights come under the Llama 3.2 Community License,
 which has conditions. A voice cloned again under the same name keeps
 speaking the old audio from the cache; give the new one a new name.
+
+## Gemini TTS
+
+`gemini` speaks with Google's Gemini 3.8 TTS models, which run at Google:
+the narration is sent there, and your key pays for it. Make a key at
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey) and put
+it in `GEMINI_API_KEY`. It's read only when a line is spoken, so `check`,
+`plan` and `diff` need none.
+
+```toml
+[voice]
+backend = "gemini"
+voice = "Charon"       # one of the 30 prebuilt voices, or a custom voice's id
+instruct = "a warm, unhurried documentary narrator"
+
+[backends.gemini]
+model = "gemini-3.8-flash-lite-tts"   # the cheaper one, for many lines
+```
+
+| setting | default | meaning |
+|---|---|---|
+| `model` | `gemini-3.8-flash-tts` | the model; `gemini-3.8-flash-lite-tts` costs less |
+| `api_key_env` | `GEMINI_API_KEY` | the environment variable holding the key |
+| `timeout_ms` | `120000` | limit for each line |
+| `concurrency` | `4` | lines `dub` sends at once; lower it if the key's quota refuses them (429) |
+| `seed` | none | sent with every line when set; the model and seed are in the cache key |
+
+`voice.voice` defaults to `Kore`. The prebuilt voices include Zephyr, Puck,
+Charon, Kore, Fenrir, Leda, Orus, Aoede, Enceladus and Schedar; AI Studio
+plays all thirty. A voice you designed or replicated with Google's Voices
+API is named by its id (`voice_…`); a stored one expires after seven
+days, but the lines it spoke stay in the cache.
+
+The words are spoken exactly as written, so direction never goes in the
+line. `voice.instruct` is sent beside it as how to say it: style, pace,
+accent. Gemini has no speed setting, so `voice.speed` must stay 1.0; ask
+for "a little slower" instead. Its audio carries Google's SynthID
+watermark, and its use falls under the
+[Gemini API terms](https://ai.google.dev/gemini-api/terms).
 
 ## Testing against a real server
 

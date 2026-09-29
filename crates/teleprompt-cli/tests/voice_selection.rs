@@ -13,7 +13,7 @@ fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
 fn kokoro_is_registered_by_default() {
     assert_eq!(
         Backends::defaults().ids(),
-        vec!["kokoro", "null", "voicebox"]
+        vec!["gemini", "kokoro", "null", "voicebox"]
     );
 }
 
@@ -67,7 +67,7 @@ fn a_bad_setting_for_one_backend_leaves_the_others_usable() {
     );
     assert_eq!(
         b.ids(),
-        vec!["kokoro", "null", "voicebox"],
+        vec!["gemini", "kokoro", "null", "voicebox"],
         "a misconfigured backend is still one this build ships"
     );
 }
@@ -378,4 +378,30 @@ fn an_unknown_key_and_an_unused_bad_setting_report_exactly_one_problem() {
         !errors[0].contains("concurrency"),
         "a backend this project never uses must not be validated: {errors:?}"
     );
+}
+
+/// Gemini's key is read when a line is spoken, not when the project is
+/// checked: `check` stays offline and needs no secret.
+#[test]
+fn a_gemini_project_checks_without_a_key() {
+    let (_dir, project, script) = project_with_toml(
+        "gemini-no-key",
+        &NULL_PROJECT.replace(
+            "backend = \"null\"",
+            "backend = \"gemini\"\n\n[backends.gemini]\napi_key_env = \"TELEPROMPT_TEST_NO_SUCH_KEY\"",
+        ),
+    );
+    teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+        .unwrap_or_else(|e| panic!("check must not need Gemini's key: {e:?}"));
+}
+
+/// `dub` sends Gemini as many lines at once as its settings say.
+#[test]
+fn gemini_carries_its_configured_concurrency() {
+    let mut s = BTreeMap::new();
+    s.insert(
+        "gemini".to_string(),
+        serde_yaml::from_str("concurrency: 2").unwrap(),
+    );
+    assert_eq!(backends_for(&s, "teleprompt.toml").concurrency("gemini"), 2);
 }

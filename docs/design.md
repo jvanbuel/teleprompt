@@ -156,6 +156,7 @@ reading the manifest it just published.
 | `teleprompt-voice-null` | silence at the estimated length, and `WpmEstimator` |
 | `teleprompt-voice-kokoro` | HTTP against a Kokoro-FastAPI server |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
+| `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |
 | `teleprompt-cache` | the content-addressed voice cache |
 | `teleprompt-scene` | the `SceneCompiler` contract and the `mock` adapter |
 | `teleprompt-capture` | the `CaptureBackend` contract and the mock backend, and the `Recorder` contract for recording a session |
@@ -802,7 +803,9 @@ a video needs comes in three tiers.
    files of their own, under their own licenses: `asciinema` and some
    `ffmpeg` builds are GPL, and Remotion needs a company license past a
    team's size. Teleprompt runs the copy the author installed, as a
-   separate program, and links none of them. `doctor` says which are
+   separate program, and links none of them. A hosted service, Gemini TTS
+   or a translator's API, is the author's own account, used only when
+   chosen. `doctor` says which are
    missing, and `teleprompt setup <adapter or tool>` says how to install
    each with the author's own package manager, and its license, and runs
    that command when asked (`--run`). Models go in
@@ -822,7 +825,9 @@ a video needs comes in three tiers.
 
 Named here so the rest of this document is not read as covering them:
 
-- **Cloned voices.** There is no voice enrollment: a line is recorded or
-  synthesized.
+- **Cloning with Gemini.** `voice clone` makes a Voicebox voice from the
+  author's takes. Google's Voices API replicates a voice too, but only with
+  a recording of its owner reading a consent statement, which teleprompt
+  does not collect; a voice made there is named by its id.
 - **Runtime-loaded plugins.** Backends and adapters are compiled in; see
   [What teleprompt ships](#what-teleprompt-ships) for the plan.
