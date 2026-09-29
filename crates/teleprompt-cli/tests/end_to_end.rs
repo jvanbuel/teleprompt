@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use teleprompt_core::SpanMs;
 use teleprompt_core::TimeMs;
 
-use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
+use teleprompt_cli::cmd::{check::run_check, plan::run_plan, plan::run_plan_check};
 use teleprompt_cli::project::Project;
 
 fn fixture(name: &str) -> String {
@@ -106,7 +106,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     );
     std::fs::write(&s, edited).unwrap();
 
-    let d = run_diff(&p, &s, "en").unwrap();
+    let d = run_plan_check(&p, &s, "en").unwrap();
 
     assert_eq!(d.changed.len(), 1, "exactly one line changed");
     assert_eq!(d.changed[0].item, "deploy");
@@ -182,7 +182,7 @@ fn an_unedited_script_diffs_clean_against_its_committed_timeline() {
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, serde_json::to_string_pretty(&out.timeline).unwrap()).unwrap();
 
-    let d = run_diff(&p, &s, "en").unwrap();
+    let d = run_plan_check(&p, &s, "en").unwrap();
     assert!(
         d.is_empty(),
         "clean checkout must diff clean: {}",

@@ -1,6 +1,6 @@
 //! The preview (`prompt --preview`), driven the way a browser drives it.
 //!
-//! The server is bound on port 0 and handed to `serve_on`, so these run the
+//! The server is bound on port 0 and handed to `preview_on`, so these run the
 //! real accept loop, the real watcher and the real compile — the only thing
 //! substituted is the port. Requests go over a plain socket rather than
 //! through a client library, which keeps the test honest about the bytes the
@@ -11,7 +11,7 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use teleprompt_cli::cmd::serve::serve_on;
+use teleprompt_cli::cmd::preview::preview_on;
 use teleprompt_cli::project::Project;
 
 const SCRIPT: &str = "\
@@ -58,7 +58,7 @@ fn serving_script(
     source: &str,
     prepare: impl FnOnce(&std::path::Path),
 ) -> (teleprompt_testkit::TestDir, PathBuf, SocketAddr) {
-    let dir = teleprompt_testkit::test_dir("serve");
+    let dir = teleprompt_testkit::test_dir("preview");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     prepare(&dir);
     let script = dir.join("scripts/preview.md");
@@ -74,7 +74,7 @@ fn serving_script(
             .enable_all()
             .build()
             .unwrap();
-        let _ = rt.block_on(serve_on(listener, &project, &served, "en"));
+        let _ = rt.block_on(preview_on(listener, &project, &served, "en"));
     });
 
     (dir, script, addr)
@@ -331,7 +331,7 @@ fn what_sits_before_an_edit_is_not_reported_as_moved() {
         .collect();
     assert!(
         sources.iter().all(|s| *s == "measured"),
-        "serve synthesizes before it publishes, so nothing is an estimate: {sources:?}"
+        "the preview synthesizes before it publishes, so nothing is an estimate: {sources:?}"
     );
 
     let src = std::fs::read_to_string(&script).unwrap();

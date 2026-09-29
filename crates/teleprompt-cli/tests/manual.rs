@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use teleprompt_core::DurationSource;
 
 use teleprompt_cli::cmd::build::{self, BuildOptions};
-use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
+use teleprompt_cli::cmd::{check::run_check, plan::run_plan, plan::run_plan_check};
 use teleprompt_cli::project::Project;
 
 fn repo() -> PathBuf {
@@ -59,7 +59,7 @@ fn the_manual_compiles() {
 #[test]
 fn the_committed_timeline_is_current() {
     let (_dir, p, s) = manual();
-    let d = run_diff(&p, &s, "en").unwrap();
+    let d = run_plan_check(&p, &s, "en").unwrap();
     assert!(
         d.is_empty(),
         "the manual has drifted from `manual/timelines/cli.en.json`; re-run\n  \

@@ -32,10 +32,10 @@ use crate::project::Project;
 /// costs one read per tick, and a quarter second is instant enough.
 const POLL: Duration = Duration::from_millis(250);
 
-const PAGE: &str = include_str!("serve.html");
+const PAGE: &str = include_str!("preview.html");
 
 #[derive(Debug)]
-pub enum ServeError {
+pub enum PreviewError {
     /// The script did not compile on the first run. Later failures are shown
     /// in the preview instead.
     Validation(Vec<String>),
@@ -83,10 +83,10 @@ async fn rebuild(
     script: &Path,
     locale: &str,
     previous: Option<&NarrationManifest>,
-) -> Result<Built, ServeError> {
+) -> Result<Built, PreviewError> {
     let backends = backends_of(project);
-    let (compiled, backend) =
-        compile_script_with(&backends, project, script, locale).map_err(ServeError::Validation)?;
+    let (compiled, backend) = compile_script_with(&backends, project, script, locale)
+        .map_err(PreviewError::Validation)?;
 
     let cache = VoiceCache::new(project.caches().root);
     let audio = warm(&backend, &cache, &compiled).await?;
@@ -94,8 +94,8 @@ async fn rebuild(
     // Compiled again, as `dub` does: the first pass read durations from a
     // cache `warm` had not yet filled, so they were estimates, and every
     // line would "move" on the next save.
-    let (compiled, _) =
-        compile_script_with(&backends, project, script, locale).map_err(ServeError::Validation)?;
+    let (compiled, _) = compile_script_with(&backends, project, script, locale)
+        .map_err(PreviewError::Validation)?;
 
     let manifest = manifest::build(
         &compiled.timeline,
@@ -138,20 +138,20 @@ async fn warm(
     backend: &Arc<dyn VoiceBackend>,
     cache: &VoiceCache,
     compiled: &teleprompt_compile::CompileOutput,
-) -> Result<AudioInfo, ServeError> {
+) -> Result<AudioInfo, PreviewError> {
     let mut shape: Option<(u32, u16)> = None;
     // A recorded line is played from its take.
     for detail in compiled.narration.iter().filter(|d| d.take.is_none()) {
         let hit = cache
             .lookup_meta(&detail.cache_key)
-            .map_err(|e| ServeError::Runtime(format!("line `{}`: {e}", detail.line_id)))?
+            .map_err(|e| PreviewError::Runtime(format!("line `{}`: {e}", detail.line_id)))?
             .hit();
         let (rate, channels) = match hit {
             Some(meta) => (meta.sample_rate, meta.channels),
             None => {
                 let stored = crate::cmd::dub::synthesize_and_store(backend, cache, detail)
                     .await
-                    .map_err(ServeError::Runtime)?;
+                    .map_err(PreviewError::Runtime)?;
                 (stored.sample_rate, stored.channels)
             }
         };
@@ -371,30 +371,30 @@ fn handle(
 
 /// Runs until interrupted. Returns only on a failure that makes serving
 /// pointless — the first compile, or the listener itself.
-pub async fn run_serve(
+pub async fn run_preview(
     project: &Project,
     script: &Path,
     locale: &str,
     port: u16,
-) -> Result<(), ServeError> {
+) -> Result<(), PreviewError> {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let listener = TcpListener::bind(addr)
-        .map_err(|e| ServeError::Runtime(format!("cannot listen on {addr}: {e}")))?;
+        .map_err(|e| PreviewError::Runtime(format!("cannot listen on {addr}: {e}")))?;
     let bound = listener
         .local_addr()
-        .map_err(|e| ServeError::Runtime(e.to_string()))?;
+        .map_err(|e| PreviewError::Runtime(e.to_string()))?;
     eprintln!("previewing at http://{bound}/");
-    serve_on(listener, project, script, locale).await
+    preview_on(listener, project, script, locale).await
 }
 
-/// [`run_serve`] against a listener the caller already bound, so a test can
+/// [`run_preview`] against a listener the caller already bound, so a test can
 /// take port 0 and drive the real server.
-pub async fn serve_on(
+pub async fn preview_on(
     listener: TcpListener,
     project: &Project,
     script: &Path,
     locale: &str,
-) -> Result<(), ServeError> {
+) -> Result<(), PreviewError> {
     // Taken before the build reads the script, so a save during startup
     // differs from the baseline instead of becoming it.
     let compiled = fingerprint(script);
@@ -498,7 +498,7 @@ async fn watch(
                 p.error = None;
                 eprintln!("  recompiled — {} item(s) moved", p.changed.len());
             }
-            Err(ServeError::Validation(errors)) => {
+            Err(PreviewError::Validation(errors)) => {
                 // Keep the last manifest that compiled: the author wants the
                 // error beside the video they had, not a blank screen.
                 let mut p = state.lock().expect("preview lock");
@@ -508,7 +508,7 @@ async fn watch(
                 p.error = Some(errors);
                 p.generation += 1;
             }
-            Err(ServeError::Runtime(e)) => {
+            Err(PreviewError::Runtime(e)) => {
                 let mut p = state.lock().expect("preview lock");
                 eprintln!("error: {e}");
                 p.error = Some(vec![e]);
@@ -518,11 +518,11 @@ async fn watch(
     }
 }
 
-impl From<ServeError> for crate::output::Outcome {
-    fn from(e: ServeError) -> Self {
+impl From<PreviewError> for crate::output::Outcome {
+    fn from(e: PreviewError) -> Self {
         match e {
-            ServeError::Validation(errors) => Self::ValidationError(errors),
-            ServeError::Runtime(message) => Self::RuntimeFailure(message),
+            PreviewError::Validation(errors) => Self::ValidationError(errors),
+            PreviewError::Runtime(message) => Self::RuntimeFailure(message),
         }
     }
 }
@@ -536,7 +536,7 @@ mod tests {
     /// build compiled, not what the file holds when it starts.
     #[tokio::test]
     async fn an_edit_during_startup_is_not_lost() {
-        let dir = teleprompt_testkit::test_dir("serve-startup");
+        let dir = teleprompt_testkit::test_dir("preview-startup");
         crate::cmd::new::scaffold(&dir).unwrap();
         let project = Project::discover(&dir).unwrap();
         let script = dir.join("scripts/demo.md");
@@ -575,7 +575,7 @@ mod tests {
     /// preview must still publish what `dub` does (#24).
     #[tokio::test]
     async fn a_script_with_no_narration_publishes_the_audio_format_dub_does() {
-        let dir = teleprompt_testkit::test_dir("serve-silent");
+        let dir = teleprompt_testkit::test_dir("preview-silent");
         crate::cmd::new::scaffold(&dir).unwrap();
         let script = dir.join("scripts/silent.md");
         std::fs::write(&script, "---\nteleprompt: 1\n---\n\n# Silence\n").unwrap();

@@ -8,14 +8,13 @@ use teleprompt_cli::cmd::build;
 use teleprompt_cli::cmd::cache;
 use teleprompt_cli::cmd::capture as capture_cmd;
 use teleprompt_cli::cmd::check::{self, CheckReport};
-use teleprompt_cli::cmd::diff as diff_cmd;
 use teleprompt_cli::cmd::doctor;
 use teleprompt_cli::cmd::dub;
 use teleprompt_cli::cmd::from;
 use teleprompt_cli::cmd::import::{self, Import, Words};
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
-use teleprompt_cli::cmd::serve;
+use teleprompt_cli::cmd::preview;
 use teleprompt_cli::cmd::setup;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
@@ -779,7 +778,7 @@ fn run(command: Command, format: Format) -> Run {
 
 fn run_plan_check(format: Format, args: &ScriptArgs) -> Run {
     let project = project_for(&args.script)?;
-    let d = diff_cmd::run_diff(&project, &args.script, &args.locale(&project))
+    let d = plan::run_plan_check(&project, &args.script, &args.locale(&project))
         .map_err(Outcome::ValidationError)?;
     emit(format, &d, &format!("{}\n", d.render()));
     Ok(if !d.is_empty() {
@@ -794,7 +793,7 @@ fn run_preview(args: &ScriptArgs, port: u16) -> Run {
     let locale = args.locale(&project);
     runtime()
         .map_err(runtime_failure)?
-        .block_on(serve::run_serve(&project, &args.script, &locale, port))?;
+        .block_on(preview::run_preview(&project, &args.script, &locale, port))?;
     Ok(Outcome::Ok)
 }
 

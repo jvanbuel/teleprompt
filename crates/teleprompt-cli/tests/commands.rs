@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use teleprompt_core::SpanMs;
 
-use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
+use teleprompt_cli::cmd::{check::run_check, plan::run_plan, plan::run_plan_check};
 use teleprompt_cli::project::Project;
 
 const GOOD: &str = r#"---
@@ -69,7 +69,7 @@ fn plan_produces_a_timeline_without_writing_one() {
 #[test]
 fn diff_against_a_missing_timeline_reports_every_item_as_added() {
     let (_dir, p, s) = project_with(GOOD);
-    let d = run_diff(&p, &s, "en").unwrap();
+    let d = run_plan_check(&p, &s, "en").unwrap();
     assert_eq!(d.added.len(), 1);
     assert!(!d.is_empty());
 }
@@ -82,7 +82,7 @@ fn diff_against_an_identical_committed_timeline_is_empty() {
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, serde_json::to_string_pretty(&out.timeline).unwrap()).unwrap();
 
-    assert!(run_diff(&p, &s, "en").unwrap().is_empty());
+    assert!(run_plan_check(&p, &s, "en").unwrap().is_empty());
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn diff_detects_an_edited_paragraph() {
         GOOD.replace("One two three four five six.", "One two three."),
     )
     .unwrap();
-    let d = run_diff(&p, &s, "en").unwrap();
+    let d = run_plan_check(&p, &s, "en").unwrap();
     assert_eq!(d.changed.len(), 1);
     assert!(d.shift_ms < 0, "a shorter paragraph shortens the video");
 }
@@ -109,7 +109,7 @@ fn a_malformed_timeline_on_disk_is_an_error_not_a_panic() {
     let dest = p.timeline_path("test.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, "{ not json").unwrap();
-    assert!(run_diff(&p, &s, "en").is_err());
+    assert!(run_plan_check(&p, &s, "en").is_err());
 }
 
 fn listing(root: &Path) -> Vec<String> {
@@ -136,7 +136,7 @@ fn tempdir() -> teleprompt_testkit::TestDir {
 /// not just on success — a CI consumer piping `--format json` at a failing
 /// command needs something it can parse. These drive the actual compiled binary
 /// rather than the library functions, since the bug was in `main.rs`'s wiring,
-/// not in `run_plan`/`run_diff` themselves.
+/// not in `run_plan`/`run_plan_check` themselves.
 #[test]
 fn plan_format_json_emits_a_typed_error_payload_on_failure() {
     let (_dir, p, _s) = project_with(BAD_ATTR);
