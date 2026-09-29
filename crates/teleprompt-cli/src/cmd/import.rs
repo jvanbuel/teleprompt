@@ -215,18 +215,13 @@ fn write(path: &Path, text: &str) -> Result<(), String> {
         .map_err(fail)
 }
 
+/// The voice's first channel, read a block at a time: a half-hour stereo
+/// recording is never in memory whole, nor as floats.
 fn read_voice(path: &Path) -> Result<Pcm, String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    wav::decode(&bytes).map_err(|e| format!("{}: {e}", path.display()))
-}
-
-/// The recording's first channel, as floats.
-fn mono(pcm: &Pcm) -> Vec<f32> {
-    pcm.samples
-        .iter()
-        .step_by(usize::from(pcm.channels.max(1)))
-        .map(|&s| f32::from(s) / 32768.0)
-        .collect()
+    let file =
+        std::fs::File::open(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    wav::first_channel(std::io::BufReader::new(file))
+        .map_err(|e| format!("{}: {e}", path.display()))
 }
 
 #[derive(Deserialize)]
@@ -264,7 +259,13 @@ fn hear(words: &Words, pcm: &Pcm, offset_ms: i64) -> Result<Vec<Word>, String> {
 #[cfg(feature = "listen")]
 fn transcribe(dir: &Path, pcm: &Pcm) -> Result<Vec<(String, u64, u64)>, String> {
     use teleprompt_listen_sherpa::SAMPLE_RATE;
-    let samples = teleprompt_voice::resample(&mono(pcm), pcm.sample_rate, SAMPLE_RATE);
+    let mut resampler = teleprompt_voice::Resampler::new(pcm.sample_rate, SAMPLE_RATE);
+    let mut samples = Vec::new();
+    for block in pcm.samples.chunks(1 << 16) {
+        let block: Vec<f32> = block.iter().map(|&s| f32::from(s) / 32768.0).collect();
+        samples.extend(resampler.push(&block));
+    }
+    samples.extend(resampler.finish());
     Ok(teleprompt_listen_sherpa::transcribe(dir, &samples)?
         .into_iter()
         .map(|w| (w.text, w.start_ms, w.end_ms))
@@ -314,7 +315,7 @@ fn save_takes(
             lines.len()
         ));
     }
-    let audio = mono(pcm);
+    let audio = &pcm.samples;
     let rate = u64::from(pcm.sample_rate);
     let mut takes = Takes::load(&project.takes_dir()).map_err(|e| e.to_string())?;
     let mut saved = Vec::new();
@@ -335,10 +336,7 @@ fn save_takes(
         let clip = Pcm {
             sample_rate: pcm.sample_rate,
             channels: 1,
-            samples: audio[at(start)..at(end)]
-                .iter()
-                .map(|&s| (s * 32768.0).round().clamp(-32768.0, 32767.0) as i16)
-                .collect(),
+            samples: audio[at(start)..at(end)].to_vec(),
         };
         takes.save(id, text, &clip).map_err(|e| e.to_string())?;
         saved.push(id.clone());

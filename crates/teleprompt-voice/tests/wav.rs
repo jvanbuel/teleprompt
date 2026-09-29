@@ -103,3 +103,55 @@ fn decoding_what_was_encoded_gives_it_back() {
     assert_eq!(teleprompt_voice::wav::decode(&wav).unwrap(), pcm);
     assert!(teleprompt_voice::wav::decode(b"RIFF....WAVEnot a wav").is_err());
 }
+
+/// A stereo recording with a `LIST` chunk before its data, as recorders
+/// write them.
+fn recorded(frames: usize) -> Vec<u8> {
+    let samples: Vec<i16> = (0..frames * 2)
+        .map(|i| if i % 2 == 0 { i as i16 } else { -1 })
+        .collect();
+    let plain = wav::encode(&Pcm {
+        sample_rate: 48_000,
+        channels: 2,
+        samples,
+    });
+    let mut out = plain[..36].to_vec();
+    out.extend_from_slice(b"LIST");
+    out.extend_from_slice(&3u32.to_le_bytes());
+    out.extend_from_slice(b"abc\0");
+    out.extend_from_slice(&plain[36..]);
+    out
+}
+
+#[test]
+fn a_reader_reads_in_blocks_what_decode_reads_whole() {
+    let bytes = recorded(100_000);
+    let mut reader = wav::Reader::new(&bytes[..]).unwrap();
+    assert_eq!((reader.sample_rate(), reader.channels()), (48_000, 2));
+    let mut samples = Vec::new();
+    let mut blocks = 0;
+    while let Some(block) = reader.next_block().unwrap() {
+        assert_eq!(block.len() % 2, 0, "a block is whole frames");
+        samples.extend(block);
+        blocks += 1;
+    }
+    assert!(blocks > 1, "read in more than one block");
+    assert_eq!(samples, wav::decode(&bytes).unwrap().samples);
+}
+
+#[test]
+fn the_first_channel_is_read_without_the_others() {
+    let pcm = wav::first_channel(&recorded(5)[..]).unwrap();
+    assert_eq!((pcm.sample_rate, pcm.channels), (48_000, 1));
+    assert_eq!(pcm.samples, [0, 2, 4, 6, 8]);
+}
+
+#[test]
+fn a_reader_refuses_what_decode_refuses() {
+    let bytes = recorded(10);
+    for bad in [&bytes[..8], &bytes[..30], &bytes[..bytes.len() - 3]] {
+        let whole = wav::decode(bad).unwrap_err();
+        let read = wav::first_channel(bad).unwrap_err();
+        assert_eq!(read, whole);
+    }
+}
