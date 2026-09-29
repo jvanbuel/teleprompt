@@ -50,11 +50,11 @@
   .clock { font: 12.5px var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
 
   #strip { position: relative; height: 54px; border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); overflow: hidden; cursor: pointer; }
-  #strip .beat { position: absolute; top: 6px; height: 18px; background: #24303d; border-radius: 2px; }
-  #strip .beat.moved { background: var(--moved); }
-  #strip .beat.pause { background: #1b222b; }
-  #strip .seg { position: absolute; bottom: 6px; height: 12px; background: #2b3a49; border-radius: 2px; }
-  #strip .seg.moved { background: var(--moved); }
+  #strip .shot { position: absolute; top: 6px; height: 18px; background: #24303d; border-radius: 2px; }
+  #strip .shot.moved { background: var(--moved); }
+  #strip .shot.pause { background: #1b222b; }
+  #strip .line { position: absolute; bottom: 6px; height: 12px; background: #2b3a49; border-radius: 2px; }
+  #strip .line.moved { background: var(--moved); }
   #strip .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); }
   .legend { display: flex; gap: 16px; margin-top: 8px; font: 11.5px var(--mono); color: var(--dim); }
   .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
@@ -80,7 +80,7 @@
 
   <div id="strip"></div>
   <div class="legend">
-    <span><i class="swatch" style="background:#24303d"></i>action span</span>
+    <span><i class="swatch" style="background:#24303d"></i>shot</span>
     <span><i class="swatch" style="background:#2b3a49"></i>narration</span>
     <span><i class="swatch" style="background:var(--moved)"></i>moved since last save</span>
   </div>
@@ -88,10 +88,10 @@
 
 <script>
 "use strict";
-// The preview is a manifest consumer: it places speech from `segments` and
-// the picture from `beats`, exactly as docs/integrations/remotion.md tells an
+// The preview is a manifest consumer: it places speech from `lines` and
+// the picture from `shots`, exactly as docs/integrations/remotion.md tells an
 // outside integrator to. The only thing it asks teleprompt for beyond the
-// manifest is a span's source, which it needs to draw the scene and which a
+// manifest is a shot's source, which it needs to draw the scene and which a
 // consumer drawing its own picture would not.
 
 const $ = (id) => document.getElementById(id);
@@ -103,7 +103,7 @@ const clock = (ms) => {
 const app = {
   generation: 0,
   manifest: null,
-  sources: new Map(),   // span id -> tape text
+  sources: new Map(),   // shot id -> tape text
   buffers: new Map(),   // audio_hash -> AudioBuffer
   changed: new Set(),
   playing: false,
@@ -123,31 +123,31 @@ async function load(generation) {
   }
   app.manifest = manifest;
   app.generation = generation;
+  // The strip needs only the manifest: drawn before any audio is decoded.
+  drawStrip();
 
-  // Span sources for scenes the preview can draw. Fetched per generation
-  // because an edited tape is a new source under the same span id.
+  // Shot sources for scenes the preview can draw. Fetched per generation
+  // because an edited tape is a new source under the same shot id.
   app.sources.clear();
   await Promise.all(
-    manifest.beats
+    manifest.shots
       .filter((b) => b.scene !== "pause")
       .map(async (b) => {
-        const r = await fetch(`spans/${encodeURIComponent(b.span)}`);
-        if (r.ok) app.sources.set(b.span, await r.text());
+        const r = await fetch(`shots/${encodeURIComponent(b.shot)}`);
+        if (r.ok) app.sources.set(b.shot, await r.text());
       })
   );
 
-  // Audio is keyed by `audio_hash`, so a segment whose text did not change
+  // Audio is keyed by `audio_hash`, so a line whose text did not change
   // keeps its decoded buffer across a recompile.
   await Promise.all(
-    manifest.segments.map(async (s) => {
+    manifest.lines.map(async (s) => {
       if (app.buffers.has(s.audio_hash)) return;
       const r = await fetch(`audio/${encodeURIComponent(s.id)}.wav`);
       if (!r.ok) return;
       app.buffers.set(s.audio_hash, await audio().decodeAudioData(await r.arrayBuffer()));
     })
   );
-
-  drawStrip();
 }
 
 function show(errors) {
@@ -172,7 +172,7 @@ function play(fromMs) {
   app.playing = true;
   $("play").textContent = "pause";
 
-  for (const seg of app.manifest.segments) {
+  for (const seg of app.manifest.lines) {
     const buf = app.buffers.get(seg.audio_hash);
     if (!buf) continue;
     const end = seg.start_ms + seg.duration_ms;
@@ -227,18 +227,18 @@ function ops(source) {
   return out;
 }
 
-/** The terminal as of `t`, replaying every span of the block up to it.
+/** The terminal as of `t`, replaying every shot of the block up to it.
  *
- *  Per-block replay rather than per-span: a tape's state accumulates, so a
- *  span that follows a mark means nothing without the ones before it. The
+ *  Per-block replay rather than per-shot: a tape's state accumulates, so a
+ *  shot that follows a mark means nothing without the ones before it. The
  *  block is the bounded unit that is always correct to start from.
  */
 function screenAt(block, t) {
   let rows = [""];
-  for (const beat of app.manifest.beats) {
-    if (!beat.span.startsWith(block + "#")) continue;
+  for (const beat of app.manifest.shots) {
+    if (!beat.shot.startsWith(block + "#")) continue;
     if (beat.start_ms > t) break;
-    const source = app.sources.get(beat.span);
+    const source = app.sources.get(beat.shot);
     if (!source) continue;
     const list = ops(source);
     const natural = list.reduce((n, o) => n + o.ms, 0);
@@ -263,12 +263,12 @@ function draw() {
 
   if (app.playing && t >= m.duration_ms) pause();
 
-  const beat = [...m.beats].reverse().find((b) => b.start_ms <= t);
+  const beat = [...m.shots].reverse().find((b) => b.start_ms <= t);
   const screen = $("screen");
   if (beat && beat.scene === "pause") {
     screen.innerHTML = `<span class="scene-note">holding &mdash; pause ${beat.duration_ms}ms</span>`;
-  } else if (beat && app.sources.has(beat.span)) {
-    const rows = screenAt(beat.span.split("#")[0], t);
+  } else if (beat && app.sources.has(beat.shot)) {
+    const rows = screenAt(beat.shot.split("#")[0], t);
     screen.innerHTML = rows
       .map((row, i) => {
         const body = row.startsWith("❯ ")
@@ -282,7 +282,7 @@ function draw() {
     screen.innerHTML = `<span class="scene-note">no scene at this point in the timeline</span>`;
   }
 
-  const seg = m.segments.find((s) => t >= s.start_ms && t < s.start_ms + s.duration_ms);
+  const seg = m.lines.find((s) => t >= s.start_ms && t < s.start_ms + s.duration_ms);
   const cap = $("caption");
   cap.textContent = seg ? seg.text : " ";
   cap.className = seg ? "" : "none";
@@ -304,17 +304,17 @@ function drawStrip() {
   strip.innerHTML = "";
   const pct = (ms) => (ms / m.duration_ms) * 100;
 
-  for (const b of m.beats) {
+  for (const b of m.shots) {
     const el = document.createElement("div");
-    el.className = `beat${app.changed.has(b.span) ? " moved" : ""}${b.scene === "pause" ? " pause" : ""}`;
+    el.className = `shot${app.changed.has(b.shot) ? " moved" : ""}${b.scene === "pause" ? " pause" : ""}`;
     el.style.left = `${pct(b.start_ms)}%`;
     el.style.width = `${Math.max(0.35, pct(b.duration_ms))}%`;
-    el.title = `${b.span} · ${b.policy} · ${b.duration_source} ${(b.duration_ms / 1000).toFixed(1)}s`;
+    el.title = `${b.shot} · ${b.policy} · ${b.duration_source} ${(b.duration_ms / 1000).toFixed(1)}s`;
     strip.appendChild(el);
   }
-  for (const s of m.segments) {
+  for (const s of m.lines) {
     const el = document.createElement("div");
-    el.className = `seg${app.changed.has(s.id) ? " moved" : ""}`;
+    el.className = `line${app.changed.has(s.id) ? " moved" : ""}`;
     el.style.left = `${pct(s.start_ms)}%`;
     el.style.width = `${Math.max(0.35, pct(s.duration_ms))}%`;
     el.title = `${s.id} · ${s.duration_source} ${(s.duration_ms / 1000).toFixed(1)}s`;
@@ -331,8 +331,8 @@ function drawStrip() {
 function firstChange() {
   const m = app.manifest;
   const times = [
-    ...m.beats.filter((b) => app.changed.has(b.span)).map((b) => b.start_ms),
-    ...m.segments.filter((s) => app.changed.has(s.id)).map((s) => s.start_ms),
+    ...m.shots.filter((b) => app.changed.has(b.shot)).map((b) => b.start_ms),
+    ...m.lines.filter((s) => app.changed.has(s.id)).map((s) => s.start_ms),
   ];
   return times.length ? Math.max(0, Math.min(...times) - 400) : null;
 }
@@ -360,7 +360,11 @@ async function poll() {
       }
     }
   } catch (e) {
-    $("gen").textContent = "server gone";
+    // A fetch that fails is the server; anything else is this page.
+    $("gen").textContent = e instanceof TypeError && /fetch/i.test(e.message)
+      ? "server gone"
+      : `preview error: ${e.message}`;
+    if (!(e instanceof TypeError && /fetch/i.test(e.message))) console.error(e);
   }
   setTimeout(poll, 400);
 }

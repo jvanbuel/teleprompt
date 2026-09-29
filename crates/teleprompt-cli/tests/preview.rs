@@ -11,6 +11,8 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+mod browser;
+
 use teleprompt_cli::cmd::preview::preview_on;
 use teleprompt_cli::project::Project;
 
@@ -444,4 +446,23 @@ fn the_preview_answers_only_its_own_page_on_this_machine() {
         "Host: 127.0.0.1:{port}\r\nOrigin: http://127.0.0.1:{port}"
     ))
     .ends_with("200 OK"));
+}
+
+/// The page itself, run in a browser: it draws the timeline from the
+/// manifest it is served and knows how long the video runs. The routes are
+/// tested above; this is what catches the page reading fields the manifest
+/// no longer has.
+#[test]
+fn the_page_draws_the_manifest_it_is_served() {
+    let Some(chrome) = browser::chromium() else {
+        eprintln!("skipping: no Chromium (set TELEPROMPT_CHROMIUM)");
+        return;
+    };
+    let (_dir, _script, addr) = serving();
+    let _ = get(addr, "/manifest.json");
+    let page = browser::dom(&chrome, &format!("http://{addr}/"), 1200, 800, 4000);
+    assert!(page.contains("class=\"shot"), "no shot on the timeline:\n{page}");
+    assert!(page.contains("class=\"line"), "no line on the timeline:\n{page}");
+    assert!(!page.contains("0:00 / 0:00"), "the clock never learned the length:\n{page}");
+    assert!(page.contains("id=\"gen\">generation 1<"), "the header says what is wrong:\n{page}");
 }
