@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use serde_json::Value;
+use teleprompt_core::{DurationSource, LineId, ShotId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Timeline {
@@ -20,7 +20,7 @@ pub struct Timeline {
 /// A narration line, from its first to its last sound.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineSpan {
-    pub id: String,
+    pub id: LineId,
     pub start_ms: u64,
     pub end_ms: u64,
     /// Spoken from a take, rather than synthesized.
@@ -30,13 +30,12 @@ pub struct LineSpan {
 /// A shot on screen.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShotSpan {
-    /// As `plan` names it: `<block>#<n>`.
-    pub shot: String,
+    pub shot: ShotId,
     pub scene: String,
     pub start_ms: u64,
     pub end_ms: u64,
     /// The line it runs with or after, if it has one.
-    pub line: Option<String>,
+    pub line: Option<LineId>,
     /// Whether it states its own length, and so can be stretched; one that
     /// does not takes its line's.
     pub timed: bool,
@@ -45,51 +44,51 @@ pub struct ShotSpan {
 impl ShotSpan {
     /// The block it is a shot of, which is what an edit moves.
     pub fn block(&self) -> &str {
-        self.shot.split_once('#').map_or(&self.shot, |(b, _)| b)
+        self.shot.block()
     }
 
     /// Only a block's first shot carries it: the others follow it.
     pub fn leads(&self) -> bool {
-        self.shot.ends_with("#0")
+        self.shot.index() == Some(0)
     }
 }
 
 /// `plan --format json`, read as spans.
 pub fn parse(json: &str) -> Result<Timeline, String> {
-    let plan: Value =
+    let plan: teleprompt_schedule::Timeline =
         serde_json::from_str(json).map_err(|e| format!("cannot read the plan: {e}"))?;
-    let ms = |v: &Value, key: &str| v[key].as_u64().unwrap_or(0);
+    Ok(spans(&plan))
+}
+
+/// The scheduler's plan as the strip draws it.
+pub fn spans(plan: &teleprompt_schedule::Timeline) -> Timeline {
     let mut timeline = Timeline {
-        duration_ms: ms(&plan, "duration_ms"),
+        duration_ms: plan.duration_ms.ms(),
         lines: Vec::new(),
         shots: Vec::new(),
     };
-    for entry in plan["entries"].as_array().into_iter().flatten() {
-        let narration = &entry["narration"];
-        let line = narration["line"].as_str().map(str::to_string);
-        if let Some(id) = &line {
-            let start = ms(narration, "start_ms");
+    for entry in &plan.entries {
+        let line = entry.narration.as_ref().map(|n| n.line.clone());
+        if let Some(n) = &entry.narration {
             timeline.lines.push(LineSpan {
-                id: id.clone(),
-                start_ms: start,
-                end_ms: start + ms(narration, "duration_ms"),
-                recorded: narration["recorded"].as_bool().unwrap_or(false),
+                id: n.line.clone(),
+                start_ms: n.start_ms.ms(),
+                end_ms: (n.start_ms + n.duration_ms).ms(),
+                recorded: n.recorded,
             });
         }
-        let action = &entry["action"];
-        if let Some(shot) = action["shot"].as_str() {
-            let start = ms(action, "start_ms");
+        if let Some(a) = &entry.action {
             timeline.shots.push(ShotSpan {
-                shot: shot.to_string(),
-                scene: action["scene"].as_str().unwrap_or("").to_string(),
-                start_ms: start,
-                end_ms: start + ms(action, "duration_ms"),
+                shot: a.shot.clone(),
+                scene: a.scene.clone(),
+                start_ms: a.start_ms.ms(),
+                end_ms: (a.start_ms + a.duration_ms).ms(),
                 line,
-                timed: action["duration_source"].as_str() != Some("unknown"),
+                timed: a.duration_source != DurationSource::Unknown,
             });
         }
     }
-    Ok(timeline)
+    timeline
 }
 
 /// Asks `binary` for `script`'s plan. Blocks while it compiles, so call it

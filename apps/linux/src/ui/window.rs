@@ -1403,7 +1403,7 @@ impl Window {
             let model = self.model.borrow();
             model.timeline.as_ref().and_then(|t| {
                 let (i, into) = ribbons::on_screen(t, ms)?;
-                let shot = t.shots[i].shot.clone();
+                let shot = t.shots[i].shot.to_string();
                 let clip = model
                     .state
                     .script

@@ -123,4 +123,14 @@ impl ShotId {
     pub fn of(block: &BlockId, index: usize) -> Self {
         Self(format!("{block}#{index}"))
     }
+
+    /// The block it is a shot of: all of it, for an id with no `#`.
+    pub fn block(&self) -> &str {
+        self.0.split_once('#').map_or(&self.0, |(b, _)| b)
+    }
+
+    /// Its place in its block, if the id carries one.
+    pub fn index(&self) -> Option<usize> {
+        self.0.split_once('#')?.1.parse().ok()
+    }
 }

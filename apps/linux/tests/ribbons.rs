@@ -5,23 +5,33 @@
 use teleprompt_gtk::ribbons::{
     dropped_after, dropped_on, moment, on_screen, ribbons, stretched_to, Ribbon,
 };
+mod plan;
+
+use plan::{line, shot};
+use teleprompt_core::DurationSource::Exact;
 use teleprompt_gtk::timeline::{parse, Edit, Timeline};
+
+const LINES: [(&str, &str); 2] = [("a", "One two six ten"), ("b", "Five six.")];
 
 /// "One two six ten" 0–4000 ms, four words of equal letters, a shot
 /// from its third word running 1500 ms past it; "Five six." 5000–7000 ms
 /// with a shot held 2000 ms after it; a browser shot with no length of
 /// its own held after that.
-const PLAN: &str = r#"{"duration_ms": 12000, "entries": [
- {"narration": {"line": "a", "start_ms": 0, "duration_ms": 4000},
-  "action": {"shot": "a-a#0", "scene": "vhs", "start_ms": 2000, "duration_ms": 3500, "duration_source": "exact"}},
- {"narration": {"line": "b", "start_ms": 5000, "duration_ms": 2000},
-  "action": {"shot": "b-a#0", "scene": "vhs", "start_ms": 7000, "duration_ms": 2000, "duration_source": "exact"}}
-]}"#;
-
-const LINES: [(&str, &str); 2] = [("a", "One two six ten"), ("b", "Five six.")];
-
 fn timeline() -> Timeline {
-    parse(PLAN).unwrap()
+    parse(&plan::json(
+        12000,
+        vec![
+            (
+                Some(line("a", 0, 4000)),
+                Some(shot("a-a#0", "vhs", 2000, 3500, Exact)),
+            ),
+            (
+                Some(line("b", 5000, 2000)),
+                Some(shot("b-a#0", "vhs", 7000, 2000, Exact)),
+            ),
+        ],
+    ))
+    .unwrap()
 }
 
 fn lines() -> Vec<(String, String)> {

@@ -309,7 +309,9 @@ HTTP; the session is a WebSocket, since the microphone is a stream. With
 `{"event":"listening","url","api"}` on stdout once it listens, so an app
 that launched it knows where to connect. `docs/api/v1/examples` has one of
 each message; the server and the native apps (`apps/macos`, `apps/linux`)
-are all tested against them.
+are all tested against them. The Linux app also reads `plan --format json`
+for its timeline, as `teleprompt-schedule`'s own `Timeline`: it builds
+against the crates, so a field the plan drops fails its build.
 
 | route | does |
 |---|---|
