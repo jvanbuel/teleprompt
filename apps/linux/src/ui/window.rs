@@ -121,6 +121,8 @@ struct Model {
     /// the ones the author kept the script for.
     said_offered: HashSet<(String, String)>,
     said_declined: HashSet<(String, String)>,
+    /// The toast offering them, taken down if the take they are in is undone.
+    said_toast: Option<adw::Toast>,
     /// The script file, watched for edits made elsewhere.
     watch: Option<gio::FileMonitor>,
 }
@@ -235,10 +237,22 @@ impl Window {
                 return;
             }
             if let Some(line) = this.w.glass.line_at(x, y) {
+                if this.is_taking() {
+                    this.model.borrow_mut().state.status =
+                        Status::info("Keep or discard this take first");
+                    return this.show_status();
+                }
                 this.take(line);
             }
         });
         self.w.glass.view.add_controller(click);
+
+        let weak = Rc::downgrade(this);
+        self.w.glass.verdict_undo.connect_clicked(move |_| {
+            if let Some(this) = weak.upgrade() {
+                this.undo_take();
+            }
+        });
 
         let weak = Rc::downgrade(this);
         self.w.record.connect_clicked(move |_| {
@@ -503,7 +517,7 @@ impl Window {
             return false;
         }
         match key {
-            Key::Return | Key::KP_Enter => self.keep(),
+            Key::Escape => self.discard(),
             Key::p => self.toggle_pause(),
             Key::r => self.retake(),
             Key::w => self.review_said(),
@@ -813,8 +827,13 @@ impl Window {
         self.refresh();
     }
 
-    /// Puts the script back as it was before the last timeline edit.
+    /// Undoes the last thing done: outside Edit mode, a take just kept;
+    /// otherwise the last timeline edit.
     pub fn undo(&self) {
+        let take = self.model.borrow().state.undoable && !self.w.edit.is_active();
+        if take {
+            return self.undo_take();
+        }
         let (Some(before), Some(script)) = ({
             let mut model = self.model.borrow_mut();
             (model.undo.pop(), model.config.last_script.clone())
@@ -827,13 +846,58 @@ impl Window {
         }
     }
 
+    /// Puts back what the last take kept replaced.
+    pub fn undo_take(&self) {
+        let model = self.model.borrow();
+        if !model.state.undoable || model.state.take.is_taking() {
+            return;
+        }
+        if let Some(socket) = model.socket.as_ref() {
+            let _ = socket.send(Outgoing::Command(ClientMessage::Undo));
+        }
+        drop(model);
+        self.w.glass.unsay();
+        if let Some(toast) = self.model.borrow_mut().said_toast.take() {
+            toast.dismiss();
+        }
+    }
+
+    /// Ends the take, or the count before it, keeping nothing.
+    pub fn discard(&self) {
+        {
+            let mut model = self.model.borrow_mut();
+            if model.state.take.is_counting() {
+                drop(model);
+                return self.keep();
+            }
+            let (Some(mic), Some(socket)) = (model.mic.as_ref(), model.socket.as_ref()) else {
+                return;
+            };
+            if !model.state.take.is_under_way() {
+                return;
+            }
+            mic.set_sending(false);
+            mic.flush();
+            let _ = socket.send(Outgoing::Command(ClientMessage::Discard));
+            model.state.take.stop(Instant::now());
+            model.state.status = Status::info("Discarding the take…");
+        }
+        self.show_status();
+        self.show_record();
+    }
+
     fn incoming(self: &Rc<Self>, incoming: Incoming) {
         match incoming {
             Incoming::Message(message) => {
                 let (before, stopped, played) = {
                     let mut model = self.model.borrow_mut();
                     let before = model.state.playing.clone();
-                    let stopped = matches!(message, ServerMessage::Stopped { .. });
+                    let stopped = matches!(
+                        message,
+                        ServerMessage::Stopped { .. }
+                            | ServerMessage::Discarded
+                            | ServerMessage::Undone { .. }
+                    );
                     let played =
                         matches!(&message, ServerMessage::Reached { play, .. } if !play.is_empty());
                     model.state.apply(message);
@@ -848,6 +912,12 @@ impl Window {
                     self.play();
                 }
                 if stopped {
+                    {
+                        let model = self.model.borrow();
+                        self.w
+                            .glass
+                            .say(&model.state.status.text, model.state.undoable);
+                    }
                     self.refresh();
                     // The status bar says what was kept, and the gutter ticks it.
                     self.show_record();
@@ -968,7 +1038,8 @@ impl Window {
             .action_name("app.review-said")
             .timeout(8)
             .build();
-        self.w.toasts.add_toast(toast);
+        self.w.toasts.add_toast(toast.clone());
+        self.model.borrow_mut().said_toast = Some(toast);
     }
 
     /// The next line said in other words than it reads, as a diff: keep
@@ -1179,6 +1250,7 @@ impl Window {
     fn begin_take(&self, line: usize) {
         // A take is read, not edited.
         self.w.edit.set_active(false);
+        self.w.glass.unsay();
         self.model.borrow_mut().scrub = None;
         {
             let mut model = self.model.borrow_mut();
@@ -1508,6 +1580,9 @@ impl Window {
         let model = self.model.borrow();
         self.w.tally.set_status(&model.state.status);
         self.w.tally.set_on_air(model.state.take.is_sending());
+        self.w
+            .glass
+            .show_on_air(model.state.take.is_sending(), model.state.take.is_paused());
         let session = self
             .w
             .stack
@@ -1521,11 +1596,19 @@ impl Window {
                 &[]
             }
         } else if model.state.take.is_counting() {
-            &[(RECORD_KEY, "Cancel")]
+            &[("Esc", "Cancel")]
         } else if model.state.take.is_paused() {
-            &[(RECORD_KEY, "Keep take"), ("P", "Resume")]
+            &[
+                (RECORD_KEY, "Keep take"),
+                ("Esc", "Discard"),
+                ("P", "Resume"),
+            ]
         } else if model.state.take.is_sending() {
-            &[(RECORD_KEY, "Keep take"), ("P", "Pause")]
+            &[
+                (RECORD_KEY, "Keep take"),
+                ("Esc", "Discard"),
+                ("P", "Pause"),
+            ]
         } else if model.socket.is_some() {
             &[
                 (RECORD_KEY, "Record"),
@@ -1572,15 +1655,22 @@ impl Window {
             }
             return;
         }
-        let taking = self.is_taking();
+        let (counting, under_way) = {
+            let take = &self.model.borrow().state.take;
+            (take.is_counting(), take.is_under_way())
+        };
         let ready = self.model.borrow().socket.is_some();
         self.w.record.set_visible(ready);
         self.w.edit.set_visible(ready);
         self.w.tally.root.set_visible(ready);
-        self.w
-            .record_label
-            .set_label(if taking { "Keep take" } else { "Record" });
-        if taking {
+        self.w.record_label.set_label(if counting {
+            "Cancel"
+        } else if under_way {
+            "Keep take"
+        } else {
+            "Record"
+        });
+        if under_way {
             self.w.record.add_css_class("keep");
         } else {
             self.w.record.remove_css_class("keep");

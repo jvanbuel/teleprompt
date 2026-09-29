@@ -21,6 +21,8 @@ pub struct PrompterState {
     /// Shots that have started this take.
     pub started: BTreeSet<String>,
     pub status: Status,
+    /// The last take kept lines, which an undo puts back as they were.
+    pub undoable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -69,6 +71,7 @@ impl PrompterState {
         self.playing = None;
         self.queue.clear();
         self.started.clear();
+        self.undoable = false;
         self.take.start(now);
         self.status = Status::info(format!("Recording from line {}", from + 1));
     }
@@ -92,14 +95,47 @@ impl PrompterState {
                 if self.take.is_under_way() {
                     self.take.stop(Instant::now());
                 }
-                self.status = Status::info(match saved.len() {
-                    0 => "Nothing was read in full, so nothing was kept".to_string(),
-                    1 => format!("Kept 1 line: {}", saved[0]),
-                    n => format!("Kept {n} lines: {}", saved.join(", ")),
+                self.undoable = !saved.is_empty();
+                self.status = Status::info(if saved.is_empty() {
+                    "Nothing kept: a line is kept once it is read to its end".to_string()
+                } else {
+                    format!("Kept {}", self.line_names(&saved))
+                });
+            }
+            ServerMessage::Discarded => {
+                if self.take.is_under_way() {
+                    self.take.stop(Instant::now());
+                }
+                self.status = Status::info("Take discarded: nothing kept");
+            }
+            ServerMessage::Undone { lines } => {
+                self.undoable = false;
+                self.status = Status::info(if lines.is_empty() {
+                    "Nothing to put back".to_string()
+                } else {
+                    let was = if lines.len() == 1 {
+                        "it was"
+                    } else {
+                        "they were"
+                    };
+                    format!("Put back {} as {was}", self.line_names(&lines))
                 });
             }
             ServerMessage::Error(message) => self.status = Status::error(message),
             ServerMessage::Unknown(_) => {}
+        }
+    }
+
+    /// Line ids as the reader counts them: "line 2", "lines 1, 3".
+    pub fn line_names(&self, ids: &[String]) -> String {
+        let numbers: Vec<String> = ids
+            .iter()
+            .filter_map(|id| self.script.lines.iter().position(|l| &l.id == id))
+            .map(|n| (n + 1).to_string())
+            .collect();
+        match numbers.as_slice() {
+            [one] => format!("line {one}"),
+            many => format!("lines {}", many.join(", ")),
         }
     }
 

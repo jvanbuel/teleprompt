@@ -7,6 +7,7 @@
 @define-color ink #f2f4f7;
 @define-color cue #ffb800;
 @define-color tally #ff3b30;
+@define-color on_air #d70015;
 @define-color recorded #3ddc84;
 @define-color missing #f28b82;
 @define-color chrome #17181b;
@@ -48,6 +49,41 @@ textview.glass > text > selection {
 
 .glass-frame {
   background-color: @glass;
+}
+
+/* On air, the glass itself says so: where the reader looks, and the
+   same in a reflection. */
+.tally-frame {
+  border: 6px solid transparent;
+  transition: border-color 120ms;
+}
+
+.tally-frame.on {
+  border-color: @tally;
+}
+
+.tally-frame.paused {
+  border-color: alpha(@tally, 0.35);
+}
+
+/* What a take did, large enough to read from where the reader sits. */
+.verdict {
+  background-color: @raised;
+  border: 1px solid @line_color;
+  border-radius: 16px;
+  padding: 14px 22px;
+}
+
+.verdict-text {
+  font-size: 24px;
+  font-weight: 700;
+  color: @ink;
+}
+
+button.verdict-undo {
+  background-color: @ink;
+  color: #000000;
+  font-weight: 700;
 }
 
 .scrim {
@@ -234,33 +270,41 @@ toast {
 }
 
 /* Buttons. */
+/* Red is the tally: idle, only the dot is red; on air, the whole button,
+   deep enough to carry white text (5.3:1). */
 button.record {
-  background-color: @tally;
-  color: #ffffff;
+  background-color: @raised;
+  border: 1px solid @line_color;
+  color: @ink;
   font-weight: 700;
   padding: 4px 14px;
   border-radius: 999px;
 }
 
 button.record:hover {
-  background-color: shade(@tally, 1.08);
+  background-color: shade(@raised, 1.25);
 }
 
 button.record.keep {
-  background-color: @ink;
-  color: #000000;
+  background-color: @on_air;
+  border-color: @on_air;
+  color: #ffffff;
+}
+
+button.record.keep:hover {
+  background-color: shade(@on_air, 1.08);
 }
 
 .record-dot {
   min-width: 8px;
   min-height: 8px;
   border-radius: 4px;
-  background-color: #ffffff;
+  background-color: @tally;
 }
 
 button.record.keep .record-dot {
   border-radius: 1px;
-  background-color: #000000;
+  background-color: #ffffff;
 }
 
 /* Pages before the prompter. */

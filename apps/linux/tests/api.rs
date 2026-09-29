@@ -38,6 +38,16 @@ fn the_server_message_examples_read() {
         }
     );
     assert_eq!(
+        ServerMessage::parse(&example("discarded.json")).unwrap(),
+        ServerMessage::Discarded
+    );
+    assert_eq!(
+        ServerMessage::parse(&example("undone.json")).unwrap(),
+        ServerMessage::Undone {
+            lines: vec!["welcome".into()]
+        }
+    );
+    assert_eq!(
         ServerMessage::parse(&example("error.json")).unwrap(),
         ServerMessage::Error(r#"not a message this server knows: {"type":"rewind"}"#.into())
     );
@@ -79,5 +89,17 @@ fn samples_are_little_endian_floats() {
     assert_eq!(
         encode_samples(&[1.0, -0.5]),
         [0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0xBF]
+    );
+}
+
+#[test]
+fn discard_and_undo_are_sent_as_the_examples() {
+    assert_eq!(
+        json(&ClientMessage::Discard.json()),
+        json(&example("discard.json"))
+    );
+    assert_eq!(
+        json(&ClientMessage::Undo.json()),
+        json(&example("undo.json"))
     );
 }

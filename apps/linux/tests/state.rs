@@ -65,15 +65,45 @@ fn stopping_says_what_was_kept() {
         saved: vec!["welcome".into()],
     });
     assert!(!state.take.is_taking());
-    assert_eq!(state.status, Status::info("Kept 1 line: welcome"));
+    assert_eq!(state.status, Status::info("Kept line 1"));
+    assert!(state.undoable);
     state.apply(ServerMessage::Stopped {
         saved: vec!["welcome".into(), "deploy".into()],
     });
-    assert_eq!(state.status, Status::info("Kept 2 lines: welcome, deploy"));
+    assert_eq!(state.status, Status::info("Kept lines 1, 2"));
     state.apply(ServerMessage::Stopped { saved: vec![] });
     assert_eq!(
         state.status,
-        Status::info("Nothing was read in full, so nothing was kept")
+        Status::info("Nothing kept: a line is kept once it is read to its end")
+    );
+    assert!(!state.undoable, "nothing to put back");
+}
+
+/// A take thrown away keeps nothing and says so; one kept and undone says
+/// which lines were put back, and cannot be undone twice.
+#[test]
+fn a_take_discarded_or_undone_says_so() {
+    let mut state = loaded();
+    state.start_take(0, Instant::now());
+    state.apply(ServerMessage::Discarded);
+    assert!(!state.take.is_taking());
+    assert_eq!(state.status, Status::info("Take discarded: nothing kept"));
+
+    state.start_take(0, Instant::now());
+    state.apply(ServerMessage::Stopped {
+        saved: vec!["deploy".into()],
+    });
+    state.apply(ServerMessage::Undone {
+        lines: vec!["deploy".into()],
+    });
+    assert_eq!(state.status, Status::info("Put back line 2 as it was"));
+    assert!(!state.undoable);
+    state.apply(ServerMessage::Undone {
+        lines: vec!["welcome".into(), "deploy".into()],
+    });
+    assert_eq!(
+        state.status,
+        Status::info("Put back lines 1, 2 as they were")
     );
 }
 

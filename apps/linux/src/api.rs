@@ -67,6 +67,12 @@ pub enum ServerMessage {
     Stopped {
         saved: Vec<String>,
     },
+    /// The take was thrown away.
+    Discarded,
+    /// The lines whose earlier takes were put back.
+    Undone {
+        lines: Vec<String>,
+    },
     Error(String),
     /// A message this client does not know; a later v1 server may send it.
     Unknown(String),
@@ -85,6 +91,10 @@ impl ServerMessage {
             Stopped {
                 saved: Vec<String>,
             },
+            Discarded,
+            Undone {
+                lines: Vec<String>,
+            },
             Error {
                 message: String,
             },
@@ -94,7 +104,8 @@ impl ServerMessage {
             r#type: String,
         }
         let header: Header = serde_json::from_str(json)?;
-        if !matches!(header.r#type.as_str(), "reached" | "stopped" | "error") {
+        let known = ["reached", "stopped", "discarded", "undone", "error"];
+        if !known.contains(&header.r#type.as_str()) {
             return Ok(Self::Unknown(header.r#type));
         }
         Ok(match serde_json::from_str(json)? {
@@ -103,6 +114,8 @@ impl ServerMessage {
                 play,
             },
             Known::Stopped { saved } => Self::Stopped { saved },
+            Known::Discarded => Self::Discarded,
+            Known::Undone { lines } => Self::Undone { lines },
             Known::Error { message } => Self::Error(message),
         })
     }
@@ -116,6 +129,10 @@ pub enum ClientMessage {
     Start { from: usize, rate: u32 },
     /// Keep the lines read in full.
     Stop,
+    /// End the take keeping nothing.
+    Discard,
+    /// Put back what the last take kept replaced.
+    Undo,
 }
 
 impl ClientMessage {
@@ -125,6 +142,8 @@ impl ClientMessage {
                 serde_json::json!({ "type": "start", "from": from, "rate": rate })
             }
             Self::Stop => serde_json::json!({ "type": "stop" }),
+            Self::Discard => serde_json::json!({ "type": "discard" }),
+            Self::Undo => serde_json::json!({ "type": "undo" }),
         }
         .to_string()
     }

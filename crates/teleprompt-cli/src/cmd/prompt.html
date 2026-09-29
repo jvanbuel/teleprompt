@@ -629,7 +629,8 @@ async function onMessage(message) {
     status("Take discarded: nothing kept");
     toast("Take discarded");
   } else if (message.type === "undone") {
-    const put = message.lines.length ? `Put back ${lineNames(message.lines)} as it was` : "Nothing to put back";
+    const was = message.lines.length === 1 ? "it was" : "they were";
+    const put = message.lines.length ? `Put back ${lineNames(message.lines)} as ${was}` : "Nothing to put back";
     status(put);
     toast(put);
     markRecorded((await (await fetch(`${API}/script`)).json()).lines);

@@ -28,6 +28,12 @@ pub struct Glass {
     gutter: gtk::DrawingArea,
     /// The shots, in Edit mode.
     pub ribbons: Rc<RibbonLayer>,
+    /// The tally's red, round the glass while a take is on air.
+    frame: gtk::Box,
+    /// What a take did, large on the glass, with Undo when lines were kept.
+    verdict: gtk::Box,
+    verdict_text: gtk::Label,
+    pub verdict_undo: gtk::Button,
     shared: Rc<Shared>,
 }
 
@@ -45,6 +51,8 @@ struct Shared {
     target: Cell<Option<i32>>,
     gliding: Cell<bool>,
     size: Cell<f64>,
+    /// Which verdict is showing, so an older one's timer leaves it.
+    said_verdict: Cell<u64>,
 }
 
 impl Glass {
@@ -95,12 +103,44 @@ impl Glass {
         overlay.add_overlay(&ribbons.area);
         overlay.add_overlay(&reading);
         overlay.add_overlay(&scrim);
+        let frame = gtk::Box::builder()
+            .css_classes(["tally-frame"])
+            .can_target(false)
+            .build();
+        overlay.add_overlay(&frame);
+        let verdict_text = gtk::Label::builder()
+            .css_classes(["verdict-text"])
+            .wrap(true)
+            .build();
+        let verdict_undo = gtk::Button::builder()
+            .label("Undo")
+            .css_classes(["pill", "verdict-undo"])
+            .valign(gtk::Align::Center)
+            .build();
+        let verdict = gtk::Box::builder()
+            .css_classes(["verdict"])
+            .spacing(18)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::End)
+            // Above where toasts appear, so one never covers the other.
+            .margin_bottom(120)
+            .margin_start(16)
+            .margin_end(16)
+            .visible(false)
+            .build();
+        verdict.append(&verdict_text);
+        verdict.append(&verdict_undo);
+        overlay.add_overlay(&verdict);
         let glass = Self {
             root: Mirror::new(&overlay),
             view,
             countdown,
             gutter,
             ribbons,
+            frame,
+            verdict,
+            verdict_text,
+            verdict_undo,
             shared,
         };
         glass.draw_gutter();
@@ -169,6 +209,43 @@ impl Glass {
     }
 
     /// Shows `n` large over the glass, or nothing.
+    /// Frames the glass in red on air, faintly while paused.
+    pub fn show_on_air(&self, on_air: bool, paused: bool) {
+        for (class, on) in [("on", on_air), ("paused", paused)] {
+            if on {
+                self.frame.add_css_class(class);
+            } else {
+                self.frame.remove_css_class(class);
+            }
+        }
+    }
+
+    /// Says what a take did, on the glass where the reader is looking; with
+    /// `undo`, offers to put it back, for longer.
+    pub fn say(&self, text: &str, undo: bool) {
+        let n = self.shared.said_verdict.get() + 1;
+        self.shared.said_verdict.set(n);
+        self.verdict_text.set_label(text);
+        self.verdict_undo.set_visible(undo);
+        self.verdict.set_visible(true);
+        let shared = self.shared.clone();
+        let verdict = self.verdict.clone();
+        let wait = std::time::Duration::from_secs(if undo { 8 } else { 4 });
+        glib::timeout_add_local_once(wait, move || {
+            if shared.said_verdict.get() == n {
+                verdict.set_visible(false);
+            }
+        });
+    }
+
+    /// Takes the verdict off the glass: a take began, or it was acted on.
+    pub fn unsay(&self) {
+        self.shared
+            .said_verdict
+            .set(self.shared.said_verdict.get() + 1);
+        self.verdict.set_visible(false);
+    }
+
     pub fn show_countdown(&self, n: Option<u32>) {
         let scrim = self.countdown.parent().expect("in its scrim");
         match n {
