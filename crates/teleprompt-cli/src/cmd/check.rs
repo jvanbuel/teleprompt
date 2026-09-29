@@ -55,7 +55,7 @@ pub(crate) fn compile_script_with(
 ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
     // Before the script is read: an unknown `backends:` key is wrong for
     // every script. Here rather than in `compile_script` so that `dub` and
-    // `serve`, which call this directly, cannot reach a server with it.
+    // the preview, which call this directly, cannot reach a server with it.
     let config_diags = backends.diagnostics();
     if !config_diags.is_empty() {
         return Err(render(

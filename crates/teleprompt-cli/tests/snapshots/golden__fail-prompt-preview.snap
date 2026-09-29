@@ -6,7 +6,7 @@ expression: runs
   "invalid human": {
     "exit": 2,
     "stderr": [
-      "teleprompt serve — http://127.0.0.1:PORT",
+      "previewing at http://127.0.0.1:PORT/",
       "error: content appears before the first heading",
       "  --> proj/scripts/bad.md:1:1",
       "  help: every line and action block must belong to a chapter",
@@ -19,7 +19,7 @@ expression: runs
   "invalid json": {
     "exit": 2,
     "stderr": [
-      "teleprompt serve — http://127.0.0.1:PORT"
+      "previewing at http://127.0.0.1:PORT/"
     ],
     "stdout": {
       "errors": [
@@ -32,7 +32,7 @@ expression: runs
   "missing human": {
     "exit": 2,
     "stderr": [
-      "teleprompt serve — http://127.0.0.1:PORT",
+      "previewing at http://127.0.0.1:PORT/",
       "error: cannot read proj/scripts/missing.md: No such file or directory (os error 2)"
     ],
     "stdout": ""
@@ -40,7 +40,7 @@ expression: runs
   "missing json": {
     "exit": 2,
     "stderr": [
-      "teleprompt serve — http://127.0.0.1:PORT"
+      "previewing at http://127.0.0.1:PORT/"
     ],
     "stdout": {
       "errors": [

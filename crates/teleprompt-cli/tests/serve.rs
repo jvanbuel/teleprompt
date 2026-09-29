@@ -1,4 +1,4 @@
-//! `serve`, driven the way a preview drives it.
+//! The preview (`prompt --preview`), driven the way a browser drives it.
 //!
 //! The server is bound on port 0 and handed to `serve_on`, so these run the
 //! real accept loop, the real watcher and the real compile — the only thing

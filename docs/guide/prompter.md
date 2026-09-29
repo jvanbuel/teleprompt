@@ -94,7 +94,7 @@ after each one, so leave a breath between paragraphs. Lines with a
 recording are marked at their left edge.
 
 A recorded line is the line's voice from then on: `plan`, `dub`, `build`
-and `serve` use it, paced to its real length, and the lines without one
+and the preview use it, paced to its real length, and the lines without one
 are synthesized. Every command names those. Edit a line and its recording
 no longer matches it, so the line is synthesized until you read it again.
 

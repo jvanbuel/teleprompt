@@ -2,7 +2,7 @@
 //!
 //! The prompter itself is `teleprompt-prompter`; this is its API, version
 //! 1, and the page that drives it: HTTP for the script and clips, and a
-//! WebSocket for the session. Hand-rolled over `TcpListener` like `serve`:
+//! WebSocket for the session. Hand-rolled over `TcpListener` like the preview:
 //! one reader, on localhost.
 
 use std::io::{BufRead, BufReader, Write};

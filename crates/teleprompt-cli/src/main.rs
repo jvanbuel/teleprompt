@@ -329,26 +329,18 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
-    /// Serve a live preview that opens on the item that changed
-    ///
-    /// Watches the script, recompiles on save, synthesizes only what the
-    /// cache is missing, and serves a preview on loopback. The preview
-    /// reads the published narration manifest — the same artifact an
-    /// outside consumer reads — so it cannot drift from what `build`
-    /// renders.
-    Serve {
-        #[command(flatten)]
-        args: ScriptArgs,
-        /// Port to listen on; 0 picks a free one
-        #[arg(long, default_value_t = 7878)]
-        port: u16,
-    },
-    /// Show the script as a prompter that follows your voice
+    /// Show the script as a prompter that follows your voice, or preview it
     ///
     /// Serves a page on loopback that listens through the microphone and
     /// scrolls to where you are reading, by matching what a local speech
     /// model hears against the script. Nothing leaves the machine. Needs a
     /// build with `--features listen` and a streaming model (see --model).
+    ///
+    /// With --preview, serves a live preview instead, in any build: it
+    /// watches the script, recompiles on save, synthesizes only what the
+    /// cache is missing, and opens on the item that changed. It reads the
+    /// published narration manifest, the artifact an outside consumer
+    /// reads, so it cannot drift from what `build` renders.
     Prompt {
         #[command(flatten)]
         args: ScriptArgs,
@@ -357,8 +349,11 @@ enum Command {
         port: u16,
         /// Directory of an unpacked sherpa-onnx streaming zipformer model;
         /// defaults to the one `teleprompt setup speech-model` installed
-        #[arg(long)]
+        #[arg(long, conflicts_with = "preview")]
         model: Option<std::path::PathBuf>,
+        /// Watch the script and preview the video as it will play
+        #[arg(long)]
+        preview: bool,
     },
     /// Synthesize narration and write audio plus a manifest
     ///
@@ -729,7 +724,15 @@ fn run(command: Command, format: Format) -> Run {
         Command::Check(args) => run_check(format, &args),
         Command::Plan { args, check: false } => run_plan(format, &args),
         Command::Plan { args, check: true } => run_plan_check(format, &args),
-        Command::Prompt { args, port, model } => {
+        Command::Prompt {
+            args,
+            port,
+            preview: true,
+            ..
+        } => run_preview(&args, port),
+        Command::Prompt {
+            args, port, model, ..
+        } => {
             let project = project_for(&args.script)?;
             teleprompt_cli::cmd::prompt::run_prompt(
                 &project,
@@ -741,7 +744,6 @@ fn run(command: Command, format: Format) -> Run {
             )?;
             Ok(Outcome::Ok)
         }
-        Command::Serve { args, port } => run_serve(&args, port),
         Command::Build {
             args,
             out,
@@ -766,7 +768,7 @@ fn run_plan_check(format: Format, args: &ScriptArgs) -> Run {
     })
 }
 
-fn run_serve(args: &ScriptArgs, port: u16) -> Run {
+fn run_preview(args: &ScriptArgs, port: u16) -> Run {
     let project = project_for(&args.script)?;
     let locale = args.locale(&project);
     runtime()

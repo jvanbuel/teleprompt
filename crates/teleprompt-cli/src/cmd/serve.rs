@@ -1,4 +1,4 @@
-//! `teleprompt serve`: watch the script, recompile on save, synthesize only
+//! `teleprompt prompt --preview`: watch the script, recompile on save, synthesize only
 //! what changed, and point a browser preview at the item that moved.
 //!
 //! The preview is a manifest consumer: it reads the narration manifest, as
@@ -383,7 +383,7 @@ pub async fn run_serve(
     let bound = listener
         .local_addr()
         .map_err(|e| ServeError::Runtime(e.to_string()))?;
-    eprintln!("teleprompt serve — http://{bound}");
+    eprintln!("previewing at http://{bound}/");
     serve_on(listener, project, script, locale).await
 }
 

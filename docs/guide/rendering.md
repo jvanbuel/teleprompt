@@ -120,7 +120,7 @@ writable checkout.
 ## Watching an edit
 
 ```bash
-teleprompt serve scripts/tour.md
+teleprompt prompt --preview scripts/tour.md
 ```
 
 The preview recompiles when you save, synthesizes only the lines whose text

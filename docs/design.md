@@ -228,7 +228,7 @@ timeline committed from a cold cache drifts on the next dub.
 settings. None of these can reach a backend, so no expression on the
 `check` or `plan` path can call `synthesize`. The boundary is
 structural. `main` is synchronous, and only `dub`, `build`, `capture`,
-`serve` and `doctor` build a runtime.
+`prompt --preview` and `doctor` build a runtime.
 
 ### Voice cache
 
@@ -301,7 +301,7 @@ line read in full is saved.
 synthesized lines, because the manifest has one audio format. The
 conversion keeps the length to the millisecond, since the manifest
 publishes it. A take whose bytes no longer match their sidecar fails the
-command. `serve` plays a recorded line from its take.
+command. The preview plays a recorded line from its take.
 
 #### Prompter API, version 1
 
@@ -677,7 +677,7 @@ not a failure.
 
 `teleprompt dub --out <dir>` writes `<dir>/<locale>/narration.json` and
 `audio/<line>.wav` beside it. The manifest is the contract for anything
-that renders the video: teleprompt's own `build`, `serve`, and outside
+that renders the video: teleprompt's own `build` and preview, and outside
 tools such as Remotion. `docs/integrations/remotion.md` is the consumer's
 guide.
 

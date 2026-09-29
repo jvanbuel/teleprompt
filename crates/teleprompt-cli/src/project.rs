@@ -5,7 +5,7 @@ use teleprompt_core::config::PartialConfig;
 /// A discovered teleprompt project: the directory containing
 /// `teleprompt.toml` and that file's parsed contents.
 ///
-/// `Clone` because `serve`'s watcher takes one by value.
+/// `Clone` because the preview's watcher takes one by value.
 #[derive(Clone)]
 pub struct Project {
     pub root: PathBuf,
