@@ -101,7 +101,11 @@ Line ids anchor the voice cache, the manifest's audio files and the
 diff. An explicit `{#id}` wins. Otherwise the id is
 `<chapter-slug>-<n>`, where `n` is the line's position in its chapter, so it
 shifts when a line is inserted before it. `teleprompt from` writes explicit
-ids from the start for that reason. An id becomes a file name
+ids from the start for that reason. An action block's is its `id=`, or its
+line's id and `-a` (`-a2` for a second block after the same line; `-b1`
+for one before any line), counting every block so pinning one renames no
+other. The parser gives every line and block its id, so none is ever
+missing, and `resolve` checks them all. An id becomes a file name
 (`audio/<id>.wav`) that a manifest consumer resolves, so ids are checked
 against path traversal before anything is built from them.
 

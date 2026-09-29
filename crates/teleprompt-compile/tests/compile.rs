@@ -5,7 +5,7 @@ use teleprompt_core::DurationSource;
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
+use teleprompt_core::ident::check_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_core::Diagnostics;
@@ -15,8 +15,7 @@ use teleprompt_voice::{Pcm, VoiceBackend};
 use teleprompt_voice_null::NullVoice;
 
 fn program(src: &str) -> Program {
-    let mut s = parse_script(src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
     resolve(
         &s,
         "demo.md",
@@ -70,8 +69,8 @@ fn run(src: &str) -> teleprompt_compile::CompileOutput {
 }
 
 fn program_for(src: &str) -> Program {
-    let mut parsed = parse_script(src).expect("fixture parses");
-    let diags = assign_ids(&mut parsed);
+    let parsed = parse_script(src).expect("fixture parses");
+    let diags = check_ids(&parsed);
     assert!(
         !diags.iter().any(|d| d.is_error()),
         "fixture must yield unambiguous line ids"
@@ -271,8 +270,7 @@ fn adapter_validation_errors_reach_the_caller() {
 #[test]
 fn an_invalid_policy_is_a_diagnostic_at_its_block() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock policy=sideways\nwait 1s\n```\n";
-    let mut s = parse_script(src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
     let e = resolve(
         &s,
         "demo.md",

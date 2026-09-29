@@ -1,5 +1,4 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element, Program};
 use teleprompt_core::translation::{apply, source_of, Entry, Translation};
@@ -23,8 +22,7 @@ wait 500ms
 "#;
 
 fn program(locale: &str) -> Program {
-    let mut s = parse_script(SRC).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(SRC).unwrap();
     resolve(
         &s,
         "tour.md",

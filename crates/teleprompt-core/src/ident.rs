@@ -10,7 +10,7 @@ pub use crate::ast::IdOrigin;
 /// An id becomes a file name (`audio/<id>.wav`) that a manifest consumer
 /// resolves, so `{#../../pwned}` would write outside `--out`. The check is
 /// on the raw string, before anything is joined, for the reason `include=`
-/// paths are checked that way, and it runs in `assign_ids` so every
+/// paths are checked that way, and it runs in `check_ids`, which `resolve` runs, so every
 /// command rejects the same ids. Rejecting rather than rewriting keeps an
 /// id an author pinned by hand.
 ///
@@ -45,75 +45,36 @@ fn id_error(id: &str) -> Option<String> {
     None
 }
 
-pub fn assign_ids(script: &mut Script) -> Vec<Diagnostic> {
+/// Every id in `script` checked: each can become a file name, and no two
+/// may be the same. The parser gave every line and block one; this is what
+/// may be wrong with them. [`crate::program::resolve`] runs it, so nothing
+/// compiles a script whose ids it has not checked.
+pub fn check_ids(script: &Script) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-
-    for chapter in &mut script.chapters {
-        let slug = chapter.slug.clone();
-        let mut seg_n = 0usize;
-        let mut block_n = 0usize;
-        let mut seg_block_n = 0usize;
-        let mut last_segment: Option<String> = None;
-
-        for node in &mut chapter.nodes {
-            match node {
-                Node::Line(seg) => {
-                    seg_n += 1;
-                    seg_block_n = 0;
-                    let (id, origin) = match &seg.id {
-                        Some(explicit) if explicit.is_empty() => {
-                            diags.push(
-                                Diagnostic::error("line id cannot be empty")
-                                    .at(seg.span)
-                                    .with_help("remove the empty `{#}` or give it a non-empty id"),
-                            );
-                            (format!("{slug}-{seg_n}"), IdOrigin::Derived)
-                        }
-                        Some(explicit) => (explicit.clone(), IdOrigin::Explicit),
-                        None => (format!("{slug}-{seg_n}"), IdOrigin::Derived),
-                    };
-                    record_id(&mut seen, &id, seg.span, &mut diags);
-                    last_segment = Some(id.clone());
-                    seg.id = Some(id);
-                    seg.id_origin = origin;
-                }
-                Node::ActionBlock(block) => {
-                    if block.id.is_none() {
-                        block.id = Some(match &last_segment {
-                            Some(seg) => {
-                                seg_block_n += 1;
-                                if seg_block_n == 1 {
-                                    format!("{seg}-a")
-                                } else {
-                                    format!("{seg}-a{seg_block_n}")
-                                }
-                            }
-                            None => {
-                                block_n += 1;
-                                format!("{slug}-b{block_n}")
-                            }
-                        });
-                    }
-                    let id = block.id.clone().expect("block id was just assigned");
-                    record_id(&mut seen, &id, block.span, &mut diags);
-                }
-                Node::Directive(_) => {}
-            }
+    let mut seen: HashSet<&str> = HashSet::new();
+    for node in script.chapters.iter().flat_map(|c| &c.nodes) {
+        match node {
+            Node::Line(line) => record_id(&mut seen, &line.id, line.span, &mut diags),
+            Node::ActionBlock(block) => record_id(&mut seen, &block.id, block.span, &mut diags),
+            Node::Directive(_) => {}
         }
     }
-
     diags
 }
 
 /// Validates and records one id. Every id reaches here — derived and
 /// explicit, line and action block — because every one of them can end
 /// up as a file name, so the check must not be scoped to the explicit ones.
-fn record_id(seen: &mut HashSet<String>, id: &str, span: SourceSpan, diags: &mut Vec<Diagnostic>) {
+fn record_id<'a>(
+    seen: &mut HashSet<&'a str>,
+    id: &'a str,
+    span: SourceSpan,
+    diags: &mut Vec<Diagnostic>,
+) {
     if let Some(msg) = id_error(id) {
         diags.push(Diagnostic::error(msg).at(span).with_help(ID_HELP));
     }
-    if !seen.insert(id.to_string()) {
+    if !seen.insert(id) {
         diags.push(
             Diagnostic::error(format!("duplicate line id `{id}`"))
                 .at(span)

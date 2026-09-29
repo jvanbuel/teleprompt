@@ -1,5 +1,4 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::policy::PolicyKind;
 use teleprompt_core::program::{resolve, Element};
@@ -45,8 +44,7 @@ fn a_derived_script_is_a_script() {
     };
     let md = derive(&starts, &words, &options).markdown(&options);
 
-    let mut script = parse_script(&md).unwrap();
-    assign_ids(&mut script);
+    let script = parse_script(&md).unwrap();
     let program = resolve(
         &script,
         "tour.md",

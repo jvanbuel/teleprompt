@@ -9,7 +9,6 @@
 use std::ops::Range;
 
 use crate::ast::Node;
-use crate::ident::assign_ids;
 use crate::parse::parse_script;
 
 /// One edit, naming blocks and lines by their ids as `plan` shows them.
@@ -137,11 +136,10 @@ struct BlockAt {
 
 impl Map {
     fn of(src: &str) -> Result<Map, String> {
-        let mut script = parse_script(src).map_err(|d| {
+        let script = parse_script(src).map_err(|d| {
             let first = d.0.first().map_or(String::new(), |d| d.message.clone());
             format!("the script does not parse: {first}")
         })?;
-        assign_ids(&mut script);
         let starts: Vec<usize> = std::iter::once(0)
             .chain(src.match_indices('\n').map(|(i, _)| i + 1))
             .collect();
@@ -157,7 +155,7 @@ impl Map {
                     Node::Line(l) => {
                         let start = at(l.span.line);
                         let end = (start + l.span.len).min(src.len());
-                        let id = l.id.clone().unwrap_or_default();
+                        let id = l.id.to_string();
                         map.lines.push(LineAt {
                             id: id.clone(),
                             text: l.text.clone(),
@@ -177,7 +175,7 @@ impl Map {
                                 .map_or(0, |i| i + "teleprompt".len());
                         let info_end = start + fence_line.len();
                         map.blocks.push(BlockAt {
-                            id: b.id.clone().unwrap_or_default(),
+                            id: b.id.to_string(),
                             info: src[info_start..info_end].trim().to_string(),
                             info_range: info_start..info_end,
                             range: start..end,

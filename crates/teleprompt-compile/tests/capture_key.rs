@@ -15,7 +15,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::Hash;
@@ -39,8 +38,7 @@ fn run_with(src: &str, registry: &SceneRegistry) -> CompileOutput {
         estimator: &estimator,
         takes: &teleprompt_voice::takes::Takes::default(),
     };
-    let mut parsed = parse_script(src).expect("fixture parses");
-    assign_ids(&mut parsed);
+    let parsed = parse_script(src).expect("fixture parses");
     let program = resolve(
         &parsed,
         "tour.md",

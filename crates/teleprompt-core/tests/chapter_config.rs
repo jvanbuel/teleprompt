@@ -1,5 +1,4 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element};
 use teleprompt_core::DurationMs;
@@ -24,8 +23,7 @@ Two.
 "#;
 
 fn elements() -> Vec<Element> {
-    let mut s = parse_script(SRC).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(SRC).unwrap();
     resolve(
         &s,
         "d.md",
@@ -57,8 +55,7 @@ fn a_chapter_config_block_is_not_narration() {
 
 #[test]
 fn chapter_front_matter_is_optional() {
-    let mut s = parse_script("# A\n\nOne.\n").unwrap();
-    assign_ids(&mut s);
+    let s = parse_script("# A\n\nOne.\n").unwrap();
     assert!(s.chapters[0].front_matter.is_empty());
 }
 
@@ -89,8 +86,7 @@ fn chapter_config_before_any_heading_is_a_diagnostic() {
 #[test]
 fn malformed_chapter_front_matter_is_a_diagnostic() {
     let src = "# A\n\n```yaml teleprompt\ntiming: [nope\n```\n\nOne.\n";
-    let mut s = parse_script(src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
     let e = resolve(
         &s,
         "d.md",

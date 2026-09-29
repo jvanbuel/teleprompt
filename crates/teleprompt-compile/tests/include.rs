@@ -3,7 +3,6 @@ use std::path::Path;
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_scene::SceneRegistry;
@@ -21,8 +20,7 @@ fn cache_for(dir: &Path) -> VoiceCache {
 }
 
 fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<String>> {
-    let mut s = parse_script(src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
     let p = resolve(
         &s,
         "d.md",
@@ -47,8 +45,7 @@ fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<S
 /// Like `run`, but keeps the whole rendered diagnostic — file, line, column —
 /// rather than just the message, as the CLI prints it.
 fn run_rendered(dir: &Path, script_name: &str, src: &str) -> Result<(), Vec<String>> {
-    let mut s = parse_script(src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
     let p = resolve(
         &s,
         script_name,

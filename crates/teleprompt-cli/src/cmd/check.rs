@@ -7,7 +7,6 @@ use serde::Serialize;
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element};
 use teleprompt_core::translation::Translation;
@@ -74,12 +73,7 @@ pub(crate) fn compile_script_with(
     let src =
         std::fs::read_to_string(script).map_err(|e| vec![format!("cannot read {display}: {e}")])?;
 
-    let mut parsed = parse_script(&src).map_err(|d| render(&d, &display))?;
-
-    let id_diags = assign_ids(&mut parsed);
-    if id_diags.iter().any(|d| d.is_error()) {
-        return Err(render(&teleprompt_core::Diagnostics(id_diags), &display));
-    }
+    let parsed = parse_script(&src).map_err(|d| render(&d, &display))?;
 
     let mut program = resolve(
         &parsed,
@@ -354,11 +348,7 @@ pub(crate) fn resolved(
         .map_or_else(|| display.clone(), |s| s.to_string_lossy().to_string());
     let src =
         std::fs::read_to_string(script).map_err(|e| vec![format!("cannot read {display}: {e}")])?;
-    let mut parsed = parse_script(&src).map_err(|d| render(&d, &display))?;
-    let id_diags = assign_ids(&mut parsed);
-    if id_diags.iter().any(Diagnostic::is_error) {
-        return Err(render(&Diagnostics(id_diags), &display));
-    }
+    let parsed = parse_script(&src).map_err(|d| render(&d, &display))?;
     resolve(
         &parsed,
         &name,

@@ -1,7 +1,8 @@
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 use crate::ast::{slugify, ActionBlock, Chapter, Directive, IdOrigin, Line, Node, Script};
-use crate::{Diagnostic, Diagnostics, SourceSpan};
+use crate::attrs::parse_attrs;
+use crate::{BlockId, Diagnostic, Diagnostics, LineId, SourceSpan};
 
 const FENCE_TAG: &str = "teleprompt";
 
@@ -205,8 +206,15 @@ impl BodyBuilder<'_> {
                     .unwrap_or_default()
                     .trim()
                     .to_string();
+                // Its own `id=`, if given; the rest of its attributes, and
+                // their errors, are `resolve`'s.
+                let (attrs, _) = parse_attrs(&info, &["id"], span);
+                let id = attrs
+                    .get("id")
+                    .map(BlockId::from)
+                    .unwrap_or(BlockId::new(""));
                 let node = Node::ActionBlock(ActionBlock {
-                    id: None,
+                    id,
                     info,
                     body: self.text.clone(),
                     span,
@@ -263,14 +271,26 @@ fn paragraph_node(
         }
     }
     let (text, raw_attrs) = split_attr_suffix(raw, ends_in_code);
-    let id = raw_attrs
+    let explicit = raw_attrs
         .split_whitespace()
         .next()
-        .and_then(|t| t.strip_prefix('#'))
-        .map(str::to_string);
+        .and_then(|t| t.strip_prefix('#'));
+    if explicit == Some("") {
+        diags.push(
+            Diagnostic::error("line id cannot be empty")
+                .at(span)
+                .with_help("remove the empty `{#}` or give it a non-empty id"),
+        );
+    }
+    // Empty until `push_node` derives it, which only it can: it knows the
+    // chapter.
+    let (id, id_origin) = match explicit.filter(|e| !e.is_empty()) {
+        Some(e) => (LineId::from(e), IdOrigin::Explicit),
+        None => (LineId::new(""), IdOrigin::Derived),
+    };
     Some(Node::Line(Line {
         id,
-        id_origin: IdOrigin::Derived,
+        id_origin,
         text: text.trim().to_string(),
         raw_attrs,
         span,
@@ -363,13 +383,58 @@ fn push_node(
     span: SourceSpan,
     diags: &mut Vec<Diagnostic>,
 ) {
-    let Some(node) = node else { return };
+    let Some(mut node) = node else { return };
     match chapters.last_mut() {
-        Some(ch) => ch.nodes.push(node),
+        Some(ch) => {
+            derive_id(ch, &mut node);
+            ch.nodes.push(node);
+        }
         None => diags.push(
             Diagnostic::error("content appears before the first heading")
                 .at(span)
                 .with_help("every line and action block must belong to a chapter"),
         ),
+    }
+}
+
+/// Gives `node` the id its place in `ch` derives, unless it has its own
+/// (docs/design.md#line-identity): the chapter's slug and the line's number
+/// in it, and a block after its line the line's id and `-a`, `-a2`, …; one
+/// before any line, `-b1`, `-b2`, …. Blocks are counted whether their ids
+/// are derived or not, so pinning one renames no other.
+fn derive_id(ch: &Chapter, node: &mut Node) {
+    match node {
+        Node::Line(line) if line.id.is_empty() => {
+            let n = ch
+                .nodes
+                .iter()
+                .filter(|n| matches!(n, Node::Line(_)))
+                .count()
+                + 1;
+            line.id = LineId::new(format!("{}-{n}", ch.slug));
+        }
+        Node::ActionBlock(block) if block.id.is_empty() => {
+            let last_line = ch.nodes.iter().rposition(|n| matches!(n, Node::Line(_)));
+            let blocks_after = |from: usize| {
+                ch.nodes[from..]
+                    .iter()
+                    .filter(|n| matches!(n, Node::ActionBlock(_)))
+                    .count()
+                    + 1
+            };
+            block.id = BlockId::new(match last_line {
+                Some(i) => {
+                    let Node::Line(line) = &ch.nodes[i] else {
+                        unreachable!("found as a line")
+                    };
+                    match blocks_after(i) {
+                        1 => format!("{}-a", line.id),
+                        k => format!("{}-a{k}", line.id),
+                    }
+                }
+                None => format!("{}-b{}", ch.slug, blocks_after(0)),
+            });
+        }
+        _ => {}
     }
 }

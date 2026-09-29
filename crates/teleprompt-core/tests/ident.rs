@@ -1,10 +1,10 @@
 use teleprompt_core::ast::Node;
-use teleprompt_core::ident::{assign_ids, IdOrigin};
+use teleprompt_core::ident::{check_ids, IdOrigin};
 use teleprompt_core::parse::parse_script;
 
 fn ids(src: &str) -> Vec<String> {
-    let mut s = parse_script(src).unwrap();
-    let diags = assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
+    let diags = check_ids(&s);
     assert!(
         !diags.iter().any(|d| d.is_error()),
         "unexpected errors: {diags:?}"
@@ -13,8 +13,8 @@ fn ids(src: &str) -> Vec<String> {
         .iter()
         .flat_map(|c| c.nodes.iter())
         .filter_map(|n| match n {
-            Node::Line(seg) => seg.id.clone(),
-            Node::ActionBlock(b) => b.id.clone(),
+            Node::Line(seg) => Some(seg.id.to_string()),
+            Node::ActionBlock(b) => Some(b.id.to_string()),
             Node::Directive(_) => None,
         })
         .collect()
@@ -53,8 +53,7 @@ fn leading_action_block_derives_from_the_chapter() {
 #[test]
 fn id_origin_is_recorded() {
     let src = "# A\n\nOne. {#welcome}\n\nTwo.\n";
-    let mut s = parse_script(src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
     let origins: Vec<IdOrigin> = s.chapters[0]
         .nodes
         .iter()
@@ -69,8 +68,8 @@ fn id_origin_is_recorded() {
 #[test]
 fn duplicate_explicit_ids_are_an_error() {
     let src = "# A\n\nOne. {#dup}\n\nTwo. {#dup}\n";
-    let mut s = parse_script(src).unwrap();
-    let diags = assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
+    let diags = check_ids(&s);
     assert!(diags
         .iter()
         .any(|d| d.is_error() && d.message.contains("duplicate line id `dup`")));
@@ -79,8 +78,8 @@ fn duplicate_explicit_ids_are_an_error() {
 #[test]
 fn explicit_id_colliding_with_a_derived_id_is_an_error() {
     let src = "# A\n\nOne.\n\nTwo. {#a-1}\n";
-    let mut s = parse_script(src).unwrap();
-    let diags = assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
+    let diags = check_ids(&s);
     assert!(diags
         .iter()
         .any(|d| d.is_error() && d.message.contains("duplicate line id `a-1`")));
@@ -101,21 +100,21 @@ fn action_block_counter_resets_after_a_new_line() {
 #[test]
 fn block_id_colliding_with_an_explicit_line_id_is_an_error() {
     let src = "# A\n\nOne.\n\n```teleprompt scene=mock\nwait 100ms\n```\n\nTwo. {#a-1-a}\n";
-    let mut s = parse_script(src).unwrap();
-    let diags = assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
+    let diags = check_ids(&s);
     assert!(diags
         .iter()
         .any(|d| d.is_error() && d.message.contains("duplicate line id `a-1-a`")));
 }
 
 fn diags_for(src: &str) -> Vec<teleprompt_core::Diagnostic> {
-    let mut s = parse_script(src).unwrap();
-    assign_ids(&mut s)
+    let s = parse_script(src).unwrap();
+    check_ids(&s)
 }
 
 /// The reproduced hazard: an id becomes `audio/<id>.wav`, so this one
 /// writes outside `--out` and publishes an escaping path in the manifest.
-/// It has to fail at `check` time, in `assign_ids`, not be sanitised at the
+/// It has to fail at `check` time, in `check_ids`, not be sanitised at the
 /// write site — every command must reject the same ids.
 #[test]
 fn an_id_that_escapes_its_directory_is_an_error() {
@@ -166,7 +165,7 @@ fn a_leading_dot_is_an_error_even_without_a_separator() {
 #[test]
 fn a_character_outside_the_allowed_set_is_an_error() {
     // Not a space: the parser takes the id up to the first whitespace, so
-    // `{#has space}` never reaches `assign_ids` as one id.
+    // `{#has space}` never reaches `check_ids` as one id.
     for src in [
         "# A\n\nOne. {#has%25}\n",
         "# A\n\nOne. {#has?query}\n",
@@ -193,7 +192,7 @@ fn the_allowed_set_is_actually_allowed() {
 }
 
 /// End to end for the relaxed rule: a non-ASCII heading must survive the
-/// whole of `check`, not merely `assign_ids`, and must produce the audio
+/// whole of `check`, not merely `check_ids`, and must produce the audio
 /// path a consumer will resolve.
 #[test]
 fn a_non_ascii_id_is_a_usable_audio_path() {
@@ -245,15 +244,45 @@ fn a_non_ascii_explicit_id_is_accepted() {
 
 #[test]
 fn empty_explicit_id_is_an_error() {
-    let src = "# A\n\nOne. {#}\n";
-    let mut s = parse_script(src).unwrap();
-    let diags = assign_ids(&mut s);
+    let diags = parse_script("# A\n\nOne. {#}\n").unwrap_err().0;
     assert!(diags
         .iter()
         .any(|d| d.is_error() && d.message.contains("line id cannot be empty")));
-    let Node::Line(seg) = &s.chapters[0].nodes[0] else {
-        panic!("expected line")
-    };
-    assert_eq!(seg.id.as_deref(), Some("a-1"));
-    assert_eq!(seg.id_origin, IdOrigin::Derived);
+}
+
+/// A block's own `id=` names it, as the attribute table says.
+#[test]
+fn a_block_s_own_id_is_its_id() {
+    let src = "# A\n\nOne.\n\n```teleprompt scene=mock id=deploy\nwait 100ms\n```\n";
+    assert_eq!(ids(src), ["a-1", "deploy"]);
+}
+
+/// Pinning one block's id renames no other: a block is counted whether its
+/// id was derived or given.
+#[test]
+fn pinning_a_block_s_id_renames_no_other() {
+    let src = "# A\n\nOne.\n\n```teleprompt scene=mock id=first\nwait 100ms\n```\n\n\
+               ```teleprompt scene=mock\nwait 200ms\n```\n";
+    assert_eq!(ids(src), ["a-1", "first", "a-1-a2"]);
+}
+
+/// Nothing compiles a script whose ids were not checked: `resolve` checks
+/// them itself.
+#[test]
+fn resolve_refuses_a_duplicate_id() {
+    let s = parse_script("# A\n\nOne. {#dup}\n\nTwo. {#dup}\n").unwrap();
+    let err = teleprompt_core::program::resolve(
+        &s,
+        "t.md",
+        "en",
+        &teleprompt_core::config::PartialConfig::default(),
+        &teleprompt_core::config::PartialConfig::default(),
+    )
+    .unwrap_err();
+    assert!(
+        err.0
+            .iter()
+            .any(|d| d.message.contains("duplicate line id `dup`")),
+        "{err:?}"
+    );
 }

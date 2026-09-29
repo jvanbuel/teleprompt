@@ -1,5 +1,5 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
+use teleprompt_core::ident::check_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::policy::{Align, PolicyKind};
 use teleprompt_core::program::{resolve, Element, Program};
@@ -27,8 +27,8 @@ Second. {#second lead_in=400ms}
 "#;
 
 fn program() -> teleprompt_core::program::Program {
-    let mut s = parse_script(SRC).unwrap();
-    teleprompt_core::ident::assign_ids(&mut s);
+    let s = parse_script(SRC).unwrap();
+    teleprompt_core::ident::check_ids(&s);
     resolve(
         &s,
         "demo.md",
@@ -40,8 +40,8 @@ fn program() -> teleprompt_core::program::Program {
 }
 
 fn program_for(src: &str) -> Program {
-    let mut parsed = parse_script(src).expect("fixture parses");
-    let diags = assign_ids(&mut parsed);
+    let parsed = parse_script(src).expect("fixture parses");
+    let diags = check_ids(&parsed);
     assert!(
         !diags.iter().any(|d| d.is_error()),
         "fixture must yield unambiguous line ids"
@@ -95,8 +95,8 @@ fn segment_attributes_override_front_matter_for_that_line_only() {
 
 #[test]
 fn cli_flags_shot_everything() {
-    let mut s = parse_script(SRC).unwrap();
-    teleprompt_core::ident::assign_ids(&mut s);
+    let s = parse_script(SRC).unwrap();
+    teleprompt_core::ident::check_ids(&s);
     let cli = PartialConfig::from_yaml("timing:\n  lead_in_ms: 999\n").unwrap();
     let p = resolve(&s, "demo.md", "en", &PartialConfig::default(), &cli).unwrap();
     let Element::Narration { config, .. } = &p.elements[2] else {
@@ -123,8 +123,8 @@ fn source_hash_covers_the_normalised_text_only() {
 
 #[test]
 fn block_policy_and_align_default_when_unset() {
-    let mut s = parse_script("# A\n\nOne.\n\n```teleprompt scene=mock\nwait 1s\n```\n").unwrap();
-    teleprompt_core::ident::assign_ids(&mut s);
+    let s = parse_script("# A\n\nOne.\n\n```teleprompt scene=mock\nwait 1s\n```\n").unwrap();
+    teleprompt_core::ident::check_ids(&s);
     let p = resolve(
         &s,
         "d.md",
@@ -142,8 +142,8 @@ fn block_policy_and_align_default_when_unset() {
 
 #[test]
 fn an_action_block_without_a_scene_is_an_error() {
-    let mut s = parse_script("# A\n\nOne.\n\n```teleprompt\nwait 1s\n```\n").unwrap();
-    teleprompt_core::ident::assign_ids(&mut s);
+    let s = parse_script("# A\n\nOne.\n\n```teleprompt\nwait 1s\n```\n").unwrap();
+    teleprompt_core::ident::check_ids(&s);
     let e = resolve(
         &s,
         "d.md",
@@ -157,8 +157,8 @@ fn an_action_block_without_a_scene_is_an_error() {
 
 #[test]
 fn unknown_attribute_keys_surface_as_errors() {
-    let mut s = parse_script("# A\n\nOne. {#a polcy=hold}\n").unwrap();
-    teleprompt_core::ident::assign_ids(&mut s);
+    let s = parse_script("# A\n\nOne. {#a polcy=hold}\n").unwrap();
+    teleprompt_core::ident::check_ids(&s);
     let e = resolve(
         &s,
         "d.md",
@@ -178,8 +178,8 @@ fn unknown_attribute_keys_surface_as_errors() {
 #[test]
 fn item_shots_match_their_source_node_not_a_fabricated_line() {
     let src = "# A\n\nFirst line. {#first}\n\n```teleprompt scene=mock\nwait 1s\n```\n";
-    let mut s = parse_script(src).unwrap();
-    teleprompt_core::ident::assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
+    teleprompt_core::ident::check_ids(&s);
     let p = resolve(
         &s,
         "d.md",
@@ -286,8 +286,7 @@ Only this chapter speaks.
 /// config — the one the estimator is actually handed.
 fn resolve_err(front: &str) -> Vec<String> {
     let src = format!("---\n{front}\n---\n\n# A\n\nOne sentence. {{#a}}\n");
-    let mut s = parse_script(&src).expect("fixture parses");
-    assign_ids(&mut s);
+    let s = parse_script(&src).expect("fixture parses");
     resolve(
         &s,
         "d.md",
@@ -349,8 +348,7 @@ fn an_infinite_voice_speed_is_a_validation_error() {
 fn ordinary_voice_speeds_resolve() {
     for speed in ["0.5", "1.0", "2.0"] {
         let src = format!("---\nvoice: {{ speed: {speed} }}\n---\n\n# A\n\nOne. {{#a}}\n");
-        let mut s = parse_script(&src).expect("fixture parses");
-        assign_ids(&mut s);
+        let s = parse_script(&src).expect("fixture parses");
         resolve(
             &s,
             "d.md",
@@ -367,8 +365,7 @@ fn ordinary_voice_speeds_resolve() {
 #[test]
 fn one_bad_speed_reports_once_and_names_a_line() {
     let src = "---\nvoice: { speed: 0 }\n---\n\n# A\n\nOne. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n";
-    let mut s = parse_script(src).expect("fixture parses");
-    assign_ids(&mut s);
+    let s = parse_script(src).expect("fixture parses");
     let e = resolve(
         &s,
         "d.md",
@@ -387,8 +384,7 @@ fn one_bad_speed_reports_once_and_names_a_line() {
 #[test]
 fn a_line_level_speed_override_is_validated_too() {
     let src = "# A\n\nOne. {#a voice.speed=0}\n";
-    let mut s = parse_script(src).expect("fixture parses");
-    assign_ids(&mut s);
+    let s = parse_script(src).expect("fixture parses");
     let e = resolve(
         &s,
         "d.md",
@@ -412,8 +408,7 @@ fn a_line_level_speed_override_is_validated_too() {
 fn align_is_rejected_where_it_has_no_effect() {
     let resolve_block = |info: &str| {
         let src = format!("# A\n\nOne.\n\n```teleprompt scene=mock {info}\nwait 1s\n```\n");
-        let mut s = parse_script(&src).unwrap();
-        assign_ids(&mut s);
+        let s = parse_script(&src).unwrap();
         resolve(
             &s,
             "d.md",
@@ -441,8 +436,7 @@ fn align_is_rejected_where_it_has_no_effect() {
 }
 
 fn errors_for(src: &str) -> Vec<String> {
-    let mut parsed = parse_script(src).expect("fixture parses");
-    assign_ids(&mut parsed);
+    let parsed = parse_script(src).expect("fixture parses");
     match resolve(
         &parsed,
         "t.md",

@@ -106,6 +106,10 @@ pub fn resolve(
     if let Some(problem) = crate::config::locale_problem(locale) {
         return Err(Diagnostics(vec![Diagnostic::error(problem)]));
     }
+    let id_diags = crate::ident::check_ids(script);
+    if id_diags.iter().any(Diagnostic::is_error) {
+        return Err(Diagnostics(id_diags));
+    }
     let mut diags = Vec::new();
     let front = config_layer(&script.front_matter, "front matter", &mut diags);
     // Each layer with its section for this locale over it.
@@ -218,7 +222,7 @@ impl Resolver<'_> {
         }
         let text = seg.text.clone();
         self.elements.push(Element::Narration {
-            id: seg.id.clone().unwrap_or_default(),
+            id: seg.id.to_string(),
             source_hash: Hash::of(text.as_bytes()),
             chapter: chapter.slug.clone(),
             chapter_index,
@@ -276,7 +280,7 @@ impl Resolver<'_> {
         }
         let config = self.merged(chapter_cfg, PartialConfig::from_block(&attrs));
         self.elements.push(Element::Action {
-            block_id: block.id.clone().unwrap_or_default(),
+            block_id: block.id.to_string(),
             scene,
             body: block.body.clone(),
             include: attrs.include,

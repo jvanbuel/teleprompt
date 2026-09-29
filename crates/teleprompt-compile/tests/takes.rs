@@ -6,7 +6,6 @@ use std::path::Path;
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::DurationSource;
@@ -26,8 +25,7 @@ fn pcm(ms: usize, tone: i16) -> Pcm {
 }
 
 fn compiled(takes: &Takes) -> CompileOutput {
-    let mut script = parse_script(SRC).unwrap();
-    assign_ids(&mut script);
+    let script = parse_script(SRC).unwrap();
     let program = resolve(
         &script,
         "demo.md",

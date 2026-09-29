@@ -6,7 +6,6 @@ use std::path::Path;
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::Diagnostics;
@@ -25,8 +24,7 @@ fn compile_it(body: &str) -> Result<CompileOutput, Diagnostics> {
         estimator: &estimator,
         takes: &teleprompt_voice::takes::Takes::default(),
     };
-    let mut parsed = parse_script(&src).expect("parses");
-    assign_ids(&mut parsed);
+    let parsed = parse_script(&src).expect("parses");
     let program = resolve(
         &parsed,
         "t.md",

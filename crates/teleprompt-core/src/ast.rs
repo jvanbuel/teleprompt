@@ -1,5 +1,5 @@
-use crate::DurationMs;
 use crate::SourceSpan;
+use crate::{BlockId, DurationMs, LineId};
 
 #[derive(Debug, Clone)]
 pub struct Script {
@@ -27,7 +27,8 @@ pub enum Node {
 
 #[derive(Debug, Clone)]
 pub struct Line {
-    pub id: Option<String>,
+    /// Its `{#id}`, or one derived from its chapter: never missing.
+    pub id: LineId,
     pub id_origin: IdOrigin,
     pub text: String,
     pub raw_attrs: String,
@@ -42,7 +43,8 @@ pub enum IdOrigin {
 
 #[derive(Debug, Clone)]
 pub struct ActionBlock {
-    pub id: Option<String>,
+    /// Its `id=`, or one derived from the line before it: never missing.
+    pub id: BlockId,
     pub info: String,
     pub body: String,
     pub span: SourceSpan,

@@ -277,7 +277,7 @@ fn an_id_that_escapes_the_output_directory_is_rejected_before_anything_is_writte
 /// not non-ASCII letters. teleprompt is localization-first, so a heading in
 /// a language it exists to dub must produce a working line, a working
 /// file, and a working manifest path — end to end, not just past
-/// `assign_ids`.
+/// `check_ids`.
 #[test]
 fn a_non_ascii_heading_dubs_to_a_real_file() {
     let root = project_with("unicode", "# Café\n\nUn café, s'il vous plaît.\n");

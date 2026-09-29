@@ -20,7 +20,6 @@ fn the_scaffolded_script_compiles() {
     use teleprompt_cache::VoiceCache;
     use teleprompt_compile::{compile, VoiceContext};
     use teleprompt_core::config::PartialConfig;
-    use teleprompt_core::ident::assign_ids;
     use teleprompt_core::parse::parse_script;
     use teleprompt_core::program::resolve;
     use teleprompt_voice::WpmEstimator;
@@ -29,8 +28,7 @@ fn the_scaffolded_script_compiles() {
     scaffold(&dir).unwrap();
     let src = std::fs::read_to_string(dir.join("scripts/demo.md")).unwrap();
 
-    let mut script = parse_script(&src).expect("scaffolded script must parse");
-    assign_ids(&mut script);
+    let script = parse_script(&src).expect("scaffolded script must parse");
     let program = resolve(
         &script,
         "demo.md",

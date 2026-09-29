@@ -1,7 +1,6 @@
 //! `[locale.<code>]`: settings for one locale, over the layer they are in.
 
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element, Program};
 
@@ -17,8 +16,7 @@ voice = "nl_voice"
 
 fn program(front: &str, locale: &str) -> Program {
     let src = format!("---\nteleprompt: 1\n{front}---\n\n# A\n\nOne. {{#one}}\n");
-    let mut s = parse_script(&src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(&src).unwrap();
     let project = PartialConfig::from_toml(PROJECT).unwrap();
     resolve(&s, "a.md", locale, &project, &PartialConfig::default()).unwrap()
 }

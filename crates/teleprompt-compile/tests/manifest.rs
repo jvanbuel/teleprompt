@@ -5,7 +5,7 @@ use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
+use teleprompt_core::ident::check_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_manifest::{AudioInfo, MANIFEST_VERSION};
@@ -14,8 +14,8 @@ use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{Pcm, WordTiming};
 
 fn program_for(src: &str) -> Program {
-    let mut parsed = parse_script(src).expect("fixture parses");
-    let diags = assign_ids(&mut parsed);
+    let parsed = parse_script(src).expect("fixture parses");
+    let diags = check_ids(&parsed);
     assert!(
         !diags.iter().any(|d| d.is_error()),
         "fixture must yield unambiguous line ids"
@@ -202,7 +202,7 @@ fn chapters_carry_the_start_of_their_first_spoken_line() {
 #[test]
 fn two_chapters_with_the_same_title_keep_their_own_starts() {
     // Explicit ids, because two identically-titled chapters would otherwise
-    // derive the same line id and `assign_ids` would reject the script
+    // derive the same line id and `check_ids` would reject the script
     // before this join is ever reached. Pinning the ids is exactly what an
     // author hitting that error is told to do, so this is the shape the bug
     // actually reaches production in.

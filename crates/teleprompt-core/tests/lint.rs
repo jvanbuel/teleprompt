@@ -1,13 +1,11 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::assign_ids;
 use teleprompt_core::lint::lint;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 
 fn warnings(body: &str) -> Vec<String> {
     let src = format!("# A\n\n{body}\n");
-    let mut s = parse_script(&src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(&src).unwrap();
     let p = resolve(
         &s,
         "a.md",
@@ -64,8 +62,7 @@ fn words_a_voice_reads_as_code() {
 #[test]
 fn a_pronounced_word_is_not_flagged() {
     let src = "---\nvoice:\n  pronounce:\n    tour.md: tour dot M D\n---\n\n# A\n\nNow open tour.md and look.\n";
-    let mut s = parse_script(src).unwrap();
-    assign_ids(&mut s);
+    let s = parse_script(src).unwrap();
     let p = resolve(
         &s,
         "a.md",
