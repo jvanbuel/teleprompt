@@ -331,23 +331,6 @@ function offerSaid() {
     : `${fresh.length} lines were said in other words. Press W to review`);
 }
 
-/** `line` against `said`, word by word, by their longest common run. */
-function diff(line, said) {
-  const a = line.split(/\s+/).filter(Boolean), b = said.split(/\s+/).filter(Boolean);
-  const common = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-  for (let i = a.length - 1; i >= 0; i--)
-    for (let j = b.length - 1; j >= 0; j--)
-      common[i][j] = a[i] === b[j] ? common[i + 1][j + 1] + 1 : Math.max(common[i + 1][j], common[i][j + 1]);
-  const out = [];
-  let i = 0, j = 0;
-  while (i < a.length || j < b.length) {
-    if (i < a.length && j < b.length && a[i] === b[j]) out.push(["same", a[i++]]), j++;
-    else if (i < a.length && (j === b.length || common[i + 1][j] >= common[i][j + 1])) out.push(["gone", a[i++]]);
-    else out.push(["new", b[j++]]);
-  }
-  return out;
-}
-
 /** Shows the next line said in other words, to keep what was said or not. */
 function reviewSaid() {
   if (listening || paused || counting || $("review").open) return;
@@ -355,9 +338,9 @@ function reviewSaid() {
   if (l === null) return toast("Every line reads as it was said");
   const line = script.lines[l];
   $("review-title").textContent = `Keep what you said on line ${l + 1}?`;
-  $("review-diff").replaceChildren(...diff(line.text, line.said).flatMap(([kind, word]) => {
+  $("review-diff").replaceChildren(...line.said_diff.flatMap(({ kind, words }) => {
     const el = document.createElement(kind === "gone" ? "del" : kind === "new" ? "ins" : "span");
-    el.textContent = word;
+    el.textContent = words;
     return [el, " "];
   }));
   $("review").dataset.line = l;

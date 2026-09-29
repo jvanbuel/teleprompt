@@ -2,9 +2,8 @@
 
 use std::process::{Command, Output, Stdio};
 
-/// Whether `program` can be started at all. Its exit status is not
-/// consulted: a tool that runs and fails is present, and its failure is
-/// reported where it happens.
+/// Whether `program` can be started at all: one that runs and fails is
+/// present, its failure reported where it happens.
 pub fn installed(program: &str) -> bool {
     Command::new(program)
         .arg("--version")

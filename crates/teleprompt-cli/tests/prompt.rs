@@ -285,8 +285,8 @@ fn the_script_lists_lines_and_shots() {
         serde_json::json!({
             "name": "tour.md",
             "lines": [
-                { "id": "welcome", "text": LINES[0], "recorded": false, "stale": false, "said": null },
-                { "id": "deploy", "text": LINES[1], "recorded": false, "stale": false, "said": null },
+                { "id": "welcome", "text": LINES[0], "recorded": false, "stale": false, "said": null, "said_diff": [] },
+                { "id": "deploy", "text": LINES[1], "recorded": false, "stale": false, "said": null, "said_diff": [] },
             ],
             "shots": [
                 { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },
@@ -624,6 +624,45 @@ fn prompting_with_keep(
         )
     });
     (addr, clips)
+}
+
+/// A line whose take says other words comes with them, and with the line
+/// against them word by word, for a prompter to show before keeping them.
+#[test]
+fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
+    let dir = teleprompt_testkit::test_dir("prompt-said-diff");
+    let pcm = teleprompt_voice::Pcm {
+        sample_rate: 16_000,
+        channels: 1,
+        samples: vec![0; 16_000],
+    };
+    teleprompt_voice::takes::Takes::load(&dir.join("takes"))
+        .unwrap()
+        .save_heard("deploy", LINES[1], "deployment is just one command", &pcm)
+        .unwrap();
+    let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let prompt = Prompt {
+        name: "tour.md".into(),
+        lines: LINES.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        shots: shots(),
+        clips: dir.to_path_buf(),
+        takes: dir.join("takes"),
+    };
+    let recognizer = Scripted(Default::default(), Default::default());
+    std::thread::spawn(move || prompt_on(listener, prompt, recognizer));
+
+    let line = &json_at(addr, "/api/v1/script")["lines"][1];
+    assert_eq!(line["said"], "Deployment is just one command.", "{line}");
+    assert_eq!(
+        line["said_diff"],
+        serde_json::json!([
+            { "kind": "same", "words": "Deployment is" },
+            { "kind": "new", "words": "just" },
+            { "kind": "same", "words": "one command." },
+        ])
+    );
 }
 
 /// Keeping what was said on a line rewords it, and says so; the page

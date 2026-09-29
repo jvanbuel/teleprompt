@@ -25,6 +25,10 @@ impl Recorder for AsciinemaRecorder {
         missing(&["asciinema"])
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["asciinema"]
+    }
+
     fn in_terminal(&self) -> bool {
         true
     }

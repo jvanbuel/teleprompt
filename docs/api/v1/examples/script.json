@@ -1,8 +1,8 @@
 {
   "name": "tour.md",
   "lines": [
-    { "id": "welcome", "text": "Welcome to Acme. Let me show you around.", "recorded": false, "stale": false, "said": null },
-    { "id": "deploy", "text": "Deployment is one command.", "recorded": false, "stale": false, "said": null }
+    { "id": "welcome", "text": "Welcome to Acme. Let me show you around.", "recorded": false, "stale": false, "said": null, "said_diff": [] },
+    { "id": "deploy", "text": "Deployment is one command.", "recorded": false, "stale": false, "said": null, "said_diff": [] }
   ],
   "shots": [
     { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },

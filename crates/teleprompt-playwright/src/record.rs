@@ -33,6 +33,10 @@ impl Recorder for PlaywrightRecorder {
         (!ok).then(|| "Playwright is not installed (npm install playwright)".to_string())
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["node", "playwright"]
+    }
+
     fn in_terminal(&self) -> bool {
         false
     }

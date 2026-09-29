@@ -104,6 +104,10 @@ impl CaptureBackend for VhsRender {
         teleprompt_capture::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["vhs", "ttyd", "ffmpeg"]
+    }
+
     fn capture(
         &self,
         session: &Session,

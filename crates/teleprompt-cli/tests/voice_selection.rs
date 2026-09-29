@@ -11,7 +11,10 @@ fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
 
 #[test]
 fn kokoro_is_registered_by_default() {
-    assert_eq!(Backends::defaults().ids(), vec!["kokoro", "null", "voicebox"]);
+    assert_eq!(
+        Backends::defaults().ids(),
+        vec!["kokoro", "null", "voicebox"]
+    );
 }
 
 #[test]

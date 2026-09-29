@@ -363,17 +363,9 @@ static TOOLS: &[Tool] = &[
     },
 ];
 
-/// What each adapter runs, as `setup <adapter>` installs it.
-const ADAPTERS: &[(&str, &[&str])] = &[
-    ("vhs", &["vhs", "ttyd", "ffmpeg"]),
-    ("asciinema", &["asciinema", "agg", "ffmpeg"]),
-    ("playwright", &["node", "ffmpeg", "playwright"]),
-    ("remotion", &["node", "remotion"]),
-    ("slidev", &["node", "ffmpeg", "slidev"]),
-    ("media", &["ffmpeg"]),
-    ("mock", &["ffmpeg"]),
-    ("prompt", &["speech-model"]),
-];
+/// What `setup prompt` installs: not an adapter, but what the prompter
+/// listens with.
+const PROMPT: &[&str] = &["speech-model"];
 
 pub fn tools() -> &'static [Tool] {
     TOOLS
@@ -416,13 +408,14 @@ pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
     }
     let mut out: Vec<&'static Tool> = Vec::new();
     for name in names {
-        let wanted: Vec<&str> = match ADAPTERS.iter().find(|(a, _)| a == name) {
-            Some((_, tools)) => tools.to_vec(),
-            None => vec![name.as_str()],
+        let wanted: Vec<&str> = match name.as_str() {
+            "prompt" => PROMPT.to_vec(),
+            _ => crate::scene::needs(name).unwrap_or_else(|| vec![name.as_str()]),
         };
         for w in wanted {
             let Some(tool) = TOOLS.iter().find(|t| t.name == w) else {
-                let adapters: Vec<&str> = ADAPTERS.iter().map(|(a, _)| *a).collect();
+                let captures = crate::scene::captures();
+                let adapters: Vec<&str> = captures.backends().map(|b| b.adapter()).collect();
                 let tools: Vec<&str> = TOOLS.iter().map(|t| t.name).collect();
                 return Err(format!(
                     "`{name}` is neither an adapter ({}) nor a tool ({})",

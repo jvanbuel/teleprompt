@@ -43,12 +43,20 @@ public struct Script: Codable, Equatable, Sendable {
         /// The line as its take was heard to say it, where that is other
         /// words; servers before it was added send none.
         public var said: String?
+        /// The line against `said`, word by word.
+        public var saidDiff: [SaidChange]?
 
-        public init(id: String, text: String, recorded: Bool, said: String? = nil) {
+        enum CodingKeys: String, CodingKey {
+            case id, text, recorded, said
+            case saidDiff = "said_diff"
+        }
+
+        public init(id: String, text: String, recorded: Bool, said: String? = nil, saidDiff: [SaidChange]? = nil) {
             self.id = id
             self.text = text
             self.recorded = recorded
             self.said = said
+            self.saidDiff = saidDiff
         }
 
         /// The words as the server counts them: split at whitespace.

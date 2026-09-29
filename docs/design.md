@@ -308,7 +308,7 @@ are all tested against them.
 
 | route | does |
 |---|---|
-| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded |
+| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said","said_diff"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. `said_diff` is the line against `said` word by word, runs of `{"kind":"same"|"gone"|"new","words"}`, empty without it: what keeping it changes, for a prompter to show. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded |
 | `GET /api/v1/clips/<key>.mp4` | a cued shot's clip; nothing else in the cache |
 | `GET /api/v1/session` | the session socket; one at a time, a second gets 409 |
 

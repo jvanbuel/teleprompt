@@ -64,6 +64,22 @@ fn adapters() -> Vec<Adapter> {
     ]
 }
 
+/// What adapter `name` runs, capturing and then recording, each once; `None`
+/// when there is no such adapter. What `teleprompt setup <adapter>` installs.
+pub fn needs(name: &str) -> Option<Vec<&'static str>> {
+    let a = adapters()
+        .into_iter()
+        .find(|a| a.capture.adapter() == name)?;
+    let recording = a.recorder.as_ref().map_or(&[][..], |r| r.needs());
+    let mut out: Vec<&'static str> = Vec::new();
+    for n in a.capture.needs().iter().chain(recording) {
+        if !out.contains(n) {
+            out.push(n);
+        }
+    }
+    Some(out)
+}
+
 /// The adapters that can record a session, asciinema first: it records
 /// exactly, and what it shows is what was recorded.
 pub fn recorders() -> Vec<Box<dyn Recorder>> {

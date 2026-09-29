@@ -542,11 +542,9 @@ impl Audio {
             let Some(tempo) = n.tempo_permille else {
                 continue;
             };
-            let pcm = teleprompt_voice::wav::decode(bytes)
+            *bytes = teleprompt_voice::stretch::fit_wav(bytes, tempo, n.duration_ms)
                 .map_err(|e| DubError::Runtime(format!("line `{line_id}`: {e}")))?;
-            let fitted = teleprompt_voice::stretch::stretch_to(&pcm, tempo, n.duration_ms);
-            *rendered_ms = fitted.duration_ms();
-            *bytes = teleprompt_voice::wav::encode(&fitted);
+            *rendered_ms = n.duration_ms;
         }
         Ok(())
     }

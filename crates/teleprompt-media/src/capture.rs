@@ -142,6 +142,10 @@ impl CaptureBackend for MediaRender {
         teleprompt_capture::tool::missing(&[&self.ffmpeg])
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["ffmpeg"]
+    }
+
     fn capture(
         &self,
         session: &Session,

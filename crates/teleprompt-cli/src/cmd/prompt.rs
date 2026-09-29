@@ -106,11 +106,10 @@ fn prompt_of(
 /// one edited while it is being read: a shot moved or stretched, a line
 /// reworded. `None` when it has not changed, or does not compile.
 pub fn reload_on_edit(project: &Project, script: &std::path::Path, locale: &str) -> Reload {
-    let modified = |p: &std::path::Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
-    let seen = Mutex::new(modified(script));
+    let seen = Mutex::new(crate::project::fingerprint(script));
     let (project, script, locale) = (project.clone(), script.to_path_buf(), locale.to_string());
     Box::new(move || {
-        let now = modified(&script);
+        let now = crate::project::fingerprint(&script);
         let mut seen = seen.lock().unwrap_or_else(PoisonError::into_inner);
         if now == *seen {
             return None;
@@ -374,7 +373,12 @@ fn script(s: Script) -> serde_json::Value {
     let lines: Vec<_> = s
         .lines
         .iter()
-        .map(|l| serde_json::json!({ "id": l.id, "text": l.text, "recorded": l.recorded, "stale": l.stale, "said": l.said }))
+        .map(|l| {
+            let diff = l.said.as_deref().map_or_else(Vec::new, |said| {
+                teleprompt_core::said::diff(&l.text, said)
+            });
+            serde_json::json!({ "id": l.id, "text": l.text, "recorded": l.recorded, "stale": l.stale, "said": l.said, "said_diff": diff })
+        })
         .collect();
     let shots: Vec<_> = s
         .shots

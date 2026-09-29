@@ -1,31 +1,26 @@
-//! A line against what its take says, word by word, for the author to see
-//! what keeping it would change.
+//! A line against what its take says, as the server sends it, for the
+//! author to see what keeping it would change.
 
-use teleprompt_gtk::said::{diff, Change};
-
-#[test]
-fn words_kept_gone_and_new_in_reading_order() {
-    let d = diff(
-        "Let me show you the way there.",
-        "Let me show you the route.",
-    );
-    assert_eq!(
-        d,
-        [
-            Change::Same("Let me show you the".into()),
-            Change::Gone("way there.".into()),
-            Change::New("route.".into()),
-        ]
-    );
-}
+use teleprompt_gtk::api::Script;
+use teleprompt_gtk::said::{markup, Change};
 
 #[test]
-fn a_word_added_between_is_new_there() {
+fn a_line_said_otherwise_reads_with_its_changes() {
+    let script: Script = serde_json::from_value(serde_json::json!({
+        "lines": [{
+            "id": "deploy", "text": "Deployment is one command.", "recorded": true,
+            "said": "Deployment is just one command.",
+            "said_diff": [
+                { "kind": "same", "words": "Deployment is" },
+                { "kind": "new", "words": "just" },
+                { "kind": "same", "words": "one command." },
+            ],
+        }],
+        "shots": [],
+    }))
+    .unwrap();
     assert_eq!(
-        diff(
-            "Deployment is one command.",
-            "Deployment is just one command."
-        ),
+        script.lines[0].said_diff,
         [
             Change::Same("Deployment is".into()),
             Change::New("just".into()),
@@ -38,9 +33,14 @@ fn a_word_added_between_is_new_there() {
 /// the text escaped.
 #[test]
 fn a_diff_is_marked_up_for_the_dialog() {
-    let markup = teleprompt_gtk::said::markup(&diff("A <b> c.", "A d c."));
+    let changes = [
+        Change::Same("A".into()),
+        Change::Gone("<b>".into()),
+        Change::New("d".into()),
+        Change::Same("c.".into()),
+    ];
     assert_eq!(
-        markup,
+        markup(&changes),
         "A <span strikethrough=\"true\" foreground=\"#f28b82\">&lt;b&gt;</span> \
          <span weight=\"bold\" foreground=\"#81c995\">d</span> c."
     );

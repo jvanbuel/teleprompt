@@ -34,6 +34,9 @@ pub struct Line {
     /// words: to keep instead of reading it again.
     #[serde(default)]
     pub said: Option<String>,
+    /// The line against `said`, word by word; empty without it.
+    #[serde(default)]
+    pub said_diff: Vec<crate::said::Change>,
 }
 
 impl Line {

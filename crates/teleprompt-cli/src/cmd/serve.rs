@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::project::fingerprint;
 use serde::Serialize;
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest;
@@ -234,15 +235,9 @@ fn decode_percent(s: &str) -> Option<String> {
 /// A `fit-line` line's audio at the tempo and length the manifest gives it,
 /// as `dub` writes it; any other line's as it is.
 fn at_tempo(bytes: Vec<u8>, tempo: Option<(u32, u64)>) -> Vec<u8> {
-    let Some((tempo, ms)) = tempo else {
-        return bytes;
-    };
-    match teleprompt_voice::wav::decode(&bytes) {
-        Ok(pcm) => {
-            teleprompt_voice::wav::encode(&teleprompt_voice::stretch::stretch_to(&pcm, tempo, ms))
-        }
-        Err(_) => bytes,
-    }
+    tempo
+        .and_then(|(tempo, ms)| teleprompt_voice::stretch::fit_wav(&bytes, tempo, ms).ok())
+        .unwrap_or(bytes)
 }
 
 /// The line id in `/audio/<id>.wav`, rejecting anything that could escape
@@ -494,13 +489,6 @@ async fn watch(
             }
         }
     }
-}
-
-/// What the watcher compares between ticks: the script's contents, not its
-/// mtime. An edit within the filesystem's timestamp resolution leaves the
-/// mtime unchanged, and that save is then never seen at all.
-fn fingerprint(path: &Path) -> Option<Hash> {
-    std::fs::read(path).ok().map(|bytes| Hash::of(&bytes))
 }
 
 impl From<ServeError> for crate::output::Outcome {

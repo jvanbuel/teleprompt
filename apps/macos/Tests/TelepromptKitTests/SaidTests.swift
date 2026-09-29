@@ -1,24 +1,19 @@
 import XCTest
 @testable import TelepromptKit
 
-/// A line against what its take said, as the review shows it.
+/// A line against what its take said, as the server sends it for the
+/// review.
 final class SaidTests: XCTestCase {
-    func testAWordSwappedIsGoneAndNew() {
-        XCTAssertEqual(
-            saidDiff("Let me walk you around.", "Let me show you around."),
-            [.same("Let me"), .gone("walk"), .new("show"), .same("you around.")]
-        )
-    }
-
-    func testWordsLeftOutAreGoneAndTheEndMovesBack() {
-        XCTAssertEqual(
-            saidDiff("Let me show you around the office!", "Let me show you around!"),
-            [.same("Let me show you"), .gone("around the office!"), .new("around!")]
-        )
-    }
-
-    func testTheSameWordsAreOneRun() {
-        XCTAssertEqual(saidDiff("Deploy it.", "Deploy it."), [.same("Deploy it.")])
+    func testTheChangesAreReadAsSent() throws {
+        let json = """
+        {"lines": [{"id": "welcome", "text": "Let me walk you around.", "recorded": true,
+          "said": "Let me show you around.",
+          "said_diff": [{"kind": "same", "words": "Let me"}, {"kind": "gone", "words": "walk"},
+                        {"kind": "new", "words": "show"}, {"kind": "same", "words": "you around."}]}],
+         "shots": []}
+        """
+        let line = try JSONDecoder().decode(Script.self, from: Data(json.utf8)).lines[0]
+        XCTAssertEqual(line.saidDiff, [.same("Let me"), .gone("walk"), .new("show"), .same("you around.")])
     }
 }
 

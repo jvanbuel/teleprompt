@@ -159,3 +159,13 @@ fn stretched_to_a_length_it_is_exactly_that_long() {
         assert_eq!(stretch_to(&line, 1150, ms).duration_ms(), ms);
     }
 }
+
+#[test]
+fn a_wav_is_fitted_as_its_samples_are() {
+    use teleprompt_voice::stretch::{fit_wav, stretch_to};
+    use teleprompt_voice::wav;
+    let line = tone(220.0, 1.0, 1);
+    let fitted = fit_wav(&wav::encode(&line), 1150, 870).unwrap();
+    assert_eq!(fitted, wav::encode(&stretch_to(&line, 1150, 870)));
+    assert!(fit_wav(b"not a wav", 1150, 870).is_err());
+}

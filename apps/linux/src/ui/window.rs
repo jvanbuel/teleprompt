@@ -1000,10 +1000,10 @@ impl Window {
                 .find_map(|(i, l)| {
                     let said = l.said.clone()?;
                     let key = (l.id.clone(), said.clone());
-                    (!model.said_declined.contains(&key)).then(|| (i, l.text.clone(), key))
+                    (!model.said_declined.contains(&key)).then(|| (i, l.said_diff.clone(), key))
                 })
         };
-        let Some((line, text, (id, said))) = next else {
+        let Some((line, changes, (id, said))) = next else {
             self.w
                 .toasts
                 .add_toast(adw::Toast::new("Every line reads as it was said"));
@@ -1013,7 +1013,7 @@ impl Window {
             .use_markup(true)
             .wrap(true)
             .css_classes(["said"])
-            .label(said::markup(&said::diff(&text, &said)))
+            .label(said::markup(&changes))
             .build();
         let dialog = adw::AlertDialog::builder()
             .heading(format!("Keep what you said on line {}?", line + 1))

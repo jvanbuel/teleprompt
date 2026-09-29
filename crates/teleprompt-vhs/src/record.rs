@@ -30,6 +30,10 @@ impl Recorder for VhsRecorder {
         missing(&["vhs"])
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["vhs"]
+    }
+
     fn in_terminal(&self) -> bool {
         true
     }

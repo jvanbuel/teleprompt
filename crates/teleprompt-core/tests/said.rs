@@ -135,3 +135,61 @@ fn a_takes_transcript_is_split_into_its_lines() {
         ]
     );
 }
+
+mod against_the_line {
+    //! A line against what its take says, word by word, for the author to
+    //! see what keeping it would change.
+
+    use teleprompt_core::said::{diff, Change};
+
+    #[test]
+    fn words_kept_gone_and_new_in_reading_order() {
+        assert_eq!(
+            diff(
+                "Let me show you the way there.",
+                "Let me show you the route."
+            ),
+            [
+                Change::Same("Let me show you the".into()),
+                Change::Gone("way there.".into()),
+                Change::New("route.".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_word_added_between_is_new_there() {
+        assert_eq!(
+            diff(
+                "Deployment is one command.",
+                "Deployment is just one command."
+            ),
+            [
+                Change::Same("Deployment is".into()),
+                Change::New("just".into()),
+                Change::Same("one command.".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_same_words_are_one_run() {
+        assert_eq!(
+            diff("Deploy it.", "Deploy it."),
+            [Change::Same("Deploy it.".into())]
+        );
+    }
+
+    /// As the prompter's script sends it.
+    #[test]
+    fn each_run_is_sent_as_its_kind_and_words() {
+        assert_eq!(
+            serde_json::to_value(diff("Let me walk.", "Let me run.")).unwrap(),
+            serde_json::json!([
+                { "kind": "same", "words": "Let me" },
+                { "kind": "gone", "words": "walk." },
+                { "kind": "new", "words": "run." },
+            ])
+        );
+    }
+}

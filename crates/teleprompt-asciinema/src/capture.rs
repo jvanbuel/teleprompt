@@ -81,6 +81,10 @@ impl CaptureBackend for AsciinemaRender {
         teleprompt_capture::tool::missing(&[&self.agg, &self.ffmpeg])
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["agg", "ffmpeg"]
+    }
+
     fn capture(
         &self,
         session: &Session,

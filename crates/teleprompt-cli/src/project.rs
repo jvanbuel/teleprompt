@@ -113,3 +113,12 @@ impl Project {
             .join(format!("{stem}.{locale}.json"))
     }
 }
+
+/// What a watcher compares between looks at a file: its contents, not its
+/// mtime. An edit within the filesystem's timestamp resolution leaves the
+/// mtime unchanged, and that save is then never seen at all.
+pub fn fingerprint(path: &Path) -> Option<teleprompt_core::Hash> {
+    std::fs::read(path)
+        .ok()
+        .map(|bytes| teleprompt_core::Hash::of(&bytes))
+}

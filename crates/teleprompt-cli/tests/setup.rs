@@ -47,11 +47,29 @@ fn a_tool_without_a_package_falls_back_to_its_languages_installer() {
     assert_eq!(command("vhs", &ubuntu()), None);
 }
 
+/// What each adapter says it runs, capturing and then recording: the
+/// tools `doctor` sends an author to `setup <adapter>` for.
 #[test]
 fn an_adapter_names_the_tools_it_runs() {
     assert_eq!(names(&["vhs"]), ["vhs", "ttyd", "ffmpeg"]);
-    assert_eq!(names(&["asciinema"]), ["asciinema", "agg", "ffmpeg"]);
+    assert_eq!(names(&["asciinema"]), ["agg", "ffmpeg", "asciinema"]);
     assert_eq!(names(&["playwright"]), ["node", "ffmpeg", "playwright"]);
+    assert_eq!(names(&["remotion"]), ["node", "remotion"]);
+    assert_eq!(names(&["slidev"]), ["node", "ffmpeg", "slidev"]);
+    assert_eq!(names(&["media"]), ["ffmpeg"]);
+    assert_eq!(names(&["mock"]), ["ffmpeg"]);
+    assert_eq!(names(&["prompt"]), ["speech-model"]);
+}
+
+/// Every adapter this build has, down to one only for tests, names only
+/// tools `setup` knows.
+#[test]
+fn every_adapter_needs_only_tools_setup_knows() {
+    for adapter in teleprompt_cli::scene::captures().backends() {
+        let needs = teleprompt_cli::scene::needs(adapter.adapter()).unwrap();
+        assert!(!needs.is_empty(), "{}", adapter.adapter());
+        resolve(&[adapter.adapter().to_string()]).unwrap();
+    }
 }
 
 #[test]

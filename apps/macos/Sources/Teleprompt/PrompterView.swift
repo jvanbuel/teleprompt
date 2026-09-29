@@ -247,7 +247,7 @@ private struct ReviewSaid: View {
     }
 
     private var diff: Text {
-        saidDiff(line.text, line.said ?? line.text).reduce(Text("")) { text, change in
+        (line.saidDiff ?? []).reduce(Text("")) { text, change in
             let words: Text = switch change {
             case let .same(w): Text(w)
             case let .gone(w): Text(w).strikethrough(color: Theme.missing).foregroundColor(Theme.missing)

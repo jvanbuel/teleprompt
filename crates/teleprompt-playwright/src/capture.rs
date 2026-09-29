@@ -137,6 +137,10 @@ impl CaptureBackend for PlaywrightRender {
         teleprompt_capture::tool::missing(&[&self.node, &self.ffmpeg])
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["node", "ffmpeg", "playwright"]
+    }
+
     fn capture(
         &self,
         session: &Session,

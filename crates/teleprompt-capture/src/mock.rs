@@ -47,6 +47,10 @@ impl CaptureBackend for MockCapture {
         crate::tool::missing(&[&self.program])
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["ffmpeg"]
+    }
+
     fn capture(
         &self,
         session: &Session,

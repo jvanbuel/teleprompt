@@ -78,7 +78,12 @@ impl CaptureBackend for SlidevRender {
     }
 
     fn unavailable(&self) -> Option<String> {
-        teleprompt_capture::tool::missing(&[&self.ffmpeg])
+        // The deck's `slidev` is a Node script.
+        teleprompt_capture::tool::missing(&["node", &self.ffmpeg])
+    }
+
+    fn needs(&self) -> &'static [&'static str] {
+        &["node", "ffmpeg", "slidev"]
     }
 
     fn capture(

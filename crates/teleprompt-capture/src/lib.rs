@@ -1,10 +1,7 @@
-//! Stage 5: running a scene and keeping what it showed
-//! (`docs/design.md#capture`).
+//! Running a scene and keeping what it showed (`docs/design.md#capture`).
 //!
-//! A backend is handed a session, not a shot, and told which shots to keep:
-//! the shots of a walkthrough continue one another, so running them one at
-//! a time would restart the program per shot. That is also why a cached
-//! shot still runs: the next shot opens on the screen it leaves.
+//! A backend runs a session, not a shot: a walkthrough's shots continue one
+//! another, so even a cached shot runs, for the screen the next opens on.
 
 pub mod mock;
 pub mod record;
@@ -32,9 +29,8 @@ pub struct PlannedShot {
     /// How long the schedule gave this shot. A backend may not take longer;
     /// if it takes less, the renderer holds the last frame.
     pub duration_ms: u64,
-    /// The scene's settings, flattened to strings: a backend reads the keys
-    /// it understands and the planner reads none. They are part of the
-    /// capture key, so changing one invalidates the clips it affects.
+    /// The scene's settings as strings, for a backend to read the keys it
+    /// knows. Part of the capture key: changing one recaptures its clips.
     pub settings: BTreeMap<String, String>,
 }
 
@@ -55,8 +51,7 @@ pub struct SessionShot {
     pub key: Hash,
     pub source: String,
     pub duration_ms: u64,
-    /// Whether a clip is wanted: `false` where one is already cached. The
-    /// shot still runs either way.
+    /// Whether a clip is wanted: `false` where one is cached. It runs anyway.
     pub wanted: bool,
 }
 
@@ -71,8 +66,7 @@ impl Session {
         self.settings.get(key).map_or(default, String::as_str)
     }
 
-    /// The `prefix.name` settings as `(name, value)` pairs, such as the
-    /// scene's `env`.
+    /// The `prefix.name` settings as `(name, value)` pairs, such as `env`.
     pub fn nested<'a>(&'a self, prefix: &str) -> impl Iterator<Item = (&'a str, &'a str)> {
         let prefix = format!("{prefix}.");
         self.settings
@@ -93,8 +87,7 @@ impl Session {
 const PAUSE: &str = "pause";
 
 /// Group `shots` into the sessions a backend can run, dropping what is
-/// already captured. `have` is a predicate rather than a directory, so the
-/// planner reads no filesystem and a test writes none.
+/// captured: `have`, a predicate, so the planner reads no filesystem.
 pub fn sessions(shots: &[PlannedShot], have: &dyn Fn(&Hash) -> bool) -> Vec<Session> {
     let mut out: Vec<Session> = Vec::new();
 
@@ -126,13 +119,11 @@ pub fn sessions(shots: &[PlannedShot], have: &dyn Fn(&Hash) -> bool) -> Vec<Sess
     }
 
     for session in &mut out {
-        // Shots after the last wanted one are not run: they lead nowhere
-        // anyone is looking, and a tape's sleeps are real seconds.
+        // Shots after the last wanted one lead nowhere: not run.
         if let Some(last) = session.shots.iter().rposition(|s| s.wanted) {
             session.shots.truncate(last + 1);
         }
     }
-    // A session with nothing to keep is a session with nothing to do.
     out.retain(|s| s.wanted() > 0);
     out
 }
@@ -220,10 +211,14 @@ pub trait CaptureBackend {
     /// The scene adapter whose shots this backend speaks.
     fn adapter(&self) -> &'static str;
 
-    /// Why this backend cannot run on this machine, if it cannot. Asked
-    /// first, so `build` reports it instead of failing mid-session.
+    /// Why it cannot run here, if it cannot: asked before a session starts.
     fn unavailable(&self) -> Option<String> {
         None
+    }
+
+    /// What it runs, as `teleprompt setup` names it: programs and packages.
+    fn needs(&self) -> &'static [&'static str] {
+        &[]
     }
 
     /// Run `session`, writing a clip into `out_dir` for each wanted shot.
@@ -252,8 +247,7 @@ impl CaptureRegistry {
         self
     }
 
-    /// The backend for an adapter. `None` where this build records nothing of
-    /// that kind, which the caller reports differently from
+    /// The backend for an adapter; `None` where this build has none, unlike
     /// [`CaptureBackend::unavailable`].
     pub fn for_adapter(&self, adapter: &str) -> Option<&dyn CaptureBackend> {
         self.backends

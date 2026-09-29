@@ -15,6 +15,7 @@ fn script(stale: &[bool]) -> Script {
                 recorded: !stale,
                 stale,
                 said: None,
+                said_diff: Vec::new(),
             })
             .collect(),
         shots: Vec::new(),

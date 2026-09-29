@@ -77,6 +77,10 @@ impl CaptureBackend for RemotionRender {
         teleprompt_capture::tool::missing(&[&self.node])
     }
 
+    fn needs(&self) -> &'static [&'static str] {
+        &["node", "remotion"]
+    }
+
     fn capture(
         &self,
         session: &Session,
