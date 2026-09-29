@@ -277,6 +277,9 @@ enum Command {
     /// after another line, `stretch=`. A shot's edit never changes a line;
     /// `said` rewords one, to keep its take. Nothing is written if the
     /// script would then not compile.
+    // Left out of `--help`: the apps call it for a drag, and a person
+    // writes the attributes.
+    #[command(hide = true)]
     Edit {
         script: PathBuf,
         #[command(subcommand)]

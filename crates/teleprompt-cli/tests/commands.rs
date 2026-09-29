@@ -438,3 +438,21 @@ fn an_absurd_lead_in_is_a_validation_error_not_a_panic() {
     let joined = errors.join("\n");
     assert!(joined.contains("lead_in"), "{joined}");
 }
+
+/// `edit` is how the apps write a drag into the script: callable, but not
+/// among the commands a person is shown.
+#[test]
+fn edit_runs_but_is_not_listed() {
+    let help = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .arg("--help")
+        .output()
+        .unwrap();
+    let listed = String::from_utf8_lossy(&help.stdout);
+    assert!(listed.contains("check"), "{listed}");
+    assert!(!listed.contains("\n  edit "), "{listed}");
+    let own = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .args(["edit", "--help"])
+        .output()
+        .unwrap();
+    assert!(own.status.success());
+}
