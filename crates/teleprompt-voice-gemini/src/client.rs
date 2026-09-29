@@ -88,6 +88,30 @@ impl Client {
         self.audio(&answer)
     }
 
+    /// The model's display name, if the key opens it. Costs no synthesis.
+    pub async fn model_name(&self) -> Result<String, VoiceError> {
+        let url = format!("{}/v1beta/models/{}", self.cfg.base_url, self.cfg.model);
+        let reply = self
+            .http
+            .get(&url)
+            .header("x-goog-api-key", self.key()?)
+            .send()
+            .await
+            .map_err(|e| self.unsent(&e))?;
+        let status = reply.status();
+        let answer: Value = reply
+            .json()
+            .await
+            .map_err(|e| self.fail(&format!("answered {status} with no JSON: {e}")))?;
+        if !status.is_success() {
+            return Err(self.refused(status.as_u16(), &answer));
+        }
+        Ok(answer["displayName"]
+            .as_str()
+            .unwrap_or(&self.cfg.model)
+            .to_string())
+    }
+
     fn unsent(&self, e: &reqwest::Error) -> VoiceError {
         if e.is_timeout() {
             self.fail(&format!(

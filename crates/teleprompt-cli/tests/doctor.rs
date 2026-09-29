@@ -384,3 +384,28 @@ async fn the_probe_line_names_the_model_the_cache_is_keyed_on() {
     );
     assert!(probe.detail.contains(&stub.base_url), "{}", probe.detail);
 }
+
+/// Gemini has no voice list to count, so doctor asks whether the key opens
+/// the model; a missing key names the variable to set.
+#[tokio::test]
+async fn a_gemini_project_probes_its_key() {
+    let backends = |key: &str| {
+        BTreeMap::from([(
+            "gemini".to_string(),
+            serde_yaml::from_str(&format!(
+                "base_url: \"http://127.0.0.1:1\"\napi_key_env: \"{key}\""
+            ))
+            .unwrap(),
+        )])
+    };
+    let project = project_with_backend("gemini", backends("CARGO_PKG_NAME"));
+    let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
+    let line = report.voice_probe.expect("probe ran").detail;
+    assert!(line.contains("cannot reach http://127.0.0.1:1"), "{line}");
+    assert!(report.ok, "unreachable is a warning, not an error");
+
+    let project = project_with_backend("gemini", backends("TELEPROMPT_NO_SUCH_KEY_VAR"));
+    let report = doctor_report_with(&SceneRegistry::with_builtins(), Some(&project)).await;
+    let line = report.voice_probe.expect("probe ran").detail;
+    assert!(line.contains("TELEPROMPT_NO_SUCH_KEY_VAR"), "{line}");
+}

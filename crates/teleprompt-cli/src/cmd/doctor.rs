@@ -214,6 +214,20 @@ async fn probe_configured_backend(backends: &Backends, backend_id: &str) -> Opti
     if let Some(voicebox) = backends.voicebox(backend_id) {
         return Some(probe_voicebox(voicebox, backend_id).await);
     }
+    if let Some(gemini) = backends.gemini(backend_id) {
+        let detail = match tokio::time::timeout(PROBE_TIMEOUT, gemini.check()).await {
+            Ok(Ok(line)) => line,
+            Ok(Err(e)) => e.to_string(),
+            Err(_) => format!(
+                "unreachable (no response within {}ms)",
+                PROBE_TIMEOUT.as_millis()
+            ),
+        };
+        return Some(VoiceProbe {
+            backend: backend_id.to_string(),
+            detail,
+        });
+    }
     let kokoro = backends.kokoro(backend_id)?;
     let url = kokoro.base_url().to_string();
     let detail = match tokio::time::timeout(PROBE_TIMEOUT, kokoro.voices()).await {

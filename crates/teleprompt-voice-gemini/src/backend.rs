@@ -27,6 +27,16 @@ impl GeminiVoice {
     pub fn concurrency(&self) -> usize {
         self.client.config().concurrency
     }
+
+    /// For `doctor`: the address, and whether the key opens the model.
+    pub async fn check(&self) -> Result<String, VoiceError> {
+        let name = self.client.model_name().await?;
+        Ok(format!(
+            "{} — key accepted, {name} ({})",
+            self.client.config().base_url,
+            self.version
+        ))
+    }
 }
 
 #[async_trait]

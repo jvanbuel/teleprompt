@@ -179,6 +179,12 @@ impl Backends {
         }
     }
 
+    /// The concrete Gemini handle, for `doctor`'s key check; only when `id`
+    /// is `gemini` and it constructed.
+    pub fn gemini(&self, id: &str) -> Option<&Arc<GeminiVoice>> {
+        self.gemini.as_ref().filter(|_| id == "gemini")
+    }
+
     /// The concrete Voicebox handle, for its profiles, concurrency and
     /// address; only when `id` is `voicebox` and it constructed.
     pub fn voicebox(&self, id: &str) -> Option<&Arc<VoiceboxVoice>> {
@@ -194,10 +200,7 @@ impl Backends {
         self.kokoro(id)
             .map(|k| k.concurrency())
             .or_else(|| self.voicebox(id).map(|v| v.concurrency()))
-            .or_else(|| {
-                let gemini = self.gemini.as_ref().filter(|_| id == "gemini");
-                gemini.map(|g| g.concurrency())
-            })
+            .or_else(|| self.gemini(id).map(|g| g.concurrency()))
             .unwrap_or(1)
     }
 

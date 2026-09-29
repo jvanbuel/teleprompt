@@ -142,7 +142,8 @@ speaking the old audio from the cache; give the new one a new name.
 the narration is sent there, and your key pays for it. Make a key at
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and put
 it in `GEMINI_API_KEY`. It's read only when a line is spoken, so `check`,
-`plan` and `diff` need none.
+`plan` and `diff` need none. `teleprompt doctor` asks whether the key
+opens the model, which costs no speech.
 
 ```toml
 [voice]
