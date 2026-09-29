@@ -29,6 +29,16 @@ pub trait Screen {
     fn title(&mut self) -> Result<String, String>;
 }
 
+/// Whether any shot of the session moves the pointer. One that never does
+/// is recorded without it: a still pointer over the app is clutter.
+pub fn uses_pointer(session: &Session) -> bool {
+    session.shots.iter().any(|shot| {
+        shot.source
+            .lines()
+            .any(|l| matches!(classify(l), Ok(Action::Pointer { .. })))
+    })
+}
+
 /// A shot that failed, and why.
 pub type Failure = (ShotId, String);
 
@@ -356,6 +366,18 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn the_pointer_is_drawn_only_where_a_block_moves_it() {
+        assert!(!uses_pointer(&session(&[
+            ("Key a\n", 100),
+            ("Sleep 1s\n", 100)
+        ])));
+        assert!(uses_pointer(&session(&[
+            ("Key a\n", 100),
+            ("Click 1 2\n", 100)
+        ])));
     }
 
     #[test]

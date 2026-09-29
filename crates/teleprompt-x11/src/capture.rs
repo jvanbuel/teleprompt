@@ -6,7 +6,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
-use teleprompt_desktop::run::{cut_clips, failed, get_ready, play, Failure, Reel};
+use teleprompt_desktop::run::{cut_clips, failed, get_ready, play, uses_pointer, Failure, Reel};
 
 use crate::xdo::{xdotool, Window};
 use crate::ADAPTER;
@@ -101,7 +101,7 @@ impl CaptureBackend for X11Render {
             "-f",
             "x11grab",
             "-draw_mouse",
-            "1",
+            if uses_pointer(session) { "1" } else { "0" },
             "-framerate",
             &frame.fps.to_string(),
             "-video_size",
@@ -200,9 +200,9 @@ impl X11Render {
             &origin.1.to_string(),
         ])?;
         run(&["windowactivate", "--sync", &id]).or_else(|_| run(&["windowfocus", &id]))?;
-        // Parked on the window's last pixel, all but out of the picture,
-        // until a block moves it: a still pointer over the app is clutter.
-        let pointer = (origin.0 + w - 1, origin.1 + h - 1);
+        // Where a block's first glide starts; drawn only in a session that
+        // moves it (`uses_pointer`).
+        let pointer = (origin.0 + w / 2, origin.1 + h / 2);
         run(&["mousemove", &pointer.0.to_string(), &pointer.1.to_string()])?;
         Ok(Window {
             xdotool: self.xdotool.clone(),

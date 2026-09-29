@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
-use teleprompt_desktop::run::{cut_clips, failed, get_ready, play, Failure, Reel};
+use teleprompt_desktop::run::{cut_clips, failed, get_ready, play, uses_pointer, Failure, Reel};
 
 use crate::jxa::{self, Process, Window};
 use crate::ADAPTER;
@@ -124,9 +124,9 @@ impl CaptureBackend for MacosRender {
             "-f",
             "avfoundation",
             "-capture_cursor",
-            "1",
+            if uses_pointer(session) { "1" } else { "0" },
             "-capture_mouse_clicks",
-            "1",
+            if uses_pointer(session) { "1" } else { "0" },
             "-framerate",
             &frame.fps.to_string(),
             "-i",
