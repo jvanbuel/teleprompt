@@ -12,3 +12,6 @@ shot.tape
 # insta writes these beside a snapshot when one differs; they are a
 # review artefact, never a committed one.
 *.snap.new
+
+# The desktop example records takes into its project on every capture.
+/examples/desktop/takes/

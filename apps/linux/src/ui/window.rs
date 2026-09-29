@@ -702,6 +702,9 @@ impl Window {
         self.render();
         self.play();
         self.w.stack.set_visible_child_name("ready");
+        // Named for the window switcher, once there is a script to read.
+        self.window
+            .set_title(Some(&format!("{} — Teleprompt", self.w.title.title())));
         self.w.glass.view.grab_focus();
         self.show_status();
         self.show_record();
@@ -1730,6 +1733,7 @@ impl Window {
                 .set_label(&format!("Reopen {}", file_name(last)));
         }
         self.w.stack.set_visible_child_name("welcome");
+        self.window.set_title(Some("Teleprompt"));
         self.show_record();
     }
 

@@ -1,0 +1,38 @@
+# A tour of teleprompt's own Linux app, recorded by driving the app on a
+# virtual display, and spoken by Kokoro. Run from the repository root,
+# with `teleprompt-gtk` on PATH and a `listen` build of teleprompt for it
+# to run (`TELEPROMPT_BIN`, `TELEPROMPT_MODELS`; see apps/linux/README.md):
+#
+#   cargo run -- build examples/desktop/scripts/tutorial.md
+[locales]
+source = "en"
+targets = []
+
+[voice]
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 60000
+concurrency = 2
+
+# The app on its welcome page, as a first run sees it.
+[scene.welcome]
+adapter = "x11"
+command = "teleprompt-gtk"
+env = { GSK_RENDERER = "cairo", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/welcome" }
+
+# The app with a script open. The take it records is the test recording
+# of someone reading acme.md's first two lines, so the take is the same on
+# every capture; takes from an earlier capture are removed first.
+[scene.app]
+adapter = "x11"
+command = "sh -c 'rm -rf examples/desktop/takes && exec teleprompt-gtk examples/desktop/scripts/acme.md'"
+# The app loads its speech model before it shows the script; the video
+# starts once the window's title names it.
+ready = "acme.md — Teleprompt"
+launch_timeout_ms = 90000
+settle_ms = 800
+env = { GSK_RENDERER = "cairo", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/app", TELEPROMPT_MIC = "filesrc location=crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav ! wavparse" }
