@@ -521,9 +521,25 @@ fn runtime_failure(e: impl ToString) -> Outcome {
 }
 
 /// Prints a report: pretty JSON for `--format json`, otherwise `human`.
+/// A report. As JSON it says `ok`, the one key every report has for a
+/// script to test: whether the command exits 0.
 fn emit(format: Format, report: &impl Serialize, human: &str) {
+    emit_ok(format, report, human, true);
+}
+
+fn emit_ok(format: Format, report: &impl Serialize, human: &str, ok: bool) {
+    let mut value = serde_json::to_value(report).unwrap();
+    if let serde_json::Value::Object(fields) = &mut value {
+        fields.entry("ok").or_insert(ok.into());
+    }
+    emit_data(format, &value, human);
+}
+
+/// A document, printed as it is written to disk or read by other tools:
+/// a timeline, a manifest, a list.
+fn emit_data(format: Format, data: &impl Serialize, human: &str) {
     match format {
-        Format::Json => println!("{}", serde_json::to_string_pretty(report).unwrap()),
+        Format::Json => println!("{}", serde_json::to_string_pretty(data).unwrap()),
         Format::Human => print!("{human}"),
     }
 }
@@ -549,7 +565,7 @@ fn run_record(format: Format, args: RecordArgs) -> Run {
                 )
             })
             .collect();
-        emit(format, &tools, &human);
+        emit_data(format, &tools, &human);
         return Ok(Outcome::Ok);
     }
     let Some(script) = &args.script else {
@@ -780,7 +796,7 @@ fn run_plan_check(format: Format, args: &ScriptArgs) -> Run {
     let project = project_for(&args.script)?;
     let d = plan::run_plan_check(&project, &args.script, &args.locale(&project))
         .map_err(Outcome::ValidationError)?;
-    emit(format, &d, &format!("{}\n", d.render()));
+    emit_ok(format, &d, &format!("{}\n", d.render()), d.is_empty());
     Ok(if !d.is_empty() {
         Outcome::Drift
     } else {
@@ -832,7 +848,7 @@ fn run_plan(format: Format, args: &ScriptArgs) -> Run {
     let project = project_for(&args.script)?;
     let out = plan::run_plan(&project, &args.script, &args.locale(&project))
         .map_err(Outcome::ValidationError)?;
-    emit(format, &out.timeline, &plan::render_plan(&out));
+    emit_data(format, &out.timeline, &plan::render_plan(&out));
 
     let narrated = out
         .timeline
@@ -929,8 +945,8 @@ fn run_dub(format: Format, args: &ScriptArgs, out: &std::path::Path, check: bool
     ))?;
     warn(&result.warnings);
     match &result.drift {
-        Some(d) => emit(format, d, &d.render()),
-        None => emit(format, &result.manifest, &dub::render_dub(&result)),
+        Some(d) => emit_ok(format, d, &d.render(), d.is_empty()),
+        None => emit_data(format, &result.manifest, &dub::render_dub(&result)),
     }
     Ok(if result.drift.as_ref().is_some_and(|d| !d.is_empty()) {
         Outcome::Drift

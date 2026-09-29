@@ -778,6 +778,11 @@ to show as it goes: `{"event": "progress", "stage": "voice" | "capture" |
 A validation error names the file, line and column, quotes the line, and
 says what was expected.
 
+With `--format json`, every report is an object with `ok`, true exactly
+when the exit code is 0, and a failure is `{"ok": false, "errors": [...]}`.
+Documents are printed as they are written and carry no `ok`: the timeline
+`plan` prints, the manifest `dub` writes, and `record --tools`' list.
+
 ## Testing
 
 - The scheduler, parser, ids, config, cache keys and diff are pure, and

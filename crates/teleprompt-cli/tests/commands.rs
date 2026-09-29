@@ -504,3 +504,39 @@ fn a_removed_command_names_its_replacement() {
         assert!(said.contains(instead), "{args:?}: {said}");
     }
 }
+
+/// Every JSON report says `ok`, true exactly when the command exits 0, so a
+/// script can test one key; the timeline `plan` prints is a document, not a
+/// report, and is printed as it is committed.
+#[test]
+fn every_json_report_says_ok() {
+    let dir = tempdir();
+    let json = |args: &[&str]| {
+        let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+            .current_dir(&dir)
+            .args(["--format", "json"])
+            .args(args)
+            .output()
+            .unwrap();
+        let v: serde_json::Value =
+            serde_json::from_slice(&out.stdout).unwrap_or_else(|e| panic!("{args:?}: {e}"));
+        (out.status.code(), v)
+    };
+    let (code, new) = json(&["new", "p"]);
+    assert_eq!((code, &new["ok"]), (Some(0), &serde_json::json!(true)));
+    let script = "p/scripts/demo.md";
+    let (_, plan) = json(&["plan", script]);
+    assert!(plan.get("ok").is_none(), "the timeline is a document");
+    let (code, drift) = json(&["plan", "--check", script]);
+    assert_eq!((code, &drift["ok"]), (Some(3), &serde_json::json!(false)));
+    std::fs::create_dir_all(dir.join("p/timelines")).unwrap();
+    std::fs::write(
+        dir.join("p/timelines/demo.en.json"),
+        serde_json::to_string(&plan).unwrap(),
+    )
+    .unwrap();
+    let (code, clean) = json(&["plan", "--check", script]);
+    assert_eq!((code, &clean["ok"]), (Some(0), &serde_json::json!(true)));
+    let (code, edit) = json(&["edit", script, "hold", "welcome-a"]);
+    assert_eq!((code, &edit["ok"]), (Some(0), &serde_json::json!(true)));
+}
