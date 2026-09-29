@@ -411,6 +411,18 @@ enum Command {
         #[arg(long)]
         cache_max_mb: Option<u64>,
     },
+    /// Now `plan --check`; says so rather than being unknown.
+    #[command(hide = true)]
+    Diff {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
+    /// Now `prompt --preview`; says so rather than being unknown.
+    #[command(hide = true)]
+    Serve {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
 }
 
 /// A render's progress, each percent of it: to a human at a terminal as a
@@ -662,8 +674,17 @@ fn run_edit_cmd(format: Format, script: &Path, edit: EditCommand) -> Run {
     Ok(Outcome::Ok)
 }
 
+/// A command that was folded into another: what to type now.
+fn replaced(old: &str, new: &str) -> Outcome {
+    Outcome::ValidationError(vec![format!(
+        "`teleprompt {old}` is now `teleprompt {new}`"
+    )])
+}
+
 fn run(command: Command, format: Format) -> Run {
     match command {
+        Command::Diff { .. } => Err(replaced("diff", "plan --check")),
+        Command::Serve { .. } => Err(replaced("serve", "prompt --preview")),
         Command::New { path } => {
             let report = NewReport {
                 created: new::scaffold(&path).map_err(runtime_failure)?,

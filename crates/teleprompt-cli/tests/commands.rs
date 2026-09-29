@@ -486,3 +486,21 @@ fn plan_check_exits_3_on_drift_and_0_once_committed() {
         String::from_utf8_lossy(&check.stdout)
     );
 }
+
+/// The commands `plan --check` and `prompt --preview` replaced say so,
+/// whatever they are given, rather than being unknown.
+#[test]
+fn a_removed_command_names_its_replacement() {
+    for (args, instead) in [
+        (&["diff", "demo.md", "--exit-code"][..], "plan --check"),
+        (&["serve", "demo.md", "--port", "0"][..], "prompt --preview"),
+    ] {
+        let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+            .args(args)
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(2), "{args:?}");
+        let said = String::from_utf8_lossy(&out.stderr);
+        assert!(said.contains(instead), "{args:?}: {said}");
+    }
+}
