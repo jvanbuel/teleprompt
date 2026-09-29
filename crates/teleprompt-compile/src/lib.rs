@@ -21,6 +21,7 @@ use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, P
 use teleprompt_voice::takes::{TakeMeta, Takes};
 use teleprompt_voice::{DurationEstimator, SynthRequest, WordTiming};
 
+pub mod length;
 pub mod manifest;
 
 /// Everything `compile` needs about voice, and deliberately no backend, so
@@ -446,6 +447,14 @@ pub fn compile(
     // Cache warnings first: they explain the scheduler's numbers.
     let mut warnings = walker.warnings;
     warnings.extend(scheduling_warnings);
+    if let Some(length) = program.config.timing.length_ms {
+        warnings.extend(length::over_length(
+            &timeline,
+            &walker.narration,
+            &program.chapters,
+            length.ms(),
+        ));
+    }
     Ok(CompileOutput {
         timeline,
         warnings,

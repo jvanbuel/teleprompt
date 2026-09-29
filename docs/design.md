@@ -489,6 +489,11 @@ stretched in time by `teleprompt_voice::stretch`, which keeps pitch; the
 cache keeps the voice as it was synthesized or recorded, so changing a
 tempo costs no synthesis.
 
+`timing.length_ms`, in front matter or `teleprompt.toml`, is the whole
+video's: `check` warns when the timeline runs over it, saying how much of
+the time is fixed by pictures and how much is narration, and about how
+many words to cut.
+
 ### Cues
 
 `cue="phrase"` on a `concurrent` block starts the action when the line

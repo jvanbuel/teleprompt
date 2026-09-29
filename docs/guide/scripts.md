@@ -43,8 +43,10 @@ the timeline, so give ids to lines you'll keep editing.
 ## Pairing and policies
 
 A line and the block right after it form one **item**. The block's
-`policy=` decides how the two share time. Narration is never sped up,
-slowed down or cut. Only the action adapts.
+`policy=` decides how the two share time, and which of them leads. The
+line leads unless you say otherwise: it's as long as it takes to say, and
+the action adapts. Narration is never cut, and only `fit-line` changes its
+speed.
 
 | policy | what happens |
 |---|---|
@@ -52,6 +54,7 @@ slowed down or cut. Only the action adapts.
 | `concurrent` | The action runs during the line. `align=start` (default), `end` or `center` places the shorter one within the longer. `align` means nothing to the other policies, so there it's an error. |
 | `fit-action` | The action is sped up or slowed down to last exactly as long as the line, between `min_stretch` (0.33) and `max_stretch` (3.0) times its own pace. |
 | `trim-action` | An action longer than its line is cut to the line's length, with a warning when it's more than `trim_warn_above` (2.0) times too long. |
+| `fit-line` | The picture leads: it keeps its length, and the line is played faster or slower to fit it. See [below](#led-by-the-picture). |
 
 Re-timing needs an adapter that can rewrite its source: tapes and
 recordings can, while scripts and compositions take their line's length
@@ -60,9 +63,46 @@ anyway.
 `stretch=` re-times the action as you say rather than to its line:
 `stretch=1.5` runs its shots half as long again, `stretch=0.8` a fifth
 faster, between `min_stretch` and `max_stretch`. It goes with `hold` and
-`concurrent`; `fit-action` and `trim-action` set the pace themselves. The
-narration is never stretched, only the action, and only one that states
-its own length.
+`concurrent`; `fit-action`, `trim-action` and `fit-line` set the pace
+themselves. `stretch=` never touches the narration, only the action, and
+only one that states its own length.
+
+## Led by the picture
+
+Some pictures have a length you can't change: a recorded terminal
+session, an animation, a clip cut to music. `policy=fit-line` makes the
+picture lead:
+
+````markdown
+Deployment is one command, and it streams progress as it goes. {#deploy}
+
+```teleprompt scene=cast policy=fit-line
+select #3
+```
+````
+
+The item is as long as the picture, and the line is played at the tempo
+that fits it, keeping its pitch: between `min_line_speed` (0.9) and
+`max_line_speed` (1.15) times its own pace, or `min_take_speed` (0.95) and
+`max_take_speed` (1.08) for a line you recorded, since a real voice sounds
+stretched sooner. Past a bound, `check` warns and says about how many
+words to cut:
+
+```
+warning: deploy: the line runs 4900ms against the 3700ms its picture leaves:
+         1.32x, past max_line_speed 1.15; cut about 2 of its 11 words
+```
+
+A picture must state its length for this. A shot that doesn't, such as a
+Playwright script, takes one with `budget=`: `policy=fit-line budget=6.5s`.
+`cue=` and `align=` place an action against its line, so they're errors
+with `fit-line`. A script can mix both kinds of items freely: a slide held
+while you speak, then a recording your next line has to fit.
+
+For a video with a set length, say 60 seconds, set `timing.length_ms:
+60000`. When the timeline runs over, `check` says by how much, how much of
+it is held by `fit-line` pictures (which rewording can't shorten), about
+how many words of the rest to cut, and how long each chapter runs.
 
 ## Editing from a timeline
 
@@ -158,7 +198,7 @@ and a `pause`). The same limit applies to the `_ms` settings in
 | on | keys |
 |---|---|
 | a line | `voice.backend`, `voice.voice`, `voice.speed`, `lead_in`, `tail`, `lang` |
-| a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `stretch`, `trim_warn_above`, `max_stretch`, `min_stretch`, `review` |
+| a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `stretch`, `budget`, `trim_warn_above`, `max_stretch`, `min_stretch`, `review` |
 
 `include=path` takes the block's body from a file, so a tape or a
 Playwright spec stays a real file its own tools can run.
@@ -179,7 +219,7 @@ Settings merge from these layers, with later ones winning:
 | section | keys | defaults |
 |---|---|---|
 | `voice` | `source`, `backend`, `voice`, `speed`, `pronounce` | `synthetic`, `null`, none, `1.0` |
-| `timing` | `lead_in_ms`, `tail_ms`, `max_stretch`, `min_stretch`, `trim_warn_above` | `150`, `150`, `3.0`, `0.33`, `2.0` |
+| `timing` | `lead_in_ms`, `tail_ms`, `max_stretch`, `min_stretch`, `trim_warn_above`, `min_line_speed`, `max_line_speed`, `min_take_speed`, `max_take_speed`, `length_ms` | `150`, `150`, `3.0`, `0.33`, `2.0`, `0.9`, `1.15`, `0.95`, `1.08`, none |
 | `output` | `resolution`, `fps`, `transition` | `[1920, 1080]`, `30`, see above |
 | `scene.<name>` | `adapter`, plus the adapter's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |
 | `backends.<id>` | the backend's own settings, only in `teleprompt.toml` | |

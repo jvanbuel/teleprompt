@@ -70,6 +70,8 @@ pub struct TimingConfig {
     pub max_line_speed: f64,
     pub min_take_speed: f64,
     pub max_take_speed: f64,
+    /// The whole video's length, which `check` warns past.
+    pub length_ms: Option<DurationMs>,
 }
 
 /// The shape of the rendered video.
@@ -240,6 +242,7 @@ impl Default for Config {
                 max_line_speed: 1.15,
                 min_take_speed: 0.95,
                 max_take_speed: 1.08,
+                length_ms: None,
             },
             transition: TransitionConfig {
                 kind: TransitionKind::Crossfade,
@@ -331,6 +334,7 @@ pub struct PartialTiming {
     pub max_line_speed: Option<f64>,
     pub min_take_speed: Option<f64>,
     pub max_take_speed: Option<f64>,
+    pub length_ms: Option<DurationMs>,
     /// Renamed to `trim_warn_above`. Read only to say so: as an unknown
     /// field it would fail without naming the new key.
     #[serde(default, deserialize_with = "renamed_max_speedup")]
@@ -592,6 +596,9 @@ impl Config {
                 set!(c.timing.max_line_speed, t.max_line_speed);
                 set!(c.timing.min_take_speed, t.min_take_speed);
                 set!(c.timing.max_take_speed, t.max_take_speed);
+                if t.length_ms.is_some() {
+                    c.timing.length_ms = t.length_ms;
+                }
             }
             if let Some(o) = &layer.output {
                 // A resolution is a pair or it is nothing: half of one is
