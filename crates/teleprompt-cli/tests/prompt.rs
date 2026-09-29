@@ -760,8 +760,9 @@ fn keeping_what_was_said_without_a_script_file_is_an_error() {
     assert_eq!(answer["type"], "error", "{answer}");
 }
 
-/// Opens the session socket as a page at `origin` would.
-fn session_from(addr: SocketAddr, origin: &str) -> Result<Socket, tungstenite::Error> {
+/// Opens the session socket as a page at `origin` would: the socket, or
+/// the status it was refused with.
+fn session_from(addr: SocketAddr, origin: &str) -> Result<Socket, u16> {
     use tungstenite::client::IntoClientRequest;
     let stream = TcpStream::connect(addr).unwrap();
     let mut request = format!("ws://{addr}/api/v1/session")
@@ -770,12 +771,13 @@ fn session_from(addr: SocketAddr, origin: &str) -> Result<Socket, tungstenite::E
     request
         .headers_mut()
         .insert("Origin", origin.parse().unwrap());
-    tungstenite::client(request, stream)
-        .map(|(ws, _)| ws)
-        .map_err(|e| match e {
-            tungstenite::HandshakeError::Failure(e) => e,
-            tungstenite::HandshakeError::Interrupted(_) => panic!("a blocking socket"),
-        })
+    match tungstenite::client(request, stream) {
+        Ok((ws, _)) => Ok(ws),
+        Err(tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response))) => {
+            Err(response.status().as_u16())
+        }
+        Err(e) => panic!("{e}"),
+    }
 }
 
 /// A browser lets any page open a socket to loopback, so the session is
@@ -784,10 +786,7 @@ fn session_from(addr: SocketAddr, origin: &str) -> Result<Socket, tungstenite::E
 #[test]
 fn a_session_from_another_sites_page_is_refused() {
     let (addr, _dir) = prompting(&[]);
-    match session_from(addr, "https://example.com") {
-        Err(tungstenite::Error::Http(response)) => assert_eq!(response.status(), 403),
-        other => panic!("expected 403, got {:?}", other.map(|_| ())),
-    }
+    assert_eq!(session_from(addr, "https://example.com").err(), Some(403));
     let own = session_from(addr, &format!("http://{addr}"));
     assert!(own.is_ok(), "the prompter's own page opens it");
 }

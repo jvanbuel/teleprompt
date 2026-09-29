@@ -272,12 +272,11 @@ fn respond(stream: &mut TcpStream, status: &str, kind: &str, body: &[u8]) -> std
     stream.flush()
 }
 
-fn handle(
-    stream: &mut TcpStream,
-    state: &Mutex<Preview>,
-    script_name: &str,
-) -> std::io::Result<()> {
-    let mut reader = BufReader::new(&*stream);
+/// The request line, and the `Host` and `Origin` headers.
+type Head = (String, Option<String>, Option<String>);
+
+fn read_head(stream: &TcpStream) -> std::io::Result<Head> {
+    let mut reader = BufReader::new(stream);
     let mut line = String::new();
     reader.read_line(&mut line)?;
     let (mut host, mut origin) = (None, None);
@@ -295,6 +294,15 @@ fn handle(
             }
         }
     }
+    Ok((line, host, origin))
+}
+
+fn handle(
+    stream: &mut TcpStream,
+    state: &Mutex<Preview>,
+    script_name: &str,
+) -> std::io::Result<()> {
+    let (line, host, origin) = read_head(stream)?;
     if let Some(why) = crate::loopback::refused(host.as_deref(), origin.as_deref()) {
         return respond(stream, "403 Forbidden", "text/plain", why.as_bytes());
     }
