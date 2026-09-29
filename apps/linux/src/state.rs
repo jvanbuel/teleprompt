@@ -3,15 +3,18 @@
 
 use std::collections::BTreeSet;
 
+use std::time::Instant;
+
 use crate::api::{Position, Script, ServerMessage};
+use crate::take::Take;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PrompterState {
     pub script: Script,
     /// The next word to be said.
     pub at: Position,
-    /// Whether audio is being sent: a take is under way and not paused.
-    pub listening: bool,
+    /// Where the take is: counting down, running, paused, or none.
+    pub take: Take,
     /// The shot on screen, and the ones to play after it.
     pub playing: Option<String>,
     pub queue: Vec<String>,
@@ -58,7 +61,7 @@ impl PrompterState {
     }
 
     /// A take is starting at line `from`: nothing has played in it yet.
-    pub fn start_take(&mut self, from: usize) {
+    pub fn start_take(&mut self, from: usize, now: Instant) {
         self.at = Position {
             line: from,
             word: 0,
@@ -66,7 +69,7 @@ impl PrompterState {
         self.playing = None;
         self.queue.clear();
         self.started.clear();
-        self.listening = true;
+        self.take.start(now);
         self.status = Status::info(format!("Recording from line {}", from + 1));
     }
 
@@ -85,7 +88,7 @@ impl PrompterState {
                 }
             }
             ServerMessage::Stopped { saved } => {
-                self.listening = false;
+                self.take.stop(Instant::now());
                 self.status = Status::info(match saved.len() {
                     0 => "Nothing was read in full, so nothing was kept".to_string(),
                     1 => format!("Kept 1 line: {}", saved[0]),

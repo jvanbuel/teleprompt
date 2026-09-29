@@ -100,12 +100,6 @@ struct Model {
     /// The socket, for the microphone's thread.
     outlet: Arc<Mutex<Option<mpsc::Sender<Outgoing>>>>,
     mic: Option<Mic>,
-    paused: bool,
-    /// A countdown is running; a second take waits for it.
-    counting: bool,
-    /// The take's running time: what ran before a pause, and since.
-    take_time: Duration,
-    take_since: Option<Instant>,
     media: Option<gtk::MediaFile>,
     /// Screens in windows of their own.
     screens: Vec<gtk::Picture>,
@@ -314,8 +308,6 @@ impl Window {
                 recording: None,
                 tools: Vec::new(),
             });
-            model.take_time = Duration::ZERO;
-            model.take_since = None;
             model.state.status = Status::info(format!("New script: {}", file_name(&script)));
         }
         self.w.title.set_title(&file_name(&script));
@@ -425,9 +417,7 @@ impl Window {
             };
             session.recording = Some(pid);
             let model = &mut *model;
-            model.take_time = Duration::ZERO;
-            model.take_since = Some(Instant::now());
-            model.state.listening = true;
+            model.state.take.start(Instant::now());
             model.state.status = Status::info("Recording: talk as you work");
         }
         let in_terminal = {
@@ -468,14 +458,13 @@ impl Window {
     fn session_ended(self: &Rc<Self>, status: i32) {
         let script = {
             let mut model = self.model.borrow_mut();
-            model.state.listening = false;
+            model.state.take.stop(Instant::now());
             let Some(session) = model.session.as_mut() else {
                 return;
             };
             session.recording = None;
             session.script.clone()
         };
-        self.stop_clock();
         if status == 0 && script.exists() {
             self.model.borrow_mut().session = None;
             self.open(script.clone());
@@ -564,7 +553,7 @@ impl Window {
             }
             Event::Made(g, made) if g == generation => self.made(made),
             Event::Level(rms) => {
-                if self.model.borrow().state.listening {
+                if self.model.borrow().state.take.is_sending() {
                     self.w.tally.set_level(rms);
                 } else {
                     self.w.tally.set_level(0.0);
@@ -647,9 +636,8 @@ impl Window {
             model.socket = Some(socket);
             model.state = PrompterState::default();
             model.state.load(script);
-            // A clock left from a session, or another script, starts over.
-            model.take_time = Duration::ZERO;
-            model.take_since = None;
+            // A clock left from a session, or another script, starts over:
+            // the state is new.
             model.state.status =
                 Status::info("Press Ctrl+Shift+Space to record from here, or click a line");
         }
@@ -860,7 +848,6 @@ impl Window {
                     self.play();
                 }
                 if stopped {
-                    self.stop_clock();
                     self.refresh();
                     // The status bar says what was kept, and the gutter ticks it.
                     self.show_record();
@@ -872,7 +859,7 @@ impl Window {
             }
             Incoming::Closed(Some(why)) => {
                 let mut model = self.model.borrow_mut();
-                model.state.listening = false;
+                model.state.take.stop(Instant::now());
                 model.state.status = Status::error(why);
             }
             Incoming::Closed(None) => {}
@@ -901,7 +888,8 @@ impl Window {
     /// Whether the line the queue is re-recording has been read.
     fn queued_line_read(&self) -> bool {
         let model = self.model.borrow();
-        model.state.listening && model.queue.as_ref().is_some_and(|q| q.read(model.state.at))
+        model.state.take.is_sending()
+            && model.queue.as_ref().is_some_and(|q| q.read(model.state.at))
     }
 
     /// A queued line kept: on to the next, once its take is saved.
@@ -1134,15 +1122,14 @@ impl Window {
     }
 
     fn is_taking(&self) -> bool {
-        let model = self.model.borrow();
-        model.state.listening || model.paused || model.counting
+        self.model.borrow().state.take.is_taking()
     }
 
     /// Starts a take at `line`, after a count of three if that is on.
     pub fn take(self: &Rc<Self>, line: usize) {
         {
             let model = self.model.borrow();
-            if model.socket.is_none() || model.counting {
+            if model.socket.is_none() || model.state.take.is_counting() {
                 return;
             }
         }
@@ -1156,15 +1143,14 @@ impl Window {
             let mic = model.mic.as_ref().expect("opened");
             mic.set_sending(false);
             mic.flush();
-            model.state.listening = false;
-            model.paused = false;
+            model.state.take.stop(Instant::now());
             model.state.at = teleprompt_gtk::api::Position { line, word: 0 };
         }
         self.w.glass.show_position(&self.model.borrow().state);
         if !self.model.borrow().config.countdown() {
             return self.begin_take(line);
         }
-        self.model.borrow_mut().counting = true;
+        self.model.borrow_mut().state.take.count();
         self.model.borrow_mut().state.status =
             Status::info(format!("Recording from line {} in…", line + 1));
         self.show_status();
@@ -1175,14 +1161,15 @@ impl Window {
     fn count(self: &Rc<Self>, line: usize, n: u32) {
         if n == 0 {
             self.w.glass.show_countdown(None);
-            self.model.borrow_mut().counting = false;
+            // Not taking until `begin_take` says so: it may not.
+            self.model.borrow_mut().state.take.stop(Instant::now());
             return self.begin_take(line);
         }
         self.w.glass.show_countdown(Some(n));
         let weak = Rc::downgrade(self);
         glib::timeout_add_local_once(Duration::from_millis(650), move || {
             if let Some(this) = weak.upgrade() {
-                if this.model.borrow().counting {
+                if this.model.borrow().state.take.is_counting() {
                     this.count(line, n - 1);
                 }
             }
@@ -1198,11 +1185,8 @@ impl Window {
             let Some(socket) = model.socket.clone() else {
                 return;
             };
-            model.state.start_take(line);
+            model.state.start_take(line, Instant::now());
             model.state.status = Status::info(format!("Recording from line {}", line + 1));
-            model.paused = false;
-            model.take_time = Duration::ZERO;
-            model.take_since = Some(Instant::now());
             let _ = socket.send(Outgoing::Command(ClientMessage::Start {
                 from: line,
                 rate: RATE,
@@ -1224,8 +1208,8 @@ impl Window {
     pub fn keep(&self) {
         {
             let mut model = self.model.borrow_mut();
-            if model.counting {
-                model.counting = false;
+            if model.state.take.is_counting() {
+                model.state.take.stop(Instant::now());
                 model.state.status =
                     Status::info("Press Ctrl+Shift+Space to record from here, or click a line");
                 drop(model);
@@ -1236,17 +1220,15 @@ impl Window {
             let (Some(mic), Some(socket)) = (model.mic.as_ref(), model.socket.as_ref()) else {
                 return;
             };
-            if !(model.state.listening || model.paused) {
+            if !model.state.take.is_under_way() {
                 return;
             }
             mic.set_sending(false);
             let _ = socket.send(Outgoing::Audio(mic.flush()));
             let _ = socket.send(Outgoing::Command(ClientMessage::Stop));
-            model.state.listening = false;
-            model.paused = false;
+            model.state.take.stop(Instant::now());
             model.state.status = Status::info("Keeping the take…");
         }
-        self.stop_clock();
         self.show_status();
         self.show_record();
     }
@@ -1254,31 +1236,17 @@ impl Window {
     fn toggle_pause(&self) {
         {
             let mut model = self.model.borrow_mut();
-            if model.mic.is_none() || !(model.state.listening || model.paused) {
+            if model.mic.is_none() {
                 return;
             }
-            model.paused = !model.paused;
-            let paused = model.paused;
+            let Some(paused) = model.state.take.toggle_pause(Instant::now()) else {
+                return;
+            };
             model.mic.as_ref().expect("checked").set_sending(!paused);
-            model.state.listening = !paused;
             model.state.status = Status::info(if paused { "Paused" } else { "Recording" });
-            if paused {
-                if let Some(since) = model.take_since.take() {
-                    model.take_time += since.elapsed();
-                }
-            } else {
-                model.take_since = Some(Instant::now());
-            }
         }
         self.show_status();
         self.show_record();
-    }
-
-    fn stop_clock(&self) {
-        let mut model = self.model.borrow_mut();
-        if let Some(since) = model.take_since.take() {
-            model.take_time += since.elapsed();
-        }
     }
 
     fn open_mic(&self) -> Result<(), String> {
@@ -1539,7 +1507,7 @@ impl Window {
     fn show_status(&self) {
         let model = self.model.borrow();
         self.w.tally.set_status(&model.state.status);
-        self.w.tally.set_on_air(model.state.listening);
+        self.w.tally.set_on_air(model.state.take.is_sending());
         let session = self
             .w
             .stack
@@ -1547,16 +1515,16 @@ impl Window {
             .is_some_and(|n| n == "session");
         let keys: &[(&str, &str)] = if session {
             // Before recording, the page itself says what the key does.
-            if model.state.listening {
+            if model.state.take.is_sending() {
                 &[(RECORD_KEY, "Stop")]
             } else {
                 &[]
             }
-        } else if model.counting {
+        } else if model.state.take.is_counting() {
             &[(RECORD_KEY, "Cancel")]
-        } else if model.paused {
+        } else if model.state.take.is_paused() {
             &[(RECORD_KEY, "Keep take"), ("P", "Resume")]
-        } else if model.state.listening {
+        } else if model.state.take.is_sending() {
             &[(RECORD_KEY, "Keep take"), ("P", "Pause")]
         } else if model.socket.is_some() {
             &[
@@ -1577,17 +1545,15 @@ impl Window {
             &[]
         };
         self.w.tally.set_keys(keys);
-        if !model.state.listening {
+        if !model.state.take.is_sending() {
             self.w.tally.set_level(0.0);
         }
     }
 
     fn show_time(&self) {
         let model = self.model.borrow();
-        let running = model.take_since.map_or(Duration::ZERO, |s| s.elapsed());
-        self.w
-            .tally
-            .set_time((model.take_time + running).as_secs_f64());
+        let ran = model.state.take.elapsed(Instant::now());
+        self.w.tally.set_time(ran.as_secs_f64());
     }
 
     /// The header's one action: record, or keep the take under way.
@@ -1655,7 +1621,7 @@ impl Window {
         *model.outlet.lock().unwrap_or_else(|p| p.into_inner()) = None;
         model.mic = None;
         model.client = None;
-        model.counting = false;
+        model.state.take.stop(Instant::now());
         if let Some(media) = model.media.take() {
             media.pause();
         }

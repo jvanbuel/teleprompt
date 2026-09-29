@@ -1,5 +1,7 @@
 mod common;
 
+use std::time::Instant;
+
 use teleprompt_gtk::api::{Position, Script, ServerMessage};
 use teleprompt_gtk::state::{PrompterState, Status, Word};
 
@@ -29,7 +31,7 @@ fn words_before_the_reader_are_said() {
 #[test]
 fn shots_play_in_order_and_reading_on_cuts_them_off() {
     let mut state = loaded();
-    state.start_take(0);
+    state.start_take(0, Instant::now());
     state.apply(reached(0, 3, &["intro#0", "welcome-a#0"]));
     assert_eq!(state.playing.as_deref(), Some("intro#0"));
     assert_eq!(state.playing_clip(), None, "intro was never captured");
@@ -46,23 +48,23 @@ fn shots_play_in_order_and_reading_on_cuts_them_off() {
 #[test]
 fn a_new_take_forgets_what_played() {
     let mut state = loaded();
-    state.start_take(0);
+    state.start_take(0, Instant::now());
     state.apply(reached(0, 3, &["intro#0"]));
-    state.start_take(1);
+    state.start_take(1, Instant::now());
     assert_eq!(state.at, Position { line: 1, word: 0 });
     assert_eq!(state.playing, None);
     assert!(state.started.is_empty());
-    assert!(state.listening);
+    assert!(state.take.is_sending());
 }
 
 #[test]
 fn stopping_says_what_was_kept() {
     let mut state = loaded();
-    state.start_take(0);
+    state.start_take(0, Instant::now());
     state.apply(ServerMessage::Stopped {
         saved: vec!["welcome".into()],
     });
-    assert!(!state.listening);
+    assert!(!state.take.is_taking());
     assert_eq!(state.status, Status::info("Kept 1 line: welcome"));
     state.apply(ServerMessage::Stopped {
         saved: vec!["welcome".into(), "deploy".into()],
