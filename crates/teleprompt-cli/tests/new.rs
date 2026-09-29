@@ -87,7 +87,7 @@ async fn doctor_reports_available_adapters_and_backends() {
 }
 
 /// `ok` is a verdict on the repository, not on the machine. Rendering is
-/// the only thing ffmpeg is needed for, and `check`, `plan`, `diff` and
+/// the only thing ffmpeg is needed for, and `check`, `plan`, `plan --check` and
 /// `dub` all work without one — so a machine with no ffmpeg is a machine
 /// that cannot run `build`, not a project in a bad state.
 #[tokio::test]

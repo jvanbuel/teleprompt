@@ -230,7 +230,7 @@ fn settings_alone_cost_no_time() {
 }
 
 /// A shot whose timing the tape states in full needs no measuring pass —
-/// which is what lets `plan` and `diff` pace a terminal scene offline.
+/// which is what lets `plan` pace a terminal scene offline.
 #[test]
 fn a_tape_that_states_its_timing_estimates_exactly() {
     let v = validated("Set TypingSpeed 10ms\nType \"abc\"\nEnter\nSleep 1s\n");

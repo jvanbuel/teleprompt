@@ -172,7 +172,7 @@ fn every_command_fails_as_before() {
     let commands: &[(&str, &[&str])] = &[
         ("check", &["check"]),
         ("plan", &["plan"]),
-        ("diff", &["diff"]),
+        ("plan-check", &["plan", "--check"]),
         ("dub", &["dub", "--out", "out"]),
         ("build", &["build"]),
         ("capture", &["capture"]),

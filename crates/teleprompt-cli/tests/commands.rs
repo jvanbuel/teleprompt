@@ -132,7 +132,7 @@ fn tempdir() -> teleprompt_testkit::TestDir {
     teleprompt_testkit::test_dir("cmd")
 }
 
-/// `plan` and `diff` must emit a typed, parseable JSON payload on failure too,
+/// `plan` and `plan --check` must emit a typed, parseable JSON payload on failure too,
 /// not just on success — a CI consumer piping `--format json` at a failing
 /// command needs something it can parse. These drive the actual compiled binary
 /// rather than the library functions, since the bug was in `main.rs`'s wiring,
@@ -160,19 +160,20 @@ fn plan_format_json_emits_a_typed_error_payload_on_failure() {
 }
 
 #[test]
-fn diff_format_json_emits_a_typed_error_payload_on_failure() {
+fn plan_check_format_json_emits_a_typed_error_payload_on_failure() {
     let (_dir, p, _s) = project_with(BAD_SCENE);
     let bad = p.root.join("scripts/test.md");
 
     let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
-        .args(["--format", "json", "diff"])
+        .args(["--format", "json", "plan", "--check"])
         .arg(&bad)
         .output()
         .unwrap();
 
     assert!(!output.status.success());
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .expect("diff --format json on a failing script must print parseable JSON on stdout");
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).expect(
+        "plan --check --format json on a failing script must print parseable JSON on stdout",
+    );
     assert_eq!(json["ok"], false);
     let errors = json["errors"].as_array().expect("errors must be an array");
     assert!(errors[0]
@@ -199,7 +200,7 @@ fn every_script_command_works_on_a_bare_filename_from_the_scripts_directory() {
     for (args, what) in [
         (vec!["check"], "check"),
         (vec!["plan"], "plan"),
-        (vec!["diff"], "diff"),
+        (vec!["plan", "--check"], "plan --check"),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
             .args(&args)
@@ -207,8 +208,9 @@ fn every_script_command_works_on_a_bare_filename_from_the_scripts_directory() {
             .current_dir(&scripts)
             .output()
             .unwrap();
+        // Nothing is committed, so `plan --check` reports drift: 3.
         assert!(
-            output.status.success(),
+            matches!(output.status.code(), Some(0 | 3)),
             "`teleprompt {what} test.md` from the script's own directory failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
@@ -455,4 +457,32 @@ fn edit_runs_but_is_not_listed() {
         .output()
         .unwrap();
     assert!(own.status.success());
+}
+
+/// `plan --check` is the drift gate: exit 3 while the committed timeline
+/// differs from the script's, 0 once the plan is committed.
+#[test]
+fn plan_check_exits_3_on_drift_and_0_once_committed() {
+    let (_dir, p, script) = project_with(GOOD);
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+            .args(["--format", "json"])
+            .args(args)
+            .arg(&script)
+            .output()
+            .unwrap()
+    };
+    assert_eq!(run(&["plan", "--check"]).status.code(), Some(3));
+    let plan = run(&["plan"]);
+    assert!(plan.status.success());
+    let committed = p.root.join("timelines/test.en.json");
+    std::fs::create_dir_all(committed.parent().unwrap()).unwrap();
+    std::fs::write(&committed, &plan.stdout).unwrap();
+    let check = run(&["plan", "--check"]);
+    assert_eq!(
+        check.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&check.stdout)
+    );
 }

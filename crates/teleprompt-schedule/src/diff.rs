@@ -78,7 +78,7 @@ pub struct TimelineDiff {
 impl TimelineDiff {
     /// True when nothing an author needs to look at changed. `shift_ms`
     /// counts too: edits such as retuning `output.transition.max_ms` move the
-    /// total without changing any per-item fact, and `diff --exit-code` must
+    /// total without changing any per-item fact, and `plan --check` must
     /// still catch them.
     pub fn is_empty(&self) -> bool {
         self.shift_ms == 0

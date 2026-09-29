@@ -320,15 +320,14 @@ enum Command {
     Record(RecordArgs),
     /// Parse and validate; no side effects, no cost
     Check(ScriptArgs),
-    /// Compile the timeline and print it
-    Plan(ScriptArgs),
-    /// Compare against the committed timeline
-    Diff {
+    /// Compile the timeline and print it, or compare it with the committed one
+    Plan {
         #[command(flatten)]
         args: ScriptArgs,
-        /// Exit 3 when the timeline has drifted
+        /// Compare against the committed timeline instead: print what
+        /// changed, and exit 3 if anything did
         #[arg(long)]
-        exit_code: bool,
+        check: bool,
     },
     /// Serve a live preview that opens on the item that changed
     ///
@@ -728,8 +727,8 @@ fn run(command: Command, format: Format) -> Run {
             Ok(Outcome::Ok)
         }
         Command::Check(args) => run_check(format, &args),
-        Command::Plan(args) => run_plan(format, &args),
-        Command::Diff { args, exit_code } => run_diff(format, &args, exit_code),
+        Command::Plan { args, check: false } => run_plan(format, &args),
+        Command::Plan { args, check: true } => run_plan_check(format, &args),
         Command::Prompt { args, port, model } => {
             let project = project_for(&args.script)?;
             teleprompt_cli::cmd::prompt::run_prompt(
@@ -755,12 +754,12 @@ fn run(command: Command, format: Format) -> Run {
     }
 }
 
-fn run_diff(format: Format, args: &ScriptArgs, exit_code: bool) -> Run {
+fn run_plan_check(format: Format, args: &ScriptArgs) -> Run {
     let project = project_for(&args.script)?;
     let d = diff_cmd::run_diff(&project, &args.script, &args.locale(&project))
         .map_err(Outcome::ValidationError)?;
     emit(format, &d, &format!("{}\n", d.render()));
-    Ok(if exit_code && !d.is_empty() {
+    Ok(if !d.is_empty() {
         Outcome::Drift
     } else {
         Outcome::Ok

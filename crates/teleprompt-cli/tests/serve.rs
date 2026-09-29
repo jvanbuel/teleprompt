@@ -36,7 +36,7 @@ Sleep 1s
 The second paragraph, which the edit in these tests rewrites. {#second}
 
 ```teleprompt scene=terminal policy=concurrent
-Type \"teleprompt diff demo.md\"
+Type \"teleprompt plan --check demo.md\"
 Enter
 ```
 ";

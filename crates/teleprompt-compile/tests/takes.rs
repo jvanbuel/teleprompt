@@ -110,7 +110,7 @@ fn a_take_of_an_edited_line_is_left_out() {
 }
 
 /// Recording a line again changes its audio, as the timeline records it, so
-/// `diff` sees the new take even at the same length.
+/// `plan --check` sees the new take even at the same length.
 #[test]
 fn a_new_take_changes_the_lines_audio() {
     let dir = teleprompt_testkit::test_dir("compile-takes-again");

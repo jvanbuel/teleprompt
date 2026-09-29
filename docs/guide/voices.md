@@ -38,7 +38,7 @@ in front matter gets a warning.
 
 ## When the voice is needed
 
-`check`, `plan` and `diff` never synthesize, never read audio and never open
+`check` and `plan` never synthesize, never read audio and never open
 a socket. They read durations from the cache, which holds real measurements
 once a line has been synthesized and a word-count estimate before that. So
 the whole editing loop works on a laptop with no server running.
@@ -50,7 +50,7 @@ $ teleprompt plan scripts/tour.md --format json | grep duration_source
 
 `dub` does the real synthesis and fills the cache, after which the same
 `plan` is still instant and says `measured`. A timeline committed from a
-cold cache therefore drifts the first time you dub. `diff` reports that as
+cold cache therefore drifts the first time you dub. `plan --check` reports that as
 `now measured` rather than as an edit, and `plan` warns when it emits
 estimates.
 
@@ -71,7 +71,7 @@ A corrupt entry is treated as a miss and replaced on the next dub.
 
 An unreachable, slow or failing server fails `dub` with exit 1, naming the
 URL and the line. It never substitutes silence. `doctor` reports a down
-server as a warning, because `check`, `plan` and `diff` don't need it.
+server as a warning, because `check` and `plan` don't need it.
 
 ## Word timings
 
@@ -141,8 +141,8 @@ speaking the old audio from the cache; give the new one a new name.
 `gemini` speaks with Google's Gemini 3.8 TTS models, which run at Google:
 the narration is sent there, and your key pays for it. Make a key at
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and put
-it in `GEMINI_API_KEY`. It's read only when a line is spoken, so `check`,
-`plan` and `diff` need none. `teleprompt doctor` asks whether the key
+it in `GEMINI_API_KEY`. It's read only when a line is spoken, so `check`
+and `plan` need none. `teleprompt doctor` asks whether the key
 opens the model, which costs no speech.
 
 ```toml

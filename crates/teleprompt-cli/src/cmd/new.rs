@@ -32,7 +32,7 @@ length decides how long the visuals below stay on screen. {#welcome}
 wait 500ms
 ```
 
-Edit that sentence, run `teleprompt diff`, and watch every later transition
+Edit that sentence, run `teleprompt plan --check`, and watch every later transition
 move. That feedback loop is the whole point. {#the-loop}
 
 ```teleprompt scene=mock policy=concurrent

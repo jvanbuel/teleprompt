@@ -3,7 +3,7 @@
 # `scripts/cli.md` narrates the command-line interface: its prose is the
 # voice-over, and its action blocks are VHS tapes running the very commands
 # it describes. `timelines/cli.en.json` is the compiled result, committed so
-# that `teleprompt diff` — and CI — can tell when the manual has drifted
+# that `teleprompt plan --check` — and CI — can tell when the manual has drifted
 # away from the tool.
 [locales]
 source = "en"
@@ -14,6 +14,8 @@ targets = []
 # installed. `null` renders silence of the estimated length; point this at
 # `kokoro` (and start a server) to hear it.
 backend = "null"
+# Said as a word, where a voice would spell out the dashes.
+pronounce = { "--check" = "check" }
 
 [scene.vhs]
 

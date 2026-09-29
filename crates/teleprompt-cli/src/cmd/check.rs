@@ -24,7 +24,7 @@ use crate::voice::Backends;
 /// script is read, so a script's front-matter `backends:` cannot reach them
 /// (it gets a warning instead). The resolved backend is returned so a
 /// synthesizing caller uses the one the cache keys were computed from. It
-/// is kept off `CompileOutput`, which `check`, `plan` and `diff` receive,
+/// is kept off `CompileOutput`, which `check`, `plan` and `plan --check` receive,
 /// to hold docs/design.md#async-boundary.
 pub fn compile_script(
     project: &Project,

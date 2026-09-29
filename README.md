@@ -9,8 +9,8 @@ Compile narrated videos from version-controlled Markdown.
 
 A script's prose is its narration, and its fenced `teleprompt` blocks are
 what the screen shows. The length of the speech sets the pacing, so editing
-a paragraph changes the rhythm of the video, and `teleprompt diff` shows
-exactly how before anything renders.
+a paragraph changes the rhythm of the video, and `teleprompt plan --check`
+shows exactly how before anything renders.
 
 ````markdown
 # Quick start
@@ -47,24 +47,25 @@ needs nothing installed.
 ```bash
 cargo run -- new demo
 cargo run -- plan demo/scripts/demo.md
-cargo run -- diff demo/scripts/demo.md
+cargo run -- plan --check demo/scripts/demo.md
 ```
 
 `new` scaffolds a project with a demo script. `plan` compiles it into a
 timeline and prints one row per item, with its narration length and
-policy. `diff` compares that timeline with the committed one. On a fresh
+policy. `plan --check` compares that timeline with the committed one,
+and exits 3 when they differ. On a fresh
 project nothing is committed yet, so every item shows as `added`.
 
-Commit the timeline, edit a paragraph, and run `diff` again to watch the
+Commit the timeline, edit a paragraph, and run `plan --check` again to watch the
 transitions move:
 
 ```bash
 cargo run -- plan demo/scripts/demo.md --format json > demo/timelines/demo.en.json
 # edit demo/scripts/demo.md
-cargo run -- diff demo/scripts/demo.md
+cargo run -- plan --check demo/scripts/demo.md
 ```
 
-`plan` and `diff` are instant and offline, whatever voice you configure.
+`plan` and `plan --check` are instant and offline, whatever voice you configure.
 When you want to hear the result, `serve` gives you a live preview that
 opens on the item you just changed, and `build` renders the video.
 
@@ -78,8 +79,7 @@ opens on the item you just changed, and `build` renders the video.
 | `translate <script> --to <locale>` | translate the narration, for a video in another language |
 | `import <recording>` | the same, from a cast or tape and a recording of your voice you already have |
 | `check <script>` | parse and validate; no side effects, no cost |
-| `plan <script>` | compile the timeline and print it |
-| `diff <script>` | compare against the committed timeline; `--exit-code` exits 3 on drift |
+| `plan <script>` | compile the timeline and print it; `--check` compares it with the committed one and exits 3 on drift |
 | `serve <script>` | serve a live preview that opens on the item that changed |
 | `prompt <script>` | a prompter that follows your voice, plays its shots as you reach them and records your takes (opt-in build) |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
@@ -128,7 +128,7 @@ cargo run -- dub  manual/scripts/cli.md --out manual/build/narration
 and fails when it no longer matches, so a command that changes can't leave
 its page behind. The committed timeline is compiled from a cold cache,
 with estimated durations any machine reproduces. Dubbing the manual warms
-the cache, so `diff` then reports every line as `now measured`. That drift
+the cache, so `plan --check` then reports every line as `now measured`. That drift
 is expected.
 
 `examples/` holds a complete project for each of Remotion, Slidev,

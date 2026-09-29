@@ -1,5 +1,5 @@
 //! Content-addressed cache for synthesized narration
-//! (`docs/design.md#voice-cache`). `plan` and `diff` read durations from it;
+//! (`docs/design.md#voice-cache`). `plan` and `plan --check` read durations from it;
 //! only `dub` and `build` write to it. It knows nothing about backends.
 
 use std::fmt;

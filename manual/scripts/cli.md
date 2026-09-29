@@ -164,8 +164,8 @@ Sleep 2s
 
 # The feedback loop
 
-Commit the timeline that `plan` produced, and `teleprompt diff` will compare
-the next compile against it. This is the loop the whole tool is built
+Commit the timeline that `plan` produced, and `teleprompt plan --check` will
+compare the next compile against it. This is the loop the whole tool is built
 around. {#commit-the-timeline}
 
 ```teleprompt scene=vhs policy=concurrent
@@ -187,14 +187,14 @@ Enter
 Sleep 1s
 ```
 
-And `diff` tells you exactly how much, before anything is rendered: which
+And `plan --check` tells you exactly how much, before anything is rendered: which
 beats moved, by how long, and what the video now runs to end to end. That
 report is the review surface. It is what a pull request argues about instead
 of arguing about a video file nobody can read. {#the-diff}
 
 ```teleprompt scene=vhs
 Set TypingSpeed 30ms
-Type "teleprompt diff demo/scripts/demo.md"
+Type "teleprompt plan --check demo/scripts/demo.md"
 Enter
 Sleep 3s
 ```
@@ -274,8 +274,8 @@ Enter
 Sleep 3s
 ```
 
-A voice backend that is down is a warning there, not a failure. `check`,
-`plan`, and `diff` never needed it; only `dub` does. That asymmetry is the
+A voice backend that is down is a warning there, not a failure. `check`
+and `plan` never needed it; only `dub` does. That asymmetry is the
 point: the loop you run a hundred times a day stays offline and instant. The
 one command that needs a machine to speak is the only one that asks for
 it. {#offline-by-default}
@@ -295,7 +295,7 @@ step. {#self-hosting}
 
 ```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 30ms
-Type "teleprompt diff manual/scripts/cli.md"
+Type "teleprompt plan --check manual/scripts/cli.md"
 Enter
 Sleep 2s
 ```

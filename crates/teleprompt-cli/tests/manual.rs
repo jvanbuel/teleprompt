@@ -16,7 +16,7 @@
 //! it. A contributor who has run `teleprompt dub manual/scripts/cli.md`
 //! locally has a warm `manual/.teleprompt/cache`, and every narration in it
 //! legitimately becomes `measured` — same numbers under the null backend,
-//! different provenance, and `diff` says so. Compiling in place would fail
+//! different provenance, and `plan --check` says so. Compiling in place would fail
 //! this suite on exactly the machines that had exercised the manual most.
 
 use std::path::{Path, PathBuf};

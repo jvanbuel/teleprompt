@@ -13,7 +13,7 @@ that link to it.
 **Timing is derived, not authored.** A line's spoken length is its
 duration, and the visuals are paced to it. Other programmatic video tools
 have the author write durations. Here the author writes prose. Editing a
-paragraph moves every transition after it, and `plan` and `diff` show that
+paragraph moves every transition after it, and `plan` and `plan --check` show that
 before anything renders. The one exception is a picture whose length is
 fixed, such as a recording or an animation: an item can be led by its
 picture instead ([`fit-line`](#led-by-the-picture)), and its length is the
@@ -32,7 +32,7 @@ edit the prose.
 artifact is content-addressed. An edit costs exactly the recomputation it
 invalidates, and deleting any cache entry costs time, never correctness.
 
-**The inner loop never awaits.** `check`, `plan` and `diff` never
+**The inner loop never awaits.** `check` and `plan` never
 synthesize, read audio or open a socket. They stay instant and offline
 whatever the configured voice or scene needs (see
 [the async boundary](#async-boundary)).
@@ -212,12 +212,12 @@ implementation. Backend authors never implement it.
 
 ### Estimated and measured
 
-`check`, `plan` and `diff` read durations from the voice cache's metadata
+`check` and `plan` read durations from the voice cache's metadata
 and never touch audio bytes. A hit is `measured`. A miss is the estimator's
 prediction, published as `estimated`. `dub` and `build` synthesize every
 miss, so everything they publish is `measured`.
 
-The first `dub` after writing a line therefore moves the timeline. `diff`
+The first `dub` after writing a line therefore moves the timeline. `plan --check`
 reports this as `now measured`, not `text edited`, because the two call
 for different responses. `plan` warns when it emits estimates, since a
 timeline committed from a cold cache drifts on the next dub.
@@ -226,7 +226,7 @@ timeline committed from a cold cache drifts on the next dub.
 
 `compile()` takes a `VoiceContext`: a cache, an estimator and resolved
 settings. None of these can reach a backend, so no expression on the
-`check`, `plan` or `diff` path can call `synthesize`. The boundary is
+`check` or `plan` path can call `synthesize`. The boundary is
 structural. `main` is synchronous, and only `dub`, `build`, `capture`,
 `serve` and `doctor` build a runtime.
 
@@ -269,7 +269,7 @@ since nothing can make them again, so they are committed.
 A take is *current* while its line still reads exactly as it did when it
 was recorded. A current take is the line's voice: its length is measured
 from the sidecar, so `plan` reads no audio, and its hash is the line's
-`audio_hash`, so recording a line again shows in `diff`. The timeline marks
+`audio_hash`, so recording a line again shows in `plan --check`. The timeline marks
 the line `recorded`. Editing the line leaves its take behind, and the line
 is synthesized again until it is re-recorded. Once a project has any
 takes, every command that compiles names the lines it still synthesizes.
@@ -550,7 +550,7 @@ for the other, and a `fit-line` tempo is a `Tempo`, which is never the
 
 ### Diff
 
-`diff` compares the computed timeline with the committed one and names a
+`plan --check` compares the computed timeline with the committed one and names a
 reason for each change: `text edited`, `now measured`, `audio changed`, and
 so on. It also reports what shifted as a consequence. `--exit-code` exits
 3 on drift, which is what lets CI fail a pull request that changed prose
@@ -773,7 +773,7 @@ to show as it goes: `{"event": "progress", "stage": "voice" | "capture" |
 | 0 | success |
 | 1 | runtime failure (IO, network, a subprocess) |
 | 2 | validation error: the script, its config or its arguments |
-| 3 | drift, from `diff --exit-code` or `dub --check` |
+| 3 | drift, from `plan --check` or `dub --check` |
 
 A validation error names the file, line and column, quotes the line, and
 says what was expected.
@@ -783,7 +783,7 @@ says what was expected.
 - The scheduler, parser, ids, config, cache keys and diff are pure, and
   their tests need nothing installed.
 - The `null` voice and the `mock` scene and capture backends are real
-  implementations of their contracts. With them, `check`, `plan`, `diff`
+  implementations of their contracts. With them, `check`, `plan`
   and `dub` run end to end offline.
 - `crates/teleprompt-cli/tests/golden.rs` pins `plan` for every example
   project, and every command's failure output and exit code.

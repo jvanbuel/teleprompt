@@ -167,7 +167,7 @@ async fn warm(
 }
 
 /// What moved between two manifests, as ids the preview can seek to.
-/// Coarser than `diff` on purpose: the preview needs only somewhere to jump.
+/// Coarser than `plan --check` on purpose: the preview needs only somewhere to jump.
 fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
     let mut out = Vec::new();
     for seg in &after.lines {
