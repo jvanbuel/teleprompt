@@ -331,11 +331,7 @@ fn capture_backends() -> Vec<CaptureBackendStatus> {
                 // else (the wrong platform) has nothing for it to install.
                 fix: unavailable
                     .as_ref()
-                    .filter(|_| {
-                        b.needs()
-                            .iter()
-                            .any(|tool| !teleprompt_capture::tool::installed(tool))
-                    })
+                    .filter(|why| why.ends_with(teleprompt_capture::tool::NOT_ON_PATH))
                     .map(|_| format!("teleprompt setup {}", b.adapter())),
                 unavailable,
             }

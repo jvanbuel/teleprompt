@@ -32,12 +32,14 @@ fn the_registry_serves_every_adapter_this_build_ships() {
         r.available(),
         vec![
             "asciinema",
+            "macos",
             "media",
             "mock",
             "playwright",
             "remotion",
             "slidev",
-            "vhs"
+            "vhs",
+            "x11"
         ]
     );
 }

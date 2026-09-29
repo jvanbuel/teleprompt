@@ -13,11 +13,15 @@ pub fn installed(program: &str) -> bool {
         .is_ok()
 }
 
+/// How [`missing`] ends its reason, so a caller can tell a backend held
+/// back by tools from one held back by something else.
+pub const NOT_ON_PATH: &str = " is not on PATH";
+
 /// "`a` and `b` is not on PATH" for the programs that cannot be started,
 /// or `None` when every one can. What `CaptureBackend::unavailable` says.
 pub fn missing(programs: &[&str]) -> Option<String> {
     let absent: Vec<&str> = programs.iter().copied().filter(|p| !installed(p)).collect();
-    (!absent.is_empty()).then(|| format!("{} is not on PATH", absent.join(" and ")))
+    (!absent.is_empty()).then(|| format!("{}{NOT_ON_PATH}", absent.join(" and ")))
 }
 
 /// The last `keep` non-blank lines of `text`, joined with " / ": the part

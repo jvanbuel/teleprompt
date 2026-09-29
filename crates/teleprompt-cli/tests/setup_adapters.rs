@@ -21,6 +21,12 @@ fn setup_covers_every_program_doctor_finds_missing() {
         let Some(why) = backend["unavailable"].as_str() else {
             continue;
         };
+        // Held back by something setup cannot install (macos off a Mac):
+        // doctor says why and offers no `setup`.
+        if !why.ends_with(" is not on PATH") {
+            assert!(backend["fix"].is_null(), "{backend}");
+            continue;
+        }
         let known: Vec<&str> = resolve(&[adapter.to_string()])
             .unwrap()
             .iter()
