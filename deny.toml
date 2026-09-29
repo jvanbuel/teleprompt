@@ -1,0 +1,30 @@
+# What the binaries link may only be permissively licensed, so teleprompt
+# stays MIT and anyone can ship it. Tools teleprompt runs (vhs, ffmpeg,
+# asciinema, Remotion…) are not linked, and not checked here: they are
+# installed by the user and never shipped (docs/design.md#what-teleprompt-ships).
+#
+#   cargo deny --all-features check licenses
+#   cargo deny --manifest-path apps/linux/Cargo.toml check licenses
+
+[graph]
+# Only what a build links, not tests' tools.
+exclude-dev = true
+
+[licenses]
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unlicense",
+    "Unicode-3.0",
+    # Mozilla's root certificates, as webpki-roots carries them.
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9

@@ -739,12 +739,43 @@ says what was expected.
   where it is missing, and CI sets `TELEPROMPT_REQUIRE_*` so a skip there
   is a failure.
 
+## What teleprompt ships
+
+Teleprompt is MIT, and everything in its binaries must let it stay that
+way, so that anyone can install, bundle or ship it without a lawyer. What
+a video needs comes in three tiers.
+
+1. **Built in.** Every adapter, voice backend and recognizer above is
+   teleprompt's own code, in every build; `listen` is a feature only
+   because its native library is large. The crates they link are checked in
+   CI (`deny.toml`, `cargo deny check licenses`) to be permissively
+   licensed: a crate under the GPL, or any license not on the list, fails
+   the build.
+2. **Tools, detected and never shipped.** What an adapter runs, `vhs`,
+   Playwright, `asciinema`, `ffmpeg`, Remotion and Slidev, and what a
+   backend talks to, a Kokoro server or a speech model, are programs and
+   files of their own, under their own licenses: `asciinema` and some
+   `ffmpeg` builds are GPL, and Remotion needs a company license past a
+   team's size. Teleprompt runs the copy the author installed, as a
+   separate program, and links none of them. `doctor` says which are
+   missing, and `teleprompt setup <tool>` says how to install each with the
+   author's own package manager, and its license, and runs that command
+   when asked. **No release artifact, whether binary, app bundle, installer
+   or container image, includes a tool.** One that did would take on the
+   tool's license: a deliberate choice, made in this document first.
+3. **Community plugins, not yet built.** Adapters and voices of other
+   people's, fetched by the author from their own repositories, as Herdr
+   and Obsidian do: an executable and a manifest, speaking JSON on stdin
+   and stdout, installed with a command and listed by a GitHub topic.
+   Teleprompt would host nothing and pass no license on.
+
 ## Not built
 
 Named here so the rest of this document is not read as covering them:
 
 - **Cloned voices.** There is no voice enrollment: a line is recorded or
   synthesized.
-- **Runtime-loaded plugins.** Backends and adapters are compiled in.
+- **Runtime-loaded plugins.** Backends and adapters are compiled in; see
+  [What teleprompt ships](#what-teleprompt-ships) for the plan.
 - **Narration-constrained scheduling**, where a fixed picture sets a
   budget and over-long prose becomes a diagnostic.
