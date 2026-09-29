@@ -58,6 +58,8 @@ struct Preview {
     /// Set when the last save failed to compile. The last manifest that
     /// compiled stays served beside it.
     error: Option<Vec<String>>,
+    /// A save is being compiled and its audio made.
+    building: bool,
 }
 
 #[derive(Serialize)]
@@ -67,6 +69,7 @@ struct State<'a> {
     duration_ms: u64,
     changed: &'a [String],
     error: Option<&'a Vec<String>>,
+    building: bool,
 }
 
 /// What one compile produces for the preview.
@@ -335,10 +338,15 @@ fn handle(
                     duration_ms: p.manifest.duration_ms.ms(),
                     changed: &p.changed,
                     error: p.error.as_ref(),
+                    building: p.building,
                 })
                 .expect("state serializes")
             };
             respond(stream, "200 OK", "application/json", &body)
+        }
+
+        crate::cmd::prompt::FONT_PATH => {
+            respond(stream, "200 OK", "font/woff2", crate::cmd::prompt::FONT)
         }
 
         "/manifest.json" => {
@@ -434,6 +442,7 @@ pub async fn preview_on(
         audio_files: built.audio_files,
         changed: Vec::new(),
         error: None,
+        building: false,
     }));
 
     eprintln!("  watching {}", script.display());
@@ -511,10 +520,13 @@ async fn watch(
         seen = now;
 
         let previous = {
-            let p = state.lock().expect("preview lock");
+            let mut p = state.lock().expect("preview lock");
+            p.building = true;
             p.manifest.clone()
         };
-        match rebuild(&project, &script, &locale, Some(&previous)).await {
+        let built = rebuild(&project, &script, &locale, Some(&previous)).await;
+        state.lock().expect("preview lock").building = false;
+        match built {
             Ok(built) => {
                 let mut p = state.lock().expect("preview lock");
                 p.generation += 1;
@@ -577,6 +589,7 @@ mod tests {
             audio_files: built.audio_files,
             changed: Vec::new(),
             error: None,
+            building: false,
         }));
         let edited = std::fs::read_to_string(&script).unwrap() + "\nOne more line.\n";
         std::fs::write(&script, edited).unwrap();

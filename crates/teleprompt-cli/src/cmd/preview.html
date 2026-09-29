@@ -3,87 +3,197 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>teleprompt preview</title>
+<title>Teleprompt preview</title>
 <style>
+  /* The prompters' design, apps/DESIGN.md, applied to the cut: the picture
+     sits on black like the glass does; the chrome around it is quiet; blue
+     marks what a save moved, because amber is the prompter's next word and
+     red its tally, and neither means anything here. */
+  @font-face {
+    font-family: "Atkinson Hyperlegible Next";
+    src: url("/fonts/atkinson-hyperlegible-next.woff2") format("woff2");
+    font-weight: 200 800;
+  }
   :root {
     color-scheme: dark;
-    --ground: #0b0d10; --panel: #12161b; --rule: #232a33;
-    --ink: #d7dee7; --dim: #8a94a1; --accent: #6cb6ff;
-    --prompt: #7ee0a8; --moved: #febc2e; --bad: #ff8a80;
+    --glass: #000; --ink: #f2f4f7; --moved: #8ab5f7; --missing: #f28b82;
+    --chrome: #17181b; --raised: #202227; --line: #2c2f36;
+    /* Ink at these strengths clears 4.5:1 (text) and 3:1 (shapes) on
+       black and on the chrome. */
+    --dim: rgb(242 244 247 / 0.62); --block: rgb(242 244 247 / 0.42);
+    --face: "Atkinson Hyperlegible Next", system-ui, sans-serif;
     --mono: ui-monospace, SFMono-Regular, "DejaVu Sans Mono", monospace;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--ground); color: var(--ink);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; background: var(--chrome); color: var(--ink);
+    font: 500 15px/1.45 var(--face);
   }
-  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
-  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
-  h1 { margin: 0; font: 500 14px/1.4 var(--mono); color: var(--dim); }
-  h1 b { color: var(--prompt); font-weight: 500; }
-  .gen { margin-left: auto; font: 12px var(--mono); color: var(--dim); }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--line);
+  }
+  h1 { margin: 0; font-size: 15px; font-weight: 700; min-width: 0;
+       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  h1 #script { color: var(--dim); font-weight: 500; }
+  #build { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; color: var(--dim); }
+  /* The build's state as a shape too: a ring while compiling, filled when
+     current, a bar when the save failed. */
+  #build::before {
+    content: ""; width: 9px; height: 9px; border-radius: 50%;
+    border: 1.5px solid currentColor; background: currentColor;
+  }
+  #build.building::before { background: none; }
+  #build.failed { color: var(--missing); }
+  #build.failed::before { border-radius: 1px; height: 3px; }
+  #gen { font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 18px 16px 48px; }
 
   #errors {
-    margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--bad);
-    border-radius: 4px; background: #1b1113; color: var(--bad);
-    font: 12.5px/1.6 var(--mono); white-space: pre-wrap;
+    margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--missing);
+    border-radius: 12px; background: var(--raised);
   }
+  #errors h2 { margin: 0 0 6px; font-size: 15px; color: var(--missing); }
+  #errors pre { margin: 0; font: 13px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word; }
 
   #stage {
-    background: var(--panel); border: 1px solid var(--rule); border-radius: 6px;
-    padding: 14px 16px; min-height: 260px; overflow: hidden;
+    position: relative; aspect-ratio: 16 / 9; background: var(--glass);
+    border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
   }
-  #screen { margin: 0; font: 14px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
-  #screen .p { color: var(--prompt); }
-  #screen .cursor { background: var(--accent); color: var(--ground); }
-  .scene-note { color: var(--dim); font: 12px var(--mono); }
-
-  #caption { min-height: 3.2em; margin: 14px 2px 0; color: var(--ink); }
-  #caption.none { color: var(--dim); }
-
-  .transport { display: flex; align-items: center; gap: 12px; margin: 16px 0 8px; }
-  button {
-    font: 13px var(--mono); color: var(--ink); background: var(--panel);
-    border: 1px solid var(--rule); border-radius: 4px; padding: 6px 12px; cursor: pointer;
+  #screen {
+    position: absolute; inset: 0; margin: 0; padding: 4% 5%;
+    font: clamp(12px, 1.6vw, 20px)/1.5 var(--mono);
+    white-space: pre-wrap; word-break: break-word; overflow: hidden;
   }
-  button:hover { border-color: var(--accent); }
-  .clock { font: 12.5px var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+  #screen .p { color: var(--dim); }
+  #screen .cursor { background: var(--ink); }
+  .scene-note { color: var(--dim); font-family: var(--face); }
+  #frame { position: relative; }
+  #caption {
+    position: absolute; left: 6%; right: 6%; bottom: 5%; margin: 0;
+    text-align: center; font-size: clamp(16px, 2.2vw, 28px); line-height: 1.3;
+  }
+  #caption span { background: rgb(0 0 0 / 0.78); padding: 0.1em 0.35em; border-radius: 6px;
+                  box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 
-  #strip { position: relative; height: 54px; border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); overflow: hidden; cursor: pointer; }
-  #strip .shot { position: absolute; top: 6px; height: 18px; background: #24303d; border-radius: 2px; }
-  #strip .shot.moved { background: var(--moved); }
-  #strip .shot.pause { background: #1b222b; }
-  #strip .line { position: absolute; bottom: 6px; height: 12px; background: #2b3a49; border-radius: 2px; }
-  #strip .line.moved { background: var(--moved); }
-  #strip .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent); }
-  .legend { display: flex; gap: 16px; margin-top: 8px; font: 11.5px var(--mono); color: var(--dim); }
-  .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+  .transport { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0 12px; }
+  #play {
+    min-width: 96px; padding: 7px 18px; border: 0; border-radius: 999px;
+    background: var(--ink); color: #000; font-weight: 700;
+  }
+  .quiet {
+    padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--raised); font-weight: 600;
+  }
+  .quiet:hover { background: #2a2d33; }
+  #clock { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #hear { color: var(--dim); }
+
+  /* The timeline: one lane for the picture, one for the narration. */
+  #timeline {
+    display: grid; grid-template-columns: 88px minmax(0, 1fr); row-gap: 6px;
+    padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: 12px;
+  }
+  .lane-name { font-size: 13px; color: var(--dim); align-self: center; }
+  #strip { position: relative; grid-column: 2; grid-row: 1 / span 2; cursor: pointer; border-radius: 6px; }
+  #strip:focus-visible { outline-offset: 4px; }
+  .lane { position: relative; height: 26px; background: var(--glass); border-radius: 6px; }
+  #strip .shot, #strip .line {
+    position: absolute; top: 3px; bottom: 3px; border-radius: 3px;
+    background: var(--block); box-shadow: inset -1px 0 0 var(--glass);
+  }
+  #strip .line { background: rgb(242 244 247 / 0.7); }
+  #strip .pause { background: none; border: 1.5px dashed var(--block); }
+  #strip .moved { background: var(--moved); }
+  #strip .head {
+    position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+    background: var(--ink); pointer-events: none;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 2px 0; font-size: 13px; color: var(--dim); }
+  .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+            margin-right: 6px; vertical-align: -1px; background: var(--block); }
+  .swatch.moved { background: var(--moved); }
+  .swatch.pause { background: none; border: 1.5px dashed var(--block); }
+
+  #changes { margin-top: 22px; }
+  #changes h2 { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--dim); }
+  #changes ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  #changes li button {
+    width: 100%; display: grid; grid-template-columns: 56px 80px minmax(0, 1fr); gap: 12px;
+    padding: 7px 10px; border: 0; border-radius: 8px; background: none; text-align: left;
+  }
+  #changes li button:hover { background: rgb(242 244 247 / 0.05); }
+  .at { font-variant-numeric: tabular-nums; color: var(--moved); }
+  .kind { color: var(--dim); }
+  .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .keys { margin-top: 22px; font-size: 13px; color: var(--dim); }
+  kbd {
+    font: 700 12px var(--face); color: var(--ink); padding: 1px 7px; border-radius: 5px;
+    border: 1px solid var(--line); border-bottom-width: 2px; background: var(--chrome);
+  }
+
+  @media (max-width: 700px) {
+    #timeline { grid-template-columns: 64px minmax(0, 1fr); }
+    #changes li button { grid-template-columns: 48px minmax(0, 1fr); }
+    .kind, .keys { display: none; }
+    /* Too small to caption over the picture: under it instead. */
+    #caption { position: static; margin-top: 10px; min-height: 2.6em; font-size: 17px; }
+    #caption span { background: none; padding: 0; }
+  }
 </style>
 </head>
 <body>
+<header>
+  <h1>Preview <span id="script"></span></h1>
+  <span id="build" role="status" aria-live="polite">Starting</span>
+  <span id="gen"></span>
+</header>
+
 <main>
-  <header>
-    <h1><b>&#10095;</b> teleprompt preview <span id="script"></span></h1>
-    <span class="gen" id="gen"></span>
-  </header>
+  <section id="errors" role="alert" hidden>
+    <h2>This save does not compile. Showing the last good build.</h2>
+    <pre id="error-text"></pre>
+  </section>
 
-  <pre id="errors" hidden></pre>
-
-  <div id="stage"><pre id="screen"></pre></div>
-  <p id="caption" class="none">&nbsp;</p>
+  <div id="frame">
+    <div id="stage"><pre id="screen"></pre></div>
+    <p id="caption"></p>
+  </div>
 
   <div class="transport">
-    <button id="play">play</button>
-    <button id="jump" hidden>jump to change</button>
-    <span class="clock" id="clock">0:00 / 0:00</span>
+    <button id="play" type="button">Play</button>
+    <span id="clock">0:00 / 0:00</span>
+    <button id="jump" class="quiet" type="button" hidden>Jump to change</button>
+    <span id="hear" hidden>Click anywhere to hear the narration</span>
   </div>
 
-  <div id="strip"></div>
-  <div class="legend">
-    <span><i class="swatch" style="background:#24303d"></i>shot</span>
-    <span><i class="swatch" style="background:#2b3a49"></i>narration</span>
-    <span><i class="swatch" style="background:var(--moved)"></i>moved since last save</span>
+  <div id="timeline">
+    <span class="lane-name" style="grid-row: 1">Picture</span>
+    <span class="lane-name" style="grid-row: 2">Narration</span>
+    <div id="strip" role="slider" tabindex="0" aria-label="Playhead"
+         aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00">
+      <div class="lane" id="picture"></div>
+      <div class="lane" id="narration" style="margin-top: 6px"></div>
+      <div class="head"></div>
+    </div>
   </div>
+  <div class="legend">
+    <span><i class="swatch"></i>shot or line</span>
+    <span><i class="swatch pause"></i>pause</span>
+    <span><i class="swatch moved"></i>moved since the last save</span>
+  </div>
+
+  <section id="changes" hidden>
+    <h2 id="changes-title">Moved since the last save</h2>
+    <ol aria-labelledby="changes-title"></ol>
+  </section>
+
+  <p class="keys"><kbd>Space</kbd> play or pause · <kbd>←</kbd> <kbd>→</kbd> five seconds
+    · <kbd>J</kbd> jump to the first change</p>
 </main>
 
 <script>
@@ -99,6 +209,9 @@ const clock = (ms) => {
   const s = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+// The scenes whose source is a tape the page can replay.
+const TAPES = new Set(["vhs", "terminal"]);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const app = {
   generation: 0,
@@ -113,7 +226,21 @@ const app = {
 };
 
 let ctx = null;
-const audio = () => (ctx ??= new AudioContext());
+const audio = () => {
+  if (!ctx) {
+    ctx = new AudioContext();
+    // A browser holds audio until the page is touched: say so, rather
+    // than play a silent preview.
+    ctx.addEventListener("statechange", hearing);
+  }
+  return ctx;
+};
+function hearing() {
+  $("hear").hidden = !(app.playing && ctx && ctx.state === "suspended");
+}
+document.addEventListener("pointerdown", () => {
+  if (ctx && ctx.state === "suspended") ctx.resume();
+});
 
 async function load(generation) {
   const manifest = await (await fetch("manifest.json")).json();
@@ -123,15 +250,16 @@ async function load(generation) {
   }
   app.manifest = manifest;
   app.generation = generation;
-  // The strip needs only the manifest: drawn before any audio is decoded.
+  // The timeline needs only the manifest: drawn before any audio is decoded.
   drawStrip();
+  drawChanges();
 
   // Shot sources for scenes the preview can draw. Fetched per generation
   // because an edited tape is a new source under the same shot id.
   app.sources.clear();
   await Promise.all(
     manifest.shots
-      .filter((b) => b.scene !== "pause")
+      .filter((b) => TAPES.has(b.scene))
       .map(async (b) => {
         const r = await fetch(`shots/${encodeURIComponent(b.shot)}`);
         if (r.ok) app.sources.set(b.shot, await r.text());
@@ -151,9 +279,15 @@ async function load(generation) {
 }
 
 function show(errors) {
-  const box = $("errors");
-  box.hidden = !errors || errors.length === 0;
-  box.textContent = errors ? errors.join("\n") : "";
+  const failed = Boolean(errors && errors.length);
+  $("errors").hidden = !failed;
+  $("error-text").textContent = failed ? errors.join("\n") : "";
+}
+
+function build(text, kind) {
+  const el = $("build");
+  if (el.textContent !== text) el.textContent = text;
+  el.className = kind || "";
 }
 
 // ---- playback -------------------------------------------------------------
@@ -164,13 +298,15 @@ function stopAudio() {
 }
 
 function play(fromMs) {
+  if (!app.manifest) return;
   stopAudio();
   const c = audio();
   if (c.state === "suspended") c.resume();
-  app.head = Math.max(0, fromMs ?? app.head);
+  app.head = Math.min(app.manifest.duration_ms, Math.max(0, fromMs ?? app.head));
+  if (app.head >= app.manifest.duration_ms) app.head = 0;
   app.origin = c.currentTime - app.head / 1000;
   app.playing = true;
-  $("play").textContent = "pause";
+  $("play").textContent = "Pause";
 
   for (const seg of app.manifest.lines) {
     const buf = app.buffers.get(seg.audio_hash);
@@ -188,13 +324,23 @@ function play(fromMs) {
     node.start(when, offset);
     app.live.push(node);
   }
+  hearing();
 }
 
 function pause() {
   app.head = now();
   stopAudio();
   app.playing = false;
-  $("play").textContent = "play";
+  $("play").textContent = "Play";
+  hearing();
+}
+
+/** Moves the playhead, playing on if it was playing. */
+function seek(ms) {
+  if (!app.manifest) return;
+  const to = Math.min(app.manifest.duration_ms, Math.max(0, ms));
+  if (app.playing) play(to);
+  else app.head = to;
 }
 
 const now = () => (app.playing ? (audio().currentTime - app.origin) * 1000 : app.head);
@@ -256,6 +402,9 @@ function screenAt(block, t) {
   return rows;
 }
 
+let said = null;   // the caption on screen, so it is replaced only on change
+let second = -1;   // the slider's value, announced once a second at most
+
 function draw() {
   const t = now();
   const m = app.manifest;
@@ -266,75 +415,125 @@ function draw() {
   const beat = [...m.shots].reverse().find((b) => b.start_ms <= t);
   const screen = $("screen");
   if (beat && beat.scene === "pause") {
-    screen.innerHTML = `<span class="scene-note">holding &mdash; pause ${beat.duration_ms}ms</span>`;
+    screen.innerHTML = `<span class="scene-note">Holding for ${(beat.duration_ms / 1000).toFixed(1)} s</span>`;
+  } else if (beat && !TAPES.has(beat.scene)) {
+    // Only a tape can be replayed from its source; anything else is seen
+    // once `build` has captured it.
+    screen.innerHTML = `<span class="scene-note">${escape(beat.shot)}: a ${escape(beat.scene)} shot, seen once it is built</span>`;
   } else if (beat && app.sources.has(beat.shot)) {
     const rows = screenAt(beat.shot.split("#")[0], t);
+    // The caret blinks while playing, and holds still when asked to.
+    const lit = reduce || !app.playing || Math.floor(t / 500) % 2 === 0;
     screen.innerHTML = rows
       .map((row, i) => {
         const body = row.startsWith("❯ ")
           ? `<span class="p">❯</span> ${escape(row.slice(2))}`
           : escape(row);
-        const caret = i === rows.length - 1 && Math.floor(t / 500) % 2 === 0 ? `<span class="cursor"> </span>` : "";
+        const caret = i === rows.length - 1 && lit ? `<span class="cursor"> </span>` : "";
         return body + caret;
       })
       .join("\n");
   } else {
-    screen.innerHTML = `<span class="scene-note">no scene at this point in the timeline</span>`;
+    screen.innerHTML = `<span class="scene-note">No picture at this point</span>`;
   }
 
   const seg = m.lines.find((s) => t >= s.start_ms && t < s.start_ms + s.duration_ms);
-  const cap = $("caption");
-  cap.textContent = seg ? seg.text : " ";
-  cap.className = seg ? "" : "none";
+  if ((seg ? seg.text : null) !== said) {
+    said = seg ? seg.text : null;
+    const cap = $("caption");
+    cap.textContent = "";
+    if (said) {
+      const span = document.createElement("span");
+      span.textContent = said;
+      cap.appendChild(span);
+    }
+  }
 
   $("clock").textContent = `${clock(t)} / ${clock(m.duration_ms)}`;
-  const head = document.querySelector("#strip .head");
-  if (head) head.style.left = `${(t / m.duration_ms) * 100}%`;
+  document.querySelector("#strip .head").style.left = `${(t / m.duration_ms) * 100}%`;
+  const s = Math.floor(t / 1000);
+  if (s !== second) {
+    second = s;
+    const strip = $("strip");
+    strip.setAttribute("aria-valuemax", String(Math.round(m.duration_ms / 1000)));
+    strip.setAttribute("aria-valuenow", String(s));
+    strip.setAttribute("aria-valuetext", `${clock(t)} of ${clock(m.duration_ms)}`);
+  }
 
   requestAnimationFrame(draw);
 }
 
 const escape = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
-// ---- the strip ------------------------------------------------------------
+// ---- the timeline ---------------------------------------------------------
 
 function drawStrip() {
   const m = app.manifest;
-  const strip = $("strip");
-  strip.innerHTML = "";
   const pct = (ms) => (ms / m.duration_ms) * 100;
-
-  for (const b of m.shots) {
+  const place = (lane, cls, start, duration, title) => {
     const el = document.createElement("div");
-    el.className = `shot${app.changed.has(b.shot) ? " moved" : ""}${b.scene === "pause" ? " pause" : ""}`;
-    el.style.left = `${pct(b.start_ms)}%`;
-    el.style.width = `${Math.max(0.35, pct(b.duration_ms))}%`;
-    el.title = `${b.shot} · ${b.policy} · ${b.duration_source} ${(b.duration_ms / 1000).toFixed(1)}s`;
-    strip.appendChild(el);
+    el.className = cls;
+    el.style.left = `${pct(start)}%`;
+    el.style.width = `${Math.max(0.35, pct(duration))}%`;
+    el.title = title;
+    lane.appendChild(el);
+  };
+
+  const picture = $("picture");
+  const narration = $("narration");
+  picture.innerHTML = "";
+  narration.innerHTML = "";
+  for (const b of m.shots) {
+    place(picture,
+      `shot${app.changed.has(b.shot) ? " moved" : ""}${b.scene === "pause" ? " pause" : ""}`,
+      b.start_ms, b.duration_ms,
+      `${b.shot} · ${b.policy} · ${b.duration_source} ${(b.duration_ms / 1000).toFixed(1)} s`);
   }
   for (const s of m.lines) {
-    const el = document.createElement("div");
-    el.className = `line${app.changed.has(s.id) ? " moved" : ""}`;
-    el.style.left = `${pct(s.start_ms)}%`;
-    el.style.width = `${Math.max(0.35, pct(s.duration_ms))}%`;
-    el.title = `${s.id} · ${s.duration_source} ${(s.duration_ms / 1000).toFixed(1)}s`;
-    strip.appendChild(el);
+    place(narration, `line${app.changed.has(s.id) ? " moved" : ""}`,
+      s.start_ms, s.duration_ms,
+      `${s.id} · ${s.duration_source} ${(s.duration_ms / 1000).toFixed(1)} s`);
   }
-  const head = document.createElement("div");
-  head.className = "head";
-  strip.appendChild(head);
+}
+
+/** What a save moved, in the order it plays, each a place to jump to. */
+function moved() {
+  const m = app.manifest;
+  return [
+    ...m.shots.filter((b) => app.changed.has(b.shot))
+      .map((b) => ({ at: b.start_ms, kind: "Picture", what: b.shot })),
+    ...m.lines.filter((s) => app.changed.has(s.id))
+      .map((s) => ({ at: s.start_ms, kind: "Narration", what: s.text || s.id })),
+  ].sort((a, b) => a.at - b.at);
+}
+
+function drawChanges() {
+  const list = moved();
+  const section = $("changes");
+  const ol = section.querySelector("ol");
+  ol.innerHTML = "";
+  section.hidden = list.length === 0;
+  for (const c of list) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.innerHTML = `<span class="at"></span><span class="kind"></span><span class="what"></span>`;
+    b.querySelector(".at").textContent = clock(c.at);
+    b.querySelector(".kind").textContent = c.kind;
+    b.querySelector(".what").textContent = c.what;
+    b.setAttribute("aria-label", `${c.kind} at ${clock(c.at)}: ${c.what}`);
+    b.addEventListener("click", () => play(Math.max(0, c.at - 400)));
+    li.appendChild(b);
+    ol.appendChild(li);
+  }
 }
 
 /** Where the preview should open after a recompile: the earliest moved
  *  thing, backed up a little so you hear the run-in rather than landing
  *  mid-syllable. */
 function firstChange() {
-  const m = app.manifest;
-  const times = [
-    ...m.shots.filter((b) => app.changed.has(b.shot)).map((b) => b.start_ms),
-    ...m.lines.filter((s) => app.changed.has(s.id)).map((s) => s.start_ms),
-  ];
-  return times.length ? Math.max(0, Math.min(...times) - 400) : null;
+  const list = moved();
+  return list.length ? Math.max(0, list[0].at - 400) : null;
 }
 
 // ---- watching the server --------------------------------------------------
@@ -345,26 +544,32 @@ async function poll() {
     $("script").textContent = state.script;
     $("gen").textContent = `generation ${state.generation}`;
     show(state.error);
+    if (state.building) build("Compiling", "building");
+    else if (state.error) build("Last save failed", "failed");
+    else build("Up to date");
 
     if (state.generation !== app.generation) {
-      app.changed = new Set(state.changed || []);
       const wasPlaying = app.playing;
       if (!state.error) {
+        app.changed = new Set(state.changed || []);
         await load(state.generation);
         const at = firstChange();
         $("jump").hidden = at === null;
         if (at !== null && (wasPlaying || app.generation > 1)) play(at);
         else if (wasPlaying) play(app.head);
       } else {
+        // The last good build stays, but what it moved is old news.
         app.generation = state.generation;
+        app.changed = new Set();
+        if (app.manifest) { drawStrip(); drawChanges(); }
+        $("jump").hidden = true;
       }
     }
   } catch (e) {
     // A fetch that fails is the server; anything else is this page.
-    $("gen").textContent = e instanceof TypeError && /fetch/i.test(e.message)
-      ? "server gone"
-      : `preview error: ${e.message}`;
-    if (!(e instanceof TypeError && /fetch/i.test(e.message))) console.error(e);
+    const gone = e instanceof TypeError && /fetch/i.test(e.message);
+    build(gone ? "Server stopped" : `Preview error: ${e.message}`, "failed");
+    if (!gone) console.error(e);
   }
   setTimeout(poll, 400);
 }
@@ -375,8 +580,31 @@ $("jump").addEventListener("click", () => {
   if (at !== null) play(at);
 });
 $("strip").addEventListener("click", (e) => {
+  if (!app.manifest) return;
   const rect = e.currentTarget.getBoundingClientRect();
   play(((e.clientX - rect.left) / rect.width) * app.manifest.duration_ms);
+});
+$("strip").addEventListener("keydown", (e) => {
+  if (!app.manifest) return;
+  const to = { Home: 0, End: app.manifest.duration_ms }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  seek(to);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  // A focused button answers Space itself.
+  if (e.target instanceof HTMLButtonElement && (e.key === " " || e.key === "Enter")) return;
+  if (e.key === " ") {
+    e.preventDefault();
+    app.playing ? pause() : play();
+  } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    e.preventDefault();
+    seek(now() + (e.key === "ArrowLeft" ? -5000 : 5000));
+  } else if (e.key === "j" || e.key === "J") {
+    const at = firstChange();
+    if (at !== null) play(at);
+  }
 });
 
 poll();

@@ -478,3 +478,22 @@ fn the_page_draws_the_manifest_it_is_served() {
         "the header says what is wrong:\n{page}"
     );
 }
+
+/// The page says when a save is being compiled: `building` in the state,
+/// false once the first compile is served.
+#[test]
+fn the_state_says_whether_a_save_is_being_built() {
+    let (_dir, _script, addr) = serving();
+    let (_, body) = get(addr, "/state.json");
+    let state: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(state["building"], false, "{state}");
+}
+
+/// The preview is set in the prompters' typeface, served with it.
+#[test]
+fn the_preview_serves_the_prompters_typeface() {
+    let (_dir, _script, addr) = serving();
+    let (status, body) = get(addr, "/fonts/atkinson-hyperlegible-next.woff2");
+    assert!(status.ends_with("200 OK"), "{status}");
+    assert_eq!(&body[..4], b"wOF2");
+}

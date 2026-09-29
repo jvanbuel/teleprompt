@@ -170,8 +170,8 @@ pub fn listening_event(addr: SocketAddr) -> serde_json::Value {
 }
 
 /// The prompters' typeface (`apps/fonts`), Latin, for the page.
-const FONT: &[u8] = include_bytes!("prompt-font.woff2");
-const FONT_PATH: &str = "/fonts/atkinson-hyperlegible-next.woff2";
+pub(crate) const FONT: &[u8] = include_bytes!("prompt-font.woff2");
+pub(crate) const FONT_PATH: &str = "/fonts/atkinson-hyperlegible-next.woff2";
 
 const PAGE: &str = include_str!("prompt.html");
 
