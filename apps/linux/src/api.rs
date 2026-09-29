@@ -18,6 +18,42 @@ pub struct Position {
 pub struct Script {
     pub lines: Vec<Line>,
     pub shots: Vec<Shot>,
+    /// Who reads the script, for a project's script; absent from servers
+    /// before voices were served.
+    #[serde(default)]
+    pub voice: Option<Voice>,
+    /// The video's length as the timeline has it now.
+    #[serde(default)]
+    pub length_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Voice {
+    /// The voice, as its backend names it: "kokoro · af_heart".
+    pub name: String,
+    /// Whether the server follows a reader by ear; if not, the voice reads.
+    pub listens: bool,
+}
+
+/// Where a line's audio comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
+    Take,
+    Voice,
+}
+
+/// A line's audio, as its voice or its take says it.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Audio {
+    pub source: Source,
+    /// The WAV, under the server's origin; made when fetched.
+    pub url: String,
+    /// Whether it is made yet.
+    pub ready: bool,
+    pub duration_ms: Option<u64>,
+    /// When each word starts, in milliseconds, once it is made.
+    pub words: Option<Vec<u64>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -37,6 +73,12 @@ pub struct Line {
     /// The line against `said`, word by word; empty without it.
     #[serde(default)]
     pub said_diff: Vec<crate::said::Change>,
+    /// How the line sounds read by the script's voice.
+    #[serde(default)]
+    pub audio: Option<Audio>,
+    /// How the voice is told to say it.
+    #[serde(default)]
+    pub instruct: Option<String>,
 }
 
 impl Line {

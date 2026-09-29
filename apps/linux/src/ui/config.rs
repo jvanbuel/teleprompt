@@ -17,6 +17,9 @@ pub struct Config {
     pub punctuation: Option<PathBuf>,
     /// The tool session mode last recorded with.
     pub record_with: Option<String>,
+    /// Whether the script's voice reads it, rather than the author.
+    #[serde(default)]
+    pub voice_reads: bool,
 }
 
 impl Config {

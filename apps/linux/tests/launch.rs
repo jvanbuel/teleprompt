@@ -12,7 +12,7 @@ fn request(binary: PathBuf) -> LaunchRequest {
     LaunchRequest {
         binary,
         script: "/p/scripts/tour.md".into(),
-        model: "/models/zipformer".into(),
+        model: Some("/models/zipformer".into()),
         locale: "en".into(),
     }
 }
@@ -34,6 +34,17 @@ fn the_command_asks_for_json_and_a_free_port() {
             "/models/zipformer",
         ]
     );
+}
+
+#[test]
+fn without_a_model_the_scripts_voice_reads_it() {
+    let voiced = LaunchRequest {
+        model: None,
+        ..request("/bin/teleprompt".into())
+    };
+    let args = voiced.args();
+    assert_eq!(args.last().map(String::as_str), Some("--voice"));
+    assert!(!args.iter().any(|a| a == "--model"), "{args:?}");
 }
 
 #[test]

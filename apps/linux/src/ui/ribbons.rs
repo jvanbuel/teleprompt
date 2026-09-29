@@ -531,6 +531,9 @@ fn describe(drop: &Edit, texts: &HashMap<String, String>, home: Option<&str>) ->
         } => format!("Move to {} on “{}”", first_words(after), word(after, *n)),
         Edit::Move { after, .. } => format!("Move after {}", first_words(after)),
         Edit::Stretch { by, .. } => format!("Stretch ×{by:.2}"),
+        Edit::Reword { .. } => "Reworded".into(),
+        Edit::Instruct { text: Some(t), .. } => format!("Said {t}"),
+        Edit::Instruct { .. } => "Said as the voice would".into(),
     }
 }
 

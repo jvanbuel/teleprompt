@@ -58,12 +58,29 @@ To install it with a launcher entry:
 | Ctrl+Z | undo the last drag on the glass |
 | Ctrl+Shift+C | capture the shots not yet captured, or changed since |
 | Ctrl+B | capture, then build the video |
+| F2 | reword the line you are on, where it stands |
+| Ctrl+E | open the script in your own editor |
 
 A take starts after a count of three; Settings turns that off.
 
+## Letting a voice read it
+
+Choose **A voice reads** under "Who narrates" on the welcome page, and the
+app reads the script with its voice (`teleprompt prompt --voice`) rather
+than following yours. It needs no speech model then: only the binary and
+the project's `[voice]`. Play (Space) reads from the line you're on,
+lighting the words and playing the shots as it goes; click a line for its
+panel (Listen, Read on from here, How to say it, Say it again, Reword);
+F2 rewords a line in place. The margin marks each line: a waveform, faint
+until the voice has made it; a tick for a line read from your own take.
+`docs/guide/prompter.md#letting-a-voice-read-it` has the rest.
+
 ## Rewording a line
 
-Edit the script while it's open, in any editor: the app reloads it, and a
+F2 edits the words of the line you're on where they stand (Enter keeps
+them, Escape doesn't), through `teleprompt edit`, so Ctrl+Z undoes it.
+Or edit the script while it's open in any editor (Ctrl+E opens it in
+yours): the app reloads it, and a
 line reworded since its take gets an amber ring in the margin, since its
 take no longer says what it says. Press R to record those lines again,
 one after another: each is kept as you read past it, and the next starts.

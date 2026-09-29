@@ -29,6 +29,9 @@ use super::monitor::Monitor;
 use super::session::SessionPage;
 use super::tally::Tally;
 
+mod line_edit;
+mod reading;
+
 /// Starts and stops recording, in every mode.
 const RECORD_KEY: &str = "Ctrl ⇧ Space";
 
@@ -48,19 +51,27 @@ enum Event {
     Tools(u64, Result<Vec<Tool>, String>),
     /// The script's timeline, as `plan` lays it out.
     Planned(u64, Result<Timeline, String>),
-    /// A drag's edit written, said as the author would; or why not.
-    Edited(u64, Result<String, String>),
+    /// An edit written, said as the author would; or what was not done,
+    /// and why.
+    Edited(u64, Result<String, (&'static str, String)>),
     /// A line reworded to what its take says; or why not.
     Reworded(u64, Result<String, String>),
     /// How far a capture or build has got.
     Making(u64, Progress),
     /// A capture or build done: the video, for a build; or why it failed.
     Made(u64, Result<Option<PathBuf>, String>),
+    /// A line's audio, fetched to read it aloud, and the script after.
+    Voice(u64, usize, Result<(PathBuf, Option<Script>), String>),
+    /// The background voicing made a line, or could not.
+    Voicing(u64, Result<Script, String>),
 }
 
 /// What the prompter needs that it does not have, and how to get it.
 const NO_MODEL: &str = "Set the teleprompt binary in Settings (Ctrl+,), and install a speech \
-                        model with `teleprompt setup speech-model --run` or choose one there.";
+                        model with `teleprompt setup speech-model --run` or choose one there. \
+                        Or let the script's voice read it: choose \"A voice reads\" on the \
+                        welcome page.";
+const NO_BINARY: &str = "Set the teleprompt binary in Settings (Ctrl+,).";
 
 pub struct Window {
     pub window: adw::ApplicationWindow,
@@ -74,7 +85,12 @@ struct Widgets {
     title: adw::WindowTitle,
     record: gtk::Button,
     record_label: gtk::Label,
+    /// Read by a voice: Play, in the record button's place.
+    play: gtk::Button,
+    play_label: gtk::Label,
     reopen: gtk::Button,
+    /// Who reads, on the welcome page: the author, or a voice.
+    narrator_voice: gtk::ToggleButton,
     loading_detail: gtk::Label,
     failed: adw::StatusPage,
     glass: Glass,
@@ -131,6 +147,12 @@ struct Model {
     narrow: bool,
     /// The script file, watched for edits made elsewhere.
     watch: Option<gio::FileMonitor>,
+    /// The voice reading the script aloud, while it does.
+    reading: Option<reading::Reading>,
+    /// Whether the voice is making lines in the background.
+    voicing: Option<Arc<std::sync::atomic::AtomicBool>>,
+    /// The line whose words are being edited on the glass.
+    rewording: Option<usize>,
 }
 
 struct Session {
@@ -275,6 +297,9 @@ impl Window {
                 return;
             }
             if let Some(line) = this.w.glass.line_at(x, y) {
+                if this.voice_reads() {
+                    return this.line_clicked(line);
+                }
                 if this.is_taking() {
                     this.model.borrow_mut().state.status =
                         Status::info("Keep or discard this take first");
@@ -296,6 +321,18 @@ impl Window {
         self.w.record.connect_clicked(move |_| {
             if let Some(this) = weak.upgrade() {
                 this.record_key();
+            }
+        });
+        let weak = Rc::downgrade(this);
+        self.w.play.connect_clicked(move |_| {
+            if let Some(this) = weak.upgrade() {
+                this.play_or_stop();
+            }
+        });
+        let weak = Rc::downgrade(this);
+        self.w.narrator_voice.connect_toggled(move |voice| {
+            if let Some(this) = weak.upgrade() {
+                this.set_voice_reads(voice.is_active());
             }
         });
 
@@ -333,6 +370,7 @@ impl Window {
                 self.stop_session();
             }
             Some(false) => self.start_session(),
+            None if self.voice_reads() => self.play_or_stop(),
             None if self.model.borrow().socket.is_some() => self.record_or_keep(),
             None => return false,
         }
@@ -554,7 +592,13 @@ impl Window {
         {
             return false;
         }
+        if self.model.borrow().rewording.is_some() {
+            return false;
+        }
         match key {
+            Key::F2 => self.reword_current(),
+            Key::space if self.voice_reads() => self.play_or_stop(),
+            Key::Escape if self.is_reading() => self.stop_reading(None),
             Key::Escape => self.discard(),
             Key::p => self.toggle_pause(),
             Key::r => self.retake(),
@@ -592,6 +636,11 @@ impl Window {
                 self.replan();
                 self.show_reworded();
                 self.offer_said();
+                self.voice_unmade();
+                if self.voice_reads() && !self.is_reading() {
+                    self.show_voice_status();
+                    self.show_status();
+                }
             }
             Event::Clip(g, shot, clip) if g == generation => self.clip_fetched(&shot, clip),
             Event::Tools(g, tools) if g == generation => self.tools_listed(tools),
@@ -604,6 +653,8 @@ impl Window {
                 self.show_status();
             }
             Event::Made(g, made) if g == generation => self.made(made),
+            Event::Voice(g, line, fetched) if g == generation => self.voice_fetched(line, fetched),
+            Event::Voicing(g, news) if g == generation => self.voicing(news),
             Event::Level(rms) => {
                 if self.model.borrow().state.take.is_sending() {
                     self.w.tally.set_level(rms);
@@ -623,14 +674,20 @@ impl Window {
         model.generation += 1;
         model.config.last_script = Some(script.clone());
         model.config.save();
-        let (Some(binary), Some(speech)) = (model.config.binary(), model.config.model()) else {
+        // A voice reads without a speech model; the author, with one.
+        let voice = model.config.voice_reads;
+        let (Some(binary), speech) = (model.config.binary(), model.config.model()) else {
+            drop(model);
+            return self.show_failed(&[NO_BINARY.into()]);
+        };
+        if speech.is_none() && !voice {
             drop(model);
             return self.show_failed(&[NO_MODEL.into()]);
-        };
+        }
         let request = LaunchRequest {
             binary,
             script: script.clone(),
-            model: speech,
+            model: speech.filter(|_| !voice),
             locale: model.config.locale(),
         };
         let (events, generation) = (self.events.clone(), model.generation);
@@ -693,8 +750,12 @@ impl Window {
             model.state.status =
                 Status::info("Press Ctrl+Shift+Space to record from here, or click a line");
         }
-        // Opened now, so a take starts the moment it is asked for.
-        if let Err(e) = self.open_mic() {
+        if self.voice_reads() {
+            let status = self.voice_status();
+            self.model.borrow_mut().state.status = status;
+            self.voice_unmade();
+        } else if let Err(e) = self.open_mic() {
+            // Opened now, so a take starts the moment it is asked for.
             self.model.borrow_mut().state.status = Status::error(e);
         }
         self.w.monitor.set_shots(&self.model.borrow().state);
@@ -744,6 +805,13 @@ impl Window {
     /// A drag on the timeline: `teleprompt edit` writes it, if the script
     /// still compiles with it. The script before is kept to undo to.
     fn timeline_drop(&self, edit: Edit, said: String) {
+        self.edit_script(edit, said, "Not moved");
+    }
+
+    /// `teleprompt edit` writes `edit`, if the script still compiles with
+    /// it, and says `done`, or `failed` and why. The script before is kept
+    /// to undo to.
+    fn edit_script(&self, edit: Edit, done: String, failed: &'static str) {
         if self.is_taking() {
             return;
         }
@@ -758,7 +826,12 @@ impl Window {
         let Ok(before) = std::fs::read_to_string(&script) else {
             return;
         };
-        self.model.borrow_mut().undo.push(before);
+        {
+            // The edit is now the last thing done, for Undo.
+            let mut model = self.model.borrow_mut();
+            model.undo.push(before);
+            model.state.undoable = false;
+        }
         std::thread::spawn(move || {
             let out = std::process::Command::new(&binary)
                 .arg("edit")
@@ -766,15 +839,18 @@ impl Window {
                 .args(edit.args())
                 .output();
             let result = match out {
-                Ok(o) if o.status.success() => Ok(said),
-                Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
-                Err(e) => Err(format!("cannot run {}: {e}", binary.display())),
+                Ok(o) if o.status.success() => Ok(done),
+                Ok(o) => Err((
+                    failed,
+                    String::from_utf8_lossy(&o.stderr).trim().to_string(),
+                )),
+                Err(e) => Err((failed, format!("cannot run {}: {e}", binary.display()))),
             };
             let _ = events.send_blocking(Event::Edited(generation, result));
         });
     }
 
-    fn edited(self: &Rc<Self>, edited: Result<String, String>) {
+    fn edited(self: &Rc<Self>, edited: Result<String, (&'static str, String)>) {
         match edited {
             Ok(said) => {
                 let toast = adw::Toast::builder()
@@ -785,7 +861,7 @@ impl Window {
                     .build();
                 self.w.toasts.add_toast(toast);
             }
-            Err(why) => {
+            Err((failed, why)) => {
                 self.model.borrow_mut().undo.pop();
                 // The compiler's reason, on its first line.
                 let reason = why
@@ -794,7 +870,7 @@ impl Window {
                     .map_or(why.as_str(), |l| l.trim_start_matches("error:").trim());
                 self.w
                     .toasts
-                    .add_toast(adw::Toast::new(&format!("Not moved: {reason}")));
+                    .add_toast(adw::Toast::new(&format!("{failed}: {reason}")));
             }
         }
         // The prompter places its shots again as it fetches the script.
@@ -1242,6 +1318,9 @@ impl Window {
                 return;
             }
         }
+        if self.voice_reads() {
+            return self.read_from(line, false, false);
+        }
         if let Err(e) = self.open_mic() {
             self.model.borrow_mut().state.status = Status::error(e);
             return self.show_status();
@@ -1656,6 +1735,24 @@ impl Window {
                 ("Esc", "Discard"),
                 ("P", "Pause"),
             ]
+        } else if model.rewording.is_some() {
+            &[("Enter", "Keep"), ("Esc", "Leave it")]
+        } else if model.reading.is_some() {
+            &[("Space", "Stop"), ("Esc", "Stop")]
+        } else if model
+            .state
+            .script
+            .voice
+            .as_ref()
+            .is_some_and(|v| !v.listens)
+        {
+            &[
+                ("Space", "Play"),
+                ("Click", "Direct a line"),
+                ("F2", "Reword"),
+                ("Ctrl B", "Build"),
+                ("M", "Mirror"),
+            ]
         } else if model.socket.is_some() {
             &[
                 (RECORD_KEY, "Record"),
@@ -1682,13 +1779,15 @@ impl Window {
 
     fn show_time(&self) {
         let model = self.model.borrow();
-        let ran = model.state.take.elapsed(Instant::now());
-        self.w.tally.set_time(ran.as_secs_f64());
+        let ran = model.state.take.elapsed(Instant::now()).as_secs_f64();
+        drop(model);
+        self.w.tally.set_time(self.reading_time().unwrap_or(ran));
     }
 
     /// The header's one action: record, or keep the take under way.
     fn show_record(&self) {
         if let Some(recording) = self.session_recording() {
+            self.w.play.set_visible(false);
             self.w.edit.set_visible(false);
             self.w.record.set_visible(true);
             self.w.tally.root.set_visible(true);
@@ -1707,7 +1806,12 @@ impl Window {
             (take.is_counting(), take.is_under_way())
         };
         let ready = self.model.borrow().socket.is_some();
-        self.w.record.set_visible(ready);
+        let voiced = ready && self.voice_reads();
+        self.w.play.set_visible(voiced);
+        self.w
+            .play_label
+            .set_label(if self.is_reading() { "Stop" } else { "Play" });
+        self.w.record.set_visible(ready && !voiced);
         self.w.edit.set_visible(ready);
         self.w.tally.root.set_visible(ready);
         self.w.record_label.set_label(if counting {
@@ -1732,6 +1836,7 @@ impl Window {
                 .reopen
                 .set_label(&format!("Reopen {}", file_name(last)));
         }
+        self.show_narrator();
         self.w.stack.set_visible_child_name("welcome");
         self.window.set_title(Some("Teleprompt"));
         self.show_record();
@@ -1752,6 +1857,10 @@ impl Window {
     /// Stops the microphone, the session and the server.
     pub fn shutdown(&self) {
         self.stop_session();
+        self.halt();
+        if let Some(voicing) = self.model.borrow_mut().voicing.take() {
+            voicing.store(false, std::sync::atomic::Ordering::SeqCst);
+        }
         let mut model = self.model.borrow_mut();
         if let Some(socket) = model.socket.take() {
             let _ = socket.send(Outgoing::Close);
@@ -1867,7 +1976,7 @@ impl Widgets {
             .shrink_start_child(false)
             .wide_handle(false)
             .build();
-        let (welcome, reopen, sample) = Self::welcome();
+        let (welcome, reopen, sample, narrator_voice) = Self::welcome();
         let editing = adw::Banner::builder()
             .title("Editing shots: drag a shot onto a word, or its end to stretch it")
             .button_label("Done")
@@ -1908,12 +2017,25 @@ impl Widgets {
             .tooltip_text("Record from the line you are on, or keep the take (Ctrl+Shift+Space)")
             .visible(false)
             .build();
+        let play_label = gtk::Label::new(Some("Play"));
+        let play_inner = gtk::Box::builder().spacing(8).build();
+        play_inner.append(&gtk::Image::from_icon_name("media-playback-start-symbolic"));
+        play_inner.append(&play_label);
+        let play = gtk::Button::builder()
+            .child(&play_inner)
+            .css_classes(["record", "play"])
+            .tooltip_text("Read aloud from the line you are on, or stop (Space)")
+            .visible(false)
+            .build();
         Self {
             stack,
             title: adw::WindowTitle::new("Teleprompt", ""),
             record,
             record_label,
+            play,
+            play_label,
             reopen,
+            narrator_voice,
             loading_detail,
             failed,
             glass,
@@ -1937,7 +2059,7 @@ impl Widgets {
         }
     }
 
-    fn welcome() -> (gtk::Box, gtk::Button, gtk::Box) {
+    fn welcome() -> (gtk::Box, gtk::Button, gtk::Box, gtk::ToggleButton) {
         let column = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(18)
@@ -1957,10 +2079,10 @@ impl Widgets {
         page.append(
             &gtk::Label::builder()
                 .label(
-                    "Open a script and read it aloud. The words follow your voice, \
+                    "Open a script and read it aloud: the words follow your voice, \
                      each shot plays as you reach it, and every line you finish is \
-                     kept as a take. Or draft a new script by talking while you use \
-                     a terminal.",
+                     kept as a take. Or let a voice read it, and direct it line by \
+                     line.",
                 )
                 .wrap(true)
                 .max_width_chars(46)
@@ -1983,12 +2105,42 @@ impl Widgets {
         buttons.append(&open);
         buttons.append(&reopen);
         buttons.append(&session);
+        let (narrator, narrator_voice) = Self::narrator();
+        page.append(&narrator);
         page.append(&buttons);
-        (page_for_column, reopen, sample)
+        (page_for_column, reopen, sample, narrator_voice)
     }
 
-    /// A slice of the glass, to show what the prompter does before a
-    /// script is open: the reading line, what is said, the next word.
+    /// Who reads the script: two linked toggles, "I read" and "A voice
+    /// reads". The voice's toggle, whose state is the choice.
+    fn narrator() -> (gtk::Box, gtk::ToggleButton) {
+        let me = gtk::ToggleButton::builder()
+            .label("I read")
+            .active(true)
+            .css_classes(["narrator"])
+            .build();
+        let voice = gtk::ToggleButton::builder()
+            .label("A voice reads")
+            .group(&me)
+            .css_classes(["narrator"])
+            .build();
+        let toggles = gtk::Box::builder()
+            .css_classes(["linked"])
+            .halign(gtk::Align::Start)
+            .build();
+        toggles.append(&me);
+        toggles.append(&voice);
+        let row = gtk::Box::builder().spacing(14).margin_top(4).build();
+        row.append(
+            &gtk::Label::builder()
+                .label("Who narrates")
+                .css_classes(["narrator-label"])
+                .build(),
+        );
+        row.append(&toggles);
+        (row, voice)
+    }
+
     /// The logo beside the name, `apps/icons`, or the name alone if the
     /// image cannot be read.
     fn lockup() -> gtk::Widget {
@@ -2003,6 +2155,8 @@ impl Widgets {
         })
     }
 
+    /// A slice of the glass, to show what the prompter does before a
+    /// script is open: the reading line, what is said, the next word.
     fn glass_sample() -> gtk::Box {
         let card = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -2131,6 +2285,7 @@ impl Widgets {
         section(&[
             ("Capture shots", "app.capture"),
             ("Build video", "app.build"),
+            ("Open in editor", "app.open-editor"),
         ]);
         section(&[
             ("Draft from a session…", "app.session"),
@@ -2150,6 +2305,7 @@ impl Widgets {
         labelled(&menu_button, "Menu");
         header.pack_end(&menu_button);
         header.pack_end(&self.record);
+        header.pack_end(&self.play);
         header.pack_end(&self.edit);
         let view = adw::ToolbarView::new();
         view.add_top_bar(&header);

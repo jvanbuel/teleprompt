@@ -11,7 +11,9 @@ you say leaves the machine.
 It runs in a browser, and as a native app: `apps/macos` in SwiftUI and
 `apps/linux` in GTK. The apps launch `teleprompt prompt` themselves and play
 the shots with the system's player; their READMEs say how to build them.
-All of them need the recognizer and the model below.
+To follow your voice, all of them need the recognizer and the model below.
+The Linux app can also have the script's voice read it, which needs
+neither (see [Letting a voice read it](#letting-a-voice-read-it)).
 
 ## Setting it up
 
@@ -92,6 +94,39 @@ not the clock. Press `s` to hide or show the screen.
 
 Clips are H.264, which Chrome, Edge and Safari play. Chromium builds without
 proprietary codecs cannot play them.
+
+## Letting a voice read it
+
+You don't have to narrate. In the Linux app, choose **A voice reads**
+under "Who narrates" on the welcome page, and the script is read by its
+voice (the `[voice]` in `teleprompt.toml`) instead of following yours. It
+runs `teleprompt prompt --voice`, which needs no recognizer or speech
+model, in any build; the browser page and the macOS app don't read with a
+voice yet. The voice makes each line in the
+background, into the same cache `dub` and `build` use, and the margin marks
+each line: a waveform, faint until the line is made; a tick for a line you
+recorded yourself, which plays from your take.
+
+- **Space** (or **Play**) reads from the line you're on, lighting each word
+  as it's said and starting the shots as it reaches them, as a take would.
+  Space again, or Escape, stops.
+- **Click a line** for its panel. **Listen** plays that line alone, and
+  **Read on from here** plays from it. **How to say it** tells the voice
+  how to read it ("slower, amused"), for a backend that takes directions;
+  it's written to the script as the line's `voice.instruct`. **Say it
+  again** has the voice make it anew, for a voice that says a line
+  differently each time.
+- **F2**, or **Reword…** in the panel, edits the line's words where they
+  stand: Enter keeps them, Escape leaves the line as it was.
+
+Every change goes through `teleprompt edit` (`reword <line> <text>` and
+`instruct <line> [text]` on the command line), which writes nothing that
+would not compile; Ctrl+Z undoes the last. For anything bigger, such as
+lines added, split or moved, or a shot's block changed, **Open in
+Editor** (Ctrl+E) opens the script in your own editor, and the app reloads
+it when you save. Where the voice gives no word timings, a word's moment is
+estimated from its share of the line's letters, so the highlight may run a
+word early or late.
 
 ## Recording
 

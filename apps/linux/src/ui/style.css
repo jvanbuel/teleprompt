@@ -424,3 +424,67 @@ progressbar.working > trough > progress {
   background-color: @ink;
   border-radius: 0;
 }
+
+/* Read by a voice. Play is the header's action, as Record is, in the
+   same chrome: no red, since nothing records. */
+button.record.play image {
+  color: @cue;
+}
+
+.narrator-label {
+  font-size: 14px;
+  color: alpha(@ink, 0.66);
+}
+
+button.narrator {
+  padding: 4px 14px;
+  font-weight: 600;
+}
+
+button.narrator:checked {
+  background-color: @ink;
+  color: #000000;
+}
+
+/* A line's words, edited where they stand: the glass's type on black,
+   underlined in the cue's amber. */
+textview.line-editor,
+textview.line-editor > text {
+  background-color: @glass;
+  color: @ink;
+  font-family: "Atkinson Hyperlegible Next";
+  font-weight: 500;
+  caret-color: @cue;
+}
+
+textview.line-editor {
+  padding: 8px 12px;
+  border-bottom: 2px solid @cue;
+}
+
+.line-panel .panel-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.line-panel .panel-subtitle {
+  font-size: 13px;
+  color: alpha(@ink, 0.66);
+}
+
+.line-panel .panel-hint {
+  font-size: 12px;
+  color: alpha(@ink, 0.55);
+}
+
+/* The panel hangs off the glass, whose type is the prompter's; its own is
+   the chrome's. */
+popover.line-panel {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+popover.line-panel button.pill {
+  padding: 6px 14px;
+  font-weight: 600;
+}

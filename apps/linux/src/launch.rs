@@ -13,8 +13,9 @@ pub struct LaunchRequest {
     /// The `teleprompt` binary, built with `--features listen`.
     pub binary: PathBuf,
     pub script: PathBuf,
-    /// An unpacked sherpa-onnx streaming zipformer.
-    pub model: PathBuf,
+    /// An unpacked sherpa-onnx streaming zipformer, to follow a reader by
+    /// ear; without one, the script's voice reads it.
+    pub model: Option<PathBuf>,
     pub locale: String,
 }
 
@@ -22,7 +23,7 @@ impl LaunchRequest {
     /// JSON output, so the app can read where it listens; port 0, so the
     /// OS picks a free one.
     pub fn args(&self) -> Vec<String> {
-        vec![
+        let mut args: Vec<String> = vec![
             "--format".into(),
             "json".into(),
             "prompt".into(),
@@ -31,9 +32,12 @@ impl LaunchRequest {
             self.locale.clone(),
             "--port".into(),
             "0".into(),
-            "--model".into(),
-            self.model.display().to_string(),
-        ]
+        ];
+        match &self.model {
+            Some(model) => args.extend(["--model".into(), model.display().to_string()]),
+            None => args.push("--voice".into()),
+        }
+        args
     }
 }
 

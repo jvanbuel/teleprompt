@@ -4,7 +4,7 @@ mod plan;
 
 use plan::{line, shot};
 use teleprompt_core::DurationSource::{Exact, Unknown};
-use teleprompt_gtk::timeline::{parse, stretched, Timeline};
+use teleprompt_gtk::timeline::{parse, stretched, Edit, Timeline};
 
 /// Two lines: "welcome" (150–9800 ms, recorded) with a shot held after
 /// it, and "the-loop" (10000–18600 ms) with a shot at its start, and an
@@ -76,4 +76,23 @@ fn a_blocks_first_shot_leads() {
     };
     assert!(!second.leads());
     assert_eq!(second.block(), "welcome-a");
+}
+
+#[test]
+fn a_line_is_reworded_or_directed_by_its_id() {
+    let reword = Edit::Reword {
+        line: "welcome".into(),
+        text: "-- Hello.".into(),
+    };
+    assert_eq!(reword.args(), ["reword", "--", "welcome", "-- Hello."]);
+    let instruct = Edit::Instruct {
+        line: "welcome".into(),
+        text: Some("warmly".into()),
+    };
+    assert_eq!(instruct.args(), ["instruct", "--", "welcome", "warmly"]);
+    let plain = Edit::Instruct {
+        line: "welcome".into(),
+        text: None,
+    };
+    assert_eq!(plain.args(), ["instruct", "--", "welcome"]);
 }

@@ -80,6 +80,11 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
         }),
     );
     action("take-top", &["<Control>t"], Box::new(|w| w.take(0)));
+    action(
+        "open-editor",
+        &["<Control>e"],
+        Box::new(|w| w.open_in_editor()),
+    );
     action("undo", &["<Control>z"], Box::new(|w| w.undo()));
     action("retake", &[], Box::new(|w| w.retake()));
     action("review-said", &[], Box::new(|w| w.review_said()));
@@ -178,6 +183,13 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
     (
+        "Read by a voice",
+        &[
+            ("space", "Read aloud from the line you are on, or stop"),
+            ("Escape", "Stop reading"),
+        ],
+    ),
+    (
         "The glass",
         &[
             ("e", "Edit shots on the glass"),
@@ -185,6 +197,7 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("plus minus", "Text size"),
             ("s", "Hide or show the screen"),
             ("w", "Review a line said in other words"),
+            ("F2", "Reword the line you are on"),
         ],
     ),
     (
@@ -194,6 +207,7 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
             ("<Control>n", "Draft from a session"),
             ("<Control><Shift>c", "Capture shots"),
             ("<Control>b", "Build the video"),
+            ("<Control>e", "Open the script in your editor"),
             ("<Control>comma", "Settings"),
             ("<Control>question", "Keyboard shortcuts"),
             ("<Control>q", "Quit"),

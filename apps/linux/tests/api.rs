@@ -23,6 +23,30 @@ fn the_script_example_reads() {
 }
 
 #[test]
+fn the_voiced_script_example_reads() {
+    use teleprompt_gtk::api::Source;
+    let script: Script = serde_json::from_str(&example("voiced_script.json")).unwrap();
+    let voice = script.voice.as_ref().unwrap();
+    assert_eq!(voice.name, "kokoro · af_heart");
+    assert!(!voice.listens);
+    assert_eq!(script.length_ms, Some(6120));
+    let welcome = &script.lines[0];
+    assert_eq!(welcome.instruct.as_deref(), Some("warmly"));
+    let audio = welcome.audio.as_ref().unwrap();
+    assert_eq!(audio.source, Source::Voice);
+    assert!(audio.ready);
+    assert_eq!(audio.url, "/api/v1/voice/welcome.wav");
+    assert_eq!(audio.duration_ms, Some(2600));
+    assert_eq!(audio.words.as_ref().unwrap().len(), welcome.words().count());
+    let deploy = script.lines[1].audio.as_ref().unwrap();
+    assert!(!deploy.ready);
+    assert_eq!((deploy.duration_ms, deploy.words.as_ref()), (None, None));
+    // A server that says nothing of voices reads as before.
+    let plain: Script = serde_json::from_str(&example("script.json")).unwrap();
+    assert!(plain.voice.is_none() && plain.lines[0].audio.is_none());
+}
+
+#[test]
 fn the_server_message_examples_read() {
     assert_eq!(
         ServerMessage::parse(&example("reached.json")).unwrap(),

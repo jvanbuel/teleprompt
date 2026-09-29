@@ -16,9 +16,12 @@ fn script(stale: &[bool]) -> Script {
                 stale,
                 said: None,
                 said_diff: Vec::new(),
+                audio: None,
+                instruct: None,
             })
             .collect(),
         shots: Vec::new(),
+        ..Script::default()
     }
 }
 

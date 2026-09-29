@@ -120,6 +120,10 @@ pub enum Edit {
     },
     /// Make the block's shots `by` times as long.
     Stretch { block: String, by: f64 },
+    /// Say the line as `text`.
+    Reword { line: String, text: String },
+    /// Tell the voice how to say the line, or stop telling it.
+    Instruct { line: String, text: Option<String> },
 }
 
 impl Edit {
@@ -154,6 +158,15 @@ impl Edit {
                     "--by".into(),
                     format!("{by:.3}"),
                 ]
+            }
+            // After `--`, so words starting with a dash stay words.
+            Edit::Reword { line, text } => {
+                vec!["reword".into(), "--".into(), line.clone(), text.clone()]
+            }
+            Edit::Instruct { line, text } => {
+                let mut a = vec!["instruct".into(), "--".into(), line.clone()];
+                a.extend(text.clone());
+                a
             }
         }
     }

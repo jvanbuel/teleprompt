@@ -8,6 +8,7 @@ use std::rc::Rc;
 use gtk::prelude::*;
 use gtk::{cairo, glib};
 use teleprompt_gtk::state::PrompterState;
+use teleprompt_gtk::voice::{self, Mark};
 
 use super::fonts::FAMILY;
 use super::mirror::Mirror;
@@ -34,6 +35,14 @@ pub struct Glass {
     verdict: gtk::Box,
     verdict_text: gtk::Label,
     pub verdict_undo: gtk::Button,
+    /// A line's words, being edited where they stand.
+    editor: gtk::TextView,
+    /// Over the whole glass, for a line's panel to hang from: a text view
+    /// takes no children it did not place.
+    anchor: gtk::Box,
+    /// A line's panel: one, kept, since GTK 4.14 can crash on a popover
+    /// destroyed under the pointer.
+    pub panel: gtk::Popover,
     shared: Rc<Shared>,
 }
 
@@ -46,6 +55,8 @@ struct Shared {
     stale: RefCell<Vec<bool>>,
     /// Per line: its take says other words.
     said: RefCell<Vec<bool>>,
+    /// Per line, read by a voice: where its audio comes from.
+    marks: RefCell<Vec<Option<Mark>>>,
     current: Cell<usize>,
     /// The buffer offset the reading line should hold.
     target: Cell<Option<i32>>,
@@ -110,6 +121,7 @@ impl Glass {
         overlay.add_overlay(&frame);
         let (verdict, verdict_text, verdict_undo) = verdict();
         overlay.add_overlay(&verdict);
+        let (editor, anchor, panel) = line_tools(&overlay);
         let glass = Self {
             root: Mirror::new(&overlay),
             view,
@@ -120,6 +132,9 @@ impl Glass {
             verdict,
             verdict_text,
             verdict_undo,
+            editor,
+            anchor,
+            panel,
             shared,
         };
         glass.draw_gutter();
@@ -160,7 +175,111 @@ impl Glass {
             .iter()
             .map(|l| l.said.is_some())
             .collect();
+        self.update_marks(state);
         self.show_position(state);
+    }
+
+    /// The gutter's marks of where each line's audio comes from, when a
+    /// voice reads the script; none when its author does.
+    pub fn update_marks(&self, state: &PrompterState) {
+        let voiced = state.script.voice.as_ref().is_some_and(|v| !v.listens);
+        *self.shared.marks.borrow_mut() = state
+            .script
+            .lines
+            .iter()
+            .map(|l| voice::mark(l).filter(|_| voiced))
+            .collect();
+        self.gutter.queue_draw();
+    }
+
+    /// Where line `line` is drawn, in the view's coordinates.
+    pub fn line_rect(&self, line: usize) -> Option<gtk::gdk::Rectangle> {
+        let &(start, end) = self.shared.layout.borrow().lines.get(line)?;
+        let buffer = self.view.buffer();
+        let (top, _) = self.view.line_yrange(&buffer.iter_at_offset(start));
+        let last = buffer.iter_at_offset(end);
+        let (bottom, height) = self.view.line_yrange(&last);
+        let (x, y) = self
+            .view
+            .buffer_to_window_coords(gtk::TextWindowType::Widget, 0, top);
+        let width = self.view.width() - x;
+        Some(gtk::gdk::Rectangle::new(
+            x,
+            y,
+            width.max(1),
+            (bottom + height - top).max(1),
+        ))
+    }
+
+    /// Where line `line` will be once the glass has glided it to the
+    /// reading line, in the view's coordinates.
+    pub fn settled_rect(&self, line: usize) -> Option<gtk::gdk::Rectangle> {
+        let rect = self.line_rect(line)?;
+        let &(start, _) = self.shared.layout.borrow().lines.get(line)?;
+        let buffer = self.view.buffer();
+        let centre = line_centre(
+            &self.view,
+            &buffer.iter_at_offset(start),
+            gtk::TextWindowType::Widget,
+        );
+        let page = self.view.vadjustment()?.page_size();
+        let shift = (page * READING_LINE - centre) as i32;
+        Some(gtk::gdk::Rectangle::new(
+            rect.x(),
+            rect.y() + shift,
+            rect.width(),
+            rect.height(),
+        ))
+    }
+
+    /// Opens the line's panel with `content`, pointing at where line
+    /// `line` settles on the reading line.
+    pub fn show_panel(&self, content: &gtk::Widget, line: usize) {
+        let popover = &self.panel;
+        popover.set_child(Some(content));
+        if let Some(rect) = self.settled_rect(line) {
+            self.point_panel(rect);
+        }
+        popover.popup();
+    }
+
+    fn point_panel(&self, rect: gtk::gdk::Rectangle) {
+        let popover = &self.panel;
+        let corner = gtk::graphene::Point::new(rect.x() as f32, rect.y() as f32);
+        if let Some(at) = self.view.compute_point(&self.anchor, &corner) {
+            popover.set_pointing_to(Some(&gtk::gdk::Rectangle::new(
+                at.x() as i32,
+                at.y() as i32,
+                rect.width(),
+                rect.height(),
+            )));
+        }
+    }
+
+    /// Puts an editor with `text` over line `line`, in the glass's type,
+    /// and focuses it; `None` if the line is not laid out.
+    pub fn begin_edit(&self, line: usize, text: &str) -> Option<gtk::TextView> {
+        let rect = self.line_rect(line)?;
+        // The view's margins, less the editor's own padding.
+        let (left, right) = (self.view.left_margin() - 12, self.view.right_margin());
+        self.editor.set_margin_start(rect.x() + left);
+        self.editor.set_margin_top((rect.y() - 10).max(0));
+        self.editor
+            .set_size_request((rect.width() - left - right).max(200), rect.height());
+        self.editor.buffer().set_text(text);
+        self.editor.set_visible(true);
+        self.editor.grab_focus();
+        let end = self.editor.buffer().end_iter();
+        self.editor.buffer().place_cursor(&end);
+        Some(self.editor.clone())
+    }
+
+    /// Takes the editor off the glass; what it held.
+    pub fn end_edit(&self) -> String {
+        let buffer = self.editor.buffer();
+        let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
+        self.editor.set_visible(false);
+        text.to_string()
     }
 
     pub fn show_position(&self, state: &PrompterState) {
@@ -184,7 +303,8 @@ impl Glass {
     pub fn set_text_size(&self, css: &gtk::CssProvider, size: f64) {
         self.shared.size.set(size);
         css.load_from_string(&format!(
-            "textview.glass, textview.glass > text {{ font-size: {size}px; }}"
+            "textview.glass, textview.glass > text, textview.line-editor, \
+             textview.line-editor > text {{ font-size: {size}px; }}"
         ));
         self.glide();
     }
@@ -283,6 +403,7 @@ impl Glass {
             let recorded = shared.recorded.borrow();
             let stale = shared.stale.borrow();
             let said = shared.said.borrow();
+            let marks = shared.marks.borrow();
             let buffer = view.buffer();
             for (line, &(start, _)) in layout.lines.iter().enumerate() {
                 let cy = line_centre(
@@ -307,6 +428,11 @@ impl Glass {
                     }
                 } else if stale.get(line).copied().unwrap_or(false) {
                     reworded(cr, x - 12.0, cy);
+                }
+                match marks.get(line).copied().flatten() {
+                    Some(Mark::Voiced) => waveform(cr, x - 12.0, cy, 0.7),
+                    Some(Mark::Unvoiced) => waveform(cr, x - 12.0, cy, 0.25),
+                    Some(Mark::Take) | None => {}
                 }
             }
         });
@@ -360,6 +486,19 @@ fn said_otherwise(cr: &cairo::Context, x: f64, y: f64) {
     let _ = cr.fill();
 }
 
+/// A line the voice reads: three bars of a waveform, bright once it has
+/// made the line, faint until then.
+fn waveform(cr: &cairo::Context, x: f64, y: f64, alpha: f64) {
+    cr.set_source_rgba(0.95, 0.96, 0.97, alpha);
+    cr.set_line_width(2.0);
+    cr.set_line_cap(cairo::LineCap::Round);
+    for (dx, half) in [(-4.0, 2.5), (0.0, 5.0), (4.0, 3.5)] {
+        cr.move_to(x + dx, y - half);
+        cr.line_to(x + dx, y + half);
+    }
+    let _ = cr.stroke();
+}
+
 /// The recorded mark: a small green tick.
 fn tick(cr: &cairo::Context, x: f64, y: f64) {
     cr.set_source_rgb(0.24, 0.86, 0.52);
@@ -396,6 +535,28 @@ fn draw_reading_line(area: &gtk::DrawingArea) {
         cr.close_path();
         let _ = cr.fill();
     });
+}
+
+/// What changes a line on the glass, over it: the editor for its words,
+/// and its panel, with the anchor it hangs from.
+fn line_tools(overlay: &gtk::Overlay) -> (gtk::TextView, gtk::Box, gtk::Popover) {
+    let editor = gtk::TextView::builder()
+        .wrap_mode(gtk::WrapMode::Word)
+        .pixels_inside_wrap(12)
+        .css_classes(["line-editor"])
+        .halign(gtk::Align::Start)
+        .valign(gtk::Align::Start)
+        .visible(false)
+        .build();
+    overlay.add_overlay(&editor);
+    let anchor = gtk::Box::builder().can_target(false).build();
+    overlay.add_overlay(&anchor);
+    let panel = gtk::Popover::builder()
+        .css_classes(["line-panel"])
+        .position(gtk::PositionType::Bottom)
+        .build();
+    panel.set_parent(&anchor);
+    (editor, anchor, panel)
 }
 
 /// What a take did, over the glass: its words, and Undo.

@@ -38,7 +38,7 @@ fn a_reading_is_followed_and_kept() {
         &LaunchRequest {
             binary: binary.into(),
             script: project.join("scripts/tour.md"),
-            model: model.into(),
+            model: Some(model.into()),
             locale: "en".into(),
         },
         move |e| {
