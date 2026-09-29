@@ -40,6 +40,7 @@ teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-translate = { path = "../teleprompt-translate" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
+teleprompt-voice-voicebox = { path = "../teleprompt-voice-voicebox" }
 teleprompt-voice-null = { path = "../teleprompt-voice-null" }
 clap.workspace = true
 serde.workspace = true

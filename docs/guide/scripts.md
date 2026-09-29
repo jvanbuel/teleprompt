@@ -197,7 +197,7 @@ and a `pause`). The same limit applies to the `_ms` settings in
 
 | on | keys |
 |---|---|
-| a line | `voice.backend`, `voice.voice`, `voice.speed`, `lead_in`, `tail`, `lang` |
+| a line | `voice.backend`, `voice.voice`, `voice.speed`, `voice.instruct`, `lead_in`, `tail`, `lang` |
 | a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `stretch`, `budget`, `trim_warn_above`, `max_stretch`, `min_stretch`, `review` |
 
 `include=path` takes the block's body from a file, so a tape or a
@@ -218,7 +218,7 @@ Settings merge from these layers, with later ones winning:
 
 | section | keys | defaults |
 |---|---|---|
-| `voice` | `source`, `backend`, `voice`, `speed`, `pronounce` | `synthetic`, `null`, none, `1.0` |
+| `voice` | `source`, `backend`, `voice`, `speed`, `instruct`, `pronounce` | `synthetic`, `null`, none, `1.0`, none |
 | `timing` | `lead_in_ms`, `tail_ms`, `max_stretch`, `min_stretch`, `trim_warn_above`, `min_line_speed`, `max_line_speed`, `min_take_speed`, `max_take_speed`, `length_ms` | `150`, `150`, `3.0`, `0.33`, `2.0`, `0.9`, `1.15`, `0.95`, `1.08`, none |
 | `output` | `resolution`, `fps`, `transition` | `[1920, 1080]`, `30`, see above |
 | `scene.<name>` | `adapter`, plus the adapter's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |

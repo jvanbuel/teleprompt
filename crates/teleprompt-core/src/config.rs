@@ -52,6 +52,8 @@ pub struct VoiceConfig {
     pub backend: String,
     pub voice: Option<String>,
     pub speed: f64,
+    /// How to deliver each line, for a backend that takes instructions.
+    pub instruct: Option<String>,
     /// How to say words a voice gets wrong, applied to synthesis only.
     /// The script, the captions and the manifest keep the spelling.
     pub pronounce: BTreeMap<String, String>,
@@ -226,6 +228,7 @@ impl Default for Config {
                 backend: "null".into(),
                 voice: None,
                 speed: 1.0,
+                instruct: None,
                 pronounce: BTreeMap::new(),
             },
             output: OutputConfig {
@@ -316,6 +319,7 @@ pub struct PartialVoice {
     pub backend: Option<String>,
     pub voice: Option<String>,
     pub speed: Option<f64>,
+    pub instruct: Option<String>,
     /// `pronounce: { MWAA: em-double-you-ay-ay }`. Merged across layers
     /// word by word rather than replaced wholesale: a script adding one
     /// name should not drop the project's list.
@@ -504,6 +508,7 @@ impl PartialConfig {
                 backend: a.voice_backend.clone(),
                 voice: a.voice.clone(),
                 speed: a.voice_speed,
+                instruct: a.voice_instruct.clone(),
                 ..PartialVoice::default()
             }),
             ..Self::default()
@@ -580,6 +585,9 @@ impl Config {
                     c.voice.voice = v.voice.clone();
                 }
                 set!(c.voice.speed, v.speed);
+                if v.instruct.is_some() {
+                    c.voice.instruct = v.instruct.clone();
+                }
                 if let Some(pronounce) = &v.pronounce {
                     c.voice
                         .pronounce

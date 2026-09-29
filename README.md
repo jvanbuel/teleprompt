@@ -85,6 +85,7 @@ opens on the item you just changed, and `build` renders the video.
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |
 | `doctor` | report the environment teleprompt can see |
+| `voice clone <name>` | make a voice from your takes on a [Voicebox](docs/guide/voices.md#your-own-voice-voicebox) server, so unrecorded lines sound like you |
 | `setup [adapter or tool…]` | say which tools and models are installed, their licenses, and how to install the rest; `--run` installs them |
 | `cache` | report what the project's caches hold, or shrink them |
 

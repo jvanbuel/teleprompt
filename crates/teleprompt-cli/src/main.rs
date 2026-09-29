@@ -181,11 +181,30 @@ impl EditCommand {
 }
 
 #[derive(Subcommand)]
+enum VoiceCommand {
+    /// Make a voice from your takes, so the lines you have not recorded
+    /// are spoken in your voice. Clone only your own voice, or one you
+    /// have permission to
+    Clone {
+        /// What to call it: `voice.voice` names it
+        name: String,
+        /// The language of your takes
+        #[arg(long, default_value = "en")]
+        language: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Scaffold a new project
     New { path: PathBuf },
     /// Report the environment teleprompt can see
     Doctor,
+    /// Voices of your own, on a Voicebox server
+    Voice {
+        #[command(subcommand)]
+        command: VoiceCommand,
+    },
     /// Find, or install, the tools adapters run and the models backends read
     ///
     /// Teleprompt ships none of them: each is under its own license, which
@@ -677,6 +696,19 @@ fn run(command: Command, format: Format) -> Run {
             Ok(Outcome::Ok)
         }
         Command::Setup { names, run } => run_setup(format, &names, run),
+        Command::Voice {
+            command: VoiceCommand::Clone { name, language },
+        } => {
+            let project = Project::discover(std::path::Path::new(".")).map_err(runtime_failure)?;
+            let report = runtime()
+                .map_err(runtime_failure)?
+                .block_on(teleprompt_cli::cmd::voice::run_clone(
+                    &project, &name, &language,
+                ))
+                .map_err(runtime_failure)?;
+            emit(format, &report, &report.render());
+            Ok(Outcome::Ok)
+        }
         Command::Check(args) => run_check(format, &args),
         Command::Plan(args) => run_plan(format, &args),
         Command::Diff { args, exit_code } => {

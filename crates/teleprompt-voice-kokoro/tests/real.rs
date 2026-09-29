@@ -19,6 +19,7 @@ async fn a_real_server_produces_plausible_audio() {
             locale: "en".to_string(),
             voice: Some(voices[0].clone()),
             speed: 1.0,
+            instruct: None,
         })
         .await
         .expect("synthesis succeeded");

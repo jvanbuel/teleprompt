@@ -5,6 +5,7 @@ use teleprompt_core::Diagnostic;
 use teleprompt_voice::{VoiceBackend, VoiceRegistry};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
 use teleprompt_voice_null::NullVoice;
+use teleprompt_voice_voicebox::{VoiceboxConfig, VoiceboxVoice};
 
 /// The backends this build ships, together with everything the project's
 /// `backends:` settings said that could not be turned into one.
@@ -26,6 +27,8 @@ pub struct Backends {
     /// `registry`; see [`Backends::kokoro`]. `None` when it did not
     /// construct.
     kokoro: Option<Arc<KokoroVoice>>,
+    /// The concrete Voicebox handle; see [`Backends::voicebox`].
+    voicebox: Option<Arc<VoiceboxVoice>>,
 }
 
 /// Every backend this build ships, each constructed from its own slice of
@@ -35,6 +38,7 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
     let mut registry = VoiceRegistry::default();
     let mut unusable = BTreeMap::new();
     let mut kokoro_handle = None;
+    let mut voicebox_handle = None;
 
     registry.register(Arc::new(NullVoice::default()));
 
@@ -46,6 +50,16 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
         }
         Err(e) => {
             unusable.insert("kokoro".to_string(), e);
+        }
+    }
+    match voicebox(settings.get("voicebox")) {
+        Ok(v) => {
+            let v = Arc::new(v);
+            registry.register(v.clone());
+            voicebox_handle = Some(v);
+        }
+        Err(e) => {
+            unusable.insert("voicebox".to_string(), e);
         }
     }
 
@@ -68,7 +82,16 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
         unknown,
         config_file: config_file.to_string(),
         kokoro: kokoro_handle,
+        voicebox: voicebox_handle,
     }
+}
+
+fn voicebox(settings: Option<&serde_yaml::Value>) -> Result<VoiceboxVoice, String> {
+    let cfg = match settings {
+        Some(v) => VoiceboxConfig::from_value(v)?,
+        None => VoiceboxConfig::default(),
+    };
+    VoiceboxVoice::new(cfg)
 }
 
 fn kokoro(settings: Option<&serde_yaml::Value>) -> Result<KokoroVoice, String> {
@@ -96,6 +119,7 @@ impl Backends {
             unknown: Vec::new(),
             config_file: "teleprompt.toml".to_string(),
             kokoro: None,
+            voicebox: None,
         }
     }
 
@@ -130,6 +154,24 @@ impl Backends {
         } else {
             None
         }
+    }
+
+    /// The concrete Voicebox handle, for its profiles, concurrency and
+    /// address; only when `id` is `voicebox` and it constructed.
+    pub fn voicebox(&self, id: &str) -> Option<&Arc<VoiceboxVoice>> {
+        if id == "voicebox" {
+            self.voicebox.as_ref()
+        } else {
+            None
+        }
+    }
+
+    /// Lines `dub` sends the backend `id` at once.
+    pub fn concurrency(&self, id: &str) -> usize {
+        self.kokoro(id)
+            .map(|k| k.concurrency())
+            .or_else(|| self.voicebox(id).map(|v| v.concurrency()))
+            .unwrap_or(1)
     }
 
     /// The backend `id` names, or a diagnostic saying why not.

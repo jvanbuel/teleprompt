@@ -232,10 +232,7 @@ pub async fn run_dub_with(
     let cache = Arc::new(VoiceCache::new(project.caches().root));
 
     check_voices(backends, backend.id(), &compiled, &cache).await?;
-    let limit = backends
-        .kokoro(backend.id())
-        .map(|k| k.concurrency())
-        .unwrap_or(1);
+    let limit = backends.concurrency(backend.id());
     let takes = Takes::load(&project.takes_dir()).map_err(|e| DubError::Runtime(e.to_string()))?;
     let synthesized: Vec<NarrationDetail> = compiled
         .narration

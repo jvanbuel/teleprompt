@@ -33,6 +33,9 @@ pub struct SynthRequest {
     pub locale: String,
     pub voice: Option<String>,
     pub speed: f64,
+    /// How to deliver the line, for a backend that takes instructions
+    /// ("warmly, with a smile"); others ignore it.
+    pub instruct: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

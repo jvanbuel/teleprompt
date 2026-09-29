@@ -9,6 +9,7 @@ fn req(text: &str, voice: Option<&str>, speed: f64, locale: &str) -> SynthReques
         locale: locale.to_string(),
         voice: voice.map(str::to_string),
         speed,
+        instruct: None,
     }
 }
 
@@ -494,4 +495,31 @@ fn a_store_leaves_no_temporary_files_behind() {
         .filter(|n| !n.ends_with(".wav") && !n.ends_with(".json"))
         .collect();
     assert!(names.is_empty(), "left behind: {names:?}");
+}
+
+/// A request without delivery instructions keys as it did before they
+/// existed, so no cache is thrown away; one with them keys apart.
+#[test]
+fn instructions_key_apart_and_their_absence_keys_as_before() {
+    let plain = req("Welcome to Acme.", Some("af_heart"), 1.0, "en");
+    assert_eq!(
+        key("kokoro", "kokoro", &plain).to_string(),
+        "716b9643a827b09aa9e2302dc2c2c4d10f8d0fb8f58e1e0fec15d7b3d6d9238e"
+    );
+    let warm = SynthRequest {
+        instruct: Some("warmly, with a smile".into()),
+        ..plain.clone()
+    };
+    let calm = SynthRequest {
+        instruct: Some("calmly".into()),
+        ..plain.clone()
+    };
+    assert_ne!(
+        key("kokoro", "kokoro", &warm),
+        key("kokoro", "kokoro", &plain)
+    );
+    assert_ne!(
+        key("kokoro", "kokoro", &warm),
+        key("kokoro", "kokoro", &calm)
+    );
 }

@@ -170,6 +170,38 @@ pub fn probe_ffmpeg(program: &str) -> Option<String> {
         .map(|line| line.trim().to_string())
 }
 
+/// Voicebox's address, engine and voices: which profiles a script can name.
+async fn probe_voicebox(
+    voicebox: &teleprompt_voice_voicebox::VoiceboxVoice,
+    backend_id: &str,
+) -> VoiceProbe {
+    let url = voicebox.base_url().to_string();
+    let detail = match tokio::time::timeout(PROBE_TIMEOUT, voicebox.profiles()).await {
+        Ok(Ok(profiles)) => format!(
+            "{url} — reachable, {}, voices: {}",
+            teleprompt_voice::VoiceBackend::capabilities(voicebox).version,
+            if profiles.is_empty() {
+                "none yet (`teleprompt voice clone`)".to_string()
+            } else {
+                profiles
+                    .iter()
+                    .map(|p| p.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
+        ),
+        Ok(Err(e)) => format!("{url} — unreachable ({e})"),
+        Err(_) => format!(
+            "{url} — unreachable (no response within {}ms)",
+            PROBE_TIMEOUT.as_millis()
+        ),
+    };
+    VoiceProbe {
+        backend: backend_id.to_string(),
+        detail,
+    }
+}
+
 /// Shorter than the backend's own `timeout_ms`, which is sized for synthesis:
 /// listing voices runs no model, so a server this slow to answer is broken.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(5_000);
@@ -177,6 +209,9 @@ const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(5_00
 /// One line about the configured backend's server, or `None` when it has no
 /// server to probe.
 async fn probe_configured_backend(backends: &Backends, backend_id: &str) -> Option<VoiceProbe> {
+    if let Some(voicebox) = backends.voicebox(backend_id) {
+        return Some(probe_voicebox(voicebox, backend_id).await);
+    }
     let kokoro = backends.kokoro(backend_id)?;
     let url = kokoro.base_url().to_string();
     let detail = match tokio::time::timeout(PROBE_TIMEOUT, kokoro.voices()).await {

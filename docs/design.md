@@ -155,6 +155,7 @@ reading the manifest it just published.
 | `teleprompt-voice` | the `VoiceBackend` and `DurationEstimator` contracts, WAV encoding, the registry |
 | `teleprompt-voice-null` | silence at the estimated length, and `WpmEstimator` |
 | `teleprompt-voice-kokoro` | HTTP against a Kokoro-FastAPI server |
+| `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
 | `teleprompt-cache` | the content-addressed voice cache |
 | `teleprompt-scene` | the `SceneCompiler` contract and the `mock` adapter |
 | `teleprompt-capture` | the `CaptureBackend` contract and the mock backend, and the `Recorder` contract for recording a session |
@@ -227,8 +228,10 @@ structural. `main` is synchronous, and only `dub`, `build`, `capture`,
 `.teleprompt/cache/voice/<key>.wav`, with a JSON sidecar that holds the
 duration, format and word timings. The key covers everything that changes
 the audio and nothing else: the backend id, the backend version, locale,
-voice, speed, and the hash of the text as synthesized, with pronunciations
-applied.
+voice, speed, the hash of the text as synthesized, with pronunciations
+applied, and the delivery instructions (`voice.instruct`) when there are
+any. A field that is absent adds nothing to the key, so a new one never
+changes the keys of a cache built before it.
 
 The backend version is the *model*, not the server address, so a cache
 built on one machine is valid on another. The trade-off is that two

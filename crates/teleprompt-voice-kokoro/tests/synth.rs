@@ -10,6 +10,7 @@ fn req(text: &str) -> SynthRequest {
         locale: "en".to_string(),
         voice: Some("af_heart".to_string()),
         speed: 1.0,
+        instruct: None,
     }
 }
 
@@ -54,6 +55,7 @@ async fn the_request_body_is_what_the_spec_says() {
         locale: "en".to_string(),
         voice: Some("af_bella".to_string()),
         speed: 1.25,
+        instruct: None,
     };
     backend(&s.base_url, 30_000).synthesize(&r).await.unwrap();
 

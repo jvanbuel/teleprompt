@@ -28,6 +28,7 @@ ALLOWED = {
     "cache": {"core", "voice"},
     "voice-null": {"core", "voice"},
     "voice-kokoro": {"core", "voice"},
+    "voice-voicebox": {"voice"},
     "compile": {"core", "scene", "schedule", "voice", "cache", "manifest"},
     "render": {"core", "manifest"},
     "vhs": ADAPTER,

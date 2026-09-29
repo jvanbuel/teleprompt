@@ -271,6 +271,7 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
         locale: "en".to_string(),
         voice: None,
         speed: 1.0,
+        instruct: None,
     });
     assert_ne!(
         rendered_ms, estimated_ms,

@@ -13,6 +13,7 @@ fn req() -> SynthRequest {
         locale: "en".into(),
         voice: Some("af_heart".into()),
         speed: 1.0,
+        instruct: None,
     }
 }
 

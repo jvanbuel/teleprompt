@@ -199,3 +199,17 @@ fn setup_with_no_way_to_install_says_where_the_tool_is_from() {
         "https://github.com/charmbracelet/vhs"
     );
 }
+
+/// Voicebox is an app of the author's; its models' licenses differ, and
+/// one's weights come with conditions.
+#[test]
+fn voicebox_is_explained_with_its_models_licenses() {
+    let voicebox = &resolve(&["voicebox".to_string()]).unwrap()[0];
+    assert_eq!(voicebox.command(&mac()), None);
+    assert!(voicebox.guide.unwrap().contains("teleprompt voice clone"));
+    assert!(
+        voicebox.license.contains("MIT") && voicebox.license.contains("Llama"),
+        "{}",
+        voicebox.license
+    );
+}

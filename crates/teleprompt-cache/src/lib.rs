@@ -81,14 +81,21 @@ pub fn key(backend_id: &str, backend_version: &str, req: &SynthRequest) -> Cache
         Some(v) => format!("+{v}"),
         None => "-".to_string(),
     };
-    CacheKey(Hash::of_fields(&[
+    let speed = req.speed.to_string();
+    let text = Hash::of(req.text.as_bytes()).to_string();
+    let mut fields = vec![
         backend_id,
         backend_version,
         &req.locale,
         &voice,
-        &req.speed.to_string(),
-        &Hash::of(req.text.as_bytes()).to_string(),
-    ]))
+        &speed,
+        &text,
+    ];
+    // Only when given, so a request without instructions keys as it did
+    // before they existed and no cache is thrown away.
+    let instruct = req.instruct.as_ref().map(|i| format!("instruct:{i}"));
+    fields.extend(instruct.as_deref());
+    CacheKey(Hash::of_fields(&fields))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

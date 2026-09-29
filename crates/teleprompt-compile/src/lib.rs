@@ -551,6 +551,7 @@ impl<'a> Walker<'a, '_> {
             locale: self.program.locale.clone(),
             voice: config.voice.voice.clone(),
             speed: config.voice.speed,
+            instruct: config.voice.instruct.clone(),
         };
         let cache_key =
             teleprompt_cache::key(self.voice.backend_id, self.voice.backend_version, &req);

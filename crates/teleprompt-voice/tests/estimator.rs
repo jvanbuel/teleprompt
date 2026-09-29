@@ -8,6 +8,7 @@ fn req(text: &str, speed: f64) -> SynthRequest {
         locale: "en".to_string(),
         voice: None,
         speed,
+        instruct: None,
     }
 }
 

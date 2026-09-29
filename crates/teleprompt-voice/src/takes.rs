@@ -65,6 +65,11 @@ impl Takes {
         })
     }
 
+    /// Every take, by line id, in order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &TakeMeta)> {
+        self.meta.iter().map(|(id, t)| (id.as_str(), t))
+    }
+
     pub fn is_empty(&self) -> bool {
         self.meta.is_empty()
     }
