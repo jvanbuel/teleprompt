@@ -3,6 +3,7 @@
 
 use serde::Deserialize;
 use serde_json::{json, Value};
+use teleprompt_core::error::with_causes;
 
 use crate::prompt::{answer, schema, SYSTEM};
 use crate::{Request, Response};
@@ -23,6 +24,18 @@ pub struct OpenAi {
     pub model: String,
     pub api_key: Option<String>,
     pub timeout_ms: u64,
+}
+
+/// Everything but the key, which would otherwise end up in a log.
+impl std::fmt::Debug for OpenAi {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenAi")
+            .field("url", &self.url)
+            .field("model", &self.model)
+            .field("api_key", &self.api_key.as_ref().map(|_| "<redacted>"))
+            .field("timeout_ms", &self.timeout_ms)
+            .finish()
+    }
 }
 
 impl OpenAi {
@@ -71,7 +84,7 @@ impl OpenAi {
             if e.is_timeout() {
                 return crate::unanswered(&self.url, self.timeout_ms, "openai");
             }
-            format!("cannot reach {}: {e}", self.url)
+            format!("cannot reach {}: {}", self.url, with_causes(&e))
         })?;
         let status = reply.status();
         let message: Value = reply.json().await.map_err(|e| {

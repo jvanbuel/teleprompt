@@ -193,12 +193,13 @@ async fn an_openai_compatible_server_is_asked_the_same() {
         "choices": [{"message": {"role": "assistant", "content": answer.to_string()}}],
     }))
     .await;
-    std::env::set_var("TP_TEST_KEY", "sk-local");
+    // A variable cargo sets for every test run: setting one here would
+    // race the other tests reading the environment in parallel.
     let t = Translator::new(
         "openai",
         Some("qwen2.5-7b-instruct"),
         Some(&settings(&format!(
-            "url: {url}/v1\napi_key_env: TP_TEST_KEY"
+            "url: {url}/v1\napi_key_env: CARGO_PKG_NAME"
         ))),
     )
     .unwrap();
@@ -207,7 +208,10 @@ async fn an_openai_compatible_server_is_asked_the_same() {
     let (head, body) = server.await.unwrap();
     let head = head.to_lowercase();
     assert!(head.starts_with("post /v1/chat/completions "), "{head}");
-    assert!(head.contains("authorization: bearer sk-local"), "{head}");
+    assert!(
+        head.contains("authorization: bearer teleprompt-translate"),
+        "{head}"
+    );
     assert_eq!(body["model"], "qwen2.5-7b-instruct");
     assert_eq!(body["response_format"]["type"], "json_schema");
 }
@@ -263,4 +267,17 @@ async fn a_provider_that_never_answers_is_given_up_on() {
         .unwrap_err();
     assert!(started.elapsed().as_secs() < 5);
     assert!(err.contains("timeout_ms"), "{err}");
+}
+
+/// A translator printed for debugging does not print its key.
+#[test]
+fn a_key_is_never_printed() {
+    let Translator::Claude(c) = claude("http://localhost".into()) else {
+        unreachable!()
+    };
+    let shown = format!("{c:?}");
+    assert!(
+        !shown.contains("test-key") && shown.contains("redacted"),
+        "{shown}"
+    );
 }

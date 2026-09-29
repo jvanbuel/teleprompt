@@ -103,18 +103,18 @@ fn best_match(mono: &[f32], natural: usize, nominal: usize, hop: usize, search: 
     let from = nominal.saturating_sub(search);
     let to = (nominal + search).min(mono.len().saturating_sub(hop));
     let reference = &mono[natural.min(mono.len() - hop)..][..hop];
+    let score = |s: usize| -> f32 {
+        mono[s..][..hop]
+            .iter()
+            .zip(reference)
+            .map(|(x, y)| x * y)
+            .sum()
+    };
+    // Each offset scored once, not once per comparison.
     (from..=to.max(from))
-        .max_by(|&a, &b| {
-            let score = |s: usize| -> f32 {
-                mono[s..][..hop]
-                    .iter()
-                    .zip(reference)
-                    .map(|(x, y)| x * y)
-                    .sum()
-            };
-            score(a).total_cmp(&score(b))
-        })
-        .unwrap_or(nominal)
+        .map(|s| (score(s), s))
+        .max_by(|a, b| a.0.total_cmp(&b.0))
+        .map_or(nominal, |(_, s)| s)
 }
 
 /// [`stretch`], then padded or trimmed by the fraction of a millisecond a

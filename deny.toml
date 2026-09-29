@@ -28,3 +28,15 @@ allow = [
     "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.9
+
+# Known vulnerabilities fail the build; `cargo update -p <crate>` is the
+# usual fix.
+#
+#   cargo deny --all-features check advisories
+[advisories]
+ignore = [
+    # `paste`, unmaintained: a compile-time macro gstreamer's bindings use
+    # in the Linux app. Nothing of it runs, and no maintained release of
+    # gstreamer-rs drops it yet.
+    { id = "RUSTSEC-2024-0436", reason = "compile-time only, via gstreamer" },
+]

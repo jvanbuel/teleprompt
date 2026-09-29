@@ -3,6 +3,7 @@
 
 use serde::Deserialize;
 use serde_json::{json, Value};
+use teleprompt_core::error::with_causes;
 
 use crate::prompt::{answer, schema, SYSTEM};
 use crate::{Request, Response};
@@ -62,9 +63,11 @@ impl Ollama {
                     return crate::unanswered("Ollama", self.timeout_ms, "ollama");
                 }
                 format!(
-                    "cannot reach Ollama at {}: {e}\n  install it from ollama.com, then \
+                    "cannot reach Ollama at {}: {}\n  install it from ollama.com, then \
                      `ollama pull {}`; or choose another provider under [translate]",
-                    self.url, self.model
+                    self.url,
+                    with_causes(&e),
+                    self.model
                 )
             })?;
         let status = reply.status();

@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::{json, Value};
 
@@ -65,22 +65,27 @@ fn copy_dir(from: &Path, to: &Path) {
 
 /// Runs the binary in `cwd`, killing it if it has not exited in 30 seconds.
 fn tp(cwd: &Path, args: &[&str]) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+    let child = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(cwd)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    let deadline = Instant::now() + Duration::from_secs(30);
-    while child.try_wait().unwrap().is_none() {
-        if Instant::now() > deadline {
-            child.kill().unwrap();
+    // Read while it runs, on a thread: a child that fills a pipe nobody
+    // reads blocks on it, and would look like one that never exits.
+    let pid = child.id();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(child.wait_with_output());
+    });
+    match rx.recv_timeout(Duration::from_secs(30)) {
+        Ok(out) => out.unwrap(),
+        Err(_) => {
+            let _ = Command::new("kill").arg(pid.to_string()).status();
             panic!("`teleprompt {}` did not exit", args.join(" "));
         }
-        std::thread::sleep(Duration::from_millis(20));
     }
-    child.wait_with_output().unwrap()
 }
 
 /// Exit code, stdout (as JSON where it is JSON) and stderr, with the one

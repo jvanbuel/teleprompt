@@ -128,7 +128,7 @@ async fn a_kokoro_backend_project_against_a_dead_port_is_a_warning_not_a_failure
 
     let probe = report.voice_probe.expect("probe ran");
     let line = &probe.detail;
-    assert!(line.contains("unreachable"), "{line}");
+    assert!(line.to_lowercase().contains("refused"), "{line}");
     assert!(report.ok, "unreachable is a warning, not an error");
 }
 

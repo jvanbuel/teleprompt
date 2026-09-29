@@ -12,6 +12,9 @@ const ZERO_CROSSINGS: f64 = 16.0;
 /// window room to roll off before it.
 const ROLL_OFF: f64 = 0.95;
 
+/// Most filter phases worth keeping: 44.1 kHz to 16 kHz has 160.
+const MOST_PHASES: u64 = 4096;
+
 /// Mono `samples` at `from` Hz, at `to` Hz.
 pub fn resample(samples: &[f32], from: u32, to: u32) -> Vec<f32> {
     if from == to || samples.is_empty() {
@@ -37,21 +40,36 @@ pub struct Resampler {
     offset: usize,
     /// The next output sample's index.
     next: usize,
+    /// The filter at each fraction of an input sample an output falls on,
+    /// computed once, where the rates share a small enough ratio.
+    phases: Option<Phases>,
+}
+
+/// Output sample `i` falls `i * num / den` input samples in: a whole
+/// sample and one of `den` fractions, each with its taps precomputed.
+struct Phases {
+    num: u64,
+    den: u64,
+    /// Per fraction, the first tap's offset from the whole sample.
+    first: Vec<i64>,
+    weights: Vec<Vec<f64>>,
 }
 
 impl Resampler {
     pub fn new(from: u32, to: u32) -> Self {
         // Cycles per input sample.
         let cutoff = ROLL_OFF * 0.5 * from.min(to) as f64 / from as f64;
+        let half_width = ZERO_CROSSINGS / (2.0 * cutoff);
         Self {
             step: from as f64 / to as f64,
             cutoff,
-            half_width: ZERO_CROSSINGS / (2.0 * cutoff),
+            half_width,
             from,
             to,
             input: Vec::new(),
             offset: 0,
             next: 0,
+            phases: Phases::of(from, to, cutoff, half_width),
         }
     }
 
@@ -81,10 +99,25 @@ impl Resampler {
         if self.from == self.to {
             return self.input.get(i - self.offset).copied().unwrap_or(0.0);
         }
+        let end = self.offset + self.input.len();
+        if let Some(p) = &self.phases {
+            let i = i as u64;
+            let whole = (i * p.num / p.den) as i64;
+            let phase = (i * p.num % p.den) as usize;
+            let first = whole + p.first[phase];
+            return p.weights[phase]
+                .iter()
+                .enumerate()
+                .filter_map(|(k, w)| {
+                    let j = usize::try_from(first + k as i64).ok()?;
+                    let x = self.input.get(j.checked_sub(self.offset)?)?;
+                    Some(f64::from(*x) * w)
+                })
+                .sum::<f64>() as f32;
+        }
         let t = i as f64 * self.step;
         let first = (t - self.half_width).ceil().max(0.0) as usize;
         let last = (t + self.half_width).floor() as usize;
-        let end = self.offset + self.input.len();
         (first.max(self.offset)..=last.min(end.saturating_sub(1)))
             .map(|j| {
                 let x = j as f64 - t;
@@ -101,6 +134,44 @@ impl Resampler {
         let drop = needed.saturating_sub(self.offset).min(self.input.len());
         self.input.drain(..drop);
         self.offset += drop;
+    }
+}
+
+impl Phases {
+    fn of(from: u32, to: u32, cutoff: f64, half_width: f64) -> Option<Self> {
+        let g = gcd(u64::from(from), u64::from(to));
+        let (num, den) = (u64::from(from) / g, u64::from(to) / g);
+        if den > MOST_PHASES || from == to {
+            return None;
+        }
+        let (mut first, mut weights) = (Vec::new(), Vec::new());
+        for p in 0..den {
+            let f = p as f64 / den as f64;
+            let (lo, hi) = (
+                (f - half_width).ceil() as i64,
+                (f + half_width).floor() as i64,
+            );
+            first.push(lo);
+            weights.push(
+                (lo..=hi)
+                    .map(|k| kernel(k as f64 - f, cutoff, half_width))
+                    .collect(),
+            );
+        }
+        Some(Phases {
+            num,
+            den,
+            first,
+            weights,
+        })
+    }
+}
+
+fn gcd(a: u64, b: u64) -> u64 {
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
     }
 }
 

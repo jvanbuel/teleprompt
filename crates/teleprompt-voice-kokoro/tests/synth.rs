@@ -150,4 +150,6 @@ async fn an_unreachable_server_names_the_url() {
         .await
         .unwrap_err();
     assert!(err.to_string().contains("127.0.0.1:1"), "{err}");
+    // Why, from beneath reqwest's own "error sending request".
+    assert!(err.to_string().to_lowercase().contains("refused"), "{err}");
 }

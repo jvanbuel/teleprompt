@@ -239,10 +239,9 @@ impl<R: Recognizer> Session<R> {
             return Ok(saved);
         };
         let lines = take.log.lines(&take.audio, take.rate);
-        let heard = if lines.is_empty() {
-            Vec::new()
-        } else {
-            self.heard(&take)
+        let heard = match lines.iter().map(|(line, _)| *line).max() {
+            Some(last) => self.heard(&take, last),
+            None => Vec::new(),
         };
         for (line, span) in lines {
             let (Some(id), Some(text)) = (self.prompt.ids.get(line), self.prompt.lines.get(line))
@@ -267,15 +266,17 @@ impl<R: Recognizer> Session<R> {
     }
 
     /// What `take` says, heard again whole, so no word is heard cut, and
-    /// split among the lines from the one it started on.
-    fn heard(&mut self, take: &Take) -> Vec<String> {
+    /// split among the lines from the one it started on to the one after
+    /// `last`, which gets what was begun of it; not the whole script after.
+    fn heard(&mut self, take: &Take, last: usize) -> Vec<String> {
         let transcript = if take.rate == LISTEN_RATE {
             self.follower.transcribe(&take.audio)
         } else {
             let at_rate = Resampler::new(take.rate, LISTEN_RATE).push(&take.audio);
             self.follower.transcribe(&at_rate)
         };
-        let lines: Vec<&str> = self.prompt.lines[take.from.min(self.prompt.lines.len())..]
+        let all = self.prompt.lines.len();
+        let lines: Vec<&str> = self.prompt.lines[take.from.min(all)..(last + 2).min(all)]
             .iter()
             .map(String::as_str)
             .collect();

@@ -1,4 +1,5 @@
 use base64::Engine;
+use teleprompt_voice::with_causes;
 use teleprompt_voice::{Pcm, VoiceError, WordTiming};
 
 use crate::config::{KokoroConfig, KOKORO_SAMPLE_RATE};
@@ -49,7 +50,7 @@ impl Client {
             if e.is_timeout() {
                 self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
             } else {
-                self.fail(&format!("request failed: {e}"))
+                self.fail(&format!("request failed: {}", with_causes(&e)))
             }
         })?;
 
@@ -69,7 +70,7 @@ impl Client {
             if e.is_timeout() {
                 self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
             } else {
-                self.fail(&format!("response body incomplete: {e}"))
+                self.fail(&format!("response body incomplete: {}", with_causes(&e)))
             }
         })?;
 
@@ -101,7 +102,7 @@ impl Client {
             if e.is_timeout() {
                 self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
             } else {
-                self.fail(&format!("request failed: {e}"))
+                self.fail(&format!("request failed: {}", with_causes(&e)))
             }
         })?;
         let status = resp.status();
@@ -134,7 +135,7 @@ impl Client {
             if e.is_timeout() {
                 self.fail(&format!("no response within {}ms", self.cfg.timeout_ms))
             } else {
-                self.fail(&format!("cannot list voices: {e}"))
+                self.fail(&format!("cannot list voices: {}", with_causes(&e)))
             }
         })?;
         if !resp.status().is_success() {

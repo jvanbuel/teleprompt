@@ -554,13 +554,21 @@ mod tests {
         let edited = std::fs::read_to_string(&script).unwrap() + "\nOne more line.\n";
         std::fs::write(&script, edited).unwrap();
 
-        let watching = watch(state.clone(), project, script, "en".into(), compiled);
-        let _ = tokio::time::timeout(POLL * 4, watching).await;
-        assert!(
-            state.lock().unwrap().generation > 1,
-            "the edit was never seen"
-        );
-        let _ = std::fs::remove_dir_all(&dir);
+        // Until the watcher publishes, with room for a slow machine's
+        // recompile: the watcher itself never returns.
+        let seen = state.clone();
+        let published = async move {
+            while seen.lock().unwrap().generation == 1 {
+                tokio::time::sleep(POLL / 5).await;
+            }
+        };
+        let watching = watch(state, project, script, "en".into(), compiled);
+        tokio::select! {
+            () = watching => unreachable!("the watcher returned"),
+            r = tokio::time::timeout(std::time::Duration::from_secs(20), published) => {
+                r.expect("the edit was never seen");
+            }
+        }
     }
 
     /// With no narration there is no audio to read a format from, and the

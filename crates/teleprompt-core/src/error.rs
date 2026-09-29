@@ -92,6 +92,23 @@ impl Diagnostics {
     }
 }
 
+/// `e` and what caused it, each once: `a: b: c`. An HTTP client's error
+/// says only which request failed; why (refused, no such host, a bad
+/// certificate) is in its sources.
+pub fn with_causes(e: &(dyn std::error::Error + 'static)) -> String {
+    let mut out = e.to_string();
+    let mut next = e.source();
+    while let Some(cause) = next {
+        let said = cause.to_string();
+        if !out.contains(&said) {
+            out.push_str(": ");
+            out.push_str(&said);
+        }
+        next = cause.source();
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

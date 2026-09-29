@@ -190,7 +190,9 @@ async fn probe_voicebox(
                     .join(", ")
             }
         ),
-        Ok(Err(e)) => format!("{url} — unreachable ({e})"),
+        // In the backend's own words, which name the address: a refused
+        // connection, a 500 and a bad voice list are different fixes.
+        Ok(Err(e)) => e.to_string(),
         Err(_) => format!(
             "{url} — unreachable (no response within {}ms)",
             PROBE_TIMEOUT.as_millis()
@@ -221,7 +223,9 @@ async fn probe_configured_backend(backends: &Backends, backend_id: &str) -> Opti
             teleprompt_voice::VoiceBackend::capabilities(kokoro.as_ref()).version,
             voices.len()
         ),
-        Ok(Err(e)) => format!("{url} — unreachable ({e})"),
+        // In the backend's own words, which name the address: a refused
+        // connection, a 500 and a bad voice list are different fixes.
+        Ok(Err(e)) => e.to_string(),
         Err(_) => format!(
             "{url} — unreachable (no response within {}ms)",
             PROBE_TIMEOUT.as_millis()

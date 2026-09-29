@@ -81,5 +81,6 @@ jobs:
           TELEPROMPT_PUNCT_MODEL: ${{ github.workspace }}/model/${{ env.PUNCT }}
         run: |
           cargo clippy -p teleprompt-listen-sherpa --features sherpa --all-targets -- -D warnings
+          cargo clippy -p teleprompt-cli --features listen --all-targets -- -D warnings
           cargo test -p teleprompt-listen-sherpa --features sherpa
           cargo test -p teleprompt-cli --features listen --test import_listen --test record_listen --test record

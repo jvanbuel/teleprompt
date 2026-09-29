@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
+use teleprompt_voice::with_causes;
 
 use serde::Deserialize;
 use teleprompt_voice::{Pcm, VoiceError};
@@ -65,7 +66,7 @@ impl Client {
                     self.cfg.timeout_ms
                 ))
             } else {
-                self.fail(&format!("{what} failed: {e}"))
+                self.fail(&format!("{what} failed: {}", with_causes(&e)))
             }
         })?;
         let status = resp.status();
@@ -201,10 +202,12 @@ impl Client {
         let resp = self
             .send(self.http.post(url).json(&body), "speaking a line")
             .await?;
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| self.fail(&format!("the audio came back incomplete: {e}")))?;
+        let bytes = resp.bytes().await.map_err(|e| {
+            self.fail(&format!(
+                "the audio came back incomplete: {}",
+                with_causes(&e)
+            ))
+        })?;
         teleprompt_voice::wav::decode(&bytes).map_err(|e| self.fail(&format!("its audio: {e}")))
     }
 }

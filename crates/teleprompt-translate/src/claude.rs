@@ -2,6 +2,7 @@
 //! Anthropic SDK, so this is the documented HTTP request.
 
 use serde_json::{json, Value};
+use teleprompt_core::error::with_causes;
 
 use crate::prompt::{answer, schema, SYSTEM};
 use crate::{Request, Response};
@@ -20,6 +21,17 @@ pub struct Claude {
     pub model: String,
     /// The API's address; the real one unless testing.
     pub base_url: String,
+}
+
+/// Everything but the key, which would otherwise end up in a log.
+impl std::fmt::Debug for Claude {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Claude")
+            .field("api_key", &"<redacted>")
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .finish()
+    }
 }
 
 impl Claude {
@@ -70,7 +82,7 @@ impl Claude {
                         crate::TIMEOUT_MS
                     );
                 }
-                format!("cannot reach the Anthropic API: {e}")
+                format!("cannot reach the Anthropic API: {}", with_causes(&e))
             })?;
         let status = reply.status();
         let message: Value = reply

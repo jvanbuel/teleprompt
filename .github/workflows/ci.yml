@@ -71,17 +71,17 @@ jobs:
       - run: python3 tools/check_deps.py
 
   # What the binaries link is permissively licensed (deny.toml), so
-  # teleprompt stays MIT to ship: the CLI with every feature, and the
-  # Linux app, which is a workspace of its own.
+  # teleprompt stays MIT to ship, and has no known vulnerability: the CLI
+  # with every feature, and the Linux app, which is a workspace of its own.
   licenses:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check licenses
+          command: check advisories licenses
           arguments: --all-features
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: apps/linux/Cargo.toml
-          command: check licenses
+          command: check advisories licenses
