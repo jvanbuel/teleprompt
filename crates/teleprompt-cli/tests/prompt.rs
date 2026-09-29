@@ -759,3 +759,52 @@ fn keeping_what_was_said_without_a_script_file_is_an_error() {
     let answer = next(&mut ws);
     assert_eq!(answer["type"], "error", "{answer}");
 }
+
+/// Opens the session socket as a page at `origin` would.
+fn session_from(addr: SocketAddr, origin: &str) -> Result<Socket, tungstenite::Error> {
+    use tungstenite::client::IntoClientRequest;
+    let stream = TcpStream::connect(addr).unwrap();
+    let mut request = format!("ws://{addr}/api/v1/session")
+        .into_client_request()
+        .unwrap();
+    request
+        .headers_mut()
+        .insert("Origin", origin.parse().unwrap());
+    tungstenite::client(request, stream)
+        .map(|(ws, _)| ws)
+        .map_err(|e| match e {
+            tungstenite::HandshakeError::Failure(e) => e,
+            tungstenite::HandshakeError::Interrupted(_) => panic!("a blocking socket"),
+        })
+}
+
+/// A browser lets any page open a socket to loopback, so the session is
+/// refused to a page this server did not serve: it could record over a
+/// take, or reword the script.
+#[test]
+fn a_session_from_another_sites_page_is_refused() {
+    let (addr, _dir) = prompting(&[]);
+    match session_from(addr, "https://example.com") {
+        Err(tungstenite::Error::Http(response)) => assert_eq!(response.status(), 403),
+        other => panic!("expected 403, got {:?}", other.map(|_| ())),
+    }
+    let own = session_from(addr, &format!("http://{addr}"));
+    assert!(own.is_ok(), "the prompter's own page opens it");
+}
+
+/// A name that resolves to loopback only after the page loaded (DNS
+/// rebinding) is not this machine's name: nothing is served to it.
+#[test]
+fn a_request_for_another_host_is_refused() {
+    let (addr, _dir) = prompting(&[]);
+    let mut s = TcpStream::connect(addr).unwrap();
+    write!(
+        s,
+        "GET /api/v1/script HTTP/1.1\r\nHost: rebound.example:{}\r\n\r\n",
+        addr.port()
+    )
+    .unwrap();
+    let mut response = String::new();
+    s.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 403"), "{response}");
+}

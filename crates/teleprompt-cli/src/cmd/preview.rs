@@ -277,8 +277,27 @@ fn handle(
     state: &Mutex<Preview>,
     script_name: &str,
 ) -> std::io::Result<()> {
+    let mut reader = BufReader::new(&*stream);
     let mut line = String::new();
-    BufReader::new(&*stream).read_line(&mut line)?;
+    reader.read_line(&mut line)?;
+    let (mut host, mut origin) = (None, None);
+    loop {
+        let mut header = String::new();
+        if reader.read_line(&mut header)? == 0 || header.trim().is_empty() {
+            break;
+        }
+        if let Some((name, value)) = header.split_once(':') {
+            let value = Some(value.trim().to_string());
+            match name.trim().to_ascii_lowercase().as_str() {
+                "host" => host = value,
+                "origin" => origin = value,
+                _ => {}
+            }
+        }
+    }
+    if let Some(why) = crate::loopback::refused(host.as_deref(), origin.as_deref()) {
+        return respond(stream, "403 Forbidden", "text/plain", why.as_bytes());
+    }
 
     let Some(path) = route(&line) else {
         return respond(

@@ -306,7 +306,12 @@ command. The preview plays a recorded line from its take.
 #### Prompter API, version 1
 
 Everything is under `/api/v1`, on loopback. The script and clips are plain
-HTTP; the session is a WebSocket, since the microphone is a stream. With
+HTTP; the session is a WebSocket, since the microphone is a stream.
+Loopback keeps other machines out but not other web pages, which a browser
+lets reach it, WebSockets included. So both this server and the preview
+answer 403 to a `Host` other than `127.0.0.1` or `localhost` (a rebound DNS
+name) and to an `Origin` other than their own page; a native app sends no
+`Origin`. With
 `--format json` and `--port 0`, the command picks a free port and prints
 `{"event":"listening","url","api"}` on stdout once it listens, so an app
 that launched it knows where to connect. `docs/api/v1/examples` has one of

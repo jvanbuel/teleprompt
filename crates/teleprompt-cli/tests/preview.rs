@@ -419,3 +419,29 @@ fn a_fit_line_lines_audio_is_at_its_tempo() {
     let pcm = teleprompt_voice::wav::decode(&body).unwrap();
     assert_eq!(pcm.duration_ms(), line["duration_ms"].as_u64().unwrap());
 }
+
+/// The preview reads out the script and its audio: only to this machine's
+/// own names, and only to its own page.
+#[test]
+fn the_preview_answers_only_its_own_page_on_this_machine() {
+    let (_dir, _script, addr) = serving();
+    let _ = get(addr, "/");
+    let status = |head: &str| {
+        let mut s = TcpStream::connect(addr).unwrap();
+        write!(s, "GET /manifest.json HTTP/1.1\r\n{head}\r\n\r\n").unwrap();
+        let mut status = String::new();
+        BufReader::new(s).read_line(&mut status).unwrap();
+        status.trim().to_string()
+    };
+    assert!(status("Host: localhost").ends_with("200 OK"));
+    assert!(status("Host: rebound.example").ends_with("403 Forbidden"));
+    let port = addr.port();
+    assert!(status(&format!(
+        "Host: 127.0.0.1:{port}\r\nOrigin: https://example.com"
+    ))
+    .ends_with("403 Forbidden"));
+    assert!(status(&format!(
+        "Host: 127.0.0.1:{port}\r\nOrigin: http://127.0.0.1:{port}"
+    ))
+    .ends_with("200 OK"));
+}

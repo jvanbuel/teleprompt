@@ -235,6 +235,16 @@ impl<R: Recognizer> Server<R> {
 
     fn handle(&self, mut stream: TcpStream) -> std::io::Result<()> {
         let request = read_request(&mut stream)?;
+        let from = (request.header("host"), request.header("origin"));
+        if let Some(why) = crate::loopback::refused(from.0, from.1) {
+            return respond(
+                &mut stream,
+                "403 Forbidden",
+                "text/plain",
+                &[],
+                why.as_bytes(),
+            );
+        }
         if request.method == "GET" && request.path == "/api/v1/session" {
             return self.open_session(stream, &request);
         }
