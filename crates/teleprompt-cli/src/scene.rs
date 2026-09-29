@@ -7,12 +7,14 @@ use teleprompt_asciinema::{AsciinemaRecorder, AsciinemaRender, AsciinemaScene};
 use teleprompt_capture::mock::MockCapture;
 use teleprompt_capture::record::Recorder;
 use teleprompt_capture::{CaptureBackend, CaptureRegistry};
+use teleprompt_macos::MacosRender;
 use teleprompt_media::{MediaRender, MediaScene};
 use teleprompt_playwright::{PlaywrightRecorder, PlaywrightRender, PlaywrightScene};
 use teleprompt_remotion::{RemotionRender, RemotionScene};
 use teleprompt_scene::{MockScene, SceneCompiler, SceneRegistry};
 use teleprompt_slidev::{SlidevRender, SlidevScene};
 use teleprompt_vhs::{VhsRecorder, VhsRender, VhsScene};
+use teleprompt_x11::X11Render;
 
 /// One adapter: how its blocks compile, how its scenes are captured, and,
 /// where its tool can, how an author's session is recorded; registered
@@ -60,6 +62,8 @@ fn adapters() -> Vec<Adapter> {
         adapter(SlidevScene, SlidevRender::default()),
         adapter(AsciinemaScene, AsciinemaRender::default()).recorded_with(AsciinemaRecorder),
         adapter(MediaScene, MediaRender::default()),
+        adapter(teleprompt_x11::SCENE, X11Render::default()),
+        adapter(teleprompt_macos::SCENE, MacosRender::default()),
         adapter(MockScene, MockCapture::default()),
     ]
 }
@@ -110,6 +114,6 @@ mod tests {
     /// Building the list checks every pair's names.
     #[test]
     fn every_adapter_compiles_and_records_under_one_name() {
-        assert_eq!(super::adapters().len(), 7);
+        assert_eq!(super::adapters().len(), 9);
     }
 }

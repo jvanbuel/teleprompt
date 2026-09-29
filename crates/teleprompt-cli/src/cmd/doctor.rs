@@ -327,8 +327,15 @@ fn capture_backends() -> Vec<CaptureBackendStatus> {
             CaptureBackendStatus {
                 id: b.adapter().to_string(),
                 adapter: b.adapter().to_string(),
+                // `setup` installs tools; a backend held back by something
+                // else (the wrong platform) has nothing for it to install.
                 fix: unavailable
                     .as_ref()
+                    .filter(|_| {
+                        b.needs()
+                            .iter()
+                            .any(|tool| !teleprompt_capture::tool::installed(tool))
+                    })
                     .map(|_| format!("teleprompt setup {}", b.adapter())),
                 unavailable,
             }

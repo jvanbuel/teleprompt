@@ -37,6 +37,8 @@ for `vhs` and `playwright`.
 | [`remotion`](#motion-graphics) | motion graphics | a composition and its props | Node, a Remotion project |
 | [`slidev`](#slides) | slides | a slide at a click step | Node, a Slidev deck |
 | [`media`](#images-clips-and-title-cards) | images, clips, title cards | one directive | ffmpeg |
+| [`x11`](#desktop-apps) | a Linux app's window | a few actions: keys, typing, the pointer | Xvfb, xdotool, ffmpeg |
+| [`macos`](#desktop-apps) | a Mac app's window | the same actions | ffmpeg, and two permissions |
 
 `teleprompt doctor` lists what this machine can record, and `teleprompt
 setup <adapter>` says what each needs that is missing, under which
@@ -345,6 +347,86 @@ naming the slide and how many clicks it does have. Slidev's Playwright
 drives the export unless `browser` or `TELEPROMPT_SLIDEV_BROWSER` names a
 browser. See `examples/slidev`, whose script was
 [drafted from its speaker notes](scripts.md#from-a-slidev-deck).
+
+## Desktop apps
+
+A desktop app is shown by running it, as a terminal is: the `x11` adapter
+on Linux and `macos` on a Mac. A scene names the app, and its blocks are
+what someone at the keyboard does:
+
+```toml
+[scene.app]
+adapter = "x11"
+command = "gnome-text-editor notes.md"
+```
+
+````markdown
+Open the command palette and search for the setting. {#palette}
+
+```teleprompt scene=app policy=fit-action
+Ctrl+Shift+P
+Sleep 500ms
+Type "tab width"
+Sleep 1s
+Enter
+```
+````
+
+| line | does | takes |
+|---|---|---|
+| `Type "…"`, `Type@80ms "…"` | types the text | a `TypingSpeed` per character |
+| `Enter`, `Escape`, `Ctrl+O`, `Down 3` | presses a named key, or a chord | a `TypingSpeed` per press |
+| `Key e`, `Key +`, `Key Ctrl++` | presses a single character | as above |
+| `Move 640 360`, `Click …`, `DoubleClick …`, `RightClick …` | glides the pointer to a point in the window, from its top-left corner, and clicks there | a `PointerSpeed` (400 ms) |
+| `Wait "saved"`, `Wait@5s "…"` | until the window's title contains the text | up to `WaitTimeout` (15 s) |
+| `Sleep 2s` | nothing, while the app goes on | as written |
+| `Set TypingSpeed 60ms`, `Set PointerSpeed …`, `Set WaitTimeout …` | changes a speed for the rest of the block | nothing |
+| `# mark` | ends a shot | |
+
+It is VHS's vocabulary with a pointer: a lone letter is written `Key e`,
+since a line reading `E` is likelier a mistake, and `Cmd+` and `Super+` are
+the same modifier. A block without a `Wait` states its length exactly, so
+`fit-action` can stretch it to its line by scaling its pauses and speeds.
+With a `Wait` its length is a bound.
+
+Blocks of a scene run in one session of the app, one after another, and
+each shot is held to its slot while the app carries on. So a take started
+in one block is still running in the next, as it would be on the screen.
+The app's own time can't be predicted, so a shot is cut from the recording
+where it really began rather than where the schedule said it would.
+
+```toml
+[scene.app]
+adapter = "x11"
+command = "my-app --demo"   # run by sh, from where the build runs
+title = "My App"            # the window to follow, if it has several
+ready = "demo.db — My App"  # wait, unrecorded, until the title says this
+settle_ms = 1500            # then let it draw
+launch_timeout_ms = 30000
+env = { LANG = "en_US.UTF-8" }
+```
+
+The app's loading isn't recorded: the recording starts once its window is
+up, fitted to the frame, and has the `ready` title if the scene sets one.
+
+**On Linux**, each session gets its own virtual display (`Xvfb`) at the
+video's size, so a capture shows the app and nothing else, and runs the
+same on a laptop or a server. The app runs in its own D-Bus session
+(`dbus = false` turns that off), with `GDK_BACKEND=x11` and
+`QT_QPA_PLATFORM=xcb`, so GTK and Qt apps draw on the virtual display even
+under Wayland. `xdotool` presses the keys and moves the pointer.
+
+**On a Mac** there is no virtual display, so the app runs on your screen:
+brought to the front, its window fitted to the frame, and the recording
+cropped to it. Don't use the Mac while it records, since keys go to
+whatever is in front. Whatever runs `teleprompt` (your terminal) needs two
+permissions in System Settings → Privacy & Security: Accessibility, to
+press keys and move the pointer, and Screen Recording, for ffmpeg to see
+the screen. `command` can be a binary or `open -W -n -a "App"`; with
+`open`, set `process = "App"` to name the process whose window to follow.
+`screen` picks a display by ffmpeg's name for it (`Capture screen 0`).
+
+See `examples/desktop`, a tour of teleprompt's own Linux app.
 
 ## Images, clips and title cards
 

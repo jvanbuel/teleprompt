@@ -1712,6 +1712,7 @@ dependencies = [
  "teleprompt-derive",
  "teleprompt-listen",
  "teleprompt-listen-sherpa",
+ "teleprompt-macos",
  "teleprompt-manifest",
  "teleprompt-media",
  "teleprompt-playwright",
@@ -1729,6 +1730,7 @@ dependencies = [
  "teleprompt-voice-kokoro",
  "teleprompt-voice-null",
  "teleprompt-voice-voicebox",
+ "teleprompt-x11",
  "tempfile",
  "tokio",
  "tungstenite",
@@ -1772,6 +1774,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-desktop"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-capture",
+ "teleprompt-core",
+ "teleprompt-scene",
+]
+
+[[package]]
 name = "teleprompt-listen"
 version = "0.1.0"
 
@@ -1781,6 +1792,15 @@ version = "0.1.0"
 dependencies = [
  "sherpa-onnx",
  "teleprompt-listen",
+]
+
+[[package]]
+name = "teleprompt-macos"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-capture",
+ "teleprompt-core",
+ "teleprompt-desktop",
 ]
 
 [[package]]
@@ -1955,6 +1975,16 @@ dependencies = [
  "serde_yaml",
  "teleprompt-voice",
  "tokio",
+]
+
+[[package]]
+name = "teleprompt-x11"
+version = "0.1.0"
+dependencies = [
+ "teleprompt-capture",
+ "teleprompt-core",
+ "teleprompt-desktop",
+ "tempfile",
 ]
 
 [[package]]

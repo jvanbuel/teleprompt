@@ -173,6 +173,8 @@ reading the manifest it just published.
 | `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder |
+| `teleprompt-desktop` | what the desktop adapters share: their action language and scene compiler, and the runner that plays a session's shots against a window and cuts them where they began |
+| `teleprompt-x11`, `-macos` | one crate per platform: the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation. Each records with ffmpeg |
 | `teleprompt-cli` | the `teleprompt` binary, and the registries every adapter and backend is composed into |
 
 `core`, `schedule`, `voice` and `scene` do not depend on one another.
@@ -681,6 +683,17 @@ not a failure.
   ffmpeg. Stills take their line's length. A ranged clip is exact and never
   re-timed, and its sound is dropped. Each shot's file is in its own key
   through `shot_inputs`.
+- **`x11`** and **`macos`**: a desktop app, run from the scene's `command`
+  and driven by a block of actions (keys, typing, the pointer, `Wait` on the
+  window's title), in VHS's vocabulary. The language, its timing and
+  `retime` are `teleprompt-desktop`'s, so the two platforms compile a block
+  alike and differ only in how they run it. Timing is `Exact` without a
+  `Wait`, which makes it `Estimated`. An app's own time is not predictable,
+  so these cut shots differently from `vhs`: the recording is stamped with
+  the wall clock (`-use_wallclock_as_timestamps`), the runner notes the
+  clock as each shot begins and holds each to its slot, and a shot is cut
+  where it began. A slow launch or a slow redraw moves a shot's start, never
+  its picture.
 - **`mock`**: scripted durations, for testing the compiler's side of the
   contract.
 
@@ -825,7 +838,7 @@ a video needs comes in three tiers.
    licensed: a crate under the GPL, or any license not on the list, fails
    the build.
 2. **Tools, detected and never shipped.** What an adapter runs, `vhs`,
-   Playwright, `asciinema`, `ffmpeg`, Remotion and Slidev, and what a
+   Playwright, `asciinema`, `ffmpeg`, `Xvfb`, `xdotool`, Remotion and Slidev, and what a
    backend talks to, a Kokoro server or a speech model, are programs and
    files of their own, under their own licenses: `asciinema` and some
    `ffmpeg` builds are GPL, and Remotion needs a company license past a

@@ -38,6 +38,11 @@ ALLOWED = {
     "remotion": ADAPTER,
     "slidev": ADAPTER,
     "media": ADAPTER,
+    # What the desktop adapters share: their language and runner. An
+    # adapter in all but name, registered by the platforms' plugins.
+    "desktop": ADAPTER,
+    "x11": ADAPTER | {"desktop"},
+    "macos": ADAPTER | {"desktop"},
     "translate": {"core"},
     "listen": set(),
     "derive": set(),

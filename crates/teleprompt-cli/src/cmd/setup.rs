@@ -230,6 +230,32 @@ static TOOLS: &[Tool] = &[
         ],
     },
     Tool {
+        name: "Xvfb",
+        what: "the virtual display an x11 scene's app runs on",
+        license: "MIT",
+        home: "https://www.x.org",
+        guide: None,
+        found: Found::Program("Xvfb"),
+        install: &[
+            (Manager::Apt, "sudo apt-get install -y xvfb"),
+            (Manager::Dnf, "sudo dnf install -y xorg-x11-server-Xvfb"),
+            (Manager::Pacman, "sudo pacman -S --needed --noconfirm xorg-server-xvfb"),
+        ],
+    },
+    Tool {
+        name: "xdotool",
+        what: "presses keys and moves the pointer in an x11 scene",
+        license: "BSD-3-Clause",
+        home: "https://github.com/jordansissel/xdotool",
+        guide: None,
+        found: Found::Program("xdotool"),
+        install: &[
+            (Manager::Apt, "sudo apt-get install -y xdotool"),
+            (Manager::Dnf, "sudo dnf install -y xdotool"),
+            (Manager::Pacman, "sudo pacman -S --needed --noconfirm xdotool"),
+        ],
+    },
+    Tool {
         name: "asciinema",
         what: "records terminal sessions for `record`",
         license: "GPL-3.0",
