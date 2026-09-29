@@ -39,7 +39,12 @@ pub struct TranslateConfig {
     pub provider: String,
     /// The provider's model; its own default when unset.
     pub model: Option<String>,
+    /// How long one batch may take, whichever the provider.
+    pub timeout_ms: u64,
 }
+
+/// A model on a laptop can take minutes over twenty lines.
+pub const TRANSLATE_TIMEOUT_MS: u64 = 600_000;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Locales {
@@ -260,6 +265,7 @@ impl Default for Config {
             translate: TranslateConfig {
                 provider: "ollama".into(),
                 model: None,
+                timeout_ms: TRANSLATE_TIMEOUT_MS,
             },
         }
     }
@@ -304,6 +310,7 @@ pub struct PartialConfig {
 pub struct PartialTranslate {
     pub provider: Option<String>,
     pub model: Option<String>,
+    pub timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -577,6 +584,9 @@ impl Config {
         if self.output.fps == 0 {
             out.push("output.fps must be greater than zero".to_string());
         }
+        if self.translate.timeout_ms == 0 {
+            out.push("translate.timeout_ms must be greater than zero".to_string());
+        }
         let (w, h) = self.output.resolution;
         if w == 0 || h == 0 {
             out.push(format!(
@@ -665,6 +675,7 @@ impl Config {
             }
             if let Some(t) = &layer.translate {
                 set!(c.translate.provider, t.provider.clone());
+                set!(c.translate.timeout_ms, t.timeout_ms);
                 if t.model.is_some() {
                     c.translate.model = t.model.clone();
                 }

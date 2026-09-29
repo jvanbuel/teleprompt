@@ -21,6 +21,7 @@ pub struct Claude {
     pub model: String,
     /// The API's address; the real one unless testing.
     pub base_url: String,
+    pub timeout_ms: u64,
 }
 
 /// Everything but the key, which would otherwise end up in a log.
@@ -30,6 +31,7 @@ impl std::fmt::Debug for Claude {
             .field("api_key", &"<redacted>")
             .field("model", &self.model)
             .field("base_url", &self.base_url)
+            .field("timeout_ms", &self.timeout_ms)
             .finish()
     }
 }
@@ -47,6 +49,7 @@ impl Claude {
             api_key,
             model: model.unwrap_or(DEFAULT_MODEL).to_string(),
             base_url: std::env::var("ANTHROPIC_BASE_URL").unwrap_or_else(|_| API.to_string()),
+            timeout_ms: crate::TIMEOUT_MS,
         })
     }
 
@@ -64,7 +67,7 @@ impl Claude {
                 "content": serde_json::to_string_pretty(request).map_err(|e| e.to_string())?,
             }],
         });
-        let reply = crate::client(crate::TIMEOUT_MS)
+        let reply = crate::client(self.timeout_ms)
             .post(format!(
                 "{}/v1/messages",
                 self.base_url.trim_end_matches('/')
@@ -77,10 +80,7 @@ impl Claude {
             .await
             .map_err(|e| {
                 if e.is_timeout() {
-                    return format!(
-                        "the Anthropic API did not answer within {} ms",
-                        crate::TIMEOUT_MS
-                    );
+                    return crate::unanswered("the Anthropic API", self.timeout_ms);
                 }
                 format!("cannot reach the Anthropic API: {}", with_causes(&e))
             })?;

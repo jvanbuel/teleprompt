@@ -90,10 +90,10 @@ Other providers are chosen the same way, each with its own settings under
 
 | provider | translates with | settings |
 |---|---|---|
-| `ollama` | a model run by Ollama (the default) | `url`, `timeout_ms` |
-| `openai` | any server with the OpenAI chat API: LM Studio, llama.cpp, vLLM, or a hosted service | `url` (up to `/v1`), `api_key_env`, `timeout_ms` |
+| `ollama` | a model run by Ollama (the default) | `url` |
+| `openai` | any server with the OpenAI chat API: LM Studio, llama.cpp, vLLM, or a hosted service | `url` (up to `/v1`), `api_key_env` |
 | `claude` | Claude, through the Anthropic API; reads `ANTHROPIC_API_KEY` and sends the narration to Anthropic | |
-| `command` | a program of your own | `run`, `timeout_ms` |
+| `command` | a program of your own | `run` |
 
 ```toml
 # LM Studio
@@ -105,9 +105,9 @@ model = "qwen2.5-7b-instruct"
 url = "http://localhost:1234/v1"
 ```
 
-`timeout_ms` is how long one batch of lines may take before the provider
-is given up on: ten minutes unless set, since a model on a laptop can
-take minutes.
+`timeout_ms` under `[translate]` is how long one batch of lines may take
+before the provider, whichever it is, is given up on: ten minutes unless
+set, since a model on a laptop can take minutes.
 
 `--provider` and `--model` choose for one run, and `[locale.ja.translate]`
 for one language:

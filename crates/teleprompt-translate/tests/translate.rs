@@ -62,6 +62,7 @@ fn claude(url: String) -> Translator {
         api_key: "test-key".into(),
         model: "claude-opus-5".into(),
         base_url: url,
+        timeout_ms: 600_000,
     })
 }
 
@@ -241,32 +242,47 @@ async fn silent() -> (String, tokio::task::JoinHandle<()>) {
     (url, held)
 }
 
-/// A provider that never answers is given up on after `timeout_ms`, saying
-/// so, rather than hanging `translate` for ever.
+/// A provider that never answers is given up on after `[translate]`'s
+/// `timeout_ms`, whichever provider it is, saying so rather than hanging
+/// `translate` for ever.
 #[tokio::test]
 async fn a_provider_that_never_answers_is_given_up_on() {
+    let mut translators = Vec::new();
     for provider in ["ollama", "openai"] {
-        let (url, _held) = silent().await;
-        let t = Translator::new(
-            provider,
-            Some("m"),
-            Some(&settings(&format!("url: {url}\ntimeout_ms: 300"))),
-        )
-        .unwrap();
-        let started = std::time::Instant::now();
-        let err = t.translate(&request()).await.unwrap_err();
-        assert!(started.elapsed().as_secs() < 5, "{provider}");
-        assert!(err.contains("timeout_ms"), "{provider}: {err}");
+        let (url, held) = silent().await;
+        let settings = settings(&format!("url: {url}"));
+        let t = Translator::new(provider, Some("m"), Some(&settings)).unwrap();
+        translators.push((provider, t, Some(held)));
     }
-    let mut slow = Program::new("sleep 30");
-    slow.timeout_ms = 300;
-    let started = std::time::Instant::now();
-    let err = Translator::Command(slow)
-        .translate(&request())
-        .await
-        .unwrap_err();
-    assert!(started.elapsed().as_secs() < 5);
-    assert!(err.contains("timeout_ms"), "{err}");
+    let (url, held) = silent().await;
+    translators.push(("claude", claude(url), Some(held)));
+    translators.push((
+        "command",
+        Translator::Command(Program::new("sleep 30")),
+        None,
+    ));
+    for (provider, t, _held) in translators {
+        let started = std::time::Instant::now();
+        let err = t.timeout(300).translate(&request()).await.unwrap_err();
+        assert!(started.elapsed().as_secs() < 5, "{provider}");
+        assert!(
+            err.contains("`timeout_ms` under [translate]"),
+            "{provider}: {err}"
+        );
+    }
+}
+
+/// The limit is one setting, under `[translate]`: a provider's section
+/// that still sets one says where it went.
+#[test]
+fn a_timeout_under_a_provider_says_where_it_went() {
+    for provider in ["ollama", "openai", "command"] {
+        let yaml = settings("timeout_ms: 5");
+        let err = Translator::new(provider, None, Some(&yaml))
+            .err()
+            .unwrap_or_else(|| panic!("{provider} took timeout_ms"));
+        assert!(err.contains("[translate]"), "{provider}: {err}");
+    }
 }
 
 /// A translator printed for debugging does not print its key.

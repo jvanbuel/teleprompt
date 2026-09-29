@@ -25,9 +25,9 @@ pub use command::Program;
 pub use ollama::Ollama;
 pub use openai::OpenAi;
 
-/// How long one batch may take unless `timeout_ms` says otherwise: a model
-/// on a laptop can take minutes over twenty lines.
-pub const TIMEOUT_MS: u64 = 600_000;
+/// How long one batch may take unless `[translate]`'s `timeout_ms` says
+/// otherwise.
+pub const TIMEOUT_MS: u64 = teleprompt_core::config::TRANSLATE_TIMEOUT_MS;
 
 /// An HTTP client that gives up: on connecting after ten seconds, on the
 /// whole request after `timeout_ms`.
@@ -40,8 +40,8 @@ fn client(timeout_ms: u64) -> reqwest::Client {
 }
 
 /// What to say when `who` has not answered within `timeout_ms`.
-fn unanswered(who: &str, timeout_ms: u64, section: &str) -> String {
-    format!("{who} did not answer within {timeout_ms} ms: raise `timeout_ms` under [backends.{section}]")
+fn unanswered(who: &str, timeout_ms: u64) -> String {
+    format!("{who} did not answer within {timeout_ms} ms: raise `timeout_ms` under [translate]")
 }
 
 /// What a translator is asked, as JSON.
@@ -122,7 +122,6 @@ pub enum Translator {
 #[serde(deny_unknown_fields)]
 struct CommandSettings {
     run: Option<String>,
-    timeout_ms: Option<u64>,
 }
 
 impl Translator {
@@ -137,6 +136,12 @@ impl Translator {
             provider: &str,
             settings: Option<&serde_yaml::Value>,
         ) -> Result<T, String> {
+            if settings.is_some_and(|v| v.get("timeout_ms").is_some()) {
+                return Err(format!(
+                    "backends.{provider}: `timeout_ms` is set under [translate] now, \
+                     one limit for every provider"
+                ));
+            }
             settings.map_or_else(
                 || Ok(T::default()),
                 |v| {
@@ -157,8 +162,7 @@ impl Translator {
             "claude" => Ok(Translator::Claude(Claude::from_env(model)?)),
             "command" => {
                 let s: CommandSettings = read(provider, settings)?;
-                let timeout_ms = s.timeout_ms.unwrap_or(TIMEOUT_MS);
-                let program = s.run.map(|run| Program { run, timeout_ms });
+                let program = s.run.as_deref().map(Program::new);
                 program.map(Translator::Command).ok_or_else(|| {
                     "the command provider needs a program: set `run` under [backends.command], \
                      or pass --command"
@@ -170,6 +174,17 @@ impl Translator {
                 PROVIDERS.join(", ")
             )),
         }
+    }
+
+    /// Gives up on a batch after `timeout_ms`, whichever the provider.
+    pub fn timeout(mut self, timeout_ms: u64) -> Self {
+        match &mut self {
+            Translator::Ollama(o) => o.timeout_ms = timeout_ms,
+            Translator::OpenAi(o) => o.timeout_ms = timeout_ms,
+            Translator::Claude(c) => c.timeout_ms = timeout_ms,
+            Translator::Command(p) => p.timeout_ms = timeout_ms,
+        }
+        self
     }
 
     /// Items asked for in one request: fewer for a model on a laptop, whose

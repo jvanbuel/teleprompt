@@ -63,12 +63,14 @@ pub fn translator(
     target: &str,
     choice: &Choice,
 ) -> Result<Translator, TranslateError> {
-    if let Some(cmd) = choice.command {
-        return Ok(Translator::Command(teleprompt_translate::Program::new(cmd)));
-    }
     let config = resolved(project, script, target)
         .map_err(TranslateError::Validation)?
         .config;
+    let timeout_ms = config.translate.timeout_ms;
+    if let Some(cmd) = choice.command {
+        let program = teleprompt_translate::Program::new(cmd);
+        return Ok(Translator::Command(program).timeout(timeout_ms));
+    }
     let provider = choice.provider.unwrap_or(&config.translate.provider);
     // A model named for one provider means nothing to another.
     let model = choice.model.or(if choice.provider.is_none() {
@@ -76,7 +78,9 @@ pub fn translator(
     } else {
         None
     });
-    Translator::new(provider, model, config.backends.get(provider)).map_err(TranslateError::Runtime)
+    Translator::new(provider, model, config.backends.get(provider))
+        .map(|t| t.timeout(timeout_ms))
+        .map_err(TranslateError::Runtime)
 }
 
 pub async fn run_translate(

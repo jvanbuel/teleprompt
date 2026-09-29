@@ -19,7 +19,6 @@ const DEFAULT_URL: &str = "http://localhost:11434";
 #[serde(deny_unknown_fields)]
 pub struct Settings {
     pub url: Option<String>,
-    pub timeout_ms: Option<u64>,
 }
 
 pub struct Ollama {
@@ -37,7 +36,7 @@ impl Ollama {
         Ollama {
             url,
             model: model.unwrap_or(DEFAULT_MODEL).to_string(),
-            timeout_ms: settings.timeout_ms.unwrap_or(crate::TIMEOUT_MS),
+            timeout_ms: crate::TIMEOUT_MS,
         }
     }
 
@@ -60,7 +59,7 @@ impl Ollama {
             .await
             .map_err(|e| {
                 if e.is_timeout() {
-                    return crate::unanswered("Ollama", self.timeout_ms, "ollama");
+                    return crate::unanswered("Ollama", self.timeout_ms);
                 }
                 format!(
                     "cannot reach Ollama at {}: {}\n  install it from ollama.com, then \
@@ -73,7 +72,7 @@ impl Ollama {
         let status = reply.status();
         let message: Value = reply.json().await.map_err(|e| {
             if e.is_timeout() {
-                return crate::unanswered("Ollama", self.timeout_ms, "ollama");
+                return crate::unanswered("Ollama", self.timeout_ms);
             }
             format!("Ollama answered {status} with no JSON: {e}")
         })?;

@@ -54,10 +54,11 @@ fn translate_settings_default_to_a_local_model_and_layer_like_the_rest() {
     let defaults = teleprompt_core::config::Config::default();
     assert_eq!(defaults.translate.provider, "ollama");
     assert_eq!(defaults.translate.model, None);
+    assert_eq!(defaults.translate.timeout_ms, 600_000);
 
     let project = PartialConfig::from_toml(
-        "[translate]\nprovider = \"openai\"\nmodel = \"local-model\"\n\n\
-         [locale.ja.translate]\nmodel = \"bigger-model\"\n",
+        "[translate]\nprovider = \"openai\"\nmodel = \"local-model\"\ntimeout_ms = 60000\n\n\
+         [locale.ja.translate]\nmodel = \"bigger-model\"\ntimeout_ms = 900000\n",
     )
     .unwrap();
     let merged = |locale: &str| teleprompt_core::config::Config::merged(&project.in_locale(locale));
@@ -67,4 +68,6 @@ fn translate_settings_default_to_a_local_model_and_layer_like_the_rest() {
         merged("ja").translate.model.as_deref(),
         Some("bigger-model")
     );
+    assert_eq!(merged("nl").translate.timeout_ms, 60_000);
+    assert_eq!(merged("ja").translate.timeout_ms, 900_000);
 }

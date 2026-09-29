@@ -16,7 +16,6 @@ pub struct Settings {
     pub url: Option<String>,
     /// The environment variable holding a key, for a server that wants one.
     pub api_key_env: Option<String>,
-    pub timeout_ms: Option<u64>,
 }
 
 pub struct OpenAi {
@@ -54,7 +53,7 @@ impl OpenAi {
             url,
             model: model.to_string(),
             api_key,
-            timeout_ms: settings.timeout_ms.unwrap_or(crate::TIMEOUT_MS),
+            timeout_ms: crate::TIMEOUT_MS,
         })
     }
 
@@ -82,14 +81,14 @@ impl OpenAi {
         }
         let reply = post.send().await.map_err(|e| {
             if e.is_timeout() {
-                return crate::unanswered(&self.url, self.timeout_ms, "openai");
+                return crate::unanswered(&self.url, self.timeout_ms);
             }
             format!("cannot reach {}: {}", self.url, with_causes(&e))
         })?;
         let status = reply.status();
         let message: Value = reply.json().await.map_err(|e| {
             if e.is_timeout() {
-                return crate::unanswered(&self.url, self.timeout_ms, "openai");
+                return crate::unanswered(&self.url, self.timeout_ms);
             }
             format!("{} answered {status} with no JSON: {e}", self.url)
         })?;
