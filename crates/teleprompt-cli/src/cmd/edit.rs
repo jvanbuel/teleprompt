@@ -52,6 +52,7 @@ fn invalid(reason: String) -> EditError {
 }
 
 pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditReport, EditError> {
+    // A script that cannot be read is invalid, as for every other command.
     let before = std::fs::read_to_string(script)
         .map_err(|e| invalid(format!("cannot read {}: {e}", script.display())))?;
     let after = apply(&before, edit).map_err(invalid)?;
@@ -62,8 +63,8 @@ pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditRep
     if after == before {
         return Ok(report(false));
     }
-    // Compiled beside the script, where its includes resolve, and renamed
-    // over it only once it compiles: a script is never left half-edited.
+    // Compiled beside the script, where its includes resolve, and written
+    // only once it compiles: a script is never left half-edited.
     let mut name = std::ffi::OsString::from(".");
     name.push(script.file_name().unwrap_or_default());
     name.push(".edit");
@@ -81,11 +82,26 @@ pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditRep
         );
         return Err(EditError::Invalid(reasons));
     }
-    std::fs::rename(&edited, script).map_err(|e| {
-        let _ = std::fs::remove_file(&edited);
-        io(e)
-    })?;
+    let _ = std::fs::remove_file(&edited);
+    replace(script, &after).map_err(io)?;
     Ok(report(true))
+}
+
+/// `path`'s contents, replaced whole or not at all: written beside the
+/// file it names, a link followed, with its mode, and renamed onto it.
+fn replace(path: &Path, text: &str) -> std::io::Result<()> {
+    let real = std::fs::canonicalize(path)?;
+    let mut name = std::ffi::OsString::from(".");
+    name.push(real.file_name().unwrap_or_default());
+    name.push(".partial");
+    let partial = real.with_file_name(name);
+    let written = std::fs::write(&partial, text)
+        .and_then(|()| std::fs::set_permissions(&partial, std::fs::metadata(&real)?.permissions()))
+        .and_then(|()| std::fs::rename(&partial, &real));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&partial);
+    }
+    written
 }
 
 /// Rewords line `line` to what its take was heard to say, and keeps the

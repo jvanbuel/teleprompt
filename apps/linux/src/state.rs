@@ -88,7 +88,10 @@ impl PrompterState {
                 }
             }
             ServerMessage::Stopped { saved } => {
-                self.take.stop(Instant::now());
+                // It can come after the next countdown began: that stays.
+                if self.take.is_under_way() {
+                    self.take.stop(Instant::now());
+                }
                 self.status = Status::info(match saved.len() {
                     0 => "Nothing was read in full, so nothing was kept".to_string(),
                     1 => format!("Kept 1 line: {}", saved[0]),

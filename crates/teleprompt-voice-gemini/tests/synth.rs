@@ -134,6 +134,29 @@ async fn raw_pcm_is_read_at_its_rate() {
     assert_eq!(out.pcm.duration_ms(), 100);
 }
 
+/// A MIME type is case-insensitive, and Gemini's raw audio usually states
+/// its rate in the type itself: `audio/L16;codec=pcm;rate=24000`.
+#[tokio::test]
+async fn raw_pcm_is_read_at_the_rate_its_type_states() {
+    let pcm: Vec<u8> = std::iter::repeat_n([0x10u8, 0x00], 1600)
+        .flatten()
+        .collect();
+    let data = base64::engine::general_purpose::STANDARD.encode(pcm);
+    let s = spawn(BTreeMap::from([(
+        ROUTE,
+        answer(serde_json::json!({
+            "type": "audio", "mime_type": "audio/L16;codec=pcm;rate=16000", "data": data,
+        })),
+    )]))
+    .await;
+    let out = backend(&s.base_url)
+        .synthesize(&req(None, None))
+        .await
+        .unwrap();
+    assert_eq!(out.pcm.sample_rate, 16_000);
+    assert_eq!(out.pcm.duration_ms(), 100);
+}
+
 #[tokio::test]
 async fn the_model_and_seed_are_the_projects() {
     let s = spawn(BTreeMap::from([(ROUTE, wav_answer())])).await;

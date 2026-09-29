@@ -90,3 +90,17 @@ fn the_end_of_the_script_is_said() {
     state.apply(reached(2, 0, &[]));
     assert_eq!(state.status, Status::info("End of script"));
 }
+
+/// A take kept and the next counted in at once: the first take's `Stopped`
+/// can arrive during the countdown, and must not call the countdown off.
+#[test]
+fn a_late_stopped_leaves_the_next_countdown_alone() {
+    let mut state = loaded();
+    state.start_take(0, std::time::Instant::now());
+    state.take.stop(std::time::Instant::now());
+    assert!(state.take.count());
+    state.apply(ServerMessage::Stopped {
+        saved: vec!["welcome".into()],
+    });
+    assert!(state.take.is_counting());
+}

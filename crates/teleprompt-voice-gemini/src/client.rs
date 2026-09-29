@@ -173,10 +173,17 @@ fn decode(bytes: &[u8], audio: &Value) -> Result<Pcm, String> {
     if bytes.starts_with(b"RIFF") {
         return teleprompt_voice::wav::decode(bytes).map_err(|e| format!("its audio: {e}"));
     }
-    let kind = audio["mime_type"].as_str().unwrap_or("audio/l16");
+    let kind = audio["mime_type"]
+        .as_str()
+        .unwrap_or("audio/l16")
+        .to_ascii_lowercase();
     if !kind.starts_with("audio/l16") && !kind.starts_with("audio/pcm") {
         return Err(format!("its audio is {kind}, not WAV or PCM"));
     }
+    // `audio/L16;codec=pcm;rate=24000` states its rate in the type.
+    let stated = kind
+        .split(';')
+        .find_map(|p| p.trim().strip_prefix("rate=")?.parse().ok());
     let number = |key: &str, default: u32| {
         audio[key]
             .as_u64()
@@ -184,7 +191,7 @@ fn decode(bytes: &[u8], audio: &Value) -> Result<Pcm, String> {
             .unwrap_or(default)
     };
     Ok(Pcm {
-        sample_rate: number("sample_rate", RATE),
+        sample_rate: number("sample_rate", stated.unwrap_or(RATE)),
         channels: u16::try_from(number("channels", 1)).unwrap_or(1),
         samples: bytes
             .chunks_exact(2)

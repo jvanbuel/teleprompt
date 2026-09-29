@@ -177,3 +177,41 @@ fn an_edit_of_an_unknown_block_is_invalid() {
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&out.stderr).contains("no-such-block"));
 }
+
+/// A script that is a link is edited where it points, and keeps its mode:
+/// the edit replaces the file's words, not the file.
+#[cfg(unix)]
+#[test]
+fn an_edit_writes_through_a_link_and_keeps_the_mode() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = teleprompt_testkit::test_dir("edit-link");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let scripts = dir.join("scripts");
+    std::fs::rename(scripts.join("demo.md"), scripts.join("demo.real.md")).unwrap();
+    std::os::unix::fs::symlink("demo.real.md", scripts.join("demo.md")).unwrap();
+    let mode = std::fs::Permissions::from_mode(0o640);
+    std::fs::set_permissions(scripts.join("demo.real.md"), mode).unwrap();
+    let before = std::fs::read_to_string(scripts.join("demo.real.md")).unwrap();
+
+    let args = [
+        "edit",
+        "scripts/demo.md",
+        "stretch",
+        "welcome-a",
+        "--by",
+        "2",
+    ];
+    let out = tp(&dir, &args);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let link = std::fs::symlink_metadata(scripts.join("demo.md")).unwrap();
+    assert!(link.file_type().is_symlink(), "the link is still a link");
+    let real = scripts.join("demo.real.md");
+    assert_ne!(std::fs::read_to_string(&real).unwrap(), before);
+    let kept = std::fs::metadata(&real).unwrap().permissions().mode() & 0o777;
+    assert_eq!(kept, 0o640);
+}
