@@ -9,5 +9,6 @@ only with the API (`docs/design.md#prompter-api-version-1`).
 |---|---|
 | `listening.json` | stdout of `teleprompt --format json prompt`, once it listens |
 | `script.json` | `GET /api/v1/script` |
-| `start.json`, `stop.json`, `discard.json`, `undo.json`, `keep_said.json` | client to server, on the session socket |
-| `reached.json`, `stopped.json`, `discarded.json`, `undone.json`, `kept_said.json`, `error.json` | server to client, on the session socket |
+| `voiced_script.json` | `GET /api/v1/script` for a project's script, as `prompt --voice` serves it |
+| `start.json`, `stop.json`, `discard.json`, `undo.json`, `keep_said.json`, `reword.json`, `instruct.json` | client to server, on the session socket |
+| `reached.json`, `stopped.json`, `discarded.json`, `undone.json`, `kept_said.json`, `edited.json`, `error.json` | server to client, on the session socket |

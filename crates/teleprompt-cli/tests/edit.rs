@@ -215,3 +215,33 @@ fn an_edit_writes_through_a_link_and_keeps_the_mode() {
     let kept = std::fs::metadata(&real).unwrap().permissions().mode() & 0o777;
     assert_eq!(kept, 0o640);
 }
+
+#[test]
+fn a_line_is_reworded_and_told_how_to_sound() {
+    let dir = teleprompt_testkit::test_dir("edit-reword");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let ok = |args: &[&str]| {
+        let out = tp(&dir, args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    ok(&[
+        "edit",
+        "scripts/demo.md",
+        "reword",
+        "welcome",
+        "Hello, and welcome.",
+    ]);
+    ok(&["edit", "scripts/demo.md", "instruct", "welcome", "brightly"]);
+    let md = std::fs::read_to_string(dir.join("scripts/demo.md")).unwrap();
+    assert!(
+        md.contains("Hello, and welcome. {#welcome voice.instruct=brightly}"),
+        "{md}"
+    );
+    ok(&["edit", "scripts/demo.md", "instruct", "welcome"]);
+    let md = std::fs::read_to_string(dir.join("scripts/demo.md")).unwrap();
+    assert!(md.contains("Hello, and welcome. {#welcome}"), "{md}");
+}

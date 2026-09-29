@@ -5,7 +5,7 @@ mod follow;
 mod take;
 
 pub use cues::Cues;
-pub use follow::{Follower, Heard, Recognizer};
+pub use follow::{Deaf, Follower, Heard, Recognizer};
 pub use take::TakeLog;
 
 /// A word a recognizer heard in a recording, and when, in milliseconds

@@ -1,6 +1,6 @@
 //! Editing a script where a timeline drag says: a block's start moved
 //! along its line, off it, or onto another line, or its shots stretched;
-//! or a line reworded to what its take says.
+//! or a line reworded, or given how to say it.
 //!
 //! Every edit is to the text, the fence's attributes or a block's place,
 //! and leaves the rest of the file as the author wrote it. A drag never
@@ -31,6 +31,9 @@ pub enum Edit {
     Stretch { block: BlockId, by: f64 },
     /// Say line `line` as `text`, keeping its attributes.
     Reword { line: LineId, text: String },
+    /// Say line `line` as `text` instructs (its `voice.instruct`), or as
+    /// the configuration does for `None`, keeping its words and id.
+    Instruct { line: LineId, text: Option<String> },
 }
 
 /// Applies `edit` to the script `src`.
@@ -63,19 +66,37 @@ pub fn apply(src: &str, edit: &Edit) -> Result<String, String> {
         }
         Edit::Reword { line, text } => {
             let range = map.line(line)?.range.clone();
-            let paragraph = &src[range.clone()];
-            // Its `{#id …}`, after the words.
-            let attrs = paragraph
-                .ends_with('}')
-                .then(|| paragraph.rfind('{'))
-                .flatten()
-                .map_or("", |at| &paragraph[at..]);
-            let reworded = if attrs.is_empty() {
-                text.trim().to_string()
-            } else {
-                format!("{} {attrs}", text.trim())
+            let (_, attrs) = split_line(&src[range.clone()]);
+            Ok(replace(src, range, &with_attrs(text.trim(), attrs)))
+        }
+        Edit::Instruct { line, text } => {
+            if let Some(bad) = text
+                .as_deref()
+                .and_then(|t| t.chars().find(|c| matches!(c, '"' | '{' | '}')))
+            {
+                return Err(format!("an instruction cannot contain `{bad}`"));
+            }
+            let range = map.line(line)?.range.clone();
+            let (words, braces) = split_line(&src[range.clone()]);
+            let inner = braces
+                .strip_prefix('{')
+                .and_then(|b| b.strip_suffix('}'))
+                .unwrap_or_default()
+                .trim();
+            // The `#id` first, if there is one, then `key=value`s.
+            let (id, rest) = match inner.strip_prefix('#') {
+                Some(_) => inner.split_once(char::is_whitespace).unwrap_or((inner, "")),
+                None => ("", inner),
             };
-            Ok(replace(src, range, &reworded))
+            let changed = with(rest, &[("voice.instruct", text.as_deref())]);
+            let inner = format!("{id}{changed}");
+            let inner = inner.trim();
+            let braces = if inner.is_empty() {
+                String::new()
+            } else {
+                format!("{{{inner}}}")
+            };
+            Ok(replace(src, range, &with_attrs(words, &braces)))
         }
         Edit::Move { block, after, word } => {
             let b = map.block(block)?;
@@ -312,6 +333,27 @@ fn with(info: &str, changes: &[(&str, Option<&str>)]) -> String {
         })
         .collect();
     format!(" {}", written.join(" "))
+}
+
+/// A line's paragraph as its words and its `{#id …}`, which follows them
+/// (empty when it has none).
+fn split_line(paragraph: &str) -> (&str, &str) {
+    match paragraph
+        .ends_with('}')
+        .then(|| paragraph.rfind('{'))
+        .flatten()
+    {
+        Some(at) => (paragraph[..at].trim_end(), &paragraph[at..]),
+        None => (paragraph, ""),
+    }
+}
+
+fn with_attrs(words: &str, attrs: &str) -> String {
+    if attrs.is_empty() {
+        words.to_string()
+    } else {
+        format!("{words} {attrs}")
+    }
 }
 
 fn replace(src: &str, range: Range<usize>, with: &str) -> String {

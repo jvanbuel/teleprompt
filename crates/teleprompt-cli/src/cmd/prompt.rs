@@ -16,8 +16,10 @@ use tungstenite::handshake::derive_accept_key;
 use tungstenite::protocol::Role;
 use tungstenite::{Message, WebSocket};
 
+use crate::cmd::voicing::Voicing;
 use crate::output::{Format, Outcome};
 use crate::project::Project;
+use teleprompt_core::edit::Edit;
 
 /// The speech model `prompt` is tested with: sherpa-onnx's streaming
 /// English zipformer. The smaller 20M model misses the first words of a
@@ -40,25 +42,74 @@ impl From<PromptError> for Outcome {
     }
 }
 
+/// How a prompter follows its script: by ear, with a speech model (the
+/// one named, or none found), or read by the script's voice.
+pub enum Ear<'a> {
+    Model(Option<&'a std::path::Path>),
+    Voice,
+}
+
 /// Serves a prompter for `script`'s narration on loopback, following the
-/// reader with the speech model in `model`.
-#[cfg(feature = "listen")]
+/// reader with the speech model in `ear`, or reading it with its voice.
 pub fn run_prompt(
     project: &Project,
     script: &std::path::Path,
     locale: &str,
     port: u16,
-    model: Option<&std::path::Path>,
+    ear: Ear<'_>,
     format: Format,
 ) -> Result<(), PromptError> {
+    match ear {
+        Ear::Voice => serve(
+            project,
+            script,
+            locale,
+            port,
+            format,
+            teleprompt_listen::Deaf,
+            false,
+        ),
+        Ear::Model(model) => {
+            let recognizer = recognizer(model)?;
+            serve(project, script, locale, port, format, recognizer, true)
+        }
+    }
+}
+
+#[cfg(feature = "listen")]
+fn recognizer(
+    model: Option<&std::path::Path>,
+) -> Result<teleprompt_listen_sherpa::SherpaRecognizer, PromptError> {
     let dir = model.ok_or_else(|| {
         PromptError::Runtime(format!(
             "`prompt` needs a speech model: `teleprompt setup speech-model` installs \
              one, or download and unpack {MODEL} and pass its directory with --model"
         ))
     })?;
-    let recognizer =
-        teleprompt_listen_sherpa::SherpaRecognizer::new(dir).map_err(PromptError::Runtime)?;
+    teleprompt_listen_sherpa::SherpaRecognizer::new(dir).map_err(PromptError::Runtime)
+}
+
+/// A build without the recognizer cannot follow anyone; it says how to get
+/// one, or to let the voice read.
+#[cfg(not(feature = "listen"))]
+fn recognizer(_model: Option<&std::path::Path>) -> Result<teleprompt_listen::Deaf, PromptError> {
+    Err(PromptError::Runtime(
+        "this teleprompt was built without a speech recognizer; \
+         rebuild it with `--features listen`, or pass --voice to have the \
+         script's voice read it"
+            .to_string(),
+    ))
+}
+
+fn serve<R: Recognizer + Send + 'static>(
+    project: &Project,
+    script: &std::path::Path,
+    locale: &str,
+    port: u16,
+    format: Format,
+    recognizer: R,
+    listens: bool,
+) -> Result<(), PromptError> {
     let prompt = prompt_of(project, script, locale).map_err(PromptError::Validation)?;
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
         .map_err(|e| PromptError::Runtime(format!("cannot listen on port {port}: {e}")))?;
@@ -73,7 +124,8 @@ pub fn run_prompt(
             .flush()
             .map_err(|e| PromptError::Runtime(e.to_string()))?;
     }
-    let edits = edits_of(project, script, locale);
+    let mut edits = edits_of(project, script, locale);
+    edits.listens = listens;
     prompt_watching(listener, prompt, recognizer, Some(edits))
         .map_err(|e| PromptError::Runtime(e.to_string()))
 }
@@ -125,16 +177,26 @@ pub type Reload = Box<dyn Fn() -> Option<Prompt> + Send + Sync>;
 /// Rewords a line to what its take was heard to say, or says why not.
 pub type KeepSaid = Box<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
 
+/// Makes an edit to the script, or says why not.
+pub type EditScript = Box<dyn Fn(&Edit) -> Result<(), String> + Send + Sync>;
+
 /// What a prompter reading a script file can do to it.
 pub struct Edits {
     pub reload: Reload,
     pub keep_said: KeepSaid,
+    pub edit: EditScript,
+    /// How its lines sound when its voice reads them; none for a script
+    /// that is not a project's file.
+    pub voice: Option<Voicing>,
+    /// Whether it follows a reader by ear; if not, its voice reads.
+    pub listens: bool,
 }
 
 /// `script`'s edits: reloaded when changed, and a line reworded as
 /// `teleprompt edit <script> said <line>` does.
 pub fn edits_of(project: &Project, script: &std::path::Path, locale: &str) -> Edits {
     let (keeper, path) = (project.clone(), script.to_path_buf());
+    let (editor, edited) = (project.clone(), script.to_path_buf());
     Edits {
         reload: reload_on_edit(project, script, locale),
         keep_said: Box::new(move |line| {
@@ -142,25 +204,14 @@ pub fn edits_of(project: &Project, script: &std::path::Path, locale: &str) -> Ed
                 .map(|_| ())
                 .map_err(|e| e.to_string())
         }),
+        edit: Box::new(move |edit| {
+            crate::cmd::edit::run_edit(&editor, &edited, edit)
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        }),
+        voice: Some(Voicing::new(project, script, locale)),
+        listens: true,
     }
-}
-
-/// A build without the recognizer cannot follow anyone; it says how to get
-/// one.
-#[cfg(not(feature = "listen"))]
-pub fn run_prompt(
-    _project: &Project,
-    _script: &std::path::Path,
-    _locale: &str,
-    _port: u16,
-    _model: Option<&std::path::Path>,
-    _format: Format,
-) -> Result<(), PromptError> {
-    Err(PromptError::Runtime(
-        "this teleprompt was built without a speech recognizer; \
-         rebuild it with `--features listen`"
-            .to_string(),
-    ))
 }
 
 /// Where the command listens, for `--format json`: the API's origin and
@@ -259,7 +310,23 @@ impl<R: Recognizer> Server<R> {
         if request.method != "GET" {
             return not_found();
         }
-        match request.path.as_str() {
+        let (path, query) = request
+            .path
+            .split_once('?')
+            .unwrap_or((request.path.as_str(), ""));
+        if let Some(id) = path
+            .strip_prefix("/api/v1/voice/")
+            .and_then(|name| name.strip_suffix(".wav"))
+        {
+            let fresh = query.split('&').any(|q| q == "fresh=1");
+            let voice = self.edits.as_ref().and_then(|e| e.voice.as_ref());
+            return match voice.map(|v| v.audio(id, fresh)) {
+                Some(Ok(Some(wav))) => ("200 OK", "audio/wav", wav),
+                Some(Err(e)) => failed(std::io::Error::other(e)),
+                Some(Ok(None)) | None => not_found(),
+            };
+        }
+        match path {
             "/" => ("200 OK", "text/html; charset=utf-8", PAGE.into()),
             "/favicon.ico" => ("204 No Content", "text/plain", Vec::new()),
             FONT_PATH => ("200 OK", "font/woff2", FONT.to_vec()),
@@ -271,7 +338,12 @@ impl<R: Recognizer> Server<R> {
                 if let Some(prompt) = edited {
                     session.replace(prompt);
                 }
-                json(script(session.script()))
+                let mut script = script(session.script());
+                drop(session);
+                if let Some(edits) = &self.edits {
+                    voiced(&mut script, edits);
+                }
+                json(script)
             }
             path => match path
                 .strip_prefix("/api/v1/clips/")
@@ -360,6 +432,9 @@ impl<R: Recognizer> Server<R> {
             Err(e) => return Some(error(format!("not JSON: {e}"))),
         };
         match message["type"].as_str() {
+            Some("start") if !self.edits.as_ref().is_none_or(|e| e.listens) => Some(error(
+                "this prompter reads the script with its voice; it does not listen".into(),
+            )),
             Some("start") => {
                 let from = message["from"].as_u64().unwrap_or(0) as usize;
                 *rate = message["rate"]
@@ -391,6 +466,28 @@ impl<R: Recognizer> Server<R> {
                         Err(e) => error(e),
                     },
                     None => error("this prompter has no script file to reword".into()),
+                })
+            }
+            Some(kind @ ("reword" | "instruct")) => {
+                let line = message["line"].as_str().unwrap_or_default();
+                let text = message["text"].as_str().map(str::to_string);
+                let edit = match (kind, text) {
+                    ("reword", Some(text)) => Edit::Reword {
+                        line: line.into(),
+                        text,
+                    },
+                    ("reword", None) => return Some(error("a reword needs its text".into())),
+                    (_, text) => Edit::Instruct {
+                        line: line.into(),
+                        text: text.filter(|t| !t.trim().is_empty()),
+                    },
+                };
+                Some(match &self.edits {
+                    Some(edits) => match (edits.edit)(&edit) {
+                        Ok(()) => serde_json::json!({ "type": "edited", "line": line }),
+                        Err(e) => error(e),
+                    },
+                    None => error("this prompter has no script file to edit".into()),
                 })
             }
             _ => Some(error(format!("not a message this server knows: {text}"))),
@@ -429,6 +526,25 @@ fn script(s: Script) -> serde_json::Value {
         })
         .collect();
     serde_json::json!({ "name": s.name, "lines": lines, "shots": shots })
+}
+
+/// `script` with who reads it, how long it runs, and each line's audio.
+fn voiced(script: &mut serde_json::Value, edits: &Edits) {
+    let Some(voice) = edits.voice.as_ref().and_then(Voicing::describe) else {
+        return;
+    };
+    script["voice"] = serde_json::json!({ "name": voice.name, "listens": edits.listens });
+    script["length_ms"] = voice.length_ms.into();
+    let Some(lines) = script["lines"].as_array_mut() else {
+        return;
+    };
+    for line in lines {
+        let id = line["id"].as_str().unwrap_or_default().to_string();
+        if let Some((_, audio)) = voice.lines.iter().find(|(l, _)| *l == id) {
+            line["audio"] = audio["audio"].clone();
+            line["instruct"] = audio["instruct"].clone();
+        }
+    }
 }
 
 fn json(value: serde_json::Value) -> Response {

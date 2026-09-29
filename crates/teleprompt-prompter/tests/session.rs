@@ -330,3 +330,34 @@ fn the_last_take_kept_can_be_undone() {
     assert!(!f.session.script().lines[0].recorded, "no take before it");
     assert!(f.session.undo().unwrap().is_empty(), "once");
 }
+
+#[test]
+fn word_starts_spread_a_line_over_its_characters() {
+    use teleprompt_prompter::word_starts;
+    // 20 characters, words at 0, 6 and 13.
+    assert_eq!(
+        word_starts("Hello world, friend!", 2000),
+        vec![0, 600, 1300]
+    );
+    assert_eq!(word_starts("", 1000), Vec::<u64>::new());
+    assert_eq!(word_starts("One", 0), vec![0]);
+}
+
+#[test]
+fn a_deaf_session_hears_nothing_and_stays_where_it_started() {
+    let mut session = teleprompt_prompter::Session::new(
+        teleprompt_prompter::Prompt {
+            name: "s.md".into(),
+            lines: vec!["One two.".into()],
+            ids: vec!["one".into()],
+            shots: Vec::new(),
+            clips: std::env::temp_dir(),
+            takes: std::env::temp_dir().join("teleprompt-deaf-takes"),
+        },
+        teleprompt_listen::Deaf,
+    )
+    .unwrap();
+    session.start(0);
+    let reached = session.listen(&[0.5; 1600], 16_000);
+    assert_eq!((reached.at.line, reached.at.word), (0, 0));
+}

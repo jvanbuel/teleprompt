@@ -267,3 +267,86 @@ fn a_line_reworded_keeps_its_id_and_everything_else() {
     .unwrap_err();
     assert!(err.contains("nope"), "{err}");
 }
+
+#[test]
+fn a_line_given_a_delivery_instruction_keeps_its_id_and_words() {
+    let out = edit(Edit::Instruct {
+        line: "look".into(),
+        text: Some("slower, amused".into()),
+    });
+    assert_eq!(
+        out,
+        SCRIPT.replace("{#look}", "{#look voice.instruct=\"slower, amused\"}")
+    );
+    // Changed, then removed: the line reads as it did.
+    let again = apply(
+        &out,
+        &Edit::Instruct {
+            line: "look".into(),
+            text: Some("warmly".into()),
+        },
+    )
+    .unwrap();
+    assert!(again.contains("{#look voice.instruct=warmly}"), "{again}");
+    let cleared = apply(
+        &again,
+        &Edit::Instruct {
+            line: "look".into(),
+            text: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(cleared, SCRIPT);
+}
+
+#[test]
+fn a_line_without_attributes_gets_them_and_loses_them_whole() {
+    let src = "---\nteleprompt: 1\n---\n\n# Tour\n\nHello there.\n";
+    let out = apply(
+        src,
+        &Edit::Instruct {
+            line: "tour-1".into(),
+            text: Some("brightly".into()),
+        },
+    )
+    .unwrap();
+    assert!(
+        out.contains("Hello there. {voice.instruct=brightly}\n"),
+        "{out}"
+    );
+    let back = apply(
+        &out,
+        &Edit::Instruct {
+            line: "tour-1".into(),
+            text: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(back, src);
+    // Reworded with its instruction: the instruction stays.
+    let reworded = apply(
+        &out,
+        &Edit::Reword {
+            line: "tour-1".into(),
+            text: "Hi.".into(),
+        },
+    )
+    .unwrap();
+    assert!(
+        reworded.contains("Hi. {voice.instruct=brightly}\n"),
+        "{reworded}"
+    );
+}
+
+#[test]
+fn an_instruction_that_would_break_the_attributes_is_refused() {
+    let err = apply(
+        SCRIPT,
+        &Edit::Instruct {
+            line: "look".into(),
+            text: Some("say \"hi\"".into()),
+        },
+    )
+    .unwrap_err();
+    assert!(err.contains('"'), "{err}");
+}

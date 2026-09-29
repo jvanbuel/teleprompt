@@ -687,6 +687,9 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
             Some(teleprompt_cli::cmd::prompt::Edits {
                 reload,
                 keep_said: Box::new(|_| Ok(())),
+                edit: Box::new(|_| Ok(())),
+                voice: None,
+                listens: true,
             }),
         )
     });
@@ -715,6 +718,9 @@ fn prompting_with_keep(
     let edits = teleprompt_cli::cmd::prompt::Edits {
         reload: Box::new(|| None),
         keep_said,
+        edit: Box::new(|_| Ok(())),
+        voice: None,
+        listens: true,
     };
     std::thread::spawn(move || {
         teleprompt_cli::cmd::prompt::prompt_watching(

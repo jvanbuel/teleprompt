@@ -324,8 +324,9 @@ against the crates, so a field the plan drops fails its build.
 
 | route | does |
 |---|---|
-| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said","said_diff"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. `said_diff` is the line against `said` word by word, runs of `{"kind":"same"|"gone"|"new","words"}`, empty without it: what keeping it changes, for a prompter to show. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded |
+| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said","said_diff"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. `said_diff` is the line against `said` word by word, runs of `{"kind":"same"|"gone"|"new","words"}`, empty without it: what keeping it changes, for a prompter to show. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded. For a project's script it also has `"voice":{"name","listens"}`, who reads it and whether the prompter follows a reader by ear (false under `--voice`); `"length_ms"`, the video's length as the timeline has it now; and on each line `"instruct"`, how its voice is told to say it, or null, and `"audio":{"source":"take"|"voice","url","ready","duration_ms","words"}`: where the line's audio comes from, whether it is made yet, and once it is, its length and when each word starts, in milliseconds (the voice's own timings where it gives one per word, spread over the line's characters otherwise) |
 | `GET /api/v1/clips/<key>.mp4` | a cued shot's clip; nothing else in the cache |
+| `GET /api/v1/voice/<line id>.wav` | the line's audio: its current take, or its voice's, synthesized now into the voice cache if it is not there yet. `?fresh=1` synthesizes it again, for a voice that says a line differently each time |
 | `GET /api/v1/session` | the session socket; one at a time, a second gets 409 |
 
 On the socket, the client sends:
@@ -341,6 +342,11 @@ On the socket, the client sends:
 - `{"type":"keep_said","line":id}`: reword the line to what its take was
   heard to say, as `teleprompt edit <script> said <line>` does. Between
   takes; the script's next fetch reads the new words.
+- `{"type":"reword","line":id,"text"}` and
+  `{"type":"instruct","line":id,"text"}`: say the line in other words, or
+  tell its voice how to say it (a null or empty `text` removes the
+  instruction), as `teleprompt edit` does: written only if the script
+  still compiles.
 
 The server sends:
 
@@ -352,8 +358,10 @@ The server sends:
 - `{"type":"discarded"}`.
 - `{"type":"undone","lines":[line id]}`: the lines put back.
 - `{"type":"kept_said","line":id}` once the line is reworded.
+- `{"type":"edited","line":id}` once a `reword` or `instruct` is written.
 - `{"type":"error","message"}` for a message it did not understand or a
   take it could not save or line it could not reword; the session goes on.
+  Under `--voice`, where the script's voice reads it, a `start` is one.
 
 Within a version, the API only grows: new fields, messages and routes.
 Clients ignore what they do not know. A change that would break a client

@@ -1,0 +1,29 @@
+{
+  "name": "tour.md",
+  "voice": { "name": "kokoro · af_heart", "listens": false },
+  "length_ms": 6120,
+  "lines": [
+    {
+      "id": "welcome", "text": "Welcome to Acme. Let me show you around.",
+      "recorded": false, "stale": false, "said": null, "said_diff": [],
+      "instruct": "warmly",
+      "audio": {
+        "source": "voice", "url": "/api/v1/voice/welcome.wav", "ready": true,
+        "duration_ms": 2600, "words": [0, 520, 660, 1100, 1450, 1650, 1830, 2100]
+      }
+    },
+    {
+      "id": "deploy", "text": "Deployment is one command.",
+      "recorded": false, "stale": false, "said": null, "said_diff": [],
+      "instruct": null,
+      "audio": {
+        "source": "voice", "url": "/api/v1/voice/deploy.wav", "ready": false,
+        "duration_ms": null, "words": null
+      }
+    }
+  ],
+  "shots": [
+    { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },
+    { "shot": "welcome-b#0", "at": { "line": 1, "word": 0 }, "clip": null }
+  ]
+}

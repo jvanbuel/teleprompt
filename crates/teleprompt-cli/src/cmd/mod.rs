@@ -16,3 +16,4 @@ pub mod record;
 pub mod setup;
 pub mod translate;
 pub mod voice;
+pub mod voicing;

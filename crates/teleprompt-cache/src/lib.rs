@@ -212,6 +212,20 @@ impl VoiceCache {
         }))
     }
 
+    /// Drops the entry under `key`, sidecar first so no reader sees audio
+    /// without it: for a line to be synthesized again. Nothing there is
+    /// no error.
+    pub fn forget(&self, key: &CacheKey) -> Result<(), CacheError> {
+        for path in [self.json_path(key), self.wav_path(key)] {
+            match std::fs::remove_file(&path) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(write_err(&path, e)),
+            }
+        }
+        Ok(())
+    }
+
     /// Publish one entry, or adopt the one already published under this key.
     ///
     /// Each file is written to a temporary beside it and renamed into place,

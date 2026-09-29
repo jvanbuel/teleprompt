@@ -179,6 +179,12 @@ enum EditCommand {
     },
     /// Reword the line to what its take was heard to say, keeping the take
     Said { line: LineId },
+    /// Say the line as TEXT, keeping its id and attributes. A take of the
+    /// old words becomes one to record again
+    Reword { line: LineId, text: String },
+    /// Tell the voice how to say the line ("slower, amused"), for a
+    /// backend that takes instructions; without TEXT, remove it
+    Instruct { line: LineId, text: Option<String> },
 }
 
 impl EditCommand {
@@ -189,6 +195,8 @@ impl EditCommand {
             EditCommand::Hold { block } => Edit::Hold { block },
             EditCommand::Move { block, after, word } => Edit::Move { block, after, word },
             EditCommand::Stretch { block, by } => Edit::Stretch { block, by },
+            EditCommand::Reword { line, text } => Edit::Reword { line, text },
+            EditCommand::Instruct { line, text } => Edit::Instruct { line, text },
             EditCommand::Said { .. } => unreachable!("said is run on its own"),
         }
     }
@@ -353,6 +361,10 @@ enum Command {
         /// Watch the script and preview the video as it will play
         #[arg(long)]
         preview: bool,
+        /// Read the script with its voice instead of following yours:
+        /// needs no speech model, in any build
+        #[arg(long, conflicts_with_all = ["preview", "model"])]
+        voice: bool,
     },
     /// Synthesize narration and write audio plus a manifest
     ///
@@ -696,6 +708,32 @@ fn replaced(old: &str, new: &str) -> Outcome {
     )])
 }
 
+/// `prompt`, following the reader by ear with the speech model named or
+/// installed, or with `voice`, reading the script with its voice.
+fn run_prompt_cmd(
+    format: Format,
+    args: &ScriptArgs,
+    port: u16,
+    model: Option<std::path::PathBuf>,
+    voice: bool,
+) -> Run {
+    use teleprompt_cli::cmd::prompt::Ear;
+    let project = project_for(&args.script)?;
+    let model = (!voice).then(|| model.or_else(|| setup::speech_model(None).ok()));
+    teleprompt_cli::cmd::prompt::run_prompt(
+        &project,
+        &args.script,
+        &args.locale(&project),
+        port,
+        match &model {
+            Some(model) => Ear::Model(model.as_deref()),
+            None => Ear::Voice,
+        },
+        format,
+    )?;
+    Ok(Outcome::Ok)
+}
+
 fn run(command: Command, format: Format) -> Run {
     match command {
         Command::Diff { .. } => Err(replaced("diff", "plan --check")),
@@ -767,19 +805,12 @@ fn run(command: Command, format: Format) -> Run {
             ..
         } => run_preview(&args, port),
         Command::Prompt {
-            args, port, model, ..
-        } => {
-            let project = project_for(&args.script)?;
-            teleprompt_cli::cmd::prompt::run_prompt(
-                &project,
-                &args.script,
-                &args.locale(&project),
-                port,
-                model.or_else(|| setup::speech_model(None).ok()).as_deref(),
-                format,
-            )?;
-            Ok(Outcome::Ok)
-        }
+            args,
+            port,
+            model,
+            voice,
+            ..
+        } => run_prompt_cmd(format, &args, port, model, voice),
         Command::Build {
             args,
             out,

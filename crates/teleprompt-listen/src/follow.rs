@@ -17,6 +17,21 @@ pub trait Recognizer {
     fn reset(&mut self);
 }
 
+/// A recognizer that hears nothing: for a prompter whose script is read
+/// by a synthesized voice, not followed by ear.
+pub struct Deaf;
+
+impl Recognizer for Deaf {
+    fn listen(&mut self, _samples: &[f32]) -> Heard {
+        Heard {
+            text: String::new(),
+            is_final: false,
+        }
+    }
+
+    fn reset(&mut self) {}
+}
+
 /// A reader followed through a script by ear.
 pub struct Follower<R> {
     recognizer: R,

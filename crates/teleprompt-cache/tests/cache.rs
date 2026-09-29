@@ -523,3 +523,17 @@ fn instructions_key_apart_and_their_absence_keys_as_before() {
         key("kokoro", "kokoro", &calm)
     );
 }
+
+#[test]
+fn a_forgotten_entry_misses_and_can_be_stored_anew() {
+    let dir = tempdir("forget");
+    let c = VoiceCache::new(dir.path());
+    let k = key("null", "0.1.0", &req("hello", None, 1.0, "en"));
+    c.store(&k, &pcm(100), None).unwrap();
+    c.forget(&k).unwrap();
+    assert!(c.lookup(&k).unwrap().hit().is_none());
+    // Forgetting what is not there is no error.
+    c.forget(&k).unwrap();
+    assert_eq!(c.store(&k, &pcm(200), None).unwrap().duration_ms, 200);
+    assert_eq!(c.lookup(&k).unwrap().hit().unwrap().duration_ms, 200);
+}
