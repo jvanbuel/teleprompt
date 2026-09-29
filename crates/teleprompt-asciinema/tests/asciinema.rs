@@ -4,7 +4,7 @@ use teleprompt_asciinema::capture::session_cast;
 use teleprompt_asciinema::scene::{parse, retimed, split};
 use teleprompt_asciinema::AsciinemaScene;
 use teleprompt_capture::{Session, SessionShot};
-use teleprompt_core::Hash;
+use teleprompt_core::{BlockId, Hash};
 use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 
 const V2: &str = r#"{"version": 2, "width": 80, "height": 24}
@@ -28,7 +28,9 @@ fn src(body: &str) -> BlockSource {
 
 fn shots(body: &str) -> Vec<Shot> {
     let v = AsciinemaScene.validate(&src(body)).expect("valid");
-    AsciinemaScene.shots(&v, "b").expect("shots")
+    AsciinemaScene
+        .shots(&v, &BlockId::from("b"))
+        .expect("shots")
 }
 
 #[test]

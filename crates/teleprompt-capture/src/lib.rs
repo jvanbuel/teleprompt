@@ -11,12 +11,12 @@ pub mod tool;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use teleprompt_core::Hash;
+use teleprompt_core::{Hash, ShotId};
 
 /// One action shot, as the planner needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlannedShot {
-    pub id: String,
+    pub id: ShotId,
     pub scene: String,
     pub adapter: String,
     /// `session="…"`, naming a different run of the scene.
@@ -47,7 +47,7 @@ pub struct Session {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionShot {
-    pub id: String,
+    pub id: ShotId,
     pub key: Hash,
     pub source: String,
     pub duration_ms: u64,
@@ -181,7 +181,7 @@ impl Drop for WorkDir {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Progress {
     pub scene: String,
-    pub shot: String,
+    pub shot: ShotId,
     pub done: usize,
     pub of: usize,
 }
@@ -195,7 +195,7 @@ pub enum CaptureError {
     #[error("{backend} failed to capture `{shot}`: {reason}")]
     Failed {
         backend: String,
-        shot: String,
+        shot: ShotId,
         reason: String,
     },
     #[error("cannot write {path}: {source}")]

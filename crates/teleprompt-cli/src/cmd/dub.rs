@@ -5,7 +5,7 @@ use teleprompt_cache::{CachedAudio, VoiceCache};
 use teleprompt_compile::manifest;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
-use teleprompt_core::Hash;
+use teleprompt_core::{Hash, LineId};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
@@ -125,7 +125,7 @@ struct RenderedAudio {
 /// [`RenderedAudio`] under the line it is published as. Lines sharing a
 /// key each get their own, since the manifest has one entry per line.
 struct Rendered {
-    line_id: String,
+    line_id: LineId,
     wav_bytes: Vec<u8>,
     rendered_ms: u64,
     sample_rate: u32,
@@ -366,7 +366,7 @@ async fn render_all(
         tokio::task::JoinSet::new();
     for indices in groups_by_key(narration) {
         let detail = narration[indices[0]].clone();
-        let line_ids: Vec<String> = indices
+        let line_ids: Vec<LineId> = indices
             .iter()
             .map(|&i| narration[i].line_id.clone())
             .collect();
@@ -498,7 +498,7 @@ fn groups_by_key(narration: &[NarrationDetail]) -> Vec<Vec<usize>> {
 /// from it.
 struct Audio {
     /// Each line's id, WAV bytes and rendered length.
-    lines: Vec<(String, Vec<u8>, u64)>,
+    lines: Vec<(LineId, Vec<u8>, u64)>,
     /// The first line's rate and channels; the manifest has one `AudioInfo`
     /// per locale, and the first line in document order does not depend on
     /// which request answered first.

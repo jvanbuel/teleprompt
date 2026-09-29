@@ -155,7 +155,7 @@ impl CaptureBackend for MediaRender {
     ) -> Result<Vec<Clip>, CaptureError> {
         let failed = |shot: &str, reason: String| CaptureError::Failed {
             backend: "media".into(),
-            shot: shot.to_string(),
+            shot: shot.into(),
             reason,
         };
         let dir = Path::new(session.setting("dir", "media"));

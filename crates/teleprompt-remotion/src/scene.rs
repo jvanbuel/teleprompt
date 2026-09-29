@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 
 use teleprompt_core::config::SceneConfig;
-use teleprompt_core::{Diagnostic, Hash};
+use teleprompt_core::{BlockId, Diagnostic, Hash};
 use teleprompt_scene::contract::{
     split_at_mark, validate_parts, BlockSource, Measured, SceneCompiler, Shot, Validated,
 };
@@ -90,7 +90,7 @@ impl SceneCompiler for RemotionScene {
         validate_parts(src, MARK, |part| parse(part).map(|_| ()))
     }
 
-    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let mut out = Vec::new();
         for (_, source) in split_at_mark(&v.body, MARK) {
             if !matches!(parse(&source), Ok(Some(_))) {

@@ -8,7 +8,7 @@ use teleprompt_compile::{compile, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
-use teleprompt_core::{Diagnostic, Diagnostics};
+use teleprompt_core::{BlockId, Diagnostic, Diagnostics};
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_scene::mock::MockScene;
 use teleprompt_scene::SceneRegistry;
@@ -25,7 +25,7 @@ impl SceneCompiler for Untimed {
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {
         MockScene.validate(src)
     }
-    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         MockScene.shots(v, block_id)
     }
     fn estimate(&self, _shot: &Shot) -> Measured {

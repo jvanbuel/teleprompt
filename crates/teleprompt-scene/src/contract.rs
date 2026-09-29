@@ -1,4 +1,4 @@
-use teleprompt_core::{Diagnostic, Hash, SourceSpan};
+use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId, SourceSpan};
 
 /// Where an action block's body lives, so diagnostics point at the right file
 /// and line: an `include=`d body's line 3 is line 3 of that file.
@@ -58,7 +58,7 @@ pub struct Validated {
 
 #[derive(Debug, Clone)]
 pub struct Shot {
-    pub id: String,
+    pub id: ShotId,
     pub source: String,
     pub hash: Hash,
     pub index: usize,
@@ -113,9 +113,9 @@ impl From<&BlockSource> for Validated {
 impl Shot {
     /// The `index`th shot of `block_id`, named `<block>#<index>`. `hash` is
     /// the adapter's to choose: whatever identifies the shot's picture.
-    pub fn numbered(block_id: &str, index: usize, source: String, hash: Hash) -> Self {
+    pub fn numbered(block_id: &BlockId, index: usize, source: String, hash: Hash) -> Self {
         Shot {
-            id: format!("{block_id}#{index}"),
+            id: ShotId::of(block_id, index),
             source,
             hash,
             index,
@@ -226,7 +226,7 @@ pub trait SceneCompiler: Send + Sync {
     /// Report every bad line, positioned through [`BodyOrigin::locate`].
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>>;
     /// Split at marks; a block without marks is one shot.
-    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>>;
+    fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>>;
     /// `Exact` when the source states its timing, `Estimated` for a bound,
     /// `Unknown` otherwise (the shot then takes its line's length).
     fn estimate(&self, shot: &Shot) -> Measured;

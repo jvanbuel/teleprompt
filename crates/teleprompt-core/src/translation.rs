@@ -75,7 +75,7 @@ pub fn items(program: &Program) -> Vec<Item> {
             Element::Narration { id, text, .. } => {
                 line = Some(id.clone());
                 items.push(Item {
-                    key: id.clone(),
+                    key: id.to_string(),
                     kind: Kind::Line,
                     english: text.clone(),
                 });
@@ -87,8 +87,10 @@ pub fn items(program: &Program) -> Vec<Item> {
             } => {
                 if let Some(line) = &line {
                     items.push(Item {
-                        key: block_id.clone(),
-                        kind: Kind::Cue { line: line.clone() },
+                        key: block_id.to_string(),
+                        kind: Kind::Cue {
+                            line: line.to_string(),
+                        },
                         english: cue.clone(),
                     });
                 }

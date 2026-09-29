@@ -17,7 +17,7 @@ use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
-use teleprompt_core::Hash;
+use teleprompt_core::{BlockId, Hash};
 use teleprompt_scene::SceneRegistry;
 use teleprompt_voice::WpmEstimator;
 
@@ -300,7 +300,7 @@ impl teleprompt_scene::contract::SceneCompiler for Still {
     fn shots(
         &self,
         v: &teleprompt_scene::contract::Validated,
-        block_id: &str,
+        block_id: &BlockId,
     ) -> Result<Vec<teleprompt_scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>> {
         teleprompt_scene::mock::MockScene.shots(v, block_id)
     }
@@ -402,7 +402,7 @@ impl teleprompt_scene::contract::SceneCompiler for Pictured {
     fn shots(
         &self,
         v: &teleprompt_scene::contract::Validated,
-        block_id: &str,
+        block_id: &BlockId,
     ) -> Result<Vec<teleprompt_scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>> {
         teleprompt_scene::mock::MockScene.shots(v, block_id)
     }

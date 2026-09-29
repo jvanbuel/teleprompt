@@ -151,11 +151,11 @@ impl CaptureBackend for PlaywrightRender {
         let first = session
             .shots
             .first()
-            .map(|s| s.id.clone())
+            .map(|s| s.id.to_string())
             .unwrap_or_default();
         let failed = |shot: &str, why: String| CaptureError::Failed {
             backend: "playwright".into(),
-            shot: shot.to_string(),
+            shot: shot.into(),
             reason: why,
         };
 

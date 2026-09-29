@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use teleprompt_capture::{Frame, Session, SessionShot};
-use teleprompt_core::{Hash, SourceSpan};
+use teleprompt_core::{BlockId, Hash, SourceSpan};
 use teleprompt_media::capture::args;
 use teleprompt_media::scene::{parse_line, parse_time, Directive};
 use teleprompt_media::MediaScene;
@@ -25,7 +25,7 @@ fn src(body: &str) -> BlockSource {
 
 fn shots(body: &str) -> Vec<Shot> {
     let v = MediaScene.validate(&src(body)).expect("valid");
-    MediaScene.shots(&v, "b").expect("shots")
+    MediaScene.shots(&v, &BlockId::from("b")).expect("shots")
 }
 
 #[test]

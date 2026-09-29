@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use teleprompt_core::config::TransitionKind;
-use teleprompt_core::{DurationSource, Hash, PolicyKind};
+use teleprompt_core::{DurationSource, Hash, LineId, PolicyKind, ShotId};
 
 /// Incremented on any change a consumer must not silently miss, including
 /// an added key it would otherwise ignore. Independent of
@@ -47,10 +47,10 @@ pub struct ChapterEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShotEntry {
     /// The shot's id, `<block>#<index>`, as the adapter minted it.
-    pub shot: String,
+    pub shot: ShotId,
     /// The line paired with this shot, or `null` (always serialized). Only
     /// the first shot of a block that follows a paragraph is paired.
-    pub line: Option<String>,
+    pub line: Option<LineId>,
     pub scene: String,
     pub adapter: String,
     pub start_ms: u64,
@@ -83,7 +83,7 @@ pub struct TransitionOut {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LineEntry {
-    pub id: String,
+    pub id: LineId,
     pub text: String,
     /// Slug of the chapter this line was spoken in, so a consumer need not
     /// reconstruct it from timestamps.

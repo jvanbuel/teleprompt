@@ -5,7 +5,7 @@ use crate::attrs::{BlockAttrs, LineAttrs};
 use crate::config::{Config, PartialConfig};
 use crate::policy::{Align, PolicyKind};
 use crate::DurationMs;
-use crate::{Diagnostic, Diagnostics, Hash, SourceSpan};
+use crate::{BlockId, Diagnostic, Diagnostics, Hash, LineId, SourceSpan};
 
 /// A chapter as the manifest and other consumers need it: identity and a
 /// human title. `resolve` flattens chapters away, so without this the
@@ -32,7 +32,7 @@ pub struct Program {
 #[derive(Debug, Clone)]
 pub enum Element {
     Narration {
-        id: String,
+        id: LineId,
         text: String,
         source_hash: Hash,
         /// Slug of the chapter this paragraph belongs to. Never empty:
@@ -53,7 +53,7 @@ pub enum Element {
         span: SourceSpan,
     },
     Action {
-        block_id: String,
+        block_id: BlockId,
         scene: String,
         body: String,
         /// The `include=` attribute's raw value, if present. Resolved
@@ -222,7 +222,7 @@ impl Resolver<'_> {
         }
         let text = seg.text.clone();
         self.elements.push(Element::Narration {
-            id: seg.id.to_string(),
+            id: seg.id.clone(),
             source_hash: Hash::of(text.as_bytes()),
             chapter: chapter.slug.clone(),
             chapter_index,
@@ -280,7 +280,7 @@ impl Resolver<'_> {
         }
         let config = self.merged(chapter_cfg, PartialConfig::from_block(&attrs));
         self.elements.push(Element::Action {
-            block_id: block.id.to_string(),
+            block_id: block.id.clone(),
             scene,
             body: block.body.clone(),
             include: attrs.include,

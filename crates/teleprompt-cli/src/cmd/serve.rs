@@ -21,7 +21,7 @@ use crate::project::fingerprint;
 use serde::Serialize;
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest;
-use teleprompt_core::Hash;
+use teleprompt_core::{Hash, LineId, ShotId};
 use teleprompt_manifest::{AudioInfo, NarrationManifest};
 use teleprompt_voice::VoiceBackend;
 
@@ -47,11 +47,11 @@ struct Preview {
     generation: u64,
     manifest: NarrationManifest,
     /// Shot id to adapter-native source, for the scenes the preview draws.
-    shots: BTreeMap<String, String>,
+    shots: BTreeMap<ShotId, String>,
     /// Line id to the file its audio is in: its take, or the cache entry
     /// under the key the compile computed, since the cache is addressed by
     /// content, not by line id.
-    audio_files: BTreeMap<String, PathBuf>,
+    audio_files: BTreeMap<LineId, PathBuf>,
     /// Ids of the items and lines whose timing or content moved in the
     /// compile that produced this generation. Empty on the first one.
     changed: Vec<String>,
@@ -72,8 +72,8 @@ struct State<'a> {
 /// What one compile produces for the preview.
 struct Built {
     manifest: NarrationManifest,
-    shots: BTreeMap<String, String>,
-    audio_files: BTreeMap<String, PathBuf>,
+    shots: BTreeMap<ShotId, String>,
+    audio_files: BTreeMap<LineId, PathBuf>,
     changed: Vec<String>,
 }
 
@@ -172,26 +172,26 @@ fn moved(before: &NarrationManifest, after: &NarrationManifest) -> Vec<String> {
     let mut out = Vec::new();
     for seg in &after.lines {
         match before.lines.iter().find(|s| s.id == seg.id) {
-            None => out.push(seg.id.clone()),
+            None => out.push(seg.id.to_string()),
             Some(was) => {
                 if was.source_hash != seg.source_hash
                     || was.start_ms != seg.start_ms
                     || was.duration_ms != seg.duration_ms
                 {
-                    out.push(seg.id.clone());
+                    out.push(seg.id.to_string());
                 }
             }
         }
     }
     for shot in &after.shots {
         match before.shots.iter().find(|b| b.shot == shot.shot) {
-            None => out.push(shot.shot.clone()),
+            None => out.push(shot.shot.to_string()),
             Some(was) => {
                 if was.capture_key != shot.capture_key
                     || was.start_ms != shot.start_ms
                     || was.duration_ms != shot.duration_ms
                 {
-                    out.push(shot.shot.clone());
+                    out.push(shot.shot.to_string());
                 }
             }
         }

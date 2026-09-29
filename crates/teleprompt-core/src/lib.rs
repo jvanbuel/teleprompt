@@ -19,5 +19,5 @@ pub mod voice;
 pub use duration::{DurationMs, DurationSource};
 pub use error::{Diagnostic, Diagnostics, Severity, SourceSpan};
 pub use hash::Hash;
-pub use id::{BlockId, LineId, ShotId};
+pub use id::{BlockId, ItemId, LineId, ShotId};
 pub use policy::PolicyKind;

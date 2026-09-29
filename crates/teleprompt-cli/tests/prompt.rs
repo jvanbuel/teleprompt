@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use teleprompt_cli::cmd::prompt::prompt_on;
-use teleprompt_core::Hash;
+use teleprompt_core::{Hash, LineId};
 use teleprompt_listen::{Heard, Position, Recognizer};
 use teleprompt_prompter::{Prompt, ShotCue};
 
@@ -42,7 +42,7 @@ const IDS: &[&str] = &["welcome", "deploy"];
 /// first line; only the second has been captured.
 fn shots() -> Vec<ShotCue> {
     let cue = |shot: &str, line, word| ShotCue {
-        shot: shot.to_string(),
+        shot: shot.into(),
         capture_key: Hash::of(shot.as_bytes()),
         at: Position { line, word },
     };
@@ -74,7 +74,7 @@ fn prompting_counted(
     let prompt = Prompt {
         name: "tour.md".into(),
         lines: LINES.iter().map(|l| l.to_string()).collect(),
-        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
         clips: clips.to_path_buf(),
         takes: clips.join("takes"),
@@ -285,7 +285,7 @@ fn a_session_that_panics_lets_go_of_the_prompter() {
     let prompt = Prompt {
         name: "tour.md".into(),
         lines: LINES.iter().map(|l| l.to_string()).collect(),
-        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
         clips: dir.to_path_buf(),
         takes: dir.join("takes"),
@@ -617,7 +617,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
     let prompt = Prompt {
         name: "tour.md".into(),
         lines: LINES.iter().map(|l| l.to_string()).collect(),
-        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
         clips: clips.to_path_buf(),
         takes: clips.join("takes"),
@@ -658,7 +658,7 @@ fn prompting_with_keep(
     let prompt = Prompt {
         name: "tour.md".into(),
         lines: LINES.iter().map(|l| l.to_string()).collect(),
-        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
         clips: clips.to_path_buf(),
         takes: clips.join("takes"),
@@ -697,7 +697,7 @@ fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
     let prompt = Prompt {
         name: "tour.md".into(),
         lines: LINES.iter().map(|l| l.to_string()).collect(),
-        ids: IDS.iter().map(|l| l.to_string()).collect(),
+        ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
         clips: dir.to_path_buf(),
         takes: dir.join("takes"),

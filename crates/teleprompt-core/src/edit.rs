@@ -10,26 +10,27 @@ use std::ops::Range;
 
 use crate::ast::Node;
 use crate::parse::parse_script;
+use crate::{BlockId, LineId};
 
 /// One edit, naming blocks and lines by their ids as `plan` shows them.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Edit {
     /// Run the block with its line, starting at the line's `word`th word
     /// (0 starts with the line).
-    Cue { block: String, word: usize },
+    Cue { block: BlockId, word: usize },
     /// Run the block after its line.
-    Hold { block: String },
+    Hold { block: BlockId },
     /// Put the block after line `after`, holding or cued at `word`.
     Move {
-        block: String,
-        after: String,
+        block: BlockId,
+        after: LineId,
         word: Option<usize>,
     },
     /// Multiply the block's stretch by `by`; a stretch that comes to 1
     /// is removed.
-    Stretch { block: String, by: f64 },
+    Stretch { block: BlockId, by: f64 },
     /// Say line `line` as `text`, keeping its attributes.
-    Reword { line: String, text: String },
+    Reword { line: LineId, text: String },
 }
 
 /// Applies `edit` to the script `src`.
@@ -117,21 +118,21 @@ struct Map {
 }
 
 struct LineAt {
-    id: String,
+    id: LineId,
     text: String,
     /// The paragraph, up to its last character.
     range: Range<usize>,
 }
 
 struct BlockAt {
-    id: String,
+    id: BlockId,
     info: String,
     /// The attributes after ```` ```teleprompt ````, in the fence's line.
     info_range: Range<usize>,
     /// The fence, opening line to closing line, with its newline.
     range: Range<usize>,
     /// The line right before it, which it pairs with.
-    paired: Option<String>,
+    paired: Option<LineId>,
 }
 
 impl Map {
@@ -149,13 +150,13 @@ impl Map {
             blocks: Vec::new(),
         };
         for chapter in &script.chapters {
-            let mut previous: Option<String> = None;
+            let mut previous: Option<LineId> = None;
             for node in &chapter.nodes {
                 match node {
                     Node::Line(l) => {
                         let start = at(l.span.line);
                         let end = (start + l.span.len).min(src.len());
-                        let id = l.id.to_string();
+                        let id = l.id.clone();
                         map.lines.push(LineAt {
                             id: id.clone(),
                             text: l.text.clone(),
@@ -175,7 +176,7 @@ impl Map {
                                 .map_or(0, |i| i + "teleprompt".len());
                         let info_end = start + fence_line.len();
                         map.blocks.push(BlockAt {
-                            id: b.id.to_string(),
+                            id: b.id.clone(),
                             info: src[info_start..info_end].trim().to_string(),
                             info_range: info_start..info_end,
                             range: start..end,
@@ -189,22 +190,22 @@ impl Map {
         Ok(map)
     }
 
-    fn block(&self, id: &str) -> Result<&BlockAt, String> {
+    fn block(&self, id: &BlockId) -> Result<&BlockAt, String> {
         self.blocks
             .iter()
-            .find(|b| b.id == id)
+            .find(|b| &b.id == id)
             .ok_or_else(|| format!("no block `{id}` in the script"))
     }
 
-    fn line(&self, id: &str) -> Result<&LineAt, String> {
+    fn line(&self, id: &LineId) -> Result<&LineAt, String> {
         self.lines
             .iter()
-            .find(|l| l.id == id)
+            .find(|l| &l.id == id)
             .ok_or_else(|| format!("no line `{id}` in the script"))
     }
 
     fn paired(&self, b: &BlockAt) -> Result<&LineAt, String> {
-        let id = b.paired.as_deref().ok_or_else(|| {
+        let id = b.paired.as_ref().ok_or_else(|| {
             format!(
                 "block `{}` follows no line, so it has nothing to start with",
                 b.id

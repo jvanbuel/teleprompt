@@ -5,8 +5,8 @@
 //! `None`, and the shot takes its line's length (`docs/design.md#adapters`).
 //! A block may instead include one test of a test file ([`crate::spec`]).
 
-use teleprompt_core::Diagnostic;
 use teleprompt_core::Hash;
+use teleprompt_core::{BlockId, Diagnostic};
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 
 /// The mark, spelled as a JavaScript comment so the script still runs
@@ -27,7 +27,7 @@ impl SceneCompiler for PlaywrightScene {
         Ok(Validated::from(src))
     }
 
-    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         if crate::spec::is_spec(&v.body) {
             return Err(vec![Diagnostic::error(
                 "this is a Playwright test file: name the test to run, \

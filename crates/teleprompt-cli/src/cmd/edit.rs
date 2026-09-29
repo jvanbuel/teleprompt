@@ -67,7 +67,7 @@ pub fn run_said(project: &Project, script: &Path, line: &str) -> Result<EditRepo
         project,
         script,
         &Edit::Reword {
-            line: line.to_string(),
+            line: line.into(),
             text: said.clone(),
         },
     )?;

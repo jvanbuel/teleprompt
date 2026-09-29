@@ -1,7 +1,7 @@
 //! The motion scene: a composition from an existing Remotion project,
 //! rendered at the length the narration gives it.
 
-use teleprompt_core::SourceSpan;
+use teleprompt_core::{BlockId, SourceSpan};
 use teleprompt_remotion::scene::parse;
 use teleprompt_remotion::RemotionScene;
 use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
@@ -22,7 +22,7 @@ fn src(body: &str) -> BlockSource {
 
 fn shots(body: &str) -> Vec<Shot> {
     let v = RemotionScene.validate(&src(body)).expect("valid");
-    RemotionScene.shots(&v, "b").expect("shots")
+    RemotionScene.shots(&v, &BlockId::from("b")).expect("shots")
 }
 
 /// A shot is what `remotion render` takes: a composition id and props.

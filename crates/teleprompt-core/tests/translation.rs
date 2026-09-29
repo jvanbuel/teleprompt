@@ -193,7 +193,7 @@ fn cues_follow_the_translation() {
         Element::Action { block_id, .. } => block_id.clone(),
         other => panic!("{other:?}"),
     };
-    t.cues.push((block, entry("streams", "toont")));
+    t.cues.push((block.to_string(), entry("streams", "toont")));
     let diags = apply(&mut p, &t);
     assert_eq!(cues(&p)[1], Some("toont"));
     assert!(diags.is_empty(), "{diags:?}");

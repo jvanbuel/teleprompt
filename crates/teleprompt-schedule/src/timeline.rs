@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use teleprompt_core::config::TransitionKind;
-use teleprompt_core::{DurationSource, Hash, PolicyKind};
+use teleprompt_core::{DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Timeline {
@@ -14,7 +14,7 @@ pub struct Timeline {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
-    pub item: String,
+    pub item: ItemId,
     pub start_ms: u64,
     pub duration_ms: u64,
     pub policy: PolicyKind,
@@ -27,7 +27,7 @@ pub struct Entry {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NarrationEntry {
-    pub line: String,
+    pub line: LineId,
     pub source_hash: Hash,
     pub audio_hash: Hash,
     pub start_ms: u64,
@@ -44,7 +44,7 @@ pub struct NarrationEntry {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ActionEntry {
-    pub shot: String,
+    pub shot: ShotId,
     pub scene: String,
     pub adapter: String,
     /// Hash of this shot's own source alone.

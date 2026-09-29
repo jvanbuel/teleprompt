@@ -5,7 +5,7 @@
 //! is `Exact` or `Estimated`.
 
 use teleprompt_core::attrs::parse_duration_ms;
-use teleprompt_core::{Diagnostic, Hash};
+use teleprompt_core::{BlockId, Diagnostic, Hash};
 
 use teleprompt_scene::{
     validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
@@ -467,7 +467,7 @@ impl SceneCompiler for VhsScene {
         validate_commands(src, classify)
     }
 
-    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let lines: Vec<&str> = v.body.lines().collect();
         let mut settings: Vec<&str> = Vec::new();
         let mut shots: Vec<Shot> = Vec::new();

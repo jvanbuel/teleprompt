@@ -2,7 +2,7 @@
 //! side of the contract without an external tool.
 
 use teleprompt_core::attrs::parse_duration_ms;
-use teleprompt_core::{Diagnostic, Hash};
+use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
 use crate::contract::{
     validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
@@ -90,7 +90,7 @@ impl SceneCompiler for MockScene {
         validate_commands(src, classify)
     }
 
-    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let chunks: Vec<String> = v
             .body
             .lines()
@@ -104,7 +104,7 @@ impl SceneCompiler for MockScene {
             .into_iter()
             .enumerate()
             .map(|(index, source)| Shot {
-                id: format!("{block_id}#{index}"),
+                id: ShotId::of(block_id, index),
                 hash: Hash::of(source.trim().as_bytes()),
                 source,
                 index,

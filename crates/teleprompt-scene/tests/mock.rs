@@ -1,4 +1,4 @@
-use teleprompt_core::SourceSpan;
+use teleprompt_core::{BlockId, SourceSpan};
 use teleprompt_scene::{
     BlockSource, BodyOrigin, Measured, MockScene, SceneCompiler, SceneRegistry,
 };
@@ -55,7 +55,7 @@ fn comments_and_blank_lines_are_ignored() {
 fn marks_split_the_block_into_shots() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nmark\nwait 300ms\n")).unwrap();
-    let shots = m.shots(&v, "a-1-a").unwrap();
+    let shots = m.shots(&v, &BlockId::from("a-1-a")).unwrap();
     assert_eq!(shots.len(), 2);
     assert_eq!(shots[0].id, "a-1-a#0");
     assert_eq!(shots[1].id, "a-1-a#1");
@@ -65,14 +65,14 @@ fn marks_split_the_block_into_shots() {
 fn a_block_with_no_marks_is_one_shot() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nwait 300ms\n")).unwrap();
-    assert_eq!(m.shots(&v, "b").unwrap().len(), 1);
+    assert_eq!(m.shots(&v, &BlockId::from("b")).unwrap().len(), 1);
 }
 
 #[test]
 fn estimate_sums_the_waits_exactly() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nwait 1s\n")).unwrap();
-    let shots = m.shots(&v, "b").unwrap();
+    let shots = m.shots(&v, &BlockId::from("b")).unwrap();
     assert_eq!(m.estimate(&shots[0]), Measured::Exact(1500));
 }
 
@@ -80,11 +80,11 @@ fn estimate_sums_the_waits_exactly() {
 fn shot_hashes_differ_by_content_and_repeat_for_identical_content() {
     let m = MockScene;
     let v1 = m.validate(&src("wait 500ms\nmark\nwait 500ms\n")).unwrap();
-    let s1 = m.shots(&v1, "b").unwrap();
+    let s1 = m.shots(&v1, &BlockId::from("b")).unwrap();
     assert_eq!(s1[0].hash, s1[1].hash, "identical shots hash identically");
 
     let v2 = m.validate(&src("wait 501ms\n")).unwrap();
-    let s2 = m.shots(&v2, "b").unwrap();
+    let s2 = m.shots(&v2, &BlockId::from("b")).unwrap();
     assert_ne!(s1[0].hash, s2[0].hash);
 }
 
@@ -99,7 +99,7 @@ fn registry_resolves_builtin_adapters_and_rejects_unknown_ones() {
 fn a_body_ending_with_mark_yields_one_shot_not_two() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nmark\n")).unwrap();
-    let shots = m.shots(&v, "c").unwrap();
+    let shots = m.shots(&v, &BlockId::from("c")).unwrap();
     assert_eq!(shots.len(), 1, "trailing mark does not create empty shot");
     assert_eq!(shots[0].index, 0, "surviving shot has contiguous index 0");
 }
@@ -108,7 +108,7 @@ fn a_body_ending_with_mark_yields_one_shot_not_two() {
 fn a_body_starting_with_mark_yields_one_shot_not_two() {
     let m = MockScene;
     let v = m.validate(&src("mark\nwait 500ms\n")).unwrap();
-    let shots = m.shots(&v, "d").unwrap();
+    let shots = m.shots(&v, &BlockId::from("d")).unwrap();
     assert_eq!(shots.len(), 1, "leading mark does not create empty shot");
     assert_eq!(shots[0].index, 0, "surviving shot has contiguous index 0");
 }
@@ -119,7 +119,7 @@ fn consecutive_marks_yield_contiguous_shots() {
     let v = m
         .validate(&src("wait 100ms\nmark\nmark\nwait 200ms\n"))
         .unwrap();
-    let shots = m.shots(&v, "e").unwrap();
+    let shots = m.shots(&v, &BlockId::from("e")).unwrap();
     assert_eq!(
         shots.len(),
         2,
@@ -133,7 +133,7 @@ fn consecutive_marks_yield_contiguous_shots() {
 fn a_body_that_is_only_mark_yields_zero_shots() {
     let m = MockScene;
     let v = m.validate(&src("mark\n")).unwrap();
-    let shots = m.shots(&v, "f").unwrap();
+    let shots = m.shots(&v, &BlockId::from("f")).unwrap();
     assert_eq!(shots.len(), 0, "all-mark body yields no shots");
 }
 
@@ -178,7 +178,7 @@ fn an_inline_bodys_diagnostic_defers_to_the_callers_file() {
 fn only_shot(body: &str) -> teleprompt_scene::Shot {
     let m = MockScene;
     let v = m.validate(&src(body)).expect("body must validate");
-    let shots = m.shots(&v, "b").unwrap();
+    let shots = m.shots(&v, &BlockId::from("b")).unwrap();
     assert_eq!(shots.len(), 1, "fixture is meant to be a single shot");
     shots.into_iter().next().unwrap()
 }
@@ -229,7 +229,7 @@ fn a_comment_only_chunk_between_marks_produces_no_shot() {
             "wait 100ms\nmark\n# just a comment\nmark\nwait 200ms\n",
         ))
         .unwrap();
-    let shots = m.shots(&v, "g").unwrap();
+    let shots = m.shots(&v, &BlockId::from("g")).unwrap();
     assert_eq!(
         shots.len(),
         2,

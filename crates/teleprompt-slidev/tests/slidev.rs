@@ -1,6 +1,6 @@
 //! The slides scene: a slide of an existing Slidev deck, at a click step.
 
-use teleprompt_core::SourceSpan;
+use teleprompt_core::{BlockId, SourceSpan};
 use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_slidev::capture::{range, still_name};
 use teleprompt_slidev::scene::{parse, Step};
@@ -22,7 +22,7 @@ fn src(body: &str) -> BlockSource {
 
 fn shots(body: &str) -> Vec<Shot> {
     let v = SlidevScene.validate(&src(body)).expect("valid");
-    SlidevScene.shots(&v, "b").expect("shots")
+    SlidevScene.shots(&v, &BlockId::from("b")).expect("shots")
 }
 
 const fn step(slide: u32, clicks: u32) -> Step {

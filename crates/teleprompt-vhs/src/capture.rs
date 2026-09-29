@@ -126,13 +126,13 @@ impl CaptureBackend for VhsRender {
 
         let failed = |shot: &str, reason: String| CaptureError::Failed {
             backend: "vhs".to_string(),
-            shot: shot.to_string(),
+            shot: shot.into(),
             reason,
         };
         let first = session
             .shots
             .first()
-            .map(|s| s.id.clone())
+            .map(|s| s.id.to_string())
             .unwrap_or_default();
 
         let video = work.join("session.mp4");

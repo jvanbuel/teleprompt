@@ -29,10 +29,12 @@ pub fn job_for(
 ) -> Result<serde_json::Value, (String, String)> {
     let mut shots = Vec::new();
     for shot in session.shots.iter().filter(|s| s.wanted) {
-        let call = parse(&shot.source)
-            .ok()
-            .flatten()
-            .ok_or_else(|| (shot.id.clone(), "the shot names no composition".to_string()))?;
+        let call = parse(&shot.source).ok().flatten().ok_or_else(|| {
+            (
+                shot.id.to_string(),
+                "the shot names no composition".to_string(),
+            )
+        })?;
         shots.push(serde_json::json!({
             "composition": call.composition,
             "props": call.props,
@@ -89,10 +91,10 @@ impl CaptureBackend for RemotionRender {
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
         let wanted: Vec<_> = session.shots.iter().filter(|s| s.wanted).collect();
-        let first = wanted.first().map(|s| s.id.clone()).unwrap_or_default();
+        let first = wanted.first().map(|s| s.id.to_string()).unwrap_or_default();
         let failed = |shot: &str, reason: String| CaptureError::Failed {
             backend: "remotion".into(),
-            shot: shot.to_string(),
+            shot: shot.into(),
             reason,
         };
 

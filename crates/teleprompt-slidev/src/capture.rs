@@ -94,10 +94,10 @@ impl CaptureBackend for SlidevRender {
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
         let wanted: Vec<_> = session.shots.iter().filter(|s| s.wanted).collect();
-        let first = wanted.first().map(|s| s.id.clone()).unwrap_or_default();
+        let first = wanted.first().map(|s| s.id.to_string()).unwrap_or_default();
         let failed = |shot: &str, reason: String| CaptureError::Failed {
             backend: "slidev".into(),
-            shot: shot.to_string(),
+            shot: shot.into(),
             reason,
         };
 

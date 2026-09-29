@@ -118,7 +118,7 @@ pub(crate) fn compile_script_with(
                 offenders
                     .entry(config.voice.backend.clone())
                     .or_default()
-                    .push((id.clone(), *span));
+                    .push((id.to_string(), *span));
             }
         }
     }

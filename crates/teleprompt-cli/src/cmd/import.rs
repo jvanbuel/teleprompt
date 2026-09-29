@@ -5,6 +5,7 @@
 //! hears the voice and writes the results.
 
 use std::path::{Path, PathBuf};
+use teleprompt_core::LineId;
 
 use serde::{Deserialize, Serialize};
 use teleprompt_capture::record::{Recorded, Recorder};
@@ -48,7 +49,7 @@ pub struct ImportReport {
     pub lines: usize,
     pub blocks: usize,
     /// The lines now spoken from the recording, by id.
-    pub takes: Vec<String>,
+    pub takes: Vec<LineId>,
 }
 
 impl ImportReport {
@@ -186,7 +187,7 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
             errors.join("\n")
         )
     })?;
-    let lines: Vec<(String, String)> = compiled
+    let lines: Vec<(LineId, String)> = compiled
         .narration
         .iter()
         .map(|n| (n.line_id.clone(), n.text.clone()))
@@ -301,10 +302,10 @@ fn transcribe(_: &Path, _: &Pcm) -> Result<Vec<(String, u64, u64)>, String> {
 fn save_takes(
     project: &Project,
     draft: &Draft,
-    lines: &[(String, String)],
+    lines: &[(LineId, String)],
     pcm: &Pcm,
     offset_ms: i64,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<LineId>, String> {
     let spoken: Vec<&Line> = draft.lines().collect();
     if spoken.len() != lines.len() {
         return Err(format!(

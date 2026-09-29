@@ -163,14 +163,14 @@ And every timeline is committed alongside it.
 fn line_timings_equal_the_timeline_they_came_from() {
     let (out, m) = compiled_and_manifest(TWO_CHAPTERS);
 
-    let from_timeline: Vec<(String, u64, u64)> = out
+    let from_timeline: Vec<(teleprompt_core::LineId, u64, u64)> = out
         .timeline
         .entries
         .iter()
         .filter_map(|e| e.narration.as_ref())
         .map(|n| (n.line.clone(), n.start_ms, n.duration_ms))
         .collect();
-    let from_manifest: Vec<(String, u64, u64)> = m
+    let from_manifest: Vec<(teleprompt_core::LineId, u64, u64)> = m
         .lines
         .iter()
         .map(|s| (s.id.clone(), s.start_ms, s.duration_ms))

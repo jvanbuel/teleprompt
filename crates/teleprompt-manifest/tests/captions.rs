@@ -4,7 +4,7 @@ use teleprompt_manifest::{AudioInfo, LineEntry, NarrationManifest, WordEntry, MA
 
 fn line(start_ms: u64, duration_ms: u64, text: &str) -> LineEntry {
     LineEntry {
-        id: "l".to_string(),
+        id: "l".into(),
         text: text.to_string(),
         chapter: "intro".to_string(),
         start_ms,

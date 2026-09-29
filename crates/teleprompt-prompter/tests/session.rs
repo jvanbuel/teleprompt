@@ -38,7 +38,7 @@ fn pos(line: usize, word: usize) -> Position {
 /// first line; only the second has been captured.
 fn prompt(dir: &std::path::Path) -> Prompt {
     let cue = |shot: &str, at| ShotCue {
-        shot: shot.to_string(),
+        shot: shot.into(),
         capture_key: Hash::of(shot.as_bytes()),
         at,
     };
@@ -82,8 +82,8 @@ fn silence(n: usize) -> Vec<f32> {
     vec![0.0; n]
 }
 
-fn plays(shots: &[&str]) -> Vec<String> {
-    shots.iter().map(|s| s.to_string()).collect()
+fn plays(shots: &[&str]) -> Vec<teleprompt_core::ShotId> {
+    shots.iter().map(|s| (*s).into()).collect()
 }
 
 /// Reaching a shot's cue says to play it, once.

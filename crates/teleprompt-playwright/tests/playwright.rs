@@ -6,7 +6,7 @@
 //! dialect that looks like Playwright and isn't. A script says what it
 //! does, not how long it takes.
 
-use teleprompt_core::SourceSpan;
+use teleprompt_core::{BlockId, SourceSpan};
 use teleprompt_playwright::PlaywrightScene;
 use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler};
 
@@ -26,7 +26,9 @@ fn src(body: &str) -> BlockSource {
 
 fn shots(body: &str) -> Vec<teleprompt_scene::contract::Shot> {
     let v = PlaywrightScene.validate(&src(body)).expect("valid");
-    PlaywrightScene.shots(&v, "b").expect("shots")
+    PlaywrightScene
+        .shots(&v, &BlockId::from("b"))
+        .expect("shots")
 }
 
 /// A script is arbitrary JavaScript. The adapter does not parse it, so it

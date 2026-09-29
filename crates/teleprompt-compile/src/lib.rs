@@ -14,7 +14,8 @@ use teleprompt_core::policy::Align;
 use teleprompt_core::program::{ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
 use teleprompt_core::{
-    Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, PolicyKind, SourceSpan,
+    BlockId, Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind,
+    ShotId, SourceSpan,
 };
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
@@ -46,7 +47,7 @@ fn display_path(path: &Path) -> String {
 /// surface, deliberately leaves out: the prose and word timings.
 #[derive(Debug, Clone)]
 pub struct NarrationDetail {
-    pub line_id: String,
+    pub line_id: LineId,
     pub text: String,
     /// The chapter's slug, for display. Two chapters with the same title
     /// share one, so it is not a join key.
@@ -70,7 +71,7 @@ pub struct NarrationDetail {
 /// whatever draws the scene. Not in the manifest: it is adapter-native code.
 #[derive(Debug, Clone)]
 pub struct ShotSource {
-    pub id: String,
+    pub id: ShotId,
     pub scene: String,
     pub adapter: String,
     pub source: String,
@@ -469,7 +470,7 @@ pub fn compile(
 /// A line waiting to pair with the first shot of the next action block.
 struct Pending {
     input: NarrationInput,
-    id: String,
+    id: LineId,
     /// What a `cue=` on that block searches.
     text: String,
     config: Config,
@@ -477,7 +478,7 @@ struct Pending {
 
 /// An action block's fields, borrowed from its [`Element::Action`].
 struct Block<'e> {
-    block_id: &'e str,
+    block_id: &'e BlockId,
     scene: &'e String,
     body: &'e str,
     include: Option<&'e str>,
@@ -525,7 +526,7 @@ impl<'a> Walker<'a, '_> {
     fn flush(&mut self) {
         if let Some(p) = self.pending.take() {
             self.items.push(Item {
-                id: p.id,
+                id: p.id.into(),
                 narration: Some(p.input),
                 action: None,
                 policy: Policy::Hold,
@@ -536,7 +537,7 @@ impl<'a> Walker<'a, '_> {
 
     fn narration(
         &mut self,
-        id: &str,
+        id: &LineId,
         text: &str,
         source_hash: Hash,
         chapter: &str,
@@ -574,7 +575,7 @@ impl<'a> Walker<'a, '_> {
         };
 
         self.narration.push(NarrationDetail {
-            line_id: id.to_string(),
+            line_id: id.clone(),
             text: text.to_string(),
             chapter: chapter.to_string(),
             chapter_index,
@@ -585,7 +586,7 @@ impl<'a> Walker<'a, '_> {
         });
         self.pending = Some(Pending {
             input: NarrationInput {
-                line_id: id.to_string(),
+                line_id: id.clone(),
                 source_hash,
                 audio_hash,
                 duration_ms,
@@ -598,7 +599,7 @@ impl<'a> Walker<'a, '_> {
                 lead_in_ms: config.timing.lead_in_ms,
                 tail_ms: config.timing.tail_ms,
             },
-            id: id.to_string(),
+            id: id.clone(),
             text: text.to_string(),
             config: config.clone(),
         });
@@ -883,8 +884,8 @@ Read it, then remove the attribute.",
             };
             let paired = if i == 0 { self.pending.take() } else { None };
             let (id, narration) = match paired {
-                Some(p) => (p.id, Some(p.input)),
-                None => (shot.id.clone(), None),
+                Some(p) => (ItemId::from(p.id), Some(p.input)),
+                None => (ItemId::from(shot.id.clone()), None),
             };
             self.items.push(Item {
                 id,
@@ -975,12 +976,12 @@ Read it, then remove the attribute.",
         self.flush();
         let id = format!("pause-{}", self.items.len());
         self.items.push(Item {
-            id: id.clone(),
+            id: ItemId::new(id.clone()),
             narration: None,
             // A pause rides in the action slot, so the scheduler needs no
             // third case.
             action: Some(ActionInput {
-                shot_id: id,
+                shot_id: ShotId::new(id),
                 scene: PAUSE_SCENE.into(),
                 adapter: PAUSE_SCENE.into(),
                 shot_hash: Hash::of(ms.to_string().as_bytes()),

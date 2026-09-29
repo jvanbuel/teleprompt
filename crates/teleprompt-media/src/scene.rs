@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use teleprompt_core::attrs::parse_attrs;
 use teleprompt_core::config::SceneConfig;
-use teleprompt_core::{Diagnostic, Hash, SourceSpan};
+use teleprompt_core::{BlockId, Diagnostic, Hash, SourceSpan};
 use teleprompt_scene::contract::{
     is_content, BlockSource, Measured, SceneCompiler, Shot, Validated,
 };
@@ -192,7 +192,7 @@ impl SceneCompiler for MediaScene {
         }
     }
 
-    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let mut out = Vec::new();
         for (_, lines) in chunks(&v.body) {
             let Some((_, line)) = lines.first() else {

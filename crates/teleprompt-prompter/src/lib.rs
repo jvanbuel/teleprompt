@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use teleprompt_compile::CompileOutput;
-use teleprompt_core::Hash;
+use teleprompt_core::{Hash, LineId, ShotId};
 use teleprompt_listen::{Cues, Follower, Recognizer, TakeLog};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{Pcm, Resampler};
@@ -21,7 +21,7 @@ pub const LISTEN_RATE: u32 = 16_000;
 /// it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShotCue {
-    pub shot: String,
+    pub shot: ShotId,
     /// Names the shot's clip among the captured ones.
     pub capture_key: Hash,
     pub at: Position,
@@ -98,7 +98,7 @@ pub struct Prompt {
     /// The narration, a line per paragraph.
     pub lines: Vec<String>,
     /// Each line's id, which names its take.
-    pub ids: Vec<String>,
+    pub ids: Vec<LineId>,
     /// Every shot, in script order.
     pub shots: Vec<ShotCue>,
     /// Where captured clips are, named by capture key.
@@ -112,7 +112,7 @@ pub struct Prompt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reached {
     pub at: Position,
-    pub play: Vec<String>,
+    pub play: Vec<ShotId>,
 }
 
 /// The script as a front end shows it.
@@ -125,7 +125,7 @@ pub struct Script {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptLine {
-    pub id: String,
+    pub id: LineId,
     pub text: String,
     /// Whether the line has a take read from it as it now reads.
     pub recorded: bool,
@@ -139,7 +139,7 @@ pub struct ScriptLine {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptShot {
-    pub shot: String,
+    pub shot: ShotId,
     pub capture_key: Hash,
     pub at: Position,
     /// The captured clip, if the shot was captured.
@@ -233,7 +233,7 @@ impl<R: Recognizer> Session<R> {
 
     /// Ends the take, keeping each line read in full as that line's take,
     /// with what it is heard to say on its own; the ids of the lines kept.
-    pub fn stop(&mut self) -> std::io::Result<Vec<String>> {
+    pub fn stop(&mut self) -> std::io::Result<Vec<LineId>> {
         let mut saved = Vec::new();
         let Some(take) = self.take.take() else {
             return Ok(saved);

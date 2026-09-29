@@ -3,13 +3,13 @@
 
 use serde::Serialize;
 use teleprompt_core::time::short;
-use teleprompt_core::DurationSource;
+use teleprompt_core::{DurationSource, LineId};
 
 use crate::{LineEntry, NarrationManifest};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChangedSegment {
-    pub id: String,
+    pub id: LineId,
     pub before_ms: u64,
     pub after_ms: u64,
     /// Different causes want different fixes, so the report must not
@@ -54,8 +54,8 @@ pub struct ManifestDiff {
     /// Its own flag because a retitle that slugifies identically changes no
     /// `LineEntry`.
     pub chapters_changed: bool,
-    pub added: Vec<String>,
-    pub removed: Vec<String>,
+    pub added: Vec<LineId>,
+    pub removed: Vec<LineId>,
     pub changed: Vec<ChangedSegment>,
     pub reordered: bool,
 }
@@ -128,7 +128,7 @@ impl ManifestDiff {
             .filter(|c| c.reason != DriftReason::Shifted)
             .map(|c| c.id.as_str())
             .collect();
-        stale.extend(self.added.iter().map(String::as_str));
+        stale.extend(self.added.iter().map(LineId::as_str));
         if !stale.is_empty() {
             out.push_str("\nneeds re-render:\n");
             for id in stale {

@@ -24,7 +24,7 @@ pub fn session_cast(session: &Session) -> Result<Cast, (String, String)> {
     let mut all: Option<Cast> = None;
     for (shot, (from_ms, duration_ms)) in session.shots.iter().zip(windows(session)) {
         let part = parse(&shot.source)
-            .map_err(|_| (shot.id.clone(), "the shot is not a cast".to_string()))?;
+            .map_err(|_| (shot.id.to_string(), "the shot is not a cast".to_string()))?;
         let from = from_ms as f64 / 1000.0;
         let cast = all.get_or_insert_with(|| Cast {
             events: Vec::new(),
@@ -95,11 +95,11 @@ impl CaptureBackend for AsciinemaRender {
         let first = session
             .shots
             .first()
-            .map(|s| s.id.clone())
+            .map(|s| s.id.to_string())
             .unwrap_or_default();
         let failed = |shot: &str, reason: String| CaptureError::Failed {
             backend: "asciinema".into(),
-            shot: shot.to_string(),
+            shot: shot.into(),
             reason,
         };
         let cast = session_cast(session).map_err(|(s, why)| failed(&s, why))?;

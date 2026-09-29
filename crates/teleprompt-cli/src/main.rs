@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use teleprompt_core::{BlockId, LineId};
 
 use clap::{Args, Parser, Subcommand};
 use serde::Serialize;
@@ -157,28 +158,28 @@ enum EditCommand {
     /// Run the block with its line, from the line's WORDth word (0: with
     /// the line)
     Cue {
-        block: String,
+        block: BlockId,
         #[arg(long)]
         word: usize,
     },
     /// Run the block after its line
-    Hold { block: String },
+    Hold { block: BlockId },
     /// Put the block after another line: held, or cued at --word
     Move {
-        block: String,
+        block: BlockId,
         #[arg(long)]
-        after: String,
+        after: LineId,
         #[arg(long)]
         word: Option<usize>,
     },
     /// Make the block's shots BY times longer (above 1) or shorter
     Stretch {
-        block: String,
+        block: BlockId,
         #[arg(long)]
         by: f64,
     },
     /// Reword the line to what its take was heard to say, keeping the take
-    Said { line: String },
+    Said { line: LineId },
 }
 
 impl EditCommand {

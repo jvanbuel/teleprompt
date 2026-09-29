@@ -1,4 +1,4 @@
-use teleprompt_core::SourceSpan;
+use teleprompt_core::{BlockId, SourceSpan};
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Validated};
 use teleprompt_vhs::VhsScene;
 
@@ -34,7 +34,9 @@ fn validated(body: &str) -> Validated {
 /// The single shot of a body that has no marks in it.
 fn only_shot(body: &str) -> teleprompt_scene::Shot {
     let v = validated(body);
-    let mut shots = VhsScene.shots(&v, "b").expect("a validated body has shots");
+    let mut shots = VhsScene
+        .shots(&v, &BlockId::from("b"))
+        .expect("a validated body has shots");
     assert_eq!(shots.len(), 1, "this helper is for single-shot bodies");
     shots.remove(0)
 }
@@ -44,7 +46,7 @@ fn only_shot(body: &str) -> teleprompt_scene::Shot {
 fn total_ms(body: &str) -> u64 {
     let v = validated(body);
     VhsScene
-        .shots(&v, "b")
+        .shots(&v, &BlockId::from("b"))
         .expect("shots should split a validated body")
         .iter()
         .filter_map(|s| VhsScene.estimate(s).duration_ms())
@@ -117,7 +119,7 @@ fn every_bad_line_is_reported_not_just_the_first() {
 #[test]
 fn marks_split_a_tape_into_one_shot_each() {
     let v = validated("Type \"a\"\n# mark\nSleep 1s\n");
-    let shots = VhsScene.shots(&v, "deploy").expect("shots");
+    let shots = VhsScene.shots(&v, &BlockId::from("deploy")).expect("shots");
 
     assert_eq!(shots.len(), 2);
     assert_eq!(shots[0].id, "deploy#0");
@@ -127,7 +129,7 @@ fn marks_split_a_tape_into_one_shot_each() {
 #[test]
 fn a_chunk_of_only_comments_is_not_a_shot() {
     let v = validated("Sleep 1s\n# mark\n# just a note\n\n# mark\nSleep 1s\n");
-    let shots = VhsScene.shots(&v, "b").expect("shots");
+    let shots = VhsScene.shots(&v, &BlockId::from("b")).expect("shots");
 
     assert_eq!(shots.len(), 2, "the comment-only chunk should not survive");
     // Indices stay dense after the empty chunk is dropped.
@@ -138,7 +140,13 @@ fn a_chunk_of_only_comments_is_not_a_shot() {
 fn a_plain_comment_is_not_a_mark() {
     let v = validated("Sleep 1s\n# marking things\nSleep 1s\n");
 
-    assert_eq!(VhsScene.shots(&v, "b").expect("shots").len(), 1);
+    assert_eq!(
+        VhsScene
+            .shots(&v, &BlockId::from("b"))
+            .expect("shots")
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -188,13 +196,13 @@ fn changing_a_setting_changes_the_hash_of_a_later_shot() {
     let a = VhsScene
         .shots(
             &validated("Set TypingSpeed 10ms\n# mark\nType \"abc\"\n"),
-            "b",
+            &BlockId::from("b"),
         )
         .expect("shots");
     let b = VhsScene
         .shots(
             &validated("Set TypingSpeed 20ms\n# mark\nType \"abc\"\n"),
-            "b",
+            &BlockId::from("b"),
         )
         .expect("shots");
 
@@ -206,7 +214,7 @@ fn changing_a_setting_changes_the_hash_of_a_later_shot() {
 #[test]
 fn a_chunk_of_only_settings_is_not_a_shot() {
     let v = validated("Sleep 1s\n# mark\nSet TypingSpeed 10ms\n# mark\nType \"abc\"\n");
-    let shots = VhsScene.shots(&v, "b").expect("shots");
+    let shots = VhsScene.shots(&v, &BlockId::from("b")).expect("shots");
 
     assert_eq!(shots.len(), 2);
     assert_eq!(
@@ -226,7 +234,7 @@ fn settings_alone_cost_no_time() {
 #[test]
 fn a_tape_that_states_its_timing_estimates_exactly() {
     let v = validated("Set TypingSpeed 10ms\nType \"abc\"\nEnter\nSleep 1s\n");
-    let shots = VhsScene.shots(&v, "b").expect("shots");
+    let shots = VhsScene.shots(&v, &BlockId::from("b")).expect("shots");
 
     assert_eq!(VhsScene.estimate(&shots[0]), Measured::Exact(1040));
 }
@@ -237,7 +245,7 @@ fn a_tape_that_states_its_timing_estimates_exactly() {
 #[test]
 fn a_shot_containing_wait_is_estimated_and_bounded_by_its_timeout() {
     let v = validated("Type \"cargo build\"\nWait\n# mark\nSleep 1s\n");
-    let shots = VhsScene.shots(&v, "b").expect("shots");
+    let shots = VhsScene.shots(&v, &BlockId::from("b")).expect("shots");
 
     // 11 chars at the 50ms default, plus the 15s default timeout.
     assert_eq!(VhsScene.estimate(&shots[0]), Measured::Estimated(15_550));

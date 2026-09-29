@@ -4,13 +4,13 @@
 use std::collections::BTreeMap;
 use teleprompt_core::config::TransitionKind;
 use teleprompt_core::time::short;
-use teleprompt_core::DurationSource;
+use teleprompt_core::{DurationSource, ItemId};
 
 use crate::timeline::{Entry, Timeline};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ChangedBeat {
-    pub item: String,
+    pub item: ItemId,
     pub before_ms: u64,
     pub after_ms: u64,
     pub reason: ChangeReason,
@@ -47,7 +47,7 @@ impl serde::Serialize for ChangeReason {
 /// 0-based positions in the full entry list; `render` prints them 1-based.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ReorderedBeat {
-    pub item: String,
+    pub item: ItemId,
     pub before_index: usize,
     pub after_index: usize,
 }
@@ -55,7 +55,7 @@ pub struct ReorderedBeat {
 /// An item whose outgoing transition changed kind, length, or both.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ChangedTransition {
-    pub item: String,
+    pub item: ItemId,
     pub before_kind: TransitionKind,
     pub after_kind: TransitionKind,
     pub before_ms: u64,
@@ -230,7 +230,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
         if let Some(o) = old.get(id) {
             if o.transition != n.transition {
                 transitions.push(ChangedTransition {
-                    item: (*id).to_string(),
+                    item: ItemId::from(*id),
                     before_kind: o.transition.kind.clone(),
                     after_kind: n.transition.kind.clone(),
                     before_ms: o.transition.duration_ms,
@@ -270,7 +270,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                         ChangeReason::PaddingChanged
                     };
                     changed.push(ChangedBeat {
-                        item: (*id).to_string(),
+                        item: ItemId::from(*id),
                         before_ms: on.duration_ms,
                         after_ms: nn.duration_ms,
                         reason,
@@ -374,7 +374,7 @@ fn reordered(before: &Timeline, after: &Timeline) -> Vec<ReorderedBeat> {
     b.iter()
         .filter(|id| !kept.contains(*id))
         .map(|id| ReorderedBeat {
-            item: (*id).to_string(),
+            item: ItemId::from(*id),
             before_index: old_pos[id],
             after_index: new_pos[id],
         })

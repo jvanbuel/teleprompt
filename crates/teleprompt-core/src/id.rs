@@ -1,5 +1,5 @@
-//! The names a script gives its parts: a line, an action block, and a shot
-//! of one. Each is its own type, so one cannot be passed for another, and
+//! The names a script gives its parts: a line, an action block, a shot of
+//! one, and the timeline item they make. Each is its own type, so one cannot be passed for another, and
 //! each is never empty: the parser gives every line and block one.
 
 use std::borrow::Borrow;
@@ -100,6 +100,23 @@ id!(
     /// One shot of a block: `welcome-a#0`, the block and its index.
     ShotId
 );
+
+id!(
+    /// A timeline item: its line's id when it has one, else its shot's.
+    ItemId
+);
+
+impl From<LineId> for ItemId {
+    fn from(id: LineId) -> Self {
+        Self(id.0)
+    }
+}
+
+impl From<ShotId> for ItemId {
+    fn from(id: ShotId) -> Self {
+        Self(id.0)
+    }
+}
 
 impl ShotId {
     /// Shot `index` of `block`.

@@ -9,6 +9,7 @@ pub mod plan;
 
 use std::path::PathBuf;
 use teleprompt_core::config::TransitionKind;
+use teleprompt_core::{LineId, ShotId};
 
 /// Every offset is already decided: a renderer does no scheduling, so a
 /// wrong number here was wrong in the manifest too.
@@ -26,7 +27,7 @@ pub struct RenderPlan {
 /// One scheduled shot of picture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Shot {
-    pub id: String,
+    pub id: ShotId,
     pub start_ms: u64,
     pub duration_ms: u64,
     pub picture: Picture,
@@ -68,7 +69,7 @@ pub enum Picture {
 /// One narration clip and where it starts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Narration {
-    pub id: String,
+    pub id: LineId,
     pub path: PathBuf,
     pub start_ms: u64,
 }

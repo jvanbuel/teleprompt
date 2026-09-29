@@ -1,11 +1,11 @@
 use teleprompt_core::config::{Config, TimingConfig, TransitionConfig};
-use teleprompt_core::{DurationMs, DurationSource, Hash};
+use teleprompt_core::{DurationMs, DurationSource, Hash, ItemId, LineId, ShotId};
 
 use crate::policy::Policy;
 
 #[derive(Debug, Clone)]
 pub struct NarrationInput {
-    pub line_id: String,
+    pub line_id: LineId,
     pub source_hash: Hash,
     pub audio_hash: Hash,
     /// Clip duration excluding lead-in and tail padding.
@@ -39,7 +39,7 @@ impl NarrationInput {
 
 #[derive(Debug, Clone)]
 pub struct ActionInput {
-    pub shot_id: String,
+    pub shot_id: ShotId,
     pub scene: String,
     pub adapter: String,
     pub shot_hash: Hash,
@@ -54,7 +54,7 @@ pub struct ActionInput {
 
 #[derive(Debug, Clone)]
 pub struct Item {
-    pub id: String,
+    pub id: ItemId,
     pub narration: Option<NarrationInput>,
     pub action: Option<ActionInput>,
     pub policy: Policy,

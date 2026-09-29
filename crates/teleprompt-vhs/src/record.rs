@@ -13,7 +13,7 @@ use std::time::Instant;
 
 use teleprompt_capture::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
 use teleprompt_capture::tool::missing;
-use teleprompt_core::Hash;
+use teleprompt_core::{BlockId, Hash};
 use teleprompt_scene::{Measured, SceneCompiler, Shot};
 
 use crate::VhsScene;
@@ -151,7 +151,12 @@ fn ends_command(line: &str) -> bool {
 
 /// How long `vhs` takes over one line, at its default typing speed.
 fn line_ms(line: &str) -> u64 {
-    let shot = Shot::numbered("record", 0, format!("{line}\n"), Hash::of(line.as_bytes()));
+    let shot = Shot::numbered(
+        &BlockId::new("record"),
+        0,
+        format!("{line}\n"),
+        Hash::of(line.as_bytes()),
+    );
     match VhsScene.estimate(&shot) {
         Measured::Exact(ms) | Measured::Estimated(ms) => ms,
         Measured::Unknown => 0,

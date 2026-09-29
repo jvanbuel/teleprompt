@@ -11,7 +11,7 @@
 //! stating its size and `duration`, then its events from zero — which is
 //! what makes `estimate` and `retime` arithmetic rather than guesses.
 
-use teleprompt_core::{Diagnostic, Hash};
+use teleprompt_core::{BlockId, Diagnostic, Hash};
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 
 /// One event, at an absolute time in seconds.
@@ -332,7 +332,7 @@ impl SceneCompiler for AsciinemaScene {
         }
     }
 
-    fn shots(&self, v: &Validated, block_id: &str) -> Result<Vec<Shot>, Vec<Diagnostic>> {
+    fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>> {
         let cast = parse(&v.body).map_err(|_| Vec::new())?;
         Ok(split(&cast)
             .iter()

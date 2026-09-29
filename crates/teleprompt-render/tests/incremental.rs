@@ -51,7 +51,7 @@ fn plan(dir: &Path, clip: &Path, shots: &[(u64, u64)], duration_ms: u64) -> Rend
             .iter()
             .enumerate()
             .map(|(i, (start_ms, duration_ms))| Shot {
-                id: format!("b{i}#0"),
+                id: format!("b{i}#0").into(),
                 start_ms: *start_ms,
                 duration_ms: *duration_ms,
                 picture: Picture::Clip(clip.to_path_buf()),

@@ -1,5 +1,6 @@
 //! One test of a Playwright test file, as `include=file#title` names it.
 
+use teleprompt_core::BlockId;
 use teleprompt_playwright::PlaywrightScene;
 use teleprompt_scene::contract::SceneCompiler;
 
@@ -74,6 +75,6 @@ fn a_whole_test_file_asks_for_a_test_to_be_named() {
         },
     };
     let v = PlaywrightScene.validate(&src).unwrap();
-    let e = PlaywrightScene.shots(&v, "b").unwrap_err();
+    let e = PlaywrightScene.shots(&v, &BlockId::from("b")).unwrap_err();
     assert!(e[0].message.contains("name the test"), "{:?}", e[0]);
 }
