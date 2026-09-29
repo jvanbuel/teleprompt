@@ -14,14 +14,5 @@ Bold (Colophon Foundry, OFL), lowercase, with the o replaced by the font's
 dotted zero in cue amber: the one amber thing, as on the glass. The letters
 are outlines, so the files need no font. `lockup.py` draws them.
 
-`teleprompt-lockup-dark@3x.png` is the dark lockup rendered at three times
-its size, for the apps' welcome pages: GTK and AppKit decode PNG without
-an SVG loader. Render it again when the lockup changes:
-
-    rsvg-convert -w 2055 -h 384 teleprompt-lockup-dark.svg \
-      -o teleprompt-lockup-dark@3x.png
-
-`teleprompt@3x.png` is the icon the same way, for the mark beside the
-script's name in the apps' title bars:
-
-    rsvg-convert -w 96 -h 96 teleprompt.svg -o teleprompt@3x.png
+The apps draw these SVGs as they are: the Linux app with resvg, compiled
+in, and the macOS app with NSImage. There is no PNG copy to keep in step.

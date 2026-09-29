@@ -32,13 +32,13 @@ enum Theme {
     }
 
     /// The logo beside the name, for the welcome page.
-    static let lockup = icon("teleprompt-lockup-dark@3x.png")
+    static let lockup = icon("teleprompt-lockup-dark.svg")
 
     /// The app's mark, beside the script's name in the toolbar.
-    static let mark = icon("teleprompt@3x.png")
+    static let mark = icon("teleprompt.svg")
 
-    /// A PNG from `apps/icons`: from the bundle's resources, or beside the
-    /// sources under `swift run`.
+    /// An SVG from `apps/icons`, which NSImage draws itself from macOS 14:
+    /// from the bundle's resources, or beside the sources under `swift run`.
     private static func icon(_ name: String) -> NSImage? {
         let bundled = Bundle.main.resourceURL?.appendingPathComponent(name)
         let source = URL(fileURLWithPath: #filePath)

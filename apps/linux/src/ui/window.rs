@@ -1780,11 +1780,28 @@ impl Window {
     }
 }
 
-/// A PNG from `apps/icons`, drawn at three times its size so it stays
-/// sharp on a scaled screen, shown `height` pixels tall. PNG because GTK
-/// decodes it itself, where SVG needs a loader not every desktop has.
-fn picture(png: &'static [u8], height: i32) -> Option<gtk::Widget> {
-    let texture = gtk::gdk::Texture::from_bytes(&glib::Bytes::from_static(png)).ok()?;
+/// An SVG from `apps/icons`, shown `height` pixels tall. Drawn here by
+/// resvg at three times that size, so it stays sharp on a scaled screen:
+/// GTK draws SVG only through a gdk-pixbuf loader not every desktop has.
+fn picture(svg: &str, height: i32) -> Option<gtk::Widget> {
+    use resvg::{tiny_skia, usvg};
+    let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).ok()?;
+    let scale = 3.0 * height as f32 / tree.size().height();
+    let size = tree.size().to_int_size().scale_by(scale)?;
+    let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height())?;
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    let stride = pixmap.width() as usize * 4;
+    let texture = gtk::gdk::MemoryTexture::new(
+        i32::try_from(pixmap.width()).ok()?,
+        i32::try_from(pixmap.height()).ok()?,
+        gtk::gdk::MemoryFormat::R8g8b8a8Premultiplied,
+        &glib::Bytes::from_owned(pixmap.take()),
+        stride,
+    );
     let width = height * texture.width() / texture.height();
     let picture = gtk::Picture::builder()
         .paintable(&texture)
@@ -1975,8 +1992,8 @@ impl Widgets {
     /// The logo beside the name, `apps/icons`, or the name alone if the
     /// image cannot be read.
     fn lockup() -> gtk::Widget {
-        let png = include_bytes!("../../../icons/teleprompt-lockup-dark@3x.png");
-        picture(png, 64).unwrap_or_else(|| {
+        let svg = include_str!("../../../icons/teleprompt-lockup-dark.svg");
+        picture(svg, 64).unwrap_or_else(|| {
             gtk::Label::builder()
                 .label("Teleprompt")
                 .xalign(0.0)
@@ -2079,7 +2096,7 @@ impl Widgets {
             .spacing(10)
             .halign(gtk::Align::Center)
             .build();
-        if let Some(mark) = picture(include_bytes!("../../../icons/teleprompt@3x.png"), 28) {
+        if let Some(mark) = picture(include_str!("../../../icons/teleprompt.svg"), 28) {
             title.append(&mark);
             // The welcome page shows the whole logo already.
             let beside_logo =
