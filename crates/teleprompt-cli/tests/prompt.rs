@@ -407,6 +407,22 @@ fn the_icon_request_is_answered_with_nothing() {
     assert!(response.starts_with("HTTP/1.1 204"), "{response}");
 }
 
+/// The tab shows the app's icon, the one in `apps/icons`, served from here.
+#[test]
+fn the_page_has_the_apps_icon() {
+    let (addr, _clips) = prompting(&[]);
+    let response = get(addr, "/icon.svg");
+    let icon = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/icons/teleprompt.svg"),
+    )
+    .unwrap();
+    assert!(response.starts_with(b"HTTP/1.1 200"));
+    assert!(
+        response.ends_with(&icon),
+        "the served icon is not apps/icons/teleprompt.svg: copy it again"
+    );
+}
+
 fn tp_prompt(tag: &str, extra: &[&str]) -> std::process::Output {
     let dir = teleprompt_testkit::test_dir(tag);
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();

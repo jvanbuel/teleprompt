@@ -1904,13 +1904,7 @@ impl Widgets {
         page.append(&sample);
         let page_for_column = page.clone();
         let page = column;
-        page.append(
-            &gtk::Label::builder()
-                .label("Teleprompt")
-                .xalign(0.0)
-                .css_classes(["hero-title"])
-                .build(),
-        );
+        page.append(&Self::lockup());
         page.append(
             &gtk::Label::builder()
                 .label(
@@ -1946,6 +1940,42 @@ impl Widgets {
 
     /// A slice of the glass, to show what the prompter does before a
     /// script is open: the reading line, what is said, the next word.
+    /// The logo beside the name, `apps/icons`, drawn from a PNG at three
+    /// times its size: GTK decodes PNG itself, where SVG needs a loader
+    /// not every desktop has. The name alone if it cannot be read.
+    fn lockup() -> gtk::Widget {
+        const HEIGHT: i32 = 64;
+        let png = include_bytes!("../../../icons/teleprompt-lockup-dark@3x.png");
+        match gtk::gdk::Texture::from_bytes(&glib::Bytes::from_static(png)) {
+            Ok(texture) => {
+                let width = HEIGHT * texture.width() / texture.height();
+                let picture = gtk::Picture::builder()
+                    .paintable(&texture)
+                    .can_shrink(true)
+                    .content_fit(gtk::ContentFit::Contain)
+                    .halign(gtk::Align::Start)
+                    .alternative_text("Teleprompt")
+                    .build();
+                picture.set_size_request(width, HEIGHT);
+                // A picture asks for its texture's full width; the clamp
+                // holds it to the size it is drawn at.
+                adw::Clamp::builder()
+                    .maximum_size(width)
+                    .tightening_threshold(width)
+                    .halign(gtk::Align::Start)
+                    .child(&picture)
+                    .build()
+                    .upcast()
+            }
+            Err(_) => gtk::Label::builder()
+                .label("Teleprompt")
+                .xalign(0.0)
+                .css_classes(["hero-title"])
+                .build()
+                .upcast(),
+        }
+    }
+
     fn glass_sample() -> gtk::Box {
         let card = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)

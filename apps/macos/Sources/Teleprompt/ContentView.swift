@@ -84,8 +84,16 @@ private struct Welcome: View {
     var body: some View {
         HStack(spacing: 64) {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Teleprompt")
-                    .font(Theme.face(44, .heavy))
+                if let lockup = Theme.lockup {
+                    Image(nsImage: lockup)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 64)
+                        .accessibilityLabel("Teleprompt")
+                } else {
+                    Text("Teleprompt")
+                        .font(Theme.face(44, .heavy))
+                }
                 Text("Open a script and read it aloud. The words follow your voice, each shot plays as you reach it, and every line you finish is kept as a take.")
                     .font(Theme.face(18))
                     .foregroundStyle(Theme.ink.opacity(0.62))

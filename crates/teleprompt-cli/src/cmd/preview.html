@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Teleprompt preview</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 <style>
   /* The prompters' design, apps/DESIGN.md, applied to the cut: the picture
      sits on black like the glass does; the chrome around it is quiet; blue
@@ -39,6 +40,7 @@
   h1 { margin: 0; font-size: 15px; font-weight: 700; min-width: 0;
        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   h1 #script { color: var(--dim); font-weight: 500; }
+  h1 img { vertical-align: -5px; margin-right: 8px; }
   #build { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; color: var(--dim); }
   /* The build's state as a shape too: a ring while compiling, filled when
      current, a bar when the save failed. */
@@ -159,7 +161,7 @@
 </head>
 <body>
 <header>
-  <h1>Preview <span id="script"></span></h1>
+  <h1><img src="/icon.svg" alt="" width="22" height="22">Preview <span id="script"></span></h1>
   <span id="build" role="status" aria-live="polite">Starting</span>
   <span id="gen"></span>
 </header>

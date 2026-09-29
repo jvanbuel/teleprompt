@@ -497,3 +497,12 @@ fn the_preview_serves_the_prompters_typeface() {
     assert!(status.ends_with("200 OK"), "{status}");
     assert_eq!(&body[..4], b"wOF2");
 }
+
+/// And its icon, for the tab and the header.
+#[test]
+fn the_preview_serves_the_apps_icon() {
+    let (_dir, _script, addr) = serving();
+    let (status, body) = get(addr, "/icon.svg");
+    assert!(status.ends_with("200 OK"), "{status}");
+    assert!(String::from_utf8(body).unwrap().starts_with("<svg"));
+}

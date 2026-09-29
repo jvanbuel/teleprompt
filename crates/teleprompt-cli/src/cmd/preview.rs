@@ -348,6 +348,9 @@ fn handle(
         crate::cmd::prompt::FONT_PATH => {
             respond(stream, "200 OK", "font/woff2", crate::cmd::prompt::FONT)
         }
+        crate::cmd::prompt::ICON_PATH => {
+            respond(stream, "200 OK", "image/svg+xml", crate::cmd::prompt::ICON)
+        }
 
         "/manifest.json" => {
             let body = {

@@ -31,6 +31,20 @@ enum Theme {
         .custom(family, size: size).weight(weight)
     }
 
+    /// The logo beside the name, `apps/icons`: from the bundle's
+    /// resources, or beside the sources under `swift run`.
+    static let lockup: NSImage? = {
+        let name = "teleprompt-lockup-dark@3x.png"
+        let bundled = Bundle.main.resourceURL?.appendingPathComponent(name)
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // Teleprompt
+            .deletingLastPathComponent() // Sources
+            .deletingLastPathComponent() // macos
+            .deletingLastPathComponent() // apps
+            .appendingPathComponent("icons/\(name)")
+        return [bundled, source].compactMap { $0 }.lazy.compactMap(NSImage.init(contentsOf:)).first
+    }()
+
     /// Makes the typeface available when the app runs outside its bundle,
     /// as under `swift run`; in the bundle, Info.plist's
     /// ATSApplicationFontsPath does it.

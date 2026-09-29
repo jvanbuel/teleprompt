@@ -172,6 +172,9 @@ pub fn listening_event(addr: SocketAddr) -> serde_json::Value {
 /// The prompters' typeface (`apps/fonts`), Latin, for the page.
 pub(crate) const FONT: &[u8] = include_bytes!("prompt-font.woff2");
 pub(crate) const FONT_PATH: &str = "/fonts/atkinson-hyperlegible-next.woff2";
+/// The app icon, `apps/icons/teleprompt.svg`, as the pages' tab icon.
+pub(crate) const ICON: &[u8] = include_bytes!("prompt-icon.svg");
+pub(crate) const ICON_PATH: &str = "/icon.svg";
 
 const PAGE: &str = include_str!("prompt.html");
 
@@ -260,6 +263,7 @@ impl<R: Recognizer> Server<R> {
             "/" => ("200 OK", "text/html; charset=utf-8", PAGE.into()),
             "/favicon.ico" => ("204 No Content", "text/plain", Vec::new()),
             FONT_PATH => ("200 OK", "font/woff2", FONT.to_vec()),
+            ICON_PATH => ("200 OK", "image/svg+xml", ICON.to_vec()),
             "/api/v1/script" => {
                 // Compiled outside the lock, which the session needs.
                 let edited = self.edits.as_ref().and_then(|e| (e.reload)());
