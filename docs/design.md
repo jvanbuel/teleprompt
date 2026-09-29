@@ -331,7 +331,11 @@ On the socket, the client sends:
 - `{"type":"start","from":N,"rate":HZ}`: a new take at line N, with audio
   at HZ; a take not stopped is dropped.
 - binary messages: little-endian f32 mono samples at the take's rate.
-- `{"type":"stop"}`: keep the lines read in full.
+- `{"type":"stop"}`: keep the lines read in full. A take a line already
+  had is put aside, not lost.
+- `{"type":"discard"}`: end the take and keep none of it.
+- `{"type":"undo"}`: put back what the last take kept replaced, each
+  line's take before it or none; once, until another take is kept.
 - `{"type":"keep_said","line":id}`: reword the line to what its take was
   heard to say, as `teleprompt edit <script> said <line>` does. Between
   takes; the script's next fetch reads the new words.
@@ -343,6 +347,8 @@ The server sends:
   the next word to be said, words counted by splitting the line's text at
   whitespace.
 - `{"type":"stopped","saved":[line id]}`.
+- `{"type":"discarded"}`.
+- `{"type":"undone","lines":[line id]}`: the lines put back.
 - `{"type":"kept_said","line":id}` once the line is reworded.
 - `{"type":"error","message"}` for a message it did not understand or a
   take it could not save or line it could not reword; the session goes on.

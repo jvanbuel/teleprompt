@@ -581,6 +581,39 @@ fn a_take_stopped_over_the_socket_answers_as_the_example() {
         }
     };
     assert_eq!(stopped, example("stopped.json"));
+    send_example(&mut ws, "undo.json");
+    assert_eq!(next(&mut ws), example("undone.json"));
+}
+
+/// A take discarded over the socket answers as the example does, and keeps
+/// nothing of what was read.
+#[test]
+fn a_take_discarded_over_the_socket_keeps_nothing() {
+    const LINE_0: &str = "welcome to acme let me show you around";
+    let mut heard = vec![""; 5];
+    heard.extend(["welcome to"; 6]);
+    heard.extend([LINE_0; 7]);
+    heard.extend([""; 5]);
+    let (addr, _dir) = prompting(&heard);
+    let mut ws = session(addr);
+    send(
+        &mut ws,
+        serde_json::json!({ "type": "start", "from": 0, "rate": 16000 }),
+    );
+    for chunk in audio(&[(0.3, false), (1.2, true), (0.8, false)]).chunks(1_600 * 4) {
+        ws.send(tungstenite::Message::binary(chunk.to_vec()))
+            .unwrap();
+    }
+    send_example(&mut ws, "discard.json");
+    let discarded = loop {
+        let message = next(&mut ws);
+        if message["type"] != "reached" {
+            break message;
+        }
+    };
+    assert_eq!(discarded, example("discarded.json"));
+    let script = json_at(addr, "/api/v1/script");
+    assert_eq!(script["lines"][0]["recorded"], false);
 }
 
 /// Launched by an app with `--format json`, the command says where it

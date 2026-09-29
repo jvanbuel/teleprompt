@@ -166,3 +166,44 @@ fn takes_are_listed_by_line() {
     let listed: Vec<(&str, &str)> = takes.iter().map(|(id, t)| (id, t.text.as_str())).collect();
     assert_eq!(listed, [("a", "Ay."), ("b", "Bee.")]);
 }
+
+/// Keeping a take puts the one it replaced aside, and `restore` puts it
+/// back: a botched take never costs a good one.
+#[test]
+fn a_take_that_replaced_another_can_be_undone() {
+    let dir = teleprompt_testkit::test_dir("takes-undo");
+    let mut takes = Takes::load(&dir).unwrap();
+    takes.save("welcome", "Welcome.", &pcm(100)).unwrap();
+    let first = takes.read("welcome").unwrap();
+    takes.save("welcome", "Welcome.", &pcm(300)).unwrap();
+    assert_ne!(takes.read("welcome").unwrap(), first);
+
+    assert!(takes.restore("welcome").unwrap());
+    assert_eq!(takes.read("welcome").unwrap(), first);
+    assert_eq!(Takes::load(&dir).unwrap().read("welcome").unwrap(), first);
+    // Once: what was put back is the take now.
+    assert!(!takes.restore("welcome").unwrap());
+    assert_eq!(takes.read("welcome").unwrap(), first);
+}
+
+/// A line's first take, undone, leaves the line with none.
+#[test]
+fn a_first_take_undone_leaves_no_take() {
+    let dir = teleprompt_testkit::test_dir("takes-undo-first");
+    let mut takes = Takes::load(&dir).unwrap();
+    takes.save("welcome", "Welcome.", &pcm(100)).unwrap();
+    assert!(takes.restore("welcome").unwrap());
+    assert!(takes.current("welcome", "Welcome.").is_none());
+    assert!(Takes::load(&dir).unwrap().is_empty());
+    assert!(!dir.join("welcome.wav").exists());
+}
+
+/// What is put aside is not a take: loading the directory sees one per line.
+#[test]
+fn a_take_put_aside_is_not_listed() {
+    let dir = teleprompt_testkit::test_dir("takes-aside");
+    let mut takes = Takes::load(&dir).unwrap();
+    takes.save("welcome", "Welcome.", &pcm(100)).unwrap();
+    takes.save("welcome", "Welcome.", &pcm(200)).unwrap();
+    assert_eq!(Takes::load(&dir).unwrap().iter().count(), 1);
+}

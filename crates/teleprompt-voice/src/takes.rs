@@ -144,10 +144,72 @@ impl Takes {
             heard: heard.map(str::to_string),
         };
         let sidecar = serde_json::to_vec_pretty(&take).map_err(Error::other)?;
+        self.put_aside(id)?;
         write_atomic(&self.dir.join(format!("{id}.wav")), &bytes)?;
         write_atomic(&self.dir.join(format!("{id}.json")), &sidecar)?;
         self.meta.insert(id.to_string(), take);
         Ok(())
+    }
+
+    /// Where the take a save replaced waits, for [`restore`](Self::restore):
+    /// hidden, so loading the directory does not list it.
+    fn aside(&self) -> PathBuf {
+        self.dir.join(".previous")
+    }
+
+    /// Moves line `id`'s take aside, or marks that it had none.
+    fn put_aside(&self, id: &str) -> std::io::Result<()> {
+        let aside = self.aside();
+        std::fs::create_dir_all(&aside).map_err(|e| named(&aside, e))?;
+        let none = aside.join(format!("{id}.none"));
+        if self.meta.contains_key(id) {
+            for ext in ["wav", "json"] {
+                let from = self.dir.join(format!("{id}.{ext}"));
+                std::fs::rename(&from, aside.join(format!("{id}.{ext}")))
+                    .map_err(|e| named(&from, e))?;
+            }
+            let _ = std::fs::remove_file(&none);
+        } else {
+            for ext in ["wav", "json"] {
+                let _ = std::fs::remove_file(aside.join(format!("{id}.{ext}")));
+            }
+            std::fs::write(&none, b"").map_err(|e| named(&none, e))?;
+        }
+        Ok(())
+    }
+
+    /// Puts back what line `id`'s last save replaced: the take before it,
+    /// or no take. Whether there was anything to put back; once only.
+    pub fn restore(&mut self, id: &str) -> std::io::Result<bool> {
+        let aside = self.aside();
+        let none = aside.join(format!("{id}.none"));
+        let sidecar = aside.join(format!("{id}.json"));
+        if none.exists() {
+            for ext in ["wav", "json"] {
+                let path = self.dir.join(format!("{id}.{ext}"));
+                match std::fs::remove_file(&path) {
+                    Err(e) if e.kind() != ErrorKind::NotFound => return Err(named(&path, e)),
+                    _ => {}
+                }
+            }
+            self.meta.remove(id);
+            std::fs::remove_file(&none).map_err(|e| named(&none, e))?;
+            return Ok(true);
+        }
+        if !sidecar.exists() {
+            return Ok(false);
+        }
+        let bytes = std::fs::read(&sidecar).map_err(|e| named(&sidecar, e))?;
+        let take: TakeMeta = serde_json::from_slice(&bytes)
+            .map_err(|e| named(&sidecar, Error::new(ErrorKind::InvalidData, e)))?;
+        // The audio first, then the sidecar that vouches for it.
+        for ext in ["wav", "json"] {
+            let from = aside.join(format!("{id}.{ext}"));
+            std::fs::rename(&from, self.dir.join(format!("{id}.{ext}")))
+                .map_err(|e| named(&from, e))?;
+        }
+        self.meta.insert(id.to_string(), take);
+        Ok(true)
     }
 
     /// The WAV of line `id`'s take, refused if it is not the audio its

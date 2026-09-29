@@ -371,6 +371,14 @@ impl<R: Recognizer> Server<R> {
                 Ok(saved) => serde_json::json!({ "type": "stopped", "saved": saved }),
                 Err(e) => error(e.to_string()),
             }),
+            Some("discard") => {
+                self.session().discard();
+                Some(serde_json::json!({ "type": "discarded" }))
+            }
+            Some("undo") => Some(match self.session().undo() {
+                Ok(lines) => serde_json::json!({ "type": "undone", "lines": lines }),
+                Err(e) => error(e.to_string()),
+            }),
             Some("keep_said") => {
                 let line = message["line"].as_str().unwrap_or_default();
                 Some(match &self.edits {

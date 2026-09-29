@@ -293,3 +293,40 @@ fn a_line_kept_saying_other_words_offers_them() {
         "{sidecar}"
     );
 }
+
+/// Reads line 0 in full, as `stopping_a_take_keeps_each_line_read_in_full`
+/// does, and returns the fixture with that take under way.
+fn read_line_0(tag: &str) -> Fixture {
+    const LINE_0: &str = "welcome to acme let me show you around";
+    let mut heard = vec![""; 5];
+    heard.extend(["welcome to"; 6]);
+    heard.extend([LINE_0; 7]);
+    heard.extend([""; 5]);
+    let mut f = session(tag, &heard);
+    f.session.start(0);
+    for chunk in audio(&[(0.3, false), (1.2, true), (0.8, false)]).chunks(1_600) {
+        f.session.listen(chunk, 16_000);
+    }
+    f
+}
+
+/// A take discarded keeps nothing, whatever was read.
+#[test]
+fn a_discarded_take_keeps_nothing() {
+    let mut f = read_line_0("prompter-discard");
+    f.session.discard();
+    assert!(f.session.stop().unwrap().is_empty(), "the take is gone");
+    let takes = teleprompt_voice::takes::Takes::load(&f.dir.join("takes")).unwrap();
+    assert!(takes.is_empty());
+}
+
+/// The lines a take kept can be put back as they were, once.
+#[test]
+fn the_last_take_kept_can_be_undone() {
+    let mut f = read_line_0("prompter-undo");
+    assert_eq!(f.session.stop().unwrap(), ["welcome"]);
+    assert!(f.session.script().lines[0].recorded);
+    assert_eq!(f.session.undo().unwrap(), ["welcome"]);
+    assert!(!f.session.script().lines[0].recorded, "no take before it");
+    assert!(f.session.undo().unwrap().is_empty(), "once");
+}

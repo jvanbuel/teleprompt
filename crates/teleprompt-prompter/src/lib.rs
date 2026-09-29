@@ -157,6 +157,8 @@ pub struct Session<R> {
     /// The microphone's rate, and its conversion to [`LISTEN_RATE`].
     resampler: Option<(u32, Resampler)>,
     take: Option<Take>,
+    /// The lines the last take kept, which [`undo`](Self::undo) puts back.
+    kept: Vec<LineId>,
 }
 
 struct Take {
@@ -181,6 +183,7 @@ impl<R: Recognizer> Session<R> {
             at: Position { line: 0, word: 0 },
             resampler: None,
             take: None,
+            kept: Vec::new(),
         })
     }
 
@@ -231,6 +234,23 @@ impl<R: Recognizer> Session<R> {
         self.reached()
     }
 
+    /// Ends the take and keeps none of it.
+    pub fn discard(&mut self) {
+        self.take = None;
+    }
+
+    /// Puts back what the last take kept replaced: each line's take before
+    /// it, or none. The lines put back; once, until another take is kept.
+    pub fn undo(&mut self) -> std::io::Result<Vec<LineId>> {
+        let mut restored = Vec::new();
+        for id in std::mem::take(&mut self.kept) {
+            if self.takes.restore(&id)? {
+                restored.push(id);
+            }
+        }
+        Ok(restored)
+    }
+
     /// Ends the take, keeping each line read in full as that line's take,
     /// with what it is heard to say on its own; the ids of the lines kept.
     pub fn stop(&mut self) -> std::io::Result<Vec<LineId>> {
@@ -261,6 +281,9 @@ impl<R: Recognizer> Session<R> {
                 None => self.takes.save(id, text, &pcm)?,
             }
             saved.push(id.clone());
+        }
+        if !saved.is_empty() {
+            self.kept.clone_from(&saved);
         }
         Ok(saved)
     }
