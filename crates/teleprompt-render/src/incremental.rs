@@ -155,7 +155,7 @@ fn identity(seen: &mut HashMap<PathBuf, Hash>, path: &Path) -> std::io::Result<H
     if let Some(hash) = seen.get(path) {
         return Ok(*hash);
     }
-    let hash = Hash::of(&std::fs::read(path)?);
+    let hash = Hash::of_file(path)?;
     seen.insert(path.to_path_buf(), hash);
     Ok(hash)
 }

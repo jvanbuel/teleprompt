@@ -347,8 +347,8 @@ fn fingerprint(paths: &[std::path::PathBuf]) -> String {
                     walk(&child, out);
                 }
             }
-        } else if let Ok(bytes) = std::fs::read(path) {
-            out.push(format!("{}:{}", path.display(), Hash::of(&bytes)));
+        } else if let Ok(hash) = Hash::of_file(path) {
+            out.push(format!("{}:{hash}", path.display()));
         }
     }
     let mut files = Vec::new();

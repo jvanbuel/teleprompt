@@ -8,6 +8,14 @@ impl Hash {
         Hash(*blake3::hash(bytes).as_bytes())
     }
 
+    /// The hash of a file's contents, read a block at a time: a captured
+    /// clip can be larger than memory.
+    pub fn of_file(path: &std::path::Path) -> std::io::Result<Self> {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update_reader(std::fs::File::open(path)?)?;
+        Ok(Hash(*hasher.finalize().as_bytes()))
+    }
+
     /// A hash over several fields, length-prefixed so the encoding is
     /// injective.
     ///
