@@ -461,8 +461,20 @@ fn the_page_draws_the_manifest_it_is_served() {
     let (_dir, _script, addr) = serving();
     let _ = get(addr, "/manifest.json");
     let page = browser::dom(&chrome, &format!("http://{addr}/"), 1200, 800, 4000);
-    assert!(page.contains("class=\"shot"), "no shot on the timeline:\n{page}");
-    assert!(page.contains("class=\"line"), "no line on the timeline:\n{page}");
-    assert!(!page.contains("0:00 / 0:00"), "the clock never learned the length:\n{page}");
-    assert!(page.contains("id=\"gen\">generation 1<"), "the header says what is wrong:\n{page}");
+    assert!(
+        page.contains("class=\"shot"),
+        "no shot on the timeline:\n{page}"
+    );
+    assert!(
+        page.contains("class=\"line"),
+        "no line on the timeline:\n{page}"
+    );
+    assert!(
+        !page.contains("0:00 / 0:00"),
+        "the clock never learned the length:\n{page}"
+    );
+    assert!(
+        page.contains("id=\"gen\">generation 1<"),
+        "the header says what is wrong:\n{page}"
+    );
 }
