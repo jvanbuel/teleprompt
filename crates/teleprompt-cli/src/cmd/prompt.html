@@ -21,7 +21,7 @@
     --chrome: #17181b; --raised: #202227; --line: #2c2f36;
     /* The tally, deep enough to carry white text: 5.3:1. */
     --on-air: #d70015;
-    --said: rgb(242 244 247 / 0.3); --later: rgb(242 244 247 / 0.55);
+    --said: rgb(242 244 247 / 0.4); --later: rgb(242 244 247 / 0.55);
     --size: 48px;
     --reading: 36%;
     --face: "Atkinson Hyperlegible Next", system-ui, sans-serif;
@@ -39,6 +39,12 @@
     display: grid; grid-template-columns: 1fr minmax(0, auto) 1fr; align-items: center; gap: 12px;
     padding: 10px 14px; border-bottom: 1px solid var(--line);
   }
+  #tools { display: flex; gap: 6px; }
+  #tools button {
+    min-width: 40px; height: 36px; padding: 0 10px; border-radius: 10px; cursor: pointer;
+    background: transparent; border: 1px solid var(--line); color: var(--ink); font-weight: 700;
+  }
+  #tools button[aria-pressed="true"] { background: var(--raised); }
   #title { text-align: center; font-weight: 700; min-width: 0;
            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #record {
@@ -50,7 +56,11 @@
   #record::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--tally); }
   #record.keep { background: var(--on-air); border-color: var(--on-air); color: #fff; }
   #record.keep::before { border-radius: 1px; background: currentColor; }
-  #record:focus-visible, .line:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  #record:focus-visible, header button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  /* A box on the glass would show in the reflection: focus is marked in
+     the gutter instead. */
+  .line:focus { outline: none; }
+  .line:focus-visible .gutter { color: var(--ink); text-decoration: underline 2px; text-underline-offset: 4px; }
 
   main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 0; }
   body.no-monitor main { grid-template-columns: minmax(0, 1fr); }
@@ -69,7 +79,7 @@
   .line.current { color: var(--ink); }
   .gutter {
     position: relative; font: 700 14px/calc(var(--size) * 1.32) var(--face);
-    color: rgb(242 244 247 / 0.32); text-align: right; padding-right: 22px;
+    color: rgb(242 244 247 / 0.55); text-align: right; padding-right: 22px;
   }
   .line.current .gutter { color: rgb(242 244 247 / 0.9); }
   .line.recorded .gutter::before {
@@ -86,7 +96,7 @@
   .w.next { color: var(--cue); text-decoration: underline; text-decoration-color: var(--cue);
             text-underline-offset: 0.14em; text-decoration-thickness: 0.06em; }
   .shot { font-size: 0.5em; vertical-align: 0.35em; color: rgb(242 244 247 / 0.6); margin-right: 0.4em; }
-  .shot.aired { color: rgb(242 244 247 / 0.22); }
+  .shot.aired { color: rgb(242 244 247 / 0.42); }
   .shot.missing { color: var(--missing); }
   /* The reading line: a cue arrow, and the glass fading out above and below. */
   #reading {
@@ -122,7 +132,7 @@
   }
   #clip { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   #clip[hidden] { display: none; }
-  #slate { color: rgb(242 244 247 / 0.42); text-align: center; padding: 0 24px; }
+  #slate { color: rgb(242 244 247 / 0.6); text-align: center; padding: 0 24px; }
   #slate.missing { color: var(--missing); }
   #caption { display: flex; justify-content: space-between; margin-top: 12px; min-height: 21px; }
   #shot-title { font-weight: 700; }
@@ -133,8 +143,8 @@
   #rundown { list-style: none; margin: 0; padding: 0; }
   #rundown li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center; padding: 7px 4px; }
   #rundown .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid rgb(242 244 247 / 0.55); }
-  #rundown .where { color: rgb(242 244 247 / 0.45); font-size: 13px; font-variant-numeric: tabular-nums; }
-  #rundown li.aired { color: rgb(242 244 247 / 0.35); }
+  #rundown .where { color: rgb(242 244 247 / 0.6); font-size: 13px; font-variant-numeric: tabular-nums; }
+  #rundown li.aired { color: rgb(242 244 247 / 0.58); }
   #rundown li.aired .dot { background: rgb(242 244 247 / 0.3); border-color: transparent; }
   #rundown li.on-screen { font-weight: 700; }
   #rundown li.on-screen .dot { background: var(--ink); border-color: var(--ink); }
@@ -147,12 +157,13 @@
     display: flex; align-items: center; gap: 12px; padding: 8px 14px;
     background: var(--raised); border-top: 1px solid var(--line);
   }
-  #tally { width: 10px; height: 10px; border-radius: 50%; background: rgb(242 244 247 / 0.18); }
-  #tally.on-air { background: var(--tally); box-shadow: 0 0 10px rgb(255 59 48 / 0.7); }
-  #timecode { font-weight: 600; letter-spacing: 0.5px; color: rgb(242 244 247 / 0.4); font-variant-numeric: tabular-nums; }
+  #tally { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgb(242 244 247 / 0.45); }
+  #tally.on-air { background: var(--tally); border-color: var(--tally); }
+  #timecode { font-weight: 600; letter-spacing: 0.5px; color: rgb(242 244 247 / 0.58); font-variant-numeric: tabular-nums; }
   #timecode.on-air { color: var(--ink); }
   #meter { width: 72px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-  #meter > div { height: 100%; width: 0; background: var(--recorded); transition: width 80ms linear; }
+  #meter > div { height: 100%; width: 100%; background: var(--recorded);
+                 transform: scaleX(0); transform-origin: left; transition: transform 80ms linear; }
   #status { flex: 1; margin-left: 6px; color: rgb(242 244 247 / 0.7); font-size: 14px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #status.bad { color: var(--missing); }
@@ -181,7 +192,20 @@
     max-width: min(560px, calc(100vw - 32px)); padding: 24px; border-radius: 14px;
     background: var(--raised); color: var(--ink); border: 1px solid var(--line);
   }
-  #review::backdrop { background: rgb(0 0 0 / 0.55); }
+  #review::backdrop, #help::backdrop { background: rgb(0 0 0 / 0.55); }
+  #help {
+    max-width: min(520px, calc(100vw - 32px)); padding: 24px; border-radius: 14px;
+    background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+  }
+  #help h2 { margin: 0 0 12px; font-size: 19px; color: var(--ink); }
+  #help table { border-collapse: collapse; width: 100%; }
+  #help td { padding: 6px 0; vertical-align: top; }
+  #help td:first-child { white-space: nowrap; padding-right: 18px; }
+  #help form { display: flex; justify-content: flex-end; margin-top: 16px; }
+  #help button {
+    font: 700 14px var(--face); border-radius: 8px; padding: 8px 16px; cursor: pointer;
+    background: var(--ink); color: #000; border: 0;
+  }
   #review h2 { margin: 0 0 8px; font-size: 19px; }
   #review p { margin: 0 0 16px; color: rgb(242 244 247 / 0.7); }
   #review blockquote { margin: 0 0 22px; font-size: 20px; line-height: 1.45; }
@@ -207,6 +231,7 @@
   }
   @media (max-width: 700px) {
     :root { --size: 32px; }
+    header { grid-template-columns: auto minmax(0, 1fr) auto; padding: 8px 10px; }
     #script { padding-right: 16px; }
     .line { grid-template-columns: 48px 1fr; }
     .gutter { padding-right: 14px; }
@@ -218,9 +243,14 @@
 </head>
 <body>
 <header>
-  <span></span>
+  <span id="tools">
+    <button id="smaller" title="Smaller text (−)" aria-label="Smaller text">A−</button>
+    <button id="larger" title="Larger text (+)" aria-label="Larger text">A+</button>
+    <button id="mirror" title="Mirror the text, for beam-splitter glass (M)" aria-pressed="false">Mirror</button>
+    <button id="keys-help" title="Keys (?)" aria-label="Keys">?</button>
+  </span>
   <span id="title">Teleprompt</span>
-  <button id="record" title="Record from the line you are on (R)">Record</button>
+  <button id="record" title="Record from the line you are on">Record</button>
 </header>
 <main>
   <section id="glass">
@@ -228,8 +258,8 @@
       <div id="scroller"><div id="script"></div></div>
       <div id="reading"></div>
     </div>
-    <div id="countdown"></div>
-    <div id="toast"></div>
+    <div id="countdown" aria-live="assertive"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
   </section>
   <dialog id="review">
     <h2 id="review-title"></h2>
@@ -240,7 +270,23 @@
       <button id="review-said" class="suggested" autofocus>Use What I Said</button>
     </menu>
   </dialog>
-  <aside id="monitor">
+  <dialog id="help" aria-labelledby="help-title">
+    <h2 id="help-title">Keys</h2>
+    <table>
+      <tr><td><kbd class="rec"></kbd></td><td>Start a take from the line you are on; during one, keep it</td></tr>
+      <tr><td><kbd class="cmd"></kbd> <kbd>Enter</kbd></td><td>Keep the take</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Throw the take away, or cancel the count</td></tr>
+      <tr><td><kbd class="cmd"></kbd> <kbd>Z</kbd></td><td>Undo the take just kept</td></tr>
+      <tr><td><kbd>P</kbd></td><td>Pause and resume</td></tr>
+      <tr><td><kbd>W</kbd></td><td>Review a line said in other words</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Mirror the text</td></tr>
+      <tr><td><kbd>+</kbd> <kbd>−</kbd></td><td>Text size</td></tr>
+      <tr><td><kbd>S</kbd></td><td>Hide or show the screen</td></tr>
+      <tr><td><kbd>Enter</kbd> on a line</td><td>Between takes, start a take from that line</td></tr>
+    </table>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
+  <aside id="monitor" aria-label="Screen">
     <div id="screen"><video id="clip" muted playsinline hidden></video><div id="slate"></div></div>
     <div id="caption"><span id="shot-title"></span><span id="shot-time"></span></div>
     <div id="progress"><div></div></div>
@@ -249,10 +295,10 @@
   </aside>
 </main>
 <footer>
-  <span id="tally"></span>
+  <span id="tally" role="img" aria-label="Off air"></span>
   <span id="timecode">00:00.0</span>
   <span id="meter"><div></div></span>
-  <span id="status">Loading the script</span>
+  <span id="status" role="status" aria-live="polite">Loading the script</span>
   <span id="keys"></span>
 </footer>
 <script>
@@ -312,6 +358,7 @@ function keys() {
   $("record").textContent = counting ? "Cancel" : taking ? "Keep take" : "Record";
   $("record").classList.toggle("keep", listening || paused);
   for (const el of [$("tally"), $("timecode")]) el.classList.toggle("on-air", listening);
+  $("tally").setAttribute("aria-label", listening ? "On air" : paused ? "Paused" : "Off air");
   document.body.classList.toggle("on-air", listening);
   document.body.classList.toggle("paused", paused);
 }
@@ -328,9 +375,18 @@ async function loadScript() {
     const line = document.createElement("div");
     line.className = "line";
     line.tabIndex = 0;
-    line.addEventListener("click", () => {
+    line.setAttribute("role", "button");
+    const fromHere = () => {
       if (listening || paused || counting) return status("Keep or discard this take first");
       take(l);
+    };
+    line.addEventListener("click", fromHere);
+    line.addEventListener("keydown", (e) => {
+      if ((e.key === "Enter" || e.key === " ") && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        fromHere();
+      }
     });
     const gutter = document.createElement("span");
     gutter.className = "gutter";
@@ -343,6 +399,7 @@ async function loadScript() {
       body.append(s, " ");
       return s;
     });
+    line.setAttribute("aria-label", `Line ${l + 1}: ${text}`);
     line.append(gutter, body);
     root.append(line);
     return spans;
@@ -500,7 +557,11 @@ function show(next) {
     s.classList.toggle("said", l < at.line || (l === at.line && w < at.word));
     s.classList.toggle("next", l === at.line && w === at.word);
   }));
-  lines.forEach((el, l) => el.classList.toggle("current", l === at.line));
+  lines.forEach((el, l) => {
+    el.classList.toggle("current", l === at.line);
+    if (l === at.line) el.setAttribute("aria-current", "location");
+    else el.removeAttribute("aria-current");
+  });
   if (at.line >= words.length && words.length) status("End of script");
   glide();
 }
@@ -549,7 +610,8 @@ function openSession() {
       ws = socket;
       resolve();
     };
-    socket.onerror = () => reject(new Error("Another prompter already has the session. Close it and reload."));
+    socket.onerror = () => reject(new Error(
+      "Could not open the session: another prompter may have it open, or the server stopped. Close it and reload."));
     socket.onclose = () => {
       if (ws === socket) status("Lost the server. Reload once it is running again.", true);
       ws = null;
@@ -682,7 +744,7 @@ async function openMic() {
 }
 
 function level(rms) {
-  $("meter").firstElementChild.style.width = `${Math.min(100, Math.sqrt(rms) * 100)}%`;
+  $("meter").firstElementChild.style.transform = `scaleX(${Math.min(1, Math.sqrt(rms))})`;
 }
 
 /** A new take from line `from`, after a count of three; the server drops
@@ -767,7 +829,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     return recordOrKeep();
   }
-  if ($("review").open) return;
+  if ($("review").open || $("help").open) return;
   if (command && !e.shiftKey && (e.key === "Enter" || e.key === "z")) {
     e.preventDefault();
     return e.key === "Enter" ? keep() : undo();
@@ -777,7 +839,8 @@ document.addEventListener("keydown", (e) => {
     "Escape": discard,
     "p": togglePause,
     "w": reviewSaid,
-    "m": () => document.body.classList.toggle("mirrored"),
+    "m": mirror,
+    "?": () => $("help").showModal(),
     "s": () => document.body.classList.toggle("no-monitor"),
     "+": () => resize(4), "=": () => resize(4), "-": () => resize(-4),
   }[e.key];
@@ -793,9 +856,32 @@ function recordOrKeep() {
 
 function resize(by) {
   const now = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--size"));
-  document.documentElement.style.setProperty("--size", `${Math.min(120, Math.max(24, now + by))}px`);
+  const size = Math.min(120, Math.max(24, now + by));
+  document.documentElement.style.setProperty("--size", `${size}px`);
+  try { localStorage.setItem("size", size); } catch {}
+  status(`Text size ${size}`);
   glide();
 }
+
+function mirror() {
+  const on = document.body.classList.toggle("mirrored");
+  $("mirror").setAttribute("aria-pressed", on);
+  try { localStorage.setItem("mirrored", on); } catch {}
+}
+
+// This reader's size and mirroring, as they left them.
+try {
+  const size = parseFloat(localStorage.getItem("size"));
+  if (size >= 24 && size <= 120) document.documentElement.style.setProperty("--size", `${size}px`);
+  if (localStorage.getItem("mirrored") === "true") mirror();
+} catch {}
+
+for (const el of document.querySelectorAll("#help kbd.rec")) el.textContent = RECORD_KEY;
+for (const el of document.querySelectorAll("#help kbd.cmd")) el.textContent = MAC ? "⌘" : "Ctrl";
+$("smaller").addEventListener("click", () => resize(-4));
+$("larger").addEventListener("click", () => resize(4));
+$("mirror").addEventListener("click", mirror);
+$("keys-help").addEventListener("click", () => $("help").showModal());
 
 $("record").addEventListener("click", () =>
   listening || paused || counting ? keep() : take(at.line < words.length ? at.line : 0));

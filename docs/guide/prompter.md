@@ -53,12 +53,17 @@ there, which is how you read one line again.
 | Ctrl+Enter (⌘Enter) | keep the take |
 | Escape | throw the take away, or cancel the count before it |
 | Ctrl+Z (⌘Z) | undo the take just kept: each line gets back the recording it replaced |
-| click a line | between takes, start a new take from that line |
+| click a line, or Enter on it | between takes, start a new take from that line |
+| ? | list these keys |
 | p | pause and resume listening |
 | w | review a line said in other words than it reads |
 | m | mirror the text, for beam-splitter glass |
 | + and − | text size |
 | s | hide or show the screen |
+
+On a tablet or phone, the buttons at the top left do the same: text size,
+mirroring, and the list of keys. The text size and mirroring are
+remembered for next time.
 
 It follows you, not a clock: stop, and it waits; misread a word, add an
 aside or skip a sentence, and it keeps its place. It jumps ahead only when
