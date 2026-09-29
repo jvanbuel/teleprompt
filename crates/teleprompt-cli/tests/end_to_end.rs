@@ -7,6 +7,8 @@
 //! video's pacing?
 
 use std::path::PathBuf;
+use teleprompt_core::SpanMs;
+use teleprompt_core::TimeMs;
 
 use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
 use teleprompt_cli::project::Project;
@@ -69,7 +71,10 @@ fn the_timeline_ends_where_the_last_shot_ends() {
     let (_dir, p, s) = workspace();
     let out = run_plan(&p, &s, "en").unwrap();
     let last = out.timeline.entries.last().unwrap();
-    assert_eq!(out.timeline.duration_ms, last.start_ms + last.duration_ms);
+    assert_eq!(
+        TimeMs::ZERO + out.timeline.duration_ms,
+        last.start_ms + last.duration_ms
+    );
 }
 
 #[test]
@@ -157,9 +162,14 @@ fn rollback_line_has_the_hand_derived_exact_duration() {
         .entry("rollback")
         .expect("tour fixture has a `rollback` item");
     let narration = entry.narration.as_ref().expect("rollback item narrates");
-    assert_eq!(narration.duration_ms, 6_900, "unpadded narration length");
     assert_eq!(
-        entry.duration_ms, 7_200,
+        narration.duration_ms,
+        SpanMs::of(6_900),
+        "unpadded narration length"
+    );
+    assert_eq!(
+        entry.duration_ms,
+        SpanMs::of(7_200),
         "trim policy sets item duration_ms to the padded narration length"
     );
 }

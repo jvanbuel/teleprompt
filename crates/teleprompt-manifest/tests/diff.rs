@@ -1,5 +1,5 @@
-use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
+use teleprompt_core::{DurationSource, SpanMs, TimeMs};
 use teleprompt_manifest::diff::{diff, DriftReason};
 use teleprompt_manifest::{
     AudioInfo, ChapterEntry, LineEntry, NarrationManifest, MANIFEST_VERSION,
@@ -10,8 +10,8 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
         id: id.into(),
         text: text.to_string(),
         chapter: "intro".to_string(),
-        start_ms,
-        duration_ms,
+        start_ms: TimeMs::at(start_ms),
+        duration_ms: SpanMs::of(duration_ms),
         duration_source: DurationSource::Measured,
         audio: format!("audio/{id}.wav"),
         source_hash: Hash::of(text.as_bytes()),
@@ -22,10 +22,9 @@ fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) 
 }
 
 fn manifest(lines: Vec<LineEntry>) -> NarrationManifest {
-    let duration_ms = lines
-        .last()
-        .map(|s| s.start_ms + s.duration_ms)
-        .unwrap_or(0);
+    let duration_ms = lines.last().map_or(SpanMs::ZERO, |s| {
+        (s.start_ms + s.duration_ms) - TimeMs::ZERO
+    });
     NarrationManifest {
         manifest_version: MANIFEST_VERSION,
         script: "tour.md".to_string(),
@@ -119,13 +118,13 @@ fn a_chapter_title_edit_is_drift_even_with_identical_lines() {
     before.chapters = vec![ChapterEntry {
         id: "quick-start".to_string(),
         title: "Quick start".to_string(),
-        start_ms: 0,
+        start_ms: TimeMs::at(0),
     }];
     let mut after = manifest(lines);
     after.chapters = vec![ChapterEntry {
         id: "quick-start".to_string(),
         title: "Quick Start".to_string(),
-        start_ms: 0,
+        start_ms: TimeMs::at(0),
     }];
 
     let d = diff(&before, &after);
@@ -158,9 +157,9 @@ fn editing_the_first_segment_shifts_later_lines_without_flagging_them_for_rerend
     // duration are all untouched.
     let one_after = seg("one", 0, 800, "Hi there, at length now.", "a");
     let mut two_after = two.clone();
-    two_after.start_ms = 800;
+    two_after.start_ms = TimeMs::at(800);
     let mut three_after = three.clone();
-    three_after.start_ms = 1300;
+    three_after.start_ms = TimeMs::at(1300);
     let after = manifest(vec![one_after, two_after, three_after]);
 
     let d = diff(&before, &after);
@@ -220,9 +219,9 @@ fn reordering_two_unchanged_lines_is_drift() {
     let mut b = seg("two", 1000, 1000, "Second.", "b");
     let before = manifest(vec![a.clone(), b.clone()]);
 
-    b.start_ms = 0;
+    b.start_ms = TimeMs::at(0);
     let mut a2 = a.clone();
-    a2.start_ms = 1000;
+    a2.start_ms = TimeMs::at(1000);
     let after = manifest(vec![b, a2]);
 
     let d = diff(&before, &after);

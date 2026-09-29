@@ -8,7 +8,7 @@ use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
-use teleprompt_core::{Diagnostics, PolicyKind};
+use teleprompt_core::{Diagnostics, PolicyKind, SpanMs, Tempo};
 use teleprompt_scene::SceneRegistry;
 use teleprompt_voice::WpmEstimator;
 
@@ -58,6 +58,7 @@ fn clip_ms() -> u64 {
         .as_ref()
         .unwrap()
         .duration_ms
+        .ms()
 }
 
 /// A picture that leaves the clip `ms`, between the default 150 ms lead-in
@@ -74,15 +75,18 @@ fn a_line_is_sped_up_to_fit_its_picture() {
     let entry = &out.timeline.entries[0];
     let n = entry.narration.as_ref().unwrap();
     assert_eq!(entry.policy, PolicyKind::FitLine);
-    assert_eq!(n.tempo_permille, Some(1100));
+    assert_eq!(n.tempo_permille, Tempo::new(1100));
     assert!(
-        n.duration_ms.abs_diff(fits) <= 1,
+        n.duration_ms.ms().abs_diff(fits) <= 1,
         "{} vs {fits}",
-        n.duration_ms
+        n.duration_ms.ms()
     );
     // The picture keeps its length, and so is the item's.
-    assert_eq!(entry.duration_ms, fits + 300);
-    assert_eq!(entry.action.as_ref().unwrap().duration_ms, fits + 300);
+    assert_eq!(entry.duration_ms, SpanMs::of(fits + 300));
+    assert_eq!(
+        entry.action.as_ref().unwrap().duration_ms,
+        SpanMs::of(fits + 300)
+    );
     assert!(out.warnings.is_empty(), "{:?}", out.warnings);
 }
 
@@ -91,7 +95,7 @@ fn a_line_too_long_for_its_picture_stops_at_the_bound_and_says_what_to_cut() {
     let clip = clip_ms();
     let out = compile_it(&picture(clip / 2)).unwrap();
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
-    assert_eq!(n.tempo_permille, Some(1150));
+    assert_eq!(n.tempo_permille, Tempo::new(1150));
     let w = out.warnings.join("\n");
     assert!(w.contains("deploy") && w.contains("max_line_speed"), "{w}");
     // Twice too long at 1.15x: about 5 of its 11 words to go.
@@ -103,8 +107,11 @@ fn a_line_short_for_its_picture_slows_to_the_bound_and_the_picture_plays_on() {
     let clip = clip_ms();
     let out = compile_it(&picture(clip * 2)).unwrap();
     let entry = &out.timeline.entries[0];
-    assert_eq!(entry.narration.as_ref().unwrap().tempo_permille, Some(900));
-    assert_eq!(entry.duration_ms, clip * 2 + 300);
+    assert_eq!(
+        entry.narration.as_ref().unwrap().tempo_permille,
+        Tempo::new(900)
+    );
+    assert_eq!(entry.duration_ms, SpanMs::of(clip * 2 + 300));
     assert!(
         out.warnings.join("\n").contains("min_line_speed"),
         "{:?}",
@@ -139,7 +146,7 @@ fn a_budget_is_the_length_of_a_picture_that_states_none() {
     // Long enough for the line at its slowest: the picture sets the length.
     let budget = clip_ms() * 2;
     let out = compile_it(&format!("policy=fit-line budget={budget}ms\nopen")).unwrap();
-    assert_eq!(out.timeline.entries[0].duration_ms, budget);
+    assert_eq!(out.timeline.entries[0].duration_ms, SpanMs::of(budget));
 }
 
 #[test]

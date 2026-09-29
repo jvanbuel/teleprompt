@@ -5,7 +5,7 @@ use teleprompt_cache::{CachedAudio, VoiceCache};
 use teleprompt_compile::manifest;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
-use teleprompt_core::{Hash, LineId};
+use teleprompt_core::{Hash, LineId, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
@@ -88,7 +88,7 @@ fn published_duration_ms(timeline: &teleprompt_schedule::Timeline, line_id: &str
         .iter()
         .filter_map(|e| e.narration.as_ref())
         .find(|n| n.line == line_id)
-        .map(|n| n.duration_ms)
+        .map(|n| n.duration_ms.ms())
 }
 
 /// `Some(message)` when a rendered line is not the length the manifest is
@@ -542,9 +542,10 @@ impl Audio {
             let Some(tempo) = n.tempo_permille else {
                 continue;
             };
-            *bytes = teleprompt_voice::stretch::fit_wav(bytes, tempo, n.duration_ms)
-                .map_err(|e| DubError::Runtime(format!("line `{line_id}`: {e}")))?;
-            *rendered_ms = n.duration_ms;
+            *bytes =
+                teleprompt_voice::stretch::fit_wav(bytes, tempo.permille(), n.duration_ms.ms())
+                    .map_err(|e| DubError::Runtime(format!("line `{line_id}`: {e}")))?;
+            *rendered_ms = n.duration_ms.ms();
         }
         Ok(())
     }
@@ -605,7 +606,7 @@ fn drift_from_committed(
             &NarrationManifest {
                 lines: Vec::new(),
                 chapters: Vec::new(),
-                duration_ms: 0,
+                duration_ms: SpanMs::ZERO,
                 ..built.clone()
             },
             built,
@@ -663,7 +664,7 @@ pub fn render_dub(out: &DubOutput) -> String {
         out.manifest.script,
         out.manifest.locale,
         out.manifest.lines.len(),
-        out.manifest.duration_ms as f64 / 1000.0,
+        out.manifest.duration_ms.ms() as f64 / 1000.0,
     );
     for path in &out.written {
         s.push_str(&format!("  wrote {}\n", path.display()));

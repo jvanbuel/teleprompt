@@ -47,8 +47,8 @@ pub fn shot_cues(compiled: &CompileOutput) -> Vec<ShotCue> {
                     line,
                     word: word_at(
                         &detail.text,
-                        action.start_ms.saturating_sub(n.start_ms),
-                        n.duration_ms,
+                        (action.start_ms - n.start_ms).ms(),
+                        n.duration_ms.ms(),
                     ) + 1,
                 },
                 _ => Position { line, word: 0 },

@@ -186,8 +186,8 @@ pub fn diff(before: &NarrationManifest, after: &NarrationManifest) -> ManifestDi
             let a = after.lines.iter().find(|a| a.id == b.id)?;
             reason_for(b, a).map(|reason| ChangedSegment {
                 id: b.id.clone(),
-                before_ms: b.duration_ms,
-                after_ms: a.duration_ms,
+                before_ms: b.duration_ms.ms(),
+                after_ms: a.duration_ms.ms(),
                 reason,
             })
         })
@@ -208,8 +208,8 @@ pub fn diff(before: &NarrationManifest, after: &NarrationManifest) -> ManifestDi
         .collect();
 
     ManifestDiff {
-        duration_before_ms: before.duration_ms,
-        duration_after_ms: after.duration_ms,
+        duration_before_ms: before.duration_ms.ms(),
+        duration_after_ms: after.duration_ms.ms(),
         audio_changed: before.audio != after.audio,
         chapters_changed: before.chapters != after.chapters,
         added,

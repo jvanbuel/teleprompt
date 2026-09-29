@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use teleprompt_core::config::TransitionKind;
-use teleprompt_core::{DurationSource, Hash, LineId, PolicyKind, ShotId};
+use teleprompt_core::{DurationSource, Hash, LineId, PolicyKind, ShotId, SpanMs, Tempo, TimeMs};
 
 /// Incremented on any change a consumer must not silently miss, including
 /// an added key it would otherwise ignore. Independent of
@@ -18,7 +18,7 @@ pub struct NarrationManifest {
     pub script: String,
     pub locale: String,
     pub generated_by: String,
-    pub duration_ms: u64,
+    pub duration_ms: SpanMs,
     pub audio: AudioInfo,
     pub chapters: Vec<ChapterEntry>,
     pub lines: Vec<LineEntry>,
@@ -40,7 +40,7 @@ pub struct AudioInfo {
 pub struct ChapterEntry {
     pub id: String,
     pub title: String,
-    pub start_ms: u64,
+    pub start_ms: TimeMs,
 }
 
 /// One scheduled action shot.
@@ -53,8 +53,8 @@ pub struct ShotEntry {
     pub line: Option<LineId>,
     pub scene: String,
     pub adapter: String,
-    pub start_ms: u64,
-    pub duration_ms: u64,
+    pub start_ms: TimeMs,
+    pub duration_ms: SpanMs,
     /// `exact` when the source states its timing in full, `estimated` for a
     /// bound, `unknown` when the adapter cannot say and the shot took its
     /// line's length.
@@ -78,7 +78,7 @@ pub struct ShotEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransitionOut {
     pub kind: TransitionKind,
-    pub duration_ms: u64,
+    pub duration_ms: SpanMs,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -88,8 +88,8 @@ pub struct LineEntry {
     /// Slug of the chapter this line was spoken in, so a consumer need not
     /// reconstruct it from timestamps.
     pub chapter: String,
-    pub start_ms: u64,
-    pub duration_ms: u64,
+    pub start_ms: TimeMs,
+    pub duration_ms: SpanMs,
     /// `measured` from real audio, `estimated` from the estimator
     /// (docs/design.md#estimated-and-measured).
     pub duration_source: DurationSource,
@@ -107,7 +107,7 @@ pub struct LineEntry {
     /// written at; absent at its own pace. `duration_ms` and `words` are
     /// at this tempo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tempo_permille: Option<u32>,
+    pub tempo_permille: Option<Tempo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

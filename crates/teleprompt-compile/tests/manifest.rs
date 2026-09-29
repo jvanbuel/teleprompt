@@ -1,5 +1,5 @@
 use std::path::Path;
-use teleprompt_core::DurationSource;
+use teleprompt_core::{DurationSource, SpanMs};
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest;
@@ -168,12 +168,12 @@ fn line_timings_equal_the_timeline_they_came_from() {
         .entries
         .iter()
         .filter_map(|e| e.narration.as_ref())
-        .map(|n| (n.line.clone(), n.start_ms, n.duration_ms))
+        .map(|n| (n.line.clone(), n.start_ms.ms(), n.duration_ms.ms()))
         .collect();
     let from_manifest: Vec<(teleprompt_core::LineId, u64, u64)> = m
         .lines
         .iter()
-        .map(|s| (s.id.clone(), s.start_ms, s.duration_ms))
+        .map(|s| (s.id.clone(), s.start_ms.ms(), s.duration_ms.ms()))
         .collect();
 
     assert_eq!(
@@ -309,9 +309,9 @@ Two.
         a.start_ms + a.duration_ms > b.start_ms,
         "`{}` ends at {} and `{}` starts at {}",
         a.id,
-        a.start_ms + a.duration_ms,
+        (a.start_ms + a.duration_ms).ms(),
         b.id,
-        b.start_ms,
+        b.start_ms.ms(),
     );
 }
 
@@ -492,7 +492,7 @@ mod items {
             .iter()
             .find(|b| b.scene == "pause")
             .expect("a pause directive is published as an item");
-        assert_eq!(pause.duration_ms, 600);
+        assert_eq!(pause.duration_ms, SpanMs::of(600));
         assert_eq!(pause.line, None);
     }
 

@@ -2,6 +2,7 @@
 //! as the author says. Only shots that state their length can be.
 
 use std::path::Path;
+use teleprompt_core::SpanMs;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
@@ -42,7 +43,12 @@ fn compile_it(body: &str) -> Result<CompileOutput, Diagnostics> {
 }
 
 fn action_ms(out: &CompileOutput) -> u64 {
-    out.timeline.entries[0].action.as_ref().unwrap().duration_ms
+    out.timeline.entries[0]
+        .action
+        .as_ref()
+        .unwrap()
+        .duration_ms
+        .ms()
 }
 
 #[test]
@@ -57,7 +63,7 @@ fn a_stretched_shot_runs_that_many_times_its_own_length() {
     assert_eq!(action_ms(&fast), 500);
     // Held after its line, the item grows with it.
     let item = |o: &CompileOutput| o.timeline.entries[0].duration_ms;
-    assert_eq!(item(&slow) - item(&plain), 1000);
+    assert_eq!(item(&slow) - item(&plain), SpanMs::of(1000));
 }
 
 #[test]

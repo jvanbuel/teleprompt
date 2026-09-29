@@ -233,8 +233,8 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                     item: ItemId::from(*id),
                     before_kind: o.transition.kind.clone(),
                     after_kind: n.transition.kind.clone(),
-                    before_ms: o.transition.duration_ms,
-                    after_ms: n.transition.duration_ms,
+                    before_ms: o.transition.duration_ms.ms(),
+                    after_ms: n.transition.duration_ms.ms(),
                 });
             }
 
@@ -243,8 +243,8 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
             // relative to the item's start: absolute `start_ms` shifts with
             // every earlier edit and would bury the one that matters.
             if let (Some(on), Some(nn)) = (&o.narration, &n.narration) {
-                let offset_moved = on.start_ms.saturating_sub(o.start_ms)
-                    != nn.start_ms.saturating_sub(n.start_ms);
+                let offset_moved =
+                    (on.start_ms - o.start_ms).ms() != (nn.start_ms - n.start_ms).ms();
                 // Only estimated -> measured: a cleared cache (the reverse)
                 // changes nothing and must not read as "padding changed".
                 let now_measured = on.duration_source != nn.duration_source
@@ -271,8 +271,8 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                     };
                     changed.push(ChangedBeat {
                         item: ItemId::from(*id),
-                        before_ms: on.duration_ms,
-                        after_ms: nn.duration_ms,
+                        before_ms: on.duration_ms.ms(),
+                        after_ms: nn.duration_ms.ms(),
                         reason,
                     });
                 }
@@ -289,8 +289,7 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
                     (Some(oa), Some(na)) => {
                         oa.capture_key != na.capture_key
                             || oa.duration_ms != na.duration_ms
-                            || oa.start_ms.saturating_sub(o.start_ms)
-                                != na.start_ms.saturating_sub(n.start_ms)
+                            || (oa.start_ms - o.start_ms).ms() != (na.start_ms - n.start_ms).ms()
                     }
                     _ => false,
                 };
@@ -316,9 +315,9 @@ pub fn diff(before: &Timeline, after: &Timeline) -> TimelineDiff {
         .collect();
 
     TimelineDiff {
-        before_ms: before.duration_ms,
-        after_ms: after.duration_ms,
-        shift_ms: after.duration_ms as i64 - before.duration_ms as i64,
+        before_ms: before.duration_ms.ms(),
+        after_ms: after.duration_ms.ms(),
+        shift_ms: after.duration_ms.ms() as i64 - before.duration_ms.ms() as i64,
         changed,
         added,
         removed,

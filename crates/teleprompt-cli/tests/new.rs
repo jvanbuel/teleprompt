@@ -1,5 +1,6 @@
 use teleprompt_cli::cmd::doctor::doctor_report;
 use teleprompt_cli::cmd::new::scaffold;
+use teleprompt_core::SpanMs;
 use teleprompt_scene::SceneRegistry;
 
 #[test]
@@ -54,7 +55,7 @@ fn the_scaffolded_script_compiles() {
         "0.1.0",
     )
     .expect("scaffolded script must compile");
-    assert!(out.timeline.duration_ms > 0);
+    assert!(out.timeline.duration_ms > SpanMs::of(0));
 }
 
 #[test]

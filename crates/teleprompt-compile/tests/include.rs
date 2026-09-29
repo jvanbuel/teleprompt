@@ -1,4 +1,5 @@
 use std::path::Path;
+use teleprompt_core::SpanMs;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, VoiceContext};
@@ -79,7 +80,7 @@ fn an_included_file_supplies_the_block_body() {
     .unwrap();
     assert_eq!(
         out.timeline.entries[0].action.as_ref().unwrap().duration_ms,
-        700
+        SpanMs::of(700)
     );
 }
 

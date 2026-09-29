@@ -1,4 +1,5 @@
 use std::path::Path;
+use teleprompt_core::SpanMs;
 
 use teleprompt_schedule::{diff, Timeline, TimelineDiff, TIMELINE_VERSION};
 
@@ -34,7 +35,7 @@ pub fn run_diff(
             version: TIMELINE_VERSION,
             script: out.timeline.script.clone(),
             locale: out.timeline.locale.clone(),
-            duration_ms: 0,
+            duration_ms: SpanMs::ZERO,
             generated_by: String::new(),
             entries: Vec::new(),
         }

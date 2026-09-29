@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 use teleprompt_core::config::TransitionKind;
 
-use teleprompt_core::Hash;
+use teleprompt_core::{Hash, SpanMs, TimeMs};
 use teleprompt_render::chunk::{self, Chunk, ChunkKey, Content, Source};
 use teleprompt_render::{Picture, RenderPlan, Shot, Transition};
 
@@ -21,8 +21,8 @@ fn same(_: &Path) -> std::io::Result<Hash> {
 fn shot(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Shot {
     Shot {
         id: id.into(),
-        start_ms,
-        duration_ms,
+        start_ms: TimeMs::at(start_ms),
+        duration_ms: SpanMs::of(duration_ms),
         picture: Picture::Clip(PathBuf::from(clip)),
         transition: Transition::cut(),
     }
@@ -33,7 +33,7 @@ fn blended(id: &str, start_ms: u64, duration_ms: u64, clip: &str) -> Shot {
     Shot {
         transition: Transition {
             kind: TransitionKind::parse("xfade"),
-            duration_ms: 400,
+            duration_ms: SpanMs::of(400),
         },
         ..shot(id, start_ms, duration_ms, clip)
     }
@@ -44,7 +44,7 @@ fn plan(shots: Vec<Shot>, duration_ms: u64) -> RenderPlan {
         width: 640,
         height: 360,
         fps: 25,
-        duration_ms,
+        duration_ms: SpanMs::of(duration_ms),
         shots,
         narration: Vec::new(),
         output: PathBuf::from("/out/tour.mp4"),
@@ -64,11 +64,13 @@ fn tiles(chunks: &[Chunk], plan: &RenderPlan) {
         );
         frame += chunk.frames;
     }
-    let expected = (plan.duration_ms * u64::from(plan.fps) + 500) / 1000;
+    let expected = (plan.duration_ms.ms() * u64::from(plan.fps) + 500) / 1000;
     assert_eq!(
-        frame, expected,
+        frame,
+        expected,
         "{frame} frame(s) for a {}ms plan at {}fps",
-        plan.duration_ms, plan.fps,
+        plan.duration_ms.ms(),
+        plan.fps,
     );
 }
 
@@ -125,7 +127,7 @@ fn a_transition_becomes_a_chunk_of_its_own() {
     ];
     shots[0].transition = Transition {
         kind: TransitionKind::Dissolve,
-        duration_ms: 400,
+        duration_ms: SpanMs::of(400),
     };
     let plan = plan(shots, 3_600);
     let chunks = chunk::chunks(&plan).expect("splits");
@@ -161,7 +163,7 @@ fn the_shots_either_side_of_a_blend_give_up_the_frames_it_uses() {
     ];
     shots[0].transition = Transition {
         kind: TransitionKind::Crossfade,
-        duration_ms: 400,
+        duration_ms: SpanMs::of(400),
     };
     let plan = plan(shots, 3_600);
     let chunks = chunk::chunks(&plan).expect("splits");
@@ -230,8 +232,8 @@ fn everything_that_changes_the_bytes_changes_the_key() {
     assert_ne!(original, key_of(&faster, &mut same), "frame rate");
 
     let mut longer = base.clone();
-    longer.shots[0].duration_ms = 3_000;
-    longer.duration_ms = 3_000;
+    longer.shots[0].duration_ms = SpanMs::of(3_000);
+    longer.duration_ms = SpanMs::of(3_000);
     assert_ne!(original, key_of(&longer, &mut same), "shot length");
 
     assert_ne!(
@@ -272,7 +274,7 @@ fn a_shot_shorter_than_the_blends_around_it_does_not_split() {
     for b in &mut shots {
         b.transition = Transition {
             kind: TransitionKind::Crossfade,
-            duration_ms: 400,
+            duration_ms: SpanMs::of(400),
         };
     }
     let plan = plan(shots, 3_700);

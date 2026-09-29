@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use teleprompt_core::SpanMs;
 
 use teleprompt_cli::cmd::{check::run_check, diff::run_diff, plan::run_plan};
 use teleprompt_cli::project::Project;
@@ -61,7 +62,7 @@ fn check_does_not_write_anything() {
 fn plan_produces_a_timeline_without_writing_one() {
     let (_dir, p, s) = project_with(GOOD);
     let out = run_plan(&p, &s, "en").unwrap();
-    assert!(out.timeline.duration_ms > 0);
+    assert!(out.timeline.duration_ms > SpanMs::of(0));
     assert!(!p.timeline_path("test.md", "en").exists());
 }
 

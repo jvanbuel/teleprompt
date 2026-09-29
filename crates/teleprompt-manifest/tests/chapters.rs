@@ -1,3 +1,4 @@
+use teleprompt_core::{SpanMs, TimeMs};
 use teleprompt_manifest::chapters::youtube;
 use teleprompt_manifest::{AudioInfo, ChapterEntry, NarrationManifest, MANIFEST_VERSION};
 
@@ -7,7 +8,7 @@ fn manifest(chapters: &[(&str, u64)], duration_ms: u64) -> NarrationManifest {
         script: "tour.md".into(),
         locale: "en".into(),
         generated_by: "test".into(),
-        duration_ms,
+        duration_ms: SpanMs::of(duration_ms),
         audio: AudioInfo {
             format: "wav".into(),
             sample_rate: 48_000,
@@ -18,7 +19,7 @@ fn manifest(chapters: &[(&str, u64)], duration_ms: u64) -> NarrationManifest {
             .map(|(title, start_ms)| ChapterEntry {
                 id: title.to_lowercase(),
                 title: (*title).into(),
-                start_ms: *start_ms,
+                start_ms: TimeMs::at(*start_ms),
             })
             .collect(),
         lines: Vec::new(),

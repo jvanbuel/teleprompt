@@ -1,13 +1,15 @@
 use serde::{Deserialize, Serialize};
 use teleprompt_core::config::TransitionKind;
-use teleprompt_core::{DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId};
+use teleprompt_core::{
+    DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId, SpanMs, Tempo, TimeMs,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Timeline {
     pub version: u32,
     pub script: String,
     pub locale: String,
-    pub duration_ms: u64,
+    pub duration_ms: SpanMs,
     pub generated_by: String,
     pub entries: Vec<Entry>,
 }
@@ -15,8 +17,8 @@ pub struct Timeline {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
     pub item: ItemId,
-    pub start_ms: u64,
-    pub duration_ms: u64,
+    pub start_ms: TimeMs,
+    pub duration_ms: SpanMs,
     pub policy: PolicyKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub narration: Option<NarrationEntry>,
@@ -30,8 +32,8 @@ pub struct NarrationEntry {
     pub line: LineId,
     pub source_hash: Hash,
     pub audio_hash: Hash,
-    pub start_ms: u64,
-    pub duration_ms: u64,
+    pub start_ms: TimeMs,
+    pub duration_ms: SpanMs,
     pub duration_source: DurationSource,
     /// Spoken from a recorded take; absent for a synthesized line.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -39,7 +41,7 @@ pub struct NarrationEntry {
     /// The tempo `fit-line` plays it at, in thousandths; absent at 1000.
     /// `duration_ms` is its length at this tempo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tempo_permille: Option<u32>,
+    pub tempo_permille: Option<Tempo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -55,15 +57,15 @@ pub struct ActionEntry {
     /// From `session="…"`; `None` is the scene's default session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session: Option<String>,
-    pub start_ms: u64,
-    pub duration_ms: u64,
+    pub start_ms: TimeMs,
+    pub duration_ms: SpanMs,
     pub duration_source: DurationSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransitionEntry {
     pub kind: TransitionKind,
-    pub duration_ms: u64,
+    pub duration_ms: SpanMs,
 }
 
 impl Timeline {

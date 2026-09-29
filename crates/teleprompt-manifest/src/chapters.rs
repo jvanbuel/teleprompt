@@ -23,10 +23,10 @@ pub fn youtube(manifest: &NarrationManifest) -> (String, Vec<String>) {
     }
     for (i, c) in chapters.iter().enumerate() {
         // The video opens on the first chapter, whatever its lead-in.
-        let start = if i == 0 { 0 } else { c.start_ms };
+        let start = if i == 0 { 0 } else { c.start_ms.ms() };
         let end = chapters
             .get(i + 1)
-            .map_or(manifest.duration_ms, |next| next.start_ms);
+            .map_or(manifest.duration_ms.ms(), |next| next.start_ms.ms());
         if end.saturating_sub(start) < SHORTEST_MS {
             problems.push(format!(
                 "chapter `{}` is shorter than 10 seconds, which YouTube does not show",

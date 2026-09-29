@@ -1,6 +1,6 @@
 use teleprompt_core::config::TransitionDuration;
 
-use teleprompt_core::DurationSource;
+use teleprompt_core::{DurationSource, SpanMs, Tempo, TimeMs};
 
 use crate::item::{ActionInput, Item, NarrationInput};
 use crate::policy::{fit_line, layout_at, Layout, Policy};
@@ -37,7 +37,8 @@ pub fn schedule(
         if carried_in > l.item_duration_ms {
             let excess = carried_in - l.item_duration_ms;
             if let Some(previous) = entries.last_mut() {
-                previous.transition.duration_ms -= excess;
+                let kept = previous.transition.duration_ms.ms() - excess;
+                previous.transition.duration_ms = SpanMs::of(kept);
             }
             cursor = cursor.saturating_add(excess);
             carried_in = l.item_duration_ms;
@@ -61,10 +62,9 @@ pub fn schedule(
         cursor = cursor.saturating_add(l.item_duration_ms - transition_ms);
     }
 
-    let duration_ms = entries
-        .last()
-        .map(|e| e.start_ms.saturating_add(e.duration_ms))
-        .unwrap_or(0);
+    let duration_ms = entries.last().map_or(SpanMs::ZERO, |e| {
+        (e.start_ms + e.duration_ms) - TimeMs::ZERO
+    });
 
     (
         Timeline {
@@ -203,8 +203,8 @@ fn build_entry(
 ) -> Entry {
     Entry {
         item: item.id.clone(),
-        start_ms,
-        duration_ms: l.item_duration_ms,
+        start_ms: TimeMs::at(start_ms),
+        duration_ms: SpanMs::of(l.item_duration_ms),
         policy: item.policy.kind(),
         narration: item
             .narration
@@ -213,7 +213,7 @@ fn build_entry(
         action: item.action.as_ref().map(|a| action_entry(a, start_ms, l)),
         transition: TransitionEntry {
             kind: item.pacing.transition.kind.clone(),
-            duration_ms: transition_ms,
+            duration_ms: SpanMs::of(transition_ms),
         },
     }
 }
@@ -225,11 +225,11 @@ fn narration_entry(n: &NarrationInput, slot_start_ms: u64, tempo: Option<u32>) -
         line: n.line_id.clone(),
         source_hash: n.source_hash,
         audio_hash: n.audio_hash,
-        start_ms: slot_start_ms.saturating_add(n.lead_in_ms.ms()),
-        duration_ms: n.duration_ms,
+        start_ms: TimeMs::at(slot_start_ms.saturating_add(n.lead_in_ms.ms())),
+        duration_ms: SpanMs::of(n.duration_ms),
         duration_source: n.duration_source,
         recorded: n.recorded,
-        tempo_permille: tempo,
+        tempo_permille: tempo.and_then(Tempo::new),
     }
 }
 
@@ -243,8 +243,8 @@ fn action_entry(a: &ActionInput, item_start_ms: u64, l: &Layout) -> ActionEntry 
         // from the source that will actually be captured.
         capture_key: a.shot_hash,
         session: a.session.clone(),
-        start_ms: item_start_ms.saturating_add(l.action_start_ms),
-        duration_ms: l.action_duration_ms,
+        start_ms: TimeMs::at(item_start_ms.saturating_add(l.action_start_ms)),
+        duration_ms: SpanMs::of(l.action_duration_ms),
         duration_source: a.duration_source,
     }
 }

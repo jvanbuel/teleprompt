@@ -1,4 +1,4 @@
-use teleprompt_core::{DurationSource, Hash};
+use teleprompt_core::{DurationSource, Hash, SpanMs, TimeMs};
 use teleprompt_manifest::captions::{cues, srt, vtt, Cue};
 use teleprompt_manifest::{AudioInfo, LineEntry, NarrationManifest, WordEntry, MANIFEST_VERSION};
 
@@ -7,8 +7,8 @@ fn line(start_ms: u64, duration_ms: u64, text: &str) -> LineEntry {
         id: "l".into(),
         text: text.to_string(),
         chapter: "intro".to_string(),
-        start_ms,
-        duration_ms,
+        start_ms: TimeMs::at(start_ms),
+        duration_ms: SpanMs::of(duration_ms),
         duration_source: DurationSource::Measured,
         audio: "audio/l.wav".to_string(),
         source_hash: Hash::of(text.as_bytes()),
@@ -24,7 +24,7 @@ fn manifest(lines: Vec<LineEntry>) -> NarrationManifest {
         script: "tour.md".to_string(),
         locale: "en".to_string(),
         generated_by: "test".to_string(),
-        duration_ms: 60_000,
+        duration_ms: SpanMs::of(60_000),
         audio: AudioInfo {
             format: "wav".into(),
             sample_rate: 48_000,

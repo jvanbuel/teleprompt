@@ -305,7 +305,7 @@ fn handle(
                 serde_json::to_vec(&State {
                     generation: p.generation,
                     script: script_name,
-                    duration_ms: p.manifest.duration_ms,
+                    duration_ms: p.manifest.duration_ms.ms(),
                     changed: &p.changed,
                     error: p.error.as_ref(),
                 })
@@ -357,7 +357,7 @@ fn handle(
                     .lines
                     .iter()
                     .find(|l| l.id == id)
-                    .and_then(|l| l.tempo_permille.map(|t| (t, l.duration_ms)))
+                    .and_then(|l| l.tempo_permille.map(|t| (t.permille(), l.duration_ms.ms())))
             };
             match std::fs::read(file) {
                 Ok(bytes) => respond(stream, "200 OK", "audio/wav", &at_tempo(bytes, tempo)),

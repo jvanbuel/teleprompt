@@ -215,11 +215,11 @@ fn retime_stretched_shots(
             hash: action.shot_hash,
             index: 0,
         };
-        if adapter.estimate(&shot).duration_ms() == Some(action.duration_ms) {
+        if adapter.estimate(&shot).duration_ms() == Some(action.duration_ms.ms()) {
             continue;
         }
 
-        if let Some(source) = adapter.retime(&shot, action.duration_ms) {
+        if let Some(source) = adapter.retime(&shot, action.duration_ms.ms()) {
             action.shot_hash = Hash::of(source.as_bytes());
             action.duration_source = DurationSource::Exact;
             published.source = source;

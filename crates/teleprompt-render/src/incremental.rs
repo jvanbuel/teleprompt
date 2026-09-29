@@ -52,7 +52,7 @@ impl IncrementalRenderer {
         let total_frames: u64 = chunks.iter().map(|s| s.frames).sum();
         let on_the_clock = |frames: u64| match total_frames {
             0 => 0,
-            total => frames * plan.duration_ms / total,
+            total => frames * plan.duration_ms.ms() / total,
         };
 
         // The concat pass counts from zero again, so progress is clamped
@@ -62,7 +62,7 @@ impl IncrementalRenderer {
             furthest = furthest.max(rendered_ms);
             on_progress(Progress {
                 rendered_ms: furthest,
-                of_ms: plan.duration_ms,
+                of_ms: plan.duration_ms.ms(),
             });
         };
 
@@ -128,12 +128,12 @@ impl IncrementalRenderer {
         result?;
 
         on_progress(Progress {
-            rendered_ms: plan.duration_ms,
-            of_ms: plan.duration_ms,
+            rendered_ms: plan.duration_ms.ms(),
+            of_ms: plan.duration_ms.ms(),
         });
         Ok(Rendered {
             path: plan.output.clone(),
-            duration_ms: plan.duration_ms,
+            duration_ms: plan.duration_ms.ms(),
             reused_ms: self.reuse.then(|| on_the_clock(reused_frames)),
         })
     }
@@ -278,7 +278,7 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         "-f".into(),
         "lavfi".into(),
         "-t".into(),
-        teleprompt_core::time::ffmpeg_seconds(plan.duration_ms),
+        teleprompt_core::time::ffmpeg_seconds(plan.duration_ms.ms()),
         "-i".into(),
         format!(
             "anullsrc=channel_layout=mono:sample_rate={}",
@@ -295,7 +295,7 @@ fn assemble_args(plan: &RenderPlan, list: &Path) -> Vec<String> {
         let input = bed + 1 + i;
         filters.push(format!(
             "[{input}:a]adelay={ms}|{ms}[a{input}]",
-            ms = clip.start_ms
+            ms = clip.start_ms.ms()
         ));
         mix.push(format!("[a{input}]"));
     }

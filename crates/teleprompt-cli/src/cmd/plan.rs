@@ -20,18 +20,18 @@ pub fn render_plan(out: &CompileOutput) -> String {
         "{} ({}) — {:.1}s across {} item(s)\n",
         out.timeline.script,
         out.timeline.locale,
-        out.timeline.duration_ms as f64 / 1000.0,
+        out.timeline.duration_ms.ms() as f64 / 1000.0,
         out.timeline.entries.len()
     );
     for e in &out.timeline.entries {
         let narration = e
             .narration
             .as_ref()
-            .map(|n| format!("{:.1}s {}", n.duration_ms as f64 / 1000.0, n.line))
+            .map(|n| format!("{:.1}s {}", n.duration_ms.ms() as f64 / 1000.0, n.line))
             .unwrap_or_else(|| "—".to_string());
         s.push_str(&format!(
             "  {:>8.1}s  {:<10} {}\n",
-            e.start_ms as f64 / 1000.0,
+            e.start_ms.ms() as f64 / 1000.0,
             e.policy,
             narration
         ));

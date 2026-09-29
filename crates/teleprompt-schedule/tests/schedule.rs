@@ -1,7 +1,7 @@
 use teleprompt_core::config::{Config, TransitionDuration};
-use teleprompt_core::DurationMs;
 use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
+use teleprompt_core::{DurationMs, SpanMs, TimeMs};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
@@ -64,8 +64,11 @@ fn narration_is_padded_with_lead_in_and_tail() {
     )
     .0;
     // 150 lead-in + 1000 clip + 150 tail
-    assert_eq!(t.entries[0].duration_ms, 1300);
-    assert_eq!(t.entries[0].narration.as_ref().unwrap().duration_ms, 1000);
+    assert_eq!(t.entries[0].duration_ms, SpanMs::of(1300));
+    assert_eq!(
+        t.entries[0].narration.as_ref().unwrap().duration_ms,
+        SpanMs::of(1000)
+    );
 }
 
 #[test]
@@ -76,9 +79,9 @@ fn shots_lay_out_sequentially_when_transitions_are_zero() {
         item("b2", Some(2000), None, Policy::Hold, cfg),
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
-    assert_eq!(t.entries[0].start_ms, 0);
-    assert_eq!(t.entries[1].start_ms, 1300);
-    assert_eq!(t.duration_ms, 1300 + 2300);
+    assert_eq!(t.entries[0].start_ms, TimeMs::at(0));
+    assert_eq!(t.entries[1].start_ms, TimeMs::at(1300));
+    assert_eq!(t.duration_ms, SpanMs::of(1300 + 2300));
 }
 
 #[test]
@@ -90,9 +93,13 @@ fn transitions_overlap_adjacent_shots() {
         item("b2", Some(1000), None, Policy::Hold, cfg),
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
-    assert_eq!(t.entries[0].duration_ms, 1300);
-    assert_eq!(t.entries[1].start_ms, 1000, "1300 - 300 overlap");
-    assert_eq!(t.duration_ms, 2300, "1300 + 1300 - 300");
+    assert_eq!(t.entries[0].duration_ms, SpanMs::of(1300));
+    assert_eq!(
+        t.entries[1].start_ms,
+        TimeMs::at(1000),
+        "1300 - 300 overlap"
+    );
+    assert_eq!(t.duration_ms, SpanMs::of(2300), "1300 + 1300 - 300");
 }
 
 #[test]
@@ -106,7 +113,7 @@ fn the_last_shot_has_no_outgoing_transition() {
         "0.1.0",
     )
     .0;
-    assert_eq!(t.entries[0].transition.duration_ms, 0);
+    assert_eq!(t.entries[0].transition.duration_ms, SpanMs::of(0));
 }
 
 #[test]
@@ -133,7 +140,7 @@ fn auto_transition_is_half_the_slack_clamped_to_the_maximum() {
     // slack = 6150 padded narration - 200 action = 5950; half is 2975,
     // clamped to max_ms 600. Quiet window is 1000 tail + 150 next lead_in,
     // so the cap does not bind.
-    assert_eq!(t.entries[0].transition.duration_ms, 600);
+    assert_eq!(t.entries[0].transition.duration_ms, SpanMs::of(600));
 }
 
 #[test]
@@ -151,7 +158,8 @@ fn auto_transition_is_zero_when_there_is_no_slack() {
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
     assert_eq!(
-        t.entries[0].transition.duration_ms, 0,
+        t.entries[0].transition.duration_ms,
+        SpanMs::of(0),
         "action outlasts narration"
     );
 }
@@ -165,7 +173,11 @@ fn action_offsets_are_absolute_not_shot_relative() {
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
     let a = t.entries[1].action.as_ref().unwrap();
-    assert_eq!(a.start_ms, 1300 + 1300, "item 2 start + narration");
+    assert_eq!(
+        a.start_ms,
+        TimeMs::at(1300 + 1300),
+        "item 2 start + narration"
+    );
 }
 
 #[test]
@@ -192,13 +204,13 @@ fn an_action_only_shot_schedules_with_no_narration() {
     )
     .0;
     assert!(t.entries[0].narration.is_none());
-    assert_eq!(t.entries[0].duration_ms, 800);
+    assert_eq!(t.entries[0].duration_ms, SpanMs::of(800));
 }
 
 #[test]
 fn an_empty_program_produces_an_empty_timeline() {
     let t = schedule(&[], "s.md", "en", "0.1.0").0;
-    assert_eq!(t.duration_ms, 0);
+    assert_eq!(t.duration_ms, SpanMs::of(0));
     assert!(t.entries.is_empty());
 }
 
@@ -231,7 +243,7 @@ fn narration_only_shots_never_talk_over_each_other() {
         .entries
         .iter()
         .filter_map(|e| e.narration.as_ref())
-        .map(|n| (n.start_ms, n.start_ms + n.duration_ms))
+        .map(|n| (n.start_ms.ms(), (n.start_ms + n.duration_ms).ms()))
         .collect();
     assert_eq!(speech.len(), 3);
 
@@ -255,7 +267,7 @@ fn the_auto_transition_fills_the_quiet_window_exactly() {
     let (timeline, _) = schedule(&items, "tour.md", "en", "0.1.0");
 
     // tail 150 leaving the first item + lead_in 150 entering the second.
-    assert_eq!(timeline.entries[0].transition.duration_ms, 300);
+    assert_eq!(timeline.entries[0].transition.duration_ms, SpanMs::of(300));
 }
 
 /// A fixed duration is the author asking by name, so it is honoured — but a
@@ -270,7 +282,8 @@ fn a_fixed_transition_wider_than_the_quiet_window_warns() {
     let (timeline, warnings) = schedule(&items, "tour.md", "en", "0.1.0");
 
     assert_eq!(
-        timeline.entries[0].transition.duration_ms, 2000,
+        timeline.entries[0].transition.duration_ms,
+        SpanMs::of(2000),
         "honoured as written"
     );
     assert!(
@@ -344,9 +357,11 @@ fn a_transition_leaves_room_for_the_one_that_arrived_before_it() {
 
     assert!(
         into_b + out_of_b <= entries[1].duration_ms,
-        "b is {}ms and hosts {into_b}ms in and {out_of_b}ms out; the two \
+        "b is {}ms and hosts {}ms in and {}ms out; the two \
          transitions overlap each other",
-        entries[1].duration_ms
+        entries[1].duration_ms.ms(),
+        into_b.ms(),
+        out_of_b.ms()
     );
 }
 
@@ -376,7 +391,8 @@ fn an_action_of_unknown_length_fills_the_sentence_over_it() {
     // tail included — because the picture has to cover the silence either
     // side of the speech as well as the speech.
     assert_eq!(
-        action.duration_ms, 6_300,
+        action.duration_ms,
+        SpanMs::of(6_300),
         "an unknown-length action takes the slot the narration gives it, not zero"
     );
 }
@@ -400,7 +416,7 @@ fn a_cue_lands_on_the_word_not_a_lead_in_before_it() {
     let t = schedule(&[it], "s.md", "en", "0.1.0").0;
     assert_eq!(
         t.entries[0].action.as_ref().unwrap().start_ms,
-        lead_in + 1000
+        TimeMs::at(lead_in + 1000)
     );
 }
 
@@ -430,9 +446,12 @@ fn absurd_durations_saturate_rather_than_overflow() {
 
     for items in [vec![held, after.clone()], vec![cued, after]] {
         let (t, _) = schedule(&items, "s.md", "en", "0.1.0");
-        let starts: Vec<u64> = t.entries.iter().map(|e| e.start_ms).collect();
+        let starts: Vec<u64> = t.entries.iter().map(|e| e.start_ms.ms()).collect();
         assert!(starts.windows(2).all(|w| w[0] <= w[1]), "{starts:?}");
-        assert!(t.entries.iter().all(|e| e.start_ms <= t.duration_ms));
+        assert!(t
+            .entries
+            .iter()
+            .all(|e| e.start_ms <= TimeMs::ZERO + t.duration_ms));
     }
 }
 

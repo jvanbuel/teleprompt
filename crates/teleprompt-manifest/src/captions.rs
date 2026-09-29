@@ -34,7 +34,7 @@ fn line_cues(line: &LineEntry) -> Vec<Cue> {
         return Vec::new();
     }
     let starts = word_starts(line, &words);
-    let end = line.start_ms + line.duration_ms;
+    let end = (line.start_ms + line.duration_ms).ms();
     let parts = split(&words);
     parts
         .iter()
@@ -51,14 +51,17 @@ fn line_cues(line: &LineEntry) -> Vec<Cue> {
 /// are one per word, or spread by characters over the line otherwise.
 fn word_starts(line: &LineEntry, words: &[&str]) -> Vec<u64> {
     if let Some(timed) = line.words.as_ref().filter(|t| t.len() == words.len()) {
-        return timed.iter().map(|w| line.start_ms + w.start_ms).collect();
+        return timed
+            .iter()
+            .map(|w| line.start_ms.ms() + w.start_ms)
+            .collect();
     }
     let total: usize = words.iter().map(|w| width(w) + 1).sum();
     let mut before = 0;
     words
         .iter()
         .map(|w| {
-            let at = line.start_ms + line.duration_ms * before as u64 / total as u64;
+            let at = line.start_ms.ms() + line.duration_ms.ms() * before as u64 / total as u64;
             before += width(w) + 1;
             at
         })

@@ -100,7 +100,7 @@ pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
 
     // The whole rounding correction goes on the last chunk, a held frame,
     // so no other chunk's key depends on what came before it.
-    settle(&mut out, time::frames(plan.duration_ms, fps));
+    settle(&mut out, time::frames(plan.duration_ms.ms(), fps));
     Some(out)
 }
 

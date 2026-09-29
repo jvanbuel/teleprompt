@@ -46,7 +46,7 @@ pub fn build(
                     // At the tempo the line is played at.
                     let at = |ms: u64| {
                         n.tempo_permille
-                            .map_or(ms, |t| ms * 1000 / u64::from(t.max(1)))
+                            .map_or(ms, |t| ms * 1000 / u64::from(t.permille()))
                     };
                     ws.iter()
                         .map(|w| WordEntry {

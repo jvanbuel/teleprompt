@@ -8,7 +8,7 @@ use teleprompt_compile::{compile, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
-use teleprompt_core::{BlockId, Diagnostic, Diagnostics};
+use teleprompt_core::{BlockId, Diagnostic, Diagnostics, SpanMs};
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_scene::mock::MockScene;
 use teleprompt_scene::SceneRegistry;
@@ -63,7 +63,7 @@ fn compile_it(body: &str) -> Result<teleprompt_compile::CompileOutput, Diagnosti
 fn a_shot_under_a_sentence_takes_the_sentence() {
     let out = compile_it("One sentence. {#a}\n\n```teleprompt scene=s\nwait 1ms\n```\n")
         .expect("compiles");
-    assert!(out.timeline.entries[0].duration_ms > 0);
+    assert!(out.timeline.entries[0].duration_ms > SpanMs::of(0));
 }
 
 /// Before this was refused, the second shot was scheduled at 0 ms and

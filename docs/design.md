@@ -539,7 +539,10 @@ surface. A reviewer reads it, not the video, to see what a prose change did
 to the pacing. For each item it records start and duration, the policy,
 the line's hashes, the shot's scene, adapter, `shot_hash`,
 `capture_key` and duration source, and the transition. There are no
-timestamps and no floats, so the file is byte-stable.
+timestamps and no floats, so the file is byte-stable. In code, a start is
+a `TimeMs` and a duration a `SpanMs`, so one is never added to or passed
+for the other, and a `fit-line` tempo is a `Tempo`, which is never the
+1000‰ that means no change.
 
 ### Diff
 

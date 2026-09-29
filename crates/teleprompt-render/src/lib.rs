@@ -9,7 +9,7 @@ pub mod plan;
 
 use std::path::PathBuf;
 use teleprompt_core::config::TransitionKind;
-use teleprompt_core::{LineId, ShotId};
+use teleprompt_core::{LineId, ShotId, SpanMs, TimeMs};
 
 /// Every offset is already decided: a renderer does no scheduling, so a
 /// wrong number here was wrong in the manifest too.
@@ -18,7 +18,7 @@ pub struct RenderPlan {
     pub width: u32,
     pub height: u32,
     pub fps: u32,
-    pub duration_ms: u64,
+    pub duration_ms: SpanMs,
     pub shots: Vec<Shot>,
     pub narration: Vec<Narration>,
     pub output: PathBuf,
@@ -28,8 +28,8 @@ pub struct RenderPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Shot {
     pub id: ShotId,
-    pub start_ms: u64,
-    pub duration_ms: u64,
+    pub start_ms: TimeMs,
+    pub duration_ms: SpanMs,
     pub picture: Picture,
     /// The transition *out* of this shot. Only its kind is read: its length
     /// is how far the next shot's `start_ms` overlaps this one, so the
@@ -41,7 +41,7 @@ pub struct Shot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transition {
     pub kind: TransitionKind,
-    pub duration_ms: u64,
+    pub duration_ms: SpanMs,
 }
 
 impl Transition {
@@ -49,7 +49,7 @@ impl Transition {
     pub fn cut() -> Self {
         Self {
             kind: TransitionKind::Cut,
-            duration_ms: 0,
+            duration_ms: SpanMs::ZERO,
         }
     }
 }
@@ -71,7 +71,7 @@ pub enum Picture {
 pub struct Narration {
     pub id: LineId,
     pub path: PathBuf,
-    pub start_ms: u64,
+    pub start_ms: TimeMs,
 }
 
 /// A rendered file.

@@ -6,6 +6,7 @@
 //! struct in memory would not notice the day the two stop matching.
 
 use std::path::{Path, PathBuf};
+use teleprompt_core::{SpanMs, TimeMs};
 
 use teleprompt_manifest::NarrationManifest;
 use teleprompt_render::plan::{self, Inputs};
@@ -82,10 +83,10 @@ fn the_plan_places_narration_where_the_manifest_placed_it() {
     let dir = PathBuf::from("/project");
     let (plan, _) = plan::from_manifest(&manifest(), &inputs(&dir));
 
-    assert_eq!(plan.duration_ms, 4_300);
+    assert_eq!(plan.duration_ms, SpanMs::of(4_300));
     assert_eq!(plan.narration.len(), 1);
     assert_eq!(plan.narration[0].id, "welcome");
-    assert_eq!(plan.narration[0].start_ms, 150);
+    assert_eq!(plan.narration[0].start_ms, TimeMs::at(150));
     assert_eq!(
         plan.narration[0].path,
         dir.join("narration/en/audio/welcome.wav"),

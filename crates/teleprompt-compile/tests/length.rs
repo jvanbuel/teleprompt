@@ -71,7 +71,7 @@ fn a_video_within_its_length_says_nothing() {
 #[test]
 fn a_video_over_its_length_says_what_is_fixed_and_what_to_cut() {
     let total = compile_with(600_000).timeline.duration_ms;
-    let out = compile_with(total - 2000);
+    let out = compile_with(total.ms() - 2000);
     let w = out
         .warnings
         .iter()

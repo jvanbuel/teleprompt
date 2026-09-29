@@ -10,6 +10,7 @@
 
 use std::process::Command;
 use teleprompt_core::config::TransitionKind;
+use teleprompt_core::{SpanMs, TimeMs};
 
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::{Narration, Picture, RenderPlan, Shot, Transition};
@@ -45,19 +46,19 @@ fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
         width: 640,
         height: 360,
         fps: 24,
-        duration_ms: 3_000,
+        duration_ms: SpanMs::of(3_000),
         shots: vec![
             Shot {
                 id: "a#0".into(),
-                start_ms: 0,
-                duration_ms: 1_500,
+                start_ms: TimeMs::at(0),
+                duration_ms: SpanMs::of(1_500),
                 picture: Picture::Slate,
                 transition: Transition::cut(),
             },
             Shot {
                 id: "b#0".into(),
-                start_ms: 1_500,
-                duration_ms: 1_500,
+                start_ms: TimeMs::at(1_500),
+                duration_ms: SpanMs::of(1_500),
                 picture: Picture::Slate,
                 transition: Transition::cut(),
             },
@@ -65,7 +66,7 @@ fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
         narration: vec![Narration {
             id: "one".into(),
             path: tone(&dir, "one.wav", 800),
-            start_ms: 1_000,
+            start_ms: TimeMs::at(1_000),
         }],
         output: dir.join("out.mp4"),
     };
@@ -99,18 +100,18 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 4_000,
+        duration_ms: SpanMs::of(4_000),
         shots: vec![Shot {
             id: "only#0".into(),
-            start_ms: 0,
-            duration_ms: 4_000,
+            start_ms: TimeMs::at(0),
+            duration_ms: SpanMs::of(4_000),
             picture: Picture::Slate,
             transition: Transition::cut(),
         }],
         narration: vec![Narration {
             id: "late".into(),
             path: tone(&dir, "late.wav", 1_000),
-            start_ms: 2_000,
+            start_ms: TimeMs::at(2_000),
         }],
         output: dir.join("late.mp4"),
     };
@@ -143,18 +144,18 @@ fn a_gap_before_the_first_shot_is_held_rather_than_closed() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 3_000,
+        duration_ms: SpanMs::of(3_000),
         shots: vec![Shot {
             id: "late#0".into(),
-            start_ms: 500,
-            duration_ms: 1_000,
+            start_ms: TimeMs::at(500),
+            duration_ms: SpanMs::of(1_000),
             picture: Picture::Slate,
             transition: Transition::cut(),
         }],
         narration: vec![Narration {
             id: "one".into(),
             path: tone(&dir, "one.wav", 500),
-            start_ms: 500,
+            start_ms: TimeMs::at(500),
         }],
         output: dir.join("gap.mp4"),
     };
@@ -189,23 +190,23 @@ fn a_crossfade_overlaps_the_shots_it_joins() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 3_500,
+        duration_ms: SpanMs::of(3_500),
         shots: vec![
             Shot {
                 id: "a#0".into(),
-                start_ms: 0,
-                duration_ms: 2_000,
+                start_ms: TimeMs::at(0),
+                duration_ms: SpanMs::of(2_000),
                 picture: Picture::Slate,
                 transition: Transition {
                     kind: TransitionKind::Crossfade,
-                    duration_ms: 500,
+                    duration_ms: SpanMs::of(500),
                 },
             },
             Shot {
                 id: "b#0".into(),
                 // 2_000 - 500: the scheduler already subtracted the fade.
-                start_ms: 1_500,
-                duration_ms: 2_000,
+                start_ms: TimeMs::at(1_500),
+                duration_ms: SpanMs::of(2_000),
                 picture: Picture::Slate,
                 transition: Transition::cut(),
             },
@@ -239,12 +240,12 @@ fn a_plan_with_no_shots_at_all_still_renders_its_narration() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 2_000,
+        duration_ms: SpanMs::of(2_000),
         shots: vec![],
         narration: vec![Narration {
             id: "alone".into(),
             path: tone(&dir, "alone.wav", 1_000),
-            start_ms: 200,
+            start_ms: TimeMs::at(200),
         }],
         output: dir.join("prose.mp4"),
     };
@@ -271,19 +272,19 @@ fn a_shot_of_no_length_does_not_reach_the_graph() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 2_000,
+        duration_ms: SpanMs::of(2_000),
         shots: vec![
             Shot {
                 id: "empty#0".into(),
-                start_ms: 0,
-                duration_ms: 0,
+                start_ms: TimeMs::at(0),
+                duration_ms: SpanMs::of(0),
                 picture: Picture::Slate,
                 transition: Transition::cut(),
             },
             Shot {
                 id: "real#0".into(),
-                start_ms: 0,
-                duration_ms: 2_000,
+                start_ms: TimeMs::at(0),
+                duration_ms: SpanMs::of(2_000),
                 picture: Picture::Slate,
                 transition: Transition::cut(),
             },
@@ -335,19 +336,19 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 3_000,
+        duration_ms: SpanMs::of(3_000),
         shots: vec![
             Shot {
                 id: "short#0".into(),
-                start_ms: 0,
-                duration_ms: 2_000,
+                start_ms: TimeMs::at(0),
+                duration_ms: SpanMs::of(2_000),
                 picture: Picture::Clip(clip.clone()),
                 transition: Transition::cut(),
             },
             Shot {
                 id: "long#0".into(),
-                start_ms: 2_000,
-                duration_ms: 500,
+                start_ms: TimeMs::at(2_000),
+                duration_ms: SpanMs::of(500),
                 picture: Picture::Clip(clip),
                 transition: Transition::cut(),
             },
@@ -380,11 +381,11 @@ fn a_gap_after_a_shot_freezes_its_last_frame() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 6_000,
+        duration_ms: SpanMs::of(6_000),
         shots: vec![Shot {
             id: "only#0".into(),
-            start_ms: 0,
-            duration_ms: 1_000,
+            start_ms: TimeMs::at(0),
+            duration_ms: SpanMs::of(1_000),
             picture: Picture::Clip(bright_clip(&dir, "bright.mp4")),
             transition: Transition::cut(),
         }],
@@ -420,11 +421,11 @@ fn a_gap_before_the_first_shot_holds_its_first_frame() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 4_000,
+        duration_ms: SpanMs::of(4_000),
         shots: vec![Shot {
             id: "late#0".into(),
-            start_ms: 2_000,
-            duration_ms: 1_000,
+            start_ms: TimeMs::at(2_000),
+            duration_ms: SpanMs::of(1_000),
             picture: Picture::Clip(bright_clip(&dir, "bright.mp4")),
             transition: Transition::cut(),
         }],
@@ -459,20 +460,20 @@ fn dropping_an_empty_shot_does_not_drop_the_time_before_it() {
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms: 6_000,
+        duration_ms: SpanMs::of(6_000),
         shots: vec![
             Shot {
                 id: "real#0".into(),
-                start_ms: 0,
-                duration_ms: 1_000,
+                start_ms: TimeMs::at(0),
+                duration_ms: SpanMs::of(1_000),
                 picture: Picture::Clip(bright_clip(&dir, "bright.mp4")),
                 transition: Transition::cut(),
             },
             Shot {
                 id: "empty#0".into(),
                 // Three seconds of narration sit between the two.
-                start_ms: 4_000,
-                duration_ms: 0,
+                start_ms: TimeMs::at(4_000),
+                duration_ms: SpanMs::of(0),
                 picture: Picture::Slate,
                 transition: Transition::cut(),
             },

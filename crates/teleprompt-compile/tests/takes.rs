@@ -8,7 +8,7 @@ use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
-use teleprompt_core::DurationSource;
+use teleprompt_core::{DurationSource, SpanMs};
 use teleprompt_scene::SceneRegistry;
 use teleprompt_schedule::NarrationEntry;
 use teleprompt_voice::takes::Takes;
@@ -73,7 +73,7 @@ fn a_current_take_is_its_lines_voice_and_length() {
 
     let out = compiled(&takes);
     let welcome = line(&out, "welcome");
-    assert_eq!(welcome.duration_ms, 2345);
+    assert_eq!(welcome.duration_ms, SpanMs::of(2345));
     assert_eq!(welcome.duration_source, DurationSource::Measured);
     assert!(welcome.recorded);
     let deploy = line(&out, "deploy");

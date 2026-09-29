@@ -38,7 +38,7 @@ pub(crate) fn cues_of(
                 .find(|s| s.id == item.shot)
                 .map(|s| s.source.clone())
                 .unwrap_or_default(),
-            duration_ms: item.duration_ms,
+            duration_ms: item.duration_ms.ms(),
             settings: scenes
                 .get(&item.scene)
                 .map(|s| flatten(&s.settings))

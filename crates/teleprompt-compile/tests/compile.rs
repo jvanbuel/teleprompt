@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
-use teleprompt_core::DurationSource;
+use teleprompt_core::{DurationSource, SpanMs, TimeMs};
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
@@ -146,7 +146,7 @@ fn a_cold_narration_duration_comes_from_the_estimator() {
     let out = run(ONE_BEAT);
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
     // 6 words at 150 wpm = 2400ms, plus 350ms for the full stop
-    assert_eq!(n.duration_ms, 2750);
+    assert_eq!(n.duration_ms, SpanMs::of(2750));
     assert_eq!(n.duration_source, DurationSource::Estimated);
 }
 
@@ -155,7 +155,7 @@ fn action_duration_comes_from_the_scene_estimate() {
     let out = run(ONE_BEAT);
     assert_eq!(
         out.timeline.entries[0].action.as_ref().unwrap().duration_ms,
-        500
+        SpanMs::of(500)
     );
     assert_eq!(
         out.timeline.entries[0]
@@ -191,11 +191,11 @@ wait 300ms
     assert!(out.timeline.entries[1].narration.is_none());
     assert_eq!(
         out.timeline.entries[1].action.as_ref().unwrap().duration_ms,
-        200
+        SpanMs::of(200)
     );
     assert_eq!(
         out.timeline.entries[2].action.as_ref().unwrap().duration_ms,
-        300
+        SpanMs::of(300)
     );
 }
 
@@ -205,7 +205,7 @@ fn a_pause_directive_becomes_a_silent_shot() {
     let out = run(src);
     assert_eq!(out.timeline.entries.len(), 2);
     let p = &out.timeline.entries[1];
-    assert_eq!(p.duration_ms, 800);
+    assert_eq!(p.duration_ms, SpanMs::of(800));
     assert!(p.narration.is_none(), "a pause is silent");
     assert_eq!(p.action.as_ref().unwrap().scene, "pause");
 }
@@ -352,7 +352,7 @@ wait 400ms
     );
     assert_eq!(
         out.timeline.entries[1].action.as_ref().unwrap().duration_ms,
-        400
+        SpanMs::of(400)
     );
 }
 
@@ -407,7 +407,8 @@ fn a_lines_lead_in_survives_pairing_with_a_following_action_block() {
     let paired_n = paired.timeline.entries[0].narration.as_ref().unwrap();
 
     assert_eq!(
-        alone_n.start_ms, 1000,
+        alone_n.start_ms,
+        TimeMs::at(1000),
         "the line's own lead_in=1000ms places its narration"
     );
     assert_eq!(
@@ -419,8 +420,8 @@ fn a_lines_lead_in_survives_pairing_with_a_following_action_block() {
     // The item's own duration differs by exactly the action block's 100ms
     // under `hold`, and by nothing else: the 850ms that used to vanish with
     // the discarded lead-in is gone.
-    assert_eq!(alone.timeline.entries[0].duration_ms, 2700);
-    assert_eq!(paired.timeline.entries[0].duration_ms, 2800);
+    assert_eq!(alone.timeline.entries[0].duration_ms, SpanMs::of(2700));
+    assert_eq!(paired.timeline.entries[0].duration_ms, SpanMs::of(2800));
 }
 
 #[test]
@@ -545,7 +546,7 @@ One two three four five six.
         .as_ref()
         .unwrap()
         .duration_ms;
-    assert_eq!(measured.pcm.duration_ms(), published);
+    assert_eq!(measured.pcm.duration_ms(), published.ms());
 }
 
 #[test]
@@ -601,7 +602,8 @@ fn a_cold_cache_yields_estimated_durations() {
     // `a_cold_narration_duration_comes_from_the_estimator` pins for this exact
     // sentence.
     assert_eq!(
-        n.duration_ms, 2750,
+        n.duration_ms,
+        SpanMs::of(2750),
         "six words at 150 wpm, plus the full stop"
     );
 }
@@ -639,7 +641,8 @@ fn a_warm_cache_yields_measured_durations() {
     let n = warm.timeline.entries[0].narration.as_ref().unwrap();
     assert_eq!(n.duration_source, DurationSource::Measured);
     assert_eq!(
-        n.duration_ms, 5000,
+        n.duration_ms,
+        SpanMs::of(5000),
         "the cached audio's real length, not the estimate"
     );
 }
@@ -854,7 +857,8 @@ fn an_action_cued_to_a_phrase_starts_when_that_phrase_is_spoken() {
     // The phrase sits a little over halfway through the sentence, so the
     // action starts a little over halfway through the speech rather than
     // at its first word.
-    let fraction = (action.start_ms - narration.start_ms) as f64 / narration.duration_ms as f64;
+    let fraction =
+        (action.start_ms - narration.start_ms).ms() as f64 / narration.duration_ms.ms() as f64;
     assert!(
         (0.4..0.8).contains(&fraction),
         "cued {fraction:.2} of the way through, not near the phrase"
@@ -875,7 +879,8 @@ fn a_cue_after_non_ascii_text_starts_where_the_phrase_is_spoken() {
     let entry = &out.timeline.entries[0];
     let narration = entry.narration.as_ref().expect("the item is narrated");
     let action = entry.action.as_ref().expect("and has an action");
-    let fraction = (action.start_ms - narration.start_ms) as f64 / narration.duration_ms as f64;
+    let fraction =
+        (action.start_ms - narration.start_ms).ms() as f64 / narration.duration_ms.ms() as f64;
     assert!(
         (0.6..0.95).contains(&fraction),
         "cued {fraction:.2} of the way through, not near the phrase"

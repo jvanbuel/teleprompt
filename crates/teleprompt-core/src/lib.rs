@@ -21,3 +21,4 @@ pub use error::{Diagnostic, Diagnostics, Severity, SourceSpan};
 pub use hash::Hash;
 pub use id::{BlockId, ItemId, LineId, ShotId};
 pub use policy::PolicyKind;
+pub use time::{SpanMs, Tempo, TimeMs};

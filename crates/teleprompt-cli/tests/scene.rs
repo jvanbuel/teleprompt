@@ -9,6 +9,7 @@
 //! build that ships one.
 
 use teleprompt_cli::scene::scenes;
+use teleprompt_core::SpanMs;
 use teleprompt_scene::SceneCompiler;
 
 #[test]
@@ -102,13 +103,13 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     let adapter = registry.get("vhs").expect("this build ships vhs");
     assert_eq!(
         adapter.estimate(&shot),
-        Measured::Exact(entry.duration_ms),
+        Measured::Exact(entry.duration_ms.ms()),
         "the published tape should last exactly its slot:\n{}",
         published.source
     );
     assert!(
-        entry.duration_ms > 2_000,
+        entry.duration_ms > SpanMs::of(2_000),
         "the slot really was stretched: {}ms",
-        entry.duration_ms
+        entry.duration_ms.ms()
     );
 }

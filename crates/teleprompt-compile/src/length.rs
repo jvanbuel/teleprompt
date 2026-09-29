@@ -20,7 +20,7 @@ pub fn over_length(
     chapters: &[ChapterInfo],
     length_ms: u64,
 ) -> Option<String> {
-    let total = timeline.duration_ms;
+    let total = timeline.duration_ms.ms();
     let over = total.checked_sub(length_ms).filter(|&o| o > 0)?;
     let detail = |line: &str| narration.iter().find(|d| d.line_id == line);
 
@@ -34,14 +34,14 @@ pub fn over_length(
             chapter = d.chapter_index;
         }
         match by_chapter.last_mut() {
-            Some((c, ms)) if *c == chapter => *ms += e.duration_ms,
-            _ => by_chapter.push((chapter, e.duration_ms)),
+            Some((c, ms)) if *c == chapter => *ms += e.duration_ms.ms(),
+            _ => by_chapter.push((chapter, e.duration_ms.ms())),
         }
         if e.policy == PolicyKind::FitLine {
-            held_ms += e.duration_ms;
+            held_ms += e.duration_ms.ms();
             held.push(format!("`{}`", e.item));
         } else if let Some(n) = line {
-            spoken_ms += n.duration_ms;
+            spoken_ms += n.duration_ms.ms();
             words += detail(&n.line).map_or(0, |d| d.text.split_whitespace().count());
         }
     }

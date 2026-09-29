@@ -10,6 +10,7 @@
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use teleprompt_core::config::TransitionKind;
+use teleprompt_core::{SpanMs, TimeMs};
 
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::{Narration, Picture, RenderPlan, Shot, Transition};
@@ -46,14 +47,14 @@ fn plan(dir: &Path, clip: &Path, shots: &[(u64, u64)], duration_ms: u64) -> Rend
         width: 320,
         height: 180,
         fps: 24,
-        duration_ms,
+        duration_ms: SpanMs::of(duration_ms),
         shots: shots
             .iter()
             .enumerate()
             .map(|(i, (start_ms, duration_ms))| Shot {
                 id: format!("b{i}#0").into(),
-                start_ms: *start_ms,
-                duration_ms: *duration_ms,
+                start_ms: TimeMs::at(*start_ms),
+                duration_ms: SpanMs::of(*duration_ms),
                 picture: Picture::Clip(clip.to_path_buf()),
                 transition: Transition::cut(),
             })
@@ -158,7 +159,7 @@ fn narration_lands_where_it_was_placed_through_the_concat() {
     plan.narration = vec![Narration {
         id: "late".into(),
         path: support::tone(&dir, "late.wav", 1_000),
-        start_ms: 2_000,
+        start_ms: TimeMs::at(2_000),
     }];
 
     renderer(&dir.join("cache"))
@@ -194,7 +195,7 @@ fn the_rendered_file_carries_a_track_a_player_expects() {
     plan.narration = vec![Narration {
         id: "line".into(),
         path: support::tone(&dir, "line.wav", 1_000),
-        start_ms: 0,
+        start_ms: TimeMs::at(0),
     }];
 
     renderer(&dir.join("cache"))
@@ -310,7 +311,7 @@ fn a_crossfade_survives_being_a_chunk_of_its_own() {
     let mut plan = plan(&dir, &clip, &[(0, 2_000), (1_500, 2_000)], 3_500);
     plan.shots[0].transition = Transition {
         kind: TransitionKind::Crossfade,
-        duration_ms: 500,
+        duration_ms: SpanMs::of(500),
     };
 
     let rendered = renderer(&dir.join("cache"))
@@ -361,7 +362,7 @@ fn a_plan_that_cannot_be_cut_is_reported_rather_than_rerouted() {
     for shot in &mut plan.shots {
         shot.transition = Transition {
             kind: TransitionKind::Crossfade,
-            duration_ms: 400,
+            duration_ms: SpanMs::of(400),
         };
     }
 
