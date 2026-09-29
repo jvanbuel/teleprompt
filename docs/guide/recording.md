@@ -5,7 +5,7 @@ or a browser, talk about what you're doing while you do it, and let
 teleprompt turn that into a script.
 
 ```bash
-teleprompt record scripts/tour.md --model path/to/model
+teleprompt record scripts/tour.md
 ```
 
 `record` hands the recording to a tool you already use, and records the
@@ -66,14 +66,13 @@ with [`prompt`](prompter.md). Editing the recording, or where a block's
 - A build with the recognizer and a speech model, set up as for
   [`prompt`](prompter.md#setting-it-up).
 - The tool you record with: [asciinema](https://asciinema.org) 2 or 3,
-  [VHS](https://github.com/charmbracelet/vhs), or Playwright (`npm install
-  playwright`, found with `npx`).
-- Optionally, sherpa-onnx's punctuation model (36 MB), for `--punctuation`:
-
-  ```bash
-  curl -LO https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2
-  tar xjf sherpa-onnx-online-punct-en-2024-08-06.tar.bz2
-  ```
+  [VHS](https://github.com/charmbracelet/vhs), or Playwright (found with
+  `npx`). `teleprompt setup asciinema` (or `vhs`, `playwright`) says what is
+  missing and how to install it.
+- Optionally, sherpa-onnx's punctuation model (36 MB), which gives the
+  narration capitals and punctuation: `teleprompt setup punctuation-model
+  --run` installs it where `record` and `import` find it, or pass one with
+  `--punctuation`.
 - ffmpeg, which records the microphone. By default it uses the system's
   default input (PulseAudio on Linux, AVFoundation on macOS). Pass another
   as ffmpeg's input arguments with `--mic`, for example
@@ -85,7 +84,7 @@ terminal and offers the tools that are installed, Ctrl+Shift+Space starts
 and stops recording, and the draft opens in the prompter when you stop.
 
 To record a terminal tool with something other than your shell, put it
-after `--`: `teleprompt record scripts/tour.md --model … -- bash --norc`.
+after `--`: `teleprompt record scripts/tour.md -- bash --norc`.
 To start a browser on a page, pass `--url`.
 
 ## From a recording you already have
@@ -95,7 +94,7 @@ your voice:
 
 ```bash
 asciinema rec --stdin session.cast   # asciinema 3: --capture-input
-teleprompt import session.cast --voice voice.wav --model path/to/model
+teleprompt import session.cast --voice voice.wav
 ```
 
 The tool is told by the extension (`.cast`, `.tape`), or name it with

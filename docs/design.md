@@ -758,9 +758,13 @@ a video needs comes in three tiers.
    `ffmpeg` builds are GPL, and Remotion needs a company license past a
    team's size. Teleprompt runs the copy the author installed, as a
    separate program, and links none of them. `doctor` says which are
-   missing, and `teleprompt setup <tool>` says how to install each with the
-   author's own package manager, and its license, and runs that command
-   when asked. **No release artifact, whether binary, app bundle, installer
+   missing, and `teleprompt setup <adapter or tool>` says how to install
+   each with the author's own package manager, and its license, and runs
+   that command when asked (`--run`). Models go in
+   `$TELEPROMPT_MODELS`, by default `teleprompt/models` in the user's data
+   directory, where `prompt`, `record` and `import` look when no
+   `--model` is given. What the author's own project holds, a Remotion
+   project or a Kokoro server, `setup` explains rather than installs. **No release artifact, whether binary, app bundle, installer
    or container image, includes a tool.** One that did would take on the
    tool's license: a deliberate choice, made in this document first.
 3. **Community plugins, not yet built.** Adapters and voices of other

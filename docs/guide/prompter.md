@@ -22,21 +22,23 @@ The recognizer is opt-in, because it downloads a native library (about
 cargo install --path crates/teleprompt-cli --features listen
 ```
 
-teleprompt downloads nothing when it runs, so fetch the speech model once and
-unpack it anywhere:
+It also needs a speech model, which teleprompt downloads only when you ask:
 
 ```bash
-curl -LO https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2
-tar xjf sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2
+teleprompt setup speech-model --run
 ```
 
-That is sherpa-onnx's streaming English model. The smaller 20M model is
-cheaper but misses the first words of a take.
+That is sherpa-onnx's streaming English model (Apache-2.0), unpacked into
+`~/.local/share/teleprompt/models` (or `$TELEPROMPT_MODELS`), where
+`prompt`, `record` and `import` find it. Without `--run`, `setup` prints the
+command instead. To keep a model elsewhere, download and unpack it yourself
+and pass its directory with `--model`. The smaller 20M model is cheaper but
+misses the first words of a take.
 
 ## Reading
 
 ```bash
-teleprompt prompt scripts/tour.md --model path/to/sherpa-onnx-streaming-zipformer-en-2023-06-26
+teleprompt prompt scripts/tour.md
 ```
 
 Open the address it prints, press Ctrl+Shift+Space (⌘⇧Space on a Mac) to

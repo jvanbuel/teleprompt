@@ -53,8 +53,8 @@ pub fn run_prompt(
 ) -> Result<(), PromptError> {
     let dir = model.ok_or_else(|| {
         PromptError::Runtime(format!(
-            "`prompt` needs a speech model: download and unpack {MODEL}, \
-             then pass its directory with --model"
+            "`prompt` needs a speech model: `teleprompt setup speech-model` installs \
+             one, or download and unpack {MODEL} and pass its directory with --model"
         ))
     })?;
     let recognizer =

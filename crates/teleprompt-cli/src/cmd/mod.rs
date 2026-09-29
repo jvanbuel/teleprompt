@@ -14,4 +14,5 @@ pub mod prompt;
 #[cfg(unix)]
 pub mod record;
 pub mod serve;
+pub mod setup;
 pub mod translate;

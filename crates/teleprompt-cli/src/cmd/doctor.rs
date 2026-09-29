@@ -41,6 +41,8 @@ pub struct CaptureBackendStatus {
     pub adapter: String,
     /// Why it cannot run here, or `null` when it can.
     pub unavailable: Option<String>,
+    /// The command that says how to install what it needs, when it cannot.
+    pub fix: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -140,7 +142,7 @@ pub async fn doctor_report_with(
             "an item whose scene nothing here can record holds its slot with a slate; \
              `capture` says which."
                 .to_string(),
-            "no external runtime ships with teleprompt: Node, Playwright, Remotion, Slidev and agg are needed only to capture the scenes that use them."
+            "no external tool ships with teleprompt: each is under its own license, and needed only by what uses it. `teleprompt setup` says which are here, their licenses, and how to install the rest."
                 .to_string(),
             // No sample rate: `VoiceCapabilities` carries none, and only the
             // audio a backend produces can say.
@@ -212,7 +214,12 @@ impl DoctorReport {
                     .iter()
                     .map(|b| match &b.unavailable {
                         None => format!("{} ({})", b.id, b.adapter),
-                        Some(why) => format!("{} ({}) — {why}", b.id, b.adapter),
+                        Some(why) => format!(
+                            "{} ({}) — {why}; `{}`",
+                            b.id,
+                            b.adapter,
+                            b.fix.as_deref().unwrap_or("teleprompt setup")
+                        ),
                     })
                     .collect::<Vec<_>>()
                     .join(", ")
@@ -243,9 +250,9 @@ impl DoctorReport {
         ));
         out.push_str(&format!(
             "  ffmpeg           {}\n",
-            self.ffmpeg
-                .as_deref()
-                .unwrap_or("not found — `build` cannot render without it")
+            self.ffmpeg.as_deref().unwrap_or(
+                "not found — `build` cannot render without it; `teleprompt setup ffmpeg`"
+            )
         ));
         for p in &self.problems {
             out.push_str(&format!("  problem          {p}\n"));
@@ -262,10 +269,16 @@ fn capture_backends() -> Vec<CaptureBackendStatus> {
     let registry = crate::scene::captures();
     registry
         .backends()
-        .map(|b| CaptureBackendStatus {
-            id: b.adapter().to_string(),
-            adapter: b.adapter().to_string(),
-            unavailable: b.unavailable(),
+        .map(|b| {
+            let unavailable = b.unavailable();
+            CaptureBackendStatus {
+                id: b.adapter().to_string(),
+                adapter: b.adapter().to_string(),
+                fix: unavailable
+                    .as_ref()
+                    .map(|_| format!("teleprompt setup {}", b.adapter())),
+                unavailable,
+            }
         })
         .collect()
 }

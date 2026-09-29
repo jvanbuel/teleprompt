@@ -85,6 +85,7 @@ opens on the item you just changed, and `build` renders the video.
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |
 | `doctor` | report the environment teleprompt can see |
+| `setup [adapter or tool…]` | say which tools and models are installed, their licenses, and how to install the rest; `--run` installs them |
 | `cache` | report what the project's caches hold, or shrink them |
 
 Every command accepts `--format json`. Exit codes are `0` for success, `1`

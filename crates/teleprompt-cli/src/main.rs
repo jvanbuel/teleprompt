@@ -15,6 +15,7 @@ use teleprompt_cli::cmd::import::{self, Import, Words};
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
 use teleprompt_cli::cmd::serve;
+use teleprompt_cli::cmd::setup;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
 use teleprompt_render::Progress;
@@ -66,8 +67,9 @@ struct RecordArgs {
     /// installed
     #[arg(long)]
     tools: bool,
-    /// Directory of an unpacked sherpa-onnx streaming zipformer model
-    #[arg(long, required_unless_present = "tools")]
+    /// Directory of an unpacked sherpa-onnx streaming zipformer model;
+    /// defaults to the one `teleprompt setup speech-model` installed
+    #[arg(long)]
     model: Option<PathBuf>,
     /// Directory of an unpacked sherpa-onnx punctuation model, to give the
     /// narration capitals and punctuation
@@ -114,8 +116,9 @@ struct ImportArgs {
     /// project
     #[arg(long)]
     out: Option<PathBuf>,
-    /// Directory of an unpacked sherpa-onnx streaming zipformer model
-    #[arg(long, required_unless_present = "words")]
+    /// Directory of an unpacked sherpa-onnx streaming zipformer model;
+    /// defaults to the one `teleprompt setup speech-model` installed
+    #[arg(long)]
     model: Option<PathBuf>,
     /// Timed words as JSON ([{text, start_ms, end_ms}]) instead of --model
     #[arg(long, conflicts_with = "model")]
@@ -183,6 +186,18 @@ enum Command {
     New { path: PathBuf },
     /// Report the environment teleprompt can see
     Doctor,
+    /// Find, or install, the tools adapters run and the models backends read
+    ///
+    /// Teleprompt ships none of them: each is under its own license, which
+    /// this says, and installed with your own package manager. Name
+    /// adapters (vhs, playwright…) or tools (ffmpeg, speech-model…), or
+    /// nothing for all of them. Prints the commands unless --run.
+    Setup {
+        names: Vec<String>,
+        /// Run the commands that install what is missing
+        #[arg(long)]
+        run: bool,
+    },
     /// Report what the project's caches hold, or shrink them
     ///
     /// Narration and encoded video are both entirely derived: every entry
@@ -304,7 +319,8 @@ enum Command {
         /// Port to listen on; 0 picks a free one
         #[arg(long, default_value_t = 7879)]
         port: u16,
-        /// Directory of an unpacked sherpa-onnx streaming zipformer model
+        /// Directory of an unpacked sherpa-onnx streaming zipformer model;
+        /// defaults to the one `teleprompt setup speech-model` installed
         #[arg(long)]
         model: Option<std::path::PathBuf>,
     },
@@ -445,6 +461,19 @@ fn print_errors(errors: &[String]) {
 /// [`fail`] reports in the format asked for.
 type Run = Result<Outcome, Outcome>;
 
+fn run_setup(format: Format, names: &[String], run: bool) -> Result<Outcome, Outcome> {
+    let tools = setup::resolve(names).map_err(runtime_failure)?;
+    let setup = setup::Setup::detect();
+    let ran = if run {
+        setup.install(&tools).map_err(runtime_failure)?
+    } else {
+        Vec::new()
+    };
+    let report = setup.report(&tools, ran);
+    emit(format, &report, &report.render(names));
+    Ok(Outcome::Ok)
+}
+
 fn runtime_failure(e: impl ToString) -> Outcome {
     Outcome::RuntimeFailure(e.to_string())
 }
@@ -481,9 +510,11 @@ fn run_record(format: Format, args: RecordArgs) -> Run {
         emit(format, &tools, &human);
         return Ok(Outcome::Ok);
     }
-    let (Some(script), Some(model)) = (&args.script, &args.model) else {
-        unreachable!("clap requires both without --tools");
+    let Some(script) = &args.script else {
+        unreachable!("clap requires it without --tools");
     };
+    let model = &setup::speech_model(args.model.as_deref()).map_err(runtime_failure)?;
+    let punctuation = setup::punctuation_model(args.punctuation.as_deref());
     let mic = args.mic.as_deref().map_or_else(Vec::new, |m| {
         m.split_whitespace().map(str::to_string).collect()
     });
@@ -491,7 +522,7 @@ fn run_record(format: Format, args: RecordArgs) -> Run {
         script,
         with: args.with.as_deref(),
         model,
-        punctuation: args.punctuation.as_deref(),
+        punctuation: punctuation.as_deref(),
         mic,
         shell: args.shell,
         url: args.url.as_deref(),
@@ -539,11 +570,15 @@ fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
         Some(out) => out,
         None => default_import_script(&args.recording)?,
     };
-    let words = match (&args.words, &args.model) {
-        (Some(path), _) => Words::File(path),
-        (None, Some(dir)) => Words::Model(dir),
-        (None, None) => unreachable!("clap requires one"),
+    let model;
+    let words = match &args.words {
+        Some(path) => Words::File(path),
+        None => {
+            model = setup::speech_model(args.model.as_deref()).map_err(runtime_failure)?;
+            Words::Model(&model)
+        }
     };
+    let punctuation = setup::punctuation_model(args.punctuation.as_deref());
     let report = import::run_import(&Import {
         recording: &args.recording,
         with: args.with.as_deref(),
@@ -551,7 +586,7 @@ fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
         script: &script,
         words,
         offset_ms: args.offset_ms,
-        punctuation: args.punctuation.as_deref(),
+        punctuation: punctuation.as_deref(),
         force: args.force,
     })
     .map_err(Outcome::RuntimeFailure)?;
@@ -641,6 +676,7 @@ fn run(command: Command, format: Format) -> Run {
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }
+        Command::Setup { names, run } => run_setup(format, &names, run),
         Command::Check(args) => run_check(format, &args),
         Command::Plan(args) => run_plan(format, &args),
         Command::Diff { args, exit_code } => {
@@ -661,7 +697,7 @@ fn run(command: Command, format: Format) -> Run {
                 &args.script,
                 &args.locale,
                 port,
-                model.as_deref(),
+                model.or_else(|| setup::speech_model(None).ok()).as_deref(),
                 format,
             )?;
             Ok(Outcome::Ok)
