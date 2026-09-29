@@ -2079,7 +2079,7 @@ impl Widgets {
             .spacing(10)
             .halign(gtk::Align::Center)
             .build();
-        if let Some(mark) = picture(include_bytes!("../../../icons/teleprompt@3x.png"), 22) {
+        if let Some(mark) = picture(include_bytes!("../../../icons/teleprompt@3x.png"), 28) {
             title.append(&mark);
             // The welcome page shows the whole logo already.
             let beside_logo =

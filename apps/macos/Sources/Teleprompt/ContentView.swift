@@ -36,7 +36,7 @@ struct ContentView: View {
                     if let mark = Theme.mark {
                         Image(nsImage: mark)
                             .resizable()
-                            .frame(width: 20, height: 20)
+                            .frame(width: 26, height: 26)
                             .accessibilityHidden(true)
                     }
                     VStack(spacing: 0) {
