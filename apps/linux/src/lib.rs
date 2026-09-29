@@ -7,6 +7,7 @@ pub mod api;
 pub mod launch;
 pub mod make;
 pub mod mic;
+pub mod models;
 pub mod retake;
 pub mod ribbons;
 pub mod said;

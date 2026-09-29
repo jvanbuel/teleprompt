@@ -58,6 +58,10 @@ enum Event {
     Made(u64, Result<Option<PathBuf>, String>),
 }
 
+/// What the prompter needs that it does not have, and how to get it.
+const NO_MODEL: &str = "Set the teleprompt binary in Settings (Ctrl+,), and install a speech \
+                        model with `teleprompt setup speech-model --run` or choose one there.";
+
 pub struct Window {
     pub window: adw::ApplicationWindow,
     w: Widgets,
@@ -379,9 +383,7 @@ impl Window {
             };
             let (Some(binary), Some(speech)) = (model.config.binary(), model.config.model()) else {
                 drop(model);
-                return self.show_failed(&[
-                    "Set the teleprompt binary and the speech model in Settings (Ctrl+,).".into(),
-                ]);
+                return self.show_failed(&[NO_MODEL.into()]);
             };
             (
                 super::session::record_argv(
@@ -389,7 +391,7 @@ impl Window {
                     &session.script,
                     self.w.session.chosen().as_deref(),
                     &speech,
-                    model.config.punctuation.as_deref(),
+                    model.config.punctuation().as_deref(),
                 ),
                 super::session::project_dir(&session.script),
             )
@@ -582,9 +584,7 @@ impl Window {
         model.config.save();
         let (Some(binary), Some(speech)) = (model.config.binary(), model.config.model()) else {
             drop(model);
-            return self.show_failed(&[
-                "Set the teleprompt binary and the speech model in Settings (Ctrl+,).".into(),
-            ]);
+            return self.show_failed(&[NO_MODEL.into()]);
         };
         let request = LaunchRequest {
             binary,

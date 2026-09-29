@@ -163,7 +163,7 @@ fn choose_draft(window: &Rc<Window>) {
 fn settings(window: &Rc<Window>) {
     let config = window.config();
     let group = adw::PreferencesGroup::builder()
-        .description("teleprompt built with --features listen, and an unpacked sherpa-onnx streaming zipformer.")
+        .description("teleprompt built with --features listen, and an unpacked sherpa-onnx streaming zipformer. `teleprompt setup speech-model --run` installs one where the app finds it.")
         .build();
     let binary = path_row(
         window,
@@ -182,7 +182,7 @@ fn settings(window: &Rc<Window>) {
     let punctuation = path_row(
         window,
         "Punctuation model (optional)",
-        config.punctuation.as_deref(),
+        config.punctuation().as_deref(),
         true,
         |c, p| c.punctuation = Some(p),
     );

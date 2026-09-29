@@ -11,8 +11,8 @@ prompter API (`docs/design.md#prompter-api-version-1`). It needs:
 
 - `teleprompt` built with the speech recognizer:
   `cargo install --path crates/teleprompt-cli --features listen`
-- a speech model: download and unpack
-  [sherpa-onnx-streaming-zipformer-en-2023-06-26](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2)
+- a speech model: `teleprompt setup speech-model --run` installs
+  sherpa-onnx's streaming English model where the app finds it
 - GTK 4.14, libadwaita 1.5, VTE for GTK 4 (session mode's terminal),
   GStreamer with the plugins to play the captured clips, and ffmpeg (a
   session's microphone). On Ubuntu 24.04:
@@ -22,8 +22,10 @@ prompter API (`docs/design.md#prompter-api-version-1`). It needs:
         libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good \
         gstreamer1.0-libav libgtk-4-media-gstreamer
 
-Set the binary and the model in Settings (Ctrl+,) the first time, or with
-`TELEPROMPT_BIN` and `TELEPROMPT_MODEL`, which override the settings.
+Set the binary in Settings (Ctrl+,) the first time if it isn't where
+`cargo install` puts it. The model is the one `teleprompt setup` installed
+unless Settings names another. `TELEPROMPT_BIN` and `TELEPROMPT_MODEL`
+override both.
 
 ## Build and run
 
@@ -120,8 +122,9 @@ Ctrl+Shift+Space starts and stops recording in both modes. It isn't typed
 into the terminal, and it isn't a desktop shortcut the way Ctrl+Space
 (switching input source) is.
 
-Set a punctuation model in Settings to give the draft sentences (see
-`docs/guide/recording.md`). The microphone is the system's default
+A punctuation model gives the draft sentences: `teleprompt setup
+punctuation-model --run` installs one the app uses, or choose one in
+Settings (see `docs/guide/recording.md`). The microphone is the system's default
 input, or ffmpeg's input in `TELEPROMPT_RECORD_MIC`. The server
 stops with the app, even if the app is killed. The look is described in
 `apps/DESIGN.md`.
