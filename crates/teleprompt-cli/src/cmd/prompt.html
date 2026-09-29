@@ -28,15 +28,17 @@
   html, body { height: 100%; margin: 0; }
   body {
     background: var(--chrome); color: var(--ink); font: 500 15px/1.4 var(--face);
-    display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr); overflow: hidden;
   }
   button { font: inherit; color: inherit; }
 
   header {
-    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    display: grid; grid-template-columns: 1fr minmax(0, auto) 1fr; align-items: center; gap: 12px;
     padding: 10px 14px; border-bottom: 1px solid var(--line);
   }
-  #title { text-align: center; font-weight: 700; }
+  #title { text-align: center; font-weight: 700; min-width: 0;
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #record {
     justify-self: end; display: inline-flex; align-items: center; gap: 8px;
     padding: 6px 16px; border: 0; border-radius: 999px; background: var(--tally);
@@ -47,8 +49,8 @@
   #record.keep::before { border-radius: 1px; }
   #record:focus-visible, .line:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 
-  main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
-  body.no-monitor main { grid-template-columns: 1fr; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 0; }
+  body.no-monitor main { grid-template-columns: minmax(0, 1fr); }
   body.no-monitor #monitor { display: none; }
 
   /* The glass. */
@@ -174,6 +176,26 @@
   }
   #review button.suggested { background: var(--ink); color: #000; border-color: var(--ink); }
   @media (prefers-reduced-motion: reduce) { #toast, #meter > div { transition: none; } }
+
+  /* A tablet or phone as the prompter: the monitor goes under the glass,
+     small, and the keys, which it has none of, go. Record stays in reach. */
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+    #monitor { border-left: 0; border-top: 1px solid var(--line); padding: 10px 14px;
+               display: grid; grid-template-columns: minmax(0, 160px) minmax(0, 1fr); gap: 4px 14px; }
+    #screen { grid-row: span 2; border-radius: 6px; }
+    #caption { margin-top: 0; }
+    #monitor h2, #rundown { display: none; }
+  }
+  @media (max-width: 700px) {
+    :root { --size: 32px; }
+    #script { padding-right: 16px; }
+    .line { grid-template-columns: 48px 1fr; }
+    .gutter { padding-right: 14px; }
+    #keys { display: none; }
+    #status { white-space: normal; }
+    #countdown { font-size: 120px; }
+  }
 </style>
 </head>
 <body>
@@ -247,6 +269,11 @@ function status(text, bad = false) {
 
 /** Starts and stops recording: ⌘⇧Space on a Mac, Ctrl+Shift+Space elsewhere. */
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+// What to do first, in the terms of the device: a phone has no keys.
+const READY = matchMedia("(pointer: coarse)").matches
+  ? "Tap Record to read from here, or tap a line"
+  : `Press ${MAC ? "⌘⇧Space" : "Ctrl+Shift+Space"} to record from here, or click a line`;
+
 const RECORD_KEY = MAC ? "⌘ ⇧ Space" : "Ctrl ⇧ Space";
 
 /** The keys that matter now, as keycaps. */
@@ -623,7 +650,7 @@ async function take(from = 0) {
 function keep() {
   if (counting) {
     counting = false;
-    status(`Press ${MAC ? "⌘⇧Space" : "Ctrl+Shift+Space"} to record from here, or click a line`);
+    status(READY);
     return keys();
   }
   if (!ws || !(listening || paused)) return;
@@ -712,7 +739,7 @@ addEventListener("resize", margins);
 margins();
 loadScript().then(() => {
   offerSaid();
-  status(`Press ${MAC ? "⌘⇧Space" : "Ctrl+Shift+Space"} to record from here, or click a line`);
+  status(READY);
   keys();
 });
 </script>
