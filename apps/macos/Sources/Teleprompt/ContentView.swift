@@ -30,13 +30,23 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                VStack(spacing: 0) {
-                    Text(model.scriptName.isEmpty ? "Teleprompt" : model.scriptName)
-                        .font(Theme.face(13, .bold))
-                    if !model.projectName.isEmpty {
-                        Text(model.projectName)
-                            .font(Theme.face(11))
-                            .foregroundStyle(Theme.ink.opacity(0.5))
+                // The app's mark beside the script's name: in the chrome,
+                // never on the glass, where it would show in the reflection.
+                HStack(spacing: 8) {
+                    if let mark = Theme.mark {
+                        Image(nsImage: mark)
+                            .resizable()
+                            .frame(width: 20, height: 20)
+                            .accessibilityHidden(true)
+                    }
+                    VStack(spacing: 0) {
+                        Text(model.scriptName.isEmpty ? "Teleprompt" : model.scriptName)
+                            .font(Theme.face(13, .bold))
+                        if !model.projectName.isEmpty {
+                            Text(model.projectName)
+                                .font(Theme.face(11))
+                                .foregroundStyle(Theme.ink.opacity(0.5))
+                        }
                     }
                 }
             }

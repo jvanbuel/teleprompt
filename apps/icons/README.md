@@ -20,3 +20,8 @@ an SVG loader. Render it again when the lockup changes:
 
     rsvg-convert -w 2055 -h 384 teleprompt-lockup-dark.svg \
       -o teleprompt-lockup-dark@3x.png
+
+`teleprompt@3x.png` is the icon the same way, for the mark beside the
+script's name in the apps' title bars:
+
+    rsvg-convert -w 96 -h 96 teleprompt.svg -o teleprompt@3x.png

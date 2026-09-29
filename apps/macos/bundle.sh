@@ -11,7 +11,7 @@ mkdir -p "$app/Contents/MacOS"
 cp "$bin/Teleprompt" "$app/Contents/MacOS/Teleprompt"
 mkdir -p "$app/Contents/Resources/Fonts"
 cp ../fonts/*.ttf "$app/Contents/Resources/Fonts/"
-cp ../icons/teleprompt-lockup-dark@3x.png "$app/Contents/Resources/"
+cp ../icons/teleprompt-lockup-dark@3x.png ../icons/teleprompt@3x.png "$app/Contents/Resources/"
 iconutil -c icns AppIcon.iconset -o "$app/Contents/Resources/AppIcon.icns"
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

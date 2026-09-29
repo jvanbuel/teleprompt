@@ -46,7 +46,11 @@
     background: transparent; border: 1px solid var(--line); color: var(--ink); font-weight: 700;
   }
   #tools button[aria-pressed="true"] { background: var(--raised); }
-  #title { text-align: center; font-weight: 700; min-width: 0;
+  /* The app's mark beside the script's name: in the chrome, never on the
+     glass, where it would show in the reflection. */
+  #brand { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
+  #brand img { width: 22px; height: 22px; flex: none; }
+  #title { font-weight: 700; min-width: 0;
            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #record {
     justify-self: end; display: inline-flex; align-items: center; gap: 8px;
@@ -231,6 +235,8 @@
     #monitor h2, #rundown { display: none; }
   }
   @media (max-width: 700px) {
+    /* Too narrow for both: the script's name wins. */
+    #brand img { display: none; }
     :root { --size: 32px; }
     header { grid-template-columns: auto minmax(0, 1fr) auto; padding: 8px 10px; }
     #script { padding-right: 16px; }
@@ -250,7 +256,7 @@
     <button id="mirror" title="Mirror the text, for beam-splitter glass (M)" aria-pressed="false">Mirror</button>
     <button id="keys-help" title="Keys (?)" aria-label="Keys">?</button>
   </span>
-  <span id="title">Teleprompt</span>
+  <span id="brand"><img src="/icon.svg" alt=""><span id="title">Teleprompt</span></span>
   <button id="record" title="Record from the line you are on">Record</button>
 </header>
 <main>

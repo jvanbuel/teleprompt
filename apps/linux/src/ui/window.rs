@@ -1780,6 +1780,34 @@ impl Window {
     }
 }
 
+/// A PNG from `apps/icons`, drawn at three times its size so it stays
+/// sharp on a scaled screen, shown `height` pixels tall. PNG because GTK
+/// decodes it itself, where SVG needs a loader not every desktop has.
+fn picture(png: &'static [u8], height: i32) -> Option<gtk::Widget> {
+    let texture = gtk::gdk::Texture::from_bytes(&glib::Bytes::from_static(png)).ok()?;
+    let width = height * texture.width() / texture.height();
+    let picture = gtk::Picture::builder()
+        .paintable(&texture)
+        .can_shrink(true)
+        .content_fit(gtk::ContentFit::Contain)
+        .halign(gtk::Align::Start)
+        .alternative_text("Teleprompt")
+        .build();
+    picture.set_size_request(width, height);
+    // A picture asks for its texture's full width; the clamp holds it to
+    // the size it is drawn at.
+    Some(
+        adw::Clamp::builder()
+            .maximum_size(width)
+            .tightening_threshold(width)
+            .halign(gtk::Align::Start)
+            .valign(gtk::Align::Center)
+            .child(&picture)
+            .build()
+            .upcast(),
+    )
+}
+
 fn file_name(path: &std::path::Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -1944,40 +1972,18 @@ impl Widgets {
 
     /// A slice of the glass, to show what the prompter does before a
     /// script is open: the reading line, what is said, the next word.
-    /// The logo beside the name, `apps/icons`, drawn from a PNG at three
-    /// times its size: GTK decodes PNG itself, where SVG needs a loader
-    /// not every desktop has. The name alone if it cannot be read.
+    /// The logo beside the name, `apps/icons`, or the name alone if the
+    /// image cannot be read.
     fn lockup() -> gtk::Widget {
-        const HEIGHT: i32 = 64;
         let png = include_bytes!("../../../icons/teleprompt-lockup-dark@3x.png");
-        match gtk::gdk::Texture::from_bytes(&glib::Bytes::from_static(png)) {
-            Ok(texture) => {
-                let width = HEIGHT * texture.width() / texture.height();
-                let picture = gtk::Picture::builder()
-                    .paintable(&texture)
-                    .can_shrink(true)
-                    .content_fit(gtk::ContentFit::Contain)
-                    .halign(gtk::Align::Start)
-                    .alternative_text("Teleprompt")
-                    .build();
-                picture.set_size_request(width, HEIGHT);
-                // A picture asks for its texture's full width; the clamp
-                // holds it to the size it is drawn at.
-                adw::Clamp::builder()
-                    .maximum_size(width)
-                    .tightening_threshold(width)
-                    .halign(gtk::Align::Start)
-                    .child(&picture)
-                    .build()
-                    .upcast()
-            }
-            Err(_) => gtk::Label::builder()
+        picture(png, 64).unwrap_or_else(|| {
+            gtk::Label::builder()
                 .label("Teleprompt")
                 .xalign(0.0)
                 .css_classes(["hero-title"])
                 .build()
-                .upcast(),
-        }
+                .upcast()
+        })
     }
 
     fn glass_sample() -> gtk::Box {
@@ -2067,7 +2073,24 @@ impl Widgets {
     }
 
     fn layout(&self) -> adw::ToolbarView {
-        let header = adw::HeaderBar::builder().title_widget(&self.title).build();
+        // The app's mark beside the script's name: in the chrome, never on
+        // the glass, where it would show in the reflection.
+        let title = gtk::Box::builder()
+            .spacing(10)
+            .halign(gtk::Align::Center)
+            .build();
+        if let Some(mark) = picture(include_bytes!("../../../icons/teleprompt@3x.png"), 22) {
+            title.append(&mark);
+            // The welcome page shows the whole logo already.
+            let beside_logo =
+                |stack: &gtk::Stack| stack.visible_child_name().as_deref() == Some("welcome");
+            mark.set_visible(!beside_logo(&self.stack));
+            self.stack.connect_visible_child_name_notify(move |stack| {
+                mark.set_visible(!beside_logo(stack))
+            });
+        }
+        title.append(&self.title);
+        let header = adw::HeaderBar::builder().title_widget(&title).build();
         let open = gtk::Button::builder()
             .icon_name("document-open-symbolic")
             .action_name("app.open")
