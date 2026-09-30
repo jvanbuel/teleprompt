@@ -224,6 +224,55 @@
   #review button.suggested { background: var(--ink); color: #000; border-color: var(--ink); }
   @media (prefers-reduced-motion: reduce) { #toast, #meter > div { transition: none; } }
 
+  /* Read by a voice: Play is the header's action, in the chrome, with no
+     red, since nothing records. */
+  body.voiced #record::before {
+    width: 0; height: 0; border-radius: 0; background: none;
+    border: 6px solid transparent; border-left: 10px solid var(--cue); border-right: 0;
+  }
+  body.voiced.reading #record::before { width: 9px; height: 9px; border: 0; border-radius: 1px; background: var(--cue); }
+  /* Each line the voice reads: a waveform in the margin, faint until the
+     voice has made it. */
+  .line.voiced .gutter { --wave: rgb(242 244 247 / 0.7); }
+  .line.unvoiced .gutter { --wave: rgb(242 244 247 / 0.25); }
+  .line.voiced .gutter, .line.unvoiced .gutter {
+    background:
+      linear-gradient(var(--wave), var(--wave)) var(--wave-x) calc(var(--size) * 0.66 - 2.5px) / 2px 5px no-repeat,
+      linear-gradient(var(--wave), var(--wave)) calc(var(--wave-x) + 4px) calc(var(--size) * 0.66 - 5px) / 2px 10px no-repeat,
+      linear-gradient(var(--wave), var(--wave)) calc(var(--wave-x) + 8px) calc(var(--size) * 0.66 - 3.5px) / 2px 7px no-repeat;
+  }
+  /* Clear of the reading line's arrow, beside the number. */
+  .gutter { --wave-x: 27px; }
+  /* A line's words, edited where they stand, underlined in the cue's amber. */
+  .line-editor {
+    display: block; width: 100%; resize: none; overflow: hidden; margin: 0; padding: 0;
+    font: inherit; line-height: inherit; color: var(--ink); background: var(--glass);
+    border: 0; border-bottom: 2px solid var(--cue); outline: none; caret-color: var(--cue);
+  }
+  body:not(.voiced) .voice-only { display: none; }
+  #panel {
+    position: fixed; inset: auto; margin: 0; width: min(340px, calc(100vw - 32px)); padding: 16px;
+    border-radius: 12px; background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.5); font-size: 14px;
+  }
+  #panel h2 { margin: 0; font-size: 15px; color: var(--ink); }
+  #panel p { margin: 2px 0 12px; font-size: 13px; color: rgb(242 244 247 / 0.66); }
+  #panel label { display: block; margin: 14px 0 6px; font-size: 13px; color: rgb(242 244 247 / 0.66); }
+  #panel input {
+    width: 100%; font: 500 14px var(--face); color: var(--ink); background: var(--chrome);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  }
+  #panel input:focus-visible { outline: 2px solid var(--cue); outline-offset: 1px; }
+  #panel small { display: block; margin-top: 6px; font-size: 12px; color: rgb(242 244 247 / 0.55); }
+  #panel menu { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; }
+  #panel menu + menu { margin-top: 14px; }
+  #panel button {
+    font: 600 14px var(--face); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+    background: var(--chrome); color: var(--ink); border: 1px solid var(--line);
+  }
+  #panel button.suggested { background: var(--ink); color: #000; border-color: var(--ink); }
+  #panel button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
   /* A tablet or phone as the prompter: the monitor goes under the glass,
      small, and the keys, which it has none of, go. Record stays in reach. */
   @media (max-width: 900px) {
@@ -241,6 +290,7 @@
     header { grid-template-columns: auto minmax(0, 1fr) auto; padding: 8px 10px; }
     #script { padding-right: 16px; }
     .line { grid-template-columns: 48px 1fr; }
+    .gutter { --wave-x: 4px; }
     .gutter { padding-right: 14px; }
     #keys { display: none; }
     #status { white-space: normal; }
@@ -290,8 +340,27 @@
       <tr><td><kbd>+</kbd> <kbd>−</kbd></td><td>Text size</td></tr>
       <tr><td><kbd>S</kbd></td><td>Hide or show the screen</td></tr>
       <tr><td><kbd>Enter</kbd> on a line</td><td>Between takes, start a take from that line</td></tr>
+      <tr><td><kbd>F2</kbd></td><td>Reword the line you are on, where it stands</td></tr>
+      <tr class="voice-only"><td><kbd>Space</kbd></td><td>Read by a voice: read aloud from the line you are on, or stop</td></tr>
     </table>
     <form method="dialog"><button>Close</button></form>
+  </dialog>
+  <dialog id="panel" aria-labelledby="panel-title">
+    <h2 id="panel-title"></h2>
+    <p id="panel-who"></p>
+    <menu>
+      <button id="panel-listen" class="suggested">Listen</button>
+      <button id="panel-on">Read on from here</button>
+    </menu>
+    <div id="panel-voice">
+      <label for="panel-instruct">How to say it</label>
+      <input id="panel-instruct" placeholder="slower, amused" autocomplete="off">
+      <small>For a voice that takes directions. Enter to apply.</small>
+    </div>
+    <menu>
+      <button id="panel-again">Say it again</button>
+      <button id="panel-reword">Reword…</button>
+    </menu>
   </dialog>
   <aside id="monitor" aria-label="Screen">
     <div id="screen"><video id="clip" muted playsinline hidden></video><div id="slate"></div></div>
@@ -333,6 +402,13 @@ let takeTime = 0, takeSince = null;
 let declined = new Set();    // "id\nsaid" of rewordings turned down this visit
 let offered = new Set();     // and of those a toast has told of
 
+// Read by a voice (`teleprompt prompt --voice`) rather than following one.
+let voiced = false;
+let reading = null;           // { line, only, from, audio, url, raf } while the voice reads
+let editing = null;           // { line, editor, body } while a line's words are edited
+let edits = [];               // what each edit changed, latest last, to undo
+let lastEdit = null;          // the edit sent, until the server answers it
+
 function status(text, bad = false) {
   $("status").textContent = text;
   $("status").classList.toggle("bad", bad);
@@ -349,7 +425,10 @@ const RECORD_KEY = MAC ? "⌘ ⇧ Space" : "Ctrl ⇧ Space";
 
 /** The keys that matter now, as keycaps. */
 function keys() {
-  const pairs = counting ? [["Esc", "Cancel"]]
+  const pairs = editing ? [["Enter", "Keep"], ["Esc", "Leave it"]]
+    : reading ? [["Space", "Stop"], ["Esc", "Stop"]]
+    : voiced ? [["Space", "Play"], ["Click", "Direct a line"], ["F2", "Reword"], ["M", "Mirror"]]
+    : counting ? [["Esc", "Cancel"]]
     : paused ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Resume"]]
     : listening ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Pause"]]
     : heardOtherwise() !== null ? [[RECORD_KEY, "Record"], ["W", "Review"], ["M", "Mirror"]]
@@ -362,7 +441,12 @@ function keys() {
     return pair;
   }));
   const taking = listening || paused || counting;
-  $("record").textContent = counting ? "Cancel" : taking ? "Keep take" : "Record";
+  $("record").textContent = voiced ? (reading ? "Stop" : "Play")
+    : counting ? "Cancel" : taking ? "Keep take" : "Record";
+  $("record").title = voiced ? "Read aloud from the line you are on, or stop (Space)"
+    : "Record from the line you are on";
+  document.body.classList.toggle("voiced", voiced);
+  document.body.classList.toggle("reading", !!reading);
   $("record").classList.toggle("keep", listening || paused);
   for (const el of [$("tally"), $("timecode")]) el.classList.toggle("on-air", listening);
   $("tally").setAttribute("aria-label", listening ? "On air" : paused ? "Paused" : "Off air");
@@ -373,10 +457,13 @@ function keys() {
 function name(shot) { return shot.replace(/#0$/, ""); }
 
 async function loadScript() {
+  if (editing) endReword(false);
   script = await (await fetch(`${API}/script`)).json();
+  voiced = !!script.voice && !script.voice.listens;
   if (script.name) { $("title").textContent = script.name; document.title = script.name; }
   const root = $("script");
   root.replaceChildren();
+  $("rundown").replaceChildren();
   shots = new Map();
   words = script.lines.map(({ text }, l) => {
     const line = document.createElement("div");
@@ -384,11 +471,14 @@ async function loadScript() {
     line.tabIndex = 0;
     line.setAttribute("role", "button");
     const fromHere = () => {
+      if (editing) return;
+      if (voiced) return lineClicked(l);
       if (listening || paused || counting) return status("Keep or discard this take first");
       take(l);
     };
     line.addEventListener("click", fromHere);
     line.addEventListener("keydown", (e) => {
+      if (editing || (voiced && e.key === " ")) return;
       if ((e.key === "Enter" || e.key === " ") && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
@@ -422,8 +512,11 @@ async function loadScript() {
 function markRecorded(scriptLines) {
   script.lines = scriptLines;
   lines.forEach((el, l) => {
+    const audio = voiced && scriptLines[l]?.audio;
     el.classList.toggle("recorded", !!scriptLines[l]?.recorded);
     el.classList.toggle("heard", !!scriptLines[l]?.said);
+    el.classList.toggle("voiced", !!audio && audio.source === "voice" && audio.ready);
+    el.classList.toggle("unvoiced", !!audio && audio.source === "voice" && !audio.ready);
   });
 }
 
@@ -652,9 +745,11 @@ function lineNames(ids) {
   return n.length === 1 ? `line ${n[0]}` : `lines ${n.join(", ")}`;
 }
 
-/** Puts back what the last take kept replaced. */
+/** Puts back what the last take kept replaced; or, when an edit was the
+ *  last thing done, what the edit changed. */
 function undo() {
-  if (!undoable || !ws || listening || paused || counting) return;
+  if (!undoable) return undoEdit();
+  if (!ws || listening || paused || counting) return;
   undoable = false;
   ws.send(JSON.stringify({ type: "undo" }));
 }
@@ -710,7 +805,18 @@ async function onMessage(message) {
     status(`Line ${l + 1} now reads as you said it`);
     toast(`Line ${l + 1} now reads as you said it`);
     keys();
+  } else if (message.type === "edited") {
+    const done = lastEdit;
+    lastEdit = null;
+    if (done && !done.undoing) edits.push(done);
+    await loadScript();
+    lines[at.line]?.focus({ preventScroll: true });
+    toast(done ? done.said : "Edited", edits.length && !done?.undoing ? { label: "Undo", run: undoEdit } : null);
+    voiceStatus();
+    voiceUnmade();
+    keys();
   } else if (message.type === "error") {
+    lastEdit = null;
     status(message.message, true);
   }
 }
@@ -824,13 +930,18 @@ function togglePause() {
 }
 
 setInterval(() => {
-  const ms = takeTime + (takeSince === null ? 0 : performance.now() - takeSince);
+  const ms = reading ? performance.now() - reading.since
+    : takeTime + (takeSince === null ? 0 : performance.now() - takeSince);
   const tenths = Math.floor(ms / 100);
   $("timecode").textContent =
     `${String(Math.floor(tenths / 600)).padStart(2, "0")}:${String(Math.floor(tenths / 10) % 60).padStart(2, "0")}.${tenths % 10}`;
 }, 100);
 
 document.addEventListener("keydown", (e) => {
+  // Typing in the panel or a line's editor is typing; they take their own keys.
+  if (e.target.closest?.("input, textarea")) return;
+  if ($("panel").open && e.key === "Escape") { e.preventDefault(); return $("panel").close(); }
+  if ($("panel").open && e.target.closest?.("#panel")) return;
   const command = MAC ? e.metaKey : e.ctrlKey;
   if (e.key === " " && e.shiftKey && command) {
     e.preventDefault();
@@ -842,8 +953,10 @@ document.addEventListener("keydown", (e) => {
     return e.key === "Enter" ? keep() : undo();
   }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (voiced && e.key === " ") { e.preventDefault(); return playOrStop(); }
+  if (e.key === "F2") { e.preventDefault(); return reword(at.line < words.length ? at.line : 0); }
   const handled = {
-    "Escape": discard,
+    "Escape": reading ? () => stopReading() : discard,
     "p": togglePause,
     "w": reviewSaid,
     "m": mirror,
@@ -857,8 +970,302 @@ document.addEventListener("keydown", (e) => {
 });
 
 function recordOrKeep() {
-  if (listening || paused || counting) keep();
+  if (voiced) playOrStop();
+  else if (listening || paused || counting) keep();
   else take(at.line < words.length ? at.line : 0);
+}
+
+// ---- Read by a voice ----------------------------------------------------
+
+/** The word being said `ms` into a line whose words start at `starts`. */
+function wordAt(starts, ms) {
+  let w = 0;
+  while (w + 1 < starts.length && starts[w + 1] <= ms) w++;
+  return w;
+}
+
+function clock(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** Who reads, how long the video runs, and how far the voice has got. */
+function voiceStatus() {
+  if (!voiced || reading || editing) return;
+  const name = script.voice.name;
+  const audio = script.lines.map((l) => l.audio).filter(Boolean);
+  const made = audio.filter((a) => a.ready).length;
+  if (made < audio.length) return status(`${name} is reading the lines: ${made} of ${audio.length}`);
+  const tap = matchMedia("(pointer: coarse)").matches;
+  status(`${name} · ${clock(script.length_ms ?? 0)} long. ${tap
+    ? "Tap Play to read from here, or tap a line" : "Space reads from here; click a line to direct it"}`);
+}
+
+/** The script's lines again, for which the voice has made; the whole
+ *  script if its words changed. */
+async function refreshLines() {
+  const fresh = await (await fetch(`${API}/script`)).json();
+  const same = fresh.lines.length === script.lines.length
+    && fresh.lines.every((l, i) => l.text === script.lines[i].text);
+  if (!same && !reading && !editing) return loadScript();
+  script.length_ms = fresh.length_ms;
+  markRecorded(fresh.lines);
+}
+
+let voicing = false;
+/** Has the voice make the lines it has yet to, one after another. */
+async function voiceUnmade() {
+  if (!voiced || voicing) return;
+  voicing = true;
+  const failed = new Set();
+  try {
+    for (;;) {
+      const l = script.lines.findIndex((line, i) => line.audio && !line.audio.ready && !failed.has(i));
+      if (l < 0) break;
+      const r = await fetch(script.lines[l].audio.url);
+      if (!r.ok) {
+        failed.add(l);
+        status(`The voice could not read line ${l + 1}: ${(await r.text()).trim()}`, true);
+        continue;
+      }
+      await r.arrayBuffer();
+      await refreshLines();
+      voiceStatus();
+    }
+  } finally {
+    voicing = false;
+  }
+}
+
+function playOrStop() {
+  if (!voiced || editing) return;
+  if (reading) return stopReading();
+  readFrom(at.line < words.length ? at.line : 0);
+}
+
+/** Reads from line `from` to the end, or only it; `fresh` has the voice
+ *  make it anew first. */
+function readFrom(from, only = false, fresh = false) {
+  if (!voiced) return;
+  halt();
+  $("panel").close();
+  queue = [];
+  playing = null;
+  started = new Set();
+  const start = { line: from, word: 0 };
+  reading = { line: from, only, from: start, since: performance.now() };
+  reach(start);
+  status(only ? `Reading line ${from + 1}` : `Reading from line ${from + 1}`);
+  keys();
+  readLine(from, fresh);
+}
+
+/** Moves the reading to `pos`, starting the shots it reaches. */
+function reach(pos) {
+  const after = (a, b) => a.line > b.line || (a.line === b.line && a.word >= b.word);
+  const due = script.shots
+    .filter((s) => after(s.at, reading.from) && after(pos, s.at) && !started.has(s.shot))
+    .map((s) => s.shot);
+  show(pos);
+  play(due);
+  if (!playing) slate();
+}
+
+async function readLine(l, fresh) {
+  const line = script.lines[l];
+  if (!line?.audio) return stopReading(`Line ${l + 1} has no voice to read it`);
+  const mine = reading;
+  let url;
+  try {
+    const r = await fetch(line.audio.url + (fresh ? "?fresh=1" : ""));
+    if (!r.ok) throw new Error((await r.text()).trim());
+    url = URL.createObjectURL(await r.blob());
+    if (!line.audio.ready || fresh) await refreshLines();
+  } catch (e) {
+    if (reading === mine) stopReading(`The voice failed: ${e.message}`, true);
+    return;
+  }
+  if (reading !== mine || reading.line !== l) return URL.revokeObjectURL(url);
+  const audio = new Audio(url);
+  reading.audio = audio;
+  reading.url = url;
+  audio.addEventListener("ended", () => { if (reading === mine) lineRead(); });
+  const tick = () => {
+    if (reading !== mine || reading.audio !== audio) return;
+    const starts = script.lines[l]?.audio?.words ?? [];
+    const pos = { line: l, word: wordAt(starts, audio.currentTime * 1000) };
+    if (pos.word !== at.word || pos.line !== at.line) reach(pos);
+    reading.raf = requestAnimationFrame(tick);
+  };
+  try {
+    await audio.play();
+  } catch (e) {
+    return stopReading(`The browser would not play the voice: ${e.message}`, true);
+  }
+  tick();
+}
+
+/** The voice finished a line: on to the next, or done. */
+function lineRead() {
+  const { line, only } = reading;
+  dropAudio();
+  const next = line + 1;
+  if (only || next >= script.lines.length) {
+    const end = { line: Math.min(next, script.lines.length - 1), word: 0 };
+    reading = null;
+    show(end);
+    status(only ? `Read line ${line + 1}` : "Read to the end");
+    return keys();
+  }
+  reading.line = next;
+  reach({ line: next, word: 0 });
+  readLine(next, false);
+}
+
+function dropAudio() {
+  if (!reading) return;
+  cancelAnimationFrame(reading.raf);
+  reading.audio?.pause();
+  if (reading.url) URL.revokeObjectURL(reading.url);
+  reading.audio = null;
+  reading.url = null;
+}
+
+/** Ends any reading, quietly. */
+function halt() {
+  dropAudio();
+  reading = null;
+}
+
+function stopReading(why = null, bad = false) {
+  if (!reading) return;
+  halt();
+  show({ line: at.line, word: at.word });
+  if (why) status(why, bad);
+  else status(`Stopped. ${matchMedia("(pointer: coarse)").matches ? "Tap Play" : "Space"} reads on from here`);
+  keys();
+}
+
+/** A line clicked, read by a voice: while it reads, it reads on from
+ *  there; otherwise the line is chosen and its panel opens. */
+function lineClicked(l) {
+  if (reading) return readFrom(l);
+  show({ line: l, word: 0 });
+  openPanel(l);
+}
+
+function openPanel(l) {
+  const line = script.lines[l];
+  const panel = $("panel");
+  const byVoice = line.audio?.source === "voice";
+  $("panel-title").textContent = `Line ${l + 1}`;
+  $("panel-who").textContent = line.audio?.source === "take" ? "Read from your take" : `Read by ${script.voice.name}`;
+  $("panel-voice").hidden = !byVoice;
+  $("panel-again").hidden = !byVoice;
+  $("panel-instruct").value = line.instruct ?? "";
+  panel.dataset.line = l;
+  panel.show();
+  // Under the line, where it settles on the reading line.
+  const box = $("glass").getBoundingClientRect();
+  const lineBox = lines[l].getBoundingClientRect();
+  const first = words[l][0]?.getBoundingClientRect() ?? lineBox;
+  const shift = box.top + box.height * READING - (first.top + first.height / 2);
+  const top = Math.min(lineBox.bottom + shift + 10, innerHeight - panel.offsetHeight - 12);
+  const left = Math.min(Math.max(12, first.left - 16), innerWidth - panel.offsetWidth - 12);
+  panel.style.top = `${Math.max(12, top)}px`;
+  panel.style.left = `${left}px`;
+  $("panel-listen").focus();
+}
+
+const panelLine = () => Number($("panel").dataset.line);
+$("panel-listen").addEventListener("click", () => readFrom(panelLine(), true));
+$("panel-on").addEventListener("click", () => readFrom(panelLine()));
+$("panel-again").addEventListener("click", () => readFrom(panelLine(), true, true));
+$("panel-reword").addEventListener("click", () => { const l = panelLine(); $("panel").close(); reword(l); });
+$("panel-instruct").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { e.preventDefault(); return $("panel").close(); }
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const l = panelLine(), line = script.lines[l];
+  const text = e.target.value.trim();
+  $("panel").close();
+  if (text === (line.instruct ?? "")) return;
+  sendEdit({ type: "instruct", line: line.id, text: text || null },
+    { type: "instruct", line: line.id, text: line.instruct ?? null },
+    text ? `Line ${l + 1} said ${text}` : `Line ${l + 1} said as the voice would`);
+});
+// A click away from the panel closes it.
+document.addEventListener("pointerdown", (e) => {
+  if ($("panel").open && !e.target.closest("#panel") && !e.target.closest(".line")) $("panel").close();
+});
+
+/** Sends `edit` over the session socket; `back` is the edit that undoes it. */
+async function sendEdit(edit, back, said, undoing = false) {
+  try {
+    await openSession();
+  } catch (e) {
+    return status(e.message, true);
+  }
+  lastEdit = { back, said, undoing };
+  undoable = false;
+  ws.send(JSON.stringify(edit));
+}
+
+/** Puts back what the last edit changed. */
+function undoEdit() {
+  const done = edits.pop();
+  if (!done || editing || listening || paused || counting) return;
+  sendEdit(done.back, null, "Undone", true);
+}
+
+/** Line `l`'s words become editable where they stand: Enter keeps them,
+ *  Escape leaves the line as it was. Not during a take, nor on mirrored
+ *  glass, which reads backwards. */
+function reword(l) {
+  if (editing || !lines[l]) return;
+  if (listening || paused || counting) return status("Keep or discard this take first");
+  if (document.body.classList.contains("mirrored")) return status("Mirrored text cannot be edited: M turns mirroring off");
+  halt();
+  $("panel").close();
+  show({ line: l, word: 0 });
+  const body = lines[l].children[1];
+  const editor = document.createElement("textarea");
+  editor.className = "line-editor";
+  editor.value = script.lines[l].text;
+  editor.setAttribute("aria-label", `Line ${l + 1}`);
+  const fit = () => { editor.style.height = "auto"; editor.style.height = `${editor.scrollHeight}px`; };
+  editor.addEventListener("input", fit);
+  editor.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); endReword(true); }
+    else if (e.key === "Escape") { e.preventDefault(); endReword(false); }
+  });
+  editor.addEventListener("click", (e) => e.stopPropagation());
+  body.hidden = true;
+  lines[l].append(editor);
+  editing = { line: l, editor, body };
+  fit();
+  editor.focus();
+  editor.setSelectionRange(editor.value.length, editor.value.length);
+  status(`Rewording line ${l + 1}: Enter keeps it, Esc leaves it`);
+  keys();
+}
+
+function endReword(keepIt) {
+  if (!editing) return;
+  const { line: l, editor, body } = editing;
+  editing = null;
+  const text = editor.value.split(/\s+/).filter(Boolean).join(" ");
+  editor.remove();
+  body.hidden = false;
+  lines[l].focus();
+  const line = script.lines[l];
+  if (keepIt && text && text !== line.text) {
+    sendEdit({ type: "reword", line: line.id, text },
+      { type: "reword", line: line.id, text: line.text }, `Reworded line ${l + 1}`);
+  }
+  if (voiced) voiceStatus();
+  else status(READY);
+  keys();
 }
 
 function resize(by) {
@@ -891,7 +1298,7 @@ $("mirror").addEventListener("click", mirror);
 $("keys-help").addEventListener("click", () => $("help").showModal());
 
 $("record").addEventListener("click", () =>
-  listening || paused || counting ? keep() : take(at.line < words.length ? at.line : 0));
+  voiced ? playOrStop() : listening || paused || counting ? keep() : take(at.line < words.length ? at.line : 0));
 $("clip").addEventListener("ended", next);
 $("clip").addEventListener("timeupdate", (e) => {
   const v = e.target;
@@ -918,7 +1325,10 @@ addEventListener("resize", margins);
 margins();
 loadScript().then(() => {
   offerSaid();
-  status(READY);
+  if (voiced) {
+    voiceStatus();
+    voiceUnmade();
+  } else status(READY);
   keys();
 });
 </script>

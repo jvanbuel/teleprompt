@@ -8,6 +8,8 @@ use std::net::{SocketAddr, TcpStream};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
+mod browser;
+
 struct Served {
     child: Child,
     addr: SocketAddr,
@@ -231,4 +233,27 @@ fn the_voiced_examples_are_what_the_server_says_and_takes() {
     edited["line"] = "welcome".into();
     assert_eq!(ask(&mut ws, reword), edited);
     assert_eq!(ask(&mut ws, example("instruct.json")), edited);
+}
+
+/// The page, served by a voiced prompter, plays rather than records, and
+/// marks each line by whether its voice has made it.
+#[test]
+fn the_page_reads_with_the_voice() {
+    let Some(chrome) = browser::chromium() else {
+        eprintln!("skipped: no Chromium");
+        return;
+    };
+    let served = voiced("prompt-voice-page");
+    get(served.addr, "/api/v1/voice/welcome.wav");
+    let page = browser::dom(
+        &chrome,
+        &format!("http://{}/", served.addr),
+        1200,
+        800,
+        4000,
+    );
+    assert!(page.contains(r#"id="record""#), "{page}");
+    let record = page.split(r#"id="record""#).nth(1).unwrap();
+    assert!(record.contains(">Play<"), "{record}");
+    assert!(page.contains(r#"class="line voiced"#), "{page}");
 }
