@@ -60,9 +60,11 @@ struct PrompterCommands: Commands {
         CommandMenu("Prompter") {
             // The record key, the same in every mode: ⌘⇧Space starts a take
             // and keeps it. (⌘Space is Spotlight's.)
-            Button(model.isTaking ? "Keep Take" : "Record") { model.recordOrKeep() }
-                .keyboardShortcut(.space, modifiers: [.command, .shift])
-                .disabled(!model.isReady)
+            Button(model.voiced ? (model.isReading ? "Stop" : "Play") : model.isTaking ? "Keep Take" : "Record") {
+                model.recordOrKeep()
+            }
+            .keyboardShortcut(.space, modifiers: [.command, .shift])
+            .disabled(!model.isReady)
             Button("Record from the Top") { model.take(from: 0) }
                 .keyboardShortcut("t")
                 .disabled(!model.isReady)
@@ -75,6 +77,12 @@ struct PrompterCommands: Commands {
             // W on the glass, too.
             Button("Keep What You Said…") { model.reviewSaid() }
                 .disabled(!model.isReady || model.isTaking || model.state.saidOtherwise == nil)
+            // F2 on the glass, too.
+            Button("Reword Line") { model.rewordCurrent() }
+                .disabled(!model.isReady || model.isTaking || model.rewording != nil)
+            Button("Undo Last Edit") { model.undoEdit() }
+                .keyboardShortcut("z", modifiers: [.command, .option])
+                .disabled(!model.canUndoEdit)
             Divider()
             Toggle("Mirror Text", isOn: $model.mirrored)
             Button("Larger Text") { model.textSize += 4 }

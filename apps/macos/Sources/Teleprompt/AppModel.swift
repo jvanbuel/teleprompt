@@ -46,6 +46,34 @@ final class AppModel: ObservableObject {
     @Published var locale: String { didSet { defaults.set(locale, forKey: "locale") } }
     @Published var countdownOn: Bool { didSet { defaults.set(countdownOn, forKey: "countdown") } }
     @Published private var lastScript: String { didSet { defaults.set(lastScript, forKey: "script") } }
+    /// Whether the script's voice reads it, rather than the author.
+    @Published var voiceReads: Bool { didSet { defaults.set(voiceReads, forKey: "voiceReads") } }
+
+    /// The voice reading the script aloud, while it does.
+    @Published private(set) var reading: Reading?
+    /// The line whose panel is open, read by a voice.
+    @Published var panelLine: Int?
+    /// The line whose words are being edited on the glass, and the words.
+    @Published private(set) var rewording: Int?
+    @Published var rewordText = ""
+    /// What undoes each edit written, latest last; and the edit sent, until
+    /// the server answers it.
+    private var edits: [ClientMessage] = []
+    private var pendingEdit: (back: ClientMessage?, said: String)?
+    private var voicePlayer: AVAudioPlayer?
+    private var readingTimer: Timer?
+    /// Bumped whenever a reading ends, so audio fetched for it is dropped.
+    private var readingGeneration = 0
+    private var voicing = false
+
+    struct Reading: Equatable {
+        /// The line being read.
+        var line: Int
+        /// Only this line, as Listen reads it.
+        var only: Bool
+        /// Where it began: shots cued before it do not play.
+        var from: Position
+    }
 
     let player = AVPlayer()
     /// Where the microphone's audio goes, from the audio thread.
@@ -63,6 +91,7 @@ final class AppModel: ObservableObject {
         locale = defaults.string(forKey: "locale") ?? "en"
         countdownOn = defaults.object(forKey: "countdown") as? Bool ?? true
         lastScript = defaults.string(forKey: "script") ?? ""
+        voiceReads = defaults.bool(forKey: "voiceReads")
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(value: 1, timescale: 10), queue: .main
         ) { [weak self] time in
@@ -90,17 +119,22 @@ final class AppModel: ObservableObject {
         let dir = script.deletingLastPathComponent()
         projectName = (dir.lastPathComponent == "scripts" ? dir.deletingLastPathComponent() : dir).lastPathComponent
         guard FileManager.default.isExecutableFile(atPath: binaryPath) else {
-            phase = .failed(["Set the teleprompt binary in Settings (⌘,). It must be built with --features listen."])
+            phase = .failed([voiceReads
+                ? "Set the teleprompt binary in Settings (⌘,)."
+                : "Set the teleprompt binary in Settings (⌘,). It must be built with --features listen."])
             return
         }
-        guard !modelPath.isEmpty else {
-            phase = .failed(["Set the speech model directory in Settings (⌘,)."])
+        // A voice reads without a speech model; the author, with one.
+        guard voiceReads || !modelPath.isEmpty else {
+            phase = .failed([
+                "Set the speech model directory in Settings (⌘,), or let the script's voice read it: choose \"A voice reads\" on the welcome page.",
+            ])
             return
         }
         let request = LaunchRequest(
             binary: URL(fileURLWithPath: binaryPath),
             script: script,
-            model: URL(fileURLWithPath: modelPath),
+            model: voiceReads ? nil : URL(fileURLWithPath: modelPath),
             locale: locale
         )
         let server = ServerProcess(request)
@@ -151,6 +185,10 @@ final class AppModel: ObservableObject {
             }
         )
         phase = .ready
+        if state.script.voiced {
+            showVoiceStatus()
+            voiceUnmade()
+        }
     }
 
     private func received(_ message: ServerMessage) {
@@ -167,6 +205,18 @@ final class AppModel: ObservableObject {
         case .keptSaid:
             show(toast: state.status.text)
             Task { await refreshScript() }
+        case .edited:
+            let done = pendingEdit
+            pendingEdit = nil
+            if let back = done?.back { edits.append(back) }
+            show(toast: done?.said ?? "Edited")
+            Task {
+                await refreshScript()
+                showVoiceStatus()
+                voiceUnmade()
+            }
+        case .error:
+            pendingEdit = nil
         default:
             break
         }
@@ -218,6 +268,7 @@ final class AppModel: ObservableObject {
     /// opening the microphone the first time.
     func take(from line: Int) {
         guard isReady, client != nil, counting == nil else { return }
+        if voiced { return read(from: line) }
         Task {
             guard let mic = await openMic() else { return }
             mic.sending = false
@@ -270,6 +321,7 @@ final class AppModel: ObservableObject {
     /// The record key (⌘⇧Space) and the Record button: a take from the line
     /// you are on, or keep the one under way.
     func recordOrKeep() {
+        if voiced { return playOrStop() }
         if isTaking { return keep() }
         let at = state.at.line
         take(from: at < state.script.lines.count ? at : 0)
@@ -370,6 +422,11 @@ final class AppModel: ObservableObject {
     }
 
     private func closeSession() {
+        halt()
+        panelLine = nil
+        rewording = nil
+        edits = []
+        pendingEdit = nil
         mic?.sending = false
         counting = nil
         client?.close()
@@ -383,6 +440,245 @@ final class AppModel: ObservableObject {
         server?.stop()
         server = nil
         phase = .idle
+    }
+}
+
+// Read by a voice: Play reads from the line you are on, lighting each word
+// as it is said and starting the shots as it reaches them, as a reader's
+// voice would. And changing a line where it is read: its words (F2), and,
+// read by a voice, how to say it; each through `teleprompt edit` on the
+// server, which writes nothing that would not compile.
+extension AppModel {
+    var voiced: Bool { isReady && state.script.voiced }
+    var isReading: Bool { reading != nil }
+    var canUndoEdit: Bool { !edits.isEmpty && rewording == nil && !isTaking }
+
+    /// Space and the Play button: read from the line you are on, or stop.
+    func playOrStop() {
+        guard voiced, rewording == nil else { return }
+        if isReading { return stopReading() }
+        let at = state.at.line
+        read(from: at < state.script.lines.count ? at : 0)
+    }
+
+    /// Reads from `line` to the end of the script, or only `line`; with
+    /// `fresh`, has the voice make the line anew first.
+    func read(from line: Int, only: Bool = false, fresh: Bool = false) {
+        guard voiced, client != nil, rewording == nil else { return }
+        halt()
+        panelLine = nil
+        state.playing = nil
+        state.queue = []
+        state.started = []
+        play(nil)
+        let start = Position(line: line, word: 0)
+        reading = Reading(line: line, only: only, from: start)
+        takeTime = 0
+        takeSince = .now
+        reach(start)
+        state.status = .init(only ? "Reading line \(line + 1)" : "Reading from line \(line + 1)")
+        readLine(line, fresh: fresh)
+    }
+
+    /// Moves the reading to `position`, starting the shots it reaches.
+    private func reach(_ position: Position) {
+        guard let reading else { return }
+        let due = Voice.due(state.script, from: reading.from, to: position, started: state.started)
+        let before = state.playing
+        state.apply(.reached(at: position, play: due))
+        if state.playing != before { play(state.playing) }
+    }
+
+    private func readLine(_ line: Int, fresh: Bool) {
+        guard state.script.lines.indices.contains(line), let audio = state.script.lines[line].audio,
+              let client
+        else { return stopReading("Line \(line + 1) has no voice to read it") }
+        let generation = readingGeneration
+        Task {
+            do {
+                let wav = try await client.data(audio.url + (fresh ? "?fresh=1" : ""))
+                // A line not made before now knows its words.
+                if !audio.ready || fresh { await refreshScript() }
+                guard readingGeneration == generation, reading?.line == line else { return }
+                let player = try AVAudioPlayer(data: wav)
+                voicePlayer = player
+                player.play()
+                readingTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.voiceTick() }
+                }
+            } catch {
+                guard readingGeneration == generation else { return }
+                stopReading("The voice failed: \(error.localizedDescription)", isError: true)
+            }
+        }
+    }
+
+    /// Lights the word the voice is saying, or moves on once it is done.
+    private func voiceTick() {
+        guard let reading, let player = voicePlayer else { return }
+        if !player.isPlaying { return lineRead() }
+        guard state.script.lines.indices.contains(reading.line) else { return }
+        let starts = state.script.lines[reading.line].audio?.words ?? []
+        let word = Voice.word(at: Int(player.currentTime * 1000), starts: starts)
+        let position = Position(line: reading.line, word: word)
+        if position != state.at { reach(position) }
+    }
+
+    /// The voice finished a line: on to the next, or done.
+    private func lineRead() {
+        guard let current = reading else { return }
+        dropAudio()
+        let next = current.line + 1
+        let count = state.script.lines.count
+        if current.only || next >= count {
+            halt()
+            state.at = Position(line: min(next, max(0, count - 1)), word: 0)
+            state.status = .init(current.only ? "Read line \(current.line + 1)" : "Read to the end")
+            return
+        }
+        reading?.line = next
+        reach(Position(line: next, word: 0))
+        readLine(next, fresh: false)
+    }
+
+    private func dropAudio() {
+        readingTimer?.invalidate()
+        readingTimer = nil
+        voicePlayer?.stop()
+        voicePlayer = nil
+    }
+
+    /// Ends any reading, quietly.
+    private func halt() {
+        dropAudio()
+        if reading != nil { stopClock() }
+        reading = nil
+        readingGeneration += 1
+    }
+
+    /// Stops the voice where it is, saying `why` or that it stopped.
+    func stopReading(_ why: String? = nil, isError: Bool = false) {
+        guard isReading else { return }
+        halt()
+        state.status = .init(why ?? "Stopped. Space reads on from here", isError: isError)
+    }
+
+    /// Has the voice make the lines it has yet to, one after another, in
+    /// the background; once at a time.
+    private func voiceUnmade() {
+        guard voiced, !voicing, let client else { return }
+        voicing = true
+        Task {
+            var failed: Set<Int> = []
+            while self.client === client {
+                guard let line = Voice.unmade(state.script).first(where: { !failed.contains($0) }),
+                      let audio = state.script.lines[line].audio
+                else { break }
+                do {
+                    _ = try await client.data(audio.url)
+                } catch {
+                    failed.insert(line)
+                    state.status = .init(
+                        "The voice could not read line \(line + 1): \(error.localizedDescription)", isError: true
+                    )
+                    continue
+                }
+                await refreshScript()
+                showVoiceStatus()
+            }
+            voicing = false
+        }
+    }
+
+    /// Who reads, how long the video runs, and how far the voice has got;
+    /// not while it reads, or a line is being reworded.
+    private func showVoiceStatus() {
+        guard voiced, reading == nil, rewording == nil else { return }
+        let name = state.script.voice?.name ?? ""
+        let (made, of) = Voice.made(state.script)
+        if made < of {
+            state.status = PrompterState.Status("\(name) is reading the lines: \(made) of \(of)")
+        } else {
+            let length = Voice.clock(state.script.lengthMs ?? 0)
+            state.status = PrompterState.Status("\(name) · \(length) long. Space reads from here; click a line to direct it")
+        }
+    }
+
+    /// A line clicked: read by a voice, it reads on from there while the
+    /// voice reads, and otherwise opens the line's panel; read by its
+    /// author, a take starts there.
+    func lineTapped(_ line: Int) {
+        guard rewording == nil else { return }
+        guard voiced else { return take(from: line) }
+        if isReading { return read(from: line) }
+        state.at = Position(line: line, word: 0)
+        panelLine = line
+    }
+
+    /// Tells the voice how to say line `line`, or, empty, stops telling it.
+    func instruct(_ line: Int, _ text: String) {
+        panelLine = nil
+        guard state.script.lines.indices.contains(line) else { return }
+        let l = state.script.lines[line]
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text != (l.instruct ?? "") else { return }
+        sendEdit(
+            .instruct(line: l.id, text: text.isEmpty ? nil : text),
+            back: .instruct(line: l.id, text: l.instruct),
+            said: text.isEmpty ? "Line \(line + 1) said as the voice would" : "Line \(line + 1) said \(text)"
+        )
+    }
+
+    /// F2: reword the line you are on.
+    func rewordCurrent() {
+        beginReword(min(state.at.line, max(0, state.script.lines.count - 1)))
+    }
+
+    /// Line `line`'s words become editable where they stand: Return keeps
+    /// them, Escape leaves the line as it was. Not during a take, nor on
+    /// mirrored glass, which reads backwards.
+    func beginReword(_ line: Int) {
+        guard isReady, !isTaking, rewording == nil, state.script.lines.indices.contains(line) else { return }
+        if mirrored {
+            state.status = .init("Mirrored text cannot be edited: M turns mirroring off")
+            return
+        }
+        halt()
+        panelLine = nil
+        state.at = Position(line: line, word: 0)
+        rewordText = state.script.lines[line].text
+        rewording = line
+        state.status = .init("Rewording line \(line + 1): Return keeps it, Esc leaves it")
+    }
+
+    /// Ends the rewording, writing the new words if `keep`.
+    func endReword(keep: Bool) {
+        guard let line = rewording else { return }
+        rewording = nil
+        guard state.script.lines.indices.contains(line) else { return }
+        let l = state.script.lines[line]
+        // A paragraph is one line: what was typed on several is one.
+        let text = rewordText.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        if keep, !text.isEmpty, text != l.text {
+            sendEdit(.reword(line: l.id, text: text), back: .reword(line: l.id, text: l.text), said: "Reworded line \(line + 1)")
+        }
+        if voiced {
+            showVoiceStatus()
+        } else {
+            state.status = .init("Press ⌘⇧Space to record from here, or click a line")
+        }
+    }
+
+    /// Puts back what the last edit changed.
+    func undoEdit() {
+        guard canUndoEdit, let back = edits.popLast() else { return }
+        sendEdit(back, back: nil, said: "Undone")
+    }
+
+    private func sendEdit(_ edit: ClientMessage, back: ClientMessage?, said: String) {
+        guard let client else { return }
+        pendingEdit = (back, said)
+        client.send(edit)
     }
 }
 

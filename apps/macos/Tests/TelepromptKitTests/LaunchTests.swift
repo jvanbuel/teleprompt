@@ -14,6 +14,16 @@ final class LaunchTests: XCTestCase {
         ])
     }
 
+    func testWithoutAModelTheScriptsVoiceReadsIt() {
+        let request = LaunchRequest(
+            binary: URL(fileURLWithPath: "/bin/teleprompt"),
+            script: URL(fileURLWithPath: "/p/scripts/tour.md"),
+            model: nil
+        )
+        XCTAssertEqual(request.arguments.last, "--voice")
+        XCTAssertFalse(request.arguments.contains("--model"))
+    }
+
     func testTheListeningExampleNamesTheOrigin() throws {
         let line = String(decoding: try example("listening.json"), as: UTF8.self)
         XCTAssertEqual(parseListening(line), URL(string: "http://127.0.0.1:7879"))

@@ -72,7 +72,7 @@ public struct PrompterState: Equatable, Sendable {
             status = Status("Line \(n) now reads as you said it")
         case let .error(message):
             status = Status(message, isError: true)
-        case .unknown:
+        case .edited, .unknown:
             break
         }
     }

@@ -18,6 +18,11 @@ public final class SessionClient: @unchecked Sendable {
         URL(string: path, relativeTo: origin)!.absoluteURL
     }
 
+    /// What the server serves at `path`, such as a line's audio.
+    public func data(_ path: String) async throws -> Data {
+        try await get(url(path))
+    }
+
     public func script() async throws -> Script {
         let data = try await get(url("\(API.version)/script"))
         return try JSONDecoder().decode(Script.self, from: data)

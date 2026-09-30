@@ -25,7 +25,16 @@ struct PrompterView: View {
                                         Color.clear.preference(key: Heights.self, value: [index: g.size.height])
                                     })
                                     .contentShape(Rectangle())
-                                    .onTapGesture { model.take(from: index) }
+                                    .onTapGesture { model.lineTapped(index) }
+                                    .popover(
+                                        isPresented: Binding(
+                                            get: { model.panelLine == index },
+                                            set: { if !$0, model.panelLine == index { model.panelLine = nil } }
+                                        ),
+                                        arrowEdge: .bottom
+                                    ) {
+                                        LinePanel(index: index).environmentObject(model)
+                                    }
                             }
                         }
                         .padding(.top, height * Theme.reading)
@@ -71,10 +80,28 @@ struct PrompterView: View {
         .focused($focused)
         .onAppear { focused = true }
         .onKeyPress(.return) {
+            guard model.rewording == nil else { return .ignored }
             model.keep()
             return .handled
         }
+        .onKeyPress(.space) {
+            guard model.voiced, model.rewording == nil else { return .ignored }
+            model.playOrStop()
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            guard model.isReading else { return .ignored }
+            model.stopReading()
+            return .handled
+        }
+        // F2, as AppKit names it.
+        .onKeyPress(keys: [KeyEquivalent("\u{F705}")]) { _ in
+            guard model.rewording == nil else { return .ignored }
+            model.rewordCurrent()
+            return .handled
+        }
         .onKeyPress(characters: CharacterSet(charactersIn: "pmsw+=-"), phases: .down) { press in
+            guard model.rewording == nil else { return .ignored }
             switch press.characters {
             case "p": model.togglePause()
             case "w": model.reviewSaid()
@@ -165,6 +192,14 @@ private struct LineView: View {
                     .foregroundStyle(Theme.ink.opacity(current ? 0.9 : 0.32))
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.trailing, 22)
+                // Read by a voice: a waveform, faint until the voice has made it.
+                if model.voiced, let mark = Voice.mark(line), mark != .take {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.ink.opacity(mark == .voiced ? 0.7 : 0.25))
+                        .padding(.leading, 26)
+                        .accessibilityLabel(mark == .voiced ? "Voiced" : "Not voiced yet")
+                }
                 // Heard saying other words: W reviews it.
                 if line.said != nil {
                     Circle()
@@ -175,10 +210,14 @@ private struct LineView: View {
                 }
             }
             .frame(width: 76, height: size * Theme.leading)
-            text
-                .font(Theme.face(size))
-                .lineSpacing(size * 0.12)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if model.rewording == index {
+                LineEditor()
+            } else {
+                text
+                    .font(Theme.face(size))
+                    .lineSpacing(size * 0.12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
@@ -216,6 +255,88 @@ private struct LineView: View {
         }
     }
 }
+/// A line's words, edited where they stand, in the glass's type and
+/// underlined in the cue's amber: Return keeps them, Escape leaves them.
+private struct LineEditor: View {
+    @EnvironmentObject private var model: AppModel
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        let size = model.textSize
+        TextField("", text: $model.rewordText, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(Theme.face(size))
+            .lineSpacing(size * 0.12)
+            .foregroundStyle(Theme.ink)
+            .focused($focused)
+            .onSubmit { model.endReword(keep: true) }
+            .onExitCommand { model.endReword(keep: false) }
+            .padding(.bottom, 6)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.cue).frame(height: 2) }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onAppear { focused = true }
+    }
+}
+
+/// What can be done to a line read by a voice: hear it, read on from it,
+/// tell the voice how to say it, have it said anew, or reword it.
+private struct LinePanel: View {
+    @EnvironmentObject private var model: AppModel
+    let index: Int
+    @State private var instruct = ""
+
+    var body: some View {
+        if model.state.script.lines.indices.contains(index) {
+            let line = model.state.script.lines[index]
+            let byVoice = line.audio?.source == .voice
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Line \(index + 1)").font(Theme.face(15, .bold))
+                    Text(byVoice ? "Read by \(model.state.script.voice?.name ?? "the voice")" : "Read from your take")
+                        .font(Theme.face(13))
+                        .foregroundStyle(Theme.ink.opacity(0.66))
+                }
+                HStack(spacing: 8) {
+                    Button { model.read(from: index, only: true) } label: {
+                        Label("Listen", systemImage: "play.fill")
+                    }
+                    .buttonStyle(Pill(primary: true))
+                    .keyboardShortcut(.defaultAction)
+                    Button("Read on from here") { model.read(from: index) }
+                        .buttonStyle(Pill())
+                }
+                if byVoice {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("How to say it").font(Theme.face(13)).foregroundStyle(Theme.ink.opacity(0.66))
+                        TextField("slower, amused", text: $instruct)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { model.instruct(index, instruct) }
+                        Text("For a voice that takes directions. Return to apply.")
+                            .font(Theme.face(12))
+                            .foregroundStyle(Theme.ink.opacity(0.55))
+                    }
+                }
+                HStack(spacing: 8) {
+                    if byVoice {
+                        Button { model.read(from: index, only: true, fresh: true) } label: {
+                            Label("Say it again", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(Pill())
+                        .help("Have the voice make this line anew: for a voice that says a line differently each time")
+                    }
+                    Button("Reword…") { model.beginReword(index) }
+                        .buttonStyle(Pill())
+                }
+            }
+            .padding(18)
+            .frame(width: 360)
+            .foregroundStyle(Theme.ink)
+            .background(Theme.raised)
+            .onAppear { instruct = line.instruct ?? "" }
+        }
+    }
+}
+
 /// A line against what its take said: the words not said struck through,
 /// the ones said instead in bold, to keep either.
 private struct ReviewSaid: View {

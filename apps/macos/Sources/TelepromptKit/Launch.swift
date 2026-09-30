@@ -2,14 +2,16 @@ import Foundation
 
 /// How to run `teleprompt prompt` for the app.
 public struct LaunchRequest: Equatable, Sendable {
-    /// The `teleprompt` binary, built with `--features listen`.
+    /// The `teleprompt` binary, built with `--features listen` to follow a
+    /// reader by ear.
     public var binary: URL
     public var script: URL
-    /// An unpacked sherpa-onnx streaming zipformer.
-    public var model: URL
+    /// An unpacked sherpa-onnx streaming zipformer, to follow a reader by
+    /// ear; without one, the script's voice reads it.
+    public var model: URL?
     public var locale: String
 
-    public init(binary: URL, script: URL, model: URL, locale: String = "en") {
+    public init(binary: URL, script: URL, model: URL?, locale: String = "en") {
         self.binary = binary
         self.script = script
         self.model = model
@@ -19,8 +21,8 @@ public struct LaunchRequest: Equatable, Sendable {
     /// JSON output, so the app can read where it listens; port 0, so the
     /// OS picks a free one.
     public var arguments: [String] {
-        ["--format", "json", "prompt", script.path, "--locale", locale,
-         "--port", "0", "--model", model.path]
+        ["--format", "json", "prompt", script.path, "--locale", locale, "--port", "0"]
+            + (model.map { ["--model", $0.path] } ?? ["--voice"])
     }
 }
 

@@ -12,7 +12,9 @@ prompter API (`docs/design.md#prompter-api-version-1`). It needs:
 - a speech model: download and unpack
   [sherpa-onnx-streaming-zipformer-en-2023-06-26](https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2)
 
-Set both in Settings (⌘,) the first time.
+Set both in Settings (⌘,) the first time. To have the script's voice read
+it instead (below), only the binary is needed, built with or without the
+recognizer.
 
 ## Build
 
@@ -36,10 +38,25 @@ behalf of your terminal.
 | + / − | text size |
 | s | show or hide the monitor |
 | ⌘⇧S | the monitor in its own window, for a second display |
+| F2 | reword the line you are on, where it stands (Prompter › Reword Line) |
+| ⌥⌘Z | undo the last reword or instruction (Prompter › Undo Last Edit) |
 
 A take starts after a count of three; Settings turns that off. The look is
 described in `apps/DESIGN.md`; the typeface and the icon are bundled by
 `bundle.sh`.
+
+## Letting a voice read it
+
+Choose **A voice reads** under "Who narrates" on the welcome page, and
+the app runs `teleprompt prompt --voice`: the script is read by its voice
+(the project's `[voice]`) rather than following yours, and no speech
+model is needed. Play (Space, or ⌘⇧Space) reads from the line you are on,
+lighting the words and playing the shots as it goes; Space or Escape
+stops. Click a line for its panel: Listen, Read on from here, How to say
+it (the line's `voice.instruct`), Say it again, and Reword. The margin
+marks each line the voice reads with a waveform, faint until the voice
+has made it. `docs/guide/prompter.md#letting-a-voice-read-it` has the
+rest.
 
 ## Keeping what you said
 

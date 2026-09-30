@@ -46,6 +46,9 @@ struct TallyBar: View {
     }
 
     private var keys: [(String, String)] {
+        if model.rewording != nil { return [("Return", "Keep"), ("Esc", "Leave it")] }
+        if model.isReading { return [("Space", "Stop"), ("Esc", "Stop")] }
+        if model.voiced { return [("Space", "Play"), ("Click", "Direct a line"), ("F2", "Reword"), ("M", "Mirror")] }
         if model.counting != nil { return [("⌘⇧Space", "Cancel")] }
         if model.paused { return [("⌘⇧Space", "Keep take"), ("P", "Resume")] }
         if model.state.listening { return [("⌘⇧Space", "Keep take"), ("P", "Pause")] }

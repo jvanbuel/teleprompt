@@ -51,7 +51,11 @@ struct ContentView: View {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                if model.isReady { RecordButton() }
+                if model.voiced {
+                    PlayButton()
+                } else if model.isReady {
+                    RecordButton()
+                }
             }
         }
         .toolbarBackground(Theme.chrome, for: .windowToolbar)
@@ -88,6 +92,34 @@ struct RecordButton: View {
     }
 }
 
+/// Read by a voice, the header's action is Play: in the chrome, with no
+/// red, since nothing records.
+struct PlayButton: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        let reading = model.isReading
+        Button {
+            model.playOrStop()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: reading ? "stop.fill" : "play.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.cue)
+                Text(reading ? "Stop" : "Play")
+                    .font(Theme.face(13, .bold))
+            }
+            .foregroundStyle(Theme.ink)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(Theme.raised))
+            .overlay(Capsule().stroke(Theme.line))
+        }
+        .buttonStyle(.plain)
+        .help("Read aloud from the line you are on, or stop (Space)")
+    }
+}
+
 private struct Welcome: View {
     @EnvironmentObject private var model: AppModel
 
@@ -104,11 +136,23 @@ private struct Welcome: View {
                     Text("Teleprompt")
                         .font(Theme.face(44, .heavy))
                 }
-                Text("Open a script and read it aloud. The words follow your voice, each shot plays as you reach it, and every line you finish is kept as a take.")
+                Text("Open a script and read it aloud: the words follow your voice, each shot plays as you reach it, and every line you finish is kept as a take. Or let a voice read it, and direct it line by line.")
                     .font(Theme.face(18))
                     .foregroundStyle(Theme.ink.opacity(0.62))
                     .lineSpacing(4)
                     .frame(maxWidth: 440, alignment: .leading)
+                HStack(spacing: 14) {
+                    Text("Who narrates")
+                        .font(Theme.face(14))
+                        .foregroundStyle(Theme.ink.opacity(0.66))
+                    Picker("Who narrates", selection: $model.voiceReads) {
+                        Text("I read").tag(false)
+                        Text("A voice reads").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
                 HStack(spacing: 12) {
                     Button("Open script…") { model.chooseScript = true }
                         .buttonStyle(Pill(primary: true))
@@ -153,12 +197,13 @@ private struct GlassSample: View {
 }
 
 private struct Loading: View {
+    @EnvironmentObject private var model: AppModel
     let name: String
 
     var body: some View {
         VStack(spacing: 10) {
             ProgressView().controlSize(.large).padding(.bottom, 8)
-            Text("Loading the speech model").font(Theme.face(22, .bold))
+            Text(model.voiceReads ? "Starting the voice" : "Loading the speech model").font(Theme.face(22, .bold))
             Text(name).font(Theme.face(15)).foregroundStyle(Theme.ink.opacity(0.5))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
