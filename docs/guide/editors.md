@@ -7,14 +7,16 @@ scripts you open, and shows what it says as you type, before you save.
   the line it is about: an unknown speaker or scene, an attribute that
   isn't one, a policy that doesn't parse, an include that isn't there,
   and the compile's warnings.
-- **Completion.** In a line's braces, its attributes and, after `@`, the
-  cast. On a ` ```teleprompt ` fence, a block's attributes, and the values
-  of `scene=`, `policy=`, `align=` and `include=`.
+- **Completion.** After `**` opening a paragraph, the cast. In a line's
+  braces, its attributes, and in a heading's, a chapter's settings. On a
+  ` ```teleprompt ` fence, a block's attributes. And the values of
+  `speaker=`, `scene=`, `policy=`, `align=` and `include=`.
 - **Hover.** On a line, who says it, with which voice, how long it takes
-  and when it starts. On a block, what it plays. On `@guest` or
-  `scene=terminal`, what that is.
-- **Go to definition.** From `@guest` to its `[voices.guest]` table, from
-  `scene=` to the scene's configuration, and from `include=` to the file.
+  and when it starts. On a block, what it plays. On a `**Guest:**` label
+  or `scene=terminal`, what that is.
+- **Go to definition.** From `**Guest:**` to its `[voices.guest]` table,
+  from `scene=` to the scene's configuration, and from `include=` to the
+  file.
 - **Outline.** Chapters, and the lines and blocks in each.
 
 The server reads the project the script is in, `teleprompt.toml` and the

@@ -65,7 +65,11 @@ pub fn apply(src: &str, edit: &Edit) -> Result<String, String> {
             Ok(replace(src, b.info_range.clone(), &info))
         }
         Edit::Reword { line, text } => {
-            let range = map.line(line)?.range.clone();
+            let at = map.line(line)?;
+            let mut range = at.range.clone();
+            if at.labelled {
+                range.start += label_len(&src[range.clone()]);
+            }
             let (_, attrs) = split_line(&src[range.clone()]);
             Ok(replace(src, range, &with_attrs(text.trim(), attrs)))
         }
@@ -141,6 +145,8 @@ struct Map {
 struct LineAt {
     id: LineId,
     text: String,
+    /// Whether it opens with a bold label, `**Guest:**`.
+    labelled: bool,
     /// The paragraph, up to its last character.
     range: Range<usize>,
 }
@@ -181,6 +187,7 @@ impl Map {
                         map.lines.push(LineAt {
                             id: id.clone(),
                             text: l.text.clone(),
+                            labelled: l.label.is_some(),
                             range: start..src[..end].trim_end().len().max(start),
                         });
                         previous = Some(id);
@@ -287,13 +294,6 @@ fn attrs(info: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut rest = info.trim();
     while !rest.is_empty() {
-        // A bare token, such as `@guest`, ends at whitespace before any `=`.
-        let bare = rest.find(char::is_whitespace).unwrap_or(rest.len());
-        if !rest[..bare].contains('=') {
-            out.push((rest[..bare].to_string(), String::new()));
-            rest = rest[bare..].trim_start();
-            continue;
-        }
         let (key, after) = rest.split_once('=').unwrap_or((rest, ""));
         let (value, after) = match after.strip_prefix('"') {
             Some(quoted) => match quoted.find('"') {
@@ -332,10 +332,7 @@ fn with(info: &str, changes: &[(&str, Option<&str>)]) -> String {
     let written: Vec<String> = list
         .iter()
         .map(|(k, v)| {
-            // A bare token, such as a line's `@speaker`, stays bare.
-            if k.starts_with('@') && v.is_empty() {
-                k.clone()
-            } else if v.contains(char::is_whitespace) || v.is_empty() {
+            if v.contains(char::is_whitespace) || v.is_empty() {
                 format!("{k}=\"{v}\"")
             } else {
                 format!("{k}={v}")
@@ -356,6 +353,23 @@ fn split_line(paragraph: &str) -> (&str, &str) {
         Some(at) => (paragraph[..at].trim_end(), &paragraph[at..]),
         None => (paragraph, ""),
     }
+}
+
+/// How long a paragraph's opening label is, `**Guest:** ` or
+/// `__Guest__: `, with the space after it; 0 when it has none.
+fn label_len(paragraph: &str) -> usize {
+    let Some(mark) = ["**", "__"].into_iter().find(|m| paragraph.starts_with(m)) else {
+        return 0;
+    };
+    let Some(close) = paragraph[2..].find(mark) else {
+        return 0;
+    };
+    let mut end = 2 + close + 2;
+    if paragraph[end..].starts_with(':') {
+        end += 1;
+    }
+    let rest = &paragraph[end..];
+    end + (rest.len() - rest.trim_start().len())
 }
 
 fn with_attrs(words: &str, attrs: &str) -> String {

@@ -12,7 +12,7 @@ const LONGEST_SENTENCE: usize = 30;
 const REPEATABLE: &[&str] = &["that", "had"];
 
 pub fn lint(program: &Program) -> Vec<Diagnostic> {
-    let mut out = Vec::new();
+    let mut out = program.warnings.clone();
     for element in &program.elements {
         let Element::Narration {
             id,

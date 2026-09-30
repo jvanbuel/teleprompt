@@ -97,7 +97,7 @@ fn an_editor_is_told_of_problems_and_offered_the_cast() {
     let script = dir.join("scripts/demo.md");
     let text = std::fs::read_to_string(&script)
         .unwrap()
-        .replace("{#welcome}", "{#welcome @gust}");
+        .replace("Welcome to teleprompt.", "**Gust:** Welcome to teleprompt.");
     let uri = format!("file://{}", script.display());
 
     let mut server = Server::start(&dir);
@@ -109,16 +109,18 @@ fn an_editor_is_told_of_problems_and_offered_the_cast() {
         json!({ "textDocument": { "uri": uri, "languageId": "markdown", "version": 1, "text": text } }),
     );
     let problems = server.diagnostics();
-    let problem = &problems[0];
-    assert!(
-        problem["message"].as_str().unwrap().contains("`gust`"),
-        "{problems}"
-    );
+    let problem = problems
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["message"].as_str().unwrap().contains("`Gust:`"))
+        .unwrap_or_else(|| panic!("{problems}"));
+    assert!(problem["message"].as_str().unwrap().contains("`guest`"));
     // Where the line is: the paragraph starts on the script's seventh line.
     assert_eq!(problem["range"]["start"]["line"], 6, "{problem}");
 
     // Fixed as it is typed, unsaved: the problem goes.
-    let fixed = text.replace("@gust", "@guest");
+    let fixed = text.replace("**Gust:**", "**Guest:**");
     server.notify(
         "textDocument/didChange",
         json!({ "textDocument": { "uri": uri, "version": 2 }, "contentChanges": [{ "text": fixed }] }),
@@ -126,8 +128,9 @@ fn an_editor_is_told_of_problems_and_offered_the_cast() {
     let left = server.diagnostics();
     let left = left.as_array().unwrap();
     assert!(
-        left.iter().all(|d| d["severity"] == 2),
-        "no errors: {left:?}"
+        left.iter()
+            .all(|d| d["severity"] == 2 && !d["message"].as_str().unwrap().contains("Gu")),
+        "{left:?}"
     );
     // The scaffold's own warning stays, on its line: `--check` read aloud.
     let the_loop = fixed
@@ -141,18 +144,21 @@ fn an_editor_is_told_of_problems_and_offered_the_cast() {
     );
 
     let doc = json!({ "uri": uri });
-    let welcome = fixed.lines().position(|l| l.contains("{#welcome")).unwrap();
-    let col = fixed.lines().nth(welcome).unwrap().find("@guest").unwrap() + 2;
+    let welcome = fixed
+        .lines()
+        .position(|l| l.starts_with("**Guest:**"))
+        .unwrap();
+    let col = 4;
     let items = server.request(
         "textDocument/completion",
         json!({ "textDocument": doc, "position": { "line": welcome, "character": col } }),
     );
-    assert_eq!(items[0]["label"], "guest", "{items}");
+    assert_eq!(items[0]["label"], "Guest", "{items}");
     assert_eq!(items[0]["detail"], "null · Puck", "{items}");
 
     let hover = server.request(
         "textDocument/hover",
-        json!({ "textDocument": doc, "position": { "line": 6, "character": 3 } }),
+        json!({ "textDocument": doc, "position": { "line": 6, "character": 15 } }),
     );
     let said = hover["contents"]["value"].as_str().unwrap();
     assert!(

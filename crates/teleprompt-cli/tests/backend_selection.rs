@@ -215,7 +215,7 @@ async fn the_manifest_reports_the_rate_the_backend_actually_produced() {
 async fn each_speaker_is_spoken_by_their_own_backend() {
     let script = "---\nvoices:\n  guest:\n    backend: tone\n---\n\n# Talk\n\n\
                   Welcome back to the show. {#intro}\n\n\
-                  Only on Fridays, actually. {#friday @guest}\n";
+                  **Guest:** Only on Fridays, actually. {#friday}\n";
     let (_dir, project, script) = project_with("cast", script);
     let out_root = project.root.join("public/narration");
     let result = teleprompt_cli::cmd::dub::run_dub_with(

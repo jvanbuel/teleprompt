@@ -27,6 +27,9 @@ pub struct Program {
     /// narration.
     pub chapters: Vec<ChapterInfo>,
     pub elements: Vec<Element>,
+    /// What resolving found worth saying that does not stop the script,
+    /// such as a bold label that names nobody in the cast.
+    pub warnings: Vec<Diagnostic>,
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +128,7 @@ pub fn resolve(
         diags,
         config_problems: BTreeMap::new(),
         elements: Vec::new(),
+        warnings: Vec::new(),
     };
     let mut chapters = Vec::new();
 
@@ -133,11 +137,14 @@ pub fn resolve(
             slug: chapter.slug.clone(),
             title: chapter.title.clone(),
         });
-        let chapter_cfg = config_layer(
-            &chapter.front_matter,
-            &format!("chapter `{}` front matter", chapter.slug),
-            &mut r.diags,
-        );
+        let chapter_cfg = [
+            heading_layer(chapter, &mut r.diags),
+            config_layer(
+                &chapter.front_matter,
+                &format!("chapter `{}` front matter", chapter.slug),
+                &mut r.diags,
+            ),
+        ];
         for node in &chapter.nodes {
             match node {
                 Node::Line(seg) => r.resolve_line(seg, chapter, chapter_index, &chapter_cfg),
@@ -153,6 +160,7 @@ pub fn resolve(
         mut diags,
         config_problems,
         elements,
+        warnings,
         ..
     } = r;
     report_config_problems(&base, config_problems, &mut diags);
@@ -168,7 +176,61 @@ pub fn resolve(
         config: base,
         chapters,
         elements,
+        warnings,
     })
+}
+
+/// A chapter's heading settings, `# Interview {speaker=guest}`, as a layer.
+fn heading_layer(chapter: &Chapter, diags: &mut Vec<Diagnostic>) -> PartialConfig {
+    if chapter.raw_attrs.trim().is_empty() {
+        return PartialConfig::default();
+    }
+    let (settings, mut d) = crate::attrs::heading_attrs(&chapter.raw_attrs, chapter.span);
+    diags.append(&mut d);
+    match PartialConfig::from_settings(&settings) {
+        Ok(c) => c,
+        Err(crate::config::ConfigError::Yaml(e)) => {
+            diags.push(
+                Diagnostic::error(format!("chapter `{}`: {e}", chapter.slug))
+                    .at(chapter.span)
+                    .with_help(
+                        "a heading takes the settings front matter does, dotted, \
+                     such as {speaker=guest voice.speed=1.1}",
+                    ),
+            );
+            PartialConfig::default()
+        }
+        Err(e) => {
+            diags.push(
+                Diagnostic::error(format!("chapter `{}`: {e}", chapter.slug)).at(chapter.span),
+            );
+            PartialConfig::default()
+        }
+    }
+}
+
+/// The cast member `label` names, ignoring case: `Guest` is `guest`.
+fn cast_member(label: &str, config: &Config) -> Option<String> {
+    config
+        .voices
+        .keys()
+        .find(|name| name.eq_ignore_ascii_case(label))
+        .cloned()
+}
+
+/// A bold label that names nobody in the cast, so is read aloud.
+fn not_a_speaker(id: &LineId, label: &str, config: &Config, span: SourceSpan) -> Diagnostic {
+    let cast: Vec<String> = config.voices.keys().map(|k| format!("`{k}`")).collect();
+    Diagnostic::warning(format!(
+        "line `{id}` opens with `{label}:`, like a speaker, but the cast is {}: \
+         it is read aloud",
+        cast.join(", ")
+    ))
+    .at(span)
+    .with_help(format!(
+        "add `[voices.{}]` to the cast, or write `{label}:` without bold to say it",
+        label.to_lowercase()
+    ))
 }
 
 /// A speaker the cast does not have, and who it does.
@@ -210,14 +272,16 @@ struct Resolver<'a> {
     /// it is not recoverable here, but the line it reaches is.
     config_problems: BTreeMap<String, SourceSpan>,
     elements: Vec<Element>,
+    warnings: Vec<Diagnostic>,
 }
 
 impl Resolver<'_> {
-    fn merged(&self, chapter_cfg: &PartialConfig, item: PartialConfig) -> Config {
+    fn merged(&self, chapter_cfg: &[PartialConfig], item: PartialConfig) -> Config {
         let layers = [
             self.project.to_vec(),
             self.front.clone(),
-            vec![chapter_cfg.clone(), item, self.cli.clone()],
+            chapter_cfg.to_vec(),
+            vec![item, self.cli.clone()],
         ];
         Config::merged(&layers.concat())
     }
@@ -227,16 +291,28 @@ impl Resolver<'_> {
         seg: &Line,
         chapter: &Chapter,
         chapter_index: usize,
-        chapter_cfg: &PartialConfig,
+        chapter_cfg: &[PartialConfig],
     ) {
         let (attrs, mut d) = LineAttrs::parse(&seg.raw_attrs, seg.span);
         self.diags.append(&mut d);
         let item = PartialConfig::from_line(&attrs);
-        // Who says it: the line's `@name`, or the chapter's or script's
-        // `speaker:`. Their voice is a layer over the chapter's, under the
-        // line's own attributes.
+        // Who says it: the cast member its label names, or the chapter's or
+        // script's `speaker:`. Their voice is a layer over the chapter's,
+        // under the line's own attributes. A label naming nobody is text.
         let around = self.merged(chapter_cfg, PartialConfig::default());
-        let speaker = attrs.speaker.clone().or(around.speaker.clone());
+        let (speaker, text) = match &seg.label {
+            Some(label) => match cast_member(label, &around) {
+                Some(name) => (Some(name), seg.text.clone()),
+                None => {
+                    if !around.voices.is_empty() {
+                        let w = not_a_speaker(&seg.id, label, &around, seg.span);
+                        self.warnings.push(w);
+                    }
+                    (around.speaker.clone(), format!("{label}: {}", seg.text))
+                }
+            },
+            None => (around.speaker.clone(), seg.text.clone()),
+        };
         let cast = match &speaker {
             None => PartialConfig::default(),
             Some(name) => match around.voices.get(name) {
@@ -253,13 +329,13 @@ impl Resolver<'_> {
         let layers = [
             self.project.to_vec(),
             self.front.clone(),
-            vec![chapter_cfg.clone(), cast, item, self.cli.clone()],
+            chapter_cfg.to_vec(),
+            vec![cast, item, self.cli.clone()],
         ];
         let config = Config::merged(&layers.concat());
         for problem in config.problems() {
             self.config_problems.entry(problem).or_insert(seg.span);
         }
-        let text = seg.text.clone();
         self.elements.push(Element::Narration {
             id: seg.id.clone(),
             source_hash: Hash::of(text.as_bytes()),
@@ -272,7 +348,7 @@ impl Resolver<'_> {
         });
     }
 
-    fn resolve_action_block(&mut self, block: &ActionBlock, chapter_cfg: &PartialConfig) {
+    fn resolve_action_block(&mut self, block: &ActionBlock, chapter_cfg: &[PartialConfig]) {
         let (attrs, mut d) = BlockAttrs::parse(&block.info, block.span);
         self.diags.append(&mut d);
         let Some(scene) = attrs.scene.clone() else {

@@ -353,7 +353,7 @@ fn an_instruction_that_would_break_the_attributes_is_refused() {
 
 #[test]
 fn a_speaker_stays_through_an_instruction() {
-    let src = "---\nteleprompt: 1\n---\n\n# Tour\n\nHello there. {#hi @guest}\n";
+    let src = "---\nteleprompt: 1\n---\n\n# Tour\n\n**Guest:** Hello there. {#hi}\n";
     let out = apply(
         src,
         &Edit::Instruct {
@@ -363,7 +363,7 @@ fn a_speaker_stays_through_an_instruction() {
     )
     .unwrap();
     assert!(
-        out.contains("Hello there. {#hi @guest voice.instruct=warmly}"),
+        out.contains("**Guest:** Hello there. {#hi voice.instruct=warmly}"),
         "{out}"
     );
     let back = apply(
@@ -375,4 +375,20 @@ fn a_speaker_stays_through_an_instruction() {
     )
     .unwrap();
     assert_eq!(back, src);
+}
+
+#[test]
+fn a_speaker_stays_through_a_reword() {
+    for label in ["**Guest:**", "**Guest**:", "__Guest:__"] {
+        let src = format!("# Tour\n\n{label} Hello there. {{#hi}}\n");
+        let out = apply(
+            &src,
+            &Edit::Reword {
+                line: "hi".into(),
+                text: "Hi.".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(out, format!("# Tour\n\n{label} Hi. {{#hi}}\n"));
+    }
 }

@@ -206,10 +206,19 @@ fn token_at(text: &str, position: Position) -> Option<(String, Range)> {
     })
 }
 
-/// What the name under the cursor refers to: a speaker, or a scene.
+/// What the name under the cursor refers to: a speaker, by their label
+/// (`**Guest:**`) or a heading's `speaker=`, or a scene.
 fn named<'p>(token: &str, project: &'p Project) -> Option<&'p Definition> {
-    if let Some(name) = token.strip_prefix('@') {
-        return project.speakers.iter().find(|d| d.name == name);
+    let bare = token.trim_matches(|c| c == '*' || c == '_');
+    let label = (bare.len() < token.len())
+        .then(|| bare.strip_suffix(':'))
+        .flatten();
+    let speaker = label.or_else(|| Some(token.strip_prefix("speaker=")?.trim_matches('"')));
+    if let Some(name) = speaker {
+        return project
+            .speakers
+            .iter()
+            .find(|d| d.name.eq_ignore_ascii_case(name));
     }
     let name = token.strip_prefix("scene=")?.trim_matches('"');
     project.scenes.iter().find(|d| d.name == name)

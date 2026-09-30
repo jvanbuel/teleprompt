@@ -16,6 +16,11 @@ pub struct Chapter {
     /// after this chapter's heading (config layer 4,
     /// docs/design.md#configuration). Empty when the chapter has no such block.
     pub front_matter: String,
+    /// The `{…}` after its title, as in `# Interview {#interview
+    /// speaker=guest}`, without the braces; its `#id`, if any, is `slug`.
+    pub raw_attrs: String,
+    /// Where its heading is.
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
@@ -30,6 +35,10 @@ pub struct Line {
     /// Its `{#id}`, or one derived from its chapter: never missing.
     pub id: LineId,
     pub id_origin: IdOrigin,
+    /// The bold label it opens with, as in `**Guest:** Hello.`, without
+    /// its colon: who says it if the cast has them, else read aloud.
+    pub label: Option<String>,
+    /// What it says, after any label.
     pub text: String,
     pub raw_attrs: String,
     pub span: SourceSpan,

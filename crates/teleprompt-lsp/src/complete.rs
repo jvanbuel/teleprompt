@@ -1,6 +1,7 @@
-//! What completion offers where the cursor is: in a line's closing braces,
-//! its attributes and `@speaker`; on a ` ```teleprompt ` fence, a block's
-//! attributes; after `key=`, that key's values.
+//! What completion offers where the cursor is: after `**` opening a
+//! paragraph, the cast; in a line's closing braces, its attributes; in a
+//! heading's, a chapter's settings; on a ` ```teleprompt ` fence, a
+//! block's attributes; after `key=`, that key's values.
 
 use lsp_types::{CompletionItem, CompletionItemKind, Position};
 use teleprompt_core::attrs::{BLOCK_KEYS, SEGMENT_KEYS};
@@ -12,8 +13,10 @@ use crate::Project;
 pub enum Context {
     /// A key among a line's attributes.
     LineKey,
-    /// A speaker, after `@`.
+    /// A speaker's label, after `**` opening a paragraph.
     Speaker,
+    /// A setting in a chapter heading's braces.
+    HeadingKey,
     /// A key on a block's fence.
     BlockKey,
     /// The value of `key`, after `key=`.
@@ -27,6 +30,10 @@ pub fn context(text: &str, position: Position) -> Option<(Context, String)> {
     let line = index.line(position.line as usize);
     let column = index.offset(position) - line_start(&index, position);
     let before = &line[..column.min(line.len())];
+    if let Some(name) = label_typed(&index, position.line as usize, before) {
+        return Some((Context::Speaker, name.into()));
+    }
+    let heading = line.starts_with('#');
     let fence = line.trim_start().strip_prefix("```teleprompt");
     let attrs = match fence {
         Some(rest) => {
@@ -52,15 +59,38 @@ pub fn context(text: &str, position: Position) -> Option<(Context, String)> {
         ));
     } else if fence.is_some() {
         Context::BlockKey
-    } else if let Some(name) = token.strip_prefix('@') {
-        return Some((Context::Speaker, name.into()));
     } else if token.starts_with('#') {
         return None;
+    } else if heading {
+        Context::HeadingKey
     } else {
         Context::LineKey
     };
     Some((ctx, token.into()))
 }
+
+/// The name typed so far after `**` or `__` opening a paragraph.
+fn label_typed<'a>(index: &LineIndex, line: usize, before: &'a str) -> Option<&'a str> {
+    let opens = line == 0 || {
+        let above = index.line(line - 1).trim();
+        above.is_empty() || above.starts_with('#')
+    };
+    let name = before
+        .strip_prefix("**")
+        .or_else(|| before.strip_prefix("__"))?;
+    (opens && !name.contains(|c: char| c.is_whitespace() || c == ':' || c == '*')).then_some(name)
+}
+
+/// Settings a chapter's heading takes most, of all front matter does.
+const HEADING_KEYS: &[&str] = &[
+    "speaker",
+    "voice.backend",
+    "voice.voice",
+    "voice.speed",
+    "voice.instruct",
+    "timing.lead_in_ms",
+    "timing.tail_ms",
+];
 
 fn line_start(index: &LineIndex, position: Position) -> usize {
     index.offset(Position {
@@ -119,24 +149,36 @@ pub fn items(ctx: &Context, project: &Project) -> Vec<CompletionItem> {
             .collect()
     };
     match ctx {
-        Context::Speaker => named(&project.speakers, CompletionItemKind::VARIABLE),
-        Context::LineKey => {
-            let mut out = keys(SEGMENT_KEYS);
-            out.extend(project.speakers.iter().map(|d| {
-                let at = format!("@{}", d.name);
-                item(at.clone(), &d.detail, CompletionItemKind::VARIABLE, at)
-            }));
-            out
-        }
+        Context::Speaker => project
+            .speakers
+            .iter()
+            .map(|d| {
+                let label = capitalized(&d.name);
+                let insert = format!("{label}:** ");
+                item(label, &d.detail, CompletionItemKind::VARIABLE, insert)
+            })
+            .collect(),
+        Context::LineKey => keys(SEGMENT_KEYS),
+        Context::HeadingKey => keys(HEADING_KEYS),
         Context::BlockKey => keys(BLOCK_KEYS),
         Context::Value { key } => match key.as_str() {
             "scene" => named(&project.scenes, CompletionItemKind::MODULE),
+            "speaker" => named(&project.speakers, CompletionItemKind::VARIABLE),
             "policy" => values(POLICIES),
             "align" => values(ALIGNS),
             "include" => files(project),
             _ => Vec::new(),
         },
     }
+}
+
+/// `guest` as a label writes it: `Guest`.
+pub fn capitalized(name: &str) -> String {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 /// The files beside the script, for `include=`.

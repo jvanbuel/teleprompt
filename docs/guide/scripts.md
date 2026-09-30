@@ -23,7 +23,10 @@ Sleep 2s
 ````
 
 - Front matter configures the script.
-- Headings are chapters. Every line and block must be inside one.
+- Headings are chapters. Every line and block must be inside one. A
+  heading can end in settings for its chapter, as in
+  `# The interview {speaker=guest voice.speed=1.1}`: see
+  [Configuration](#configuration).
 - Each paragraph is a **line** of narration.
 - Each `teleprompt` block is an **action**, written in the language of its
   scene (see [Scenes](scenes.md)).
@@ -173,26 +176,33 @@ voice = "Puck"
 instruct = "dry, a little deadpan"
 ```
 
-Then say who speaks a line with `@name` among its attributes:
+Then say who speaks a line the way a transcript does, with their name in
+bold before what they say:
 
 ```md
 Welcome back. Today I'm talking to someone who deploys on Fridays. {#intro}
 
-Only on Fridays, actually. {#friday @guest}
+**Guest:** Only on Fridays, actually. {#friday}
 
-Because nobody's watching. {#because @guest voice.instruct=conspiratorial}
+**Guest:** Because nobody's watching. {#because voice.instruct=conspiratorial}
 ```
 
-A line with no speaker is the narrator's. A speaker's voice sits over the
-chapter's settings and under the line's own, so the last line keeps the
-guest's voice with its own delivery. `speaker: guest` in the front matter
-or a chapter's block makes a speaker the default there; it never carries
-over from one line to the next, so moving a line never changes who says
-the lines after it. Speakers may use different backends: each line is
+The label is who, not what: it isn't said, and it matches the cast
+whatever its case, so `**Guest:**` is `[voices.guest]`. `**Guest**:`
+works too. A line with no label is the narrator's. A speaker's voice sits
+over the chapter's settings and under the line's own, so the last line
+keeps the guest's voice with its own delivery. `speaker: guest` in the
+front matter, or `{speaker=guest}` on a chapter's heading, makes a speaker
+the default there. A label never carries over from one line to the next,
+so moving a line never changes who says the lines after it.
+
+A bold label naming nobody in the cast, such as `**Note:**`, is only
+text, and is said like the rest. When the script has a cast, `check`
+warns about one, since it is more likely a typo than something to say. Speakers may use different backends: each line is
 spoken by its own, and `dub` converts every line to the first line's rate
 and channels, since the manifest has one audio format.
 
-`check` fails on a speaker not in the cast, naming who is. The manifest
+`check` fails on a default `speaker` not in the cast, naming who is. The manifest
 gives each line's `speaker`, and WebVTT captions put a speaker's cues in
 their voice span (`<v guest>`). A line you record plays from your take
 whoever its speaker is, so `@me` with a voice of yours to fall back on is
@@ -240,7 +250,7 @@ and a `pause`). The same limit applies to the `_ms` settings in
 
 | on | keys |
 |---|---|
-| a line | `@speaker`, `voice.backend`, `voice.voice`, `voice.speed`, `voice.instruct`, `lead_in`, `tail`, `lang` |
+| a line | `voice.backend`, `voice.voice`, `voice.speed`, `voice.instruct`, `lead_in`, `tail`, `lang` |
 | a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `stretch`, `budget`, `trim_warn_above`, `max_stretch`, `min_stretch`, `review` |
 
 `include=path` takes the block's body from a file, so a tape or a
@@ -255,7 +265,12 @@ Settings merge from these layers, with later ones winning:
 1. built-in defaults
 2. `teleprompt.toml` at the project root
 3. the script's front matter
-4. a chapter's ` ```yaml teleprompt ` block, immediately after its heading
+4. a chapter's settings: on its heading, as in `# Setup {#setup
+   voice.speed=1.1}`, with a setting's path dotted; or, for more than
+   fit there, a ` ```yaml teleprompt ` block immediately after the
+   heading, which wins over the heading's. The heading's `#id` is the
+   chapter's, which its lines' ids start with, so it can be renamed
+   without renumbering them.
 5. line and block attributes
 6. command-line flags
 
@@ -263,7 +278,7 @@ Settings merge from these layers, with later ones winning:
 |---|---|---|
 | `voice` | `backend`, `voice`, `speed`, `instruct`, `pronounce` | `null`, none, `1.0`, none |
 | `voices.<speaker>` | the same keys as `voice`, over it for that speaker's lines | |
-| `speaker` | who says a line that names none | the narrator |
+| `speaker` | who says a line with no label | the narrator |
 | `timing` | `lead_in_ms`, `tail_ms`, `max_stretch`, `min_stretch`, `trim_warn_above`, `min_line_speed`, `max_line_speed`, `min_take_speed`, `max_take_speed`, `length_ms` | `150`, `150`, `3.0`, `0.33`, `2.0`, `0.9`, `1.15`, `0.95`, `1.08`, none |
 | `output` | `resolution`, `fps`, `transition` | `[1920, 1080]`, `30`, see above |
 | `scene.<name>` | `adapter`, plus the adapter's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |

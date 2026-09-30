@@ -28,7 +28,7 @@ impl Analyzer for Stub {
 
     fn analyze(&self, _script: &Path, text: &str) -> Analysis {
         let mut analysis = Analysis::default();
-        if text.contains("@gust") {
+        if text.contains("**Gust:**") {
             analysis.diagnostics.push(
                 Diagnostic::error("no speaker `gust` in the cast (`guest`)").at(SourceSpan {
                     line: 7,
@@ -42,7 +42,7 @@ impl Analyzer for Stub {
     }
 }
 
-const SCRIPT: &str = "---\nteleprompt: 1\n---\n\n# Tour\n\nHello. {#hi @gust}\n";
+const SCRIPT: &str = "---\nteleprompt: 1\n---\n\n# Tour\n\n**Gust:** Hello. {#hi}\n";
 
 struct Editor {
     conn: Connection,
@@ -134,7 +134,7 @@ fn problems_are_published_where_they_are_and_cleared_when_fixed() {
     editor.notify(
         "textDocument/didChange",
         json!({ "textDocument": { "uri": uri, "version": 2 },
-                "contentChanges": [{ "text": SCRIPT.replace("@gust", "@guest") }] }),
+                "contentChanges": [{ "text": SCRIPT.replace("**Gust:**", "**Guest:**") }] }),
     );
     let published = editor.wait("textDocument/publishDiagnostics");
     assert_eq!(published["diagnostics"], json!([]));
@@ -146,15 +146,16 @@ fn completion_hover_definition_and_symbols_answer() {
     let (mut editor, uri, handle) = started(SCRIPT);
     editor.wait("textDocument/publishDiagnostics");
     let doc = json!({ "uri": uri });
-    // After `@gu` of `@gust`: the cast.
+    // After `**Gu` of `**Gust:**`: the cast, as labels.
     let items = editor.request(
         "textDocument/completion",
-        json!({ "textDocument": doc, "position": { "line": 6, "character": 15 } }),
+        json!({ "textDocument": doc, "position": { "line": 6, "character": 4 } }),
     );
-    assert_eq!(items[0]["label"], "guest", "{items}");
+    assert_eq!(items[0]["label"], "Guest", "{items}");
+    assert_eq!(items[0]["insertText"], "Guest:** ", "{items}");
     let hover = editor.request(
         "textDocument/hover",
-        json!({ "textDocument": doc, "position": { "line": 6, "character": 2 } }),
+        json!({ "textDocument": doc, "position": { "line": 6, "character": 12 } }),
     );
     assert!(
         hover["contents"]["value"]
@@ -171,10 +172,10 @@ fn completion_hover_definition_and_symbols_answer() {
     assert_eq!(symbols[0]["children"][0]["name"], "hi", "{symbols}");
     stop(editor, handle);
     // On a speaker's name: where the cast names them.
-    let (mut editor, uri, handle) = started(&SCRIPT.replace("@gust", "@guest"));
+    let (mut editor, uri, handle) = started(&SCRIPT.replace("**Gust:**", "**Guest:**"));
     let definition = editor.request(
         "textDocument/definition",
-        json!({ "textDocument": { "uri": uri }, "position": { "line": 6, "character": 15 } }),
+        json!({ "textDocument": { "uri": uri }, "position": { "line": 6, "character": 4 } }),
     );
     assert!(
         definition["uri"]
@@ -191,7 +192,7 @@ fn completion_hover_definition_and_symbols_answer() {
 /// a README, is left alone.
 #[test]
 fn a_markdown_file_that_is_not_a_script_is_left_alone() {
-    let (editor, _uri, handle) = started("# Notes\n\nMention @gust here.\n");
+    let (editor, _uri, handle) = started("# Notes\n\n**Gust:** here.\n");
     let published = editor.wait("textDocument/publishDiagnostics");
     assert_eq!(published["diagnostics"], json!([]));
     stop(editor, handle);

@@ -502,6 +502,34 @@ impl PartialConfig {
         Ok(toml::from_str(s)?)
     }
 
+    /// Builds a layer from settings written `path.to.key=value`, as on a
+    /// chapter's heading, each value read as YAML would read it.
+    pub fn from_settings(settings: &[(String, String)]) -> Result<Self, ConfigError> {
+        use serde_yaml::{Mapping, Value};
+        let mut root = Mapping::new();
+        for (path, value) in settings {
+            let value: Value =
+                serde_yaml::from_str(value).unwrap_or_else(|_| Value::String(value.clone()));
+            let mut keys: Vec<&str> = path.split('.').collect();
+            let last = keys.pop().unwrap_or_default();
+            let mut at = &mut root;
+            for key in keys {
+                let entry = at
+                    .entry(Value::String(key.to_string()))
+                    .or_insert_with(|| Value::Mapping(Mapping::new()));
+                if !entry.is_mapping() {
+                    *entry = Value::Mapping(Mapping::new());
+                }
+                let Value::Mapping(inner) = entry else {
+                    unreachable!("made a mapping")
+                };
+                at = inner;
+            }
+            at.insert(Value::String(last.to_string()), value);
+        }
+        Ok(serde_yaml::from_value(Value::Mapping(root))?)
+    }
+
     /// This layer as it applies in `locale`: itself, then its section for
     /// that locale over it.
     pub fn in_locale(&self, locale: &str) -> Vec<PartialConfig> {

@@ -73,6 +73,13 @@ document is parsed as CommonMark, and any other node (lists, tables, other
 code fences) is ignored by compilation, so a script can also be ordinary
 documentation.
 
+A paragraph that opens with a bold label, `**Guest:**` or `**Guest**:`,
+names its speaker when the cast (`voices`) has someone of that name,
+ignoring case, and the label is not said. Otherwise the label is text and
+is said, with a warning when there is a cast. Speakers are written the
+way transcripts are, so a script renders as one anywhere Markdown does,
+and it is resolve, which knows the cast, that decides, not the parser.
+
 A paragraph that is only an HTML comment is a directive, not narration.
 `<!-- teleprompt: pause 800ms -->` inserts a silent item. Inline markup is
 normalised for speech: emphasis is stripped, and code spans and links read
@@ -89,9 +96,10 @@ What a fragment means is the adapter's to decide (see
 
 ### Attributes
 
-Lines take attributes in a trailing `{#id key=value}`, and action blocks
-take them in the fence info string. The grammar is shared, and an unknown
-key is an error. The keys a line takes are listed in
+Lines take attributes in a trailing `{#id key=value}`, headings in the
+same form (Pandoc's), and action blocks in the fence info string. The
+grammar is shared, and an unknown key is an error. A heading's `#id` is
+its chapter's slug, and its other keys are any setting, dotted. The keys a line takes are listed in
 `teleprompt-core/src/attrs.rs` as `SEGMENT_KEYS`, and the keys a block
 takes as `BLOCK_KEYS`.
 
@@ -116,7 +124,8 @@ Configuration layers merge in this order, with the last one winning:
 1. built-in defaults
 2. `teleprompt.toml` at the project root
 3. the script's front matter
-4. a chapter's YAML block, immediately after its heading
+4. a chapter's heading settings, then its YAML block, immediately after
+   the heading
 5. line or block attributes
 6. command-line flags
 

@@ -1,13 +1,14 @@
-//! What completion offers where the cursor is: a line's attributes and its
-//! speaker in its braces, a block's attributes on its fence, and each
-//! attribute's values.
+//! What completion offers where the cursor is: a speaker's label opening
+//! a paragraph, a line's attributes in its braces, a chapter's settings on
+//! its heading, a block's attributes on its fence, and each one's values.
 
 use lsp_types::Position;
 use teleprompt_lsp::complete::{context, items, Context};
 use teleprompt_lsp::{Definition, Project};
 
-const SCRIPT: &str = "---\nteleprompt: 1\n---\n\n# Tour\n\nHello there. {#hi @gu}\n\n\
-                      ```teleprompt scene=te policy=co\n```\n\nPlain text here.\n";
+const SCRIPT: &str =
+    "---\nteleprompt: 1\n---\n\n# Tour {speaker=g}\n**Gu\n\nHello there. {#hi }\n\n\
+                      ```teleprompt scene=te policy=co\n```\n\nPlain text **here.\n";
 
 fn at(needle: &str, after: usize) -> Position {
     let offset = SCRIPT.find(needle).unwrap() + after;
@@ -35,11 +36,29 @@ fn labels(ctx: &Context) -> Vec<String> {
 }
 
 #[test]
-fn a_speaker_is_offered_after_an_at_sign() {
-    let (ctx, prefix) = context(SCRIPT, at("@gu}", 3)).unwrap();
+fn a_speaker_is_offered_after_bold_opening_a_paragraph() {
+    let (ctx, prefix) = context(SCRIPT, at("**Gu", 4)).unwrap();
     assert_eq!(ctx, Context::Speaker);
-    assert_eq!(prefix, "gu");
+    assert_eq!(prefix, "Gu");
+    assert_eq!(labels(&ctx), ["Guest", "Me"]);
+    // Bold within a paragraph is not a label.
+    assert!(context(SCRIPT, at("**here", 4)).is_none());
+}
+
+#[test]
+fn a_headings_settings_are_offered_in_its_braces() {
+    let (ctx, prefix) = context(SCRIPT, at("speaker=g", 9)).unwrap();
+    assert_eq!(
+        ctx,
+        Context::Value {
+            key: "speaker".into()
+        }
+    );
+    assert_eq!(prefix, "g");
     assert_eq!(labels(&ctx), ["guest", "me"]);
+    let (ctx, _) = context(SCRIPT, at("{speaker", 1)).unwrap();
+    assert_eq!(ctx, Context::HeadingKey);
+    assert!(labels(&ctx).contains(&"voice.speed".to_string()));
 }
 
 #[test]
@@ -47,7 +66,7 @@ fn a_lines_keys_are_offered_in_its_braces() {
     let (ctx, prefix) = context(SCRIPT, at("{#hi ", 5)).unwrap();
     assert_eq!((ctx.clone(), prefix.as_str()), (Context::LineKey, ""));
     let offered = labels(&ctx);
-    for key in ["voice.instruct", "lead_in", "@guest"] {
+    for key in ["voice.instruct", "lead_in"] {
         assert!(offered.iter().any(|l| l == key), "{key} in {offered:?}");
     }
     assert!(!offered.iter().any(|l| l == "scene"), "{offered:?}");
