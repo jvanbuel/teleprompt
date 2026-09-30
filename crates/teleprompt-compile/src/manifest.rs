@@ -57,6 +57,7 @@ pub fn build(
                         .collect()
                 }),
                 tempo_permille: n.tempo_permille,
+                speaker: detail.speaker.clone(),
             })
         })
         .collect();

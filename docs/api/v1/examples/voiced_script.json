@@ -6,7 +6,7 @@
     {
       "id": "welcome", "text": "Welcome to Acme. Let me show you around.",
       "recorded": false, "stale": false, "said": null, "said_diff": [],
-      "instruct": "warmly",
+      "instruct": "warmly", "speaker": null,
       "audio": {
         "source": "voice", "url": "/api/v1/voice/welcome.wav", "ready": true,
         "duration_ms": 2600, "words": [0, 520, 660, 1100, 1450, 1650, 1830, 2100]
@@ -15,7 +15,7 @@
     {
       "id": "deploy", "text": "Deployment is one command.",
       "recorded": false, "stale": false, "said": null, "said_diff": [],
-      "instruct": null,
+      "instruct": null, "speaker": "guest",
       "audio": {
         "source": "voice", "url": "/api/v1/voice/deploy.wav", "ready": false,
         "duration_ms": null, "words": null

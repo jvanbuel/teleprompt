@@ -287,6 +287,13 @@ fn attrs(info: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut rest = info.trim();
     while !rest.is_empty() {
+        // A bare token, such as `@guest`, ends at whitespace before any `=`.
+        let bare = rest.find(char::is_whitespace).unwrap_or(rest.len());
+        if !rest[..bare].contains('=') {
+            out.push((rest[..bare].to_string(), String::new()));
+            rest = rest[bare..].trim_start();
+            continue;
+        }
         let (key, after) = rest.split_once('=').unwrap_or((rest, ""));
         let (value, after) = match after.strip_prefix('"') {
             Some(quoted) => match quoted.find('"') {
@@ -325,7 +332,10 @@ fn with(info: &str, changes: &[(&str, Option<&str>)]) -> String {
     let written: Vec<String> = list
         .iter()
         .map(|(k, v)| {
-            if v.contains(char::is_whitespace) || v.is_empty() {
+            // A bare token, such as a line's `@speaker`, stays bare.
+            if k.starts_with('@') && v.is_empty() {
+                k.clone()
+            } else if v.contains(char::is_whitespace) || v.is_empty() {
                 format!("{k}=\"{v}\"")
             } else {
                 format!("{k}={v}")

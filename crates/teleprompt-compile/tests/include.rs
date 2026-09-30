@@ -33,6 +33,7 @@ fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<S
     let cache = cache_for(dir);
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,
@@ -58,6 +59,7 @@ fn run_rendered(dir: &Path, script_name: &str, src: &str) -> Result<(), Vec<Stri
     let cache = cache_for(dir);
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

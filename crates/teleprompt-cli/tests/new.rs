@@ -41,6 +41,7 @@ fn the_scaffolded_script_compiles() {
     let cache = VoiceCache::new(dir.join(".teleprompt/cache"));
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

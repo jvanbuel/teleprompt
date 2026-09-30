@@ -59,6 +59,8 @@ impl Attributes {
 /// step to drop.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LineAttrs {
+    /// `@name`: who says the line, from the cast under `voices`.
+    pub speaker: Option<String>,
     pub voice_backend: Option<String>,
     pub voice: Option<String>,
     pub voice_speed: Option<f64>,
@@ -77,6 +79,7 @@ impl LineAttrs {
             diags: &mut diags,
         };
         let attrs = Self {
+            speaker: v.text(SPEAKER),
             voice_backend: v.text("voice.backend"),
             voice: v.text("voice.voice"),
             voice_speed: v.parsed("voice.speed", number),
@@ -206,6 +209,53 @@ const RENAMED_KEYS: &[(&str, &str, &str)] = &[(
     "it sets when trimming is reported, and never sped anything up",
 )];
 
+/// Where `@name` is kept among a line's attributes. Not a key anyone
+/// writes: `speaker=` is an error saying to write `@name`.
+const SPEAKER: &str = "@speaker";
+
+/// Whether `name` can name a speaker: a letter, then letters, digits, `-`
+/// and `_`, as a TOML table key would be written bare.
+pub fn is_speaker_name(name: &str) -> bool {
+    name.starts_with(|c: char| c.is_ascii_alphabetic())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// `@name`, the one way a line names its speaker.
+fn speaker(
+    token: &str,
+    allowed: &[&str],
+    map: &mut BTreeMap<String, String>,
+    span: SourceSpan,
+) -> Option<Diagnostic> {
+    let name = &token[1..];
+    if allowed != SEGMENT_KEYS {
+        return Some(
+            Diagnostic::error(format!("`{token}` names a speaker, and a block has none"))
+                .at(span)
+                .with_help("a speaker says a line: put `@name` on the line before the block"),
+        );
+    }
+    if !is_speaker_name(name) {
+        return Some(
+            Diagnostic::error(format!("`{token}` is not a speaker's name"))
+                .at(span)
+                .with_help("write `@` and the name under `voices`, such as `@guest`"),
+        );
+    }
+    if let Some(first) = map.get(SPEAKER) {
+        return Some(
+            Diagnostic::error(format!(
+                "a line has one speaker, but names `@{first}` and `{token}`"
+            ))
+            .at(span),
+        );
+    }
+    map.insert(SPEAKER.to_string(), name.to_string());
+    None
+}
+
 pub fn parse_attrs(raw: &str, allowed: &[&str], span: SourceSpan) -> (Attributes, Vec<Diagnostic>) {
     let mut map = BTreeMap::new();
     let mut diags = Vec::new();
@@ -213,6 +263,10 @@ pub fn parse_attrs(raw: &str, allowed: &[&str], span: SourceSpan) -> (Attributes
     for token in tokenize(raw) {
         if token.starts_with('#') {
             continue; // the id anchor, handled by ident.rs
+        }
+        if token.starts_with('@') {
+            diags.extend(speaker(&token, allowed, &mut map, span));
+            continue;
         }
         let Some((key, value)) = token.split_once('=') else {
             diags
@@ -228,6 +282,14 @@ pub fn parse_attrs(raw: &str, allowed: &[&str], span: SourceSpan) -> (Attributes
                 Diagnostic::error(format!("`{key}` was renamed to `{new}`"))
                     .at(span)
                     .with_help(format!("write `{new}=`; {why}")),
+            );
+            continue;
+        }
+        if key == "speaker" && allowed == SEGMENT_KEYS {
+            diags.push(
+                Diagnostic::error("a line's speaker is not a key")
+                    .at(span)
+                    .with_help(format!("write `@{}`", value.trim().trim_matches('"'))),
             );
             continue;
         }

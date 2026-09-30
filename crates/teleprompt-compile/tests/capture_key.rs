@@ -32,6 +32,7 @@ fn run_with(src: &str, registry: &SceneRegistry) -> CompileOutput {
         VoiceCache::new(std::env::temp_dir().join(format!("tp-chain-{}-{n}", std::process::id())));
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

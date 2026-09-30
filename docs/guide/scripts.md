@@ -156,6 +156,48 @@ so it never crossfades over speech. A fixed duration, such as
 `duration: 400ms`, is used as written, with a warning when it overlaps
 speech.
 
+## Speakers
+
+A script can have more than one voice. Name the cast once, in
+`teleprompt.toml` or the front matter, each speaker's voice as it differs
+from `[voice]`, the narrator's:
+
+```toml
+[voice]
+backend = "kokoro"
+voice = "af_heart"
+
+[voices.guest]
+backend = "gemini"
+voice = "Puck"
+instruct = "dry, a little deadpan"
+```
+
+Then say who speaks a line with `@name` among its attributes:
+
+```md
+Welcome back. Today I'm talking to someone who deploys on Fridays. {#intro}
+
+Only on Fridays, actually. {#friday @guest}
+
+Because nobody's watching. {#because @guest voice.instruct=conspiratorial}
+```
+
+A line with no speaker is the narrator's. A speaker's voice sits over the
+chapter's settings and under the line's own, so the last line keeps the
+guest's voice with its own delivery. `speaker: guest` in the front matter
+or a chapter's block makes a speaker the default there; it never carries
+over from one line to the next, so moving a line never changes who says
+the lines after it. Speakers may use different backends: each line is
+spoken by its own, and `dub` converts every line to the first line's rate
+and channels, since the manifest has one audio format.
+
+`check` fails on a speaker not in the cast, naming who is. The manifest
+gives each line's `speaker`, and WebVTT captions put a speaker's cues in
+their voice span (`<v guest>`). A line you record plays from your take
+whoever its speaker is, so `@me` with a voice of yours to fall back on is
+a table read: you record your lines, and the cast reads the rest.
+
 ## Pronunciation
 
 A synthetic voice reads spelling, so `MWAA` comes out as a word:
@@ -198,7 +240,7 @@ and a `pause`). The same limit applies to the `_ms` settings in
 
 | on | keys |
 |---|---|
-| a line | `voice.backend`, `voice.voice`, `voice.speed`, `voice.instruct`, `lead_in`, `tail`, `lang` |
+| a line | `@speaker`, `voice.backend`, `voice.voice`, `voice.speed`, `voice.instruct`, `lead_in`, `tail`, `lang` |
 | a block | `scene`, `include`, `policy`, `align`, `cue`, `session`, `id`, `stretch`, `budget`, `trim_warn_above`, `max_stretch`, `min_stretch`, `review` |
 
 `include=path` takes the block's body from a file, so a tape or a
@@ -219,7 +261,9 @@ Settings merge from these layers, with later ones winning:
 
 | section | keys | defaults |
 |---|---|---|
-| `voice` | `source`, `backend`, `voice`, `speed`, `instruct`, `pronounce` | `synthetic`, `null`, none, `1.0`, none |
+| `voice` | `backend`, `voice`, `speed`, `instruct`, `pronounce` | `null`, none, `1.0`, none |
+| `voices.<speaker>` | the same keys as `voice`, over it for that speaker's lines | |
+| `speaker` | who says a line that names none | the narrator |
 | `timing` | `lead_in_ms`, `tail_ms`, `max_stretch`, `min_stretch`, `trim_warn_above`, `min_line_speed`, `max_line_speed`, `min_take_speed`, `max_take_speed`, `length_ms` | `150`, `150`, `3.0`, `0.33`, `2.0`, `0.9`, `1.15`, `0.95`, `1.08`, none |
 | `output` | `resolution`, `fps`, `transition` | `[1920, 1080]`, `30`, see above |
 | `scene.<name>` | `adapter`, plus the adapter's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |

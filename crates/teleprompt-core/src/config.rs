@@ -30,6 +30,10 @@ pub struct Config {
     /// available list.
     pub backends: BTreeMap<String, serde_yaml::Value>,
     pub translate: TranslateConfig,
+    /// The cast: each speaker's voice, as it differs from `voice`.
+    pub voices: BTreeMap<String, PartialVoice>,
+    /// Who says a line that names no speaker; the narrator when none.
+    pub speaker: Option<String>,
 }
 
 /// What `translate` translates with. The provider's own settings (where
@@ -267,6 +271,8 @@ impl Default for Config {
                 model: None,
                 timeout_ms: TRANSLATE_TIMEOUT_MS,
             },
+            voices: BTreeMap::new(),
+            speaker: None,
         }
     }
 }
@@ -303,6 +309,10 @@ pub struct PartialConfig {
     /// say, applied over the rest of the layer they are written in.
     pub locale: Option<BTreeMap<String, PartialConfig>>,
     pub translate: Option<PartialTranslate>,
+    /// `[voices.guest]`: the cast, a voice per speaker, over `voice`.
+    pub voices: Option<BTreeMap<String, PartialVoice>>,
+    /// `speaker: guest`: who says the lines that name no speaker.
+    pub speaker: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -320,7 +330,7 @@ pub struct PartialLocales {
     pub targets: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialVoice {
     pub backend: Option<String>,
@@ -537,6 +547,29 @@ impl PartialConfig {
     }
 }
 
+impl PartialVoice {
+    /// `over`'s settings over these, a pronunciation at a time.
+    pub fn merge(&mut self, over: &PartialVoice) {
+        if over.backend.is_some() {
+            self.backend = over.backend.clone();
+        }
+        if over.voice.is_some() {
+            self.voice = over.voice.clone();
+        }
+        if over.speed.is_some() {
+            self.speed = over.speed;
+        }
+        if over.instruct.is_some() {
+            self.instruct = over.instruct.clone();
+        }
+        if let Some(words) = &over.pronounce {
+            self.pronounce
+                .get_or_insert_with(BTreeMap::new)
+                .extend(words.iter().map(|(k, v)| (k.clone(), v.clone())));
+        }
+    }
+}
+
 macro_rules! set {
     ($target:expr, $src:expr) => {
         if let Some(v) = $src {
@@ -672,6 +705,15 @@ impl Config {
                         entry.settings.insert(k.clone(), v.clone());
                     }
                 }
+            }
+            if let Some(cast) = &layer.voices {
+                for (name, voice) in cast {
+                    let entry = c.voices.entry(name.clone()).or_default();
+                    entry.merge(voice);
+                }
+            }
+            if layer.speaker.is_some() {
+                c.speaker = layer.speaker.clone();
             }
             if let Some(t) = &layer.translate {
                 set!(c.translate.provider, t.provider.clone());

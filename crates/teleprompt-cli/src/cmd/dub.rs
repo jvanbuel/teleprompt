@@ -230,8 +230,12 @@ pub async fn run_dub_with(
     let (compiled, backend) =
         compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
     let cache = Arc::new(VoiceCache::new(project.caches().root));
+    let voices = crate::cmd::check::voices_for(backends, &backend, &compiled.narration)
+        .map_err(DubError::Runtime)?;
 
-    check_voices(backends, backend.id(), &compiled, &cache).await?;
+    for id in voices.keys() {
+        check_voices(backends, id, &compiled, &cache).await?;
+    }
     let limit = backends.concurrency(backend.id());
     let takes = Takes::load(&project.takes_dir()).map_err(|e| DubError::Runtime(e.to_string()))?;
     let synthesized: Vec<NarrationDetail> = compiled
@@ -240,8 +244,9 @@ pub async fn run_dub_with(
         .filter(|d| d.take.is_none())
         .cloned()
         .collect();
-    let rendered = render_all(&backend, &cache, &synthesized, limit).await?;
+    let rendered = render_all(&voices, &cache, &synthesized, limit).await?;
     let rendered = with_takes(&compiled.narration, rendered, &takes)?;
+    let rendered = in_one_format(rendered)?;
     let mut audio = Audio::collect(rendered);
 
     // Recompile against the now-warm cache: the first compile ran before
@@ -294,7 +299,8 @@ async fn check_voices(
 ) -> Result<(), DubError> {
     // A corrupt entry counts as missing: it will be re-rendered.
     let anything_to_synthesize = compiled.narration.iter().any(|detail| {
-        detail.take.is_none()
+        detail.backend == backend_id
+            && detail.take.is_none()
             && !matches!(
                 cache.lookup_meta(&detail.cache_key),
                 Ok(teleprompt_cache::CacheRead::Hit(_))
@@ -309,6 +315,7 @@ async fn check_voices(
     let wanted = compiled
         .narration
         .iter()
+        .filter(|d| d.backend == backend_id)
         .filter_map(|d| d.synth_request.voice.clone())
         .collect::<std::collections::BTreeSet<_>>();
     if wanted.is_empty() {
@@ -350,7 +357,7 @@ async fn check_voices(
 /// every task in flight; entries already stored stay, since the cache is
 /// content-addressed.
 async fn render_all(
-    backend: &Arc<dyn VoiceBackend>,
+    voices: &crate::cmd::check::Voices,
     cache: &Arc<VoiceCache>,
     narration: &[NarrationDetail],
     limit: usize,
@@ -370,7 +377,7 @@ async fn render_all(
             .iter()
             .map(|&i| narration[i].line_id.clone())
             .collect();
-        let backend = backend.clone();
+        let backend = voices[&detail.backend].clone();
         let cache = cache.clone();
         let permits = permits.clone();
         let completed = completed.clone();
@@ -456,6 +463,37 @@ fn with_takes(
         });
     }
     Ok(out)
+}
+
+/// Every line in the first line's rate and channels, since the manifest
+/// publishes one: a cast's backends may each speak at their own.
+fn in_one_format(rendered: Vec<Rendered>) -> Result<Vec<Rendered>, DubError> {
+    let Some(&(rate, channels)) = rendered
+        .first()
+        .map(|r| (r.sample_rate, r.channels))
+        .as_ref()
+    else {
+        return Ok(rendered);
+    };
+    rendered
+        .into_iter()
+        .map(|r| {
+            if (r.sample_rate, r.channels) == (rate, channels) {
+                return Ok(r);
+            }
+            let failed =
+                |e: &dyn std::fmt::Display| DubError::Runtime(format!("line `{}`: {e}", r.line_id));
+            let pcm = wav::decode(&r.wav_bytes).map_err(|e| failed(&e))?;
+            let pcm = with_channels(pcm.resampled(rate), channels).map_err(|e| failed(&e))?;
+            Ok(Rendered {
+                wav_bytes: wav::encode(&pcm),
+                rendered_ms: pcm.duration_ms(),
+                sample_rate: pcm.sample_rate,
+                channels: pcm.channels,
+                ..r
+            })
+        })
+        .collect()
 }
 
 /// A mono take played on every channel the narration has.

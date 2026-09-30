@@ -30,6 +30,9 @@ pub mod manifest;
 pub struct VoiceContext<'a> {
     pub backend_id: &'a str,
     pub backend_version: &'a str,
+    /// The version of each other backend a line may pick, by id, for a
+    /// cast whose speakers use several.
+    pub other_backends: BTreeMap<String, String>,
     pub cache: &'a VoiceCache,
     pub estimator: &'a dyn DurationEstimator,
     /// Recorded takes; a current one stands in for synthesis.
@@ -65,6 +68,21 @@ pub struct NarrationDetail {
     /// The recorded take the line is spoken from, when it has a current
     /// one; `synth_request` and `cache_key` then go unused.
     pub take: Option<TakeMeta>,
+    /// The voice backend that speaks it, by id.
+    pub backend: String,
+    /// Who says it, from the cast; the narrator when `None`.
+    pub speaker: Option<String>,
+}
+
+impl VoiceContext<'_> {
+    /// The version of backend `id`, if this compile has it.
+    pub fn version_of(&self, id: &str) -> Option<&str> {
+        if id == self.backend_id {
+            Some(self.backend_version)
+        } else {
+            self.other_backends.get(id).map(String::as_str)
+        }
+    }
 }
 
 /// One action shot's source, as the adapter split it (and re-timed it), for
@@ -388,15 +406,7 @@ pub fn compile(
     };
     for element in &program.elements {
         match element {
-            Element::Narration {
-                id,
-                text,
-                source_hash,
-                chapter,
-                chapter_index,
-                config,
-                ..
-            } => walker.narration(id, text, *source_hash, chapter, *chapter_index, config),
+            Element::Narration { .. } => walker.narration(element),
             Element::Action {
                 block_id,
                 scene,
@@ -535,16 +545,32 @@ impl<'a> Walker<'a, '_> {
         }
     }
 
-    fn narration(
-        &mut self,
-        id: &LineId,
-        text: &str,
-        source_hash: Hash,
-        chapter: &str,
-        chapter_index: usize,
-        config: &Config,
-    ) {
+    fn narration(&mut self, element: &Element) {
+        let Element::Narration {
+            id,
+            text,
+            source_hash,
+            chapter,
+            chapter_index,
+            config,
+            speaker,
+            span,
+        } = element
+        else {
+            return;
+        };
+        let (source_hash, chapter_index) = (*source_hash, *chapter_index);
         self.flush();
+        let backend = &config.voice.backend;
+        let Some(backend_version) = self.voice.version_of(backend).map(str::to_string) else {
+            self.diags.push(
+                Diagnostic::error(format!(
+                    "line `{id}` is spoken by voice backend `{backend}`, which this compile does not have"
+                ))
+                .at(*span),
+            );
+            return;
+        };
         let req = SynthRequest {
             // docs/design.md#word-timings: the voice gets the
             // pronunciation, and it is in the cache key.
@@ -554,8 +580,7 @@ impl<'a> Walker<'a, '_> {
             speed: config.voice.speed,
             instruct: config.voice.instruct.clone(),
         };
-        let cache_key =
-            teleprompt_cache::key(self.voice.backend_id, self.voice.backend_version, &req);
+        let cache_key = teleprompt_cache::key(backend, &backend_version, &req);
         let take = self.voice.takes.current(id, text).cloned();
         let (duration_ms, duration_source, word_timings, audio_hash) = match &take {
             Some(t) => (t.duration_ms, DurationSource::Measured, None, t.audio_hash),
@@ -583,6 +608,8 @@ impl<'a> Walker<'a, '_> {
             cache_key: cache_key.clone(),
             word_timings,
             take: take.clone(),
+            backend: backend.clone(),
+            speaker: speaker.clone(),
         });
         self.pending = Some(Pending {
             input: NarrationInput {

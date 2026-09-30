@@ -7,6 +7,7 @@ use teleprompt_manifest::{
 
 fn seg(id: &str, start_ms: u64, duration_ms: u64, text: &str, audio_seed: &str) -> LineEntry {
     LineEntry {
+        speaker: None,
         id: id.into(),
         text: text.to_string(),
         chapter: "intro".to_string(),

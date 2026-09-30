@@ -100,16 +100,15 @@ pub(crate) fn compile_script_with(
         .resolve(&program.config.voice.backend)
         .map_err(|d| render(&Diagnostics(vec![d]), &display))?;
 
-    let mixed = mixed_backends(&program);
-    if !mixed.is_empty() {
-        return Err(render(&Diagnostics(mixed), &display));
-    }
+    // Every other backend a line is spoken by, as a cast's speakers are.
+    let others = other_backends(backends, &program, backend.id());
+    let others = others.map_err(|d| render(&Diagnostics(d), &display))?;
 
     // `script_dir`, not `script.parent()`: a bare `demo.md` has
     // `Some("")` for a parent, which is not the current directory.
     let base_dir = crate::project::script_dir(script);
 
-    let mut out = compile_with_voice(project, &program, &*backend, base_dir, &display)?;
+    let mut out = compile_with_voice(project, &program, &*backend, others, base_dir, &display)?;
 
     // The bare message, not `render()`'s output: like every other warning
     // here it is a plain sentence, and callers add their own framing.
@@ -120,56 +119,74 @@ pub(crate) fn compile_script_with(
     Ok((out, backend))
 }
 
-/// Lines whose own config picks another backend than the compile's.
-fn mixed_backends(program: &Program) -> Vec<Diagnostic> {
-    // One backend per compile: `VoiceContext` carries a single `backend_id`.
-    // A line attribute or a chapter block can still pick another, and the
-    // merged config no longer says which, so the error names the effect,
-    // not the layer. One error per backend, naming every line, so a chapter
-    // under one stray `voice.backend` is not twelve errors.
-    let mut offenders: std::collections::BTreeMap<
-        String,
-        Vec<(String, teleprompt_core::SourceSpan)>,
-    > = std::collections::BTreeMap::new();
+/// Each backend a line is spoken by, by id.
+pub(crate) type Voices = std::collections::BTreeMap<String, Arc<dyn VoiceBackend>>;
+
+/// The backends `narration` is spoken by: `main`, and each a speaker's
+/// line picks. The compile has already found them all.
+pub(crate) fn voices_for(
+    backends: &Backends,
+    main: &Arc<dyn VoiceBackend>,
+    narration: &[teleprompt_compile::NarrationDetail],
+) -> Result<Voices, String> {
+    let mut voices = Voices::new();
+    voices.insert(main.id().to_string(), main.clone());
+    for detail in narration {
+        if !voices.contains_key(&detail.backend) {
+            let backend = backends
+                .resolve(&detail.backend)
+                .map_err(|d| format!("line `{}`: {}", detail.line_id, d.message))?;
+            voices.insert(detail.backend.clone(), backend);
+        }
+    }
+    Ok(voices)
+}
+
+/// The version of each backend a line is spoken by other than `main`, by
+/// id; or, for each that does not exist or cannot be used, an error naming
+/// every line that asks for it.
+fn other_backends(
+    backends: &Backends,
+    program: &Program,
+    main: &str,
+) -> Result<std::collections::BTreeMap<String, String>, Vec<Diagnostic>> {
+    let mut wanted: std::collections::BTreeMap<String, Vec<(String, teleprompt_core::SourceSpan)>> =
+        std::collections::BTreeMap::new();
     for item in &program.elements {
         if let Element::Narration {
             id, config, span, ..
         } = item
         {
-            if config.voice.backend != program.config.voice.backend {
-                offenders
+            if config.voice.backend != main {
+                wanted
                     .entry(config.voice.backend.clone())
                     .or_default()
                     .push((id.to_string(), *span));
             }
         }
     }
-    offenders
-        .into_iter()
-        .map(|(backend, lines)| {
-            let shot = lines[0].1;
-            let names = lines
-                .iter()
-                .map(|(id, _)| format!("`{id}`"))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let (noun, verb) = if lines.len() == 1 {
-                ("line", "resolves")
-            } else {
-                ("lines", "resolve")
-            };
-            Diagnostic::error(format!(
-                "{noun} {names} {verb} to voice backend `{backend}`, but this compile uses \
-                 `{}`",
-                program.config.voice.backend
-            ))
-            .at(shot)
-            .with_help(
-                "per-line and per-chapter voice backends are not supported yet; set \
-                 voice.backend at the project or script front-matter level instead",
-            )
-        })
-        .collect()
+    let mut versions = std::collections::BTreeMap::new();
+    let mut errors = Vec::new();
+    for (id, lines) in wanted {
+        match backends.resolve(&id) {
+            Ok(backend) => {
+                versions.insert(id, backend.capabilities().version);
+            }
+            Err(d) => {
+                let names: Vec<String> = lines.iter().map(|(l, _)| format!("`{l}`")).collect();
+                let noun = if names.len() == 1 { "line" } else { "lines" };
+                errors.push(Diagnostic {
+                    message: format!("{noun} {}: {}", names.join(", "), d.message),
+                    ..d.at(lines[0].1)
+                });
+            }
+        }
+    }
+    if errors.is_empty() {
+        Ok(versions)
+    } else {
+        Err(errors)
+    }
 }
 
 /// For a locale other than the script's own, puts the translation beside
@@ -215,6 +232,7 @@ fn compile_with_voice(
     project: &Project,
     program: &Program,
     backend: &dyn VoiceBackend,
+    other_backends: std::collections::BTreeMap<String, String>,
     base_dir: &Path,
     display: &str,
 ) -> Result<CompileOutput, Vec<String>> {
@@ -223,6 +241,7 @@ fn compile_with_voice(
     let capabilities = backend.capabilities();
     let takes = Takes::load(&project.takes_dir()).map_err(|e| vec![e.to_string()])?;
     let ctx = VoiceContext {
+        other_backends,
         backend_id: backend.id(),
         backend_version: &capabilities.version,
         cache: &cache,

@@ -350,3 +350,29 @@ fn an_instruction_that_would_break_the_attributes_is_refused() {
     .unwrap_err();
     assert!(err.contains('"'), "{err}");
 }
+
+#[test]
+fn a_speaker_stays_through_an_instruction() {
+    let src = "---\nteleprompt: 1\n---\n\n# Tour\n\nHello there. {#hi @guest}\n";
+    let out = apply(
+        src,
+        &Edit::Instruct {
+            line: "hi".into(),
+            text: Some("warmly".into()),
+        },
+    )
+    .unwrap();
+    assert!(
+        out.contains("Hello there. {#hi @guest voice.instruct=warmly}"),
+        "{out}"
+    );
+    let back = apply(
+        &out,
+        &Edit::Instruct {
+            line: "hi".into(),
+            text: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(back, src);
+}

@@ -23,7 +23,6 @@ use teleprompt_cache::VoiceCache;
 use teleprompt_compile::manifest;
 use teleprompt_core::{Hash, LineId, ShotId};
 use teleprompt_manifest::{AudioInfo, NarrationManifest};
-use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::check::{backends_of, compile_script_with};
 use crate::project::Project;
@@ -92,7 +91,9 @@ async fn rebuild(
         .map_err(PreviewError::Validation)?;
 
     let cache = VoiceCache::new(project.caches().root);
-    let audio = warm(&backend, &cache, &compiled).await?;
+    let voices = crate::cmd::check::voices_for(&backends, &backend, &compiled.narration)
+        .map_err(PreviewError::Runtime)?;
+    let audio = warm(&voices, &cache, &compiled).await?;
 
     // Compiled again, as `dub` does: the first pass read durations from a
     // cache `warm` had not yet filled, so they were estimates, and every
@@ -138,7 +139,7 @@ async fn rebuild(
 /// Sequential, unlike `dub`: after the first run the usual miss is the one
 /// paragraph just edited, and `dub` is the command for a cold cache.
 async fn warm(
-    backend: &Arc<dyn VoiceBackend>,
+    voices: &crate::cmd::check::Voices,
     cache: &VoiceCache,
     compiled: &teleprompt_compile::CompileOutput,
 ) -> Result<AudioInfo, PreviewError> {
@@ -152,9 +153,10 @@ async fn warm(
         let (rate, channels) = match hit {
             Some(meta) => (meta.sample_rate, meta.channels),
             None => {
-                let stored = crate::cmd::dub::synthesize_and_store(backend, cache, detail)
-                    .await
-                    .map_err(PreviewError::Runtime)?;
+                let stored =
+                    crate::cmd::dub::synthesize_and_store(&voices[&detail.backend], cache, detail)
+                        .await
+                        .map_err(PreviewError::Runtime)?;
                 (stored.sample_rate, stored.channels)
             }
         };

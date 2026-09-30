@@ -39,6 +39,7 @@ fn compile_it(body: &str) -> Result<teleprompt_compile::CompileOutput, Diagnosti
         VoiceCache::new(std::env::temp_dir().join(format!("tp-untimed-{}", std::process::id())));
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

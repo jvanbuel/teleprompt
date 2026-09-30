@@ -4,6 +4,7 @@ use teleprompt_manifest::{AudioInfo, LineEntry, NarrationManifest, WordEntry, MA
 
 fn line(start_ms: u64, duration_ms: u64, text: &str) -> LineEntry {
     LineEntry {
+        speaker: None,
         id: "l".into(),
         text: text.to_string(),
         chapter: "intro".to_string(),
@@ -57,7 +58,8 @@ fn a_short_line_is_one_cue() {
         [Cue {
             start_ms: 1500,
             end_ms: 3500,
-            rows: vec!["Let's see what is here.".to_string()]
+            rows: vec!["Let's see what is here.".to_string()],
+            speaker: None,
         }]
     );
 }
@@ -116,11 +118,13 @@ fn srt_and_vtt_are_written_as_players_expect() {
             start_ms: 1500,
             end_ms: 3500,
             rows: vec!["Let's see.".into()],
+            speaker: None,
         },
         Cue {
             start_ms: 3_723_004,
             end_ms: 3_725_000,
             rows: vec!["One".into(), "two.".into()],
+            speaker: None,
         },
     ];
     assert_eq!(
@@ -143,4 +147,20 @@ fn rows_count_characters_not_bytes() {
     let c = cues(&manifest(vec![line(0, 4000, text)]));
     assert_eq!(c.len(), 1, "{c:?}");
     assert!(c[0].rows.iter().all(|r| r.chars().count() <= 42));
+}
+
+/// A speaker's cues are in their voice span in WebVTT, for a player to say
+/// who is talking; SubRip has no such thing, and is left as it was.
+#[test]
+fn a_speakers_cues_name_them_in_webvtt() {
+    let mut guest = line(0, 2000, "Only on Fridays.");
+    guest.speaker = Some("guest".into());
+    let c = cues(&manifest(vec![guest]));
+    assert_eq!(c[0].speaker.as_deref(), Some("guest"));
+    assert!(
+        vtt(&c).contains("\n<v guest>Only on Fridays.\n"),
+        "{}",
+        vtt(&c)
+    );
+    assert!(!srt(&c).contains("guest"));
 }

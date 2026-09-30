@@ -108,6 +108,9 @@ pub struct LineEntry {
     /// at this tempo.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tempo_permille: Option<Tempo>,
+    /// Who says it, from the script's cast; absent for the narrator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

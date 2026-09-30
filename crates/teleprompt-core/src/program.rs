@@ -47,6 +47,8 @@ pub enum Element {
         /// apart.
         chapter_index: usize,
         config: Config,
+        /// Who says it, from the cast; the narrator when `None`.
+        speaker: Option<String>,
         /// Source location of the paragraph this narration came from, so
         /// downstream diagnostics can point at the real line instead of a
         /// fabricated one.
@@ -169,6 +171,19 @@ pub fn resolve(
     })
 }
 
+/// A speaker the cast does not have, and who it does.
+fn unknown_speaker(name: &str, config: &Config, span: SourceSpan) -> Diagnostic {
+    let cast: Vec<String> = config.voices.keys().map(|k| format!("`{k}`")).collect();
+    let message = if cast.is_empty() {
+        format!("no speaker `{name}`: the script has no cast")
+    } else {
+        format!("no speaker `{name}` in the cast ({})", cast.join(", "))
+    };
+    Diagnostic::error(message).at(span).with_help(format!(
+        "add `[voices.{name}]` to teleprompt.toml, or `voices:` to the front matter"
+    ))
+}
+
 /// Parses one YAML config layer, reporting a parse failure under `what`
 /// and falling back to an empty layer.
 fn config_layer(yaml: &str, what: &str, diags: &mut Vec<Diagnostic>) -> PartialConfig {
@@ -216,7 +231,31 @@ impl Resolver<'_> {
     ) {
         let (attrs, mut d) = LineAttrs::parse(&seg.raw_attrs, seg.span);
         self.diags.append(&mut d);
-        let config = self.merged(chapter_cfg, PartialConfig::from_line(&attrs));
+        let item = PartialConfig::from_line(&attrs);
+        // Who says it: the line's `@name`, or the chapter's or script's
+        // `speaker:`. Their voice is a layer over the chapter's, under the
+        // line's own attributes.
+        let around = self.merged(chapter_cfg, PartialConfig::default());
+        let speaker = attrs.speaker.clone().or(around.speaker.clone());
+        let cast = match &speaker {
+            None => PartialConfig::default(),
+            Some(name) => match around.voices.get(name) {
+                Some(voice) => PartialConfig {
+                    voice: Some(voice.clone()),
+                    ..PartialConfig::default()
+                },
+                None => {
+                    self.diags.push(unknown_speaker(name, &around, seg.span));
+                    PartialConfig::default()
+                }
+            },
+        };
+        let layers = [
+            self.project.to_vec(),
+            self.front.clone(),
+            vec![chapter_cfg.clone(), cast, item, self.cli.clone()],
+        ];
+        let config = Config::merged(&layers.concat());
         for problem in config.problems() {
             self.config_problems.entry(problem).or_insert(seg.span);
         }
@@ -228,6 +267,7 @@ impl Resolver<'_> {
             chapter_index,
             text,
             config,
+            speaker,
             span: seg.span,
         });
     }

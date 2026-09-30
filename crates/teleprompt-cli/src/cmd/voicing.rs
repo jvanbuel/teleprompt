@@ -25,7 +25,10 @@ pub struct Voicing {
 
 #[derive(Clone)]
 struct Voiced {
+    /// The narrator's backend.
     backend: Arc<dyn VoiceBackend>,
+    /// Every backend a line is spoken by, the narrator's included.
+    voices: crate::cmd::check::Voices,
     lines: Vec<NarrationDetail>,
     length_ms: u64,
 }
@@ -48,11 +51,19 @@ impl Voicing {
     /// The script compiled as it now reads, or as it last compiled.
     fn refresh(&self) -> Option<Voiced> {
         let mut voiced = self.voiced.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Ok((compiled, backend)) =
-            crate::cmd::check::compile_script(&self.project, &self.script, &self.locale)
-        {
+        let backends = crate::cmd::check::backends_of(&self.project);
+        let compiled = crate::cmd::check::compile_script_with(
+            &backends,
+            &self.project,
+            &self.script,
+            &self.locale,
+        );
+        if let Ok((compiled, backend)) = compiled {
+            let voices = crate::cmd::check::voices_for(&backends, &backend, &compiled.narration)
+                .unwrap_or_default();
             *voiced = Some(Voiced {
                 backend,
+                voices,
                 length_ms: compiled.timeline.duration_ms.ms(),
                 lines: compiled.narration,
             });
@@ -64,9 +75,11 @@ impl Voicing {
     /// id, for the script the prompter serves.
     pub fn describe(&self) -> Option<Description> {
         let voiced = self.refresh()?;
+        // The narrator's: the voice of a line no speaker says.
         let voice = voiced
             .lines
             .iter()
+            .filter(|l| l.speaker.is_none())
             .find_map(|l| l.synth_request.voice.clone());
         let name = match voice {
             Some(voice) => format!("{} · {voice}", voiced.backend.id()),
@@ -127,11 +140,12 @@ impl Voicing {
             })
             .as_ref()
             .map_err(Clone::clone)?;
-        let stored = runtime.block_on(crate::cmd::dub::synthesize_and_store(
-            &voiced.backend,
-            &cache,
-            line,
-        ))?;
+        let backend = voiced
+            .voices
+            .get(&line.backend)
+            .ok_or_else(|| format!("line `{id}`: no voice backend `{}`", line.backend))?;
+        let stored =
+            runtime.block_on(crate::cmd::dub::synthesize_and_store(backend, &cache, line))?;
         Ok(Some(stored.wav))
     }
 }
@@ -154,6 +168,7 @@ fn line_audio(line: &NarrationDetail, cache: &VoiceCache) -> serde_json::Value {
             "audio": { "source": "take", "url": url, "ready": true,
                        "duration_ms": take.duration_ms, "words": words },
             "instruct": instruct,
+            "speaker": line.speaker,
         });
     }
     let meta = cache
@@ -177,5 +192,6 @@ fn line_audio(line: &NarrationDetail, cache: &VoiceCache) -> serde_json::Value {
         "audio": { "source": "voice", "url": url, "ready": duration.is_some(),
                    "duration_ms": duration, "words": words },
         "instruct": instruct,
+        "speaker": line.speaker,
     })
 }

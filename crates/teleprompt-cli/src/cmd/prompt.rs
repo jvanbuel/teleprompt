@@ -543,6 +543,7 @@ fn voiced(script: &mut serde_json::Value, edits: &Edits) {
         if let Some((_, audio)) = voice.lines.iter().find(|(l, _)| *l == id) {
             line["audio"] = audio["audio"].clone();
             line["instruct"] = audio["instruct"].clone();
+            line["speaker"] = audio["speaker"].clone();
         }
     }
 }

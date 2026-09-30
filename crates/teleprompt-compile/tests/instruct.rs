@@ -16,6 +16,7 @@ fn compile_it(src: &str) -> CompileOutput {
         VoiceCache::new(std::env::temp_dir().join(format!("tp-instruct-{}", std::process::id())));
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

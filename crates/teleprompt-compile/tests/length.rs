@@ -33,6 +33,7 @@ fn compile_with(length_ms: u64) -> CompileOutput {
         VoiceCache::new(std::env::temp_dir().join(format!("tp-length-{}", std::process::id())));
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

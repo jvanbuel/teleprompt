@@ -44,6 +44,7 @@ fn compiled_and_manifest(src: &str) -> (CompileOutput, teleprompt_manifest::Narr
     let (_dir, cache) = throwaway_cache();
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,
@@ -88,6 +89,7 @@ fn manifest_for_with_words(
     let (_dir, cache) = throwaway_cache();
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

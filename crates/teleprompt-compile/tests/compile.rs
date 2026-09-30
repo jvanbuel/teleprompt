@@ -49,6 +49,7 @@ fn compile_program(p: &Program) -> Result<CompileOutput, Diagnostics> {
     let cache = throwaway_cache();
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,
@@ -104,6 +105,7 @@ fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
     let cache = throwaway_cache();
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,
@@ -586,6 +588,7 @@ fn a_cold_cache_yields_estimated_durations() {
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,
@@ -614,6 +617,7 @@ fn a_warm_cache_yields_measured_durations() {
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,
@@ -653,6 +657,7 @@ fn the_cache_key_covers_the_resolved_voice_config() {
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,
@@ -685,6 +690,7 @@ fn the_cache_key_covers_the_backend_id() {
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let null_ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,
@@ -692,6 +698,7 @@ fn the_cache_key_covers_the_backend_id() {
         takes: &teleprompt_voice::takes::Takes::default(),
     };
     let other_ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "other",
         backend_version: "0.1.0",
         cache: &cache,
@@ -700,7 +707,9 @@ fn the_cache_key_covers_the_backend_id() {
     };
 
     let null = compile_with(ONE, &null_ctx).unwrap();
-    let other = compile_with(ONE, &other_ctx).unwrap();
+    // The line's own backend decides: the script asks for `other`.
+    let other_script = format!("---\nvoice: {{ backend: other }}\n---\n\n{ONE}");
+    let other = compile_with(&other_script, &other_ctx).unwrap();
 
     assert_ne!(
         null.narration[0].cache_key.to_string(),
@@ -744,6 +753,7 @@ async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() 
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

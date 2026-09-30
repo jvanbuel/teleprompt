@@ -208,6 +208,53 @@ async fn the_manifest_reports_the_rate_the_backend_actually_produced() {
     assert_eq!(result.manifest.audio.channels, 1);
 }
 
+/// A cast whose speakers use different backends: each line is spoken by
+/// its speaker's, and the manifest has one format, the first line's, every
+/// other line converted to it.
+#[tokio::test]
+async fn each_speaker_is_spoken_by_their_own_backend() {
+    let script = "---\nvoices:\n  guest:\n    backend: tone\n---\n\n# Talk\n\n\
+                  Welcome back to the show. {#intro}\n\n\
+                  Only on Fridays, actually. {#friday @guest}\n";
+    let (_dir, project, script) = project_with("cast", script);
+    let out_root = project.root.join("public/narration");
+    let result = teleprompt_cli::cmd::dub::run_dub_with(
+        &registry_with_tone(),
+        &project,
+        &script,
+        "en",
+        &out_root,
+        false,
+    )
+    .await
+    .unwrap_or_else(|e| match e {
+        teleprompt_cli::cmd::dub::DubError::Validation(v) => panic!("validation: {v:?}"),
+        teleprompt_cli::cmd::dub::DubError::Runtime(r) => panic!("runtime: {r}"),
+    });
+    let lines = &result.manifest.lines;
+    assert_eq!(lines.len(), 2);
+    let read = |i: usize| std::fs::read(out_root.join("en").join(&lines[i].audio)).unwrap();
+    assert!(
+        samples(&read(0)).iter().all(|&v| v == 0),
+        "the narrator is null's silence"
+    );
+    let guest = samples(&read(1));
+    // Converted, so all but the edges keep tone's level.
+    let near = guest
+        .iter()
+        .filter(|&&v| (i32::from(v) - 4242).abs() <= 8)
+        .count();
+    assert!(
+        !guest.is_empty() && near * 10 >= guest.len() * 9,
+        "the guest is tone's"
+    );
+    // One format: the first line's, the guest's audio converted to it.
+    let rate = u32::from_le_bytes(read(1)[24..28].try_into().unwrap());
+    assert_eq!(rate, result.manifest.audio.sample_rate);
+    assert_eq!(lines[1].speaker.as_deref(), Some("guest"));
+    assert_eq!(lines[0].speaker, None);
+}
+
 /// And `check` still refuses a backend nothing registers — the seam is for
 /// tests, not a way for a script to name anything it likes.
 #[test]

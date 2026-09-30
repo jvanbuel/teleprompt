@@ -252,78 +252,38 @@ fn the_default_backend_is_null_so_existing_scripts_keep_working() {
     assert!(run_check(&p, &s, "en").is_ok());
 }
 
-/// The extra requirement beyond the brief: a line-level `voice.backend=`
-/// that disagrees with the program's resolved backend must fail `check`
-/// rather than being silently ignored — `VoiceContext` carries exactly one
-/// backend per compile, so an ignored override would let two lines that
-/// differ only by backend collide on one cache key and one would be served
-/// the other's audio.
+/// A line may be spoken by another backend than the script's, as a cast's
+/// speakers are; one this build does not have fails `check`, naming the
+/// line and what exists.
 #[test]
-fn a_line_level_backend_override_that_disagrees_with_the_resolved_backend_is_rejected() {
+fn a_line_whose_backend_does_not_exist_is_rejected_naming_it() {
     let (_dir, p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=nope}\n");
-    let errors = run_check(&p, &s, "en").expect_err("a disagreeing per-line backend must fail");
+    let errors = run_check(&p, &s, "en").expect_err("an unknown per-line backend must fail");
     let joined = errors.join("\n");
-    assert!(joined.contains("line `a`"), "must name the line: {joined}");
+    assert!(joined.contains("`a`"), "must name the line: {joined}");
     assert!(
         joined.contains("nope") && joined.contains("null"),
-        "must name both the line's requested backend and the resolved one: {joined}"
-    );
-    assert!(
-        joined.contains("not supported yet"),
-        "must say per-line backends are not supported yet: {joined}"
+        "must name the backend asked for and what exists: {joined}"
     );
 }
 
-/// A line-level `voice.backend=` that agrees with the resolved backend
-/// is not an override at all and must not be rejected.
+/// A line-level `voice.backend=` naming a backend that exists is fine.
 #[test]
 fn a_line_level_backend_that_matches_the_resolved_backend_is_fine() {
     let (_dir, p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=null}\n");
     assert!(run_check(&p, &s, "en").is_ok());
 }
 
-/// A chapter-level `voice.backend` override with no line attribute must still
-/// be rejected (Delivery A supports one backend per compile, full stop), but
-/// `Element::Narration`'s config is already merged and cannot say which layer
-/// produced the value. The diagnostic must therefore describe the effect
-/// ("resolves to") rather than accuse the line of writing an attribute it never
-/// wrote, and the help text must mention that chapter-level overrides are
-/// unsupported too.
+/// A chapter naming a backend that does not exist is one diagnostic naming
+/// every line it reaches, not one per line.
 #[test]
-fn a_chapter_level_backend_override_is_reported_without_claiming_the_line_set_it() {
-    let (_dir, p, s) = project_with(
-        "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\nOne two three. {#a}\n",
-    );
-    let errors = run_check(&p, &s, "en").expect_err("a chapter-level backend override must fail");
-    let joined = errors.join("\n");
-    assert!(
-        !joined.contains("sets"),
-        "must not claim the line wrote an attribute it did not: {joined}"
-    );
-    assert!(
-        joined.contains("resolves to voice backend `elsewhere`"),
-        "must describe the effect, not a guessed cause: {joined}"
-    );
-    assert!(
-        joined.contains("chapter"),
-        "help must mention chapter-level overrides are unsupported too: {joined}"
-    );
-}
-
-/// A chapter-wide override affecting several lines must produce exactly one
-/// diagnostic naming all of them, not one per line.
-#[test]
-fn a_chapter_level_backend_override_across_several_lines_is_one_diagnostic() {
+fn an_unknown_chapter_backend_across_several_lines_is_one_diagnostic() {
     let (_dir, p, s) = project_with(
         "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\n\
          One. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n",
     );
-    let errors = run_check(&p, &s, "en").expect_err("a chapter-level backend override must fail");
-    assert_eq!(
-        errors.len(),
-        1,
-        "one diagnostic per offending value, not one per line: {errors:?}"
-    );
+    let errors = run_check(&p, &s, "en").expect_err("an unknown chapter backend must fail");
+    assert_eq!(errors.len(), 1, "{errors:?}");
     let joined = errors.join("\n");
     for id in ["a", "b", "c"] {
         assert!(
@@ -331,6 +291,7 @@ fn a_chapter_level_backend_override_across_several_lines_is_one_diagnostic() {
             "must name line `{id}`: {joined}"
         );
     }
+    assert!(joined.contains("elsewhere"), "{joined}");
 }
 
 /// C1, through the real binary. The panic was the point: exit 101 is not a

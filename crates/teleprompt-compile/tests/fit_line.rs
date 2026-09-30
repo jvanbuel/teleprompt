@@ -20,6 +20,7 @@ fn compile_it(block: &str) -> Result<CompileOutput, Diagnostics> {
         VoiceCache::new(std::env::temp_dir().join(format!("tp-fit-line-{}", std::process::id())));
     let estimator = WpmEstimator::default();
     let ctx = VoiceContext {
+        other_backends: Default::default(),
         backend_id: "null",
         backend_version: "0.1.0",
         cache: &cache,

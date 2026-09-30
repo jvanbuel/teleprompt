@@ -21,6 +21,8 @@ pub struct Cue {
     pub start_ms: u64,
     pub end_ms: u64,
     pub rows: Vec<String>,
+    /// Who says it, from the script's cast; the narrator when `None`.
+    pub speaker: Option<String>,
 }
 
 /// Every line of `manifest`, as cues in order.
@@ -43,6 +45,7 @@ fn line_cues(line: &LineEntry) -> Vec<Cue> {
             start_ms: starts[from],
             end_ms: parts.get(i + 1).map_or(end, |&(next, _)| starts[next]),
             rows: rows(&words[from..to]),
+            speaker: line.speaker.clone(),
         })
         .collect()
 }
@@ -146,13 +149,18 @@ pub fn srt(cues: &[Cue]) -> String {
     blocks.join("\n")
 }
 
-/// The cues as WebVTT.
+/// The cues as WebVTT, a speaker's cue in their voice span (`<v guest>`)
+/// so a player can say who is talking.
 pub fn vtt(cues: &[Cue]) -> String {
     let blocks: Vec<String> = cues
         .iter()
         .map(|c| {
+            let voice = c
+                .speaker
+                .as_ref()
+                .map_or(String::new(), |s| format!("<v {s}>"));
             format!(
-                "{} --> {}\n{}\n",
+                "{} --> {}\n{voice}{}\n",
                 clock(c.start_ms, '.'),
                 clock(c.end_ms, '.'),
                 c.rows.join("\n")
