@@ -7,6 +7,7 @@ pub mod dub;
 pub mod edit;
 pub mod from;
 pub mod import;
+pub mod lsp;
 pub mod new;
 pub mod plan;
 pub mod preview;

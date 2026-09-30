@@ -1,0 +1,17 @@
+[package]
+name = "teleprompt-lsp"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "teleprompt's language server: diagnostics, completion, hover and navigation for scripts"
+
+[dependencies]
+teleprompt-core = { path = "../teleprompt-core" }
+lsp-server = "0.7"
+lsp-types = "0.95"
+serde_json = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

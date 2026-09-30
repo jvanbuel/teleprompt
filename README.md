@@ -88,6 +88,7 @@ opens on the item you just changed, and `build` renders the video.
 | `voice clone <name>` | make a voice from your takes on a [Voicebox](docs/guide/voices.md#your-own-voice-voicebox) server, so unrecorded lines sound like you |
 | `setup [adapter or tool…]` | say which tools and models are installed, their licenses, and how to install the rest; `--run` installs them |
 | `cache` | report what the project's caches hold, or shrink them |
+| `lsp` | a [language server](docs/guide/editors.md) for your editor: problems as you type, completion, hover and go to definition |
 
 Every command accepts `--format json`. Exit codes are `0` for success, `1`
 for a runtime failure, `2` for an invalid script and `3` for drift, and
@@ -107,6 +108,8 @@ every JSON report says `ok`, true exactly when the exit code is 0.
   which draft a script from a terminal session you narrated
 - [Rendering](docs/guide/rendering.md): `build`, `dub` and the manifest,
   and the live preview
+- [Editors](docs/guide/editors.md): `teleprompt lsp`, for problems,
+  completion and navigation as you write
 - [Rendering with Remotion](docs/integrations/remotion.md): consuming the
   manifest from a Remotion project
 - [Design](docs/design.md): how it works and why, for contributors

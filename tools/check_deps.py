@@ -48,6 +48,9 @@ ALLOWED = {
     "derive": set(),
     "listen-sherpa": {"listen"},
     "prompter": {"core", "compile", "listen", "voice"},
+    # The protocol and the text; the compile reaches it through a trait
+    # the CLI implements.
+    "lsp": {"core"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
     "cli": None,  # the composition root: may depend on anything
 }

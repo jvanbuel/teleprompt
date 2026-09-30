@@ -53,6 +53,14 @@ impl Adapter {
     }
 }
 
+/// Every adapter's name, which a block may use as its scene.
+pub fn adapter_names() -> Vec<String> {
+    adapters()
+        .iter()
+        .map(|a| a.capture.adapter().to_string())
+        .collect()
+}
+
 /// Every adapter, in the order `doctor` lists their capture backends.
 fn adapters() -> Vec<Adapter> {
     vec![

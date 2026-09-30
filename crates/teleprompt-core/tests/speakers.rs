@@ -37,7 +37,10 @@ fn resolved(src: &str) -> Result<Program, Vec<String>> {
 }
 
 /// Each line: its speaker, backend, voice and instruction.
-fn voices(p: &Program) -> Vec<(Option<String>, String, Option<String>, Option<String>)> {
+/// A line's speaker, backend, voice and instruction.
+type Voiced = (Option<String>, String, Option<String>, Option<String>);
+
+fn voices(p: &Program) -> Vec<Voiced> {
     p.elements
         .iter()
         .filter_map(|e| match e {

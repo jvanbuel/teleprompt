@@ -325,6 +325,13 @@ enum Command {
     /// recording is kept in .teleprompt/traces. Needs ffmpeg, the tool,
     /// and a build with `--features listen`.
     Record(RecordArgs),
+    /// Serve the language server on stdin and stdout, for an editor
+    ///
+    /// Problems as a script is typed, completion of attributes, speakers,
+    /// scenes and policies, hover for what a line or block compiles to,
+    /// and go to a speaker, scene or included file. docs/guide/editors.md
+    /// says how to set an editor up.
+    Lsp,
     /// Parse and validate; no side effects, no cost
     Check(ScriptArgs),
     /// Compile the timeline and print it, or compare it with the committed one
@@ -796,6 +803,10 @@ fn run(command: Command, format: Format) -> Run {
             Ok(Outcome::Ok)
         }
         Command::Check(args) => run_check(format, &args),
+        Command::Lsp => {
+            teleprompt_cli::cmd::lsp::run_lsp().map_err(runtime_failure)?;
+            Ok(Outcome::Ok)
+        }
         Command::Plan { args, check: false } => run_plan(format, &args),
         Command::Plan { args, check: true } => run_plan_check(format, &args),
         Command::Prompt {

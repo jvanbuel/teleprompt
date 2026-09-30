@@ -53,36 +53,51 @@ pub(crate) fn compile_script_with(
     script: &Path,
     locale: &str,
 ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
+    let display = script.display().to_string();
+    let src =
+        std::fs::read_to_string(script).map_err(|e| vec![format!("cannot read {display}: {e}")])?;
+    compile_source(backends, project, script, &src, locale)
+        .map(|c| (c.output, c.backend))
+        .map_err(|d| render(&d, &display))
+}
+
+/// A script compiled: what it compiles to, the narrator's backend, and the
+/// program it was compiled from.
+pub struct Compiled {
+    pub output: CompileOutput,
+    pub backend: Arc<dyn VoiceBackend>,
+    pub program: Program,
+}
+
+/// [`compile_script_with`] on `src`, the text of `script` as it may be in
+/// an editor, not yet saved; its problems as diagnostics, not text.
+pub fn compile_source(
+    backends: &Backends,
+    project: &Project,
+    script: &Path,
+    src: &str,
+    locale: &str,
+) -> Result<Compiled, Diagnostics> {
     // Before the script is read: an unknown `backends:` key is wrong for
     // every script. Here rather than in `compile_script` so that `dub` and
     // the preview, which call this directly, cannot reach a server with it.
     let config_diags = backends.diagnostics();
     if !config_diags.is_empty() {
-        return Err(render(
-            &Diagnostics(config_diags),
-            &script.display().to_string(),
-        ));
+        return Err(Diagnostics(config_diags));
     }
-
     let name = script
         .file_name()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| script.display().to_string());
     let display = script.display().to_string();
-
-    let src =
-        std::fs::read_to_string(script).map_err(|e| vec![format!("cannot read {display}: {e}")])?;
-
-    let parsed = parse_script(&src).map_err(|d| render(&d, &display))?;
-
+    let parsed = parse_script(src)?;
     let mut program = resolve(
         &parsed,
         &name,
         locale,
         &project.config,
         &PartialConfig::default(),
-    )
-    .map_err(|d| render(&d, &display))?;
+    )?;
     let translation_warnings = translate(&mut program, script, &display)?;
 
     // `resolve` merges front-matter `backends:`, but the backends were built
@@ -98,25 +113,26 @@ pub(crate) fn compile_script_with(
     // `Backends`).
     let backend = backends
         .resolve(&program.config.voice.backend)
-        .map_err(|d| render(&Diagnostics(vec![d]), &display))?;
-
+        .map_err(|d| Diagnostics(vec![d]))?;
     // Every other backend a line is spoken by, as a cast's speakers are.
-    let others = other_backends(backends, &program, backend.id());
-    let others = others.map_err(|d| render(&Diagnostics(d), &display))?;
+    let others = other_backends(backends, &program, backend.id()).map_err(Diagnostics)?;
 
     // `script_dir`, not `script.parent()`: a bare `demo.md` has
     // `Some("")` for a parent, which is not the current directory.
     let base_dir = crate::project::script_dir(script);
-
-    let mut out = compile_with_voice(project, &program, &*backend, others, base_dir, &display)?;
+    let mut output = compile_with_voice(project, &program, &*backend, others, base_dir)?;
 
     // The bare message, not `render()`'s output: like every other warning
     // here it is a plain sentence, and callers add their own framing.
-    out.warnings
+    output
+        .warnings
         .extend(backend_override_diags.into_iter().map(|d| d.message));
-    out.warnings.extend(translation_warnings);
-
-    Ok((out, backend))
+    output.warnings.extend(translation_warnings);
+    Ok(Compiled {
+        output,
+        backend,
+        program,
+    })
 }
 
 /// Each backend a line is spoken by, by id.
@@ -196,7 +212,7 @@ fn translate(
     program: &mut Program,
     script: &Path,
     display: &str,
-) -> Result<Vec<String>, Vec<String>> {
+) -> Result<Vec<String>, Diagnostics> {
     let locale = program.locale.clone();
     if locale == program.config.locales.source {
         return Ok(Vec::new());
@@ -210,13 +226,13 @@ fn translate(
         .with_help(format!(
             "run `teleprompt translate {display} --to {locale}`"
         ));
-        render(&Diagnostics(vec![d]), display)
+        Diagnostics(vec![d])
     })?;
-    let translation =
-        Translation::from_yaml(&yaml).map_err(|e| vec![format!("{}: {e}", path.display())])?;
+    let translation = Translation::from_yaml(&yaml)
+        .map_err(|e| Diagnostics(vec![Diagnostic::error(format!("{}: {e}", path.display()))]))?;
     let diags = teleprompt_core::translation::apply(program, &translation);
     if diags.iter().any(Diagnostic::is_error) {
-        return Err(render(&Diagnostics(diags), display));
+        return Err(Diagnostics(diags));
     }
     Ok(diags.into_iter().map(|d| d.message).collect())
 }
@@ -234,12 +250,12 @@ fn compile_with_voice(
     backend: &dyn VoiceBackend,
     other_backends: std::collections::BTreeMap<String, String>,
     base_dir: &Path,
-    display: &str,
-) -> Result<CompileOutput, Vec<String>> {
+) -> Result<CompileOutput, Diagnostics> {
     let cache = VoiceCache::new(project.caches().root);
     let estimator = WpmEstimator::default();
     let capabilities = backend.capabilities();
-    let takes = Takes::load(&project.takes_dir()).map_err(|e| vec![e.to_string()])?;
+    let takes = Takes::load(&project.takes_dir())
+        .map_err(|e| Diagnostics(vec![Diagnostic::error(e.to_string())]))?;
     let ctx = VoiceContext {
         other_backends,
         backend_id: backend.id(),
@@ -256,8 +272,7 @@ fn compile_with_voice(
         &ctx,
         base_dir,
         env!("CARGO_PKG_VERSION"),
-    )
-    .map_err(|d| render(&d, display))?;
+    )?;
     out.warnings.extend(unrecorded(&takes, &out));
     Ok(out)
 }
