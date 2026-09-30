@@ -71,3 +71,22 @@ fn a_length_reads_as_minutes_and_seconds() {
     assert_eq!(voice::clock(83_400), "1:23");
     assert_eq!(voice::clock(3_725_000), "62:05");
 }
+
+#[test]
+fn a_speakers_mark_is_their_initial_in_their_own_colour() {
+    let script = voiced();
+    assert_eq!(script.lines[0].speaker, None);
+    assert_eq!(script.lines[1].speaker.as_deref(), Some("guest"));
+    assert_eq!(voice::initial("guest"), "G");
+    assert_eq!(voice::initial("émile"), "É");
+    // The same name, the same colour, in every app and every run.
+    assert_eq!(
+        voice::speaker_colour("guest"),
+        voice::speaker_colour("guest")
+    );
+    assert_ne!(voice::speaker_colour("guest"), voice::speaker_colour("me"));
+    for name in ["guest", "me", "host", "ann"] {
+        let hex = voice::speaker_colour(name);
+        assert!(voice::SPEAKER_COLOURS.contains(&hex), "{name}: {hex}");
+    }
+}

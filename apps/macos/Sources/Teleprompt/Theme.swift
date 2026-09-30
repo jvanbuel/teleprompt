@@ -97,6 +97,18 @@ struct Pill: ButtonStyle {
     }
 }
 
+extension Color {
+    /// `#rrggbb`, as the speakers' colours are written.
+    init(hex: String) {
+        let value = UInt32(hex.dropFirst(), radix: 16) ?? 0
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+}
+
 /// The reading line's cue arrow.
 struct CueArrow: Shape {
     func path(in rect: CGRect) -> Path {

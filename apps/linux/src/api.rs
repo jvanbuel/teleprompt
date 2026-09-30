@@ -79,6 +79,9 @@ pub struct Line {
     /// How the voice is told to say it.
     #[serde(default)]
     pub instruct: Option<String>,
+    /// Who says it, from the script's cast; the narrator when `None`.
+    #[serde(default)]
+    pub speaker: Option<String>,
 }
 
 impl Line {

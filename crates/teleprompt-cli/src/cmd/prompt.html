@@ -241,6 +241,10 @@
       linear-gradient(var(--wave), var(--wave)) calc(var(--wave-x) + 4px) calc(var(--size) * 0.66 - 5px) / 2px 10px no-repeat,
       linear-gradient(var(--wave), var(--wave)) calc(var(--wave-x) + 8px) calc(var(--size) * 0.66 - 3.5px) / 2px 7px no-repeat;
   }
+  /* A speaker's line: their initial, in their colour (the same in every
+     app: apps/DESIGN.md), faint until the voice has made it. */
+  .gutter .who { position: absolute; top: 0; left: var(--wave-x); font: 700 13px/calc(var(--size) * 1.32) var(--face); }
+  .line.unmade .who { opacity: 0.45; }
   /* Clear of the reading line's arrow, beside the number. */
   .gutter { --wave-x: 27px; }
   /* A line's words, edited where they stand, underlined in the cue's amber. */
@@ -487,7 +491,10 @@ async function loadScript() {
     });
     const gutter = document.createElement("span");
     gutter.className = "gutter";
-    gutter.textContent = l + 1;
+    const who = document.createElement("span");
+    who.className = "who";
+    who.setAttribute("aria-hidden", "true");
+    gutter.append(who, String(l + 1));
     const body = document.createElement("span");
     const spans = text.split(/\s+/).filter(Boolean).map((w) => {
       const s = document.createElement("span");
@@ -513,11 +520,28 @@ function markRecorded(scriptLines) {
   script.lines = scriptLines;
   lines.forEach((el, l) => {
     const audio = voiced && scriptLines[l]?.audio;
-    el.classList.toggle("recorded", !!scriptLines[l]?.recorded);
+    const speaker = scriptLines[l]?.speaker;
+    const recorded = !!scriptLines[l]?.recorded;
+    el.classList.toggle("recorded", recorded);
     el.classList.toggle("heard", !!scriptLines[l]?.said);
-    el.classList.toggle("voiced", !!audio && audio.source === "voice" && audio.ready);
-    el.classList.toggle("unvoiced", !!audio && audio.source === "voice" && !audio.ready);
+    // A speaker's initial, or the narrator's waveform; a take has its tick.
+    el.classList.toggle("voiced", !speaker && !!audio && audio.source === "voice" && audio.ready);
+    el.classList.toggle("unvoiced", !speaker && !!audio && audio.source === "voice" && !audio.ready);
+    el.classList.toggle("unmade", !!audio && !audio.ready);
+    const who = el.querySelector(".who");
+    who.textContent = speaker && !recorded ? speaker[0].toUpperCase() : "";
+    who.style.color = speaker ? speakerColour(speaker) : "";
+    el.setAttribute("aria-label", `Line ${l + 1}${speaker ? `, said by ${speaker}` : ""}: ${scriptLines[l]?.text ?? ""}`);
   });
+}
+
+/** Speaker `name`'s colour, chosen by the name's letters so it is the
+ *  same in every app (the Linux app's voice::speaker_colour). */
+const SPEAKER_COLOURS = ["#c58af9", "#4dd0c8", "#f28bd0", "#d7b98e"];
+function speakerColour(name) {
+  let sum = 0;
+  for (const b of new TextEncoder().encode(name)) sum += b;
+  return SPEAKER_COLOURS[sum % SPEAKER_COLOURS.length];
 }
 
 const key = ({ id, said }) => `${id}\n${said}`;
@@ -1159,7 +1183,8 @@ function openPanel(l) {
   const panel = $("panel");
   const byVoice = line.audio?.source === "voice";
   $("panel-title").textContent = `Line ${l + 1}`;
-  $("panel-who").textContent = line.audio?.source === "take" ? "Read from your take" : `Read by ${script.voice.name}`;
+  $("panel-who").textContent = line.audio?.source === "take" ? "Read from your take"
+    : line.speaker ? `Said by ${line.speaker}` : `Read by ${script.voice.name}`;
   $("panel-voice").hidden = !byVoice;
   $("panel-again").hidden = !byVoice;
   $("panel-instruct").value = line.instruct ?? "";

@@ -75,6 +75,26 @@ pub fn unmade(script: &Script) -> Vec<usize> {
         .collect()
 }
 
+/// The colours a speaker's mark takes, one per name: none is the cue's
+/// amber, the tally's red, the recorded green or the heard blue, which
+/// mean other things on the glass. `apps/DESIGN.md` has the same list.
+pub const SPEAKER_COLOURS: [&str; 4] = ["#c58af9", "#4dd0c8", "#f28bd0", "#d7b98e"];
+
+/// Speaker `name`'s colour: the same in every app, since it is chosen by
+/// the name's letters rather than by order of appearance.
+pub fn speaker_colour(name: &str) -> &'static str {
+    let sum: u32 = name.bytes().map(u32::from).sum();
+    SPEAKER_COLOURS[sum as usize % SPEAKER_COLOURS.len()]
+}
+
+/// The letter a speaker's mark shows.
+pub fn initial(name: &str) -> String {
+    name.chars()
+        .next()
+        .map(|c| c.to_uppercase().collect())
+        .unwrap_or_default()
+}
+
 /// A length as minutes and seconds: "1:23".
 pub fn clock(ms: u64) -> String {
     let seconds = ms / 1000;

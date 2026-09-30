@@ -57,6 +57,8 @@ struct Shared {
     said: RefCell<Vec<bool>>,
     /// Per line, read by a voice: where its audio comes from.
     marks: RefCell<Vec<Option<Mark>>>,
+    /// Per line: who says it, from the cast.
+    speakers: RefCell<Vec<Option<String>>>,
     current: Cell<usize>,
     /// The buffer offset the reading line should hold.
     target: Cell<Option<i32>>,
@@ -188,6 +190,12 @@ impl Glass {
             .lines
             .iter()
             .map(|l| voice::mark(l).filter(|_| voiced))
+            .collect();
+        *self.shared.speakers.borrow_mut() = state
+            .script
+            .lines
+            .iter()
+            .map(|l| l.speaker.clone())
             .collect();
         self.gutter.queue_draw();
     }
@@ -404,6 +412,7 @@ impl Glass {
             let stale = shared.stale.borrow();
             let said = shared.said.borrow();
             let marks = shared.marks.borrow();
+            let speakers = shared.speakers.borrow();
             let buffer = view.buffer();
             for (line, &(start, _)) in layout.lines.iter().enumerate() {
                 let cy = line_centre(
@@ -429,10 +438,25 @@ impl Glass {
                 } else if stale.get(line).copied().unwrap_or(false) {
                     reworded(cr, x - 12.0, cy);
                 }
-                match marks.get(line).copied().flatten() {
-                    Some(Mark::Voiced) => waveform(cr, x - 12.0, cy, 0.7),
-                    Some(Mark::Unvoiced) => waveform(cr, x - 12.0, cy, 0.25),
-                    Some(Mark::Take) | None => {}
+                let mark = marks.get(line).copied().flatten();
+                // A speaker's line: their initial, in their colour, faint
+                // until the voice has made it; the narrator's: a waveform.
+                let taken = recorded.get(line).copied().unwrap_or(false);
+                match (speakers.get(line).cloned().flatten(), mark) {
+                    // A recorded line has its tick there.
+                    (Some(_), Some(Mark::Take)) => {}
+                    (Some(_), _) if taken => {}
+                    (Some(name), mark) => {
+                        let alpha = if mark == Some(Mark::Unvoiced) {
+                            0.45
+                        } else {
+                            1.0
+                        };
+                        speaker(area, cr, &name, x - 12.0, cy, alpha);
+                    }
+                    (None, Some(Mark::Voiced)) => waveform(cr, x - 12.0, cy, 0.7),
+                    (None, Some(Mark::Unvoiced)) => waveform(cr, x - 12.0, cy, 0.25),
+                    (None, _) => {}
                 }
             }
         });
@@ -484,6 +508,23 @@ fn said_otherwise(cr: &cairo::Context, x: f64, y: f64) {
     cr.new_sub_path();
     cr.arc(x - 12.0, y, 3.5, 0.0, std::f64::consts::TAU);
     let _ = cr.fill();
+}
+
+/// A speaker's mark: their initial in their colour, centred on `x`.
+fn speaker(area: &gtk::DrawingArea, cr: &cairo::Context, name: &str, x: f64, y: f64, alpha: f64) {
+    let colour = gtk::gdk::RGBA::parse(voice::speaker_colour(name)).expect("a colour");
+    let text = area.create_pango_layout(Some(&voice::initial(name)));
+    let font = format!("{FAMILY} Bold 13px");
+    text.set_font_description(Some(&gtk::pango::FontDescription::from_string(&font)));
+    let (w, h) = text.pixel_size();
+    cr.set_source_rgba(
+        f64::from(colour.red()),
+        f64::from(colour.green()),
+        f64::from(colour.blue()),
+        alpha,
+    );
+    cr.move_to(x - f64::from(w) / 2.0, y - f64::from(h) / 2.0);
+    pangocairo::functions::show_layout(cr, &text);
 }
 
 /// A line the voice reads: three bars of a waveform, bright once it has

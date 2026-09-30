@@ -58,7 +58,7 @@ impl Window {
     /// What can be done to a line read by a voice: hear it, read on from
     /// it, tell the voice how to say it, have it said anew, or reword it.
     fn line_panel(self: &Rc<Self>, line: usize) {
-        let (id, instruct, source, voice) = {
+        let (id, instruct, source, voice, speaker) = {
             let model = self.model.borrow();
             let script = &model.state.script;
             let Some(l) = script.lines.get(line) else {
@@ -69,6 +69,7 @@ impl Window {
                 l.instruct.clone(),
                 l.audio.as_ref().map(|a| a.source),
                 script.voice.as_ref().map(|v| v.name.clone()),
+                l.speaker.clone(),
             )
         };
         let popover = self.w.glass.panel.clone();
@@ -82,6 +83,9 @@ impl Window {
             .build();
         let who = match (source, &voice) {
             (Some(Source::Take), _) => "Read from your take".to_string(),
+            (_, _) if speaker.is_some() => {
+                format!("Said by {}", speaker.as_deref().unwrap_or_default())
+            }
             (_, Some(name)) => format!("Read by {name}"),
             _ => String::new(),
         };

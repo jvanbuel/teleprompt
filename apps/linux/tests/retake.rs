@@ -18,6 +18,7 @@ fn script(stale: &[bool]) -> Script {
                 said_diff: Vec::new(),
                 audio: None,
                 instruct: None,
+                speaker: None,
             })
             .collect(),
         shots: Vec::new(),

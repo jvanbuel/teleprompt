@@ -192,8 +192,16 @@ private struct LineView: View {
                     .foregroundStyle(Theme.ink.opacity(current ? 0.9 : 0.32))
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.trailing, 22)
-                // Read by a voice: a waveform, faint until the voice has made it.
-                if model.voiced, let mark = Voice.mark(line), mark != .take {
+                // A speaker's line: their initial in their colour; the
+                // narrator's, read by a voice: a waveform. Faint until made.
+                if let speaker = line.speaker, !line.recorded {
+                    Text(Voice.initial(speaker))
+                        .font(Theme.face(13, .bold))
+                        .foregroundStyle(Color(hex: Voice.speakerColour(speaker)))
+                        .opacity(Voice.mark(line) == .unvoiced ? 0.45 : 1)
+                        .padding(.leading, 26)
+                        .accessibilityLabel("Said by \(speaker)")
+                } else if model.voiced, let mark = Voice.mark(line), mark != .take {
                     Image(systemName: "waveform")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Theme.ink.opacity(mark == .voiced ? 0.7 : 0.25))
@@ -292,7 +300,8 @@ private struct LinePanel: View {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Line \(index + 1)").font(Theme.face(15, .bold))
-                    Text(byVoice ? "Read by \(model.state.script.voice?.name ?? "the voice")" : "Read from your take")
+                    Text(!byVoice ? "Read from your take"
+                        : line.speaker.map { "Said by \($0)" } ?? "Read by \(model.state.script.voice?.name ?? "the voice")")
                         .font(Theme.face(13))
                         .foregroundStyle(Theme.ink.opacity(0.66))
                 }

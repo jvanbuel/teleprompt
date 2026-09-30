@@ -26,6 +26,8 @@ It borrows from broadcast prompting and the studio:
 | tally | `#ff3b30` | recording |
 | recorded | `#3ddc84` | a line with a take; the level meter |
 | missing | `#f28b82` | a shot never captured |
+| heard | `#8ab5f7` | a take heard saying other words |
+| speakers | `#c58af9`, `#4dd0c8`, `#f28bd0`, `#d7b98e` | a speaker's initial in the margin: the one at the sum of the name's UTF-8 bytes, modulo four, so each app gives a speaker the same colour |
 | chrome | `#17181b`, raised `#202227`, lines `#2c2f36` | everything around the glass |
 
 Type is **Atkinson Hyperlegible Next** (`apps/fonts`), everywhere. The Braille

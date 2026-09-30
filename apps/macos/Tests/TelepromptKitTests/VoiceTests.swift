@@ -62,6 +62,16 @@ final class VoiceTests: XCTestCase {
         XCTAssertEqual(Voice.unmade(script), [1])
     }
 
+    func testASpeakersMarkIsTheirInitialInTheirOwnColour() throws {
+        let script = try voiced()
+        XCTAssertNil(script.lines[0].speaker)
+        XCTAssertEqual(script.lines[1].speaker, "guest")
+        XCTAssertEqual(Voice.initial("guest"), "G")
+        // The Linux app and the web page choose by the same rule.
+        XCTAssertEqual(Voice.speakerColour("guest"), "#c58af9")
+        XCTAssertNotEqual(Voice.speakerColour("guest"), Voice.speakerColour("me"))
+    }
+
     func testALengthReadsAsMinutesAndSeconds() {
         XCTAssertEqual(Voice.clock(6120), "0:06")
         XCTAssertEqual(Voice.clock(83400), "1:23")

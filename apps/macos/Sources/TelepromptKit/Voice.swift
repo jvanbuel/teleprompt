@@ -52,6 +52,22 @@ public enum Voice {
         }
     }
 
+    /// The colours a speaker's mark takes, as hex: none is the cue's amber,
+    /// the tally's red, the recorded green or the heard blue.
+    public static let speakerColours = ["#c58af9", "#4dd0c8", "#f28bd0", "#d7b98e"]
+
+    /// Speaker `name`'s colour: chosen by the name's UTF-8 bytes, so it is
+    /// the same in every app.
+    public static func speakerColour(_ name: String) -> String {
+        let sum = name.utf8.reduce(0) { $0 + Int($1) }
+        return speakerColours[sum % speakerColours.count]
+    }
+
+    /// The letter a speaker's mark shows.
+    public static func initial(_ name: String) -> String {
+        name.first.map { String($0).uppercased() } ?? ""
+    }
+
     /// A length as minutes and seconds: "1:23".
     public static func clock(_ ms: Int) -> String {
         let seconds = ms / 1000

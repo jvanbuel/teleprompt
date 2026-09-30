@@ -103,15 +103,17 @@ public struct Script: Codable, Equatable, Sendable {
         public var audio: Audio?
         /// How the voice is told to say it.
         public var instruct: String?
+        /// Who says it, from the script's cast; the narrator when nil.
+        public var speaker: String?
 
         enum CodingKeys: String, CodingKey {
-            case id, text, recorded, said, audio, instruct
+            case id, text, recorded, said, audio, instruct, speaker
             case saidDiff = "said_diff"
         }
 
         public init(
             id: String, text: String, recorded: Bool, said: String? = nil, saidDiff: [SaidChange]? = nil,
-            audio: Audio? = nil, instruct: String? = nil
+            audio: Audio? = nil, instruct: String? = nil, speaker: String? = nil
         ) {
             self.id = id
             self.text = text
@@ -120,6 +122,7 @@ public struct Script: Codable, Equatable, Sendable {
             self.saidDiff = saidDiff
             self.audio = audio
             self.instruct = instruct
+            self.speaker = speaker
         }
 
         /// The words as the server counts them: split at whitespace.
