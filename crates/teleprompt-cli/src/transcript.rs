@@ -1,0 +1,531 @@
+//! Drafting a script from the transcript of a conversation: captions
+//! (WebVTT, SRT) or text. Each turn becomes a line opening with who says
+//! it, `**Ada Lovelace:**`, and the people in it the script's cast.
+
+use std::collections::BTreeMap;
+use std::path::Path;
+
+use teleprompt_core::ast::slugify;
+use teleprompt_core::attrs::is_speaker_name;
+
+use crate::draft::{id_for, unique};
+
+/// Words past which a turn read from captions goes on in another line,
+/// from the next cue that ends a sentence.
+const LONGEST_LINE: usize = 40;
+
+/// The most words a name before a colon may have: `Dr. Ada King:` is a
+/// name, `And then I said:` is not.
+const LONGEST_NAME: usize = 4;
+
+/// One stretch of a conversation: who says it, where the transcript says.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Turn {
+    pub speaker: Option<String>,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Format {
+    /// WebVTT, whose speakers are `<v Name>` spans or `Name:`.
+    Vtt,
+    /// SubRip, whose speakers are `Name:`.
+    Srt,
+    /// Paragraphs, each opening with `Name:`, `**Name:**`, or a line of
+    /// its own naming the speaker and when, as `Ada Lovelace  0:03`.
+    Text,
+}
+
+impl Format {
+    /// The caption format `path`'s extension names, if any.
+    pub fn of(path: &Path) -> Option<Self> {
+        match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
+            "vtt" => Some(Self::Vtt),
+            "srt" => Some(Self::Srt),
+            _ => None,
+        }
+    }
+}
+
+/// The turns of `src`. A stretch that names no speaker is the last one's,
+/// as a transcript means it.
+pub fn turns(src: &str, format: Format) -> Vec<Turn> {
+    let src = src.replace("\r\n", "\n");
+    match format {
+        Format::Vtt | Format::Srt => captions(&src),
+        Format::Text => paragraphs(&src),
+    }
+}
+
+/// A caption file's cues, joined into lines: a speaker's run of cues is
+/// one line until it is long, then more.
+fn captions(src: &str) -> Vec<Turn> {
+    let mut out: Vec<Turn> = Vec::new();
+    for block in src.split("\n\n") {
+        let lines: Vec<&str> = block.lines().collect();
+        // Cues have a timing line; the header, NOTE and STYLE don't.
+        let Some(timing) = lines.iter().position(|l| l.contains("-->")) else {
+            continue;
+        };
+        let payload = lines[timing + 1..].join(" ");
+        for (speaker, text) in voiced(&payload) {
+            let text = clean(&text);
+            let text = text.trim_start_matches("- ").trim();
+            if text.is_empty() {
+                continue;
+            }
+            let (speaker, text) = match speaker {
+                Some(s) => (Some(s), text.to_string()),
+                None => match name_prefix(text) {
+                    Some((name, rest)) => (Some(name), rest.to_string()),
+                    None => (None, text.to_string()),
+                },
+            };
+            let continues = out
+                .last()
+                .is_some_and(|last| speaker.is_none() || last.speaker == speaker);
+            match out.last_mut() {
+                Some(last) if continues && !full(&last.text) => {
+                    last.text.push(' ');
+                    last.text.push_str(&text);
+                }
+                last => {
+                    let speaker = speaker.or_else(|| last.and_then(|l| l.speaker.clone()));
+                    out.push(Turn { speaker, text });
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether a line is long enough to end at the end of its sentence.
+fn full(text: &str) -> bool {
+    text.split_whitespace().count() >= LONGEST_LINE && ends_sentence(text)
+}
+
+fn ends_sentence(text: &str) -> bool {
+    text.trim_end_matches(['"', '\'', ')', '”', '’'])
+        .ends_with(['.', '!', '?', '…'])
+}
+
+/// A cue's text split at its `<v Name>` voice spans, each with its
+/// speaker; `None` for text outside one.
+fn voiced(payload: &str) -> Vec<(Option<String>, String)> {
+    let mut out = Vec::new();
+    let mut rest = payload;
+    while let Some(at) = rest.find("<v") {
+        let after = &rest[at + 2..];
+        // `<v Name>` or `<v.class Name>`, not `<video>` or the like.
+        if !after.starts_with([' ', '.']) {
+            out.push((None, rest[..at + 2].to_string()));
+            rest = after;
+            continue;
+        }
+        if !rest[..at].trim().is_empty() {
+            out.push((None, rest[..at].to_string()));
+        }
+        let Some(close) = after.find('>') else {
+            break;
+        };
+        let tag = &after[..close];
+        let name = tag.split_once(' ').map_or("", |(_, n)| n).trim();
+        let body = &after[close + 1..];
+        let end = body
+            .find("</v>")
+            .or_else(|| body.find("<v"))
+            .unwrap_or(body.len());
+        let name = (!name.is_empty()).then(|| name.to_string());
+        out.push((name, body[..end].to_string()));
+        rest = body[end..].strip_prefix("</v>").unwrap_or(&body[end..]);
+    }
+    if !rest.trim().is_empty() {
+        out.push((None, rest.to_string()));
+    }
+    out
+}
+
+/// A text transcript's turns, a paragraph each.
+fn paragraphs(src: &str) -> Vec<Turn> {
+    let mut out: Vec<Turn> = Vec::new();
+    for block in src.split("\n\n") {
+        let lines: Vec<&str> = block
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect();
+        let Some(first) = lines.first() else {
+            continue;
+        };
+        let (speaker, text) = match header(first) {
+            // `Ada Lovelace  0:03`, then what she said.
+            Some(name) if lines.len() > 1 => (Some(name), lines[1..].join(" ")),
+            _ => {
+                let text = without_timestamp(&lines.join(" ")).to_string();
+                match label(&text).or_else(|| name_prefix(&text)) {
+                    Some((name, rest)) => (Some(name), rest.to_string()),
+                    None => (None, text),
+                }
+            }
+        };
+        let text = clean(&text);
+        if text.is_empty() {
+            continue;
+        }
+        let speaker = speaker.or_else(|| out.last().and_then(|t| t.speaker.clone()));
+        out.push(Turn { speaker, text });
+    }
+    out
+}
+
+/// A line naming a speaker and when they began, as meeting tools write
+/// them: `Ada Lovelace  0:03`, `Ada Lovelace (00:01:02)`.
+fn header(line: &str) -> Option<String> {
+    let (name, time) = line.trim_end().rsplit_once(char::is_whitespace)?;
+    let time = time.trim_matches(['(', ')', '[', ']']);
+    (is_timestamp(time) && is_name(name.trim())).then(|| name.trim().to_string())
+}
+
+/// `**Name:** rest` or `**Name**: rest`.
+fn label(text: &str) -> Option<(String, &str)> {
+    let mark = ["**", "__"].into_iter().find(|m| text.starts_with(m))?;
+    let close = text[2..].find(mark)? + 2;
+    let inner = text[2..close].trim();
+    let after = &text[close + 2..];
+    let (name, rest) = match inner.strip_suffix(':') {
+        Some(name) => (name, after),
+        None => (inner, after.strip_prefix(':')?),
+    };
+    let name = name.trim();
+    (is_name(name) && !rest.trim().is_empty()).then(|| (name.to_string(), rest.trim()))
+}
+
+/// `Name: rest`, or `Name (0:03): rest`, where what comes before the colon
+/// reads as a name.
+fn name_prefix(text: &str) -> Option<(String, &str)> {
+    // The colon a space follows: `(01:02)` has one that isn't.
+    let at = text
+        .match_indices(':')
+        .find(|(i, _)| text[i + 1..].starts_with(char::is_whitespace))?
+        .0;
+    let (before, rest) = (&text[..at], &text[at + 1..]);
+    let name = without_timestamp_after(before.trim());
+    (is_name(name) && !rest.trim().is_empty()).then(|| (name.to_string(), rest.trim()))
+}
+
+/// Words a name may have in lower case: `Ada de Lovelace`.
+const PARTICLES: &[&str] = &[
+    "de", "da", "del", "der", "van", "von", "la", "le", "of", "bin",
+];
+
+/// Whether `s` reads as someone's name: a few words, each capitalized but
+/// for particles, and no sentence in it.
+fn is_name(s: &str) -> bool {
+    let words: Vec<&str> = s.split_whitespace().collect();
+    (1..=LONGEST_NAME).contains(&words.len())
+        && s.starts_with(|c: char| c.is_uppercase() || c.is_ascii_digit())
+        && words.iter().all(|w| {
+            w.starts_with(|c: char| c.is_uppercase() || c.is_ascii_digit()) || PARTICLES.contains(w)
+        })
+        && !s.contains(['!', '?', ',', ';', '"', '/', '*'])
+        && !s.contains("http")
+}
+
+fn is_timestamp(s: &str) -> bool {
+    s.contains(':')
+        && s.chars()
+            .all(|c| c.is_ascii_digit() || matches!(c, ':' | '.' | ','))
+}
+
+/// `text` without a timestamp opening it: `[00:01:02]`, `(0:03)`, `0:03`.
+fn without_timestamp(text: &str) -> &str {
+    let Some((first, rest)) = text.split_once(char::is_whitespace) else {
+        return text;
+    };
+    if is_timestamp(first.trim_matches(['(', ')', '[', ']'])) {
+        rest.trim_start()
+    } else {
+        text
+    }
+}
+
+/// A name without the timestamp after it: `Ada (0:03)` is `Ada`.
+fn without_timestamp_after(name: &str) -> &str {
+    match name.rsplit_once(char::is_whitespace) {
+        Some((before, last)) if is_timestamp(last.trim_matches(['(', ')', '[', ']'])) => {
+            before.trim_end()
+        }
+        _ => name,
+    }
+}
+
+/// Caption text as it is said: its tags gone, its entities read, its
+/// whitespace single.
+fn clean(text: &str) -> String {
+    let mut out = String::new();
+    let mut in_tag = false;
+    for c in text.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            c if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    let out = out
+        .replace("&nbsp;", " ")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&");
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// A draft script from a transcript, and who is in it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TranscriptDraft {
+    pub script: String,
+    /// The cast, as its keys under `voices`, in the order they first speak.
+    pub cast: Vec<String>,
+    /// Lines no one is named as saying, which are the narrator's.
+    pub unattributed: usize,
+}
+
+/// Drafts a script from `turns`: a chapter named `title`, a line per turn
+/// opening with its speaker's label, and in the front matter a cast of
+/// everyone, each yet to be given a voice.
+pub fn draft_transcript(turns: &[Turn], title: &str) -> TranscriptDraft {
+    // Keyed by slug, so `Ada` and `ADA` are one person, labelled as first
+    // written.
+    let mut cast: Vec<(String, String)> = Vec::new();
+    let mut seen = BTreeMap::new();
+    let mut body = format!("# {title}\n\n");
+    let mut unattributed = 0;
+    for turn in turns {
+        let label = match &turn.speaker {
+            Some(name) => {
+                let (key, label) = member(name);
+                match cast.iter().find(|(k, _)| *k == key) {
+                    Some((_, first)) => Some(first.clone()),
+                    None => {
+                        cast.push((key, label.clone()));
+                        Some(label)
+                    }
+                }
+            }
+            None => {
+                unattributed += 1;
+                None
+            }
+        };
+        let id = unique(id_for(&turn.text), &mut seen);
+        let id = if id.is_empty() {
+            unique("line".into(), &mut seen)
+        } else {
+            id
+        };
+        let text = escaped(&turn.text);
+        match label {
+            Some(label) => body.push_str(&format!("**{label}:** {text} {{#{id}}}\n\n")),
+            None => body.push_str(&format!("{text} {{#{id}}}\n\n")),
+        }
+    }
+    let mut script = String::from("---\nteleprompt: 1\n");
+    if !cast.is_empty() {
+        script.push_str(
+            "# Each speaker reads in the narrator's voice until given their own,\n\
+             # as in `voice: am_michael`, or `backend:` and `instruct:`.\n\
+             voices:\n",
+        );
+        for (key, _) in &cast {
+            script.push_str(&format!("  {key}: {{}}\n"));
+        }
+    }
+    script.push_str("---\n\n");
+    script.push_str(&body);
+    TranscriptDraft {
+        script,
+        cast: cast.into_iter().map(|(k, _)| k).collect(),
+        unattributed,
+    }
+}
+
+/// A speaker's key in the cast and the label that names it: `Ada
+/// Lovelace` is `ada-lovelace`. A name that makes no key, such as `2`,
+/// becomes `Speaker 2`, `speaker-2`.
+fn member(name: &str) -> (String, String) {
+    let key = slugify(name);
+    if is_speaker_name(&key) {
+        (key, titled(name))
+    } else {
+        let label = format!("Speaker {name}");
+        (slugify(&label), label)
+    }
+}
+
+/// A name shouted in capitals, as captions write them, in title case:
+/// `HOST` is `Host`, `ADA LOVELACE` is `Ada Lovelace`. Others as written.
+fn titled(name: &str) -> String {
+    if name.chars().any(char::is_lowercase) {
+        return name.to_string();
+    }
+    name.split(' ')
+        .map(|word| {
+            let mut chars = word.chars();
+            chars
+                .next()
+                .map(|c| {
+                    c.to_uppercase()
+                        .chain(chars.flat_map(char::to_lowercase))
+                        .collect()
+                })
+                .unwrap_or_default()
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
+/// `text` kept a paragraph: what would open a heading, quote or list is
+/// escaped, and a closing `}` is not read as attributes.
+fn escaped(text: &str) -> String {
+    let digits = text.chars().take_while(char::is_ascii_digit).count();
+    let mut out = if text.starts_with(['#', '>', '-', '+', '*', '=']) {
+        format!("\\{text}")
+    } else if digits > 0 && text[digits..].starts_with(['.', ')']) {
+        format!("{}\\{}", &text[..digits], &text[digits..])
+    } else {
+        text.to_string()
+    };
+    if out.ends_with('}') {
+        out.push('.');
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn said(turns: &[Turn]) -> Vec<(Option<&str>, &str)> {
+        turns
+            .iter()
+            .map(|t| (t.speaker.as_deref(), t.text.as_str()))
+            .collect()
+    }
+
+    const VTT: &str = "WEBVTT\n\nNOTE made by hand\n\n\
+        1\n00:00:00.000 --> 00:00:02.000\n<v Ada Lovelace>The engine weaves\n\n\
+        00:00:02.000 --> 00:00:04.000\n<v Ada Lovelace>algebraic patterns.</v>\n\n\
+        00:00:04.000 --> 00:00:06.000\n<v.loud Charles Babbage>Just as the loom\n<i>weaves</i> flowers &amp; leaves.\n\n\
+        00:00:06.000 --> 00:00:08.000\n<v Ada Lovelace>Quite.</v> <v Charles Babbage>Indeed.</v>\n";
+
+    #[test]
+    fn webvtt_voices_are_the_speakers_and_their_cues_join() {
+        assert_eq!(
+            said(&turns(VTT, Format::Vtt)),
+            [
+                (
+                    Some("Ada Lovelace"),
+                    "The engine weaves algebraic patterns."
+                ),
+                (
+                    Some("Charles Babbage"),
+                    "Just as the loom weaves flowers & leaves."
+                ),
+                (Some("Ada Lovelace"), "Quite."),
+                (Some("Charles Babbage"), "Indeed."),
+            ]
+        );
+    }
+
+    #[test]
+    fn srt_names_a_speaker_when_the_turn_changes() {
+        let srt = "1\r\n00:00:01,000 --> 00:00:02,000\r\nHOST: Welcome back.\r\n\r\n\
+                   2\r\n00:00:02,000 --> 00:00:03,000\r\nToday, a guest.\r\n\r\n\
+                   3\r\n00:00:03,000 --> 00:00:04,000\r\nGUEST: Thanks for having me.\r\n";
+        assert_eq!(
+            said(&turns(srt, Format::Srt)),
+            [
+                (Some("HOST"), "Welcome back. Today, a guest."),
+                (Some("GUEST"), "Thanks for having me."),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_long_turn_goes_on_in_another_line_after_a_sentence() {
+        let sentence = "one two three four five six seven eight nine ten.";
+        let cues: String = (0..6)
+            .map(|i| format!("00:00:0{i}.000 --> 00:00:0{i}.900\n<v Ada>{sentence}\n\n"))
+            .collect();
+        let t = turns(&format!("WEBVTT\n\n{cues}"), Format::Vtt);
+        assert_eq!(t.len(), 2, "{t:?}");
+        assert_eq!(t[0].text.split_whitespace().count(), 40);
+        assert!(t.iter().all(|t| t.speaker.as_deref() == Some("Ada")));
+    }
+
+    #[test]
+    fn text_transcripts_in_the_usual_shapes() {
+        let text = "Ada Lovelace  0:03\nThe engine weaves\nalgebraic patterns.\n\n\
+                    [00:00:09] Charles Babbage: As the loom weaves flowers.\n\n\
+                    **Ada:** Quite so.\n\n\
+                    And more besides.\n\n\
+                    Mr. Menabrea (01:02): I wrote it first.\n\n\
+                    And then I said: no.\n";
+        assert_eq!(
+            said(&turns(text, Format::Text)),
+            [
+                (
+                    Some("Ada Lovelace"),
+                    "The engine weaves algebraic patterns."
+                ),
+                (Some("Charles Babbage"), "As the loom weaves flowers."),
+                (Some("Ada"), "Quite so."),
+                // A paragraph naming no one goes on with who spoke last.
+                (Some("Ada"), "And more besides."),
+                (Some("Mr. Menabrea"), "I wrote it first."),
+                (Some("Mr. Menabrea"), "And then I said: no."),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_draft_labels_each_line_and_casts_everyone() {
+        let t = [
+            Turn {
+                speaker: Some("Ada Lovelace".into()),
+                text: "The engine weaves.".into(),
+            },
+            Turn {
+                speaker: Some("ADA LOVELACE".into()),
+                text: "# of patterns: many.".into(),
+            },
+            Turn {
+                speaker: Some("2".into()),
+                text: "1. First {this}".into(),
+            },
+            Turn {
+                speaker: None,
+                text: "The engine weaves.".into(),
+            },
+        ];
+        let d = draft_transcript(&t, "Interview");
+        assert_eq!(d.cast, ["ada-lovelace", "speaker-2"]);
+        assert_eq!(member("HOST"), ("host".into(), "Host".into()));
+        assert_eq!(member("McCoy"), ("mccoy".into(), "McCoy".into()));
+        assert_eq!(d.unattributed, 1);
+        assert!(d
+            .script
+            .contains("voices:\n  ada-lovelace: {}\n  speaker-2: {}\n"));
+        let body = &d.script[d.script.find("# Interview").unwrap()..];
+        assert_eq!(
+            body,
+            "# Interview\n\n\
+             **Ada Lovelace:** The engine weaves. {#the-engine-weaves}\n\n\
+             **Ada Lovelace:** \\# of patterns: many. {#of-patterns}\n\n\
+             **Speaker 2:** 1\\. First {this}. {#1-first-this}\n\n\
+             The engine weaves. {#the-engine-weaves-2}\n\n"
+        );
+    }
+}

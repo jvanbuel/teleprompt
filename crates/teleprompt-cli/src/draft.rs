@@ -84,7 +84,7 @@ fn flush(out: &mut String, paragraph: &mut Vec<&str>, seen: &mut BTreeMap<String
 }
 
 /// `id`, or `id-2`, `id-3`… when the opening words have been used before.
-fn unique(id: String, seen: &mut BTreeMap<String, usize>) -> String {
+pub(crate) fn unique(id: String, seen: &mut BTreeMap<String, usize>) -> String {
     let count = seen.entry(id.clone()).or_insert(0);
     *count += 1;
     if *count == 1 {
@@ -114,7 +114,7 @@ fn escape(command: &str) -> String {
 }
 
 /// A line id derived from the paragraph's opening words.
-fn id_for(paragraph: &str) -> String {
+pub(crate) fn id_for(paragraph: &str) -> String {
     let opening: Vec<&str> = paragraph.split_whitespace().take(3).collect();
     slugify(&opening.join(" "))
 }

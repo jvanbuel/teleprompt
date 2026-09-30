@@ -218,3 +218,33 @@ fn a_heading_setting_that_isnt_one_is_an_error() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn someone_answering_pauses_first() {
+    let p = resolved(
+        "# Talk\n\nHi. {#a}\n\nStill me. {#b}\n\n**Guest:** Hello. {#c}\n\n\
+         **Guest:** Again. {#d}\n\nBack to me. {#e}\n\n\
+         # Quick {timing.turn_gap_ms=0}\n\n**Guest:** Now. {#f}\n",
+    )
+    .unwrap();
+    let lead_ins: Vec<u64> = p
+        .elements
+        .iter()
+        .filter_map(|e| match e {
+            Element::Narration { config, .. } => Some(config.timing.lead_in_ms.ms()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(lead_ins, [150, 150, 400, 150, 400, 150]);
+}
+
+#[test]
+fn a_full_name_labels_its_slug() {
+    let p = resolved(
+        "---\nvoices:\n  ada-lovelace:\n    voice: bf_emma\n---\n\n# Talk\n\n\
+         **Ada Lovelace:** The engine weaves patterns.\n",
+    )
+    .unwrap();
+    assert_eq!(voices(&p)[0].0, s("ada-lovelace"));
+    assert_eq!(texts(&p), ["The engine weaves patterns."]);
+}

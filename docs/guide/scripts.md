@@ -188,13 +188,19 @@ Welcome back. Today I'm talking to someone who deploys on Fridays. {#intro}
 ```
 
 The label is who, not what: it isn't said, and it matches the cast
-whatever its case, so `**Guest:**` is `[voices.guest]`. `**Guest**:`
+whatever its case, with spaces for dashes: `**Guest:**` is
+`[voices.guest]`, and `**Ada Lovelace:**` is `[voices.ada-lovelace]`. `**Guest**:`
 works too. A line with no label is the narrator's. A speaker's voice sits
 over the chapter's settings and under the line's own, so the last line
 keeps the guest's voice with its own delivery. `speaker: guest` in the
 front matter, or `{speaker=guest}` on a chapter's heading, makes a speaker
 the default there. A label never carries over from one line to the next,
 so moving a line never changes who says the lines after it.
+
+When the speaker changes, the new one waits `timing.turn_gap_ms` (250)
+before speaking, on top of their line's `lead_in`, the way someone does
+before answering. Set it to `0` for a quick back-and-forth, in a
+chapter's heading for one exchange: `# Rapid fire {timing.turn_gap_ms=0}`.
 
 A bold label naming nobody in the cast, such as `**Note:**`, is only
 text, and is said like the rest. When the script has a cast, `check`
@@ -279,7 +285,7 @@ Settings merge from these layers, with later ones winning:
 | `voice` | `backend`, `voice`, `speed`, `instruct`, `pronounce` | `null`, none, `1.0`, none |
 | `voices.<speaker>` | the same keys as `voice`, over it for that speaker's lines | |
 | `speaker` | who says a line with no label | the narrator |
-| `timing` | `lead_in_ms`, `tail_ms`, `max_stretch`, `min_stretch`, `trim_warn_above`, `min_line_speed`, `max_line_speed`, `min_take_speed`, `max_take_speed`, `length_ms` | `150`, `150`, `3.0`, `0.33`, `2.0`, `0.9`, `1.15`, `0.95`, `1.08`, none |
+| `timing` | `lead_in_ms`, `tail_ms`, `turn_gap_ms`, `max_stretch`, `min_stretch`, `trim_warn_above`, `min_line_speed`, `max_line_speed`, `min_take_speed`, `max_take_speed`, `length_ms` | `150`, `150`, `250`, `3.0`, `0.33`, `2.0`, `0.9`, `1.15`, `0.95`, `1.08`, none |
 | `output` | `resolution`, `fps`, `transition` | `[1920, 1080]`, `30`, see above |
 | `scene.<name>` | `adapter`, plus the adapter's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |
 | `backends.<id>` | the backend's own settings, only in `teleprompt.toml` | |
@@ -326,3 +332,42 @@ numbers them: a `hide: true` or `disabled: true` slide has no number and its
 notes are dropped with a warning, and a `src:` import contributes the
 slides of the file it names (or the `#2-3` range of them). A slide with no
 notes is left out, and `from` names it.
+
+### From a transcript
+
+```bash
+teleprompt from interview.vtt --out scripts/interview.md
+teleprompt from interview.txt --transcript --out scripts/interview.md
+```
+
+The transcript of a conversation becomes a script with a line per turn,
+each opening with who says it, and everyone in it the cast:
+
+```md
+---
+teleprompt: 1
+voices:
+  ada-lovelace: {}
+  charles-babbage: {}
+---
+
+# Interview
+
+**Ada Lovelace:** The engine weaves algebraic patterns. {#the-engine-weaves}
+
+**Charles Babbage:** Just as the loom weaves flowers. {#just-as-the}
+```
+
+Captions are read by their extension, `.vtt` and `.srt`: a WebVTT voice
+span (`<v Ada Lovelace>`) names the speaker, and so does `Name:` opening a
+cue. A speaker's run of cues is one line until it passes 40 words, then it
+goes on in another from the next cue that ends a sentence. `--transcript`
+reads text, a paragraph a line, in the shapes transcripts come in:
+`Name: …`, `**Name:** …`, a timestamp before either (`[00:01:02] Name:`),
+or a line of its own naming the speaker and when (`Ada Lovelace  0:03`),
+as meeting tools export them. A paragraph naming no one goes on with who
+spoke last.
+
+Each speaker reads in the narrator's voice until you give them one, so
+give each a `voice` under `voices` next: the draft's front matter says
+where.

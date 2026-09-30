@@ -74,8 +74,10 @@ code fences) is ignored by compilation, so a script can also be ordinary
 documentation.
 
 A paragraph that opens with a bold label, `**Guest:**` or `**Guest**:`,
-names its speaker when the cast (`voices`) has someone of that name,
-ignoring case, and the label is not said. Otherwise the label is text and
+names its speaker when the cast (`voices`) has someone of that name, by
+slug (`Ada Lovelace` is `ada-lovelace`), and the label is not said. A
+line whose speaker is not the last line's waits `timing.turn_gap_ms`
+more before it starts. Otherwise the label is text and
 is said, with a warning when there is a cast. Speakers are written the
 way transcripts are, so a script renders as one anywhere Markdown does,
 and it is resolve, which knows the cast, that decides, not the parser.

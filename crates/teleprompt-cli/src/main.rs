@@ -250,12 +250,13 @@ enum Command {
         #[arg(long)]
         prune_to_mb: Option<u64>,
     },
-    /// Draft a script from a Markdown document you already have
+    /// Draft a script from a document, deck or transcript you already have
     ///
     /// Prose becomes narration lines with their ids promoted, shell code
     /// blocks become terminal tapes that type the command and are marked
     /// `review=pending` until a human has read them, and everything else is
-    /// left as ordinary Markdown for you to promote by hand.
+    /// left as ordinary Markdown for you to promote by hand. A transcript
+    /// becomes a line per turn, labelled with who says it.
     From {
         doc: PathBuf,
         /// Where to write the draft; defaults to <doc>.teleprompt.md
@@ -263,8 +264,14 @@ enum Command {
         out: Option<PathBuf>,
         /// Read <doc> as a Slidev deck: its speaker notes become the
         /// narration, a paragraph per `[click]` step
-        #[arg(long)]
+        #[arg(long, conflicts_with = "transcript")]
         slidev: bool,
+        /// Read <doc> as the transcript of a conversation: each turn
+        /// becomes a line opening with who says it, `**Ada:**`, and
+        /// everyone in it the cast. Captions (.vtt, .srt) are read as one
+        /// without it
+        #[arg(long)]
+        transcript: bool,
     },
     /// Draft a script from a session you recorded while talking
     ///
@@ -752,8 +759,18 @@ fn run(command: Command, format: Format) -> Run {
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }
-        Command::From { doc, out, slidev } => {
-            let report = from::run_from(&doc, out, slidev).map_err(runtime_failure)?;
+        Command::From {
+            doc,
+            out,
+            slidev,
+            transcript,
+        } => {
+            let reading = match (slidev, transcript) {
+                (true, _) => from::Reading::Slidev,
+                (_, true) => from::Reading::Transcript,
+                _ => from::Reading::Document,
+            };
+            let report = from::run_from(&doc, out, reading).map_err(runtime_failure)?;
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }

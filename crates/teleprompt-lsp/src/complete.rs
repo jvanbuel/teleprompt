@@ -78,7 +78,7 @@ fn label_typed<'a>(index: &LineIndex, line: usize, before: &'a str) -> Option<&'
     let name = before
         .strip_prefix("**")
         .or_else(|| before.strip_prefix("__"))?;
-    (opens && !name.contains(|c: char| c.is_whitespace() || c == ':' || c == '*')).then_some(name)
+    (opens && !name.contains([':', '*'])).then_some(name)
 }
 
 /// Settings a chapter's heading takes most, of all front matter does.
@@ -172,13 +172,19 @@ pub fn items(ctx: &Context, project: &Project) -> Vec<CompletionItem> {
     }
 }
 
-/// `guest` as a label writes it: `Guest`.
+/// A cast member's name as a label writes it: `guest` is `Guest`, and
+/// `ada-lovelace` is `Ada Lovelace`.
 pub fn capitalized(name: &str) -> String {
-    let mut chars = name.chars();
-    chars
-        .next()
-        .map(|c| c.to_uppercase().chain(chars).collect())
-        .unwrap_or_default()
+    name.split(['-', '_'])
+        .map(|word| {
+            let mut chars = word.chars();
+            chars
+                .next()
+                .map(|c| c.to_uppercase().chain(chars).collect())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
 }
 
 /// The files beside the script, for `include=`.

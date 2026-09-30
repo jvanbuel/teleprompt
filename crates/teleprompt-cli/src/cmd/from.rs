@@ -5,6 +5,7 @@ use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use crate::draft::{draft, draft_slidev};
+use crate::transcript::{draft_transcript, turns, Format};
 use serde::Serialize;
 
 /// The stable, typed shape of `from`'s output in both formats.
@@ -19,6 +20,9 @@ pub struct FromReport {
     /// over them, and so not in the draft.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub silent_slides: Vec<u32>,
+    /// A transcript's speakers, as their keys in the draft's cast.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cast: Vec<String>,
     /// What the draft could not follow, one sentence each.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
@@ -43,6 +47,13 @@ impl FromReport {
                 "  slide(s) {} have no speaker notes, so nothing is said over them and they \
                  are not in the draft\n",
                 list.join(", ")
+            ));
+        }
+        if !self.cast.is_empty() {
+            s.push_str(&format!(
+                "  cast: {}; each reads in the narrator's voice until you give them one \
+                 under `voices` in its front matter\n",
+                self.cast.join(", ")
             ));
         }
         for w in &self.warnings {
@@ -71,7 +82,16 @@ fn default_out(doc: &Path) -> PathBuf {
     doc.with_extension("teleprompt.md")
 }
 
-pub fn run_from(doc: &Path, out: Option<PathBuf>, slidev: bool) -> std::io::Result<FromReport> {
+/// What `from` reads a document as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reading {
+    Document,
+    Slidev,
+    /// A conversation: captions, by their extension, or a text transcript.
+    Transcript,
+}
+
+pub fn run_from(doc: &Path, out: Option<PathBuf>, reading: Reading) -> std::io::Result<FromReport> {
     let source = std::fs::read_to_string(doc)
         .map_err(|e| Error::new(e.kind(), format!("cannot read {}: {e}", doc.display())))?;
 
@@ -89,13 +109,44 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>, slidev: bool) -> std::io::Resu
 
     // The deck path goes into the draft as given, relative to where
     // teleprompt runs; its imports are read relative to the deck itself.
-    let (script, silent_slides, warnings) = if slidev {
-        let dir = doc.parent().unwrap_or(Path::new(""));
-        let read = |path: &str| std::fs::read_to_string(dir.join(path)).ok();
-        let d = draft_slidev(&source, &doc.display().to_string(), &read);
-        (d.script, d.silent, d.warnings)
-    } else {
-        (draft(&source, &title_of(doc)), Vec::new(), Vec::new())
+    let reading = match (reading, Format::of(doc)) {
+        (Reading::Document, Some(_)) => Reading::Transcript,
+        (r, _) => r,
+    };
+    let mut cast = Vec::new();
+    let (script, silent_slides, warnings) = match reading {
+        Reading::Slidev => {
+            let dir = doc.parent().unwrap_or(Path::new(""));
+            let read = |path: &str| std::fs::read_to_string(dir.join(path)).ok();
+            let d = draft_slidev(&source, &doc.display().to_string(), &read);
+            (d.script, d.silent, d.warnings)
+        }
+        Reading::Transcript => {
+            let turns = turns(&source, Format::of(doc).unwrap_or(Format::Text));
+            if turns.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    format!("{} has nothing said in it to draft from", doc.display()),
+                ));
+            }
+            let d = draft_transcript(&turns, &title_of(doc));
+            let mut warnings = Vec::new();
+            if d.cast.is_empty() {
+                warnings.push(
+                    "no one is named as speaking, so every line is the narrator's; \
+                     a transcript names them as `Name:` or `<v Name>`"
+                        .to_string(),
+                );
+            } else if d.unattributed > 0 {
+                warnings.push(format!(
+                    "{} line(s) before anyone is named are the narrator's",
+                    d.unattributed
+                ));
+            }
+            cast = d.cast;
+            (d.script, Vec::new(), warnings)
+        }
+        Reading::Document => (draft(&source, &title_of(doc)), Vec::new(), Vec::new()),
     };
     if let Some(parent) = created.parent() {
         if !parent.as_os_str().is_empty() {
@@ -109,6 +160,7 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>, slidev: bool) -> std::io::Resu
         created,
         unreviewed: script.matches("review=pending").count(),
         silent_slides,
+        cast,
         warnings,
     })
 }

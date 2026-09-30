@@ -129,6 +129,7 @@ pub fn resolve(
         config_problems: BTreeMap::new(),
         elements: Vec::new(),
         warnings: Vec::new(),
+        last_speaker: None,
     };
     let mut chapters = Vec::new();
 
@@ -209,12 +210,14 @@ fn heading_layer(chapter: &Chapter, diags: &mut Vec<Diagnostic>) -> PartialConfi
     }
 }
 
-/// The cast member `label` names, ignoring case: `Guest` is `guest`.
+/// The cast member `label` names, as its slug: `Guest` is `guest`, and
+/// `Ada Lovelace` is `ada-lovelace`.
 fn cast_member(label: &str, config: &Config) -> Option<String> {
+    let slug = crate::ast::slugify(label);
     config
         .voices
         .keys()
-        .find(|name| name.eq_ignore_ascii_case(label))
+        .find(|name| crate::ast::slugify(name) == slug)
         .cloned()
 }
 
@@ -229,7 +232,7 @@ fn not_a_speaker(id: &LineId, label: &str, config: &Config, span: SourceSpan) ->
     .at(span)
     .with_help(format!(
         "add `[voices.{}]` to the cast, or write `{label}:` without bold to say it",
-        label.to_lowercase()
+        crate::ast::slugify(label)
     ))
 }
 
@@ -273,6 +276,9 @@ struct Resolver<'a> {
     config_problems: BTreeMap<String, SourceSpan>,
     elements: Vec<Element>,
     warnings: Vec<Diagnostic>,
+    /// Who said the last line, once there is one: `Some(None)` for the
+    /// narrator.
+    last_speaker: Option<Option<String>>,
 }
 
 impl Resolver<'_> {
@@ -332,9 +338,19 @@ impl Resolver<'_> {
             chapter_cfg.to_vec(),
             vec![cast, item, self.cli.clone()],
         ];
-        let config = Config::merged(&layers.concat());
+        let mut config = Config::merged(&layers.concat());
         for problem in config.problems() {
             self.config_problems.entry(problem).or_insert(seg.span);
+        }
+        // Someone answering: the turn's pause before their line.
+        if self
+            .last_speaker
+            .replace(speaker.clone())
+            .is_some_and(|last| last != speaker)
+        {
+            let t = &mut config.timing;
+            t.lead_in_ms =
+                DurationMs::new(t.lead_in_ms.ms() + t.turn_gap_ms.ms()).unwrap_or(DurationMs::MAX);
         }
         self.elements.push(Element::Narration {
             id: seg.id.clone(),

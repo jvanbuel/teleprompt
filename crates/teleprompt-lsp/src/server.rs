@@ -12,7 +12,7 @@ use lsp_types::{
     Position, Range, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 use serde_json::Value;
-use teleprompt_core::ast::Node;
+use teleprompt_core::ast::{slugify, Node};
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::Severity;
 
@@ -206,6 +206,21 @@ fn token_at(text: &str, position: Position) -> Option<(String, Range)> {
     })
 }
 
+/// The label under the cursor, `**Ada Lovelace:**` as one token, however
+/// many words it has.
+fn label_at(text: &str, position: Position) -> Option<String> {
+    let index = LineIndex::new(text);
+    let line = index.line(position.line as usize);
+    let mark = ["**", "__"].into_iter().find(|m| line.starts_with(m))?;
+    let end = 2 + line[2..].find(mark)? + 2;
+    let start = index.offset(Position {
+        line: position.line,
+        character: 0,
+    });
+    let label = &line[..end];
+    (index.offset(position) - start <= end && label.contains(':')).then(|| label.to_string())
+}
+
 /// What the name under the cursor refers to: a speaker, by their label
 /// (`**Guest:**`) or a heading's `speaker=`, or a scene.
 fn named<'p>(token: &str, project: &'p Project) -> Option<&'p Definition> {
@@ -218,7 +233,7 @@ fn named<'p>(token: &str, project: &'p Project) -> Option<&'p Definition> {
         return project
             .speakers
             .iter()
-            .find(|d| d.name.eq_ignore_ascii_case(name));
+            .find(|d| slugify(&d.name) == slugify(name));
     }
     let name = token.strip_prefix("scene=")?.trim_matches('"');
     project.scenes.iter().find(|d| d.name == name)
@@ -228,7 +243,8 @@ fn named<'p>(token: &str, project: &'p Project) -> Option<&'p Definition> {
 /// in: what it compiles to.
 fn hover(document: &Document, project: &Project, position: Position) -> Option<Hover> {
     let text = &document.text;
-    let markdown = match token_at(text, position).and_then(|(t, _)| named(&t, project).cloned()) {
+    let token = label_at(text, position).or_else(|| token_at(text, position).map(|(t, _)| t));
+    let markdown = match token.and_then(|t| named(&t, project).cloned()) {
         Some(def) => format!("**{}** · {}", def.name, def.detail),
         None => {
             let line = node_at(text, position)?;
@@ -267,7 +283,7 @@ fn node_at(text: &str, position: Position) -> Option<usize> {
 /// Where the name or path under the cursor is defined: a speaker in the
 /// cast, a scene in the configuration, or an included file.
 fn definition(text: &str, project: &Project, position: Position) -> Option<GotoDefinitionResponse> {
-    let (token, _) = token_at(text, position)?;
+    let token = label_at(text, position).or_else(|| token_at(text, position).map(|(t, _)| t))?;
     let (file, line) = match named(&token, project) {
         Some(def) => def.location.clone()?,
         None => {

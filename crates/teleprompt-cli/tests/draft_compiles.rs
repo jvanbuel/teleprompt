@@ -82,3 +82,56 @@ fn a_document_that_opens_with_prose_still_compiles() {
     let script = draft("Acme deploys your project.\n", "Acme");
     check(&script).unwrap_or_else(|e| panic!("{e:#?}"));
 }
+
+/// A conversation's captions drafted into a script: each speaker in the
+/// cast and on their lines, the labels not said, and nothing to fix.
+#[test]
+fn a_drafted_transcript_passes_check_and_casts_its_speakers() {
+    use teleprompt_cli::transcript::{draft_transcript, turns, Format};
+    let vtt = "WEBVTT\n\n\
+        00:00:00.000 --> 00:00:02.000\n<v Ada Lovelace>The engine weaves algebraic patterns.\n\n\
+        00:00:02.000 --> 00:00:04.000\n<v Charles Babbage>Just as the loom weaves flowers.\n\n\
+        00:00:04.000 --> 00:00:06.000\n<v Ada Lovelace>Quite.\n";
+    let drafted = draft_transcript(&turns(vtt, Format::Vtt), "Interview");
+    let warnings = check(&drafted.script).unwrap_or_else(|e| panic!("{e:#?}\n{}", drafted.script));
+    assert!(warnings.is_empty(), "{warnings:#?}");
+
+    let dir = teleprompt_testkit::test_dir("draft-cast");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let script = dir.join("scripts/talk.md");
+    std::fs::write(&script, &drafted.script).unwrap();
+    let project = Project::discover(&dir).unwrap();
+    let compiled = teleprompt_cli::cmd::check::compile_source(
+        &teleprompt_cli::voice::Backends::defaults(),
+        &project,
+        &script,
+        &drafted.script,
+        "en",
+    )
+    .unwrap_or_else(|e| panic!("{e:?}"));
+    let said: Vec<(Option<String>, String)> = compiled
+        .program
+        .elements
+        .iter()
+        .filter_map(|e| match e {
+            teleprompt_core::program::Element::Narration { speaker, text, .. } => {
+                Some((speaker.clone(), text.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        said,
+        [
+            (
+                Some("ada-lovelace".into()),
+                "The engine weaves algebraic patterns.".into()
+            ),
+            (
+                Some("charles-babbage".into()),
+                "Just as the loom weaves flowers.".into()
+            ),
+            (Some("ada-lovelace".into()), "Quite.".into()),
+        ]
+    );
+}

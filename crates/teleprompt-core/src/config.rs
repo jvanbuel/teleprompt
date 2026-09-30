@@ -72,6 +72,9 @@ pub struct VoiceConfig {
 pub struct TimingConfig {
     pub lead_in_ms: DurationMs,
     pub tail_ms: DurationMs,
+    /// Added to a line's lead-in when its speaker is not the last line's:
+    /// the pause before someone answers.
+    pub turn_gap_ms: DurationMs,
     pub max_stretch: f64,
     pub min_stretch: f64,
     pub trim_warn_above: f64,
@@ -247,6 +250,7 @@ impl Default for Config {
             timing: TimingConfig {
                 lead_in_ms: DurationMs::millis(150),
                 tail_ms: DurationMs::millis(150),
+                turn_gap_ms: DurationMs::millis(250),
                 max_stretch: 3.0,
                 min_stretch: 0.33,
                 trim_warn_above: 2.0,
@@ -348,6 +352,7 @@ pub struct PartialVoice {
 pub struct PartialTiming {
     pub lead_in_ms: Option<DurationMs>,
     pub tail_ms: Option<DurationMs>,
+    pub turn_gap_ms: Option<DurationMs>,
     pub max_stretch: Option<f64>,
     pub min_stretch: Option<f64>,
     pub trim_warn_above: Option<f64>,
@@ -696,6 +701,7 @@ impl Config {
             if let Some(t) = &layer.timing {
                 set!(c.timing.lead_in_ms, t.lead_in_ms);
                 set!(c.timing.tail_ms, t.tail_ms);
+                set!(c.timing.turn_gap_ms, t.turn_gap_ms);
                 set!(c.timing.max_stretch, t.max_stretch);
                 set!(c.timing.min_stretch, t.min_stretch);
                 set!(c.timing.trim_warn_above, t.trim_warn_above);
