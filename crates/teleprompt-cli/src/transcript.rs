@@ -7,6 +7,7 @@ use std::path::Path;
 
 use teleprompt_core::ast::slugify;
 use teleprompt_core::attrs::is_speaker_name;
+use teleprompt_listen::SpeakerSpan;
 
 use crate::draft::{id_for, unique};
 
@@ -142,6 +143,111 @@ fn captions(src: &str) -> Vec<Turn> {
         }
     }
     out
+}
+
+/// A recording's turns, from the words heard in it and who speaks when:
+/// each word is the voice's whose stretch it overlaps most, or the nearest
+/// one's; a turn goes on while one voice does, until it is long. A word
+/// that ends the sentence the last turn left unfinished is that turn's: a
+/// recognizer stamps a word late, so a turn's last word can fall in the
+/// next voice's stretch. Voices are
+/// named `Speaker 1`, `Speaker 2`, … in the order they first speak, and
+/// without any, every word is the narrator's.
+pub fn conversation(words: &[(String, u64, u64)], spans: &[SpeakerSpan]) -> Vec<Turn> {
+    let mut order: Vec<usize> = Vec::new();
+    let mut out: Vec<Turn> = Vec::new();
+    // Parallel to `out`: each turn's voice, as the diarizer numbers it.
+    let mut voices: Vec<Option<usize>> = Vec::new();
+    for (text, start, end) in words {
+        let voice = voice_of(*start, *end, spans);
+        let speaker = voice.map(|voice| {
+            let n = order.iter().position(|v| *v == voice).unwrap_or_else(|| {
+                order.push(voice);
+                order.len() - 1
+            });
+            format!("Speaker {}", n + 1)
+        });
+        let finishes = |last: &Turn| !ends_sentence(&last.text) && ends_sentence(text);
+        match out.last_mut() {
+            Some(last) if (last.speaker == speaker && !full(&last.text)) || finishes(last) => {
+                last.text.push(' ');
+                last.text.push_str(text);
+                last.end_ms = Some(*end);
+            }
+            _ => {
+                voices.push(voice);
+                out.push(Turn {
+                    speaker,
+                    text: text.clone(),
+                    start_ms: Some(*start),
+                    end_ms: Some(*end),
+                });
+            }
+        }
+    }
+    snap_to_voices(&mut out, &voices, spans);
+    // A line opens a sentence, whoever's.
+    for turn in &mut out {
+        let mut chars = turn.text.chars();
+        if let Some(first) = chars.next() {
+            turn.text = first.to_uppercase().chain(chars).collect();
+        }
+    }
+    out
+}
+
+/// Where the speaker changes, each side's edge is where the diarizer heard
+/// that voice start or stop rather than where the recognizer stamped the
+/// word, which is late: so a take neither clips its first word nor carries
+/// the next speaker's.
+fn snap_to_voices(turns: &mut [Turn], voices: &[Option<usize>], spans: &[SpeakerSpan]) {
+    for i in 0..turns.len() {
+        let Some(voice) = voices[i] else { continue };
+        let own: Vec<SpeakerSpan> = spans
+            .iter()
+            .filter(|s| s.speaker == voice)
+            .copied()
+            .collect();
+        let (Some(start), Some(end)) = (turns[i].start_ms, turns[i].end_ms) else {
+            continue;
+        };
+        let changes = |j: Option<usize>| {
+            j.and_then(|j| voices.get(j))
+                .is_none_or(|v| *v != Some(voice))
+        };
+        if changes(i.checked_sub(1)) {
+            if let Some(span) = nearest(&own, start, start + 1) {
+                turns[i].start_ms = Some(span.start_ms.min(start));
+            }
+        }
+        if changes(Some(i + 1)) {
+            if let Some(span) = nearest(&own, end.saturating_sub(1), end) {
+                turns[i].end_ms = Some(span.end_ms);
+            }
+        }
+    }
+}
+
+/// The span overlapping `start..end` most, or the nearest.
+fn nearest(spans: &[SpeakerSpan], start: u64, end: u64) -> Option<SpeakerSpan> {
+    let overlap = |s: &SpeakerSpan| end.min(s.end_ms).saturating_sub(start.max(s.start_ms));
+    let distance = |s: &SpeakerSpan| {
+        if end < s.start_ms {
+            s.start_ms - end
+        } else {
+            start.saturating_sub(s.end_ms)
+        }
+    };
+    spans
+        .iter()
+        .max_by_key(|s| (overlap(s), std::cmp::Reverse(distance(s))))
+        .copied()
+}
+
+/// The voice speaking over `start..end`: the one overlapping it most, or,
+/// for a word in a gap between them, the nearest.
+fn voice_of(start: u64, end: u64, spans: &[SpeakerSpan]) -> Option<usize> {
+    nearest(spans, start, end).map(|s| s.speaker)
 }
 
 /// Whether a line is long enough to end at the end of its sentence.
@@ -529,6 +635,68 @@ mod tests {
                 (Some(70_000), None),
             ]
         );
+    }
+
+    #[test]
+    fn a_recordings_words_go_to_whoever_speaks_over_them() {
+        let w = |t: &str, s: u64, e: u64| (t.to_string(), s, e);
+        let words = [
+            w("Welcome", 0, 400),
+            w("back.", 400, 900),
+            // In the gap between voices: the nearer one's.
+            w("Thanks!", 1_150, 1_600),
+            w("Glad", 1_700, 2_000),
+            w("to", 2_000, 2_200),
+            w("be", 2_200, 2_400),
+            w("here.", 2_400, 2_900),
+            w("Great.", 3_100, 3_500),
+        ];
+        let span = |s, e, speaker| SpeakerSpan {
+            start_ms: s,
+            end_ms: e,
+            speaker,
+        };
+        // Diarization numbers voices in no order; the drafts count them as
+        // they first speak.
+        let spans = [
+            span(0, 1_000, 7),
+            span(1_200, 3_000, 2),
+            span(3_000, 3_600, 7),
+        ];
+        // Its last word stamped in the next voice's stretch, the sentence
+        // is still Speaker 2's.
+        let mut late = words.to_vec();
+        late[6].1 = 3_050;
+        late[6].2 = 3_090;
+        assert_eq!(
+            conversation(&late, &spans)[1].text,
+            "Thanks! Glad to be here."
+        );
+        let t = conversation(&words, &spans);
+        type Said<'a> = (Option<&'a str>, &'a str, Option<u64>, Option<u64>);
+        let said: Vec<Said> = t
+            .iter()
+            .map(|t| (t.speaker.as_deref(), t.text.as_str(), t.start_ms, t.end_ms))
+            .collect();
+        assert_eq!(
+            said,
+            [
+                // Edges where the voices start and stop, not where the
+                // words were stamped.
+                (Some("Speaker 1"), "Welcome back.", Some(0), Some(1_000)),
+                (
+                    Some("Speaker 2"),
+                    "Thanks! Glad to be here.",
+                    Some(1_150),
+                    Some(3_000)
+                ),
+                (Some("Speaker 1"), "Great.", Some(3_000), Some(3_600)),
+            ]
+        );
+        // No voices told apart: one narrator, one line.
+        let alone = conversation(&words[..2], &[]);
+        assert_eq!(alone.len(), 1);
+        assert_eq!(alone[0].speaker, None);
     }
 
     #[test]

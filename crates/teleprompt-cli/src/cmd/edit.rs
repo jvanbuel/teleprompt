@@ -104,6 +104,42 @@ fn replace(path: &Path, text: &str) -> std::io::Result<()> {
     written
 }
 
+/// Keeps line `line`'s take, or with `None` every take whose line has
+/// changed since: the line was corrected, not reworded, so the take still
+/// says it. A transcript's misheard words, fixed. `changed` is whether any
+/// take was kept.
+pub fn run_keep(
+    project: &Project,
+    script: &Path,
+    line: Option<&str>,
+) -> Result<EditReport, EditError> {
+    let (compiled, _) = compile_script(project, script, &crate::cmd::check::source_locale(project))
+        .map_err(EditError::Invalid)?;
+    let mut takes = Takes::load(&project.takes_dir()).map_err(|e| EditError::Io(e.to_string()))?;
+    if let Some(line) = line {
+        if !compiled.narration.iter().any(|n| n.line_id == line) {
+            return Err(invalid(format!("no line `{line}` in the script")));
+        }
+        if takes.iter().all(|(id, _)| id != line) {
+            return Err(invalid(format!("line `{line}` has no take to keep")));
+        }
+    }
+    let mut changed = false;
+    for n in &compiled.narration {
+        let chosen = line.is_none_or(|l| n.line_id == l);
+        if chosen && takes.stale(n.line_id.as_str(), &n.text) {
+            takes
+                .retext(n.line_id.as_str(), &n.text)
+                .map_err(|e| EditError::Io(e.to_string()))?;
+            changed = true;
+        }
+    }
+    Ok(EditReport {
+        script: script.to_path_buf(),
+        changed,
+    })
+}
+
 /// Rewords line `line` to what its take was heard to say, and keeps the
 /// take as the line's: it says what the line now does.
 pub fn run_said(project: &Project, script: &Path, line: &str) -> Result<EditReport, EditError> {

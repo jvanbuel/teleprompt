@@ -74,7 +74,7 @@ opens on the item you just changed, and `build` renders the video.
 | command | does |
 |---|---|
 | `new <path>` | scaffold a new project |
-| `from <doc>` | draft a script from a Markdown document, a Slidev deck, or the transcript of a conversation |
+| `from <doc>` | draft a script from a Markdown document, a Slidev deck, or a conversation: its transcript or its recording |
 | `record <script>` | record yourself working (asciinema, VHS or Playwright) while you talk, and get a script spoken in your voice (opt-in build) |
 | `translate <script> --to <locale>` | translate the narration, for a video in another language |
 | `import <recording>` | the same, from a cast or tape and a recording of your voice you already have |

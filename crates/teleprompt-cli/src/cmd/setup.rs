@@ -186,6 +186,7 @@ fn shell_quote(s: &str) -> String {
 
 const SPEECH_MODEL: &str = "sherpa-onnx-streaming-zipformer-en-2023-06-26";
 const PUNCTUATION_MODEL: &str = "sherpa-onnx-online-punct-en-2024-08-06";
+const SPEAKER_MODELS: &str = "speaker-models";
 
 static TOOLS: &[Tool] = &[
     Tool {
@@ -401,6 +402,20 @@ static TOOLS: &[Tool] = &[
             "mkdir -p {models} && curl -fL https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2 | tar xj -C {models}",
         )],
     },
+    Tool {
+        name: "speaker-model",
+        what: "what `from` tells the voices in a recording apart with",
+        license: "MIT (pyannote segmentation), Apache-2.0 (3D-Speaker embedding)",
+        home: "https://github.com/k2-fsa/sherpa-onnx",
+        guide: None,
+        found: Found::Model(SPEAKER_MODELS),
+        // Into a scratch directory first, renamed into place once both are
+        // there, so a failed download never looks installed.
+        install: &[(
+            Manager::Download,
+            "rm -rf {models}/speaker-models.partial && mkdir -p {models}/speaker-models.partial && curl -fL https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2 | tar xj -C {models}/speaker-models.partial && curl -fL -o {models}/speaker-models.partial/embedding.onnx https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx && mv {models}/speaker-models.partial {models}/speaker-models",
+        )],
+    },
 ];
 
 /// What `setup prompt` installs: not an adapter, but what the prompter
@@ -431,6 +446,11 @@ pub fn speech_model(given: Option<&Path>) -> Result<PathBuf, String> {
                 models_dir().display()
             )
         })
+}
+
+/// The speaker models `setup` installed, if any.
+pub fn speaker_models() -> Option<PathBuf> {
+    installed_model("speaker-model")
 }
 
 /// The punctuation model: `given`, or the one `setup` installed, if any.

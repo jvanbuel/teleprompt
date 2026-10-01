@@ -12,7 +12,7 @@ use crate::cmd::check::{compile_script, source_locale};
 use crate::cmd::import::{cut_takes, read_voice};
 use crate::draft::{draft, draft_slidev};
 use crate::project::Project;
-use crate::transcript::{draft_transcript, turns, Format};
+use crate::transcript::{conversation, draft_transcript, turns, Format, Turn};
 use serde::Serialize;
 
 /// The stable, typed shape of `from`'s output in both formats.
@@ -111,25 +111,39 @@ pub enum Reading {
     Slidev,
     /// A conversation: captions, by their extension, or a text transcript.
     Transcript,
+    /// A conversation's recording, by its extension: transcribed, and its
+    /// voices told apart.
+    Recording,
 }
 
-/// The conversation's recording, for `from` to give each line its stretch
-/// of as its take, but for the lines of the speakers in `revoice`.
-#[derive(Debug, Clone, Copy)]
+/// Extensions read as a recording rather than a document.
+const RECORDINGS: &[&str] = &[
+    "wav", "m4a", "mp3", "flac", "ogg", "opus", "aac", "mp4", "mov", "mkv", "webm",
+];
+
+fn is_recording(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| RECORDINGS.contains(&e.to_ascii_lowercase().as_str()))
+}
+
+/// A conversation's recording, for `from` to give each line its stretch
+/// of as its take, but for the lines of the speakers in `revoice`: `audio`
+/// beside a transcript, or the document itself when it is a recording.
+/// `speakers` is how many voices a recording has, where known.
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Audio<'a> {
-    pub path: &'a Path,
+    pub path: Option<&'a Path>,
     pub revoice: &'a [String],
+    pub speakers: Option<usize>,
 }
 
 pub fn run_from(
     doc: &Path,
     out: Option<PathBuf>,
     reading: Reading,
-    audio: Option<Audio>,
+    audio: Audio,
 ) -> std::io::Result<FromReport> {
-    let source = std::fs::read_to_string(doc)
-        .map_err(|e| Error::new(e.kind(), format!("cannot read {}: {e}", doc.display())))?;
-
     let created = out.unwrap_or_else(|| default_out(doc));
     if created.exists() {
         return Err(Error::new(
@@ -144,26 +158,46 @@ pub fn run_from(
 
     let reading = match (reading, Format::of(doc)) {
         (Reading::Document, Some(_)) => Reading::Transcript,
+        (Reading::Document, None) if is_recording(doc) => Reading::Recording,
         (r, _) => r,
     };
-    if audio.is_some() && reading != Reading::Transcript {
-        return Err(Error::new(
-            ErrorKind::InvalidInput,
-            "--audio is the recording of a conversation, for a transcript of it",
-        ));
+    let invalid = |why: &str| Err(Error::new(ErrorKind::InvalidInput, why.to_string()));
+    match (reading, audio.path) {
+        (Reading::Recording, Some(_)) => {
+            return invalid("the document is the recording, so --audio has nothing to add")
+        }
+        (Reading::Document | Reading::Slidev, Some(_)) => {
+            return invalid("--audio is the recording of a conversation, for a transcript of it")
+        }
+        (Reading::Document | Reading::Slidev, None) if !audio.revoice.is_empty() => {
+            return invalid("--revoice names someone in a conversation's recording")
+        }
+        _ => {}
     }
-    let drafted = drafted(doc, &source, reading)?;
+    // A recording is read before the draft is written, so a wrong one
+    // leaves nothing behind.
+    let (drafted, pcm) = if reading == Reading::Recording {
+        let pcm = recording(doc, &[])?;
+        (heard_draft(doc, &pcm, audio.speakers)?, Some(pcm))
+    } else {
+        let source = std::fs::read_to_string(doc)
+            .map_err(|e| Error::new(e.kind(), format!("cannot read {}: {e}", doc.display())))?;
+        (drafted(doc, &source, reading)?, None)
+    };
     if let Some(parent) = created.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
         }
     }
-    // The recording is checked before the draft is written, so a wrong
-    // one leaves nothing behind.
     let conversation = drafted.conversation.unwrap_or_default();
-    let voice = match audio {
-        Some(audio) => Some(heard(doc, audio, &conversation)?),
-        None => None,
+    let voice = match (pcm, audio.path) {
+        (Some(pcm), _) => Some((doc, pcm, revoiced(doc, &audio, &conversation)?)),
+        (None, Some(path)) => Some((
+            path,
+            recording(path, &conversation.spans)?,
+            revoiced(doc, &audio, &conversation)?,
+        )),
+        (None, None) => None,
     };
     std::fs::write(&created, &drafted.script)?;
     let takes = match voice {
@@ -237,51 +271,76 @@ fn drafted(doc: &Path, source: &str, reading: Reading) -> std::io::Result<Drafte
                 ..plain(d.script)
             })
         }
-        Reading::Transcript => {
+        Reading::Transcript | Reading::Recording => {
             let turns = turns(source, Format::of(doc).unwrap_or(Format::Text));
-            if turns.is_empty() {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    format!("{} has nothing said in it to draft from", doc.display()),
-                ));
-            }
-            let d = draft_transcript(&turns, &title_of(doc));
-            let mut warnings = Vec::new();
-            if d.cast.is_empty() {
-                warnings.push(
+            let mut drafted = conversation_draft(doc, &turns)?;
+            let d = drafted.conversation.as_ref();
+            if d.is_some_and(|c| c.cast.is_empty()) {
+                drafted.warnings.push(
                     "no one is named as speaking, so every line is the narrator's; \
                      a transcript names them as `Name:` or `<v Name>`"
                         .to_string(),
                 );
-            } else if d.unattributed > 0 {
-                warnings.push(format!(
-                    "{} line(s) before anyone is named are the narrator's",
-                    d.unattributed
-                ));
             }
-            Ok(Drafted {
-                warnings,
-                conversation: Some(Conversation {
-                    cast: d.cast,
-                    speakers: turns
-                        .iter()
-                        .map(|t| t.speaker.as_deref().map(slugify))
-                        .collect(),
-                    spans: turns.iter().map(|t| (t.start_ms, t.end_ms)).collect(),
-                }),
-                ..plain(d.script)
-            })
+            Ok(drafted)
         }
         Reading::Document => Ok(plain(draft(source, &title_of(doc)))),
     }
 }
 
-/// The recording, read, and the speakers to leave to the cast, by slug.
-fn heard<'a>(
+/// A draft of the conversation in `pcm`, heard with the models `setup`
+/// installed.
+fn heard_draft(doc: &Path, pcm: &Pcm, speakers: Option<usize>) -> std::io::Result<Drafted> {
+    let heard = crate::listening::hear(pcm, speakers).map_err(Error::other)?;
+    let turns = conversation(&heard.words, heard.voices.as_deref().unwrap_or_default());
+    let mut drafted = conversation_draft(doc, &turns)?;
+    if heard.voices.is_none() {
+        drafted.warnings.push(
+            "the speaker models are not installed, so the voices were not told apart and \
+             every line is the narrator's: `teleprompt setup speaker-model` installs them"
+                .to_string(),
+        );
+    }
+    Ok(drafted)
+}
+
+/// A conversation's draft: a line per turn, its speaker's label opening it.
+fn conversation_draft(doc: &Path, turns: &[Turn]) -> std::io::Result<Drafted> {
+    if turns.is_empty() {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            format!("{} has nothing said in it to draft from", doc.display()),
+        ));
+    }
+    let d = draft_transcript(turns, &title_of(doc));
+    let mut warnings = Vec::new();
+    if !d.cast.is_empty() && d.unattributed > 0 {
+        warnings.push(format!(
+            "{} line(s) before anyone is named are the narrator's",
+            d.unattributed
+        ));
+    }
+    Ok(Drafted {
+        script: d.script,
+        silent: Vec::new(),
+        warnings,
+        conversation: Some(Conversation {
+            cast: d.cast,
+            speakers: turns
+                .iter()
+                .map(|t| t.speaker.as_deref().map(slugify))
+                .collect(),
+            spans: turns.iter().map(|t| (t.start_ms, t.end_ms)).collect(),
+        }),
+    })
+}
+
+/// The speakers to leave to the cast, by slug.
+fn revoiced(
     doc: &Path,
-    audio: Audio<'a>,
+    audio: &Audio,
     conversation: &Conversation,
-) -> std::io::Result<(&'a Path, Pcm, Vec<String>)> {
+) -> std::io::Result<Vec<String>> {
     let revoice: Vec<String> = audio.revoice.iter().map(|s| slugify(s)).collect();
     if let Some(nobody) = revoice
         .iter()
@@ -295,11 +354,7 @@ fn heard<'a>(
             ),
         ));
     }
-    Ok((
-        audio.path,
-        recording(audio.path, &conversation.spans)?,
-        revoice,
-    ))
+    Ok(revoice)
 }
 
 /// The conversation's recording, as one channel, for turns that all say

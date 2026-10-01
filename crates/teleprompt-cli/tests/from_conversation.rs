@@ -42,10 +42,10 @@ fn each_line_is_given_its_stretch_of_the_recording() {
     let script = dir.join("scripts/talk.md");
 
     let audio = Audio {
-        path: &audio,
-        revoice: &[],
+        path: Some(&audio),
+        ..Audio::default()
     };
-    let report = run_from(&doc, Some(script.clone()), Reading::Document, Some(audio)).unwrap();
+    let report = run_from(&doc, Some(script.clone()), Reading::Document, audio).unwrap();
     assert_eq!(report.takes, 3, "{}", report.render());
 
     let project = Project::discover(&dir).unwrap();
@@ -71,10 +71,10 @@ fn a_transcript_with_no_times_cannot_be_heard() {
     std::fs::write(&audio, wav::encode(&recording())).unwrap();
     let script = dir.join("scripts/talk.md");
     let audio = Audio {
-        path: &audio,
-        revoice: &[],
+        path: Some(&audio),
+        ..Audio::default()
     };
-    let err = run_from(&doc, Some(script.clone()), Reading::Transcript, Some(audio)).unwrap_err();
+    let err = run_from(&doc, Some(script.clone()), Reading::Transcript, audio).unwrap_err();
     assert!(err.to_string().contains("turn 1"), "{err}");
     assert!(!script.exists(), "nothing is written");
 }
@@ -89,11 +89,12 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
     std::fs::write(&audio, wav::encode(&recording())).unwrap();
     let revoice = ["Charles Babbage".to_string()];
     let audio = Audio {
-        path: &audio,
+        path: Some(&audio),
         revoice: &revoice,
+        speakers: None,
     };
     let script = dir.join("scripts/talk.md");
-    let report = run_from(&doc, Some(script), Reading::Document, Some(audio)).unwrap();
+    let report = run_from(&doc, Some(script), Reading::Document, audio).unwrap();
     assert_eq!(report.takes, 2);
     let takes = Takes::load(&Project::discover(&dir).unwrap().takes_dir()).unwrap();
     let ids: Vec<&str> = takes.iter().map(|(id, _)| id).collect();
@@ -105,11 +106,72 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
         &doc,
         Some(dir.join("scripts/again.md")),
         Reading::Document,
-        Some(Audio {
-            path: &audio,
+        Audio {
+            path: Some(&audio),
             revoice: &nobody,
-        }),
+            speakers: None,
+        },
     )
     .unwrap_err();
     assert!(err.to_string().contains("byron"), "{err}");
+}
+
+/// Without speech models in the build, a recording is refused before
+/// anything is written, saying how to get them.
+#[cfg(not(feature = "listen"))]
+#[test]
+fn a_recording_needs_the_listening_build() {
+    let dir = teleprompt_testkit::test_dir("from-recording");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let doc = dir.join("talk.wav");
+    std::fs::write(&doc, wav::encode(&recording())).unwrap();
+    let script = dir.join("scripts/talk.md");
+    let err = run_from(
+        &doc,
+        Some(script.clone()),
+        Reading::Document,
+        Audio::default(),
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains("--features listen"), "{err}");
+    assert!(!script.exists());
+}
+
+/// A transcript's misheard words, corrected, keep their takes when told
+/// to: `edit keep`, for one line or all of them.
+#[test]
+fn a_corrected_line_keeps_its_take_when_told_to() {
+    let dir = teleprompt_testkit::test_dir("from-keep");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    let doc = dir.join("talk.vtt");
+    std::fs::write(&doc, VTT).unwrap();
+    let audio = dir.join("talk.wav");
+    std::fs::write(&audio, wav::encode(&recording())).unwrap();
+    let script = dir.join("scripts/talk.md");
+    let audio = Audio {
+        path: Some(&audio),
+        ..Audio::default()
+    };
+    run_from(&doc, Some(script.clone()), Reading::Document, audio).unwrap();
+    let corrected = std::fs::read_to_string(&script)
+        .unwrap()
+        .replace("Quite.", "Quite so.");
+    std::fs::write(&script, corrected).unwrap();
+
+    let project = Project::discover(&dir).unwrap();
+    let stale = || {
+        Takes::load(&project.takes_dir())
+            .unwrap()
+            .stale("quite", "Quite so.")
+    };
+    assert!(stale(), "a changed line's take is to record again");
+    let none = teleprompt_cli::cmd::edit::run_keep(&project, &script, Some("the-engine-weaves"));
+    assert!(
+        !none.unwrap().changed,
+        "a line that did not change keeps nothing"
+    );
+    assert!(teleprompt_cli::cmd::edit::run_keep(&project, &script, Some("nope")).is_err());
+    let kept = teleprompt_cli::cmd::edit::run_keep(&project, &script, None).unwrap();
+    assert!(kept.changed);
+    assert!(!stale(), "kept: the take says the corrected line");
 }

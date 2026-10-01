@@ -135,10 +135,14 @@ struct FromArgs {
     /// its speaker's own voice until reworded. Draft into a project
     #[arg(long, value_name = "RECORDING")]
     audio: Option<PathBuf>,
-    /// With --audio, leave this speaker's lines to their voice in the
-    /// cast rather than the recording; may be repeated
-    #[arg(long, value_name = "SPEAKER", requires = "audio")]
+    /// Leave this speaker's lines to their voice in the cast rather than
+    /// the recording; may be repeated
+    #[arg(long, value_name = "SPEAKER")]
     revoice: Vec<String>,
+    /// How many people speak in a recording, where you know: it tells
+    /// their voices apart better than guessing
+    #[arg(long, value_name = "N")]
+    speakers: Option<usize>,
 }
 
 /// What `import` reads, and where it writes.
@@ -207,6 +211,14 @@ enum EditCommand {
     },
     /// Reword the line to what its take was heard to say, keeping the take
     Said { line: LineId },
+    /// Keep the line's take though its words changed: they were corrected,
+    /// not reworded, as a transcript's misheard words are
+    Keep {
+        line: Option<LineId>,
+        /// Every take whose line changed since it was recorded
+        #[arg(long, conflicts_with = "line", required_unless_present = "line")]
+        all: bool,
+    },
     /// Say the line as TEXT, keeping its id and attributes. A take of the
     /// old words becomes one to record again
     Reword { line: LineId, text: String },
@@ -225,7 +237,9 @@ impl EditCommand {
             EditCommand::Stretch { block, by } => Edit::Stretch { block, by },
             EditCommand::Reword { line, text } => Edit::Reword { line, text },
             EditCommand::Instruct { line, text } => Edit::Instruct { line, text },
-            EditCommand::Said { .. } => unreachable!("said is run on its own"),
+            EditCommand::Said { .. } | EditCommand::Keep { .. } => {
+                unreachable!("said and keep are run on their own")
+            }
         }
     }
 }
@@ -278,13 +292,15 @@ enum Command {
         #[arg(long)]
         prune_to_mb: Option<u64>,
     },
-    /// Draft a script from a document, deck or transcript you already have
+    /// Draft a script from a document, deck, transcript or recording you have
     ///
     /// Prose becomes narration lines with their ids promoted, shell code
     /// blocks become terminal tapes that type the command and are marked
     /// `review=pending` until a human has read them, and everything else is
     /// left as ordinary Markdown for you to promote by hand. A transcript
-    /// becomes a line per turn, labelled with who says it.
+    /// becomes a line per turn, labelled with who says it, and so does a
+    /// recording, transcribed and its voices told apart, each line speaking
+    /// its stretch of it (opt-in build).
     From(FromArgs),
     /// Draft a script from a session you recorded while talking
     ///
@@ -716,6 +732,9 @@ fn run_edit_cmd(format: Format, script: &Path, edit: EditCommand) -> Run {
     let project = project_for(script)?;
     let report = match edit {
         EditCommand::Said { line } => teleprompt_cli::cmd::edit::run_said(&project, script, &line),
+        EditCommand::Keep { line, .. } => {
+            teleprompt_cli::cmd::edit::run_keep(&project, script, line.as_ref().map(LineId::as_str))
+        }
         edit => teleprompt_cli::cmd::edit::run_edit(&project, script, &edit.into_edit()),
     }
     .map_err(Outcome::from)?;
@@ -767,10 +786,11 @@ fn run_from_cmd(format: Format, args: FromArgs) -> Run {
         (_, true) => from::Reading::Transcript,
         _ => from::Reading::Document,
     };
-    let audio = args.audio.as_deref().map(|path| from::Audio {
-        path,
+    let audio = from::Audio {
+        path: args.audio.as_deref(),
         revoice: &args.revoice,
-    });
+        speakers: args.speakers,
+    };
     let report = from::run_from(&args.doc, args.out, reading, audio).map_err(runtime_failure)?;
     emit(format, &report, &report.render());
     Ok(Outcome::Ok)

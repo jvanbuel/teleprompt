@@ -258,14 +258,7 @@ fn hear(words: &Words, pcm: &Pcm, offset_ms: i64) -> Result<Vec<Word>, String> {
 
 #[cfg(feature = "listen")]
 fn transcribe(dir: &Path, pcm: &Pcm) -> Result<Vec<(String, u64, u64)>, String> {
-    use teleprompt_listen_sherpa::SAMPLE_RATE;
-    let mut resampler = teleprompt_voice::Resampler::new(pcm.sample_rate, SAMPLE_RATE);
-    let mut samples = Vec::new();
-    for block in pcm.samples.chunks(1 << 16) {
-        let block: Vec<f32> = block.iter().map(|&s| f32::from(s) / 32768.0).collect();
-        samples.extend(resampler.push(&block));
-    }
-    samples.extend(resampler.finish());
+    let samples = crate::listening::at_16k(pcm);
     Ok(teleprompt_listen_sherpa::transcribe(dir, &samples)?
         .into_iter()
         .map(|w| (w.text, w.start_ms, w.end_ms))

@@ -8,6 +8,15 @@ pub use cues::Cues;
 pub use follow::{Deaf, Follower, Heard, Recognizer};
 pub use take::TakeLog;
 
+/// A stretch of a recording one voice speaks in, `speaker` counting the
+/// voices from 0 in no promised order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpeakerSpan {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub speaker: usize,
+}
+
 /// A word a recognizer heard in a recording, and when, in milliseconds
 /// from its start.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -393,3 +393,32 @@ A WAV is read as it is, and anything else through ffmpeg. Captions say
 when each turn starts and ends; a text transcript needs a time on every
 turn (`[00:01:02] Ada:` or `Ada  1:02`), and each runs until the next.
 The draft has to go into a project, which keeps the takes.
+
+A transcript's words are what someone heard, and some will be wrong.
+Correcting one changes the line, which would set its take aside for
+recording again; `teleprompt edit scripts/interview.md keep <line>` says
+the take still says it, and `keep --all` does so for every line you have
+corrected.
+
+### From a recording
+
+```bash
+teleprompt setup speech-model punctuation-model speaker-model --run
+teleprompt from interview.m4a --out scripts/interview.md
+```
+
+With no transcript at all, `from` transcribes the recording itself, on
+your machine, and tells the voices in it apart: each turn becomes a line
+labelled `**Speaker 1:**`, `**Speaker 2:**` in the order they first speak,
+each speaking its stretch of the recording as its take. A turn begins and
+ends where its voice does, so a take neither clips its first word nor
+carries the next speaker's. `--speakers 2` says how many there are, which
+tells them apart better than guessing; `--revoice` works as with
+`--audio`.
+
+Rename the speakers in the cast, `speaker-1: { name: "Ada Lovelace" }`,
+which is how the video names them, then read the draft through: the
+transcription will have misheard some words, and `edit keep` keeps the
+takes of the lines you correct. Without the speaker models every line is
+the narrator's, and `from` says so. This needs the build with speech
+models (`--features listen`), as `prompt` and `import` do.

@@ -2,10 +2,14 @@
 //! model, behind the `sherpa` feature.
 
 #[cfg(feature = "sherpa")]
+mod diarize;
+#[cfg(feature = "sherpa")]
 mod punctuation;
 #[cfg(feature = "sherpa")]
 mod sherpa;
 
+#[cfg(feature = "sherpa")]
+pub use diarize::diarize;
 #[cfg(feature = "sherpa")]
 pub use punctuation::punctuate;
 #[cfg(feature = "sherpa")]
