@@ -4,7 +4,14 @@
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
+use teleprompt_core::ast::slugify;
+use teleprompt_core::LineId;
+use teleprompt_voice::Pcm;
+
+use crate::cmd::check::{compile_script, source_locale};
+use crate::cmd::import::{cut_takes, read_voice};
 use crate::draft::{draft, draft_slidev};
+use crate::project::Project;
 use crate::transcript::{draft_transcript, turns, Format};
 use serde::Serialize;
 
@@ -20,12 +27,20 @@ pub struct FromReport {
     /// over them, and so not in the draft.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub silent_slides: Vec<u32>,
+    /// Lines given their stretch of the conversation's recording as
+    /// their take, with `--audio`.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub takes: usize,
     /// A transcript's speakers, as their keys in the draft's cast.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cast: Vec<String>,
     /// What the draft could not follow, one sentence each.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 impl FromReport {
@@ -47,6 +62,13 @@ impl FromReport {
                 "  slide(s) {} have no speaker notes, so nothing is said over them and they \
                  are not in the draft\n",
                 list.join(", ")
+            ));
+        }
+        if self.takes > 0 {
+            s.push_str(&format!(
+                "  {} line(s) speak from the recording; reword one and it is spoken by \
+                 its speaker's voice instead\n",
+                self.takes
             ));
         }
         if !self.cast.is_empty() {
@@ -91,7 +113,20 @@ pub enum Reading {
     Transcript,
 }
 
-pub fn run_from(doc: &Path, out: Option<PathBuf>, reading: Reading) -> std::io::Result<FromReport> {
+/// The conversation's recording, for `from` to give each line its stretch
+/// of as its take, but for the lines of the speakers in `revoice`.
+#[derive(Debug, Clone, Copy)]
+pub struct Audio<'a> {
+    pub path: &'a Path,
+    pub revoice: &'a [String],
+}
+
+pub fn run_from(
+    doc: &Path,
+    out: Option<PathBuf>,
+    reading: Reading,
+    audio: Option<Audio>,
+) -> std::io::Result<FromReport> {
     let source = std::fs::read_to_string(doc)
         .map_err(|e| Error::new(e.kind(), format!("cannot read {}: {e}", doc.display())))?;
 
@@ -107,22 +142,103 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>, reading: Reading) -> std::io::
         ));
     }
 
-    // The deck path goes into the draft as given, relative to where
-    // teleprompt runs; its imports are read relative to the deck itself.
     let reading = match (reading, Format::of(doc)) {
         (Reading::Document, Some(_)) => Reading::Transcript,
         (r, _) => r,
     };
-    let mut cast = Vec::new();
-    let (script, silent_slides, warnings) = match reading {
+    if audio.is_some() && reading != Reading::Transcript {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "--audio is the recording of a conversation, for a transcript of it",
+        ));
+    }
+    let drafted = drafted(doc, &source, reading)?;
+    if let Some(parent) = created.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    // The recording is checked before the draft is written, so a wrong
+    // one leaves nothing behind.
+    let conversation = drafted.conversation.unwrap_or_default();
+    let voice = match audio {
+        Some(audio) => Some(heard(doc, audio, &conversation)?),
+        None => None,
+    };
+    std::fs::write(&created, &drafted.script)?;
+    let takes = match voice {
+        Some((path, pcm, revoice)) => {
+            let spans: Vec<(u64, u64)> = conversation
+                .spans
+                .iter()
+                .map(|&(s, e)| (s.unwrap_or(0), e.unwrap_or(u64::MAX)))
+                .collect();
+            let keep = |i: usize| {
+                conversation.speakers[i]
+                    .as_ref()
+                    .is_none_or(|speaker| !revoice.contains(speaker))
+            };
+            speak_from(&created, &spans, &pcm, keep)
+                .map_err(|e| Error::other(format!("{}: {e}", path.display())))?
+        }
+        None => 0,
+    };
+    let (script, silent_slides, warnings, cast) = (
+        drafted.script,
+        drafted.silent,
+        drafted.warnings,
+        conversation.cast,
+    );
+
+    Ok(FromReport {
+        source: doc.to_path_buf(),
+        created,
+        unreviewed: script.matches("review=pending").count(),
+        silent_slides,
+        takes,
+        cast,
+        warnings,
+    })
+}
+
+/// A draft, and for a transcript, who and when.
+struct Drafted {
+    script: String,
+    silent: Vec<u32>,
+    warnings: Vec<String>,
+    conversation: Option<Conversation>,
+}
+
+/// A transcript's cast, and each line's speaker, by slug, and stretch.
+#[derive(Default)]
+struct Conversation {
+    cast: Vec<String>,
+    speakers: Vec<Option<String>>,
+    spans: Vec<(Option<u64>, Option<u64>)>,
+}
+
+fn drafted(doc: &Path, source: &str, reading: Reading) -> std::io::Result<Drafted> {
+    let plain = |script| Drafted {
+        script,
+        silent: Vec::new(),
+        warnings: Vec::new(),
+        conversation: None,
+    };
+    match reading {
+        // The deck path goes into the draft as given, relative to where
+        // teleprompt runs; its imports are read relative to the deck itself.
         Reading::Slidev => {
             let dir = doc.parent().unwrap_or(Path::new(""));
             let read = |path: &str| std::fs::read_to_string(dir.join(path)).ok();
-            let d = draft_slidev(&source, &doc.display().to_string(), &read);
-            (d.script, d.silent, d.warnings)
+            let d = draft_slidev(source, &doc.display().to_string(), &read);
+            Ok(Drafted {
+                silent: d.silent,
+                warnings: d.warnings,
+                ..plain(d.script)
+            })
         }
         Reading::Transcript => {
-            let turns = turns(&source, Format::of(doc).unwrap_or(Format::Text));
+            let turns = turns(source, Format::of(doc).unwrap_or(Format::Text));
             if turns.is_empty() {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
@@ -143,24 +259,124 @@ pub fn run_from(doc: &Path, out: Option<PathBuf>, reading: Reading) -> std::io::
                     d.unattributed
                 ));
             }
-            cast = d.cast;
-            (d.script, Vec::new(), warnings)
+            Ok(Drafted {
+                warnings,
+                conversation: Some(Conversation {
+                    cast: d.cast,
+                    speakers: turns
+                        .iter()
+                        .map(|t| t.speaker.as_deref().map(slugify))
+                        .collect(),
+                    spans: turns.iter().map(|t| (t.start_ms, t.end_ms)).collect(),
+                }),
+                ..plain(d.script)
+            })
         }
-        Reading::Document => (draft(&source, &title_of(doc)), Vec::new(), Vec::new()),
-    };
-    if let Some(parent) = created.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
+        Reading::Document => Ok(plain(draft(source, &title_of(doc)))),
     }
-    std::fs::write(&created, &script)?;
+}
 
-    Ok(FromReport {
-        source: doc.to_path_buf(),
-        created,
-        unreviewed: script.matches("review=pending").count(),
-        silent_slides,
-        cast,
-        warnings,
-    })
+/// The recording, read, and the speakers to leave to the cast, by slug.
+fn heard<'a>(
+    doc: &Path,
+    audio: Audio<'a>,
+    conversation: &Conversation,
+) -> std::io::Result<(&'a Path, Pcm, Vec<String>)> {
+    let revoice: Vec<String> = audio.revoice.iter().map(|s| slugify(s)).collect();
+    if let Some(nobody) = revoice
+        .iter()
+        .find(|r| !conversation.speakers.contains(&Some((*r).clone())))
+    {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "--revoice {nobody}: no one of that name speaks in {}",
+                doc.display()
+            ),
+        ));
+    }
+    Ok((
+        audio.path,
+        recording(audio.path, &conversation.spans)?,
+        revoice,
+    ))
+}
+
+/// The conversation's recording, as one channel, for turns that all say
+/// when they start. A WAV is read as it is; anything else ffmpeg decodes.
+fn recording(path: &Path, spans: &[(Option<u64>, Option<u64>)]) -> std::io::Result<Pcm> {
+    if let Some(n) = spans.iter().position(|(start, _)| start.is_none()) {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            format!(
+                "turn {} of the transcript says nothing of when it was said, so its \
+                 audio cannot be found; --audio needs captions, or a time on every turn",
+                n + 1
+            ),
+        ));
+    }
+    let wav = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("wav"));
+    if wav {
+        return read_voice(path).map_err(Error::other);
+    }
+    let decoded = std::env::temp_dir().join(format!("teleprompt-from-{}.wav", std::process::id()));
+    let status = std::process::Command::new("ffmpeg")
+        .args(["-v", "error", "-y", "-i"])
+        .arg(path)
+        .args(["-ac", "1", "-f", "wav"])
+        .arg(&decoded)
+        .status()
+        .map_err(|e| {
+            Error::new(
+                e.kind(),
+                format!(
+                    "{} is not a WAV, and ffmpeg, which would read it, did not run: {e}",
+                    path.display()
+                ),
+            )
+        })?;
+    let pcm = if status.success() {
+        read_voice(&decoded).map_err(Error::other)
+    } else {
+        Err(Error::other(format!(
+            "ffmpeg could not read {}",
+            path.display()
+        )))
+    };
+    let _ = std::fs::remove_file(&decoded);
+    pcm
+}
+
+/// Gives each of `script`'s lines `keep` keeps its stretch of `pcm` as its take, so it
+/// is spoken in its speaker's own voice; how many.
+fn speak_from(
+    script: &Path,
+    spans: &[(u64, u64)],
+    pcm: &Pcm,
+    keep: impl Fn(usize) -> bool,
+) -> Result<usize, String> {
+    let project = Project::for_script(script).map_err(|_| {
+        format!(
+            "{} is not in a teleprompt project, which keeps takes; draft it into one's \
+             scripts/ with --out",
+            script.display()
+        )
+    })?;
+    let (compiled, _) = compile_script(&project, script, &source_locale(&project))
+        .map_err(|errors| format!("the draft does not compile:\n{}", errors.join("\n")))?;
+    let lines: Vec<(LineId, String)> = compiled
+        .narration
+        .iter()
+        .map(|n| (n.line_id.clone(), n.text.clone()))
+        .collect();
+    if lines.len() != spans.len() {
+        return Err(format!(
+            "the draft has {} line(s) for {} turn(s), which is a bug in `from`",
+            lines.len(),
+            spans.len()
+        ));
+    }
+    Ok(cut_takes(&project, spans, &lines, pcm, 0, keep)?.len())
 }

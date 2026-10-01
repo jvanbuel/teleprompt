@@ -113,6 +113,34 @@ struct RecordArgs {
     shell: Vec<String>,
 }
 
+/// What `from` reads, and where it writes.
+#[derive(Args)]
+struct FromArgs {
+    doc: PathBuf,
+    /// Where to write the draft; defaults to <doc>.teleprompt.md
+    #[arg(long)]
+    out: Option<PathBuf>,
+    /// Read <doc> as a Slidev deck: its speaker notes become the
+    /// narration, a paragraph per `[click]` step
+    #[arg(long, conflicts_with = "transcript")]
+    slidev: bool,
+    /// Read <doc> as the transcript of a conversation: each turn
+    /// becomes a line opening with who says it, `**Ada:**`, and
+    /// everyone in it the cast. Captions (.vtt, .srt) are read as one
+    /// without it
+    #[arg(long)]
+    transcript: bool,
+    /// The conversation's recording (WAV, or anything ffmpeg reads):
+    /// each line's stretch of it becomes its take, so it is spoken in
+    /// its speaker's own voice until reworded. Draft into a project
+    #[arg(long, value_name = "RECORDING")]
+    audio: Option<PathBuf>,
+    /// With --audio, leave this speaker's lines to their voice in the
+    /// cast rather than the recording; may be repeated
+    #[arg(long, value_name = "SPEAKER", requires = "audio")]
+    revoice: Vec<String>,
+}
+
 /// What `import` reads, and where it writes.
 #[derive(Args)]
 struct ImportArgs {
@@ -257,22 +285,7 @@ enum Command {
     /// `review=pending` until a human has read them, and everything else is
     /// left as ordinary Markdown for you to promote by hand. A transcript
     /// becomes a line per turn, labelled with who says it.
-    From {
-        doc: PathBuf,
-        /// Where to write the draft; defaults to <doc>.teleprompt.md
-        #[arg(long)]
-        out: Option<PathBuf>,
-        /// Read <doc> as a Slidev deck: its speaker notes become the
-        /// narration, a paragraph per `[click]` step
-        #[arg(long, conflicts_with = "transcript")]
-        slidev: bool,
-        /// Read <doc> as the transcript of a conversation: each turn
-        /// becomes a line opening with who says it, `**Ada:**`, and
-        /// everyone in it the cast. Captions (.vtt, .srt) are read as one
-        /// without it
-        #[arg(long)]
-        transcript: bool,
-    },
+    From(FromArgs),
     /// Draft a script from a session you recorded while talking
     ///
     /// What you said becomes the narration, cut into lines where you
@@ -748,6 +761,21 @@ fn run_prompt_cmd(
     Ok(Outcome::Ok)
 }
 
+fn run_from_cmd(format: Format, args: FromArgs) -> Run {
+    let reading = match (args.slidev, args.transcript) {
+        (true, _) => from::Reading::Slidev,
+        (_, true) => from::Reading::Transcript,
+        _ => from::Reading::Document,
+    };
+    let audio = args.audio.as_deref().map(|path| from::Audio {
+        path,
+        revoice: &args.revoice,
+    });
+    let report = from::run_from(&args.doc, args.out, reading, audio).map_err(runtime_failure)?;
+    emit(format, &report, &report.render());
+    Ok(Outcome::Ok)
+}
+
 fn run(command: Command, format: Format) -> Run {
     match command {
         Command::Diff { .. } => Err(replaced("diff", "plan --check")),
@@ -759,21 +787,7 @@ fn run(command: Command, format: Format) -> Run {
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }
-        Command::From {
-            doc,
-            out,
-            slidev,
-            transcript,
-        } => {
-            let reading = match (slidev, transcript) {
-                (true, _) => from::Reading::Slidev,
-                (_, true) => from::Reading::Transcript,
-                _ => from::Reading::Document,
-            };
-            let report = from::run_from(&doc, out, reading).map_err(runtime_failure)?;
-            emit(format, &report, &report.render());
-            Ok(Outcome::Ok)
-        }
+        Command::From(args) => run_from_cmd(format, args),
         Command::Import(args) => run_import_cmd(format, args),
         Command::Edit { script, edit } => run_edit_cmd(format, &script, edit),
         Command::Translate {

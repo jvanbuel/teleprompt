@@ -371,3 +371,25 @@ spoke last.
 Each speaker reads in the narrator's voice until you give them one, so
 give each a `voice` under `voices` next: the draft's front matter says
 where.
+
+#### Keeping their own voices
+
+```bash
+teleprompt from interview.vtt --audio interview.m4a --out scripts/interview.md
+```
+
+With the conversation's recording, each line is given its stretch of it as
+its take, from when its captions say it starts to when they say it ends,
+with a little either side and never past halfway to the next line. Every
+line then speaks in the voice of whoever said it, and the video is the
+conversation, edited as text: delete a line, move it, put a narrator's
+line between two. A line you reword no longer matches its take, so it is
+spoken by its speaker's voice from the cast instead, and the prompter puts
+it in the retake queue. To re-voice someone entirely, say a guest who
+would rather not be heard, pass `--revoice guest`, and their lines are
+left to their voice in the cast.
+
+A WAV is read as it is, and anything else through ffmpeg. Captions say
+when each turn starts and ends; a text transcript needs a time on every
+turn (`[00:01:02] Ada:` or `Ada  1:02`), and each runs until the next.
+The draft has to go into a project, which keeps the takes.

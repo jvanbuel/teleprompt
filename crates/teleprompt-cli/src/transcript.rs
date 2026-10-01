@@ -18,11 +18,14 @@ const LONGEST_LINE: usize = 40;
 /// name, `And then I said:` is not.
 const LONGEST_NAME: usize = 4;
 
-/// One stretch of a conversation: who says it, where the transcript says.
+/// One stretch of a conversation: who says it, where the transcript says,
+/// and when in the recording, where it says that.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Turn {
     pub speaker: Option<String>,
     pub text: String,
+    pub start_ms: Option<u64>,
+    pub end_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,13 +51,36 @@ impl Format {
 }
 
 /// The turns of `src`. A stretch that names no speaker is the last one's,
-/// as a transcript means it.
+/// as a transcript means it. One that says when it starts but not when it
+/// ends, as text transcripts do, ends where the next starts.
 pub fn turns(src: &str, format: Format) -> Vec<Turn> {
     let src = src.replace("\r\n", "\n");
-    match format {
+    let mut turns = match format {
         Format::Vtt | Format::Srt => captions(&src),
         Format::Text => paragraphs(&src),
+    };
+    for i in 1..turns.len() {
+        if turns[i - 1].end_ms.is_none() {
+            turns[i - 1].end_ms = turns[i].start_ms;
+        }
     }
+    turns
+}
+
+/// A caption or transcript time, `01:02:03.450`, `02:03,450` or `0:03`,
+/// in milliseconds.
+fn time_ms(s: &str) -> Option<u64> {
+    let s = s.trim().trim_matches(['(', ')', '[', ']']);
+    let (clock, fraction) = match s.split_once(['.', ',']) {
+        Some((clock, f)) => (clock, f),
+        None => (s, "0"),
+    };
+    let mut ms: u64 = 0;
+    for part in clock.split(':') {
+        ms = ms * 60 + part.parse::<u64>().ok()?;
+    }
+    let fraction: String = fraction.chars().chain("000".chars()).take(3).collect();
+    Some(ms * 1000 + fraction.parse::<u64>().ok()?)
 }
 
 /// A caption file's cues, joined into lines: a speaker's run of cues is
@@ -68,7 +94,20 @@ fn captions(src: &str) -> Vec<Turn> {
             continue;
         };
         let payload = lines[timing + 1..].join(" ");
-        for (speaker, text) in voiced(&payload) {
+        let (from, to) = lines[timing].split_once("-->").unwrap_or_default();
+        let from = time_ms(from);
+        let to = to.split_whitespace().next().and_then(time_ms);
+        // A cue two people speak in is shared out by how much each says.
+        let parts = voiced(&payload);
+        let total: usize = parts.iter().map(|(_, t)| t.len()).sum::<usize>().max(1);
+        let mut said = 0;
+        for (speaker, text) in parts {
+            let at = |n: usize| match (from, to) {
+                (Some(f), Some(t)) => Some(f + t.saturating_sub(f) * n as u64 / total as u64),
+                _ => None,
+            };
+            let (start_ms, end_ms) = (at(said), at(said + text.len()));
+            said += text.len();
             let text = clean(&text);
             let text = text.trim_start_matches("- ").trim();
             if text.is_empty() {
@@ -88,10 +127,16 @@ fn captions(src: &str) -> Vec<Turn> {
                 Some(last) if continues && !full(&last.text) => {
                     last.text.push(' ');
                     last.text.push_str(&text);
+                    last.end_ms = end_ms.or(last.end_ms);
                 }
                 last => {
                     let speaker = speaker.or_else(|| last.and_then(|l| l.speaker.clone()));
-                    out.push(Turn { speaker, text });
+                    out.push(Turn {
+                        speaker,
+                        text,
+                        start_ms,
+                        end_ms,
+                    });
                 }
             }
         }
@@ -157,15 +202,21 @@ fn paragraphs(src: &str) -> Vec<Turn> {
         let Some(first) = lines.first() else {
             continue;
         };
-        let (speaker, text) = match header(first) {
+        let (speaker, text, start_ms) = match header(first) {
             // `Ada Lovelace  0:03`, then what she said.
-            Some(name) if lines.len() > 1 => (Some(name), lines[1..].join(" ")),
+            Some((name, at)) if lines.len() > 1 => (Some(name), lines[1..].join(" "), at),
             _ => {
-                let text = without_timestamp(&lines.join(" ")).to_string();
-                match label(&text).or_else(|| name_prefix(&text)) {
+                let joined = lines.join(" ");
+                let (text, at) = without_timestamp(&joined);
+                let (name, text) = match label(text).or_else(|| name_prefix(text)) {
                     Some((name, rest)) => (Some(name), rest.to_string()),
-                    None => (None, text),
-                }
+                    None => (None, text.to_string()),
+                };
+                (
+                    name.clone(),
+                    text,
+                    at.or_else(|| name.as_deref().and(stamped(&joined))),
+                )
             }
         };
         let text = clean(&text);
@@ -173,17 +224,30 @@ fn paragraphs(src: &str) -> Vec<Turn> {
             continue;
         }
         let speaker = speaker.or_else(|| out.last().and_then(|t| t.speaker.clone()));
-        out.push(Turn { speaker, text });
+        out.push(Turn {
+            speaker,
+            text,
+            start_ms,
+            end_ms: None,
+        });
     }
     out
 }
 
 /// A line naming a speaker and when they began, as meeting tools write
 /// them: `Ada Lovelace  0:03`, `Ada Lovelace (00:01:02)`.
-fn header(line: &str) -> Option<String> {
+fn header(line: &str) -> Option<(String, Option<u64>)> {
     let (name, time) = line.trim_end().rsplit_once(char::is_whitespace)?;
     let time = time.trim_matches(['(', ')', '[', ']']);
-    (is_timestamp(time) && is_name(name.trim())).then(|| name.trim().to_string())
+    (is_timestamp(time) && is_name(name.trim())).then(|| (name.trim().to_string(), time_ms(time)))
+}
+
+/// The time in `Name (0:03): …`, between a name and its colon.
+fn stamped(text: &str) -> Option<u64> {
+    let (before, _) = text.split_once(": ")?;
+    let (_, last) = before.rsplit_once(char::is_whitespace)?;
+    let last = last.trim_matches(['(', ')', '[', ']']);
+    is_timestamp(last).then(|| time_ms(last)).flatten()
 }
 
 /// `**Name:** rest` or `**Name**: rest`.
@@ -237,15 +301,17 @@ fn is_timestamp(s: &str) -> bool {
             .all(|c| c.is_ascii_digit() || matches!(c, ':' | '.' | ','))
 }
 
-/// `text` without a timestamp opening it: `[00:01:02]`, `(0:03)`, `0:03`.
-fn without_timestamp(text: &str) -> &str {
+/// `text` without a timestamp opening it, `[00:01:02]`, `(0:03)` or
+/// `0:03`, and the time it said.
+fn without_timestamp(text: &str) -> (&str, Option<u64>) {
     let Some((first, rest)) = text.split_once(char::is_whitespace) else {
-        return text;
+        return (text, None);
     };
-    if is_timestamp(first.trim_matches(['(', ')', '[', ']'])) {
-        rest.trim_start()
+    let first = first.trim_matches(['(', ')', '[', ']']);
+    if is_timestamp(first) {
+        (rest.trim_start(), time_ms(first))
     } else {
-        text
+        (text, None)
     }
 }
 
@@ -440,6 +506,32 @@ mod tests {
     }
 
     #[test]
+    fn each_turn_is_where_it_is_in_the_recording() {
+        let spans = |t: Vec<Turn>| -> Vec<(Option<u64>, Option<u64>)> {
+            t.iter().map(|t| (t.start_ms, t.end_ms)).collect()
+        };
+        // Joined cues run first to last; a shared cue is shared by length.
+        assert_eq!(
+            spans(turns(VTT, Format::Vtt)),
+            [
+                (Some(0), Some(4000)),
+                (Some(4000), Some(6000)),
+                (Some(6000), Some(6923)),
+                (Some(6923), Some(8000)),
+            ]
+        );
+        let text = "Ada  0:03\nHello.\n\n[00:01:02.5] Charles: Hi.\n\nBob (1:10): Bye.\n";
+        assert_eq!(
+            spans(turns(text, Format::Text)),
+            [
+                (Some(3000), Some(62_500)),
+                (Some(62_500), Some(70_000)),
+                (Some(70_000), None),
+            ]
+        );
+    }
+
+    #[test]
     fn srt_names_a_speaker_when_the_turn_changes() {
         let srt = "1\r\n00:00:01,000 --> 00:00:02,000\r\nHOST: Welcome back.\r\n\r\n\
                    2\r\n00:00:02,000 --> 00:00:03,000\r\nToday, a guest.\r\n\r\n\
@@ -496,18 +588,26 @@ mod tests {
             Turn {
                 speaker: Some("Ada Lovelace".into()),
                 text: "The engine weaves.".into(),
+                start_ms: None,
+                end_ms: None,
             },
             Turn {
                 speaker: Some("ADA LOVELACE".into()),
                 text: "# of patterns: many.".into(),
+                start_ms: None,
+                end_ms: None,
             },
             Turn {
                 speaker: Some("2".into()),
                 text: "1. First {this}".into(),
+                start_ms: None,
+                end_ms: None,
             },
             Turn {
                 speaker: None,
                 text: "The engine weaves.".into(),
+                start_ms: None,
+                end_ms: None,
             },
         ];
         let d = draft_transcript(&t, "Interview");

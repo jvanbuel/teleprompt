@@ -217,7 +217,7 @@ fn write(path: &Path, text: &str) -> Result<(), String> {
 
 /// The voice's first channel, read a block at a time: a half-hour stereo
 /// recording is never in memory whole, nor as floats.
-fn read_voice(path: &Path) -> Result<Pcm, String> {
+pub(crate) fn read_voice(path: &Path) -> Result<Pcm, String> {
     let file =
         std::fs::File::open(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     wav::first_channel(std::io::BufReader::new(file))
@@ -298,8 +298,7 @@ fn transcribe(_: &Path, _: &Pcm) -> Result<Vec<(String, u64, u64)>, String> {
     )
 }
 
-/// Saves each line's stretch of the recording as its take: its words, a
-/// little either side, and never past halfway to the next line.
+/// Saves each line's stretch of the recording as its take.
 fn save_takes(
     project: &Project,
     draft: &Draft,
@@ -315,19 +314,38 @@ fn save_takes(
             lines.len()
         ));
     }
+    let spans: Vec<(u64, u64)> = spoken.iter().map(|l| (l.start_ms, l.end_ms)).collect();
+    cut_takes(project, &spans, lines, pcm, offset_ms, |_| true)
+}
+
+/// Saves each line `keep` says to keep's stretch of `pcm`, `spans` on the
+/// recording's clock, as its take: a little either side, and never past
+/// halfway to the next.
+pub(crate) fn cut_takes(
+    project: &Project,
+    spans: &[(u64, u64)],
+    lines: &[(LineId, String)],
+    pcm: &Pcm,
+    offset_ms: i64,
+    keep: impl Fn(usize) -> bool,
+) -> Result<Vec<LineId>, String> {
     let audio = &pcm.samples;
     let rate = u64::from(pcm.sample_rate);
     let mut takes = Takes::load(&project.takes_dir()).map_err(|e| e.to_string())?;
     let mut saved = Vec::new();
-    for (i, ((id, text), line)) in lines.iter().zip(&spoken).enumerate() {
+    for (i, ((id, text), &(start_ms, end_ms))) in lines.iter().zip(spans).enumerate() {
+        if !keep(i) {
+            continue;
+        }
+        let halfway = |a: u64, b: u64| a / 2 + b / 2;
         let after_prev = i
             .checked_sub(1)
-            .map_or(0, |p| (spoken[p].end_ms + line.start_ms) / 2);
-        let before_next = spoken
+            .map_or(0, |p| halfway(spans[p].1, start_ms).min(start_ms));
+        let before_next = spans
             .get(i + 1)
-            .map_or(u64::MAX, |n| (line.end_ms + n.start_ms) / 2);
-        let start = line.start_ms.saturating_sub(LEAD_MS).max(after_prev);
-        let end = (line.end_ms + TAIL_MS).min(before_next);
+            .map_or(u64::MAX, |n| halfway(end_ms, n.0).max(end_ms));
+        let start = start_ms.saturating_sub(LEAD_MS).max(after_prev);
+        let end = end_ms.saturating_add(TAIL_MS).min(before_next);
         // From the recording's clock to the voice's.
         let at = |ms: u64| {
             let ms = ms.saturating_add_signed(-offset_ms);
