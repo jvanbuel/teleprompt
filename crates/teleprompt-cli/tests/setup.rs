@@ -244,3 +244,40 @@ fn gemini_is_explained_as_a_service() {
         "{guide}"
     );
 }
+
+/// Each use `setup` asks about names what it needs, and is a name `setup`
+/// takes too: `setup conversations` is the models a recording needs.
+#[test]
+fn every_goal_is_a_name_setup_takes() {
+    use teleprompt_cli::cmd::setup::GOALS;
+    for goal in GOALS {
+        let tools =
+            resolve(&[goal.name.to_string()]).unwrap_or_else(|e| panic!("{}: {e}", goal.name));
+        assert!(!tools.is_empty(), "{}", goal.name);
+        // A goal is not also a tool's name, which it would hide.
+        assert!(
+            teleprompt_cli::cmd::setup::tools()
+                .iter()
+                .all(|t| t.name != goal.name),
+            "{}",
+            goal.name
+        );
+    }
+    assert_eq!(
+        names(&["conversations"]),
+        ["speech-model", "punctuation-model", "speaker-model"]
+    );
+    assert_eq!(names(&["prompt"]), ["speech-model"]);
+}
+
+/// Only what listens needs the build that can: the rest is offered in
+/// every build.
+#[test]
+fn only_listening_goals_need_the_speech_models() {
+    use teleprompt_cli::cmd::setup::{download_mb, GOALS};
+    for goal in GOALS {
+        let tools = resolve(&[goal.name.to_string()]).unwrap();
+        let models = tools.iter().any(|t| download_mb(t.name).is_some());
+        assert_eq!(goal.listens, models, "{}", goal.name);
+    }
+}

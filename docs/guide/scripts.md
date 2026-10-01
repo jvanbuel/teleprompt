@@ -403,7 +403,7 @@ corrected.
 ### From a recording
 
 ```bash
-teleprompt setup speech-model punctuation-model speaker-model --run
+teleprompt setup conversations --run
 teleprompt from interview.m4a --out scripts/interview.md
 ```
 
@@ -415,6 +415,11 @@ ends where its voice does, so a take neither clips its first word nor
 carries the next speaker's. `--speakers 2` says how many there are, which
 tells them apart better than guessing; `--revoice` works as with
 `--audio`.
+
+`setup conversations` installs the three models it uses: the speech
+model (310 MB) to transcribe, the punctuation model (31 MB) for capitals
+and full stops, and the speaker models (47 MB) to tell the voices apart.
+Run in a terminal without them, `from` offers to install them.
 
 Rename the speakers in the cast, `speaker-1: { name: "Ada Lovelace" }`,
 which is how the video names them, then read the draft through: the

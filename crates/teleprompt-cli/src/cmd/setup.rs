@@ -418,9 +418,90 @@ static TOOLS: &[Tool] = &[
     },
 ];
 
-/// What `setup prompt` installs: not an adapter, but what the prompter
-/// listens with.
-const PROMPT: &[&str] = &["speech-model"];
+/// Something to do with teleprompt, and what it needs: how `setup` asks,
+/// since nobody wants a segmentation model, but some want to turn an
+/// interview into a video.
+#[derive(Debug)]
+pub struct Goal {
+    /// What `setup` takes as a name for it.
+    pub name: &'static str,
+    pub label: &'static str,
+    /// Adapters and tools, as `resolve` takes them.
+    pub needs: &'static [&'static str],
+    /// Whether it runs a speech model, which only the build with them can.
+    pub listens: bool,
+}
+
+pub static GOALS: &[Goal] = &[
+    Goal {
+        name: "render",
+        label: "Render videos",
+        needs: &["ffmpeg"],
+        listens: false,
+    },
+    Goal {
+        name: "terminal",
+        label: "Show a terminal, typed as it runs (VHS)",
+        needs: &["vhs"],
+        listens: false,
+    },
+    Goal {
+        name: "casts",
+        label: "Show terminal recordings (asciinema)",
+        needs: &["asciinema"],
+        listens: false,
+    },
+    Goal {
+        name: "browser",
+        label: "Show a browser, scripted (Playwright)",
+        needs: &["playwright"],
+        listens: false,
+    },
+    Goal {
+        name: "slides",
+        label: "Show slides (Slidev)",
+        needs: &["slidev"],
+        listens: false,
+    },
+    Goal {
+        name: "desktop",
+        label: "Show a desktop app",
+        needs: if cfg!(target_os = "macos") {
+            &["macos"]
+        } else {
+            &["x11"]
+        },
+        listens: false,
+    },
+    Goal {
+        name: "prompt",
+        label: "Have the prompter follow your voice",
+        needs: &["speech-model"],
+        listens: true,
+    },
+    Goal {
+        name: "drafts",
+        label: "Draft scripts from what you said (record, import)",
+        needs: &["speech-model", "punctuation-model"],
+        listens: true,
+    },
+    Goal {
+        name: "conversations",
+        label: "Turn a recorded conversation into a script",
+        needs: &["speech-model", "punctuation-model", "speaker-model"],
+        listens: true,
+    },
+];
+
+/// How much a model downloads, for saying so before it does.
+pub fn download_mb(tool: &str) -> Option<u32> {
+    match tool {
+        "speech-model" => Some(310),
+        "punctuation-model" => Some(31),
+        "speaker-model" => Some(47),
+        _ => None,
+    }
+}
 
 pub fn tools() -> &'static [Tool] {
     TOOLS
@@ -439,6 +520,11 @@ pub fn speech_model(given: Option<&Path>) -> Result<PathBuf, String> {
     given
         .map(Path::to_path_buf)
         .or_else(|| installed_model("speech-model"))
+        .or_else(|| {
+            crate::ask::offer(&["speech-model"], "listen")
+                .then(|| installed_model("speech-model"))
+                .flatten()
+        })
         .ok_or_else(|| {
             format!(
                 "no speech model: `teleprompt setup speech-model` installs one in {}, \
@@ -468,9 +554,13 @@ pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
     }
     let mut out: Vec<&'static Tool> = Vec::new();
     for name in names {
-        let wanted: Vec<&str> = match name.as_str() {
-            "prompt" => PROMPT.to_vec(),
-            _ => crate::scene::needs(name).unwrap_or_else(|| vec![name.as_str()]),
+        let wanted: Vec<&str> = match GOALS.iter().find(|g| g.name == name) {
+            Some(goal) => goal
+                .needs
+                .iter()
+                .flat_map(|n| crate::scene::needs(n).unwrap_or_else(|| vec![*n]))
+                .collect(),
+            None => crate::scene::needs(name).unwrap_or_else(|| vec![name.as_str()]),
         };
         for w in wanted {
             let Some(tool) = TOOLS.iter().find(|t| t.name == w) else {
@@ -548,6 +638,16 @@ impl Setup {
             ran,
             models: self.platform.models.display().to_string(),
         }
+    }
+
+    /// Whether `tool` is known to be missing here.
+    pub fn missing(&self, tool: &Tool) -> bool {
+        tool.installed(&self.project, &self.platform.models) == Some(false)
+    }
+
+    /// The command that would install `tool` here, if any.
+    pub fn command(&self, tool: &Tool) -> Option<String> {
+        tool.command(&self.platform)
     }
 
     /// Runs the command for each tool that is missing, in order, stopping

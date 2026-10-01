@@ -69,6 +69,13 @@ cargo run -- plan --check demo/scripts/demo.md
 When you want to hear the result, `prompt --preview` gives you a live preview that
 opens on the item you just changed, and `build` renders the video.
 
+teleprompt ships no tools or models of its own. `teleprompt setup` asks what
+you want to do (render videos, show a browser, have the prompter follow
+your voice, turn a recorded conversation into a script) and installs what
+that needs, with your own package manager, saying each one's license and
+download size first. A command that finds something missing in the middle
+of a job offers to install it there.
+
 ## Commands
 
 | command | does |
@@ -86,7 +93,7 @@ opens on the item you just changed, and `build` renders the video.
 | `build <script>` | render the video |
 | `doctor` | report the environment teleprompt can see |
 | `voice clone <name>` | make a voice from your takes on a [Voicebox](docs/guide/voices.md#your-own-voice-voicebox) server, so unrecorded lines sound like you |
-| `setup [adapter or tool…]` | say which tools and models are installed, their licenses, and how to install the rest; `--run` installs them |
+| `setup [use, adapter or tool…]` | ask what you want to do and install what it needs; with names (`conversations`, `vhs`, `speech-model`…), say what is installed, the licenses, and how to install the rest, and `--run` installs them |
 | `cache` | report what the project's caches hold, or shrink them |
 | `lsp` | a [language server](docs/guide/editors.md) for your editor: problems as you type, completion, hover and go to definition |
 

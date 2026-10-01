@@ -269,12 +269,16 @@ enum Command {
         #[command(subcommand)]
         command: VoiceCommand,
     },
-    /// Find, or install, the tools adapters run and the models backends read
+    /// Install what you need for what you want to do with teleprompt
     ///
-    /// Teleprompt ships none of them: each is under its own license, which
-    /// this says, and installed with your own package manager. Name
-    /// adapters (vhs, playwright…) or tools (ffmpeg, speech-model…), or
-    /// nothing for all of them. Prints the commands unless --run.
+    /// In a terminal, with no names, asks what you want to do and installs
+    /// what that needs. Teleprompt ships none of it: each tool and model is
+    /// under its own license, which this says, and installed with your own
+    /// package manager. Name uses (render, terminal, browser, slides,
+    /// desktop, prompt, drafts, conversations), adapters (vhs,
+    /// playwright…) or tools (ffmpeg, speech-model…) to see what they need;
+    /// it prints the commands unless --run. Without names outside a
+    /// terminal, it reports on all of them.
     Setup {
         names: Vec<String>,
         /// Run the commands that install what is missing
@@ -559,8 +563,16 @@ fn print_errors(errors: &[String]) {
 type Run = Result<Outcome, Outcome>;
 
 fn run_setup(format: Format, names: &[String], run: bool) -> Result<Outcome, Outcome> {
-    let tools = setup::resolve(names).map_err(runtime_failure)?;
     let setup = setup::Setup::detect();
+    // Asked rather than listed: what to do with teleprompt, not which tools.
+    if names.is_empty() && !run && format == Format::Human && teleprompt_cli::ask::interactive() {
+        let (chosen, tools) = teleprompt_cli::ask::choose(&setup).map_err(runtime_failure)?;
+        let ran = teleprompt_cli::ask::confirm_install(&setup, &tools).map_err(runtime_failure)?;
+        let report = setup.report(&tools, ran);
+        emit(format, &report, &report.render(&chosen));
+        return Ok(Outcome::Ok);
+    }
+    let tools = setup::resolve(names).map_err(runtime_failure)?;
     let ran = if run {
         setup.install(&tools).map_err(runtime_failure)?
     } else {

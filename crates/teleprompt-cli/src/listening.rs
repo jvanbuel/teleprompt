@@ -35,7 +35,15 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
             end_ms: w.end_ms,
         })
         .collect();
-    let words = match setup::punctuation_model(None) {
+    let punctuation = setup::punctuation_model(None).or_else(|| {
+        crate::ask::offer(
+            &["punctuation-model"],
+            "give the draft capitals and full stops",
+        )
+        .then(|| setup::punctuation_model(None))
+        .flatten()
+    });
+    let words = match punctuation {
         Some(dir) => {
             let text: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
             let text = teleprompt_listen_sherpa::punctuate(&dir, &text.join(" "))?;
@@ -51,7 +59,12 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
             })
             .collect(),
     };
-    let voices = match setup::speaker_models() {
+    let speaker_models = setup::speaker_models().or_else(|| {
+        crate::ask::offer(&["speaker-model"], "tell the voices apart")
+            .then(setup::speaker_models)
+            .flatten()
+    });
+    let voices = match speaker_models {
         Some(dir) => Some(teleprompt_listen_sherpa::diarize(&dir, &samples, speakers)?),
         None => None,
     };
