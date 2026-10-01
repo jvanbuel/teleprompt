@@ -111,6 +111,9 @@ pub struct LineEntry {
     /// Who says it, from the script's cast; absent for the narrator.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speaker: Option<String>,
+    /// Who says it, as the screen names them, where they are named.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

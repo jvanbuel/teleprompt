@@ -60,6 +60,7 @@ fn plan(dir: &Path, clip: &Path, shots: &[(u64, u64)], duration_ms: u64) -> Rend
             })
             .collect(),
         narration: Vec::new(),
+        titles: Vec::new(),
         output: dir.join("out.mp4"),
     }
 }

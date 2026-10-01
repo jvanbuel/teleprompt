@@ -236,6 +236,7 @@ pub async fn run_build_with_capture(
             width,
             height,
             fps,
+            names: dubbed.output.names,
         },
     );
     let slates = render_plan

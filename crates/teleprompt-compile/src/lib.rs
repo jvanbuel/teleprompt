@@ -72,6 +72,9 @@ pub struct NarrationDetail {
     pub backend: String,
     /// Who says it, from the cast; the narrator when `None`.
     pub speaker: Option<String>,
+    /// Who says it, as the screen names them: their voice's `name`, or a
+    /// speaker's key title-cased; `None` for an unnamed narrator.
+    pub name: Option<String>,
 }
 
 impl VoiceContext<'_> {
@@ -609,6 +612,11 @@ impl<'a> Walker<'a, '_> {
             word_timings,
             take: take.clone(),
             backend: backend.clone(),
+            name: config
+                .voice
+                .name
+                .clone()
+                .or_else(|| speaker.as_deref().map(teleprompt_core::ast::name_of)),
             speaker: speaker.clone(),
         });
         self.pending = Some(Pending {

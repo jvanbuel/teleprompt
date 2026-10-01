@@ -283,10 +283,10 @@ Settings merge from these layers, with later ones winning:
 | section | keys | defaults |
 |---|---|---|
 | `voice` | `backend`, `voice`, `speed`, `instruct`, `pronounce` | `null`, none, `1.0`, none |
-| `voices.<speaker>` | the same keys as `voice`, over it for that speaker's lines | |
+| `voices.<speaker>` | the same keys as `voice`, over it for that speaker's lines, and `name`, as the video [names them](rendering.md#names-on-screen) | |
 | `speaker` | who says a line with no label | the narrator |
 | `timing` | `lead_in_ms`, `tail_ms`, `turn_gap_ms`, `max_stretch`, `min_stretch`, `trim_warn_above`, `min_line_speed`, `max_line_speed`, `min_take_speed`, `max_take_speed`, `length_ms` | `150`, `150`, `250`, `3.0`, `0.33`, `2.0`, `0.9`, `1.15`, `0.95`, `1.08`, none |
-| `output` | `resolution`, `fps`, `transition` | `[1920, 1080]`, `30`, see above |
+| `output` | `resolution`, `fps`, `transition`, `names` | `[1920, 1080]`, `30`, see above, `true` |
 | `scene.<name>` | `adapter`, plus the adapter's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |
 | `backends.<id>` | the backend's own settings, only in `teleprompt.toml` | |
 

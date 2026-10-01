@@ -64,6 +64,21 @@ pub enum Directive {
     Pause(DurationMs),
 }
 
+/// A cast member's key as a label or the screen writes their name:
+/// `guest` is `Guest`, and `ada-lovelace` is `Ada Lovelace`.
+pub fn name_of(key: &str) -> String {
+    key.split(['-', '_'])
+        .map(|word| {
+            let mut chars = word.chars();
+            chars
+                .next()
+                .map(|c| c.to_uppercase().chain(chars).collect())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
+}
+
 pub fn slugify(title: &str) -> String {
     let mut out = String::new();
     let mut prev_dash = false;

@@ -21,7 +21,17 @@ pub struct RenderPlan {
     pub duration_ms: SpanMs,
     pub shots: Vec<Shot>,
     pub narration: Vec<Narration>,
+    /// Names shown over the picture.
+    pub titles: Vec<Title>,
     pub output: PathBuf,
+}
+
+/// Who is speaking, named over the picture as they begin.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Title {
+    pub text: String,
+    pub start_ms: TimeMs,
+    pub duration_ms: SpanMs,
 }
 
 /// One scheduled shot of picture.

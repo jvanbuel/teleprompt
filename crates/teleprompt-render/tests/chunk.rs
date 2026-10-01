@@ -47,6 +47,7 @@ fn plan(shots: Vec<Shot>, duration_ms: u64) -> RenderPlan {
         duration_ms: SpanMs::of(duration_ms),
         shots,
         narration: Vec::new(),
+        titles: Vec::new(),
         output: PathBuf::from("/out/tour.mp4"),
     }
 }
@@ -353,4 +354,39 @@ fn a_hand_built_plan_whose_transitions_overlap_cannot_be_chunked() {
         chunk::chunks(&plan).is_none(),
         "the scheduler prevents this shape; chunking must not invent a cut for it"
     );
+}
+
+/// A name is drawn into the chunks it shows over, on each one's own clock,
+/// and keyed into them; a chunk no one is named over keeps its key.
+#[test]
+fn a_title_is_drawn_into_the_chunks_it_overlaps_and_only_those() {
+    let bare = plan(
+        vec![
+            shot("a#0", 0, 2_000, "a.mp4"),
+            shot("b#0", 2_000, 2_000, "b.mp4"),
+        ],
+        4_000,
+    );
+    let titled = |text: &str| RenderPlan {
+        titles: vec![teleprompt_render::Title {
+            text: text.into(),
+            start_ms: TimeMs::at(1_000),
+            duration_ms: SpanMs::of(800),
+        }],
+        ..bare.clone()
+    };
+    let chunks = chunk::chunks(&titled("Ada")).unwrap();
+    assert_eq!(chunks.len(), 2);
+    let title = &chunks[0].titles[0];
+    // 1 s in, at 25 fps, for 0.8 s.
+    assert_eq!((title.from_frame, title.to_frame), (25, 45));
+    assert!(chunks[1].titles.is_empty());
+
+    let key = |p: &RenderPlan, i: usize| {
+        let c = chunk::chunks(p).unwrap();
+        ChunkKey::for_chunk(p, &c[i]).hash(&mut same).unwrap()
+    };
+    assert_eq!(key(&bare, 1), key(&titled("Ada"), 1));
+    assert_ne!(key(&bare, 0), key(&titled("Ada"), 0));
+    assert_ne!(key(&titled("Ada"), 0), key(&titled("Charles"), 0));
 }

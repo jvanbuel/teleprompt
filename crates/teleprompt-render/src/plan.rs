@@ -1,11 +1,16 @@
 //! Building a [`RenderPlan`] from the published narration manifest
 //! (`docs/design.md#rendering`).
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+use teleprompt_core::SpanMs;
 use teleprompt_manifest::NarrationManifest;
 
-use crate::{Narration, Picture, RenderPlan, Shot, Transition};
+use crate::{Narration, Picture, RenderPlan, Shot, Title, Transition};
+
+/// How long a speaker's name stays on screen when they first speak.
+const TITLE_MS: u64 = 4000;
 
 /// The scene name the manifest gives a shot that is only a pause.
 const PAUSE: &str = "pause";
@@ -21,6 +26,8 @@ pub struct Inputs {
     pub width: u32,
     pub height: u32,
     pub fps: u32,
+    /// Whether to name each speaker on screen when they first speak.
+    pub names: bool,
 }
 
 /// Missing clips are warnings, not errors: they render as slates with the
@@ -82,8 +89,35 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
             duration_ms: manifest.duration_ms,
             shots,
             narration,
+            titles: if inputs.names {
+                titles(manifest)
+            } else {
+                Vec::new()
+            },
             output: inputs.output.clone(),
         },
         warnings,
     )
+}
+
+/// Each name, over its first line, for as long as a viewer needs to read
+/// it and never past the end.
+fn titles(manifest: &NarrationManifest) -> Vec<Title> {
+    let mut named = BTreeSet::new();
+    manifest
+        .lines
+        .iter()
+        .filter_map(|line| {
+            let name = line.name.as_ref()?;
+            named.insert(name.clone()).then(|| {
+                let left = manifest.duration_ms.ms().saturating_sub(line.start_ms.ms());
+                Title {
+                    text: name.clone(),
+                    start_ms: line.start_ms,
+                    duration_ms: SpanMs::of(TITLE_MS.min(left)),
+                }
+            })
+        })
+        .filter(|t| t.duration_ms.ms() > 0)
+        .collect()
 }

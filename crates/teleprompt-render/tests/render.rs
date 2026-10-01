@@ -68,6 +68,7 @@ fn a_plan_renders_to_a_file_whose_length_is_the_length_it_asked_for() {
             path: tone(&dir, "one.wav", 800),
             start_ms: TimeMs::at(1_000),
         }],
+        titles: Vec::new(),
         output: dir.join("out.mp4"),
     };
 
@@ -113,6 +114,7 @@ fn narration_is_audible_at_the_offset_it_was_placed_at() {
             path: tone(&dir, "late.wav", 1_000),
             start_ms: TimeMs::at(2_000),
         }],
+        titles: Vec::new(),
         output: dir.join("late.mp4"),
     };
 
@@ -157,6 +159,7 @@ fn a_gap_before_the_first_shot_is_held_rather_than_closed() {
             path: tone(&dir, "one.wav", 500),
             start_ms: TimeMs::at(500),
         }],
+        titles: Vec::new(),
         output: dir.join("gap.mp4"),
     };
 
@@ -212,6 +215,7 @@ fn a_crossfade_overlaps_the_shots_it_joins() {
             },
         ],
         narration: vec![],
+        titles: Vec::new(),
         output: dir.join("xfade.mp4"),
     };
 
@@ -247,6 +251,7 @@ fn a_plan_with_no_shots_at_all_still_renders_its_narration() {
             path: tone(&dir, "alone.wav", 1_000),
             start_ms: TimeMs::at(200),
         }],
+        titles: Vec::new(),
         output: dir.join("prose.mp4"),
     };
 
@@ -290,6 +295,7 @@ fn a_shot_of_no_length_does_not_reach_the_graph() {
             },
         ],
         narration: vec![],
+        titles: Vec::new(),
         output: dir.join("zero.mp4"),
     };
 
@@ -354,6 +360,7 @@ fn a_clip_is_fitted_to_the_slot_rather_than_the_slot_to_the_clip() {
             },
         ],
         narration: vec![],
+        titles: Vec::new(),
         output: dir.join("clips.mp4"),
     };
 
@@ -390,6 +397,7 @@ fn a_gap_after_a_shot_freezes_its_last_frame() {
             transition: Transition::cut(),
         }],
         narration: vec![],
+        titles: Vec::new(),
         output: dir.join("freeze.mp4"),
     };
 
@@ -430,6 +438,7 @@ fn a_gap_before_the_first_shot_holds_its_first_frame() {
             transition: Transition::cut(),
         }],
         narration: vec![],
+        titles: Vec::new(),
         output: dir.join("open.mp4"),
     };
 
@@ -479,6 +488,7 @@ fn dropping_an_empty_shot_does_not_drop_the_time_before_it() {
             },
         ],
         narration: vec![],
+        titles: Vec::new(),
         output: dir.join("empty.mp4"),
     };
 
@@ -495,4 +505,48 @@ fn dropping_an_empty_shot_does_not_drop_the_time_before_it() {
         luma_at(&plan.output, 5.0) > 100.0,
         "and it is still holding"
     );
+}
+
+/// ffmpeg accepts the drawn name, apostrophe, colon and all, and it shows.
+#[test]
+fn a_name_is_drawn_over_the_picture() {
+    if !have_ffmpeg() {
+        eprintln!("skipping: no ffmpeg on PATH");
+        return;
+    }
+    let dir = teleprompt_testkit::test_dir("render-title");
+    let plan = |titles: Vec<teleprompt_render::Title>, name: &str| RenderPlan {
+        width: 640,
+        height: 360,
+        fps: 24,
+        duration_ms: SpanMs::of(2_000),
+        shots: vec![Shot {
+            id: "a#0".into(),
+            start_ms: TimeMs::at(0),
+            duration_ms: SpanMs::of(2_000),
+            picture: Picture::Slate,
+            transition: Transition::cut(),
+        }],
+        narration: vec![],
+        titles,
+        output: dir.join(name),
+    };
+    let named = plan(
+        vec![teleprompt_render::Title {
+            text: "Dr. O'Brien: 100% [live], yes; no".into(),
+            start_ms: TimeMs::at(500),
+            duration_ms: SpanMs::of(1_200),
+        }],
+        "named.mp4",
+    );
+    let bare = plan(Vec::new(), "bare.mp4");
+    one_pass(&dir).render(&named, &mut |_| {}).expect("renders");
+    one_pass(&dir).render(&bare, &mut |_| {}).expect("renders");
+    let shown = luma_at(&named.output, 1.0);
+    assert!(
+        (shown - luma_at(&bare.output, 1.0)).abs() > 0.5,
+        "the name changes the frame"
+    );
+    // Gone again after it ends.
+    assert!((luma_at(&named.output, 1.9) - luma_at(&bare.output, 1.9)).abs() < 0.5);
 }

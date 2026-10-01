@@ -33,6 +33,24 @@ They're the narration, as it's spoken:
   that reports word timings, that's exact. With one that doesn't, the
   line's time is shared out by the length of each part.
 
+### Names on screen
+
+When someone in the cast first speaks, the video names them in the lower
+third for four seconds, fading in and out. The name is their key
+title-cased, `ada-lovelace` as `Ada Lovelace`, or what their `name` says,
+which can say more:
+
+```yaml
+voices:
+  charles-babbage:
+    name: "Charles Babbage, inventor"
+```
+
+A narrator is named the same way with `voice.name`, and is otherwise not
+named at all. `output.names: false` turns names off. They are drawn into
+the chunks of picture they fall over, so a rebuild re-encodes only those
+when a name changes.
+
 ### Chapters
 
 A build also writes `build/tour.en.chapters.txt`, the script's headings

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use teleprompt_core::Hash;
 
-use crate::chunk::{self, Chunk, ChunkKey, Content, Source, Window};
+use crate::chunk::{self, Chunk, ChunkKey, ChunkTitle, Content, Source, Window};
 use crate::ffmpeg;
 use crate::placement::{xfade_for, BACKGROUND};
 use crate::{Progress, RenderError, RenderPlan, Rendered};
@@ -228,13 +228,62 @@ fn encode_args(plan: &RenderPlan, chunk: &Chunk, out: &Path) -> Vec<String> {
         }
     }
 
+    let mut out_label = "[v]";
+    if !chunk.titles.is_empty() {
+        let drawn: Vec<String> = chunk.titles.iter().map(|t| title(plan, t)).collect();
+        filters.push(format!("[v]{}[titled]", drawn.join(",")));
+        out_label = "[titled]";
+    }
+
     args.push("-filter_complex".into());
     args.push(filters.join(";"));
-    args.extend(["-map".into(), "[v]".into(), "-an".into()]);
+    args.extend(["-map".into(), out_label.into(), "-an".into()]);
     args.extend(encoder(plan.fps));
     args.extend(["-frames:v".into(), chunk.frames.to_string()]);
     args.push(out.display().to_string());
     args
+}
+
+/// A name in the lower third: white on a dark band, faded in and out over
+/// a quarter second wherever the chunk it falls in is cut.
+fn title(plan: &RenderPlan, t: &ChunkTitle) -> String {
+    let size = plan.height * 9 / 200;
+    let fade = (plan.fps / 4).max(1);
+    let (from, to) = (t.from_frame, t.to_frame);
+    format!(
+        "drawtext=font='{font}':text='{text}':expansion=none:fontsize={size}:\
+         fontcolor=white:box=1:boxcolor={band}:boxborderw={pad}:\
+         x=w*0.06:y=h*0.82-th:alpha='{alpha}':enable='{enable}'",
+        font = "Sans",
+        text = escaped(&t.text),
+        band = TITLE_BAND,
+        pad = size / 2,
+        alpha = escaped(&format!(
+            "min(1,max(0,min((n-({from}))/{fade},({to}-n)/{fade})))"
+        )),
+        enable = escaped(&format!("between(n,{from},{})", to - 1)),
+    )
+}
+
+/// The band behind a name: the prompter's ink, mostly opaque.
+const TITLE_BAND: &str = "0x101418@0.72";
+
+/// A drawtext value as the filter graph and then the filter read it, once
+/// quoted: everything either would take as syntax is escaped, and an
+/// apostrophe, which no escape survives, is set as a typographic one.
+fn escaped(value: &str) -> String {
+    let mut out = String::new();
+    for c in value.chars() {
+        match c {
+            '\\' | ':' | ',' | ';' | '[' | ']' => {
+                out.push('\\');
+                out.push(c);
+            }
+            '\'' => out.push('’'),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 fn window_input(

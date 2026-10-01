@@ -783,6 +783,13 @@ without invalidating it. The cache lives in `.teleprompt/cache/compose/`,
 capped at 1 GB by default and evicted least recently used first.
 `--no-cache` switches reuse off without switching renderers.
 
+A speaker's name, drawn over their first line, is drawn into the chunks it
+falls over and is part of their keys: its text and where it starts and
+ends, counted from the chunk's first frame, which is also what places its
+fade. A chunk no one is named over keys as it did before names existed.
+The name comes from the manifest, each line's `name`, so another renderer
+can draw names its own way.
+
 Audio is mixed in one pass over the whole timeline. It is cheap, and a mix
 cut into chunks would put a join in the middle of a word. Output audio is
 48 kHz stereo AAC, whatever rate the voice produced, because that is what

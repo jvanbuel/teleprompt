@@ -172,19 +172,9 @@ pub fn items(ctx: &Context, project: &Project) -> Vec<CompletionItem> {
     }
 }
 
-/// A cast member's name as a label writes it: `guest` is `Guest`, and
-/// `ada-lovelace` is `Ada Lovelace`.
+/// A cast member's name as a label writes it: `guest` is `Guest`.
 pub fn capitalized(name: &str) -> String {
-    name.split(['-', '_'])
-        .map(|word| {
-            let mut chars = word.chars();
-            chars
-                .next()
-                .map(|c| c.to_uppercase().chain(chars).collect())
-                .unwrap_or_default()
-        })
-        .collect::<Vec<String>>()
-        .join(" ")
+    teleprompt_core::ast::name_of(name)
 }
 
 /// The files beside the script, for `include=`.

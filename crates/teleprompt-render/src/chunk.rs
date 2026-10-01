@@ -55,6 +55,18 @@ pub struct Chunk {
     pub start_frame: u64,
     pub frames: u64,
     pub content: Content,
+    /// The names over it.
+    pub titles: Vec<ChunkTitle>,
+}
+
+/// A name over a chunk, in frames from the chunk's first: it may begin
+/// before the chunk and end after it, which is how it fades in or out in
+/// the right place however the output is cut.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkTitle {
+    pub text: String,
+    pub from_frame: i64,
+    pub to_frame: i64,
 }
 
 /// `None` when uncuttable: see [`crate::RenderError::Unchunkable`].
@@ -101,7 +113,27 @@ pub fn chunks(plan: &RenderPlan) -> Option<Vec<Chunk>> {
     // The whole rounding correction goes on the last chunk, a held frame,
     // so no other chunk's key depends on what came before it.
     settle(&mut out, time::frames(plan.duration_ms.ms(), fps));
+    for chunk in &mut out {
+        chunk.titles = titles_over(plan, chunk);
+    }
     Some(out)
+}
+
+/// The plan's titles that show during `chunk`, on its own clock.
+fn titles_over(plan: &RenderPlan, chunk: &Chunk) -> Vec<ChunkTitle> {
+    let (first, end) = (chunk.start_frame, chunk.start_frame + chunk.frames);
+    plan.titles
+        .iter()
+        .filter_map(|t| {
+            let from = time::frames(t.start_ms.ms(), plan.fps);
+            let to = time::frames(t.start_ms.ms() + t.duration_ms.ms(), plan.fps);
+            (from < end && to > first).then(|| ChunkTitle {
+                text: t.text.clone(),
+                from_frame: from as i64 - first as i64,
+                to_frame: to as i64 - first as i64,
+            })
+        })
+        .collect()
 }
 
 fn settle(out: &mut [Chunk], target: u64) {
@@ -136,6 +168,7 @@ fn push(
         start_frame: *cursor,
         frames,
         content: content(frames),
+        titles: Vec::new(),
     });
     *cursor += frames;
 }
@@ -169,6 +202,7 @@ pub struct ChunkKey<'a> {
     pub height: u32,
     pub fps: u32,
     pub content: &'a Content,
+    pub titles: &'a [ChunkTitle],
 }
 
 impl<'a> ChunkKey<'a> {
@@ -181,6 +215,7 @@ impl<'a> ChunkKey<'a> {
             height: plan.height,
             fps: plan.fps,
             content: &chunk.content,
+            titles: &chunk.titles,
         }
     }
 
@@ -197,6 +232,7 @@ impl<'a> ChunkKey<'a> {
             height,
             fps,
             content,
+            titles,
         } = self;
         let mut fields = vec![
             recipe.to_string(),
@@ -215,6 +251,21 @@ impl<'a> ChunkKey<'a> {
                 push_window(&mut fields, from, clip)?;
                 push_window(&mut fields, to, clip)?;
             }
+        }
+        // Nothing for none, so a chunk no one is named over keeps the key
+        // it had before titles were drawn.
+        for ChunkTitle {
+            text,
+            from_frame,
+            to_frame,
+        } in *titles
+        {
+            fields.extend([
+                "title".to_string(),
+                text.clone(),
+                from_frame.to_string(),
+                to_frame.to_string(),
+            ]);
         }
         Ok(Hash::of_fields(
             &fields.iter().map(String::as_str).collect::<Vec<_>>(),

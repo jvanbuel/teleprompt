@@ -58,6 +58,9 @@ pub struct Locales {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoiceConfig {
+    /// Who speaks in this voice, as the video names them on screen; for a
+    /// speaker, their key title-cased when not given.
+    pub name: Option<String>,
     pub backend: String,
     pub voice: Option<String>,
     pub speed: f64,
@@ -98,6 +101,8 @@ pub struct TimingConfig {
 pub struct OutputConfig {
     pub resolution: (u32, u32),
     pub fps: u32,
+    /// Whether each speaker is named on screen when they first speak.
+    pub names: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -237,6 +242,7 @@ impl Default for Config {
                 targets: Vec::new(),
             },
             voice: VoiceConfig {
+                name: None,
                 backend: "null".into(),
                 voice: None,
                 speed: 1.0,
@@ -246,6 +252,7 @@ impl Default for Config {
             output: OutputConfig {
                 resolution: (1920, 1080),
                 fps: 30,
+                names: true,
             },
             timing: TimingConfig {
                 lead_in_ms: DurationMs::millis(150),
@@ -337,6 +344,8 @@ pub struct PartialLocales {
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialVoice {
+    /// Who this is, as the video names them on screen: `Ada Lovelace`.
+    pub name: Option<String>,
     pub backend: Option<String>,
     pub voice: Option<String>,
     pub speed: Option<f64>,
@@ -386,6 +395,7 @@ fn renamed_max_speedup<'de, D: serde::Deserializer<'de>>(
 pub struct PartialOutput {
     pub resolution: Option<Resolution>,
     pub fps: Option<u32>,
+    pub names: Option<bool>,
     pub transition: Option<PartialTransition>,
 }
 
@@ -583,6 +593,9 @@ impl PartialConfig {
 impl PartialVoice {
     /// `over`'s settings over these, a pronunciation at a time.
     pub fn merge(&mut self, over: &PartialVoice) {
+        if over.name.is_some() {
+            self.name = over.name.clone();
+        }
         if over.backend.is_some() {
             self.backend = over.backend.clone();
         }
@@ -609,6 +622,27 @@ macro_rules! set {
             $target = v;
         }
     };
+}
+
+impl VoiceConfig {
+    /// `v` over this voice, field by field; `pronounce` word by word.
+    fn apply(&mut self, v: &PartialVoice) {
+        if v.name.is_some() {
+            self.name = v.name.clone();
+        }
+        set!(self.backend, v.backend.clone());
+        if v.voice.is_some() {
+            self.voice = v.voice.clone();
+        }
+        set!(self.speed, v.speed);
+        if v.instruct.is_some() {
+            self.instruct = v.instruct.clone();
+        }
+        if let Some(pronounce) = &v.pronounce {
+            self.pronounce
+                .extend(pronounce.iter().map(|(k, said)| (k.clone(), said.clone())));
+        }
+    }
 }
 
 /// Why `locale` is not a language tag (`en`, `pt-BR`, `zh_Hant`), if it is
@@ -684,19 +718,7 @@ impl Config {
                 set!(c.locales.targets, l.targets.clone());
             }
             if let Some(v) = &layer.voice {
-                set!(c.voice.backend, v.backend.clone());
-                if v.voice.is_some() {
-                    c.voice.voice = v.voice.clone();
-                }
-                set!(c.voice.speed, v.speed);
-                if v.instruct.is_some() {
-                    c.voice.instruct = v.instruct.clone();
-                }
-                if let Some(pronounce) = &v.pronounce {
-                    c.voice
-                        .pronounce
-                        .extend(pronounce.iter().map(|(k, said)| (k.clone(), said.clone())));
-                }
+                c.voice.apply(v);
             }
             if let Some(t) = &layer.timing {
                 set!(c.timing.lead_in_ms, t.lead_in_ms);
@@ -720,6 +742,7 @@ impl Config {
                     c.output.resolution = (w, h);
                 }
                 set!(c.output.fps, o.fps);
+                set!(c.output.names, o.names);
             }
             if let Some(t) = layer.output.as_ref().and_then(|o| o.transition.as_ref()) {
                 set!(c.transition.kind, t.kind.clone());

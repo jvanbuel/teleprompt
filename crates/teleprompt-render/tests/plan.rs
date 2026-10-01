@@ -71,6 +71,7 @@ fn inputs(dir: &Path) -> Inputs {
         width: 1920,
         height: 1080,
         fps: 30,
+        names: true,
     }
 }
 
@@ -157,4 +158,42 @@ fn a_pause_holds_the_picture_rather_than_asking_for_a_clip() {
         warnings[0].starts_with("1 of 2 shot(s) have no captured clip"),
         "a pause is not a missing capture: {warnings:?}"
     );
+}
+
+/// Each speaker is named over their first line, once, for four seconds or
+/// what is left of the video; with names off, nobody is.
+#[test]
+fn each_name_is_shown_over_its_first_line() {
+    let dir = PathBuf::from("/project");
+    let mut m = manifest();
+    m.lines[0].name = Some("Ada Lovelace".into());
+    let line = |id: &str, start_ms: u64, name: &str| {
+        let mut l = m.lines[0].clone();
+        l.id = id.into();
+        l.start_ms = TimeMs::at(start_ms);
+        l.name = Some(name.into());
+        l
+    };
+    let (again, other) = (
+        line("again", 2_500, "Ada Lovelace"),
+        line("other", 4_000, "Charles"),
+    );
+    m.lines.extend([again, other]);
+
+    let (plan, _) = plan::from_manifest(&m, &inputs(&dir));
+    let shown: Vec<(&str, u64, u64)> = plan
+        .titles
+        .iter()
+        .map(|t| (t.text.as_str(), t.start_ms.ms(), t.duration_ms.ms()))
+        .collect();
+    assert_eq!(
+        shown,
+        [("Ada Lovelace", 150, 4_000), ("Charles", 4_000, 300)]
+    );
+
+    let off = Inputs {
+        names: false,
+        ..inputs(&dir)
+    };
+    assert!(plan::from_manifest(&m, &off).0.titles.is_empty());
 }
