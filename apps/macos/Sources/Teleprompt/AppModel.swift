@@ -48,6 +48,8 @@ final class AppModel: ObservableObject {
     @Published private var lastScript: String { didSet { defaults.set(lastScript, forKey: "script") } }
     /// Whether the script's voice reads it, rather than the author.
     @Published var voiceReads: Bool { didSet { defaults.set(voiceReads, forKey: "voiceReads") } }
+    /// Setup, open: what to tick, why, and what to carry on with.
+    @Published var setup: SetupRequest?
 
     /// The voice reading the script aloud, while it does.
     @Published private(set) var reading: Reading?
@@ -110,6 +112,17 @@ final class AppModel: ObservableObject {
             .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
+    /// Opens setup with `wanted` ticked, saying `why`, and `then` once
+    /// something is installed. Setup is teleprompt's to do, so without the
+    /// binary it says where to set that.
+    func offerSetup(_ wanted: [String] = [], why: String? = nil, then: (@MainActor () -> Void)? = nil) {
+        guard FileManager.default.isExecutableFile(atPath: binaryPath) else {
+            phase = .failed(["Set the teleprompt binary in Settings (⌘,): it is what sets up the rest."])
+            return
+        }
+        setup = SetupRequest(wanted: wanted, why: why, then: then)
+    }
+
     /// Launches `teleprompt prompt` for `script`, replacing any server
     /// already running.
     func open(_ script: URL) {
@@ -124,17 +137,22 @@ final class AppModel: ObservableObject {
                 : "Set the teleprompt binary in Settings (⌘,). It must be built with --features listen."])
             return
         }
-        // A voice reads without a speech model; the author, with one.
-        guard voiceReads || !modelPath.isEmpty else {
-            phase = .failed([
-                "Set the speech model directory in Settings (⌘,), or let the script's voice read it: choose \"A voice reads\" on the welcome page.",
-            ])
+        // A voice reads without a speech model; the author, with one: the
+        // one chosen in Settings, or the one `teleprompt setup` installed.
+        let speech = modelPath.isEmpty ? installedSpeechModel() : URL(fileURLWithPath: modelPath)
+        guard voiceReads || speech != nil else {
+            phase = .idle
+            offerSetup(
+                ["prompt"],
+                why: "Following your voice needs the speech model. The script opens once it is installed. Or let a voice read it: choose \u{201C}A voice reads\u{201D} on the welcome page.",
+                then: { [weak self] in self?.open(script) }
+            )
             return
         }
         let request = LaunchRequest(
             binary: URL(fileURLWithPath: binaryPath),
             script: script,
-            model: voiceReads ? nil : URL(fileURLWithPath: modelPath),
+            model: voiceReads ? nil : speech,
             locale: locale
         )
         let server = ServerProcess(request)

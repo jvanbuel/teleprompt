@@ -28,6 +28,9 @@ struct ContentView: View {
         .background(Theme.chrome)
         .foregroundStyle(Theme.ink)
         .preferredColorScheme(.dark)
+        .sheet(item: $model.setup) { request in
+            SetupView(binary: URL(fileURLWithPath: model.binaryPath), request: request)
+        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 // The app's mark beside the script's name: in the chrome,
@@ -163,6 +166,10 @@ private struct Welcome: View {
                     }
                 }
                 .padding(.top, 10)
+                Button("Set up what teleprompt needs…") { model.offerSetup() }
+                    .buttonStyle(.link)
+                    .font(Theme.face(13))
+                    .foregroundStyle(Theme.ink.opacity(0.66))
             }
             GlassSample()
         }

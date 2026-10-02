@@ -24,11 +24,20 @@ The recognizer is opt-in, because it downloads a native library (about
 cargo install --path crates/teleprompt-cli --features listen
 ```
 
-It also needs a speech model, which teleprompt downloads only when you ask:
+It also needs a speech model (310 MB), which teleprompt downloads only when
+you ask:
 
 ```bash
-teleprompt setup speech-model --run
+teleprompt setup prompt --run
 ```
+
+The apps ask for you: open a script to read aloud without the model, and
+they offer to install it, then open the script. **Set up teleprompt**, on
+the welcome page and in Settings, lists everything else they can install,
+each use with what it still needs and how much it downloads, as
+`teleprompt setup` does in a terminal. A command that needs your password
+(`apt`, say) goes through the desktop's password dialog where there is one
+(`pkexec`), and otherwise says to run it in a terminal.
 
 That is sherpa-onnx's streaming English model (Apache-2.0), unpacked into
 `~/.local/share/teleprompt/models` (or `$TELEPROMPT_MODELS`), where

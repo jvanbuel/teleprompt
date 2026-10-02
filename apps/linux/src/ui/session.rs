@@ -141,8 +141,20 @@ impl SessionPage {
             self.tools.append(&button);
             group.get_or_insert(button);
         }
-        // One tool is no choice.
-        self.tools.set_visible(tools.len() > 1);
+        // A tool that cannot record here, offered to install.
+        if tools.iter().any(|t| t.unavailable.is_some()) {
+            self.tools.append(
+                &gtk::Button::builder()
+                    .label("Set up…")
+                    .tooltip_text("Install the tools that are greyed out")
+                    .action_name("app.setup-recording")
+                    .css_classes(["flat"])
+                    .build(),
+            );
+        }
+        // One tool is no choice, unless another could be installed.
+        self.tools
+            .set_visible(tools.len() > 1 || tools.iter().any(|t| t.unavailable.is_some()));
     }
 
     /// The tool picked, if the tools are known yet.

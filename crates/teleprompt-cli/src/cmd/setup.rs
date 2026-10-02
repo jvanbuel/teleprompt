@@ -387,7 +387,7 @@ static TOOLS: &[Tool] = &[
         found: Found::Model(SPEECH_MODEL),
         install: &[(
             Manager::Download,
-            "mkdir -p {models} && curl -fL https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2 | tar xj -C {models}",
+            "mkdir -p {models} && curl -fL -o {models}/speech-model.download https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2 && tar xjf {models}/speech-model.download -C {models} && rm {models}/speech-model.download",
         )],
     },
     Tool {
@@ -399,7 +399,7 @@ static TOOLS: &[Tool] = &[
         found: Found::Model(PUNCTUATION_MODEL),
         install: &[(
             Manager::Download,
-            "mkdir -p {models} && curl -fL https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2 | tar xj -C {models}",
+            "mkdir -p {models} && curl -fL -o {models}/punctuation-model.download https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2 && tar xjf {models}/punctuation-model.download -C {models} && rm {models}/punctuation-model.download",
         )],
     },
     Tool {
@@ -413,7 +413,7 @@ static TOOLS: &[Tool] = &[
         // there, so a failed download never looks installed.
         install: &[(
             Manager::Download,
-            "rm -rf {models}/speaker-models.partial && mkdir -p {models}/speaker-models.partial && curl -fL https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2 | tar xj -C {models}/speaker-models.partial && curl -fL -o {models}/speaker-models.partial/embedding.onnx https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx && mv {models}/speaker-models.partial {models}/speaker-models",
+            "rm -rf {models}/speaker-models.partial && mkdir -p {models}/speaker-models.partial && curl -fL -o {models}/speaker-segmentation.download https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2 && curl -fL -o {models}/speaker-embedding.download https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx && tar xjf {models}/speaker-segmentation.download -C {models}/speaker-models.partial && mv {models}/speaker-embedding.download {models}/speaker-models.partial/embedding.onnx && rm {models}/speaker-segmentation.download && mv {models}/speaker-models.partial {models}/speaker-models",
         )],
     },
 ];
@@ -592,6 +592,36 @@ pub struct ToolStatus {
     /// What installs it here, or `null` when nothing on this machine can.
     pub command: Option<String>,
     pub guide: Option<&'static str>,
+    /// How much it downloads, where `setup` knows: the models.
+    pub download_mb: Option<u32>,
+    /// Whether installing it asks for an administrator's password.
+    pub password: bool,
+}
+
+/// One use of teleprompt, and what it needs here.
+#[derive(Debug, Serialize)]
+pub struct UseStatus {
+    pub name: &'static str,
+    pub label: &'static str,
+    /// Whether it runs a speech model.
+    pub listens: bool,
+    /// Whether this teleprompt can do it at all: one that listens needs the
+    /// build with speech models.
+    pub available: bool,
+    /// Whether everything it needs that `setup` can check is here.
+    pub installed: bool,
+    /// What its missing tools download, in megabytes.
+    pub download_mb: u32,
+    pub tools: Vec<ToolStatus>,
+}
+
+/// `setup --uses`: what teleprompt can be set up to do, as an app asks.
+#[derive(Debug, Serialize)]
+pub struct UsesReport {
+    /// Whether this teleprompt was built with speech models.
+    pub listening: bool,
+    pub uses: Vec<UseStatus>,
+    pub models: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -623,19 +653,50 @@ impl Setup {
 
     pub fn report(&self, tools: &[&'static Tool], ran: Vec<String>) -> SetupReport {
         SetupReport {
-            tools: tools
-                .iter()
-                .map(|t| ToolStatus {
-                    name: t.name,
-                    what: t.what,
-                    installed: t.installed(&self.project, &self.platform.models),
-                    license: t.license,
-                    home: t.home,
-                    command: t.command(&self.platform),
-                    guide: t.guide,
-                })
-                .collect(),
+            tools: tools.iter().map(|t| self.status(t)).collect(),
             ran,
+            models: self.platform.models.display().to_string(),
+        }
+    }
+
+    fn status(&self, t: &'static Tool) -> ToolStatus {
+        let command = t.command(&self.platform);
+        ToolStatus {
+            name: t.name,
+            what: t.what,
+            installed: t.installed(&self.project, &self.platform.models),
+            license: t.license,
+            home: t.home,
+            password: command.as_deref().is_some_and(needs_password),
+            command,
+            guide: t.guide,
+            download_mb: download_mb(t.name),
+        }
+    }
+
+    /// Every use, what it needs, and how much of that is here.
+    pub fn uses(&self) -> UsesReport {
+        let listening = cfg!(feature = "listen");
+        let uses = GOALS
+            .iter()
+            .map(|goal| {
+                let tools = resolve(&[goal.name.to_string()]).unwrap_or_default();
+                let statuses: Vec<ToolStatus> = tools.iter().map(|t| self.status(t)).collect();
+                let gone = statuses.iter().filter(|t| t.installed == Some(false));
+                UseStatus {
+                    name: goal.name,
+                    label: goal.label,
+                    listens: goal.listens,
+                    available: listening || !goal.listens,
+                    installed: statuses.iter().all(|t| t.installed != Some(false)),
+                    download_mb: gone.filter_map(|t| t.download_mb).sum(),
+                    tools: statuses,
+                }
+            })
+            .collect();
+        UsesReport {
+            listening,
+            uses,
             models: self.platform.models.display().to_string(),
         }
     }
@@ -652,7 +713,8 @@ impl Setup {
 
     /// Runs the command for each tool that is missing, in order, stopping
     /// at the first that fails. What they print goes to stderr, so stdout
-    /// stays the report.
+    /// stays the report; for an app (`--format json`), it is kept to say
+    /// why one failed, and each tool's start, download and end are events.
     pub fn install(&self, tools: &[&'static Tool]) -> Result<Vec<String>, String> {
         let mut ran = Vec::new();
         for tool in tools {
@@ -660,22 +722,127 @@ impl Setup {
             let Some(command) = tool.command(&self.platform).filter(|_| missing) else {
                 continue;
             };
-            eprintln!("installing {}: {command}", tool.name);
-            let status = Command::new("/bin/sh")
-                .arg("-c")
-                .arg(&command)
-                .current_dir(&self.project)
-                .stdin(Stdio::inherit())
-                .stdout(to_stderr())
-                .status()
-                .map_err(|e| format!("`{command}` could not be run: {e}"))?;
-            if !status.success() {
-                return Err(format!("`{command}` exited {status}"));
+            let command = without_a_terminal(&command)?;
+            crate::output::progress(
+                "install",
+                || format!("installing {}: {command}", tool.name),
+                serde_json::json!({ "tool": tool.name, "state": "start", "command": command }),
+            );
+            if crate::output::json_progress() {
+                self.run_quietly(tool, &command)?;
+            } else {
+                self.run_aloud(&command)?;
             }
+            crate::output::progress(
+                "install",
+                || format!("installed {}", tool.name),
+                serde_json::json!({ "tool": tool.name, "state": "done" }),
+            );
             ran.push(command);
         }
         Ok(ran)
     }
+
+    /// Runs `command` where a person can see and answer it.
+    fn run_aloud(&self, command: &str) -> Result<(), String> {
+        let status = Command::new("/bin/sh")
+            .arg("-c")
+            .arg(command)
+            .current_dir(&self.project)
+            .stdin(Stdio::inherit())
+            .stdout(to_stderr())
+            .status()
+            .map_err(|e| format!("`{command}` could not be run: {e}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("`{command}` exited {status}"))
+        }
+    }
+
+    /// Runs `command` for an app: its output kept in a log, which says why
+    /// it failed if it does, and how far a model's download has got said
+    /// as it goes.
+    fn run_quietly(&self, tool: &Tool, command: &str) -> Result<(), String> {
+        let log = std::env::temp_dir().join(format!("teleprompt-setup-{}.log", std::process::id()));
+        let file = std::fs::File::create(&log).map_err(|e| format!("{}: {e}", log.display()))?;
+        let err = file.try_clone().map_err(|e| e.to_string())?;
+        let mut child = Command::new("/bin/sh")
+            .arg("-c")
+            .arg(command)
+            .current_dir(&self.project)
+            .stdin(Stdio::null())
+            .stdout(file)
+            .stderr(err)
+            .spawn()
+            .map_err(|e| format!("`{command}` could not be run: {e}"))?;
+        let mut said = 0;
+        let status = loop {
+            if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+                break status;
+            }
+            let of = download_mb(tool.name);
+            // What is on disk, never more than the whole, whatever else a
+            // download writes beside it.
+            let mb = downloaded_mb(&self.platform.models).min(of.unwrap_or(0));
+            if let (Some(of), true) = (of, mb > said) {
+                said = mb;
+                crate::output::progress(
+                    "install",
+                    String::new,
+                    serde_json::json!({
+                        "tool": tool.name, "state": "downloading", "mb": mb, "of": of,
+                    }),
+                );
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        };
+        let output = std::fs::read_to_string(&log).unwrap_or_default();
+        let _ = std::fs::remove_file(&log);
+        if status.success() {
+            return Ok(());
+        }
+        let tail: Vec<&str> = output.lines().rev().take(5).collect();
+        let tail: Vec<&str> = tail.into_iter().rev().collect();
+        Err(format!("`{command}` exited {status}:\n{}", tail.join("\n")))
+    }
+}
+
+/// Whether `command` asks for an administrator's password.
+fn needs_password(command: &str) -> bool {
+    command.starts_with("sudo ") || command.contains(" sudo ")
+}
+
+/// `command` as it can run with nobody at a terminal to type a password:
+/// as it is where it needs none, or where someone is there to type it;
+/// through `pkexec`, the desktop's own password dialog, where there is
+/// one; and otherwise not at all, saying to run it in a terminal.
+fn without_a_terminal(command: &str) -> Result<String, String> {
+    use std::io::IsTerminal;
+    if !needs_password(command) || std::io::stdin().is_terminal() {
+        return Ok(command.to_string());
+    }
+    if on_path("pkexec") {
+        return Ok(command.replace("sudo ", "pkexec "));
+    }
+    Err(format!(
+        "`{command}` asks for your password, and nothing here can ask for it: \
+         run it in a terminal"
+    ))
+}
+
+/// How much of a model's download is on disk so far: its `.download`
+/// files in the models directory, in megabytes.
+fn downloaded_mb(models: &Path) -> u32 {
+    let bytes: u64 = std::fs::read_dir(models)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "download"))
+        .filter_map(|e| e.metadata().ok())
+        .map(|m| m.len())
+        .sum();
+    u32::try_from(bytes / 1_000_000).unwrap_or(u32::MAX)
 }
 
 fn to_stderr() -> Stdio {
@@ -726,6 +893,33 @@ impl SetupReport {
                  and teleprompt ships none of them.\n",
                 rerun.join(" ")
             ));
+        }
+        out
+    }
+}
+
+impl UsesReport {
+    pub fn render(&self) -> String {
+        let width = self.uses.iter().map(|u| u.label.len()).max().unwrap_or(0) + 3;
+        let mut out = String::new();
+        for u in &self.uses {
+            let state = if !u.available {
+                "needs the build with speech models".to_string()
+            } else if u.installed {
+                "installed".to_string()
+            } else {
+                let gone: Vec<&str> = u
+                    .tools
+                    .iter()
+                    .filter(|t| t.installed == Some(false))
+                    .map(|t| t.name)
+                    .collect();
+                match u.download_mb {
+                    0 => format!("needs {}", gone.join(", ")),
+                    mb => format!("needs {} · {mb} MB", gone.join(", ")),
+                }
+            };
+            out.push_str(&format!("{:<14}{:<width$}{state}\n", u.name, u.label));
         }
         out
     }

@@ -51,6 +51,9 @@ struct PrompterCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        CommandGroup(after: .appSettings) {
+            Button("Set Up Teleprompt…") { model.offerSetup() }
+        }
         CommandGroup(after: .newItem) {
             Button("Open Script…") { model.chooseScript = true }
                 .keyboardShortcut("o")

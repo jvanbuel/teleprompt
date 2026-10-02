@@ -13,6 +13,7 @@ pub mod retake;
 pub mod ribbons;
 pub mod said;
 pub mod session;
+pub mod setup;
 pub mod state;
 pub mod take;
 pub mod timeline;

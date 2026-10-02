@@ -281,3 +281,57 @@ fn only_listening_goals_need_the_speech_models() {
         assert_eq!(goal.listens, models, "{}", goal.name);
     }
 }
+
+/// `setup --uses`, as the apps ask: each use, whether it is installed,
+/// and what it still needs, with its command, size and whether it asks
+/// for a password.
+#[test]
+fn setup_uses_says_each_use_and_what_it_needs() {
+    let bin = Bin::new("setup-uses");
+    bin.script("brew", "exit 0");
+    let out = bin.setup(&["--uses", "--format", "json"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let uses = report["uses"].as_array().unwrap();
+    let render = uses.iter().find(|u| u["name"] == "render").unwrap();
+    assert_eq!(render["installed"], false);
+    assert_eq!(render["available"], true);
+    assert_eq!(render["tools"][0]["command"], "brew install ffmpeg");
+    assert_eq!(render["tools"][0]["password"], false);
+    let prompt = uses.iter().find(|u| u["name"] == "prompt").unwrap();
+    assert_eq!(prompt["available"], cfg!(feature = "listen"));
+    assert_eq!(prompt["download_mb"], 310);
+    assert_eq!(report["listening"], cfg!(feature = "listen"));
+}
+
+/// An install for an app says each tool's start and end as events on
+/// stderr, and keeps what the installer printed out of them.
+#[test]
+fn setup_run_for_an_app_says_how_it_goes() {
+    let bin = Bin::new("setup-events");
+    let log = bin.0.join("brew.log");
+    brew_installing(&bin, &log);
+    let out = bin.setup(&["render", "--run", "--format", "json"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let events: Vec<serde_json::Value> = String::from_utf8_lossy(&out.stderr)
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("{l}: {e}")))
+        .collect();
+    let states: Vec<&str> = events
+        .iter()
+        .map(|e| e["state"].as_str().unwrap())
+        .collect();
+    assert_eq!(states, ["start", "done"]);
+    assert_eq!(events[0]["tool"], "ffmpeg");
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(report["ok"], true);
+    assert_eq!(report["tools"][0]["installed"], true);
+}

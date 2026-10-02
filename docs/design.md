@@ -879,7 +879,12 @@ a video needs comes in three tiers.
    `$TELEPROMPT_MODELS`, by default `teleprompt/models` in the user's data
    directory, where `prompt`, `record` and `import` look when no
    `--model` is given. What the author's own project holds, a Remotion
-   project or a Kokoro server, `setup` explains rather than installs. **No release artifact, whether binary, app bundle, installer
+   project or a Kokoro server, `setup` explains rather than installs.
+   `setup` is organised by use (render, terminal, browser, prompt,
+   drafts, conversations…), since that is what an author knows they
+   want; `setup --uses` reports them for the apps, which install through
+   the same command and read its progress events. The apps add nothing:
+   what a use needs and how it installs stay the CLI's. **No release artifact, whether binary, app bundle, installer
    or container image, includes a tool.** One that did would take on the
    tool's license: a deliberate choice, made in this document first.
 3. **Community plugins, not yet built.** Adapters and voices of other

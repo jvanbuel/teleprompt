@@ -67,10 +67,6 @@ enum Event {
 }
 
 /// What the prompter needs that it does not have, and how to get it.
-const NO_MODEL: &str = "Set the teleprompt binary in Settings (Ctrl+,), and install a speech \
-                        model with `teleprompt setup speech-model --run` or choose one there. \
-                        Or let the script's voice read it: choose \"A voice reads\" on the \
-                        welcome page.";
 const NO_BINARY: &str = "Set the teleprompt binary in Settings (Ctrl+,).";
 
 pub struct Window {
@@ -463,9 +459,21 @@ impl Window {
             let Some(session) = &model.session else {
                 return;
             };
-            let (Some(binary), Some(speech)) = (model.config.binary(), model.config.model()) else {
+            let Some(binary) = model.config.binary() else {
                 drop(model);
-                return self.show_failed(&[NO_MODEL.into()]);
+                return self.show_failed(&[NO_BINARY.into()]);
+            };
+            let Some(speech) = model.config.model() else {
+                drop(model);
+                return self.offer_setup_then(
+                    &["drafts"],
+                    Some(
+                        "Drafting from a session listens to what you say, which needs the \
+                     speech model; the punctuation model gives the draft capitals and \
+                     full stops. Recording starts once they are installed.",
+                    ),
+                    |this| this.start_session(),
+                );
             };
             (
                 super::session::record_argv(
@@ -682,7 +690,17 @@ impl Window {
         };
         if speech.is_none() && !voice {
             drop(model);
-            return self.show_failed(&[NO_MODEL.into()]);
+            self.show_welcome();
+            let again = script.clone();
+            return self.offer_setup_then(
+                &["prompt"],
+                Some(
+                    "Following your voice needs the speech model. The script opens \
+                 once it is installed. Or let a voice read it: choose \u{201c}A voice \
+                 reads\u{201d} on the welcome page.",
+                ),
+                move |this| this.open(again.clone()),
+            );
         }
         let request = LaunchRequest {
             binary,
@@ -1842,6 +1860,34 @@ impl Window {
         self.show_record();
     }
 
+    /// Opens setup with `wanted` ticked, saying `why`: what a command
+    /// found missing, to install there rather than fail.
+    pub fn offer_setup(self: &Rc<Self>, wanted: &[&str], why: Option<&str>) {
+        self.offer_setup_then(wanted, why, |this| this.list_tools());
+    }
+
+    /// As [`Self::offer_setup`], and `then` once something is installed:
+    /// what the command was doing, carried on.
+    fn offer_setup_then(
+        self: &Rc<Self>,
+        wanted: &[&str],
+        why: Option<&str>,
+        then: impl Fn(&Rc<Self>) + 'static,
+    ) {
+        let weak = Rc::downgrade(self);
+        super::setup::present(
+            self.file_dialog_parent(),
+            self.config().binary(),
+            wanted,
+            why,
+            move || {
+                if let Some(this) = weak.upgrade() {
+                    then(&this);
+                }
+            },
+        );
+    }
+
     fn show_failed(&self, reasons: &[String]) {
         self.w
             .failed
@@ -2108,6 +2154,14 @@ impl Widgets {
         let (narrator, narrator_voice) = Self::narrator();
         page.append(&narrator);
         page.append(&buttons);
+        page.append(
+            &gtk::Button::builder()
+                .label("Set up what teleprompt needs…")
+                .action_name("app.setup")
+                .halign(gtk::Align::Start)
+                .css_classes(["flat", "setup-link"])
+                .build(),
+        );
         (page_for_column, reopen, sample, narrator_voice)
     }
 

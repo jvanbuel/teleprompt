@@ -488,3 +488,10 @@ popover.line-panel button.pill {
   padding: 6px 14px;
   font-weight: 600;
 }
+
+/* The welcome page's way to setup: there, but quieter than the actions. */
+button.setup-link {
+  padding-left: 0;
+  font-weight: normal;
+  opacity: 0.75;
+}

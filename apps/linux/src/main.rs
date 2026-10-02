@@ -105,6 +105,22 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
         Box::new(|w| w.screen_window()),
     );
     action("settings", &["<Control>comma"], Box::new(settings));
+    action("setup", &[], Box::new(|w| w.offer_setup(&[], None)));
+    // From session mode, where a tool to record with is missing: the uses
+    // that record, those not yet installed ticked.
+    action(
+        "setup-recording",
+        &[],
+        Box::new(|w| {
+            w.offer_setup(
+                &["terminal", "casts", "browser"],
+                Some(
+                    "Drafting from a session records what you do with one of these. \
+                     Install one, and it is offered there.",
+                ),
+            )
+        }),
+    );
     action("shortcuts", &["<Control>question"], Box::new(shortcuts));
     let app_weak = app.downgrade();
     action(
@@ -250,7 +266,7 @@ fn shortcuts(window: &Rc<Window>) {
 fn settings(window: &Rc<Window>) {
     let config = window.config();
     let group = adw::PreferencesGroup::builder()
-        .description("teleprompt built with --features listen, and an unpacked sherpa-onnx streaming zipformer. `teleprompt setup speech-model --run` installs one where the app finds it.")
+        .description("Following your voice needs teleprompt built with --features listen, and its speech model: Set up teleprompt installs it where the app finds it.")
         .build();
     let binary = path_row(
         window,
@@ -308,6 +324,14 @@ fn settings(window: &Rc<Window>) {
             window.set_config(config);
         }
     });
+    let setup_row = adw::ActionRow::builder()
+        .title("Set up teleprompt")
+        .subtitle("Install the tools and models for what you want to do")
+        .activatable(true)
+        .build();
+    setup_row.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
+    setup_row.set_action_name(Some("app.setup"));
+    group.add(&setup_row);
     group.add(&binary);
     group.add(&model);
     group.add(&punctuation);

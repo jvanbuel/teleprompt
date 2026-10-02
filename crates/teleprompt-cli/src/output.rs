@@ -14,6 +14,11 @@ pub fn set_progress_format(format: Format) {
     JSON_PROGRESS.store(format == Format::Json, std::sync::atomic::Ordering::SeqCst);
 }
 
+/// Whether progress is said as JSON events, for an app reading them.
+pub fn json_progress() -> bool {
+    JSON_PROGRESS.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 /// One step of a long command, on stderr: the line `human` says, or with
 /// `--format json` an event an app reads, `{"event": "progress", "stage":
 /// …, …fields}`, one per line.

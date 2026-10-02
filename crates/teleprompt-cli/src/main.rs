@@ -284,6 +284,10 @@ enum Command {
         /// Run the commands that install what is missing
         #[arg(long)]
         run: bool,
+        /// Say what teleprompt can be set up to do and what each use still
+        /// needs, as the apps ask
+        #[arg(long, conflicts_with_all = ["names", "run"])]
+        uses: bool,
     },
     /// Report what the project's caches hold, or shrink them
     ///
@@ -851,7 +855,12 @@ fn run(command: Command, format: Format) -> Run {
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }
-        Command::Setup { names, run } => run_setup(format, &names, run),
+        Command::Setup { uses: true, .. } => {
+            let report = setup::Setup::detect().uses();
+            emit(format, &report, &report.render());
+            Ok(Outcome::Ok)
+        }
+        Command::Setup { names, run, .. } => run_setup(format, &names, run),
         Command::Voice {
             command: VoiceCommand::Clone { name, language },
         } => {

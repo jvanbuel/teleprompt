@@ -17,7 +17,12 @@ struct SettingsView: View {
             }
             Section {
                 path("Speech model", model.modelPath) { choosing = .model }
-                Text("An unpacked sherpa-onnx streaming zipformer, such as sherpa-onnx-streaming-zipformer-en-2023-06-26.")
+                Text("Not needed when Set Up Teleprompt has installed one: that one is used.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                Button("Set Up Teleprompt…") { model.offerSetup() }
+                Text("Install the tools and models for what you want to do.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
