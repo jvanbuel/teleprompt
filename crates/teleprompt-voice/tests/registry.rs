@@ -5,7 +5,7 @@ mod stub;
 use stub::StubVoice;
 
 #[test]
-fn available_is_sorted_so_doctor_output_is_deterministic() {
+fn available_is_sorted_so_listings_are_deterministic() {
     let mut r = VoiceRegistry::default();
     r.register(Arc::new(StubVoice::new("zulu")));
     r.register(Arc::new(StubVoice::new("alpha")));

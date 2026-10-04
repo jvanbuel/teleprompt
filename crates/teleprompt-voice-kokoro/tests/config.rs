@@ -80,7 +80,7 @@ fn the_version_string_is_the_model_and_not_the_machine() {
 
 // The trade this makes, stated as a test so it cannot be forgotten: two
 // servers serving different weights under one model name now collide. That
-// is why `doctor` reports the model alongside the address — the mismatch
+// is why `setup` reports the model alongside the address — the mismatch
 // has to be visible somewhere, and the cache key is no longer the place.
 #[test]
 fn nothing_about_the_server_address_survives_into_the_version() {

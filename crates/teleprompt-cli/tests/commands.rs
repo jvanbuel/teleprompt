@@ -354,12 +354,11 @@ fn check_and_dub_agree_about_a_negative_voice_speed() {
     );
 }
 
-/// `doctor`'s cache root was CWD-relative, so from any subdirectory of a
-/// project with a full cache it reported `0 entries` — worse than reporting
-/// nothing, because it looks like an answer. `check` and `dub` root theirs
-/// at the project; so does this now, and the report says which root it used.
+/// From any subdirectory of a project, the cache reported is the project's,
+/// as `check` and `dub` root theirs, and the report says which root it used:
+/// `0 entries` from the wrong root would look like an answer.
 #[test]
-fn doctor_reports_the_projects_cache_from_a_subdirectory() {
+fn cache_reports_the_projects_cache_from_a_subdirectory() {
     let (_dir, p, _s) = project_with(GOOD);
     let dubbed = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .args(["dub", "scripts/test.md", "--out", "out"])
@@ -373,18 +372,18 @@ fn doctor_reports_the_projects_cache_from_a_subdirectory() {
     );
 
     let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
-        .args(["--format", "json", "doctor"])
+        .args(["--format", "json", "cache"])
         .current_dir(p.root.join("scripts"))
         .output()
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
 
     assert!(
-        json["cache_entries"].as_u64().unwrap() > 0,
-        "doctor must see the project's cache from inside it: {json}"
+        json["voice"]["entries"].as_u64().unwrap() > 0,
+        "cache must see the project's cache from inside it: {json}"
     );
     assert!(
-        json["cache_root"].as_str().unwrap().contains(".teleprompt"),
+        json["root"].as_str().unwrap().contains(".teleprompt"),
         "the report must say which root it counted: {json}"
     );
 }
@@ -455,6 +454,7 @@ fn a_removed_command_names_its_replacement() {
     for (args, instead) in [
         (&["diff", "demo.md", "--exit-code"][..], "plan --check"),
         (&["serve", "demo.md", "--port", "0"][..], "prompt --voice"),
+        (&["doctor"][..], "setup"),
         (&["prompt", "demo.md", "--preview"][..], "prompt --voice"),
     ] {
         let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))

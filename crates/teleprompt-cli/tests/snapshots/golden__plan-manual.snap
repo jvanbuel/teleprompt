@@ -8,7 +8,7 @@ expression: transcript(&out)
     "warning: 21 of 21 narration durations are estimated; run `teleprompt dub` to measure them before committing this timeline"
   ],
   "stdout": {
-    "duration_ms": 405975,
+    "duration_ms": 407340,
     "entries": [
       {
         "action": {
@@ -597,22 +597,22 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "vhs",
-          "capture_key": "b0526f3d8f5cdeece364f0303d3206d4ccf56aac72eb9bff3ef9b8f625f79cc5",
-          "duration_ms": 3630,
+          "capture_key": "70bf435f1efedf3efb635e0fa29e4d468e316d03e581f33e23bfe5430ec1d8da",
+          "duration_ms": 3595,
           "duration_source": "exact",
           "scene": "vhs",
-          "shot": "doctor-a#0",
-          "shot_hash": "bfd66b4b5ac82854237d404b5479d6b12c582bc91cb378e92513f394f9c4f40d",
-          "start_ms": 354695
+          "shot": "what-is-here-a#0",
+          "shot_hash": "13c1efb691dd1ad3dcb04938947f9f82300e881281bccc57980d1e5ccb84f186",
+          "start_ms": 356095
         },
-        "duration_ms": 19480,
-        "item": "doctor",
+        "duration_ms": 20845,
+        "item": "what-is-here",
         "narration": {
-          "audio_hash": "e5c3e16649d52b797ce701ad70cc5666b44fa7219a98995732d29e6ba36a1db1",
-          "duration_ms": 15550,
+          "audio_hash": "80707c1a8f14c1b58288cf14b0b2a8f0562d390fb298deb2f6ef336d83b3ec9b",
+          "duration_ms": 16950,
           "duration_source": "estimated",
-          "line": "doctor",
-          "source_hash": "f302c5c80e88e4069b8e019c0dcdcf3c3762a913e390a920c44393c8279f8776",
+          "line": "what-is-here",
+          "source_hash": "34e03d47a022720048b43a06073bacb496ed31818a1022138ac6bf18bd258680",
           "start_ms": 338995
         },
         "policy": "hold",
@@ -625,13 +625,13 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "vhs",
-          "capture_key": "c9cb7c9ea66262148af1fa118d845fc12f3fae1d8300e0d84536f786aa9d9213",
-          "duration_ms": 3650,
+          "capture_key": "10a08777e5086aedee502436baa9b82b15f3065bc07dd925aaca208db099c966",
+          "duration_ms": 3590,
           "duration_source": "exact",
           "scene": "vhs",
           "shot": "offline-by-default-a#0",
-          "shot_hash": "801922a400fc7791486b938d3ac9bb93b4008cc25f231ec6138f1ce37cb54c96",
-          "start_ms": 357725
+          "shot_hash": "21dfae6ad82f5a23985c1ccd0379eff577494ec38e662880a6eef45078321369",
+          "start_ms": 359090
         },
         "duration_ms": 25150,
         "item": "offline-by-default",
@@ -641,10 +641,10 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "offline-by-default",
           "source_hash": "8ffe7fc17fa9268fd67f10a7b69c39a5d302d75b6cb2298e88dac65aa5a195e8",
-          "start_ms": 357875
+          "start_ms": 359240
         },
         "policy": "concurrent",
-        "start_ms": 357725,
+        "start_ms": 359090,
         "transition": {
           "duration_ms": 300,
           "kind": "crossfade"
@@ -653,13 +653,13 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "vhs",
-          "capture_key": "a64aa5c3d0b5108c03e38f55eaadd7ad0a9f48f30cc4572df6c78acb49b496ff",
+          "capture_key": "9cea4d110aeaa96feb09b9e60e64a01680d826aa259aebd8ac4362dd6fbe6597",
           "duration_ms": 3380,
           "duration_source": "exact",
           "scene": "vhs",
           "shot": "self-hosting-a#0",
           "shot_hash": "9256d09541691eea6c26cc5cdcc8b8ce044b176a8c67bb4287383cbd5630d322",
-          "start_ms": 382575
+          "start_ms": 383940
         },
         "duration_ms": 23400,
         "item": "self-hosting",
@@ -669,10 +669,10 @@ expression: transcript(&out)
           "duration_source": "estimated",
           "line": "self-hosting",
           "source_hash": "26027be536bb6c3505ad3f77753f2599fa5c349b93eaf64ff65d0c5b1335d2ab",
-          "start_ms": 382725
+          "start_ms": 384090
         },
         "policy": "concurrent",
-        "start_ms": 382575,
+        "start_ms": 383940,
         "transition": {
           "duration_ms": 0,
           "kind": "crossfade"

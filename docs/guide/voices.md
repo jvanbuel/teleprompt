@@ -62,7 +62,7 @@ speed, locale and text. The server's address isn't part of the key, so a
 cache made against one machine's server is valid against another's running
 the same model. The flip side is that two servers answering to the same
 `model` share a cache, so name the model after what is actually loaded.
-`doctor` shows the model next to the address.
+`teleprompt setup` shows the model next to the address.
 
 A corrupt entry is treated as a miss and replaced on the next dub.
 `teleprompt cache` reports what the caches hold.
@@ -70,8 +70,8 @@ A corrupt entry is treated as a miss and replaced on the next dub.
 ## When the server is down
 
 An unreachable, slow or failing server fails `dub` with exit 1, naming the
-URL and the line. It never substitutes silence. `doctor` reports a down
-server as a warning, because `check` and `plan` don't need it.
+URL and the line. It never substitutes silence. `teleprompt setup` reports
+a down server as a warning, because `check` and `plan` don't need it.
 
 ## Word timings
 
@@ -142,7 +142,7 @@ speaking the old audio from the cache; give the new one a new name.
 the narration is sent there, and your key pays for it. Make a key at
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and put
 it in `GEMINI_API_KEY`. It's read only when a line is spoken, so `check`
-and `plan` need none. `teleprompt doctor` asks whether the key
+and `plan` need none. `teleprompt setup`, in the project, asks whether the key
 opens the model, which costs no speech.
 
 ```toml

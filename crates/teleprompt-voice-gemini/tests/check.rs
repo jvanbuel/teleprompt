@@ -1,4 +1,4 @@
-//! `doctor`'s question: does the key open the model, without paying for
+//! `setup`'s question: does the key open the model, without paying for
 //! a line of speech.
 
 mod stub;

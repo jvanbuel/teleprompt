@@ -48,7 +48,7 @@ fn a_tool_without_a_package_falls_back_to_its_languages_installer() {
 }
 
 /// What each adapter says it runs, capturing and then recording: the
-/// tools `doctor` sends an author to `setup <adapter>` for.
+/// tools an adapter sends an author to `setup <adapter>` for.
 #[test]
 fn an_adapter_names_the_tools_it_runs() {
     assert_eq!(names(&["vhs"]), ["vhs", "ttyd", "ffmpeg"]);

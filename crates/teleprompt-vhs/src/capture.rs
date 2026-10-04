@@ -93,7 +93,7 @@ impl Default for VhsRender {
 
 impl CaptureBackend for VhsRender {
     fn unavailable(&self) -> Option<String> {
-        // Only a PATH check: this runs on every capture and every `doctor`,
+        // Only a PATH check: this runs before every capture,
         // and a probe recording would take a minute. A `vhs` that is
         // installed but records nothing is caught in `capture`, and its
         // session renders as slates with the reason.

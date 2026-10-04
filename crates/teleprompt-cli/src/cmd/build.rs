@@ -324,8 +324,8 @@ fn write_captions(video: &Path, manifest: &NarrationManifest) -> Result<Vec<Path
 fn explain(error: &RenderError) -> String {
     match error {
         RenderError::Unavailable { program, .. } => format!(
-            "{program} is not on PATH. Rendering needs it; `teleprompt doctor` \
-             reports what this build can see."
+            "{program} is not on PATH. Rendering needs it; `teleprompt setup {program}` \
+             says how to install it."
         ),
         other => other.to_string(),
     }

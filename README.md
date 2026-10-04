@@ -91,9 +91,8 @@ of a job offers to install it there.
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |
-| `doctor` | report the environment teleprompt can see |
 | `voice clone <name>` | make a voice from your takes on a [Voicebox](docs/guide/voices.md#your-own-voice-voicebox) server, so unrecorded lines sound like you |
-| `setup [use, adapter or tool…]` | ask what you want to do and install what it needs; with names (`conversations`, `vhs`, `speech-model`…), say what is installed, the licenses, and how to install the rest, and `--run` installs them |
+| `setup [use, adapter or tool…]` | ask what you want to do and install what it needs; with names (`conversations`, `vhs`, `speech-model`…), say what is installed, the licenses, and how to install the rest, and `--run` installs them; in a project, also whether its voice's server answers |
 | `cache` | report what the project's caches hold, or shrink them |
 | `lsp` | a [language server](docs/guide/editors.md) for your editor: problems as you type, completion, hover and go to definition |
 

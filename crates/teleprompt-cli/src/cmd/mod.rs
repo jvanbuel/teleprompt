@@ -2,7 +2,6 @@ pub mod build;
 pub mod cache;
 pub mod capture;
 pub mod check;
-pub mod doctor;
 pub mod dub;
 pub mod edit;
 pub mod from;

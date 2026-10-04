@@ -122,7 +122,7 @@ fn an_unknown_key_is_reported_even_when_the_project_resolves_elsewhere() {
 
 /// Group 6: `Backends::kokoro` is the escape hatch that replaced
 /// `backend.as_any().downcast_ref::<KokoroVoice>()` at the three call sites
-/// in `dub` and `doctor` that need an inherent method `VoiceBackend` does
+/// in `dub` and `setup` that need an inherent method `VoiceBackend` does
 /// not carry. It must gate on the same thing the downcast implicitly gated
 /// on via `id()` matching plus a successful construction: asking under the
 /// wrong id, or asking when settings never produced a backend, must both
@@ -147,7 +147,7 @@ fn the_kokoro_handle_is_gated_on_the_resolved_id() {
 
 /// The other half of the same gate: settings that never produced a backend
 /// must not leave a handle behind either, or `dub`'s fan-out limit and
-/// voice-list check, and `doctor`'s probe, would silently read from (or
+/// voice-list check, and `setup`'s probe, would silently read from (or
 /// probe) a `KokoroVoice` built from defaults instead of the broken
 /// settings the author actually wrote.
 #[test]
@@ -155,7 +155,7 @@ fn the_kokoro_handle_is_absent_when_settings_do_not_validate() {
     let b = backends_for(&settings("concurrency: 0"), "teleprompt.toml");
     assert!(
         b.kokoro("kokoro").is_none(),
-        "unusable settings must not leave a handle for dub or doctor to read from"
+        "unusable settings must not leave a handle for dub or setup to read from"
     );
 }
 

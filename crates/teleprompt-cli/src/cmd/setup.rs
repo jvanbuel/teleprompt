@@ -629,6 +629,45 @@ pub struct SetupReport {
     /// The commands run, with `--run`, in order.
     pub ran: Vec<String>,
     pub models: String,
+    /// The project's own voice, in a project, when no tool was named.
+    pub voice: Option<ProjectVoice>,
+}
+
+/// The voice the project chose, and whether it can speak here: the one
+/// thing `setup` cannot see by looking for programs.
+#[derive(Debug, Serialize)]
+pub struct ProjectVoice {
+    /// The project's `voice.backend`, `null` when it names none.
+    pub backend: String,
+    /// What its server said, or `null` when it has none to ask, as `null`
+    /// has none. Not an error when it does not answer: only `dub` and
+    /// `build` need it to (docs/design.md#backend-failure).
+    pub answer: Option<String>,
+    /// Every `backends:` setting that cannot be used, in the words `check`
+    /// would use, including those for backends the project does not choose.
+    pub problems: Vec<String>,
+}
+
+/// [`ProjectVoice`] for `project`, asking its backend's server.
+pub async fn project_voice(project: &crate::project::Project) -> ProjectVoice {
+    let backends = crate::cmd::check::backends_of(project);
+    let backend = project
+        .config
+        .voice
+        .as_ref()
+        .and_then(|v| v.backend.clone())
+        .unwrap_or_else(|| "null".to_string());
+    let problems = backends
+        .diagnostics()
+        .into_iter()
+        .chain(backends.unusable_diagnostics())
+        .map(|d| d.message)
+        .collect();
+    ProjectVoice {
+        answer: backends.probe(&backend).await,
+        backend,
+        problems,
+    }
 }
 
 /// Where `setup` looks and what it runs, fixed by the caller.
@@ -655,6 +694,7 @@ impl Setup {
             tools: tools.iter().map(|t| self.status(t)).collect(),
             ran,
             models: self.platform.models.display().to_string(),
+            voice: None,
         }
     }
 
@@ -874,6 +914,13 @@ impl SetupReport {
                     "{:<18} nothing here installs it; see {}\n",
                     "", t.home
                 )),
+            }
+        }
+        if let Some(v) = &self.voice {
+            let answer = v.answer.as_deref().unwrap_or("needs no server");
+            out.push_str(&format!("{:<18} {}: {answer}\n", "your voice", v.backend));
+            for p in &v.problems {
+                out.push_str(&format!("{:<18} {p}\n", "problem"));
             }
         }
         for c in &self.ran {

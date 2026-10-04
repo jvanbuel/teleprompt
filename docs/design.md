@@ -246,7 +246,8 @@ timeline committed from a cold cache drifts on the next dub.
 settings. None of these can reach a backend, so no expression on the
 `check` or `plan` path can call `synthesize`. The boundary is
 structural. `main` is synchronous, and only `dub`, `build`, `capture`,
-`prompt` (for its voice) and `doctor` build a runtime.
+`prompt` (for its voice) and `setup` (to ask the voice's server) build a
+runtime.
 
 ### Voice cache
 
@@ -260,7 +261,7 @@ changes the keys of a cache built before it.
 
 The backend version is the *model*, not the server address, so a cache
 built on one machine is valid on another. The trade-off is that two
-servers serving different weights under one model name collide. `doctor`
+servers serving different weights under one model name collide. `setup`
 shows the model beside the address so a mismatch is visible. teleprompt's
 own version is never part of the key, because a release that changed every
 key would report "audio changed" on every line of every consumer's next
@@ -404,7 +405,7 @@ is `/api/v2`.
 A backend that is unreachable, slow or returns an error fails the command
 with exit 1, naming the URL and the line. It never falls back to `null`.
 The ladder moves between tiers an author asked for, and a broken server is
-not a tier. `doctor` reports a down server as a warning, because only `dub`
+not a tier. `setup` reports a down server as a warning, because only `dub`
 needs it.
 
 ### Word timings
@@ -897,9 +898,8 @@ a video needs comes in three tiers.
    team's size. Teleprompt runs the copy the author installed, as a
    separate program, and links none of them. A hosted service, Gemini TTS
    or a translator's API, is the author's own account, used only when
-   chosen. `doctor` says which are
-   missing, and `teleprompt setup <adapter or tool>` says how to install
-   each with the author's own package manager, and its license, and runs
+   chosen. `teleprompt setup` says which are missing, and
+   `teleprompt setup <adapter or tool>` says how to install each with the author's own package manager, and its license, and runs
    that command when asked (`--run`). Models go in
    `$TELEPROMPT_MODELS`, by default `teleprompt/models` in the user's data
    directory, where `prompt`, `record` and `import` look when no

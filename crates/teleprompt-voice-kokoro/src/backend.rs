@@ -20,7 +20,7 @@ impl KokoroVoice {
         })
     }
 
-    /// The voices the server reports. Used by `doctor` and by `dub`'s
+    /// The voices the server reports. Used by `setup` and by `dub`'s
     /// one-shot validation — never by `check`, which must not touch the
     /// network.
     pub async fn voices(&self) -> Result<Vec<String>, VoiceError> {

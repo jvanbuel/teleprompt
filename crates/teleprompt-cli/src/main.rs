@@ -8,7 +8,6 @@ use teleprompt_cli::cmd::build;
 use teleprompt_cli::cmd::cache;
 use teleprompt_cli::cmd::capture as capture_cmd;
 use teleprompt_cli::cmd::check::{self, CheckReport};
-use teleprompt_cli::cmd::doctor;
 use teleprompt_cli::cmd::dub;
 use teleprompt_cli::cmd::from;
 use teleprompt_cli::cmd::import::{self, Import, Words};
@@ -261,8 +260,12 @@ enum VoiceCommand {
 enum Command {
     /// Scaffold a new project
     New { path: PathBuf },
-    /// Report the environment teleprompt can see
-    Doctor,
+    /// Now `setup`; says so rather than being unknown.
+    #[command(hide = true)]
+    Doctor {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
     /// Voices of your own, on a Voicebox server
     Voice {
         #[command(subcommand)]
@@ -570,7 +573,8 @@ fn run_setup(format: Format, names: &[String], run: bool) -> Result<Outcome, Out
     if names.is_empty() && !run && format == Format::Human && teleprompt_cli::ask::interactive() {
         let (chosen, tools) = teleprompt_cli::ask::choose(&setup).map_err(runtime_failure)?;
         let ran = teleprompt_cli::ask::confirm_install(&setup, &tools).map_err(runtime_failure)?;
-        let report = setup.report(&tools, ran);
+        let mut report = setup.report(&tools, ran);
+        report.voice = project_voice()?;
         emit(format, &report, &report.render(&chosen));
         return Ok(Outcome::Ok);
     }
@@ -580,9 +584,23 @@ fn run_setup(format: Format, names: &[String], run: bool) -> Result<Outcome, Out
     } else {
         Vec::new()
     };
-    let report = setup.report(&tools, ran);
+    let mut report = setup.report(&tools, ran);
+    if names.is_empty() {
+        report.voice = project_voice()?;
+    }
     emit(format, &report, &report.render(names));
     Ok(Outcome::Ok)
+}
+
+/// The voice of the project here, if this is one.
+fn project_voice() -> Result<Option<setup::ProjectVoice>, Outcome> {
+    let Ok(project) = Project::discover(std::path::Path::new(".")) else {
+        return Ok(None);
+    };
+    let voice = runtime()
+        .map_err(runtime_failure)?
+        .block_on(setup::project_voice(&project));
+    Ok(Some(voice))
 }
 
 fn runtime_failure(e: impl ToString) -> Outcome {
@@ -845,14 +863,7 @@ fn run(command: Command, format: Format) -> Run {
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }
-        Command::Doctor => {
-            let registry = teleprompt_cli::scene::scenes();
-            let report = runtime()
-                .map_err(runtime_failure)?
-                .block_on(doctor::doctor_report(&registry));
-            emit(format, &report, &report.render());
-            Ok(Outcome::Ok)
-        }
+        Command::Doctor { .. } => Err(replaced("doctor", "setup")),
         Command::Setup { uses: true, .. } => {
             let report = setup::Setup::detect().uses();
             emit(format, &report, &report.render());

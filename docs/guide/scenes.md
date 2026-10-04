@@ -40,7 +40,7 @@ for `vhs` and `playwright`.
 | [`x11`](#desktop-apps) | a Linux app's window | a few actions: keys, typing, the pointer | Xvfb, xdotool, ffmpeg |
 | [`macos`](#desktop-apps) | a Mac app's window | the same actions | ffmpeg, and two permissions |
 
-`teleprompt doctor` lists what this machine can record, and `teleprompt
+`teleprompt setup` lists what this machine can record with, and `teleprompt
 setup <adapter>` says what each needs that is missing, under which
 license, and the command that installs it with your own package manager
 (`--run` runs it). Teleprompt ships none of these tools.

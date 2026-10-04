@@ -1,4 +1,3 @@
-use teleprompt_cli::cmd::doctor::doctor_report;
 use teleprompt_cli::cmd::new::scaffold;
 use teleprompt_core::SpanMs;
 use teleprompt_scene::SceneRegistry;
@@ -77,29 +76,6 @@ fn the_gitignore_excludes_caches_and_build_output_but_not_timelines() {
     assert!(!ignore.contains("timelines/"));
     // Takes are source: nothing can record them again.
     assert!(!ignore.contains("takes"), "{ignore}");
-}
-
-#[tokio::test]
-async fn doctor_reports_available_adapters_and_backends() {
-    let r = doctor_report(&SceneRegistry::with_builtins()).await;
-    assert!(r.adapters.contains(&"mock".to_string()));
-    assert!(r.voice_backends.contains(&"null".to_string()));
-    assert!(r.voice_backends.contains(&"kokoro".to_string()));
-}
-
-/// `ok` is a verdict on the repository, not on the machine. Rendering is
-/// the only thing ffmpeg is needed for, and `check`, `plan`, `plan --check` and
-/// `dub` all work without one — so a machine with no ffmpeg is a machine
-/// that cannot run `build`, not a project in a bad state.
-#[tokio::test]
-async fn a_missing_ffmpeg_is_reported_without_turning_the_report_red() {
-    let r = doctor_report(&SceneRegistry::with_builtins()).await;
-    assert!(
-        r.notes.iter().any(|n| n.contains("ffmpeg")),
-        "{:?}",
-        r.notes
-    );
-    assert!(r.ok);
 }
 
 fn tempdir() -> teleprompt_testkit::TestDir {

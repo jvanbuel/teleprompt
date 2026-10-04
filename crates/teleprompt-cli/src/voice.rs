@@ -126,7 +126,7 @@ fn kokoro(settings: Option<&serde_yaml::Value>) -> Result<KokoroVoice, String> {
 
 impl Backends {
     /// Settings-free, so every backend gets its defaults. For callers with
-    /// no project config in hand — `doctor` outside a project, and tests.
+    /// no project config in hand, such as tests.
     pub fn defaults() -> Self {
         backends_for(&BTreeMap::new(), "teleprompt.toml")
     }
@@ -179,7 +179,7 @@ impl Backends {
         }
     }
 
-    /// The concrete Gemini handle, for `doctor`'s key check; only when `id`
+    /// The concrete Gemini handle, for `setup`'s key check; only when `id`
     /// is `gemini` and it constructed.
     pub fn gemini(&self, id: &str) -> Option<&Arc<GeminiVoice>> {
         self.gemini.as_ref().filter(|_| id == "gemini")
@@ -256,7 +256,7 @@ impl Backends {
     ///
     /// Separate from [`diagnostics`](Self::diagnostics): `check` asks
     /// whether this script compiles, which an unselected backend cannot
-    /// affect; `doctor` asks what is wrong, which it is.
+    /// affect; `setup` asks what is wrong, which it is.
     pub(crate) fn unusable_diagnostics(&self) -> Vec<Diagnostic> {
         self.unusable
             .iter()
@@ -265,5 +265,69 @@ impl Backends {
                     .in_file(self.config_file.clone())
             })
             .collect()
+    }
+}
+
+/// Shorter than a backend's own `timeout_ms`, which is sized for synthesis:
+/// listing voices runs no model, so a server this slow to answer is broken.
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(5_000);
+
+impl Backends {
+    /// What backend `id`'s server says, in one line: its address, whether it
+    /// answers, and its model and voices; `None` for a backend with no
+    /// server, such as `null`, or one whose settings did not build.
+    pub async fn probe(&self, id: &str) -> Option<String> {
+        let unreachable = |url: &str| {
+            format!(
+                "{url} — unreachable (no response within {}ms)",
+                PROBE_TIMEOUT.as_millis()
+            )
+        };
+        if let Some(voicebox) = self.voicebox(id) {
+            let url = voicebox.base_url().to_string();
+            return Some(
+                match tokio::time::timeout(PROBE_TIMEOUT, voicebox.profiles()).await {
+                    Ok(Ok(profiles)) => format!(
+                        "{url} — reachable, {}, voices: {}",
+                        voicebox.capabilities().version,
+                        if profiles.is_empty() {
+                            "none yet (`teleprompt voice clone`)".to_string()
+                        } else {
+                            let names: Vec<&str> =
+                                profiles.iter().map(|p| p.name.as_str()).collect();
+                            names.join(", ")
+                        }
+                    ),
+                    // In the backend's own words, which name the address: a
+                    // refused connection, a 500 and a bad voice list are
+                    // different fixes.
+                    Ok(Err(e)) => e.to_string(),
+                    Err(_) => unreachable(&url),
+                },
+            );
+        }
+        if let Some(gemini) = self.gemini(id) {
+            return Some(
+                match tokio::time::timeout(PROBE_TIMEOUT, gemini.check()).await {
+                    Ok(Ok(line)) => line,
+                    Ok(Err(e)) => e.to_string(),
+                    Err(_) => unreachable("gemini"),
+                },
+            );
+        }
+        let kokoro = self.kokoro(id)?;
+        let url = kokoro.base_url().to_string();
+        Some(
+            match tokio::time::timeout(PROBE_TIMEOUT, kokoro.voices()).await {
+                // The model beside the address: docs/design.md#voice-cache.
+                Ok(Ok(voices)) => format!(
+                    "{url} — reachable, model {}, {} voices",
+                    kokoro.capabilities().version,
+                    voices.len()
+                ),
+                Ok(Err(e)) => e.to_string(),
+                Err(_) => unreachable(&url),
+            },
+        )
     }
 }

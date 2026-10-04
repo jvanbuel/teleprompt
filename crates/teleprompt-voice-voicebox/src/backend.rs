@@ -20,7 +20,7 @@ impl VoiceboxVoice {
         })
     }
 
-    /// The voices on the server, for `doctor` and `voice clone`; never for
+    /// The voices on the server, for `setup` and `voice clone`; never for
     /// `check`, which does not touch the network.
     pub async fn profiles(&self) -> Result<Vec<Profile>, VoiceError> {
         self.client.profiles().await

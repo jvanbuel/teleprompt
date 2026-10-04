@@ -288,7 +288,7 @@ fn stats_count_entries_and_bytes() {
 }
 
 /// `stats` counted `.wav` files, so a WAV whose sidecar was lost — an
-/// interrupted `dub`, a half-deleted cache — showed up in `doctor` as an
+/// interrupted `dub`, a half-deleted cache — showed up in `cache`'s report as an
 /// entry. `lookup` keys off the sidecar and reads that same pair as a miss,
 /// so the count was reporting something the cache would not serve.
 #[test]
@@ -479,7 +479,7 @@ fn a_corrupt_sidecar_is_healed_by_the_next_store() {
 /// A store leaves nothing behind but the pair itself. Temp files are named
 /// per process and per call so two writers never share one, and both the
 /// success and the failure paths remove them — a crashed run must not
-/// litter a directory `doctor` reports the size of.
+/// litter a directory `cache` reports the size of.
 #[test]
 fn a_store_leaves_no_temporary_files_behind() {
     let root = tempdir("no-litter");

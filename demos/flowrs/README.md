@@ -23,7 +23,7 @@ tools/            an espeak-ng voice server, so the demo can be heard offline
 | `node` + `playwright` | `npm install` in this directory |
 | `vhs`, `ttyd`, `ffmpeg` | on `PATH` |
 
-`teleprompt doctor` reports on the last row. The first two are this demo's
+`teleprompt setup vhs` reports on the last row. The first two are this demo's
 own dependencies and it does not yet check them; if Airflow is down the
 browser scene records a connection error and the terminal scene records an
 empty DAG list, which is a confusing way to find out.

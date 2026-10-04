@@ -262,14 +262,14 @@ Sleep 1500ms
 
 # When something is wrong
 
-`teleprompt doctor` reports the environment teleprompt can see. It lists
-which scene adapters this build ships, which voice backends it knows, how
-warm the cache is, and whether the server your project points at is
-answering. {#doctor}
+`teleprompt setup` reports what teleprompt can use on this machine. It
+lists each tool the scenes and voices need, its license, and how to
+install it. It also says whether the voice server your project points at
+is answering. {#what-is-here}
 
 ```teleprompt scene=vhs
 Set TypingSpeed 35ms
-Type "teleprompt doctor"
+Type "teleprompt setup"
 Enter
 Sleep 3s
 ```
@@ -282,7 +282,7 @@ it. {#offline-by-default}
 
 ```teleprompt scene=vhs policy=concurrent
 Set TypingSpeed 30ms
-Type "teleprompt doctor --format json | grep -A3 voice_probe"
+Type "teleprompt setup --format json | grep -B2 -A2 answer"
 Enter
 Sleep 2s
 ```

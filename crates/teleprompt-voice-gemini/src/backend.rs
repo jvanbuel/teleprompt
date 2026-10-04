@@ -28,7 +28,7 @@ impl GeminiVoice {
         self.client.config().concurrency
     }
 
-    /// For `doctor`: the address, and whether the key opens the model.
+    /// For `setup`: the address, and whether the key opens the model.
     pub async fn check(&self) -> Result<String, VoiceError> {
         let name = self.client.model_name().await?;
         Ok(format!(

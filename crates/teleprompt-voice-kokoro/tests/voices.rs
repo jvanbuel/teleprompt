@@ -38,7 +38,7 @@ async fn a_bare_top_level_array_parses_identically() {
 
 #[tokio::test]
 async fn an_empty_voices_list_is_ok_not_an_error() {
-    // "The server has no voices" is a real state a caller (`doctor`, or
+    // "The server has no voices" is a real state a caller (`setup`, or
     // `dub`'s one-shot validation) should see and report, not an
     // exception raised on their behalf.
     let s = spawn(Reply::Ok(br#"{"voices": []}"#.to_vec())).await;
@@ -84,7 +84,7 @@ async fn an_unreachable_server_names_the_url() {
 /// failure (`a_timeout_names_the_url_and_the_limit` in `synth.rs`); `voices()`
 /// used to map every `send()` error, timeout included, to the same "cannot list
 /// voices: {e}" — and reqwest's `Display` drops the source chain, so a hang
-/// read identically to a refused connection. `doctor`'s probe is the caller
+/// read identically to a refused connection. `setup`'s probe is the caller
 /// that most needs the distinction, since it is the command reached for when
 /// something is broken.
 #[tokio::test]

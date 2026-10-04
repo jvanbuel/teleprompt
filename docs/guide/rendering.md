@@ -11,8 +11,8 @@ scene that has no clip yet, and renders `build/tour.en.mp4`. Narration is
 placed at the offsets the manifest published, each shot holds its
 scheduled slot, and transitions overlap the way the scheduler granted.
 `--resolution` and `--fps` override the script's `output:` block for one
-render, and `--out` writes somewhere else. `teleprompt doctor` reports
-whether this machine has an ffmpeg to render with.
+render, and `--out` writes somewhere else. `teleprompt setup ffmpeg` says
+whether this machine has an ffmpeg to render with, and how to install one.
 
 `build` reads the manifest it just published, exactly as an outside
 integrator does, so what you render and what you publish can't disagree.

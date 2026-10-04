@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::contract::VoiceBackend;
 
-/// Ordered so `doctor`'s output does not depend on insertion order. `Arc`
+/// Ordered so `setup`'s output does not depend on insertion order. `Arc`
 /// because `dub` shares a backend across concurrent synthesis tasks.
 #[derive(Default)]
 pub struct VoiceRegistry {

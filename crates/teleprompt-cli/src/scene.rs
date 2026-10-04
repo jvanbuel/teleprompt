@@ -7,7 +7,7 @@ use teleprompt_capture::record::NamedRecorder;
 use teleprompt_capture::{Adapter, CaptureRegistry};
 use teleprompt_scene::{MockScene, SceneRegistry};
 
-/// Every adapter, in the order `doctor` lists their capture backends.
+/// Every adapter, in the order `setup` and errors list them.
 fn adapters() -> Vec<Adapter> {
     vec![
         teleprompt_vhs::adapter(),
