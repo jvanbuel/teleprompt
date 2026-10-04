@@ -1,8 +1,8 @@
 //! Every program an adapter says it is missing is one `teleprompt setup
 //! <adapter>` knows how to install: the two lists cannot drift apart.
 
-use teleprompt_capture::tool::NOT_ON_PATH;
 use teleprompt_cli::cmd::setup::resolve;
+use teleprompt_plugin::tool::NOT_ON_PATH;
 
 #[test]
 fn setup_covers_every_program_an_adapter_finds_missing() {

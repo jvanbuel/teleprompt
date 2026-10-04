@@ -10,6 +10,6 @@ pub use capture::SlidevRender;
 pub use scene::SlidevScene;
 
 /// The adapter, to register.
-pub fn adapter() -> teleprompt_capture::Adapter {
-    teleprompt_capture::Adapter::new(SlidevScene, SlidevRender::default())
+pub fn adapter() -> teleprompt_plugin::Adapter {
+    teleprompt_plugin::Adapter::new(SlidevScene, SlidevRender::default())
 }

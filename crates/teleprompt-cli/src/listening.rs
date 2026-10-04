@@ -3,7 +3,7 @@
 //! runs a speech model.
 
 use teleprompt_listen::SpeakerSpan;
-use teleprompt_voice::Pcm;
+use teleprompt_plugin::voice::Pcm;
 
 #[cfg(feature = "listen")]
 use crate::cmd::setup;
@@ -89,8 +89,10 @@ pub fn hear(_: &Pcm, _: Option<usize>) -> Result<Conversation, String> {
 /// `pcm` as the speech models take it: floats at 16 kHz.
 #[cfg(feature = "listen")]
 pub fn at_16k(pcm: &Pcm) -> Vec<f32> {
-    let mut resampler =
-        teleprompt_voice::Resampler::new(pcm.sample_rate, teleprompt_listen_sherpa::SAMPLE_RATE);
+    let mut resampler = teleprompt_plugin::voice::Resampler::new(
+        pcm.sample_rate,
+        teleprompt_listen_sherpa::SAMPLE_RATE,
+    );
     let mut samples = Vec::new();
     for block in pcm.samples.chunks(1 << 16) {
         let block: Vec<f32> = block.iter().map(|&s| f32::from(s) / 32768.0).collect();

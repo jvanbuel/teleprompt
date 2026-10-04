@@ -53,7 +53,7 @@ impl Tool {
     /// Whether it is here, or `None` when `setup` cannot tell.
     pub fn installed(&self, project: &Path, models: &Path) -> Option<bool> {
         match self.found {
-            Found::Program(p) => Some(teleprompt_capture::tool::installed(p)),
+            Found::Program(p) => Some(teleprompt_plugin::tool::installed(p)),
             Found::Package(p) => Some(project.join("node_modules").join(p).is_dir()),
             Found::Model(m) => Some(models.join(m).is_dir()),
             Found::Unknowable => None,

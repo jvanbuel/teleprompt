@@ -1,8 +1,8 @@
 //! A line played faster or slower for `fit-line`, keeping its pitch
 //! (docs/design.md#led-by-the-picture).
 
+use teleprompt_plugin::voice::Pcm;
 use teleprompt_voice::stretch::stretch;
-use teleprompt_voice::Pcm;
 
 const RATE: u32 = 24_000;
 
@@ -162,8 +162,8 @@ fn stretched_to_a_length_it_is_exactly_that_long() {
 
 #[test]
 fn a_wav_is_fitted_as_its_samples_are() {
+    use teleprompt_plugin::voice::wav;
     use teleprompt_voice::stretch::{fit_wav, stretch_to};
-    use teleprompt_voice::wav;
     let line = tone(220.0, 1.0, 1);
     let fitted = fit_wav(&wav::encode(&line), 1150, 870).unwrap();
     assert_eq!(fitted, wav::encode(&stretch_to(&line, 1150, 870)));

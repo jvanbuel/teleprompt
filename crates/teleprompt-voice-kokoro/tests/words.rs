@@ -4,7 +4,7 @@ mod stub;
 
 use base64::Engine;
 use stub::{spawn, Reply};
-use teleprompt_voice::{SynthRequest, VoiceBackend};
+use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
 
 fn req() -> SynthRequest {

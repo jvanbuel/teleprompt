@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
-use teleprompt_voice::with_causes;
+use teleprompt_plugin::voice::with_causes;
 
 use serde::Deserialize;
-use teleprompt_voice::{Pcm, VoiceError};
+use teleprompt_plugin::voice::{Pcm, VoiceError};
 
 use crate::config::VoiceboxConfig;
 
@@ -208,6 +208,7 @@ impl Client {
                 with_causes(&e)
             ))
         })?;
-        teleprompt_voice::wav::decode(&bytes).map_err(|e| self.fail(&format!("its audio: {e}")))
+        teleprompt_plugin::voice::wav::decode(&bytes)
+            .map_err(|e| self.fail(&format!("its audio: {e}")))
     }
 }

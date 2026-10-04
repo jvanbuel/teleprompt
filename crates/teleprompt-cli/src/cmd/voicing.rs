@@ -12,8 +12,8 @@ use teleprompt_cache::VoiceCache;
 use teleprompt_compile::publish::{self, LineAudio, Published};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_manifest::NarrationManifest;
+use teleprompt_plugin::voice::VoiceBackend;
 use teleprompt_voice::takes::Takes;
-use teleprompt_voice::VoiceBackend;
 
 use crate::project::Project;
 

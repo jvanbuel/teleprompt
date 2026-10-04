@@ -1,8 +1,8 @@
 //! The reference backend: silence of exactly the estimated length, for
 //! `check`, `plan` and tests, and every project until it picks a voice.
 
-use crate::async_trait;
-use crate::{
+use teleprompt_plugin::voice::async_trait;
+use teleprompt_plugin::voice::{
     LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
 };
 

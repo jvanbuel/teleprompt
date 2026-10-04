@@ -1,4 +1,4 @@
-use teleprompt_voice::{
+use teleprompt_plugin::voice::{
     async_trait, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
     VoiceError,
 };

@@ -17,10 +17,13 @@ use teleprompt_core::{
     BlockId, Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind,
     ShotId, SourceSpan,
 };
-use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot};
+use teleprompt_plugin::scene::{
+    BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot,
+};
+use teleprompt_plugin::voice::{SynthRequest, WordTiming};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
 use teleprompt_voice::takes::{TakeMeta, Takes};
-use teleprompt_voice::{DurationEstimator, SynthRequest, WordTiming};
+use teleprompt_voice::DurationEstimator;
 
 pub mod length;
 pub mod manifest;
@@ -354,7 +357,7 @@ fn chain_capture_keys(
 /// describes them: directories recursively in a stable order, skipping
 /// `node_modules` and dot-entries. Empty when there is nothing to read.
 ///
-/// [`SceneCompiler::inputs`]: teleprompt_scene::SceneCompiler::inputs
+/// [`SceneCompiler::inputs`]: teleprompt_plugin::scene::SceneCompiler::inputs
 fn fingerprint(paths: &[std::path::PathBuf]) -> String {
     fn walk(path: &Path, out: &mut Vec<String>) {
         if path.is_dir() {

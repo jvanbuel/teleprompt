@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 base64.workspace = true
-teleprompt-voice = { path = "../teleprompt-voice" }
+teleprompt-plugin = { path = "../teleprompt-plugin" }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

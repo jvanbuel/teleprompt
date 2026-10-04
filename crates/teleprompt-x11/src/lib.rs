@@ -20,6 +20,6 @@ pub const SCENE: teleprompt_desktop::DesktopScene =
     teleprompt_desktop::DesktopScene { kind: ADAPTER };
 
 /// The adapter, to register.
-pub fn adapter() -> teleprompt_capture::Adapter {
-    teleprompt_capture::Adapter::new(SCENE, X11Render::default())
+pub fn adapter() -> teleprompt_plugin::Adapter {
+    teleprompt_plugin::Adapter::new(SCENE, X11Render::default())
 }

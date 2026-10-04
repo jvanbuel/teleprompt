@@ -9,6 +9,7 @@ license.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-listen = { path = "../teleprompt-listen" }
+teleprompt-plugin = { path = "../teleprompt-plugin" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 
 [dev-dependencies]

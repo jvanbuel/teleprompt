@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use teleprompt_core::Hash;
 
-use crate::{wav, Pcm};
+use teleprompt_plugin::voice::{wav, Pcm};
 
 /// What a take's sidecar holds. Enough to schedule the line without reading
 /// its audio.

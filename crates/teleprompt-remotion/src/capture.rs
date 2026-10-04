@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
+use teleprompt_plugin::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
 use crate::scene::parse;
 
@@ -72,7 +72,7 @@ impl Default for RemotionRender {
 
 impl CaptureBackend for RemotionRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_capture::tool::missing(&[&self.node])
+        teleprompt_plugin::tool::missing(&[&self.node])
     }
 
     fn needs(&self) -> &'static [&'static str] {
@@ -119,7 +119,7 @@ impl CaptureBackend for RemotionRender {
             .and_then(|()| std::fs::write(&job_file, job.to_string()))
             .map_err(|e| failed(&first, format!("{}: {e}", work.display())))
             .and_then(|()| {
-                teleprompt_capture::tool::run(
+                teleprompt_plugin::tool::run(
                     Command::new(&self.node)
                         .arg(&script)
                         .arg(&job_file)

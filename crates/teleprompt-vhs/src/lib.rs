@@ -12,6 +12,6 @@ pub use record::VhsRecorder;
 pub use scene::VhsScene;
 
 /// The adapter, to register.
-pub fn adapter() -> teleprompt_capture::Adapter {
-    teleprompt_capture::Adapter::new(VhsScene, VhsRender::default()).recorded_with(VhsRecorder)
+pub fn adapter() -> teleprompt_plugin::Adapter {
+    teleprompt_plugin::Adapter::new(VhsScene, VhsRender::default()).recorded_with(VhsRecorder)
 }

@@ -6,8 +6,8 @@
 
 use std::collections::HashSet;
 
-use teleprompt_capture::{sessions, PlannedShot};
 use teleprompt_core::Hash;
+use teleprompt_plugin::capture::{sessions, PlannedShot};
 
 fn shot(shot: &str, scene: &str, source: &str) -> PlannedShot {
     PlannedShot {
@@ -152,7 +152,7 @@ fn a_pause_is_not_captured() {
 #[test]
 fn a_scene_kind_with_no_backend_has_none_rather_than_a_broken_one() {
     use std::path::Path;
-    use teleprompt_capture::{
+    use teleprompt_plugin::capture::{
         CaptureBackend, CaptureError, CaptureRegistry, Clip, Frame, Progress, Session,
     };
 

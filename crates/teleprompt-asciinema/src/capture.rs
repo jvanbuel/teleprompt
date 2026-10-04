@@ -9,8 +9,8 @@
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_capture::reel::{cut, starved, windows};
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
+use teleprompt_plugin::capture::reel::{cut, starved, windows};
+use teleprompt_plugin::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
 use crate::scene::{parse, write, Cast, Event};
 
@@ -74,7 +74,7 @@ impl Default for AsciinemaRender {
 
 impl CaptureBackend for AsciinemaRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_capture::tool::missing(&[&self.agg, &self.ffmpeg])
+        teleprompt_plugin::tool::missing(&[&self.agg, &self.ffmpeg])
     }
 
     fn needs(&self) -> &'static [&'static str] {
@@ -208,7 +208,7 @@ impl AsciinemaRender {
         failed: &dyn Fn(&str, String) -> CaptureError,
     ) -> Result<(), CaptureError> {
         let program = command.get_program().to_string_lossy().to_string();
-        teleprompt_capture::tool::run(command, &program, 4)
+        teleprompt_plugin::tool::run(command, &program, 4)
             .map(|_| ())
             .map_err(|why| failed(first, why))
     }

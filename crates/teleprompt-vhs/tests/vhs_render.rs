@@ -14,8 +14,8 @@
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_capture::{sessions, CaptureBackend, Frame, PlannedShot};
 use teleprompt_core::Hash;
+use teleprompt_plugin::capture::{sessions, CaptureBackend, Frame, PlannedShot};
 use teleprompt_vhs::capture::VhsRender;
 
 /// Try the capture, and treat a failure as a skip unless this machine is
@@ -27,10 +27,10 @@ use teleprompt_vhs::capture::VhsRender;
 /// cheap `unavailable()` deliberately does not try to know that, so this
 /// finds out the only way there is.
 fn recorded(
-    session: &teleprompt_capture::Session,
+    session: &teleprompt_plugin::capture::Session,
     frame: &Frame,
     dir: &Path,
-) -> Option<Vec<teleprompt_capture::Clip>> {
+) -> Option<Vec<teleprompt_plugin::capture::Clip>> {
     match VhsRender::default().capture(session, frame, dir, &mut |_| {}) {
         Ok(clips) => Some(clips),
         Err(why) => {

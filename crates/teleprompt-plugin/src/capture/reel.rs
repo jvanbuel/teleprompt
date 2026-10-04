@@ -7,7 +7,7 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use crate::Session;
+use super::Session;
 
 /// Where each shot begins in the reel, and how long it runs: the scheduled
 /// durations, accumulated. For a re-timed tape these are what the reel was

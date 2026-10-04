@@ -5,8 +5,10 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
 use teleprompt_desktop::run::{cut_clips, failed, get_ready, play, uses_pointer, Failure, Reel};
+use teleprompt_plugin::capture::{
+    CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir,
+};
 
 use crate::xdo::{xdotool, Window};
 use crate::ADAPTER;
@@ -48,7 +50,7 @@ impl Drop for Owned {
 
 impl CaptureBackend for X11Render {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_capture::tool::missing(&[&self.xvfb, &self.xdotool, &self.ffmpeg])
+        teleprompt_plugin::tool::missing(&[&self.xvfb, &self.xdotool, &self.ffmpeg])
     }
 
     fn needs(&self) -> &'static [&'static str] {
@@ -260,7 +262,7 @@ fn launch(command: &str, display: &str, session: &Session, log: &Path) -> Result
         .try_clone()
         .map_err(|e| format!("{}: {e}", log.display()))?;
     let dbus = session.setting("dbus", "true") != "false"
-        && teleprompt_capture::tool::installed("dbus-run-session");
+        && teleprompt_plugin::tool::installed("dbus-run-session");
     let mut run = if dbus {
         let mut c = Command::new("dbus-run-session");
         c.args(["--", "sh", "-c"]);
@@ -289,7 +291,7 @@ fn launch(command: &str, display: &str, session: &Session, log: &Path) -> Result
 /// `why`, and what the app said last, which is usually the reason.
 fn with_log(why: String, log: &Path) -> String {
     let said = std::fs::read_to_string(log).unwrap_or_default();
-    match teleprompt_capture::tool::tail(&said, 4) {
+    match teleprompt_plugin::tool::tail(&said, 4) {
         tail if tail.is_empty() => why,
         tail => format!("{why}; it said: {tail}"),
     }

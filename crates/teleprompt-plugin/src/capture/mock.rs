@@ -10,7 +10,7 @@ use std::process::{Command, Stdio};
 
 use teleprompt_core::Hash;
 
-use crate::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
+use super::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
 #[derive(Debug, Clone)]
 pub struct MockCapture {

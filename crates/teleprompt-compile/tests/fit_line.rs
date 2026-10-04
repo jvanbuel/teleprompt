@@ -9,7 +9,7 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::{Diagnostics, PolicyKind, SpanMs, Tempo};
-use teleprompt_scene::SceneRegistry;
+use teleprompt_plugin::scene::SceneRegistry;
 use teleprompt_voice::WpmEstimator;
 
 const LINE: &str = "Deployment is one command, and it streams progress as it goes. {#deploy}";

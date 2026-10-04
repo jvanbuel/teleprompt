@@ -2,9 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use teleprompt_capture::{CaptureBackend, Frame, Session, SessionShot};
 use teleprompt_core::Hash;
 use teleprompt_playwright::capture::PlaywrightRender;
+use teleprompt_plugin::capture::{CaptureBackend, Frame, Session, SessionShot};
 
 #[test]
 fn a_capture_that_cannot_run_leaves_no_work_dir() {

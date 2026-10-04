@@ -12,6 +12,6 @@ pub use capture::RemotionRender;
 pub use scene::RemotionScene;
 
 /// The adapter, to register.
-pub fn adapter() -> teleprompt_capture::Adapter {
-    teleprompt_capture::Adapter::new(RemotionScene, RemotionRender::default())
+pub fn adapter() -> teleprompt_plugin::Adapter {
+    teleprompt_plugin::Adapter::new(RemotionScene, RemotionRender::default())
 }

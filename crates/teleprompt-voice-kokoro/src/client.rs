@@ -1,6 +1,6 @@
 use base64::Engine;
-use teleprompt_voice::with_causes;
-use teleprompt_voice::{Pcm, VoiceError, WordTiming};
+use teleprompt_plugin::voice::with_causes;
+use teleprompt_plugin::voice::{Pcm, VoiceError, WordTiming};
 
 use crate::config::{KokoroConfig, KOKORO_SAMPLE_RATE};
 

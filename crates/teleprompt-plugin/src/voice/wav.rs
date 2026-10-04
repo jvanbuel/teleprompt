@@ -3,7 +3,7 @@
 
 use std::io::Read;
 
-use crate::contract::Pcm;
+use super::Pcm;
 
 const HEADER_LEN: usize = 44;
 const BITS_PER_SAMPLE: u16 = 16;

@@ -9,9 +9,9 @@ use teleprompt_core::ident::check_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_manifest::{AudioInfo, MANIFEST_VERSION};
-use teleprompt_scene::SceneRegistry;
+use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::voice::{Pcm, WordTiming};
 use teleprompt_voice::WpmEstimator;
-use teleprompt_voice::{Pcm, WordTiming};
 
 fn program_for(src: &str) -> Program {
     let parsed = parse_script(src).expect("fixture parses");

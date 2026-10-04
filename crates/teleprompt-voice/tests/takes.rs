@@ -1,8 +1,8 @@
 //! Recorded takes: one per line, kept beside the script as source, and
 //! current only while the line still reads as it did when recorded.
 
+use teleprompt_plugin::voice::Pcm;
 use teleprompt_voice::takes::Takes;
-use teleprompt_voice::Pcm;
 
 fn pcm(ms: usize) -> Pcm {
     Pcm {
@@ -156,7 +156,7 @@ fn a_take_retexted_is_current_for_its_new_words() {
 fn takes_are_listed_by_line() {
     let dir = teleprompt_testkit::test_dir("takes-list");
     let mut takes = teleprompt_voice::takes::Takes::load(dir.path()).unwrap();
-    let pcm = teleprompt_voice::Pcm {
+    let pcm = teleprompt_plugin::voice::Pcm {
         sample_rate: 16_000,
         channels: 1,
         samples: vec![0; 16_000],

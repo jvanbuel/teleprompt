@@ -3,34 +3,41 @@
 
     python3 tools/check_deps.py
 
-The layering is docs/design.md#crates: core at the bottom; schedule,
-scene, voice, capture and manifest on core alone and not on one another;
+The layering is docs/design.md#crates: core at the bottom; the plugin
+contracts, schedule and manifest on core alone and not on one another;
 compile where they meet; render reading the manifest, not the compiler;
-adapters on the scene and capture contracts; and only the CLI knowing
-every adapter and backend by name. A new dependency between workspace
+every plugin, adapter or voice, on the plugin contracts alone; and only
+the CLI knowing every plugin by name. A new dependency between workspace
 crates has to be added here, which is where the argument for it belongs.
 Dev-dependencies are not checked.
+
+The plugin crate holds every contract, capturing included, so the crates
+that plan a video are also kept from its capture, record and tool modules
+by name: nothing that plans a video can run a tool.
 """
 
 import json
+import pathlib
+import re
 import subprocess
 import sys
 
-# An adapter depends on capture, which re-exports the scene contract.
-ADAPTER = {"core", "capture"}
+# A plugin depends on the contracts it implements, and nothing else of
+# teleprompt's: what an outside plugin can do, the built-in ones do.
+PLUGIN = {"core", "plugin"}
+ADAPTER = PLUGIN
 
 ALLOWED = {
     "core": set(),
     "schedule": {"core"},
-    "scene": {"core"},
-    "voice": {"core"},
-    "capture": {"core", "scene"},
+    "plugin": {"core"},
+    "voice": {"core", "plugin"},
     "manifest": {"core"},
-    "cache": {"core", "voice"},
-    "voice-kokoro": {"core", "voice"},
-    "voice-voicebox": {"voice"},
-    "voice-gemini": {"voice"},
-    "compile": {"core", "scene", "schedule", "voice", "cache", "manifest"},
+    "cache": {"core", "plugin"},
+    "voice-kokoro": PLUGIN,
+    "voice-voicebox": PLUGIN,
+    "voice-gemini": PLUGIN,
+    "compile": {"core", "plugin", "schedule", "voice", "cache", "manifest"},
     "render": {"core", "manifest"},
     "vhs": ADAPTER,
     "asciinema": ADAPTER,
@@ -49,7 +56,7 @@ ALLOWED = {
     # recognizer hears.
     "derive": {"core", "listen"},
     "listen-sherpa": {"listen"},
-    "prompter": {"core", "compile", "listen", "voice"},
+    "prompter": {"core", "compile", "listen", "plugin", "voice"},
     # The protocol and the text; the compile reaches it through a trait
     # the CLI implements.
     "lsp": {"core"},
@@ -58,6 +65,18 @@ ALLOWED = {
 }
 
 PREFIX = "teleprompt-"
+
+# What plans a video, and so reads a scene's shots without running its tool.
+PLANS = {"schedule", "manifest", "voice", "cache", "compile", "prompter"}
+RUNS_TOOLS = re.compile(r"teleprompt_plugin::(capture|record|tool)\b")
+
+
+def runs_tools(crate):
+    """The sources of `crate` that reach a module that runs tools."""
+    src = pathlib.Path("crates") / f"{PREFIX}{crate}" / "src"
+    return [
+        str(p) for p in sorted(src.rglob("*.rs")) if RUNS_TOOLS.search(p.read_text())
+    ]
 
 
 def short(name):
@@ -85,6 +104,9 @@ def main():
                 continue
             if short(dep["name"]) not in allowed:
                 problems.append(f"{crate} depends on {short(dep['name'])}, which it may not")
+    for crate in sorted(PLANS):
+        for path in runs_tools(crate):
+            problems.append(f"{path} uses the plugin crate's capture, record or tool module")
     for p in problems:
         print(f"error: {p}", file=sys.stderr)
     if problems:

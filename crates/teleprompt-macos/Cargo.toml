@@ -6,9 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-desktop = { path = "../teleprompt-desktop" }
 
+teleprompt-plugin = { path = "../teleprompt-plugin" }
 [lints]
 workspace = true

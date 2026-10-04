@@ -10,7 +10,7 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::Diagnostics;
-use teleprompt_scene::SceneRegistry;
+use teleprompt_plugin::scene::SceneRegistry;
 use teleprompt_voice::WpmEstimator;
 
 fn compile_it(body: &str) -> Result<CompileOutput, Diagnostics> {

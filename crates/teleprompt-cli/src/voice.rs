@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use teleprompt_core::Diagnostic;
+use teleprompt_plugin::voice::VoiceBackend;
 use teleprompt_voice::NullVoice;
-use teleprompt_voice::{VoiceBackend, VoiceRegistry};
+use teleprompt_voice::VoiceRegistry;
 use teleprompt_voice_gemini::{GeminiConfig, GeminiVoice};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
 use teleprompt_voice_voicebox::{VoiceboxConfig, VoiceboxVoice};

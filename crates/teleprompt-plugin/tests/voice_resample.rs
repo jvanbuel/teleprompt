@@ -1,7 +1,7 @@
 //! Changing a recording's sample rate: the microphone's to the
 //! recognizer's, and a take's to the rate the rest of the narration has.
 
-use teleprompt_voice::resample;
+use teleprompt_plugin::voice::resample;
 
 fn sine(hz: f64, rate: u32, seconds: f64) -> Vec<f32> {
     let n = (rate as f64 * seconds) as usize;
@@ -63,7 +63,7 @@ fn resampled_audio_keeps_its_length_to_the_millisecond() {
         (48_000, 44_100, 1001),
         (16_000, 48_000, 7),
     ] {
-        let pcm = teleprompt_voice::Pcm {
+        let pcm = teleprompt_plugin::voice::Pcm {
             sample_rate: from,
             channels: 1,
             samples: vec![100; (ms * from as u64 / 1000) as usize],
@@ -82,7 +82,7 @@ fn resampling_in_chunks_is_resampling_all_at_once() {
     let s = sine(440.0, 48_000, 1.0);
     for (from, to) in [(48_000, 16_000), (44_100, 16_000), (16_000, 48_000)] {
         let whole = resample(&s, from, to);
-        let mut streaming = teleprompt_voice::Resampler::new(from, to);
+        let mut streaming = teleprompt_plugin::voice::Resampler::new(from, to);
         let mut pieces = Vec::new();
         for chunk in s.chunks(4_801) {
             pieces.extend(streaming.push(chunk));

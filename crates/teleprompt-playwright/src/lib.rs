@@ -13,7 +13,7 @@ pub use record::PlaywrightRecorder;
 pub use scene::PlaywrightScene;
 
 /// The adapter, to register.
-pub fn adapter() -> teleprompt_capture::Adapter {
-    teleprompt_capture::Adapter::new(PlaywrightScene, PlaywrightRender::default())
+pub fn adapter() -> teleprompt_plugin::Adapter {
+    teleprompt_plugin::Adapter::new(PlaywrightScene, PlaywrightRender::default())
         .recorded_with(PlaywrightRecorder)
 }

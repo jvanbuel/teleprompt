@@ -1,7 +1,7 @@
 //! What the contract offers someone implementing it from outside.
 
-use teleprompt_voice::async_trait;
-use teleprompt_voice::{
+use teleprompt_plugin::voice::async_trait;
+use teleprompt_plugin::voice::{
     LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
 };
 

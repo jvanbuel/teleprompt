@@ -195,7 +195,7 @@ pub async fn run_build_with(
 /// and check the warning and slate that follow.
 pub async fn run_build_with_capture(
     renderer: &IncrementalRenderer,
-    captures: &teleprompt_capture::CaptureRegistry,
+    captures: &teleprompt_plugin::capture::CaptureRegistry,
     project: &Project,
     script: &Path,
     locale: &str,
@@ -221,7 +221,7 @@ pub async fn run_build_with_capture(
         &dubbed.scenes,
         captures,
         &options.clips_dir,
-        teleprompt_capture::Frame { width, height, fps },
+        teleprompt_plugin::capture::Frame { width, height, fps },
         &mut |_| {},
     );
     warnings.extend(recorded.warnings);

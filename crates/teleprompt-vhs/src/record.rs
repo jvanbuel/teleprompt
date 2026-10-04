@@ -11,10 +11,10 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
-use teleprompt_capture::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
-use teleprompt_capture::scene::{Measured, SceneCompiler, Shot};
-use teleprompt_capture::tool::missing;
 use teleprompt_core::{BlockId, Hash};
+use teleprompt_plugin::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_plugin::scene::{Measured, SceneCompiler, Shot};
+use teleprompt_plugin::tool::missing;
 
 use crate::VhsScene;
 

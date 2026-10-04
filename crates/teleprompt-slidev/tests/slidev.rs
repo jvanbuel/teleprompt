@@ -1,7 +1,7 @@
 //! The slides scene: a slide of an existing Slidev deck, at a click step.
 
-use teleprompt_capture::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_core::{BlockId, SourceSpan};
+use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_slidev::capture::{range, still_name};
 use teleprompt_slidev::scene::{parse, Step};
 use teleprompt_slidev::SlidevScene;

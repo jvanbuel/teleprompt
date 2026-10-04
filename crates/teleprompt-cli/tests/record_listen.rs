@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-use teleprompt_voice::{wav, Pcm};
+use teleprompt_plugin::voice::{wav, Pcm};
 
 #[test]
 fn a_recorded_session_becomes_a_script_spoken_in_the_recording() {

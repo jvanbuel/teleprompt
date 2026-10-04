@@ -8,8 +8,10 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use teleprompt_capture::reel::{cut, starved, windows};
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
+use teleprompt_plugin::capture::reel::{cut, starved, windows};
+use teleprompt_plugin::capture::{
+    CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir,
+};
 
 /// The tape `vhs` runs for a whole session, writing its video to `output`.
 pub(crate) fn tape_for(session: &Session, frame: &Frame, output: &str) -> String {
@@ -97,7 +99,7 @@ impl CaptureBackend for VhsRender {
         // and a probe recording would take a minute. A `vhs` that is
         // installed but records nothing is caught in `capture`, and its
         // session renders as slates with the reason.
-        teleprompt_capture::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
+        teleprompt_plugin::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
     }
 
     fn needs(&self) -> &'static [&'static str] {
@@ -215,8 +217,8 @@ impl CaptureBackend for VhsRender {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_capture::SessionShot;
     use teleprompt_core::Hash;
+    use teleprompt_plugin::capture::SessionShot;
 
     fn session(shots: &[(&str, u64)]) -> Session {
         Session {

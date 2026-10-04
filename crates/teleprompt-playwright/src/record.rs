@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use teleprompt_capture::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_plugin::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PlaywrightRecorder;

@@ -7,9 +7,9 @@
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_capture::mock::MockCapture;
-use teleprompt_capture::{sessions, CaptureBackend, Frame, PlannedShot};
 use teleprompt_core::Hash;
+use teleprompt_plugin::capture::mock::MockCapture;
+use teleprompt_plugin::capture::{sessions, CaptureBackend, Frame, PlannedShot};
 
 fn have_ffmpeg() -> bool {
     let present = Command::new("ffmpeg")

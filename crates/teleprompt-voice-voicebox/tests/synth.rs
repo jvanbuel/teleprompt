@@ -6,11 +6,11 @@ mod stub;
 use std::collections::BTreeMap;
 
 use stub::{spawn, Reply};
-use teleprompt_voice::{Pcm, SynthRequest, VoiceBackend};
+use teleprompt_plugin::voice::{Pcm, SynthRequest, VoiceBackend};
 use teleprompt_voice_voicebox::{VoiceboxConfig, VoiceboxVoice};
 
 fn wav() -> Vec<u8> {
-    teleprompt_voice::wav::encode(&Pcm {
+    teleprompt_plugin::voice::wav::encode(&Pcm {
         sample_rate: 24_000,
         channels: 1,
         samples: vec![100; 2400],

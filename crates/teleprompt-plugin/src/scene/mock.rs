@@ -4,7 +4,7 @@
 use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
-use crate::contract::{
+use super::contract::{
     validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
 };
 

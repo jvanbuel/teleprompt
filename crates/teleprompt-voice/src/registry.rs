@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use crate::contract::VoiceBackend;
+use teleprompt_plugin::voice::VoiceBackend;
 
 /// Ordered so `setup`'s output does not depend on insertion order. `Arc`
 /// because `dub` shares a backend across concurrent synthesis tasks.

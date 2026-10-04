@@ -12,13 +12,13 @@ use std::sync::Arc;
 use teleprompt_core::{DurationSource, SpanMs};
 
 use teleprompt_cli::project::Project;
-use teleprompt_voice::async_trait;
+use teleprompt_plugin::voice::async_trait;
+use teleprompt_plugin::voice::{
+    LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
+};
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::WpmEstimator;
-use teleprompt_voice::{
-    DurationEstimator, LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend,
-    VoiceCapabilities, VoiceError, VoiceRegistry,
-};
+use teleprompt_voice::{DurationEstimator, VoiceRegistry};
 
 /// A backend that is not `null`: a different id, a different version, a
 /// different sample rate, and audible samples rather than silence.

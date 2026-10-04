@@ -8,12 +8,12 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_capture::{
-    sessions, CaptureRegistry, Frame, PlannedShot, Progress, Session, WorkDir,
-};
 use teleprompt_compile::ShotSource;
 use teleprompt_core::config::SceneConfig;
 use teleprompt_manifest::NarrationManifest;
+use teleprompt_plugin::capture::{
+    sessions, CaptureRegistry, Frame, PlannedShot, Progress, Session, WorkDir,
+};
 
 /// The shots of a published manifest, as the planner needs them.
 ///
@@ -261,7 +261,7 @@ pub struct Args {
 
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     let project = args.script.project()?;
-    let mut progress = |p: teleprompt_capture::Progress| {
+    let mut progress = |p: teleprompt_plugin::capture::Progress| {
         crate::output::progress(
             "capture",
             || format!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot),
@@ -284,8 +284,8 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_capture::{CaptureBackend, CaptureError, Clip, SessionShot};
     use teleprompt_core::Hash;
+    use teleprompt_plugin::capture::{CaptureBackend, CaptureError, Clip, SessionShot};
 
     /// Writes each wanted shot's clip, then fails if told to.
     struct Writes {

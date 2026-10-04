@@ -13,11 +13,11 @@
 
 use std::path::{Path, PathBuf};
 
-use teleprompt_capture::scene::contract::{
-    split_at_mark, validate_parts, BlockSource, Measured, SceneCompiler, Shot, Validated,
-};
 use teleprompt_core::config::SceneConfig;
 use teleprompt_core::{BlockId, Diagnostic, Hash};
+use teleprompt_plugin::scene::contract::{
+    split_at_mark, validate_parts, BlockSource, Measured, SceneCompiler, Shot, Validated,
+};
 
 /// The mark, and `#` comments generally — the shell's spelling, since a
 /// shot reads like the arguments to `remotion render`. A shot after a mark

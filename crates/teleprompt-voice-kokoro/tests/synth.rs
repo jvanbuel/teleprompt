@@ -1,7 +1,7 @@
 mod stub;
 
 use stub::{spawn, Reply};
-use teleprompt_voice::{SynthRequest, VoiceBackend, VoiceError};
+use teleprompt_plugin::voice::{SynthRequest, VoiceBackend, VoiceError};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice, KOKORO_SAMPLE_RATE};
 
 fn req(text: &str) -> SynthRequest {

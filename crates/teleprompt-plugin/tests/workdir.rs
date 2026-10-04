@@ -1,4 +1,4 @@
-use teleprompt_capture::WorkDir;
+use teleprompt_plugin::capture::WorkDir;
 
 #[test]
 fn a_work_dir_is_removed_with_everything_in_it_when_dropped() {

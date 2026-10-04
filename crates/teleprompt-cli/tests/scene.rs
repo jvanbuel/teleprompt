@@ -2,7 +2,7 @@
 //! reach.
 //!
 //! `SceneRegistry::with_builtins()` carries only the adapters inside
-//! `teleprompt-scene`, so an adapter living in its own crate is reachable
+//! `teleprompt_plugin::scene`, so an adapter living in its own crate is reachable
 //! only if something adds it. That something is `scene::scenes()`, and these
 //! tests are what catch a command compiling against the narrower registry —
 //! which fails `scene=terminal` with "no adapter `vhs` is available" on a
@@ -10,7 +10,7 @@
 
 use teleprompt_cli::scene::scenes;
 use teleprompt_core::SpanMs;
-use teleprompt_scene::SceneCompiler;
+use teleprompt_plugin::scene::SceneCompiler;
 
 #[test]
 fn the_registry_serves_every_adapter_this_build_ships() {
@@ -57,7 +57,7 @@ fn an_unknown_adapter_is_not_served() {
 #[tokio::test]
 async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     use teleprompt_cli::project::Project;
-    use teleprompt_scene::Measured;
+    use teleprompt_plugin::scene::Measured;
 
     let dir = teleprompt_testkit::test_dir("stretch");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
@@ -94,7 +94,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
         .find(|s| s.id == entry.shot)
         .expect("its source is published");
 
-    let shot = teleprompt_scene::Shot {
+    let shot = teleprompt_plugin::scene::Shot {
         id: published.id.clone(),
         source: published.source.clone(),
         hash: entry.shot_hash,

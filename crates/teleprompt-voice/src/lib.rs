@@ -1,22 +1,14 @@
-pub use async_trait::async_trait;
-/// Re-exported so a backend uses the same macro version as
-/// [`VoiceBackend`]; a mismatched copy fails with a confusing type error.
-pub use teleprompt_core::error::with_causes;
+//! The voice engine: what speaks a line when no plugin does (`null`), how
+//! long a line is expected to take before it is spoken, stretching a line
+//! to fit, and the author's own takes. The contract a voice backend
+//! implements is `teleprompt_plugin::voice`.
 
-pub mod contract;
 pub mod estimator;
 pub mod null;
 pub mod registry;
-mod resample;
 pub mod stretch;
 pub mod takes;
-pub mod wav;
 
-pub use contract::{
-    LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
-    WordTiming,
-};
 pub use estimator::{DurationEstimator, WpmEstimator, DEFAULT_WPM};
 pub use null::{NullVoice, NULL_SAMPLE_RATE};
 pub use registry::VoiceRegistry;
-pub use resample::{resample, Resampler};

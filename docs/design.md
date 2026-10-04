@@ -167,13 +167,12 @@ reading the manifest it just published.
 |---|---|
 | `teleprompt-core` | AST, parser, ids, config, `Hash`, diagnostics, shared vocabulary such as `VoiceSource` |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
-| `teleprompt-voice` | the `VoiceBackend` and `DurationEstimator` contracts, WAV encoding, the registry, and the `null` backend: silence at the estimated length |
+| `teleprompt-plugin` | what a plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend`, `Recorder` and `VoiceBackend` contracts, `Adapter` (an adapter's three under one name), PCM and WAV, the mock adapter, and helpers for running a plugin's tools. Every adapter and voice depends on it and core alone |
+| `teleprompt-voice` | the voice engine: the `DurationEstimator`, the registry, stretching a line to fit, the author's takes, and the `null` backend: silence at the estimated length |
 | `teleprompt-voice-kokoro` | HTTP against a Kokoro-FastAPI server |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
 | `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |
 | `teleprompt-cache` | the content-addressed voice cache |
-| `teleprompt-scene` | the `SceneCompiler` contract and the `mock` adapter |
-| `teleprompt-capture` | the `CaptureBackend` contract and the mock backend, the `Recorder` contract for recording a session, and `Adapter`, the three under one name; re-exports `scene`, so an adapter depends on this crate alone |
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest; and what `dub` publishes from each line's audio, which the prompter plays too |
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
@@ -188,16 +187,18 @@ reading the manifest it just published.
 | `teleprompt-x11`, `-macos` | one crate per platform: the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation. Each records with ffmpeg |
 | `teleprompt-cli` | the `teleprompt` binary, and the registries every adapter and backend is composed into |
 
-`core`, `schedule`, `voice` and `scene` do not depend on one another.
-Anything that needs two of them belongs in `compile`. `render` reads the
-manifest and never the compiler. `scene` and `capture` stay two crates:
-`compile`, and so `plan`, `check` and the prompter, depends on `scene`
-alone, so it reads a scene's shots and cannot run its tool. An adapter
-sees one crate all the same: `capture` re-exports `scene`, and each
-adapter crate's `adapter()` hands over its compiler, capture backend and
-recorder as one `Adapter`, named by its compiler's kind, so its halves
-cannot be registered under two names. `tools/check_deps.py` holds the
-allowed edges between workspace crates, and CI fails on any other.
+`schedule`, `plugin` and `manifest` depend on `core` alone, and not on
+one another. Anything that needs two of them belongs in `compile`.
+`render` reads the manifest and never the compiler. A plugin, built in or
+not, depends on `plugin` and `core` and nothing else of teleprompt's, so
+what an outside plugin can do, the built-in ones do
+([writing a plugin](guide/plugins.md)). Each adapter crate's `adapter()`
+hands over its compiler, capture backend and recorder as one `Adapter`,
+named by its compiler's kind, so its halves cannot be registered under two
+names. `compile`, and so `plan`, `check` and the prompter, reads a
+scene's shots and never runs its tool: it uses `plugin::scene` and
+`plugin::voice` only, which `tools/check_deps.py` checks by name, along
+with the allowed edges between workspace crates. CI fails on any other.
 Adapters and backends are registered only in the CLI, so adding one means
 one crate and one registry line, and no other crate learns its name.
 

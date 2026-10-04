@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use teleprompt_core::ast::slugify;
 use teleprompt_core::LineId;
-use teleprompt_voice::Pcm;
+use teleprompt_plugin::voice::Pcm;
 
 use crate::cmd::import::{cut_takes, read_voice};
 use crate::project::Project;

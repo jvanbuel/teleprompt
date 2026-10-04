@@ -9,9 +9,9 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::{BlockId, Diagnostic, Diagnostics, SpanMs};
-use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
-use teleprompt_scene::mock::MockScene;
-use teleprompt_scene::SceneRegistry;
+use teleprompt_plugin::scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
+use teleprompt_plugin::scene::mock::MockScene;
+use teleprompt_plugin::scene::SceneRegistry;
 use teleprompt_voice::WpmEstimator;
 
 /// The mock's language, with no length claimed — as a composition or a

@@ -1,6 +1,6 @@
 //! A tape `vhs record` wrote, read back as the commands in it.
 
-use teleprompt_capture::scene::SceneCompiler;
+use teleprompt_plugin::scene::SceneCompiler;
 use teleprompt_vhs::record::read;
 use teleprompt_vhs::VhsScene;
 

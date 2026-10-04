@@ -9,8 +9,10 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
 use teleprompt_desktop::run::{cut_clips, failed, get_ready, play, uses_pointer, Failure, Reel};
+use teleprompt_plugin::capture::{
+    CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir,
+};
 
 use crate::jxa::{self, Process, Window};
 use crate::ADAPTER;
@@ -59,7 +61,7 @@ impl CaptureBackend for MacosRender {
         if !cfg!(target_os = "macos") {
             return Some("it records a Mac's own screen, and this is not a Mac".into());
         }
-        teleprompt_capture::tool::missing(&[&self.ffmpeg])
+        teleprompt_plugin::tool::missing(&[&self.ffmpeg])
     }
 
     fn needs(&self) -> &'static [&'static str] {

@@ -10,8 +10,8 @@ use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
-use teleprompt_capture::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
-use teleprompt_capture::tool::missing;
+use teleprompt_plugin::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_plugin::tool::missing;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AsciinemaRecorder;

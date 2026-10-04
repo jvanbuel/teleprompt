@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use crate::contract::SceneCompiler;
-use crate::mock::MockScene;
+use super::contract::SceneCompiler;
+use super::mock::MockScene;
 
 #[derive(Default)]
 pub struct SceneRegistry {

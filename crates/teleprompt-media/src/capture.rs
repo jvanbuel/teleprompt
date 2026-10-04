@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_capture::{
+use teleprompt_plugin::capture::{
     CaptureBackend, CaptureError, Clip, Frame, Progress, Session, SessionShot,
 };
 
@@ -135,7 +135,7 @@ impl Default for MediaRender {
 
 impl CaptureBackend for MediaRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_capture::tool::missing(&[&self.ffmpeg])
+        teleprompt_plugin::tool::missing(&[&self.ffmpeg])
     }
 
     fn needs(&self) -> &'static [&'static str] {
@@ -168,7 +168,7 @@ impl CaptureBackend for MediaRender {
                 break;
             };
             if let Err(why) =
-                teleprompt_capture::tool::run(Command::new(&self.ffmpeg).args(&a), &self.ffmpeg, 1)
+                teleprompt_plugin::tool::run(Command::new(&self.ffmpeg).args(&a), &self.ffmpeg, 1)
             {
                 result = Err(failed(&shot.id, why));
                 break;

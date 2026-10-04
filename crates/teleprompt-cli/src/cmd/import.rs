@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 use teleprompt_core::LineId;
 
 use serde::{Deserialize, Serialize};
-use teleprompt_capture::record::{NamedRecorder, Recorded};
 use teleprompt_derive::{derive, Draft, Line, Options, Word};
+use teleprompt_plugin::record::{NamedRecorder, Recorded};
+use teleprompt_plugin::voice::{wav, Pcm};
 use teleprompt_voice::takes::Takes;
-use teleprompt_voice::{wav, Pcm};
 
 use crate::cli::{emit, runtime_failure, Run};
 use crate::cmd::{document, setup};

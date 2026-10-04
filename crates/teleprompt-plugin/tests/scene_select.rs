@@ -1,6 +1,6 @@
 //! `include=file#fragment` for bodies split by a mark line.
 
-use teleprompt_scene::select_marked;
+use teleprompt_plugin::scene::select_marked;
 
 const BODY: &str = "Type \"a\"\n# mark\nType \"b\"\n# mark\nType \"c\"\n";
 

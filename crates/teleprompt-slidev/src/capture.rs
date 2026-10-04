@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
+use teleprompt_plugin::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 
 use crate::scene::{parse, Step};
 
@@ -75,7 +75,7 @@ impl Default for SlidevRender {
 impl CaptureBackend for SlidevRender {
     fn unavailable(&self) -> Option<String> {
         // The deck's `slidev` is a Node script.
-        teleprompt_capture::tool::missing(&["node", &self.ffmpeg])
+        teleprompt_plugin::tool::missing(&["node", &self.ffmpeg])
     }
 
     fn needs(&self) -> &'static [&'static str] {
@@ -149,7 +149,7 @@ impl CaptureBackend for SlidevRender {
         {
             export.arg("--executable-path").arg(browser);
         }
-        let result = teleprompt_capture::tool::run(&mut export, "slidev export", 6)
+        let result = teleprompt_plugin::tool::run(&mut export, "slidev export", 6)
             .map(|_| ())
             .map_err(|why| failed(&first, why))
             .and_then(|()| {
@@ -176,7 +176,7 @@ impl SlidevRender {
     fn encode(
         &self,
         request: &Request<'_>,
-        wanted: &[&teleprompt_capture::SessionShot],
+        wanted: &[&teleprompt_plugin::capture::SessionShot],
         steps: &[Step],
         stills: &Path,
         on_progress: &mut dyn FnMut(Progress),

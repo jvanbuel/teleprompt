@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 pub trait Recorder: Send + Sync {
     /// Why it cannot record here, such as its tool not being installed.
     fn unavailable(&self) -> Option<String>;
-    /// What it runs, as [`CaptureBackend::needs`](crate::CaptureBackend::needs).
+    /// What it runs, as [`CaptureBackend::needs`](crate::capture::CaptureBackend::needs).
     fn needs(&self) -> &'static [&'static str];
     /// Whether the author works in the terminal `record` runs in, rather
     /// than a window the tool opens.

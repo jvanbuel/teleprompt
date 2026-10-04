@@ -87,7 +87,7 @@ impl Pcm {
                     .step_by(channels)
                     .map(|&s| s as f32 / 32768.0)
                     .collect();
-                let mut out = crate::resample(&mono, self.sample_rate, rate);
+                let mut out = super::resample(&mono, self.sample_rate, rate);
                 out.resize(frames, 0.0);
                 out
             })

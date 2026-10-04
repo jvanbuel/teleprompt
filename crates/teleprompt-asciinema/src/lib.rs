@@ -14,7 +14,7 @@ pub use record::AsciinemaRecorder;
 pub use scene::AsciinemaScene;
 
 /// The adapter, to register.
-pub fn adapter() -> teleprompt_capture::Adapter {
-    teleprompt_capture::Adapter::new(AsciinemaScene, AsciinemaRender::default())
+pub fn adapter() -> teleprompt_plugin::Adapter {
+    teleprompt_plugin::Adapter::new(AsciinemaScene, AsciinemaRender::default())
         .recorded_with(AsciinemaRecorder)
 }

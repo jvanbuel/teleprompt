@@ -7,8 +7,8 @@ license.workspace = true
 
 [dependencies]
 serde_json.workspace = true
-teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-core = { path = "../teleprompt-core" }
 
+teleprompt-plugin = { path = "../teleprompt-plugin" }
 [lints]
 workspace = true

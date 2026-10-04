@@ -7,14 +7,14 @@ use std::collections::BTreeMap;
 
 use base64::Engine;
 use stub::{spawn, Reply};
-use teleprompt_voice::{Pcm, SynthRequest, VoiceBackend};
+use teleprompt_plugin::voice::{Pcm, SynthRequest, VoiceBackend};
 use teleprompt_voice_gemini::{GeminiConfig, GeminiVoice};
 
 const ROUTE: &str = "POST /v1beta/interactions";
 
 /// A tenth of a second at 24 kHz, as a WAV: what a unary request returns.
 fn wav() -> Vec<u8> {
-    teleprompt_voice::wav::encode(&Pcm {
+    teleprompt_plugin::voice::wav::encode(&Pcm {
         sample_rate: 24_000,
         channels: 1,
         samples: vec![100; 2400],

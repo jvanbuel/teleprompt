@@ -1,8 +1,8 @@
 //! The motion scene: a composition from an existing Remotion project,
 //! rendered at the length the narration gives it.
 
-use teleprompt_capture::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_core::{BlockId, SourceSpan};
+use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_remotion::scene::parse;
 use teleprompt_remotion::RemotionScene;
 
@@ -144,8 +144,8 @@ fn a_shot_does_not_continue_the_one_before_it() {
 mod capture {
     use std::path::Path;
 
-    use teleprompt_capture::{Frame, Session, SessionShot};
     use teleprompt_core::Hash;
+    use teleprompt_plugin::capture::{Frame, Session, SessionShot};
     use teleprompt_remotion::capture::{frames, job_for};
 
     fn shot(id: &str, source: &str, ms: u64, wanted: bool) -> SessionShot {

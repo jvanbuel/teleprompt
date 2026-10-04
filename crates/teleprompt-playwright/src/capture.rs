@@ -2,14 +2,16 @@
 //!
 //! A session's shots are concatenated into one script and run once, so
 //! shot *n* opens on the page shot *n-1* left. Playwright records a video
-//! and [`teleprompt_capture::reel`] cuts it into a clip per shot. Nothing
+//! and [`teleprompt_plugin::capture::reel`] cuts it into a clip per shot. Nothing
 //! here interprets the author's script; it is only wrapped.
 
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_capture::reel::{cut, starved, windows};
-use teleprompt_capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir};
+use teleprompt_plugin::capture::reel::{cut, starved, windows};
+use teleprompt_plugin::capture::{
+    CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir,
+};
 
 /// How long an action annotation (pointer, click ripple, title) stays on
 /// screen, unless the scene sets `annotation_ms`.
@@ -130,7 +132,7 @@ impl Default for PlaywrightRender {
 
 impl CaptureBackend for PlaywrightRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_capture::tool::missing(&[&self.node, &self.ffmpeg])
+        teleprompt_plugin::tool::missing(&[&self.node, &self.ffmpeg])
     }
 
     fn needs(&self) -> &'static [&'static str] {
@@ -165,7 +167,7 @@ impl CaptureBackend for PlaywrightRender {
         )
         .map_err(|e| failed(&first, format!("{}: {e}", script.display())))?;
 
-        teleprompt_capture::tool::run(
+        teleprompt_plugin::tool::run(
             Command::new(&self.node).arg(&script).current_dir(&work),
             "the script",
             4,

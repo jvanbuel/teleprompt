@@ -2,10 +2,11 @@
 //! crate hands over one `Adapter`, and no other crate learns its name
 //! (docs/design.md#crates).
 
-use teleprompt_capture::mock::MockCapture;
-use teleprompt_capture::record::NamedRecorder;
-use teleprompt_capture::{Adapter, CaptureRegistry};
-use teleprompt_scene::{MockScene, SceneRegistry};
+use teleprompt_plugin::capture::mock::MockCapture;
+use teleprompt_plugin::capture::CaptureRegistry;
+use teleprompt_plugin::record::NamedRecorder;
+use teleprompt_plugin::scene::{MockScene, SceneRegistry};
+use teleprompt_plugin::Adapter;
 
 /// Every adapter, in the order `setup` and errors list them.
 fn adapters() -> Vec<Adapter> {

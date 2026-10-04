@@ -2,25 +2,14 @@
 //!
 //! A backend runs a session, not a shot: a walkthrough's shots continue one
 //! another, so even a cached shot runs, for the screen the next opens on.
-//!
-//! An adapter crate depends on this one alone: the scene contract it
-//! compiles blocks against is re-exported as [`scene`], and it hands the
-//! CLI one [`Adapter`]. `compile` depends on the scene contract and not on
-//! this crate, so nothing that plans a video can run a tool.
 
-mod adapter;
 pub mod mock;
-pub mod record;
 pub mod reel;
-pub mod tool;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use teleprompt_core::{Hash, ShotId};
-pub use teleprompt_scene as scene;
-
-pub use adapter::Adapter;
 
 /// One action shot, as the planner needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]

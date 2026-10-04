@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use teleprompt_core::Hash;
-use teleprompt_voice::{wav, Pcm, SynthRequest, WordTiming};
+use teleprompt_plugin::voice::{wav, Pcm, SynthRequest, WordTiming};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CacheError {

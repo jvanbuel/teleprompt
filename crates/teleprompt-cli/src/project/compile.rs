@@ -15,7 +15,7 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element};
 use teleprompt_core::translation::Translation;
 use teleprompt_core::{Diagnostic, Diagnostics};
-use teleprompt_voice::VoiceBackend;
+use teleprompt_plugin::voice::VoiceBackend;
 use teleprompt_voice::WpmEstimator;
 
 use super::Project;

@@ -5,9 +5,9 @@
 //! `None`, and the shot takes its line's length (`docs/design.md#adapters`).
 //! A block may instead include one test of a test file ([`crate::spec`]).
 
-use teleprompt_capture::scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_core::Hash;
 use teleprompt_core::{BlockId, Diagnostic};
+use teleprompt_plugin::scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 
 /// The mark, spelled as a JavaScript comment so the script still runs
 /// unchanged (`docs/design.md#marks`).
@@ -65,7 +65,7 @@ impl SceneCompiler for PlaywrightScene {
         if crate::spec::is_spec(body) {
             crate::spec::test_body(body, fragment)
         } else {
-            teleprompt_capture::scene::select_marked(body, MARK, fragment)
+            teleprompt_plugin::scene::select_marked(body, MARK, fragment)
         }
     }
 }

@@ -9,7 +9,7 @@ license.workspace = true
 teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
-teleprompt-scene = { path = "../teleprompt-scene" }
+teleprompt-plugin = { path = "../teleprompt-plugin" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 

@@ -2,7 +2,7 @@
 //!
 //! Start one, then: `cargo test -p teleprompt-voice-kokoro --test real -- --ignored`
 
-use teleprompt_voice::{SynthRequest, VoiceBackend};
+use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
 
 #[tokio::test]

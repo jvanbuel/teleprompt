@@ -11,6 +11,6 @@ pub use capture::MediaRender;
 pub use scene::MediaScene;
 
 /// The adapter, to register.
-pub fn adapter() -> teleprompt_capture::Adapter {
-    teleprompt_capture::Adapter::new(MediaScene, MediaRender::default())
+pub fn adapter() -> teleprompt_plugin::Adapter {
+    teleprompt_plugin::Adapter::new(MediaScene, MediaRender::default())
 }

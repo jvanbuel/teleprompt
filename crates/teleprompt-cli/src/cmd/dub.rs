@@ -9,8 +9,8 @@ use teleprompt_core::{LineId, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
+use teleprompt_plugin::voice::VoiceBackend;
 use teleprompt_voice::takes::Takes;
-use teleprompt_voice::VoiceBackend;
 
 use crate::project::Project;
 use crate::voice::Backends;

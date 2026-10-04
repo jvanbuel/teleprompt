@@ -2,10 +2,10 @@
 //! and, where its tool can, how an author's session is recorded, under the
 //! one name a block's scene gives (`docs/design.md#crates`).
 
-use teleprompt_scene::SceneCompiler;
+use crate::scene::SceneCompiler;
 
+use crate::capture::CaptureBackend;
 use crate::record::{NamedRecorder, Recorder};
-use crate::CaptureBackend;
 
 /// What an adapter crate hands the CLI to register. Its name is its scene
 /// compiler's kind, so its halves cannot be registered under two.

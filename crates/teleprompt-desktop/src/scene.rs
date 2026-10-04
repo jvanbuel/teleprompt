@@ -1,10 +1,10 @@
 //! The compile-time half, the same for every desktop: each platform's
 //! plugin registers it under its own adapter name.
 
-use teleprompt_capture::scene::{
+use teleprompt_core::{BlockId, Diagnostic, Hash};
+use teleprompt_plugin::scene::{
     validate_commands, BlockSource, Measured, SceneCompiler, Shot, Validated,
 };
-use teleprompt_core::{BlockId, Diagnostic, Hash};
 
 use crate::script::{
     classify, timing, Action, DEFAULT_POINTER_SPEED_MS, DEFAULT_TYPING_SPEED_MS, MARK,
@@ -105,7 +105,7 @@ impl SceneCompiler for DesktopScene {
     }
 
     fn select(&self, body: &str, fragment: &str) -> Result<String, String> {
-        teleprompt_capture::scene::select_marked(body, MARK, fragment)
+        teleprompt_plugin::scene::select_marked(body, MARK, fragment)
     }
 }
 
@@ -141,7 +141,7 @@ fn shorten_last_sleep(lines: &mut [String], excess: u64) -> Option<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_capture::scene::BodyOrigin;
+    use teleprompt_plugin::scene::BodyOrigin;
 
     const SCENE: DesktopScene = DesktopScene { kind: "x11" };
 
