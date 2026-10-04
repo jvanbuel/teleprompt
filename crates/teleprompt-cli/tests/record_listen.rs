@@ -119,6 +119,16 @@ fn session(tag: &str, terminate: bool) {
         "{cast}"
     );
     assert!(!cast.contains("exit"), "{cast}");
-    let takes = std::fs::read_dir(dir.join("takes")).unwrap().count();
-    assert_eq!(takes, 4, "two takes, each a WAV and a sidecar");
+    let mut takes: Vec<String> = std::fs::read_dir(dir.join("takes"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        // `.previous` holds what an undo puts back, and no take.
+        .filter(|name| !name.starts_with('.'))
+        .collect();
+    takes.sort();
+    assert_eq!(
+        takes.len(),
+        4,
+        "two takes, each a WAV and a sidecar: {takes:?}"
+    );
 }
