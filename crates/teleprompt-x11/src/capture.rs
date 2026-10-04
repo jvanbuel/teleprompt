@@ -90,9 +90,9 @@ impl CaptureBackend for X11Render {
             ))
         })?;
 
-        let (_display, display) = self.display(frame).map_err(&fail)?;
+        let (_display, display) = self.display(frame).map_err(fail)?;
         let log = work.join("app.log");
-        let mut app = launch(command, &display, session, &log).map_err(&fail)?;
+        let mut app = launch(command, &display, session, &log).map_err(fail)?;
         let mut window = self
             .window(&display, session, frame, &mut app)
             .map_err(|why| fail(with_log(why, &log)))?;
@@ -113,11 +113,11 @@ impl CaptureBackend for X11Render {
             &display,
         ]
         .map(str::to_string);
-        let reel = Reel::start(&self.ffmpeg, &input, None, frame.fps, &reel_path).map_err(&fail)?;
+        let reel = Reel::start(&self.ffmpeg, &input, None, frame.fps, &reel_path).map_err(fail)?;
         std::thread::sleep(LEAD_IN);
         let began = play(session, &mut window).map_err(|f: Failure| failed(PLUGIN_NAME, f))?;
         std::thread::sleep(Duration::from_millis(200));
-        reel.stop().map_err(&fail)?;
+        reel.stop().map_err(fail)?;
 
         cut_clips(
             &self.ffmpeg,

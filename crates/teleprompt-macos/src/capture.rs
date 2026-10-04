@@ -96,14 +96,14 @@ impl CaptureBackend for MacosRender {
             ))
         })?;
 
-        let mut app = launch(command, session, &work.join("app.log")).map_err(&fail)?;
+        let mut app = launch(command, session, &work.join("app.log")).map_err(fail)?;
         let process = match session.settings.get("process") {
             Some(name) => Process::Named(name.clone()),
             None => Process::Pid(app.0.id()),
         };
         let placed = self
             .place(&process, session, frame, &mut app)
-            .map_err(&fail)?;
+            .map_err(fail)?;
         let mut window = Window {
             osascript: self.osascript.clone(),
             process: process.clone(),
@@ -114,9 +114,9 @@ impl CaptureBackend for MacosRender {
                 .number("launch_timeout_ms", LAUNCH_TIMEOUT_MS)
                 .into(),
         );
-        get_ready(&mut window, session, timeout).map_err(&fail)?;
+        get_ready(&mut window, session, timeout).map_err(fail)?;
         let screen = screen_device(&self.ffmpeg, session.setting("screen", "Capture screen 0"))
-            .map_err(&fail)?;
+            .map_err(fail)?;
 
         let reel_path = work.join("reel.mkv");
         let input = [
@@ -139,11 +139,11 @@ impl CaptureBackend for MacosRender {
             frame.fps,
             &reel_path,
         )
-        .map_err(&fail)?;
+        .map_err(fail)?;
         std::thread::sleep(LEAD_IN);
         let began = play(session, &mut window).map_err(|f: Failure| failed(PLUGIN_NAME, f))?;
         std::thread::sleep(Duration::from_millis(200));
-        reel.stop().map_err(&fail)?;
+        reel.stop().map_err(fail)?;
         cut_clips(
             &self.ffmpeg,
             &reel_path,
