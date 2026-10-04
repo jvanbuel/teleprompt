@@ -11,7 +11,7 @@ use teleprompt_plugin::capture::{
 };
 
 use crate::xdo::{xdotool, Window};
-use crate::ADAPTER;
+use crate::PLUGIN_NAME;
 
 /// How long the app has to show a window, unless `launch_timeout_ms` says.
 const LAUNCH_TIMEOUT_MS: u32 = 30_000;
@@ -74,7 +74,7 @@ impl CaptureBackend for X11Render {
             .first()
             .map(|s| s.id.clone())
             .unwrap_or_else(|| "?".into());
-        let fail = |why: String| failed(ADAPTER, (first.clone(), why));
+        let fail = |why: String| failed(PLUGIN_NAME, (first.clone(), why));
         let io = |path: &Path| {
             let path = path.display().to_string();
             move |source| CaptureError::Io { path, source }
@@ -115,7 +115,7 @@ impl CaptureBackend for X11Render {
         .map(str::to_string);
         let reel = Reel::start(&self.ffmpeg, &input, None, frame.fps, &reel_path).map_err(&fail)?;
         std::thread::sleep(LEAD_IN);
-        let began = play(session, &mut window).map_err(|f: Failure| failed(ADAPTER, f))?;
+        let began = play(session, &mut window).map_err(|f: Failure| failed(PLUGIN_NAME, f))?;
         std::thread::sleep(Duration::from_millis(200));
         reel.stop().map_err(&fail)?;
 
@@ -127,7 +127,7 @@ impl CaptureBackend for X11Render {
             out_dir,
             on_progress,
         )
-        .map_err(|f| failed(ADAPTER, f))
+        .map_err(|f| failed(PLUGIN_NAME, f))
     }
 }
 

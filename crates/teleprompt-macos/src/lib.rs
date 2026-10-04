@@ -16,11 +16,11 @@ mod jxa;
 pub use capture::MacosRender;
 
 /// The plugin's name, and the scene a block names to use it.
-pub const ADAPTER: &str = "macos";
+pub const PLUGIN_NAME: &str = "macos";
 
 /// The macos plugin's compiler.
 pub const SCENE: teleprompt_desktop::DesktopScene =
-    teleprompt_desktop::DesktopScene { kind: ADAPTER };
+    teleprompt_desktop::DesktopScene { kind: PLUGIN_NAME };
 
 /// The plugin, to register.
 pub fn plugin() -> teleprompt_plugin::ScenePlugin {

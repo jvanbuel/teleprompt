@@ -14,11 +14,11 @@ mod xdo;
 pub use capture::X11Render;
 
 /// The plugin's name, and the scene a block names to use it.
-pub const ADAPTER: &str = "x11";
+pub const PLUGIN_NAME: &str = "x11";
 
 /// The x11 plugin's compiler.
 pub const SCENE: teleprompt_desktop::DesktopScene =
-    teleprompt_desktop::DesktopScene { kind: ADAPTER };
+    teleprompt_desktop::DesktopScene { kind: PLUGIN_NAME };
 
 /// The plugin, to register.
 pub fn plugin() -> teleprompt_plugin::ScenePlugin {

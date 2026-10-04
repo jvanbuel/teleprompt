@@ -6,7 +6,7 @@
 The layering is docs/design.md#crates: core at the bottom; the plugin
 contracts, schedule and manifest on core alone and not on one another;
 compile where they meet; render reading the manifest, not the compiler;
-every plugin, adapter or voice, on the plugin contracts alone; and only
+every plugin, scene or voice, on the plugin contracts alone; and only
 the CLI knowing every plugin by name. A new dependency between workspace
 crates has to be added here, which is where the argument for it belongs.
 Dev-dependencies are not checked.
@@ -25,7 +25,6 @@ import sys
 # A plugin depends on the contracts it implements, and nothing else of
 # teleprompt's: what an outside plugin can do, the built-in ones do.
 PLUGIN = {"core", "plugin"}
-ADAPTER = PLUGIN
 
 ALLOWED = {
     "core": set(),
@@ -39,17 +38,17 @@ ALLOWED = {
     "voice-gemini": PLUGIN,
     "compile": {"core", "plugin", "schedule", "voice", "cache", "manifest"},
     "render": {"core", "manifest"},
-    "vhs": ADAPTER,
-    "asciinema": ADAPTER,
-    "playwright": ADAPTER,
-    "remotion": ADAPTER,
-    "slidev": ADAPTER,
-    "media": ADAPTER,
-    # What the desktop adapters share: their language and runner. An
-    # adapter in all but name, registered by the platforms' plugins.
-    "desktop": ADAPTER,
-    "x11": ADAPTER | {"desktop"},
-    "macos": ADAPTER | {"desktop"},
+    "vhs": PLUGIN,
+    "asciinema": PLUGIN,
+    "playwright": PLUGIN,
+    "remotion": PLUGIN,
+    "slidev": PLUGIN,
+    "media": PLUGIN,
+    # What the desktop scene plugins share: their language and runner. A
+    # scene plugin in all but name, registered by the platforms' plugins.
+    "desktop": PLUGIN,
+    "x11": PLUGIN | {"desktop"},
+    "macos": PLUGIN | {"desktop"},
     "translate": {"core"},
     "listen": set(),
     # Ids and speaker names are the script's; who speaks when is what a

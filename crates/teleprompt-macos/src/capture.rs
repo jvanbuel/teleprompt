@@ -15,7 +15,7 @@ use teleprompt_plugin::capture::{
 };
 
 use crate::jxa::{self, Process, Window};
-use crate::ADAPTER;
+use crate::PLUGIN_NAME;
 
 const LAUNCH_TIMEOUT_MS: u32 = 30_000;
 const LEAD_IN: Duration = Duration::from_millis(800);
@@ -81,7 +81,7 @@ impl CaptureBackend for MacosRender {
             .first()
             .map(|s| s.id.clone())
             .unwrap_or_else(|| "?".into());
-        let fail = |why: String| failed(ADAPTER, (first.clone(), why));
+        let fail = |why: String| failed(PLUGIN_NAME, (first.clone(), why));
         let io = |path: &Path| {
             let path = path.display().to_string();
             move |source| CaptureError::Io { path, source }
@@ -141,7 +141,7 @@ impl CaptureBackend for MacosRender {
         )
         .map_err(&fail)?;
         std::thread::sleep(LEAD_IN);
-        let began = play(session, &mut window).map_err(|f: Failure| failed(ADAPTER, f))?;
+        let began = play(session, &mut window).map_err(|f: Failure| failed(PLUGIN_NAME, f))?;
         std::thread::sleep(Duration::from_millis(200));
         reel.stop().map_err(&fail)?;
         cut_clips(
@@ -152,7 +152,7 @@ impl CaptureBackend for MacosRender {
             out_dir,
             on_progress,
         )
-        .map_err(|f| failed(ADAPTER, f))
+        .map_err(|f| failed(PLUGIN_NAME, f))
     }
 }
 
