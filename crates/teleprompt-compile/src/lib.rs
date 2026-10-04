@@ -24,6 +24,7 @@ use teleprompt_voice::{DurationEstimator, SynthRequest, WordTiming};
 
 pub mod length;
 pub mod manifest;
+pub mod publish;
 
 /// Everything `compile` needs about voice, and deliberately no backend, so
 /// the inner loop cannot synthesize (docs/design.md#async-boundary).

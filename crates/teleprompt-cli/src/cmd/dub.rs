@@ -2,24 +2,19 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use teleprompt_cache::{CachedAudio, VoiceCache};
-use teleprompt_compile::manifest;
+use teleprompt_compile::publish::{self, LineAudio};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
-use teleprompt_core::{Hash, LineId, SpanMs};
+use teleprompt_core::{LineId, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
-use teleprompt_manifest::{audio_path, AudioInfo, NarrationManifest, MANIFEST_VERSION};
+use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
 use teleprompt_voice::takes::Takes;
-use teleprompt_voice::{wav, Pcm, VoiceBackend};
+use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::check::compile_script_with;
 use crate::project::Project;
 use crate::voice::Backends;
-
-/// The `AudioInfo` sample rate for a locale with no lines. Any other
-/// manifest takes its rate from the audio produced. The prompter serves
-/// the same, since it serves what `dub` would.
-pub(crate) const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
 
 pub struct DubOutput {
     pub manifest: NarrationManifest,
@@ -78,34 +73,6 @@ fn read_committed(path: &Path) -> Result<Option<NarrationManifest>, String> {
         .map_err(|e| format!("cannot parse {}: {e}", path.display()))
 }
 
-/// The duration the manifest will publish for `line_id`, read off the
-/// timeline because that is what `manifest::build` copies. Deriving it from
-/// the synth result would compare a value against itself. `None`: the line
-/// has no narration entry, so `build` drops it and publishes nothing.
-fn published_duration_ms(timeline: &teleprompt_schedule::Timeline, line_id: &str) -> Option<u64> {
-    timeline
-        .entries
-        .iter()
-        .filter_map(|e| e.narration.as_ref())
-        .find(|n| n.line == line_id)
-        .map(|n| n.duration_ms.ms())
-}
-
-/// `Some(message)` when a rendered line is not the length the manifest is
-/// about to publish for it: the audio and the number describing it came
-/// from two places. The message names both values, because which one is
-/// wrong is the whole question.
-fn length_mismatch(line_id: &str, actual_ms: u64, published_ms: u64) -> Option<String> {
-    if actual_ms == published_ms {
-        return None;
-    }
-    Some(format!(
-        "line `{line_id}`: rendered audio is {actual_ms}ms but the manifest \
-         publishes {published_ms}ms; a consumer placing this file at its stated \
-         duration would clip or pad it"
-    ))
-}
-
 /// What rendering one *cache key* produced, and whether its cache entry
 /// had to be healed.
 ///
@@ -126,10 +93,7 @@ struct RenderedAudio {
 /// key each get their own, since the manifest has one entry per line.
 struct Rendered {
     line_id: LineId,
-    wav_bytes: Vec<u8>,
-    rendered_ms: u64,
-    sample_rate: u32,
-    channels: u16,
+    audio: LineAudio,
     cache_warning: Option<String>,
 }
 
@@ -245,22 +209,31 @@ pub async fn run_dub_with(
         .cloned()
         .collect();
     let rendered = render_all(&voices, &cache, &synthesized, limit).await?;
-    let rendered = with_takes(&compiled.narration, rendered, &takes)?;
-    let rendered = in_one_format(rendered)?;
-    let mut audio = Audio::collect(rendered);
+    let cache_warnings: Vec<String> = rendered
+        .iter()
+        .filter_map(|r| {
+            Some(format!(
+                "line `{}`: {}",
+                r.line_id,
+                r.cache_warning.as_ref()?
+            ))
+        })
+        .collect();
+    let synthesized = rendered.into_iter().map(|r| r.audio).collect();
+    let audio =
+        publish::with_takes(&compiled.narration, synthesized, &takes).map_err(DubError::Runtime)?;
 
     // Recompile against the now-warm cache: the first compile ran before
     // anything was rendered, so on a cold project it holds estimates. This
     // makes `dub` idempotent, and costs no synthesis.
     let (compiled, _) =
         compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
-    audio.fit(&compiled.timeline)?;
-    audio.check_lengths(&compiled.timeline)?;
-    let built = audio.manifest(&compiled);
+    let published = publish::publish(&compiled, audio).map_err(DubError::Runtime)?;
+    let built = published.manifest.clone();
 
     // The re-render notices come first: they explain why anything below them
     // is being recomputed at all.
-    let mut warnings = audio.cache_warnings.clone();
+    let mut warnings = cache_warnings;
     warnings.extend(compiled.warnings.iter().cloned());
 
     let (written, drift) = if check_only {
@@ -269,7 +242,7 @@ pub async fn run_dub_with(
             Some(drift_from_committed(out_root, locale, &built)?),
         )
     } else {
-        (write_output(out_root, locale, &audio, &built)?, None)
+        (write_output(out_root, locale, &published)?, None)
     };
     Ok(DubOutput {
         manifest: built,
@@ -414,12 +387,16 @@ async fn render_all(
             }
         };
         for i in indices {
+            let line_id = narration[i].line_id.clone();
             slots[i] = Some(Rendered {
-                line_id: narration[i].line_id.clone(),
-                wav_bytes: audio.wav_bytes.clone(),
-                rendered_ms: audio.rendered_ms,
-                sample_rate: audio.sample_rate,
-                channels: audio.channels,
+                audio: LineAudio {
+                    line_id: line_id.clone(),
+                    wav: audio.wav_bytes.clone(),
+                    duration_ms: audio.rendered_ms,
+                    sample_rate: audio.sample_rate,
+                    channels: audio.channels,
+                },
+                line_id,
                 cache_warning: audio.cache_warning.clone(),
             });
         }
@@ -428,94 +405,6 @@ async fn render_all(
         .into_iter()
         .map(|r| r.expect("every index rendered when there was no failure"))
         .collect())
-}
-
-/// Every line's audio in document order: `synthesized` for the lines
-/// without a take, in order, and each recorded line's take, converted to the
-/// synthesized lines' rate and channels, since the manifest publishes one.
-fn with_takes(
-    narration: &[NarrationDetail],
-    synthesized: Vec<Rendered>,
-    takes: &Takes,
-) -> Result<Vec<Rendered>, DubError> {
-    let mut format = synthesized.first().map(|r| (r.sample_rate, r.channels));
-    let mut synthesized = synthesized.into_iter();
-    let mut out = Vec::with_capacity(narration.len());
-    for detail in narration {
-        if detail.take.is_none() {
-            out.extend(synthesized.next());
-            continue;
-        }
-        let failed = |e: &dyn std::fmt::Display| {
-            DubError::Runtime(format!("line `{}`: {e}", detail.line_id))
-        };
-        let bytes = takes.read(&detail.line_id).map_err(|e| failed(&e))?;
-        let recorded = wav::decode(&bytes).map_err(|e| failed(&e))?;
-        let (rate, channels) = *format.get_or_insert((recorded.sample_rate, recorded.channels));
-        let pcm = with_channels(recorded.resampled(rate), channels).map_err(|e| failed(&e))?;
-        out.push(Rendered {
-            line_id: detail.line_id.clone(),
-            wav_bytes: wav::encode(&pcm),
-            rendered_ms: pcm.duration_ms(),
-            sample_rate: pcm.sample_rate,
-            channels: pcm.channels,
-            cache_warning: None,
-        });
-    }
-    Ok(out)
-}
-
-/// Every line in the first line's rate and channels, since the manifest
-/// publishes one: a cast's backends may each speak at their own.
-fn in_one_format(rendered: Vec<Rendered>) -> Result<Vec<Rendered>, DubError> {
-    let Some(&(rate, channels)) = rendered
-        .first()
-        .map(|r| (r.sample_rate, r.channels))
-        .as_ref()
-    else {
-        return Ok(rendered);
-    };
-    rendered
-        .into_iter()
-        .map(|r| {
-            if (r.sample_rate, r.channels) == (rate, channels) {
-                return Ok(r);
-            }
-            let failed =
-                |e: &dyn std::fmt::Display| DubError::Runtime(format!("line `{}`: {e}", r.line_id));
-            let pcm = wav::decode(&r.wav_bytes).map_err(|e| failed(&e))?;
-            let pcm = with_channels(pcm.resampled(rate), channels).map_err(|e| failed(&e))?;
-            Ok(Rendered {
-                wav_bytes: wav::encode(&pcm),
-                rendered_ms: pcm.duration_ms(),
-                sample_rate: pcm.sample_rate,
-                channels: pcm.channels,
-                ..r
-            })
-        })
-        .collect()
-}
-
-/// A mono take played on every channel the narration has.
-fn with_channels(pcm: Pcm, channels: u16) -> Result<Pcm, String> {
-    if pcm.channels == channels {
-        return Ok(pcm);
-    }
-    if pcm.channels != 1 {
-        return Err(format!(
-            "the take has {} channels and the narration {channels}",
-            pcm.channels
-        ));
-    }
-    Ok(Pcm {
-        samples: pcm
-            .samples
-            .iter()
-            .flat_map(|&s| std::iter::repeat_n(s, channels as usize))
-            .collect(),
-        channels,
-        ..pcm
-    })
 }
 
 /// Line indices grouped by cache key, one group per task (see
@@ -530,104 +419,6 @@ fn groups_by_key(narration: &[NarrationDetail]) -> Vec<Vec<usize>> {
     let mut groups: Vec<Vec<usize>> = groups.into_values().collect();
     groups.sort_by_key(|indices| indices[0]);
     groups
-}
-
-/// The rendered audio, in document order, with what the manifest needs
-/// from it.
-struct Audio {
-    /// Each line's id, WAV bytes and rendered length.
-    lines: Vec<(LineId, Vec<u8>, u64)>,
-    /// The first line's rate and channels; the manifest has one `AudioInfo`
-    /// per locale, and the first line in document order does not depend on
-    /// which request answered first.
-    format: Option<(u32, u16)>,
-    /// Collected here because the recompile sees a healed cache.
-    cache_warnings: Vec<String>,
-}
-
-impl Audio {
-    fn collect(rendered: Vec<Rendered>) -> Self {
-        let mut audio = Audio {
-            lines: Vec::with_capacity(rendered.len()),
-            format: None,
-            cache_warnings: Vec::new(),
-        };
-        for r in rendered {
-            if let Some(w) = &r.cache_warning {
-                audio
-                    .cache_warnings
-                    .push(format!("line `{}`: {w}", r.line_id));
-            }
-            audio.format.get_or_insert((r.sample_rate, r.channels));
-            audio.lines.push((r.line_id, r.wav_bytes, r.rendered_ms));
-        }
-        audio
-    }
-
-    /// Each `fit-line` line at the tempo the timeline gives it, as long as
-    /// the timeline says (docs/design.md#led-by-the-picture). The cache
-    /// keeps the voice at its own pace.
-    fn fit(&mut self, timeline: &teleprompt_schedule::Timeline) -> Result<(), DubError> {
-        for (line_id, bytes, rendered_ms) in &mut self.lines {
-            let Some(n) = timeline
-                .entries
-                .iter()
-                .filter_map(|e| e.narration.as_ref())
-                .find(|n| &n.line == line_id)
-            else {
-                continue;
-            };
-            let Some(tempo) = n.tempo_permille else {
-                continue;
-            };
-            *bytes =
-                teleprompt_voice::stretch::fit_wav(bytes, tempo.permille(), n.duration_ms.ms())
-                    .map_err(|e| DubError::Runtime(format!("line `{line_id}`: {e}")))?;
-            *rendered_ms = n.duration_ms.ms();
-        }
-        Ok(())
-    }
-
-    /// Every rendered length against the (measured) timeline, before
-    /// anything is written: an output directory that disagrees with its own
-    /// manifest is worse than none. It should never fire, since `store`
-    /// returns the entry the recompile reads; it catches a key or metadata
-    /// drift that would make the recompile resolve a different entry.
-    fn check_lengths(&self, timeline: &teleprompt_schedule::Timeline) -> Result<(), DubError> {
-        for (line_id, _, rendered_ms) in &self.lines {
-            if let Some(published_ms) = published_duration_ms(timeline, line_id) {
-                length_mismatch(line_id, *rendered_ms, published_ms)
-                    .map_or(Ok(()), |m| Err(DubError::Runtime(m)))?;
-            }
-        }
-        Ok(())
-    }
-
-    /// The manifest, with each line's `audio_hash` the hash of its WAV bytes.
-    ///
-    /// `manifest::build` seeds `audio_hash` with the timeline's hash of the
-    /// cache key; the manifest publishes the bytes' hash
-    /// (docs/design.md#manifest), and only `dub` has them. Done before
-    /// `--check` so a comparison is like-for-like.
-    fn manifest(&self, compiled: &teleprompt_compile::CompileOutput) -> NarrationManifest {
-        let (sample_rate, channels) = self.format.unwrap_or((NO_AUDIO_SAMPLE_RATE, 1));
-        let mut built = manifest::build(
-            &compiled.timeline,
-            &compiled.chapters,
-            &compiled.narration,
-            AudioInfo {
-                format: "wav".to_string(),
-                sample_rate,
-                channels,
-            },
-        );
-        for (line_id, bytes, _) in &self.lines {
-            if let Some(seg) = built.lines.iter_mut().find(|s| s.id == *line_id) {
-                seg.audio_hash = Hash::of(bytes);
-            }
-        }
-        built
-    }
 }
 
 /// How `built` differs from the manifest committed under `out_root`. No
@@ -657,16 +448,16 @@ fn drift_from_committed(
 fn write_output(
     out_root: &Path,
     locale: &str,
-    audio: &Audio,
-    built: &NarrationManifest,
+    published: &publish::Published,
 ) -> Result<Vec<PathBuf>, DubError> {
+    let built = &published.manifest;
     let dir = locale_dir(out_root, locale);
     let audio_dir = dir.join("audio");
     std::fs::create_dir_all(&audio_dir)
         .map_err(|e| DubError::Runtime(format!("cannot create {}: {e}", audio_dir.display())))?;
 
     let mut written = Vec::new();
-    for (line_id, bytes, _) in &audio.lines {
+    for (line_id, bytes) in &published.lines {
         let path = dir.join(audio_path(line_id, "wav"));
         std::fs::write(&path, bytes)
             .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
@@ -716,25 +507,5 @@ impl From<DubError> for crate::output::Outcome {
             DubError::Validation(errors) => Self::ValidationError(errors),
             DubError::Runtime(message) => Self::RuntimeFailure(message),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn matching_lengths_pass_the_guard() {
-        assert_eq!(length_mismatch("welcome", 3250, 3250), None);
-    }
-
-    /// A manifest publishing 3250ms beside a 6500ms file: the guard names
-    /// the line and both numbers.
-    #[test]
-    fn a_mismatch_names_the_line_and_both_lengths() {
-        let msg = length_mismatch("welcome", 6500, 3250).expect("must be caught");
-        assert!(msg.contains("welcome"), "{msg}");
-        assert!(msg.contains("6500ms"), "{msg}");
-        assert!(msg.contains("3250ms"), "{msg}");
     }
 }

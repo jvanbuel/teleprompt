@@ -427,19 +427,18 @@ fn the_manifest_is_the_one_dub_publishes() {
     let dubbed: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(out.join("en/narration.json")).unwrap())
             .unwrap();
-    for key in ["manifest_version", "duration_ms", "audio", "shots"] {
-        assert_eq!(served_manifest[key], dubbed[key], "{key}");
+    assert_eq!(served_manifest, dubbed);
+    // And the audio the page plays is the file `dub` writes.
+    for line in dubbed["lines"].as_array().unwrap() {
+        let id = line["id"].as_str().unwrap();
+        let (status, wav) = get(served.addr, &format!("/api/v1/voice/{id}.wav?fit=1"));
+        assert_eq!(status, 200, "{id}");
+        let written = std::fs::read(out.join(format!("en/audio/{id}.wav"))).unwrap();
+        assert!(
+            wav == written,
+            "line {id}: the page plays other audio than dub wrote"
+        );
     }
-    // `audio_hash` is the hash of the file `dub` writes, converted to the
-    // published format; the page keys what it decoded by it, nothing more.
-    let lines = |m: &serde_json::Value| {
-        let mut lines = m["lines"].clone();
-        for line in lines.as_array_mut().unwrap() {
-            line.as_object_mut().unwrap().remove("audio_hash");
-        }
-        lines
-    };
-    assert_eq!(lines(&served_manifest), lines(&dubbed));
 }
 
 /// With no narration there is no audio to read a format from, and the

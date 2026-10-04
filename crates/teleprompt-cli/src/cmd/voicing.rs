@@ -9,8 +9,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use teleprompt_cache::VoiceCache;
+use teleprompt_compile::publish::{self, LineAudio, Published};
 use teleprompt_compile::NarrationDetail;
-use teleprompt_manifest::{AudioInfo, NarrationManifest};
+use teleprompt_manifest::NarrationManifest;
+use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
 
 use crate::project::Project;
@@ -26,8 +28,8 @@ pub struct Voicing {
     /// Why the script, as its file now reads, does not compile; `None` once
     /// it does again.
     error: Mutex<Option<Vec<String>>>,
-    /// The manifest last made, which a line's audio is fitted to.
-    manifest: Mutex<Option<NarrationManifest>>,
+    /// The manifest last made, and the audio it names.
+    published: Mutex<Option<Published>>,
     runtime: OnceLock<Result<tokio::runtime::Runtime, String>>,
 }
 
@@ -51,7 +53,7 @@ impl Voicing {
             locale: locale.to_string(),
             voiced: Mutex::new(None),
             error: Mutex::new(None),
-            manifest: Mutex::new(None),
+            published: Mutex::new(None),
             runtime: OnceLock::new(),
         }
     }
@@ -115,27 +117,27 @@ impl Voicing {
                 &self.locale,
             )
         };
+        let last = || lock(&self.published).as_ref().map(|p| p.manifest.clone());
         let (compiled, backend) = match compile() {
             Ok(compiled) => compiled,
-            Err(errors) => return lock(&self.manifest).clone().ok_or(errors),
+            Err(errors) => return last().ok_or(errors),
         };
         let voices = crate::cmd::check::voices_for(&backends, &backend, &compiled.narration)
             .map_err(|e| vec![e])?;
-        let audio = self
+        let synthesized = self
             .runtime()
             .map_err(|e| vec![e])?
-            .block_on(warm(&voices, &self.cache(), &compiled))
+            .block_on(voiced(&voices, &self.cache(), &compiled.narration))
             .map_err(|e| vec![e])?;
+        let takes = Takes::load(&self.project.takes_dir()).map_err(|e| vec![e.to_string()])?;
+        let audio =
+            publish::with_takes(&compiled.narration, synthesized, &takes).map_err(|e| vec![e])?;
         // Compiled again, as `dub` does: the first pass read durations from
-        // a cache `warm` had not yet filled.
+        // a cache not yet filled.
         let (compiled, _) = compile()?;
-        let manifest = teleprompt_compile::manifest::build(
-            &compiled.timeline,
-            &compiled.chapters,
-            &compiled.narration,
-            audio,
-        );
-        *lock(&self.manifest) = Some(manifest.clone());
+        let published = publish::publish(&compiled, audio).map_err(|e| vec![e])?;
+        let manifest = published.manifest.clone();
+        *lock(&self.published) = Some(published);
         Ok(manifest)
     }
 
@@ -170,23 +172,23 @@ impl Voicing {
     }
 
     /// Line `id`'s audio as a WAV, as [`Self::voice`] makes it; with `fit`,
-    /// at the tempo and length the last manifest gives a `fit-line` line, as
-    /// `dub` writes it.
+    /// as the last manifest publishes it, in the video's format and a
+    /// `fit-line` line at its tempo, as `dub` writes it.
     pub fn audio(&self, id: &str, fresh: bool, fit: bool) -> Result<Option<Vec<u8>>, String> {
-        let Some(bytes) = self.voice(id, fresh)? else {
-            return Ok(None);
-        };
-        let tempo = fit
-            .then(|| lock(&self.manifest).clone())
-            .flatten()
-            .and_then(|m| m.lines.into_iter().find(|l| l.id == id))
-            .and_then(|l| l.tempo_permille.map(|t| (t.permille(), l.duration_ms.ms())));
-        Ok(Some(match tempo {
-            Some((tempo, ms)) => {
-                teleprompt_voice::stretch::fit_wav(&bytes, tempo, ms).unwrap_or(bytes)
-            }
-            None => bytes,
-        }))
+        let published = (fit && !fresh)
+            .then(|| {
+                lock(&self.published).as_ref().and_then(|p| {
+                    p.lines
+                        .iter()
+                        .find(|(line, _)| line == id)
+                        .map(|(_, wav)| wav.clone())
+                })
+            })
+            .flatten();
+        match published {
+            Some(wav) => Ok(Some(wav)),
+            None => self.voice(id, fresh),
+        }
     }
 
     /// Line `id`'s audio as a WAV: its take, or its voice's, made now if
@@ -245,41 +247,38 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Fills the voice cache's misses, one after another, and says the audio's
-/// shape, as the manifest publishes it. A recorded line is played from its
-/// take, and needs nothing.
-async fn warm(
+/// The audio of every line without a take, in document order: from the
+/// voice cache, or synthesized into it now, one after another.
+async fn voiced(
     voices: &crate::cmd::check::Voices,
     cache: &VoiceCache,
-    compiled: &teleprompt_compile::CompileOutput,
-) -> Result<AudioInfo, String> {
-    let mut shape: Option<(u32, u16)> = None;
-    for detail in compiled.narration.iter().filter(|d| d.take.is_none()) {
-        let hit = cache
-            .lookup_meta(&detail.cache_key)
-            .map_err(|e| format!("line `{}`: {e}", detail.line_id))?
-            .hit();
-        let (rate, channels) = match hit {
-            Some(meta) => (meta.sample_rate, meta.channels),
+    narration: &[NarrationDetail],
+) -> Result<Vec<LineAudio>, String> {
+    let mut audio = Vec::new();
+    for detail in narration.iter().filter(|d| d.take.is_none()) {
+        let failed = |e: &dyn std::fmt::Display| format!("line `{}`: {e}", detail.line_id);
+        let cached = match cache
+            .lookup(&detail.cache_key)
+            .map_err(|e| failed(&e))?
+            .hit()
+        {
+            Some(hit) => hit,
             None => {
-                let backend = voices.get(&detail.backend).ok_or_else(|| {
-                    format!(
-                        "line `{}`: no voice backend `{}`",
-                        detail.line_id, detail.backend
-                    )
-                })?;
-                let stored = crate::cmd::dub::synthesize_and_store(backend, cache, detail).await?;
-                (stored.sample_rate, stored.channels)
+                let backend = voices
+                    .get(&detail.backend)
+                    .ok_or_else(|| failed(&format!("no voice backend `{}`", detail.backend)))?;
+                crate::cmd::dub::synthesize_and_store(backend, cache, detail).await?
             }
         };
-        shape.get_or_insert((rate, channels));
+        audio.push(LineAudio {
+            line_id: detail.line_id.clone(),
+            wav: cached.wav,
+            duration_ms: cached.duration_ms,
+            sample_rate: cached.sample_rate,
+            channels: cached.channels,
+        });
     }
-    let (sample_rate, channels) = shape.unwrap_or((crate::cmd::dub::NO_AUDIO_SAMPLE_RATE, 1));
-    Ok(AudioInfo {
-        format: "wav".to_string(),
-        sample_rate,
-        channels,
-    })
+    Ok(audio)
 }
 
 /// The scheduler's plan as a prompter draws it on the glass: each line
