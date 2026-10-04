@@ -2,12 +2,13 @@
 //! crate hands over one `ScenePlugin`, and no other crate learns its name
 //! (docs/design.md#crates).
 
+use std::sync::OnceLock;
+
 use teleprompt_plugin::capture::mock::MockCapture;
-use teleprompt_plugin::capture::CaptureRegistry;
 use teleprompt_plugin::protocol::host;
-use teleprompt_plugin::record::NamedRecorder;
-use teleprompt_plugin::scene::{MockScene, SceneRegistry};
-use teleprompt_plugin::ScenePlugin;
+use teleprompt_plugin::record::Recorder;
+use teleprompt_plugin::scene::MockScene;
+use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 
 /// The scene plugins this build ships, in the order `setup` and errors list
 /// them.
@@ -26,16 +27,17 @@ fn built_in() -> Vec<ScenePlugin> {
 }
 
 /// Every scene plugin: the built-in ones, then each plugin installed as a
-/// program of its own whose name none of them has. A plugin starts only
-/// when first asked something.
-fn plugins() -> Vec<ScenePlugin> {
-    let mut all = built_in();
-    for found in host::discover() {
-        if !all.iter().any(|a| a.name() == found.name) {
-            all.push(host::scene(found));
-        }
-    }
-    all
+/// program of its own whose name none of them has, found once. A plugin
+/// program starts only when first asked something.
+pub fn plugins() -> &'static ScenePlugins {
+    static PLUGINS: OnceLock<ScenePlugins> = OnceLock::new();
+    PLUGINS.get_or_init(|| {
+        ScenePlugins::new(
+            built_in()
+                .into_iter()
+                .chain(host::discover().into_iter().map(host::scene)),
+        )
+    })
 }
 
 /// Whether `name` is a scene plugin this build ships, which a plugin of that
@@ -44,18 +46,12 @@ pub fn is_built_in(name: &str) -> bool {
     built_in().iter().any(|a| a.name() == name)
 }
 
-/// Every plugin's name, which a block may use as its scene.
-pub fn plugin_names() -> Vec<String> {
-    plugins().iter().map(|a| a.name().to_string()).collect()
-}
-
 /// What scene plugin `name` runs, capturing and then recording, each once, by
 /// name; `None` when there is no such scene plugin. What `teleprompt setup
 /// <plugin>` installs.
 pub fn needs(name: &str) -> Option<Vec<&'static str>> {
     plugins()
-        .into_iter()
-        .find(|a| a.name() == name)
+        .get(name)
         .map(|a| a.needs().iter().map(|t| t.name).collect())
 }
 
@@ -64,39 +60,43 @@ pub fn plugin_needs() -> Vec<&'static teleprompt_plugin::tool::Tool> {
     plugins().iter().flat_map(ScenePlugin::needs).collect()
 }
 
+/// A scene plugin's recorder, under the plugin's name, which is the scene
+/// its drafts run in.
+#[derive(Clone, Copy)]
+pub struct Recording {
+    pub plugin: &'static str,
+    recorder: &'static dyn Recorder,
+}
+
+impl std::ops::Deref for Recording {
+    type Target = dyn Recorder;
+
+    fn deref(&self) -> &Self::Target {
+        self.recorder
+    }
+}
+
 /// The scene plugins that can record a session, asciinema first: it records
 /// exactly, and what it shows is what was recorded.
-pub fn recorders() -> Vec<NamedRecorder> {
-    let mut out: Vec<NamedRecorder> = plugins()
-        .into_iter()
-        .filter_map(ScenePlugin::into_recorder)
+pub fn recorders() -> Vec<Recording> {
+    let mut out: Vec<Recording> = plugins()
+        .iter()
+        .filter_map(|p| {
+            p.recorder().map(|recorder| Recording {
+                plugin: p.name(),
+                recorder,
+            })
+        })
         .collect();
     out.sort_by_key(|r| r.plugin != "asciinema");
     out
-}
-
-/// The scene registry every command compiles against.
-pub fn scenes() -> SceneRegistry {
-    let mut registry = SceneRegistry::default();
-    for a in plugins() {
-        registry.register(a.into_scene());
-    }
-    registry
-}
-
-/// The capture backends a build records with.
-pub fn captures() -> CaptureRegistry {
-    plugins().into_iter().fold(CaptureRegistry::new(), |r, a| {
-        let name = a.name();
-        r.with(name, a.into_capture())
-    })
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn every_plugin_has_its_own_name() {
-        let mut names = super::plugin_names();
+        let mut names = super::plugins().names();
         names.sort();
         names.dedup();
         assert_eq!(names.len(), 9);

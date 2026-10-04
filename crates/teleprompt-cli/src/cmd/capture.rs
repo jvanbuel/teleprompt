@@ -12,8 +12,9 @@ use teleprompt_compile::ShotSource;
 use teleprompt_core::config::SceneConfig;
 use teleprompt_manifest::NarrationManifest;
 use teleprompt_plugin::capture::{
-    sessions, CaptureRegistry, Frame, PlannedShot, Progress, Session, WorkDir,
+    sessions, CaptureBackend, Frame, PlannedShot, Progress, Session, WorkDir,
 };
+use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 
 /// The shots of a published manifest, as the planner needs them.
 ///
@@ -125,7 +126,7 @@ pub fn run_capture(
     manifest: &NarrationManifest,
     shots: &[ShotSource],
     scenes: &BTreeMap<String, SceneConfig>,
-    registry: &CaptureRegistry,
+    plugins: &ScenePlugins,
     clips_dir: &Path,
     frame: Frame,
     on_progress: &mut dyn FnMut(Progress),
@@ -145,7 +146,8 @@ pub fn run_capture(
     let mut uncaptured = 0usize;
 
     for session in &planned {
-        match record(registry, session, &frame, clips_dir, on_progress) {
+        let backend = plugins.get(&session.plugin).map(ScenePlugin::capture);
+        match record(backend, session, &frame, clips_dir, on_progress) {
             Ok(clips) => {
                 captured += clips;
                 ran += 1;
@@ -169,15 +171,16 @@ pub fn run_capture(
     }
 }
 
-/// Record a session, or say why it will be slates.
+/// Record a session with `backend`, its plugin's, or say why it will be
+/// slates.
 fn record(
-    registry: &CaptureRegistry,
+    backend: Option<&dyn CaptureBackend>,
     session: &Session,
     frame: &Frame,
     clips_dir: &Path,
     on_progress: &mut dyn FnMut(Progress),
 ) -> Result<usize, String> {
-    let Some(backend) = registry.for_plugin(&session.plugin) else {
+    let Some(backend) = backend else {
         return Err(format!(
             "nothing in this build can record `{}` scenes (plugin `{}`), so \
              its {} shot(s) will render as slates",
@@ -248,7 +251,7 @@ pub async fn capture_script(
         &dubbed.manifest,
         &dubbed.shots,
         &dubbed.scenes,
-        &crate::scene::captures(),
+        crate::scene::plugins(),
         &options.clips_dir,
         frame,
         on_progress,
@@ -361,9 +364,15 @@ mod tests {
     #[test]
     fn a_failed_session_leaves_no_clip_in_the_cache() {
         let dir = clips_dir("fail");
-        let registry = CaptureRegistry::new().with("writes", Box::new(Writes { then_fail: true }));
         let s = session();
-        assert!(record(&registry, &s, &frame(), &dir, &mut |_| {}).is_err());
+        assert!(record(
+            Some(&Writes { then_fail: true }),
+            &s,
+            &frame(),
+            &dir,
+            &mut |_| {}
+        )
+        .is_err());
         let clip = dir.join(format!("{}.mp4", s.shots[0].key));
         assert!(!clip.exists(), "a failed session left {}", clip.display());
         let _ = std::fs::remove_dir_all(&dir);
@@ -372,9 +381,17 @@ mod tests {
     #[test]
     fn a_finished_session_files_its_clips_under_their_keys() {
         let dir = clips_dir("ok");
-        let registry = CaptureRegistry::new().with("writes", Box::new(Writes { then_fail: false }));
         let s = session();
-        assert_eq!(record(&registry, &s, &frame(), &dir, &mut |_| {}), Ok(1));
+        assert_eq!(
+            record(
+                Some(&Writes { then_fail: false }),
+                &s,
+                &frame(),
+                &dir,
+                &mut |_| {}
+            ),
+            Ok(1)
+        );
         assert!(dir.join(format!("{}.mp4", s.shots[0].key)).is_file());
         let leftovers: Vec<_> = std::fs::read_dir(&dir)
             .unwrap()

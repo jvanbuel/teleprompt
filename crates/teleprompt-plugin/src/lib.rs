@@ -22,4 +22,4 @@ pub mod scene;
 mod scene_plugin;
 pub mod tool;
 
-pub use scene_plugin::ScenePlugin;
+pub use scene_plugin::{ScenePlugin, ScenePlugins};

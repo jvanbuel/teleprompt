@@ -10,7 +10,7 @@ use teleprompt_compile::{compile, CompileOutput};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::ScenePlugins;
 use teleprompt_voice::WpmEstimator;
 
 const BODY: &str = "\
@@ -51,7 +51,7 @@ fn compile_with(length_ms: u64) -> CompileOutput {
     .unwrap();
     compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &ScenePlugins::mock(),
         &ctx,
         Path::new("."),
         "0.1.0",

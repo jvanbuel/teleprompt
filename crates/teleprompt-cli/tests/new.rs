@@ -1,6 +1,6 @@
 use teleprompt_cli::cmd::new::scaffold;
 use teleprompt_core::SpanMs;
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::ScenePlugins;
 
 #[test]
 fn scaffold_writes_a_runnable_project() {
@@ -47,14 +47,8 @@ fn the_scaffolded_script_compiles() {
         estimator: &estimator,
         takes: &teleprompt_voice::takes::Takes::default(),
     };
-    let out = compile(
-        &program,
-        &SceneRegistry::with_builtins(),
-        &ctx,
-        &dir,
-        "0.1.0",
-    )
-    .expect("scaffolded script must compile");
+    let out = compile(&program, &ScenePlugins::mock(), &ctx, &dir, "0.1.0")
+        .expect("scaffolded script must compile");
     assert!(out.timeline.duration_ms > SpanMs::of(0));
 }
 

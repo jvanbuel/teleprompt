@@ -11,7 +11,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use teleprompt_plugin::record::{NamedRecorder, Start};
+use teleprompt_plugin::record::Start;
+
+use crate::scene::Recording;
 
 use crate::cmd::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
 use crate::project::Project;
@@ -66,7 +68,7 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
 }
 
 /// The recorder `with` names, asciinema's by default.
-fn recorder(with: Option<&str>) -> Result<NamedRecorder, String> {
+fn recorder(with: Option<&str>) -> Result<Recording, String> {
     let all = crate::scene::recorders();
     let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
@@ -78,7 +80,7 @@ fn recorder(with: Option<&str>) -> Result<NamedRecorder, String> {
 
 /// Everything that could stop the draft, checked before anything is
 /// recorded rather than after the author has talked for ten minutes.
-fn check(r: &Record, recorder: &NamedRecorder) -> Result<(), String> {
+fn check(r: &Record, recorder: &Recording) -> Result<(), String> {
     refuse_to_replace(r.script, r.force)?;
     if !cfg!(feature = "listen") {
         return Err(
@@ -101,7 +103,7 @@ fn check(r: &Record, recorder: &NamedRecorder) -> Result<(), String> {
 
 fn record(
     r: &Record,
-    recorder: &NamedRecorder,
+    recorder: &Recording,
     say: &dyn Fn(serde_json::Value),
 ) -> Result<ImportReport, String> {
     let project = Project::for_script(r.script).map_err(|e| e.to_string())?;
@@ -387,13 +389,12 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     Ok(Outcome::Ok)
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
 
     /// A recording that ends early, on an error or a panic, does not leave
     /// ffmpeg recording the microphone.
-    #[cfg(target_os = "linux")]
     #[test]
     fn a_mic_dropped_unstopped_stops_recording() {
         if Command::new("ffmpeg").arg("-version").output().is_err() {

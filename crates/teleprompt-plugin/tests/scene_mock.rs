@@ -1,7 +1,6 @@
 use teleprompt_core::{BlockId, SourceSpan};
-use teleprompt_plugin::scene::{
-    BlockSource, BodyOrigin, Measured, MockScene, SceneCompiler, SceneRegistry,
-};
+use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, MockScene, SceneCompiler};
+use teleprompt_plugin::ScenePlugins;
 
 /// A fence opening on line 1. Body line `i` is therefore at absolute line `1 + i + 1`.
 const SPAN: SourceSpan = SourceSpan {
@@ -90,8 +89,8 @@ fn shot_hashes_differ_by_content_and_repeat_for_identical_content() {
 
 #[test]
 fn registry_resolves_builtin_plugins_and_rejects_unknown_ones() {
-    let r = SceneRegistry::with_builtins();
-    assert_eq!(r.get("mock").map(|a| a.kind()), Some("mock"));
+    let r = ScenePlugins::mock();
+    assert_eq!(r.get("mock").map(|a| a.name()), Some("mock"));
     assert!(r.get("playwright").is_none(), "not a builtin");
 }
 

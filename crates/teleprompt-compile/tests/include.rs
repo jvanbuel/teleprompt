@@ -6,7 +6,7 @@ use teleprompt_compile::{compile, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::ScenePlugins;
 use teleprompt_voice::WpmEstimator;
 
 fn workspace() -> teleprompt_testkit::TestDir {
@@ -40,7 +40,7 @@ fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<S
         estimator: &estimator,
         takes: &teleprompt_voice::takes::Takes::default(),
     };
-    compile(&p, &SceneRegistry::with_builtins(), &ctx, dir, "0.1.0")
+    compile(&p, &ScenePlugins::mock(), &ctx, dir, "0.1.0")
         .map_err(|d| d.0.iter().map(|x| x.message.clone()).collect())
 }
 
@@ -66,7 +66,7 @@ fn run_rendered(dir: &Path, script_name: &str, src: &str) -> Result<(), Vec<Stri
         estimator: &estimator,
         takes: &teleprompt_voice::takes::Takes::default(),
     };
-    compile(&p, &SceneRegistry::with_builtins(), &ctx, dir, "0.1.0")
+    compile(&p, &ScenePlugins::mock(), &ctx, dir, "0.1.0")
         .map(|_| ())
         .map_err(|d| d.0.iter().map(|x| x.render(script_name)).collect())
 }

@@ -9,7 +9,9 @@ use teleprompt_core::LineId;
 
 use serde::{Deserialize, Serialize};
 use teleprompt_derive::{derive, Draft, Line, Options, Word};
-use teleprompt_plugin::record::{NamedRecorder, Recorded};
+use teleprompt_plugin::record::Recorded;
+
+use crate::scene::Recording;
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
@@ -95,7 +97,7 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
 
 /// The recorder `with` names, or the one whose recordings have
 /// `recording`'s extension.
-pub fn recorder_for(with: Option<&str>, recording: &Path) -> Result<NamedRecorder, String> {
+pub fn recorder_for(with: Option<&str>, recording: &Path) -> Result<Recording, String> {
     let all = crate::scene::recorders();
     let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
@@ -127,7 +129,7 @@ pub fn refuse_to_replace(script: &Path, force: bool) -> Result<(), String> {
 /// A recorded session, and the voice recorded beside it.
 pub struct Session<'a> {
     pub script: &'a Path,
-    pub recorder: &'a NamedRecorder,
+    pub recorder: &'a Recording,
     pub recorded: &'a Recorded,
     pub voice: &'a Path,
     pub words: &'a Words<'a>,

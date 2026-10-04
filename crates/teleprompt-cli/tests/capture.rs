@@ -161,7 +161,7 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
     // compile and cannot yet run.
     let report = build::run_build_with_capture(
         &build::renderer(&options),
-        &teleprompt_plugin::capture::CaptureRegistry::new(),
+        &teleprompt_plugin::ScenePlugins::new([]),
         &p,
         &script,
         "en",

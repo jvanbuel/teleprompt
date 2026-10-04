@@ -18,14 +18,15 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::{BlockId, Hash};
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::capture::mock::MockCapture;
+use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 use teleprompt_voice::WpmEstimator;
 
 fn run(src: &str) -> CompileOutput {
-    run_with(src, &SceneRegistry::with_builtins())
+    run_with(src, &ScenePlugins::mock())
 }
 
-fn run_with(src: &str, registry: &SceneRegistry) -> CompileOutput {
+fn run_with(src: &str, registry: &ScenePlugins) -> CompileOutput {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let cache =
@@ -328,8 +329,7 @@ impl teleprompt_plugin::scene::contract::SceneCompiler for Still {
 }
 
 fn stills(first: &str, second: &str) -> Vec<Hash> {
-    let mut registry = SceneRegistry::with_builtins();
-    registry.register(Box::new(Still));
+    let registry = ScenePlugins::mock().with(ScenePlugin::new(Still, MockCapture::default()));
     let src = twice(first, second).replace("plugin: mock\n  other", "plugin: still\n  other");
     keys(&run_with(&src, &registry))
 }
@@ -356,8 +356,7 @@ fn identical_shots_of_a_scene_that_does_not_continue_share_a_clip() {
 
 /// Keys for two shots in a scene drawn from `project`.
 fn drawn_from(project: &std::path::Path) -> Vec<Hash> {
-    let mut registry = SceneRegistry::with_builtins();
-    registry.register(Box::new(Still));
+    let registry = ScenePlugins::mock().with(ScenePlugin::new(Still, MockCapture::default()));
     let src = twice(J, J).replace(
         "plugin: mock\n  other",
         &format!("plugin: still\n    project: {}\n  other", project.display()),
@@ -433,8 +432,7 @@ impl teleprompt_plugin::scene::contract::SceneCompiler for Pictured {
 }
 
 fn pictured(project: &std::path::Path) -> Vec<Hash> {
-    let mut registry = SceneRegistry::with_builtins();
-    registry.register(Box::new(Pictured));
+    let registry = ScenePlugins::mock().with(ScenePlugin::new(Pictured, MockCapture::default()));
     let src = twice(J, "wait 2000ms\n").replace(
         "plugin: mock\n  other",
         &format!(

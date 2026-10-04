@@ -65,10 +65,10 @@ impl Analyzer for ProjectAnalyzer {
                     .map(|l| (toml_path.clone(), l)),
             })
             .collect();
-        for plugin in crate::scene::plugin_names() {
+        for plugin in crate::scene::plugins().names() {
             if !scenes.iter().any(|s| s.name == plugin) {
                 scenes.push(Definition {
-                    name: plugin.clone(),
+                    name: plugin.to_string(),
                     detail: "scene plugin".into(),
                     location: None,
                 });

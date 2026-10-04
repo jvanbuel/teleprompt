@@ -145,7 +145,7 @@ pub async fn run_build(
 ) -> Result<BuildReport, BuildError> {
     run_build_with_capture(
         &renderer(options),
-        &crate::scene::captures(),
+        crate::scene::plugins(),
         project,
         script,
         locale,
@@ -179,7 +179,7 @@ pub async fn run_build_with(
 ) -> Result<BuildReport, BuildError> {
     run_build_with_capture(
         renderer,
-        &crate::scene::captures(),
+        crate::scene::plugins(),
         project,
         script,
         locale,
@@ -195,7 +195,7 @@ pub async fn run_build_with(
 /// and check the warning and slate that follow.
 pub async fn run_build_with_capture(
     renderer: &IncrementalRenderer,
-    captures: &teleprompt_plugin::capture::CaptureRegistry,
+    captures: &teleprompt_plugin::ScenePlugins,
     project: &Project,
     script: &Path,
     locale: &str,

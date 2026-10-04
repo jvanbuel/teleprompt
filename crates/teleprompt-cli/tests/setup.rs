@@ -65,10 +65,10 @@ fn an_plugin_names_the_tools_it_runs() {
 /// tools `setup` knows.
 #[test]
 fn every_plugin_needs_only_tools_setup_knows() {
-    for plugin in teleprompt_cli::scene::plugin_names() {
-        let needs = teleprompt_cli::scene::needs(&plugin).unwrap();
+    for plugin in teleprompt_cli::scene::plugins().names() {
+        let needs = teleprompt_cli::scene::needs(plugin).unwrap();
         assert!(!needs.is_empty(), "{plugin}");
-        resolve(&[plugin]).unwrap();
+        resolve(&[plugin.to_string()]).unwrap();
     }
 }
 

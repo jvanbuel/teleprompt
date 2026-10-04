@@ -144,32 +144,3 @@ fn a_pause_is_not_captured() {
     assert_eq!(out[0].shots.len(), 2);
     assert!(out[0].shots.iter().all(|s| s.id != "pause-1"));
 }
-
-/// A scene kind this build records, and one it does not. The difference
-/// matters to the caller: "nothing here can record that" is worth
-/// installing something about, and it is not the same as a backend that
-/// tried and failed.
-#[test]
-fn a_scene_kind_with_no_backend_has_none_rather_than_a_broken_one() {
-    use std::path::Path;
-    use teleprompt_plugin::capture::{
-        CaptureBackend, CaptureError, CaptureRegistry, Clip, Frame, Progress, Session,
-    };
-
-    struct Fake;
-    impl CaptureBackend for Fake {
-        fn capture(
-            &self,
-            _: &Session,
-            _: &Frame,
-            _: &Path,
-            _: &mut dyn FnMut(Progress),
-        ) -> Result<Vec<Clip>, CaptureError> {
-            Ok(Vec::new())
-        }
-    }
-
-    let registry = CaptureRegistry::new().with("vhs", Box::new(Fake));
-    assert!(registry.for_plugin("vhs").is_some());
-    assert!(registry.for_plugin("playwright").is_none());
-}

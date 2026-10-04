@@ -149,7 +149,7 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
     // scene kind teleprompt can compile and cannot yet run.
     let report = build::run_build_with_capture(
         &build::renderer(&options),
-        &teleprompt_plugin::capture::CaptureRegistry::new(),
+        &teleprompt_plugin::ScenePlugins::new([]),
         &project,
         &script,
         "en",

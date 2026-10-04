@@ -29,21 +29,6 @@ pub trait Recorder: Send + Sync {
     fn read(&self, text: &str) -> Result<Recorded, String>;
 }
 
-/// A recorder under the name of the plugin it records for, which is the
-/// scene its drafts run in.
-pub struct NamedRecorder {
-    pub plugin: &'static str,
-    pub recorder: Box<dyn Recorder>,
-}
-
-impl std::ops::Deref for NamedRecorder {
-    type Target = dyn Recorder;
-
-    fn deref(&self) -> &Self::Target {
-        self.recorder.as_ref()
-    }
-}
-
 /// What a recording starts from.
 #[derive(Debug, Clone)]
 pub struct Start<'a> {

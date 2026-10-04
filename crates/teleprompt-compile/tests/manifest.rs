@@ -9,7 +9,7 @@ use teleprompt_core::ident::check_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_manifest::{AudioInfo, MANIFEST_VERSION};
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::ScenePlugins;
 use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{Pcm, WordTiming};
 
@@ -53,7 +53,7 @@ fn compiled_and_manifest(src: &str) -> (CompileOutput, teleprompt_manifest::Narr
     };
     let out = compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &ScenePlugins::mock(),
         &ctx,
         Path::new("."),
         "0.1.0",
@@ -99,7 +99,7 @@ fn manifest_for_with_words(
 
     let cold = compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &ScenePlugins::mock(),
         &ctx,
         Path::new("."),
         "0.1.0",
@@ -121,7 +121,7 @@ fn manifest_for_with_words(
 
     let warm = compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &ScenePlugins::mock(),
         &ctx,
         Path::new("."),
         "0.1.0",

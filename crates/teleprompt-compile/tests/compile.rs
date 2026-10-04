@@ -9,7 +9,7 @@ use teleprompt_core::ident::check_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_core::Diagnostics;
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::ScenePlugins;
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{Pcm, VoiceBackend};
@@ -56,13 +56,7 @@ fn compile_program(p: &Program) -> Result<CompileOutput, Diagnostics> {
         estimator: &estimator,
         takes: &teleprompt_voice::takes::Takes::default(),
     };
-    compile(
-        p,
-        &SceneRegistry::with_builtins(),
-        &ctx,
-        Path::new("."),
-        "0.1.0",
-    )
+    compile(p, &ScenePlugins::mock(), &ctx, Path::new("."), "0.1.0")
 }
 
 fn run(src: &str) -> teleprompt_compile::CompileOutput {
@@ -92,7 +86,7 @@ fn compile_with(src: &str, ctx: &VoiceContext) -> Result<CompileOutput, Diagnost
     let program = program_for(src);
     compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &ScenePlugins::mock(),
         ctx,
         Path::new("."),
         "0.1.0",

@@ -144,7 +144,7 @@ pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
         };
         for w in wanted {
             let Some(tool) = tools().into_iter().find(|t| t.name == w) else {
-                let plugins = crate::scene::plugin_names();
+                let plugins = crate::scene::plugins().names();
                 let tools: Vec<&str> = tools().iter().map(|t| t.name).collect();
                 return Err(format!(
                     "`{name}` is neither a scene plugin ({}) nor a tool ({})",

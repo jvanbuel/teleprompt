@@ -9,7 +9,7 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::{Diagnostics, PolicyKind, SpanMs, Tempo};
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::ScenePlugins;
 use teleprompt_voice::WpmEstimator;
 
 const LINE: &str = "Deployment is one command, and it streams progress as it goes. {#deploy}";
@@ -37,7 +37,7 @@ fn compile_it(block: &str) -> Result<CompileOutput, Diagnostics> {
     )?;
     compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &ScenePlugins::mock(),
         &ctx,
         Path::new("."),
         "0.1.0",

@@ -4,8 +4,10 @@
 
 use crate::scene::SceneCompiler;
 
+use crate::capture::mock::MockCapture;
 use crate::capture::CaptureBackend;
-use crate::record::{NamedRecorder, Recorder};
+use crate::record::Recorder;
+use crate::scene::MockScene;
 use crate::tool::Tool;
 
 /// What a scene plugin crate hands the CLI to register. Its name is its scene
@@ -48,10 +50,8 @@ impl ScenePlugin {
     }
 
     /// Its recorder, if its tool records sessions.
-    pub fn into_recorder(self) -> Option<NamedRecorder> {
-        let plugin = self.name();
-        self.recorder
-            .map(|recorder| NamedRecorder { plugin, recorder })
+    pub fn recorder(&self) -> Option<&dyn Recorder> {
+        self.recorder.as_deref()
     }
 
     /// What it runs, capturing and then recording, each once: what
@@ -66,14 +66,48 @@ impl ScenePlugin {
         }
         out
     }
+}
 
-    /// Its scene compiler, for the registry `compile` reads.
-    pub fn into_scene(self) -> Box<dyn SceneCompiler> {
-        self.scene
+/// Every scene plugin a command can use, by name: what `compile` reads a
+/// block's shots from, what `capture` records with, and what `record`
+/// records an author with.
+pub struct ScenePlugins {
+    plugins: Vec<ScenePlugin>,
+}
+
+impl ScenePlugins {
+    /// `plugins`, in the order `setup` and errors list them; the first of
+    /// a name wins.
+    pub fn new(plugins: impl IntoIterator<Item = ScenePlugin>) -> Self {
+        let mut out: Vec<ScenePlugin> = Vec::new();
+        for plugin in plugins {
+            if !out.iter().any(|p| p.name() == plugin.name()) {
+                out.push(plugin);
+            }
+        }
+        Self { plugins: out }
     }
 
-    /// Its capture backend, for the registry `capture` runs.
-    pub fn into_capture(self) -> Box<dyn CaptureBackend> {
-        self.capture
+    /// The mock alone: scene plugin crates depend on this one, so the
+    /// real ones are put together by the CLI.
+    pub fn mock() -> Self {
+        Self::new([ScenePlugin::new(MockScene, MockCapture::default())])
+    }
+
+    /// These, and `plugin` unless one has its name.
+    pub fn with(self, plugin: ScenePlugin) -> Self {
+        Self::new(self.plugins.into_iter().chain([plugin]))
+    }
+
+    pub fn get(&self, name: &str) -> Option<&ScenePlugin> {
+        self.plugins.iter().find(|p| p.name() == name)
+    }
+
+    pub fn names(&self) -> Vec<&'static str> {
+        self.plugins.iter().map(ScenePlugin::name).collect()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ScenePlugin> {
+        self.plugins.iter()
     }
 }

@@ -8,7 +8,7 @@ use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::ScenePlugins;
 use teleprompt_voice::WpmEstimator;
 
 fn compile_it(src: &str) -> CompileOutput {
@@ -34,7 +34,7 @@ fn compile_it(src: &str) -> CompileOutput {
     .unwrap();
     compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &ScenePlugins::mock(),
         &ctx,
         Path::new("."),
         "0.1.0",

@@ -262,10 +262,9 @@ fn compile_with_voice(
         takes: &takes,
     };
 
-    // Not `SceneRegistry::with_builtins()`, which holds only the mock.
     let mut out = compile(
         program,
-        &crate::scene::scenes(),
+        crate::scene::plugins(),
         &ctx,
         base_dir,
         env!("CARGO_PKG_VERSION"),

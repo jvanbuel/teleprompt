@@ -1,35 +1,33 @@
 //! The composition root: which scene plugins a built `teleprompt` can actually
 //! reach.
 //!
-//! `SceneRegistry::with_builtins()` carries only the scene plugins inside
-//! `teleprompt_plugin::scene`, so a scene plugin living in its own crate is reachable
-//! only if something adds it. That something is `scene::scenes()`, and these
-//! tests are what catch a command compiling against the narrower registry —
-//! which fails `scene=terminal`, saying the scene plugin `vhs` is not available, on a
-//! build that ships one.
+//! `ScenePlugins::mock()` carries only the mock, so a scene plugin living
+//! in its own crate is reachable only if something adds it. That something
+//! is `scene::plugins()`, and these tests are what catch a command
+//! compiling against the narrower set — which fails `scene=terminal`,
+//! saying the scene plugin `vhs` is not available, on a build that ships
+//! one.
 
-use teleprompt_cli::scene::scenes;
+use teleprompt_cli::scene::plugins;
 use teleprompt_core::SpanMs;
-use teleprompt_plugin::scene::SceneCompiler;
 
 #[test]
 fn the_registry_serves_every_plugin_this_build_ships() {
-    let r = scenes();
-
-    assert_eq!(r.get("mock").map(SceneCompiler::kind), Some("mock"));
-    assert_eq!(r.get("vhs").map(SceneCompiler::kind), Some("vhs"));
+    let r = plugins();
+    for name in [
+        "mock",
+        "vhs",
+        "playwright",
+        "remotion",
+        "slidev",
+        "asciinema",
+    ] {
+        assert_eq!(r.get(name).map(|p| p.scene().kind()), Some(name));
+    }
+    let mut names = r.names();
+    names.sort_unstable();
     assert_eq!(
-        r.get("playwright").map(SceneCompiler::kind),
-        Some("playwright")
-    );
-    assert_eq!(r.get("remotion").map(SceneCompiler::kind), Some("remotion"));
-    assert_eq!(r.get("slidev").map(SceneCompiler::kind), Some("slidev"));
-    assert_eq!(
-        r.get("asciinema").map(SceneCompiler::kind),
-        Some("asciinema")
-    );
-    assert_eq!(
-        r.available(),
+        names,
         vec![
             "asciinema",
             "macos",
@@ -46,7 +44,7 @@ fn the_registry_serves_every_plugin_this_build_ships() {
 
 #[test]
 fn an_unknown_plugin_is_not_served() {
-    assert!(scenes().get("selenium").is_none());
+    assert!(plugins().get("selenium").is_none());
 }
 
 /// The other half of `fit-action`: the scheduler decides the action
@@ -100,8 +98,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
         hash: entry.shot_hash,
         index: 0,
     };
-    let registry = scenes();
-    let plugin = registry.get("vhs").expect("this build ships vhs");
+    let plugin = plugins().get("vhs").expect("this build ships vhs").scene();
     assert_eq!(
         plugin.estimate(&shot),
         Measured::Exact(entry.duration_ms.ms()),

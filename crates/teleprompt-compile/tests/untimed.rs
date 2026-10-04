@@ -9,9 +9,10 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::{BlockId, Diagnostic, Diagnostics, SpanMs};
+use teleprompt_plugin::capture::mock::MockCapture;
 use teleprompt_plugin::scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_plugin::scene::mock::MockScene;
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 use teleprompt_voice::WpmEstimator;
 
 /// The mock's language, with no length claimed — as a composition or a
@@ -55,8 +56,7 @@ fn compile_it(body: &str) -> Result<teleprompt_compile::CompileOutput, Diagnosti
         &PartialConfig::default(),
     )
     .expect("resolves");
-    let mut registry = SceneRegistry::with_builtins();
-    registry.register(Box::new(Untimed));
+    let registry = ScenePlugins::mock().with(ScenePlugin::new(Untimed, MockCapture::default()));
     compile(&program, &registry, &ctx, Path::new("."), "0.1.0")
 }
 

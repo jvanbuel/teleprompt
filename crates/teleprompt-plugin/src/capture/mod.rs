@@ -215,7 +215,7 @@ pub enum CaptureError {
 }
 
 /// What can run a scene.
-pub trait CaptureBackend {
+pub trait CaptureBackend: Send + Sync {
     /// Why it cannot run here, if it cannot: asked before a session starts.
     fn unavailable(&self) -> Option<String> {
         None
@@ -235,36 +235,4 @@ pub trait CaptureBackend {
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError>;
-}
-
-/// The backends a build can choose between.
-#[derive(Default)]
-pub struct CaptureRegistry {
-    /// Each backend under its plugin's name.
-    backends: Vec<(&'static str, Box<dyn CaptureBackend>)>,
-}
-
-impl CaptureRegistry {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with(mut self, plugin: &'static str, backend: Box<dyn CaptureBackend>) -> Self {
-        self.backends.push((plugin, backend));
-        self
-    }
-
-    /// The backend for a scene plugin; `None` where this build has none, unlike
-    /// [`CaptureBackend::unavailable`].
-    pub fn for_plugin(&self, plugin: &str) -> Option<&dyn CaptureBackend> {
-        self.backends
-            .iter()
-            .find(|(name, _)| *name == plugin)
-            .map(|(_, b)| b.as_ref())
-    }
-
-    /// Each backend, under its plugin's name.
-    pub fn backends(&self) -> impl Iterator<Item = (&'static str, &dyn CaptureBackend)> {
-        self.backends.iter().map(|(name, b)| (*name, b.as_ref()))
-    }
 }

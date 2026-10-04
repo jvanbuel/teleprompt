@@ -9,7 +9,7 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::{DurationSource, SpanMs};
-use teleprompt_plugin::scene::SceneRegistry;
+use teleprompt_plugin::ScenePlugins;
 use teleprompt_schedule::NarrationEntry;
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::Pcm;
@@ -48,7 +48,7 @@ fn compiled(takes: &Takes) -> CompileOutput {
     };
     compile(
         &program,
-        &SceneRegistry::with_builtins(),
+        &ScenePlugins::mock(),
         &ctx,
         Path::new("."),
         "0.1.0",
