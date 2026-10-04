@@ -14,6 +14,16 @@
 # Needs xvfb-run, xdotool, ImageMagick and ffmpeg. Screenshots are left in
 # $UI_SHOTS (default: a temporary directory).
 set -euo pipefail
+# Stops the app; one that is already gone crashed, so its log says why.
+stop() {
+  if kill "$1" 2>/dev/null; then
+    wait "$1" || true
+    exit 0
+  fi
+  echo "the app died on its own:"
+  tail -40 "$2"
+  exit 1
+}
 # Waits until the page is up: its next word, in the cue's amber, on the glass
 # by the reading line (below the welcome page's logo, which is amber too).
 shown() {
@@ -52,9 +62,7 @@ if [ "${1:-}" = --home ]; then
   xdotool mousemove 157 562 click 1
   shown && touch "$work/opened-from-welcome"
   import -window root "$shots/001-opened.png"
-  kill "$pid"
-  wait "$pid" || true
-  exit 0
+  stop "$pid" "$work/app0.log"
 fi
 if [ "${1:-}" = --read ]; then
   export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
@@ -71,9 +79,7 @@ if [ "${1:-}" = --read ]; then
   xdotool key ctrl+shift+space
   sleep 3
   import -window root "$shots/199-kept.png"
-  kill "$pid"
-  wait "$pid" || true
-  exit 0
+  stop "$pid" "$work/app2.log"
 fi
 if [ "${1:-}" = --drive ]; then
   # Inside xvfb-run, with $app, $work and $shots set by the outer run.
@@ -99,9 +105,7 @@ if [ "${1:-}" = --drive ]; then
   sleep 3
   xdotool search --name 'Teleprompt' getwindowname %@ 2>/dev/null | grep 'Screen$' >"$work/screen" || true
   import -window root "$shots/03-screen.png"
-  kill "$pid"
-  wait "$pid" || true
-  exit 0
+  stop "$pid" "$work/app.log"
 fi
 : "${TELEPROMPT_BIN:?the teleprompt binary, built with --features listen}"
 : "${TELEPROMPT_MODEL:?an unpacked sherpa-onnx streaming zipformer}"

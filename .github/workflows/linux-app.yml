@@ -62,6 +62,10 @@ jobs:
             libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev libwebkitgtk-6.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
             xvfb xdotool imagemagick ffmpeg asciinema
+          # WebKit's sandbox (bubblewrap) needs unprivileged user namespaces,
+          # which Ubuntu 24.04's AppArmor denies by default; without them the
+          # first web page aborts the app.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The server the app launches, with the recognizer.
       - run: cargo build -p teleprompt-cli --features listen
       - uses: actions/cache@v6
