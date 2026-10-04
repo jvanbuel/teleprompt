@@ -43,6 +43,9 @@ fn an_adapter_describes_itself_and_what_it_needs() {
     let d = &answers[0]["result"];
     assert_eq!(d["protocol"], 1);
     assert_eq!(d["kind"], "adapter");
+    // Its traits sit beside the kind, and no voice's are there.
+    assert_eq!(d["retimes"], true);
+    assert!(d.get("lists_voices").is_none(), "{d}");
     assert_eq!(d["name"], "mock");
     assert_eq!(d["needs"][0]["name"], "ffmpeg");
     assert_eq!(d["needs"][0]["program"], "ffmpeg");

@@ -41,7 +41,7 @@ teleprompt-x11 = { path = "../teleprompt-x11" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-translate = { path = "../teleprompt-translate" }
 teleprompt-voice = { path = "../teleprompt-voice" }
-teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
+teleprompt-voice-openai = { path = "../teleprompt-voice-openai" }
 teleprompt-voice-voicebox = { path = "../teleprompt-voice-voicebox" }
 teleprompt-voice-gemini = { path = "../teleprompt-voice-gemini" }
 teleprompt-lsp = { path = "../teleprompt-lsp" }
@@ -82,7 +82,7 @@ insta.workspace = true
 tempfile.workspace = true
 # `net` and `io-util` beyond the binary's own `rt-multi-thread`/`macros`:
 # `tests/dub.rs` runs an in-process HTTP stub for the kokoro voice-list
-# check, the same way `teleprompt-voice-kokoro`'s own tests do. `time` is
+# check, the same way `teleprompt-voice-openai`'s own tests do. `time` is
 # for `tokio::time::sleep`, which the same stub uses to hold a synthesis
 # response open long enough for concurrent callers to actually overlap.
 tokio = { workspace = true, features = ["net", "io-util", "time"] }

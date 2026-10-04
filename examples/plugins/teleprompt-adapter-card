@@ -64,7 +64,8 @@ def describe(params, progress):
             }
         ],
         # A card's picture is its source alone, and a hold can be rewritten.
-        "adapter": {"continues": False, "retimes": True},
+        "continues": False,
+        "retimes": True,
     }
 
 

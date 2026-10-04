@@ -51,7 +51,8 @@ def describe(params, progress):
                 },
             }
         ],
-        "voice": {"speed_control": True, "lists_voices": True},
+        "speed_control": True,
+        "lists_voices": True,
     }
 
 

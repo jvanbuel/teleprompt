@@ -11,7 +11,8 @@ use teleprompt_voice::VoiceRegistry;
 /// and `setup` list them.
 fn plugins() -> Vec<VoicePlugin> {
     vec![
-        teleprompt_voice_kokoro::plugin(),
+        teleprompt_voice_openai::kokoro(),
+        teleprompt_voice_openai::openai(),
         teleprompt_voice_voicebox::plugin(),
         teleprompt_voice_gemini::plugin(),
     ]
@@ -75,9 +76,29 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
             }
         }
     }
+    // A server of the author's that speaks OpenAI's API, under the name
+    // they gave it.
+    for (name, given) in settings {
+        if is_built_in(name) || given.get("api").is_none() {
+            continue;
+        }
+        match teleprompt_voice_openai::endpoint(name, given) {
+            Ok(backend) => registry.register(backend),
+            Err(e) => {
+                unusable.insert(name.clone(), e);
+            }
+        }
+    }
     // An installed voice is given its settings when it is first asked
-    // something; one whose settings it refuses says so then.
+    // something; one whose settings it refuses says so then. A block that
+    // names an API is a server, not the program.
     for found in installed() {
+        if settings
+            .get(&found.name)
+            .is_some_and(|v| v.get("api").is_some())
+        {
+            continue;
+        }
         let given = settings
             .get(&found.name)
             .and_then(|v| serde_json::to_value(v).ok());
@@ -222,9 +243,10 @@ impl Backends {
                 ))
                 .in_file(self.config_file.clone())
                 .with_help(
-                    "remove the block, or rename it to the backend id you meant — a \
-                     backend whose settings never arrive falls back to its defaults \
-                     rather than failing",
+                    "for a speech server of your own, add `api = \"openai\"` and its \
+                     `base_url`; otherwise remove the block, or rename it to the backend \
+                     id you meant — a backend whose settings never arrive falls back to \
+                     its defaults rather than failing",
                 )
             })
             .collect()

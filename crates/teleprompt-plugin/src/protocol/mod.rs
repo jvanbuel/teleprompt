@@ -47,19 +47,37 @@ impl Kind {
 }
 
 /// `describe`: what the plugin is and needs, asked once, first.
+///
+/// The two kinds share only this: a name, the protocol, and the tools they
+/// need. The rest is the kind's own, beside them on the wire, tagged by
+/// `kind`: `{"kind": "adapter", "continues": false, …}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Description {
     pub protocol: u32,
-    pub kind: Kind,
     /// The name a block's `scene=` or a project's `voice.backend` gives,
     /// which its executable's name ends with.
     pub name: String,
     #[serde(default)]
     pub needs: Vec<WireTool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub adapter: Option<AdapterTraits>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub voice: Option<VoiceTraits>,
+    #[serde(flatten)]
+    pub traits: Traits,
+}
+
+/// What one kind of plugin says of itself.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum Traits {
+    Adapter(AdapterTraits),
+    Voice(VoiceTraits),
+}
+
+impl Description {
+    pub fn kind(&self) -> Kind {
+        match self.traits {
+            Traits::Adapter(_) => Kind::Adapter,
+            Traits::Voice(_) => Kind::Voice,
+        }
+    }
 }
 
 fn yes() -> bool {

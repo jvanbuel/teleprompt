@@ -5,7 +5,7 @@ mod stub;
 use base64::Engine;
 use stub::{spawn, Reply};
 use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
-use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
+use teleprompt_voice_openai::{OpenAiConfig, OpenAiVoice};
 
 fn req() -> SynthRequest {
     SynthRequest {
@@ -17,11 +17,11 @@ fn req() -> SynthRequest {
     }
 }
 
-fn backend(base_url: &str, word_timings: bool) -> KokoroVoice {
-    KokoroVoice::new(KokoroConfig {
+fn backend(base_url: &str, word_timings: bool) -> OpenAiVoice {
+    OpenAiVoice::new(OpenAiConfig {
         base_url: base_url.to_string(),
         word_timings,
-        ..KokoroConfig::default()
+        ..OpenAiConfig::kokoro()
     })
     .unwrap()
 }
@@ -86,10 +86,10 @@ async fn a_server_without_captions_says_which_setting_to_change() {
 /// without them are not served as if they had them.
 #[test]
 fn timed_audio_is_cached_apart() {
-    let off = KokoroConfig::default();
-    let on = KokoroConfig {
+    let off = OpenAiConfig::kokoro();
+    let on = OpenAiConfig {
         word_timings: true,
-        ..KokoroConfig::default()
+        ..OpenAiConfig::kokoro()
     };
     assert_ne!(off.version_string(), on.version_string());
 }

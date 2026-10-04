@@ -20,8 +20,8 @@ use serde::Serialize;
 use teleprompt_core::{BlockId, Hash, ShotId};
 
 use super::{
-    AdapterTraits, Body, Capture, Captured, Configure, Configured, Description, Kind, LineError,
-    Probed, Retime, Retimed, Shots, Spoken, Synthesize, Unavailable, Validation, VoiceTraits,
+    AdapterTraits, Body, Capture, Captured, Configure, Configured, Description, LineError, Probed,
+    Retime, Retimed, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits,
     Voices, WireClip, WireProgress, WireShot, VERSION,
 };
 use crate::capture::{Frame, Session, SessionShot};
@@ -109,14 +109,12 @@ pub fn adapter_on(adapter: &Adapter, input: impl BufRead, out: impl Write) -> st
         "describe" => {
             let d = Description {
                 protocol: VERSION,
-                kind: Kind::Adapter,
                 name: adapter.name().to_string(),
                 needs: adapter.needs().iter().map(|t| t.to_wire()).collect(),
-                adapter: Some(AdapterTraits {
+                traits: Traits::Adapter(AdapterTraits {
                     continues: scene.continues(),
                     retimes: true,
                 }),
-                voice: None,
             };
             r.answer(Ok(d))
         }
@@ -286,11 +284,9 @@ pub fn voice_on(voice: &VoicePlugin, input: impl BufRead, out: impl Write) -> st
             let caps = probe.as_ref().map(|b| b.capabilities());
             let d = Description {
                 protocol: VERSION,
-                kind: Kind::Voice,
                 name: voice.id.to_string(),
                 needs: voice.needs.iter().map(|t| t.to_wire()).collect(),
-                adapter: None,
-                voice: Some(VoiceTraits {
+                traits: Traits::Voice(VoiceTraits {
                     word_timings: caps.as_ref().is_some_and(|c| c.word_timings),
                     speed_control: caps.as_ref().is_some_and(|c| c.speed_control),
                     address: probe.as_ref().and_then(|b| b.address()),

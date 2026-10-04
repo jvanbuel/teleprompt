@@ -2024,7 +2024,7 @@ dependencies = [
  "teleprompt-vhs",
  "teleprompt-voice",
  "teleprompt-voice-gemini",
- "teleprompt-voice-kokoro",
+ "teleprompt-voice-openai",
  "teleprompt-voice-voicebox",
  "teleprompt-x11",
  "tempfile",
@@ -2257,7 +2257,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "teleprompt-voice-kokoro"
+name = "teleprompt-voice-openai"
 version = "0.1.0"
 dependencies = [
  "base64",

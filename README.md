@@ -36,11 +36,12 @@ ffmpeg:
 | slides | an existing [Slidev](https://sli.dev) deck |
 | images, clips, title cards | ffmpeg alone |
 
-Narration comes from a local [Kokoro](https://github.com/remsky/Kokoro-FastAPI)
-server, a [Voicebox](https://voicebox.sh) voice made from your own takes,
-Google's [Gemini TTS](docs/guide/voices.md#gemini-tts) with your API key,
-or the built-in `null` voice, which is silent but correctly timed and
-needs nothing installed.
+Narration comes from any speech server that speaks OpenAI's API, such as
+a local [Kokoro](https://github.com/remsky/Kokoro-FastAPI) server or
+OpenAI's own; a [Voicebox](https://voicebox.sh) voice made from your own
+takes; Google's [Gemini TTS](docs/guide/voices.md#gemini-tts) with your
+API key; or the built-in `null` voice, which is silent but correctly timed
+and needs nothing installed.
 
 ## Try it
 
@@ -116,8 +117,9 @@ every JSON report says `ok`, true exactly when the exit code is 0.
   and watching an edit
 - [Editors](docs/guide/editors.md): `teleprompt lsp`, for problems,
   completion and navigation as you write
-- [Writing a plugin](docs/guide/plugins.md): an adapter for another tool,
-  or another voice, against `teleprompt-plugin`
+- [Extending teleprompt](docs/guide/plugins.md): [an
+  adapter](docs/guide/adapters.md) for another tool, or [a
+  voice](docs/guide/voices.md#writing-a-voice)
 - [Rendering with Remotion](docs/integrations/remotion.md): consuming the
   manifest from a Remotion project
 - [Design](docs/design.md): how it works and why, for contributors

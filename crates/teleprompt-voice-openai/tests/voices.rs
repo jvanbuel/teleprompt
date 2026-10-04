@@ -1,17 +1,18 @@
 mod stub;
 
 use stub::{spawn, Reply};
-use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
+use teleprompt_plugin::voice::VoiceBackend;
+use teleprompt_voice_openai::{OpenAiConfig, OpenAiVoice};
 
-fn backend(base_url: &str) -> KokoroVoice {
-    backend_with_timeout(base_url, KokoroConfig::default().timeout_ms)
+fn backend(base_url: &str) -> OpenAiVoice {
+    backend_with_timeout(base_url, OpenAiConfig::kokoro().timeout_ms)
 }
 
-fn backend_with_timeout(base_url: &str, timeout_ms: u64) -> KokoroVoice {
-    KokoroVoice::new(KokoroConfig {
+fn backend_with_timeout(base_url: &str, timeout_ms: u64) -> OpenAiVoice {
+    OpenAiVoice::new(OpenAiConfig {
         base_url: base_url.to_string(),
         timeout_ms,
-        ..KokoroConfig::default()
+        ..OpenAiConfig::kokoro()
     })
     .unwrap()
 }
@@ -22,7 +23,11 @@ async fn the_wrapper_object_shape_parses() {
         br#"{"voices": ["af_heart", "af_bella"]}"#.to_vec(),
     ))
     .await;
-    let voices = backend(&s.base_url).voices().await.unwrap();
+    let voices = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap();
     assert_eq!(voices, vec!["af_heart".to_string(), "af_bella".to_string()]);
 }
 
@@ -32,7 +37,11 @@ async fn a_bare_top_level_array_parses_identically() {
     // servers that skip the `{"voices": ...}` wrapper. Untested, this
     // tolerance is unproven.
     let s = spawn(Reply::Ok(br#"["af_heart", "af_bella"]"#.to_vec())).await;
-    let voices = backend(&s.base_url).voices().await.unwrap();
+    let voices = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap();
     assert_eq!(voices, vec!["af_heart".to_string(), "af_bella".to_string()]);
 }
 
@@ -42,7 +51,11 @@ async fn an_empty_voices_list_is_ok_not_an_error() {
     // `dub`'s one-shot validation) should see and report, not an
     // exception raised on their behalf.
     let s = spawn(Reply::Ok(br#"{"voices": []}"#.to_vec())).await;
-    let voices = backend(&s.base_url).voices().await.unwrap();
+    let voices = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap();
     assert_eq!(voices, Vec::<String>::new());
 }
 
@@ -51,14 +64,22 @@ async fn json_without_a_voices_array_is_an_error() {
     // Valid JSON, but neither a `{"voices": [...]}` object nor a bare
     // array — the shape this backend understands is simply absent.
     let s = spawn(Reply::Ok(br#"{"error": "not supported"}"#.to_vec())).await;
-    let err = backend(&s.base_url).voices().await.unwrap_err();
+    let err = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap_err();
     assert!(err.to_string().contains("no `voices` array"), "{err}");
 }
 
 #[tokio::test]
 async fn a_non_200_names_the_status_and_the_url() {
     let s = spawn(Reply::Status(503, "down for maintenance".to_string())).await;
-    let err = backend(&s.base_url).voices().await.unwrap_err();
+    let err = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("503"), "{msg}");
     assert!(msg.contains(&s.base_url), "{msg}");
@@ -67,7 +88,11 @@ async fn a_non_200_names_the_status_and_the_url() {
 #[tokio::test]
 async fn a_body_that_is_not_json_at_all_is_a_decode_error() {
     let s = spawn(Reply::Ok(b"not json at all".to_vec())).await;
-    let err = backend(&s.base_url).voices().await.unwrap_err();
+    let err = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap_err();
     // Pins `client.rs`'s own literal ("voice list was not JSON: {e}"), not
     // serde_json's internal wording.
     assert!(err.to_string().contains("was not JSON"), "{err}");
@@ -76,7 +101,11 @@ async fn a_body_that_is_not_json_at_all_is_a_decode_error() {
 #[tokio::test]
 async fn an_unreachable_server_names_the_url() {
     // Port 1 on loopback: nothing listens, connection refused immediately.
-    let err = backend("http://127.0.0.1:1").voices().await.unwrap_err();
+    let err = backend("http://127.0.0.1:1")
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap_err();
     assert!(err.to_string().contains("127.0.0.1:1"), "{err}");
 }
 
@@ -93,6 +122,7 @@ async fn a_timeout_names_the_limit_not_a_generic_transport_error() {
     let err = backend_with_timeout(&s.base_url, 150)
         .voices()
         .await
+        .expect("lists voices")
         .unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("150"), "{msg}");
@@ -115,7 +145,11 @@ async fn an_entry_that_is_not_a_voice_is_rejected_not_silently_dropped() {
         br#"{"voices": ["af_heart", 42, "af_bella"]}"#.to_vec(),
     ))
     .await;
-    let err = backend(&s.base_url).voices().await.unwrap_err();
+    let err = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap_err();
     assert!(err.to_string().contains("neither a name"), "{err}");
 }
 
@@ -132,7 +166,11 @@ async fn voices_listed_as_objects_are_read_by_their_id() {
         .to_vec(),
     ))
     .await;
-    let voices = backend(&s.base_url).voices().await.expect("voices");
+    let voices = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .expect("voices");
     assert_eq!(voices, vec!["af_alloy".to_string(), "af_heart".to_string()]);
 }
 
@@ -140,6 +178,10 @@ async fn voices_listed_as_objects_are_read_by_their_id() {
 #[tokio::test]
 async fn an_object_without_an_id_is_rejected() {
     let s = spawn(Reply::Ok(br#"{"voices": [{"grade": "A"}]}"#.to_vec())).await;
-    let err = backend(&s.base_url).voices().await.unwrap_err();
+    let err = backend(&s.base_url)
+        .voices()
+        .await
+        .expect("lists voices")
+        .unwrap_err();
     assert!(err.to_string().contains("neither a name"), "{err}");
 }

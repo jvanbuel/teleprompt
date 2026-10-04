@@ -2,7 +2,7 @@
 
 Two plugins as programs of their own, in Python with nothing beyond its
 standard library, to show what any language can do
-([writing a plugin](../../docs/guide/plugins.md)):
+([extending teleprompt](../../docs/guide/plugins.md)):
 
 - `teleprompt-adapter-card`: a scene of plain colour cards (`color`,
   `hold`, `mark`), captured with ffmpeg. The smallest complete adapter.

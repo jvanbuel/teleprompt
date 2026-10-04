@@ -1,16 +1,20 @@
 //! The one test that needs a real Kokoro-FastAPI server. Not run in CI.
 //!
-//! Start one, then: `cargo test -p teleprompt-voice-kokoro --test real -- --ignored`
+//! Start one, then: `cargo test -p teleprompt-voice-openai --test real -- --ignored`
 
 use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
-use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
+use teleprompt_voice_openai::{OpenAiConfig, OpenAiVoice};
 
 #[tokio::test]
 #[ignore = "needs a Kokoro-FastAPI server on localhost:8880"]
 async fn a_real_server_produces_plausible_audio() {
-    let k = KokoroVoice::new(KokoroConfig::default()).unwrap();
+    let k = OpenAiVoice::new(OpenAiConfig::kokoro()).unwrap();
 
-    let voices = k.voices().await.expect("server reachable");
+    let voices = k
+        .voices()
+        .await
+        .expect("lists voices")
+        .expect("server reachable");
     assert!(!voices.is_empty(), "server reported no voices");
 
     let out = k

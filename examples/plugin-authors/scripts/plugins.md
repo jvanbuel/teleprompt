@@ -10,9 +10,9 @@ output:
 
 # Writing a plugin
 
-Every scene in teleprompt comes from a plugin, and so does every voice.
-This blue card was drawn by one: about a hundred lines of Python, in the
-examples folder. {#card}
+Teleprompt has two kinds of plugin. An adapter brings a tool your script
+can show, and a voice speaks the lines. This blue card was drawn by an
+adapter: about a hundred lines of Python, in the examples folder. {#card}
 
 ```teleprompt scene=card policy=concurrent
 color #1d4ed8
@@ -21,7 +21,7 @@ color #1d4ed8
 # A program with a name
 
 A plugin is a program whose name says what it is. Teleprompt adapter,
-then a name, for a scene, or teleprompt voice, for a voice. Put it on your
+then a name, or teleprompt voice, then a name. Put it on your
 path, and teleprompt plugins lists it, with the tools it needs. {#name}
 
 ```teleprompt scene=asciinema policy=fit-action include=casts/session.cast#find
@@ -56,13 +56,24 @@ hold 1s
 
 # Voices, and yours
 
-A voice is a plugin too. It is given its settings, then each line, and
-writes the line as a wave file. {#voice}
+A voice is a different thing. If your speech server speaks OpenAI's API,
+it needs no plugin at all: give it a name and an address. I am one,
+called studio. {#studio}
+
+```teleprompt scene=asciinema policy=fit-action include=casts/session.cast#studio
+```
+
+A voice that is not a server is a plugin. It is given its settings, then
+each line, and writes the line as a wave file. {#voice}
+
+```teleprompt scene=card policy=concurrent
+color #7c3aed
+```
 
 **eSpeak:** Like this. I am the eSpeak plugin, and I run offline. {#espeak}
 
-Write yours in any language you like. The guide is in the docs, under
-plugins, and both examples are ready to copy. {#yours}
+Write yours in any language you like. The guides are in the docs, one
+for each kind, and both examples are ready to copy. {#yours}
 
 ```teleprompt scene=card policy=concurrent
 color #111827

@@ -1,5 +1,5 @@
 [package]
-name = "teleprompt-voice-kokoro"
+name = "teleprompt-voice-openai"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true

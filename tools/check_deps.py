@@ -34,7 +34,7 @@ ALLOWED = {
     "voice": {"core", "plugin"},
     "manifest": {"core"},
     "cache": {"core", "plugin"},
-    "voice-kokoro": PLUGIN,
+    "voice-openai": PLUGIN,
     "voice-voicebox": PLUGIN,
     "voice-gemini": PLUGIN,
     "compile": {"core", "plugin", "schedule", "voice", "cache", "manifest"},

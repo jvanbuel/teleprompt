@@ -2,15 +2,23 @@
 
 `voice.backend` chooses what speaks the narration. It defaults to `null`,
 which produces silence of the estimated length and needs nothing
-installed. `kokoro` talks HTTP to a
-[Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) server you run
-yourself, in Docker or with pip, and `voicebox` to a
+installed. Everything else is a speech server, and most of those speak
+OpenAI's speech API, so one backend speaks to all of them:
+
+- `kokoro`: a [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI)
+  server you run yourself, in Docker or with pip. Local, free, and the
+  one the examples use.
+- `openai`: [OpenAI's own](#openai), with your API key.
+- [any other server](#any-openai-compatible-server) that speaks the API,
+  under a name you give it in `teleprompt.toml`. No plugin needed.
+
+Two servers speak APIs of their own: `voicebox`, a
 [Voicebox](https://voicebox.sh) app, which can speak in [your own
-voice](#your-own-voice-voicebox). `gemini` is the one that isn't local:
-[Google's Gemini TTS](#gemini-tts), with your own API key. teleprompt
-bundles no model and runs no Python. A voice installed as a
-[plugin](plugins.md) is chosen by its name too, with its settings under
-`[backends.<name>]`: `examples/plugins` has one spoken by eSpeak NG.
+voice](#your-own-voice-voicebox), and `gemini`, [Google's Gemini
+TTS](#gemini-tts), with your own API key. And a voice that is not a server
+at all, such as a program on your machine, is a
+[plugin](#writing-a-voice): `examples/plugins` has one spoken by eSpeak
+NG. teleprompt bundles no model and runs no Python.
 
 ```toml
 # teleprompt.toml
@@ -29,10 +37,13 @@ word_timings = false
 
 | setting | default | meaning |
 |---|---|---|
-| `base_url` | `http://localhost:8880` | the server; teleprompt doesn't start or manage it |
+| `base_url` | `http://localhost:8880` | the server, or its API root (`…/v1`); teleprompt doesn't start or manage it |
 | `timeout_ms` | `30000` | limit for each synthesis request |
 | `concurrency` | `4` | how many lines `dub` sends at once; a local server is the bottleneck, so more only slows it down |
 | `model` | `kokoro` | sent as the request's `model`, and the cache key for everything this server produces |
+| `voice` | none | the voice when `voice.voice` gives none |
+| `api_key_env` | none | the environment variable holding a key, for a server that wants one |
+| `sample_rate` | `24000` | the rate of the server's raw PCM, for a server that sends another |
 | `word_timings` | `false` | ask for when each word is said (see [below](#word-timings)) |
 
 `backends.*` is read only from `teleprompt.toml`. A script that repeats it
@@ -84,6 +95,57 @@ starts exactly on its phrase. Kokoro-FastAPI serves timings from
 opt-in. A server without that endpoint fails `dub` with a message naming
 the setting. Turning timings on changes the cache key once, so each line is
 synthesized again, this time with its timings.
+
+## OpenAI
+
+`openai` speaks with OpenAI's speech models, which run at OpenAI: the
+narration is sent there, and your key pays for it. Put the key in
+`OPENAI_API_KEY`. It's read only when a line is spoken, so `check` and
+`plan` need none.
+
+```toml
+[voice]
+backend = "openai"
+voice = "coral"
+instruct = "a calm, friendly narrator"
+
+[backends.openai]
+model = "gpt-4o-mini-tts"
+```
+
+Its settings are those above, with `base_url`
+`https://api.openai.com/v1`, `api_key_env` `OPENAI_API_KEY`, `model`
+`gpt-4o-mini-tts`, `voice` `alloy` and `timeout_ms` `60000`.
+`voice.instruct` is sent as the request's `instructions`, which
+`gpt-4o-mini-tts` takes and the older `tts-1` ignores. OpenAI lists no
+voices, so `dub` does not check a script's against them.
+
+## Any OpenAI-compatible server
+
+A speech server that answers OpenAI's `POST /v1/audio/speech` is a voice
+under any name you give it, with `api = "openai"` and its address:
+
+```toml
+[voice]
+backend = "studio"
+voice = "amy"
+
+[backends.studio]
+api = "openai"
+base_url = "http://gpu-box:8000/v1"
+model = "piper-amy"
+```
+
+The settings are the table's above; `base_url` has no default, `model`
+defaults to `tts-1` and `concurrency` to 2. teleprompt asks for
+`response_format: "pcm"`, which the API defines as 16-bit mono at
+24 kHz: a server that sends another rate is given it as `sample_rate`. A
+server that lists its voices at `/v1/audio/voices`, as Kokoro-FastAPI
+does, has a script's checked against them before `dub` speaks anything.
+
+Name the `model` after what the server actually has loaded. It is the
+cache key, and the address is not, so a cache moves between machines
+([the cache](#the-cache)).
 
 ## Your own voice: Voicebox
 
@@ -178,11 +240,64 @@ for "a little slower" instead. Its audio carries Google's SynthID
 watermark, and its use falls under the
 [Gemini API terms](https://ai.google.dev/gemini-api/terms).
 
+## Writing a voice
+
+A voice that is a speech server is best written as one that speaks
+OpenAI's API ([above](#any-openai-compatible-server)): then it needs
+nothing of teleprompt's, and works with other tools too. Otherwise, a
+voice is a plugin ([extending teleprompt](plugins.md) has how one ships
+and is found).
+
+### As a program
+
+`teleprompt-voice-<name>` describes itself with `"kind": "voice"` and what
+it can do beyond speaking a line: `word_timings`, `speed_control`,
+`lists_voices` (it answers `voices`), `probes` (it answers `probe`) and
+`address` (where its server is, if it has one). It answers:
+
+| method | params | result |
+|---|---|---|
+| `configure` | `settings`, its `[backends.<name>]` table, or null | `version`: what the audio depends on beyond the request, such as a model. Part of the voice cache's key, so never a path or a host |
+| `synthesize` | `text`, `locale`, `voice`, `speed`, `instruct`, `out` | the line written to `out` as a WAV file; `word_timings` if it has them |
+| `voices` | | `voices`: the names its `voice.voice` may give |
+| `probe` | | `line`: one line on its server, for `setup` |
+
+`examples/plugins/teleprompt-voice-espeak` is one, in Python. Cloning a
+voice is not in version 1 of the protocol; it is compiled-in only for now.
+
+### As a Rust crate
+
+A voice implements `VoiceBackend`: `id`, `capabilities`, and `synthesize`,
+which returns PCM. The other methods have defaults. Override them for what
+your server can do: `concurrency` (lines sent at once), `address` (where
+the server is), `voices` (checked before a dub), `probe` (the line `setup`
+prints) and `clone_voice`.
+
+It is registered as a `VoicePlugin`: its id, which `voice.backend` names,
+and how it is built from its own `[backends.<id>]` settings.
+
+```rust
+pub fn plugin() -> VoicePlugin {
+    VoicePlugin {
+        id: "mine",
+        build: |settings| Ok(Arc::new(MyVoice::new(MyConfig::from(settings)?)?)),
+        needs: &NEEDS,
+    }
+}
+```
+
+A build that fails is kept and reported only where that voice is chosen,
+so a broken block does not stop a project that uses another voice.
+`capabilities().version` is part of the voice cache's key: put in it
+anything that changes the audio but is not in the request, such as the
+model. `crates/teleprompt-voice-openai` is the example, and the backend
+behind `kokoro`, `openai` and every named server.
+
 ## Testing against a real server
 
-The Kokoro tests run against an in-process stub. One test uses a real
+The OpenAI-compatible backend's tests run against an in-process stub. One test uses a real
 server and is ignored by default. Start a server on `localhost:8880`, then:
 
 ```bash
-cargo test -p teleprompt-voice-kokoro --test real -- --ignored
+cargo test -p teleprompt-voice-openai --test real -- --ignored
 ```

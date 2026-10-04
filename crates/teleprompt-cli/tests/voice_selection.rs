@@ -13,7 +13,7 @@ fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
 fn kokoro_is_registered_by_default() {
     assert_eq!(
         Backends::defaults().ids(),
-        vec!["gemini", "kokoro", "null", "voicebox"]
+        vec!["gemini", "kokoro", "null", "openai", "voicebox"]
     );
 }
 
@@ -67,7 +67,7 @@ fn a_bad_setting_for_one_backend_leaves_the_others_usable() {
     );
     assert_eq!(
         b.ids(),
-        vec!["gemini", "kokoro", "null", "voicebox"],
+        vec!["gemini", "kokoro", "null", "openai", "voicebox"],
         "a misconfigured backend is still one this build ships"
     );
 }
@@ -100,6 +100,53 @@ fn settings_for_a_backend_this_build_lacks_are_named_not_dropped() {
     assert_eq!(diags[0].file.as_deref(), Some("/p/teleprompt.toml"));
 }
 
+/// The same block with `api = "openai"` is a server of the author's, under
+/// the name they gave it, and the unknown key's help says so.
+#[test]
+fn a_block_that_names_the_api_is_a_backend_of_its_own() {
+    let mut m = BTreeMap::new();
+    m.insert(
+        "studio".to_string(),
+        serde_yaml::from_str("api: openai\nbase_url: \"http://127.0.0.1:8881/v1\"\nmodel: piper")
+            .unwrap(),
+    );
+    let b = backends_for(&m, "teleprompt.toml");
+    assert!(
+        b.diagnostics().is_empty(),
+        "{:?}",
+        b.diagnostics()[0].message
+    );
+    let studio = b
+        .resolve("studio")
+        .unwrap_or_else(|d| panic!("{}", d.message));
+    assert_eq!(studio.id(), "studio");
+    assert_eq!(studio.capabilities().version, "piper");
+    assert!(b.ids().contains(&"studio".to_string()));
+
+    m.insert(
+        "studio".to_string(),
+        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881/v1\"").unwrap(),
+    );
+    let help = backends_for(&m, "teleprompt.toml").diagnostics()[0]
+        .help
+        .clone()
+        .unwrap_or_default();
+    assert!(help.contains("api = \"openai\""), "{help}");
+}
+
+/// An endpoint without an address is not usable, and says what it lacks.
+#[test]
+fn an_endpoint_without_an_address_says_so() {
+    let mut m = BTreeMap::new();
+    m.insert(
+        "studio".to_string(),
+        serde_yaml::from_str("api: openai").unwrap(),
+    );
+    let b = backends_for(&m, "teleprompt.toml");
+    let why = b.resolve("studio").err().unwrap().message;
+    assert!(why.contains("base_url"), "{why}");
+}
+
 /// Groups 2 and 3 must compose: an unknown key belongs to no resolvable
 /// backend, so a fix that only validates the selected backend must not
 /// silence it.
@@ -122,7 +169,7 @@ fn an_unknown_key_is_reported_even_when_the_project_resolves_elsewhere() {
 
 /// Settings that never produced a backend must not leave one behind, or
 /// `dub`'s fan-out limit and voice-list check, and `setup`'s probe, would
-/// silently read from (or probe) a `KokoroVoice` built from defaults
+/// silently read from (or probe) an `OpenAiVoice` built from defaults
 /// instead of the broken settings the author actually wrote.
 #[test]
 fn no_backend_is_left_when_settings_do_not_validate() {
@@ -135,7 +182,7 @@ fn no_backend_is_left_when_settings_do_not_validate() {
 }
 
 /// The value `dub`'s fan-out limit reads is the same `concurrency` the
-/// project's settings named — not a value `KokoroVoice` decided on its own
+/// project's settings named — not a value `OpenAiVoice` decided on its own
 /// after the fact.
 #[test]
 fn kokoro_carries_the_configured_concurrency() {

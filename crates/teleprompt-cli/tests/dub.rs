@@ -644,7 +644,7 @@ fn project_with_script(script: &str) -> TestProject {
 }
 
 /// A minimal `/v1/audio/voices` responder, built the same way as
-/// `teleprompt-voice-kokoro`'s `tests/stub/mod.rs`. Copied rather than
+/// `teleprompt-voice-openai`'s `tests/stub/mod.rs`. Copied rather than
 /// imported across the crate boundary — the ~20 lines a single-shape JSON
 /// GET responder needs are not worth a shared test-support crate for two
 /// call sites, and this one only ever needs the one reply shape `voices()`
@@ -762,7 +762,7 @@ async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
 #[tokio::test]
 async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() {
     // Port 1 on loopback: nothing listens, connection refused immediately —
-    // the same fixture `teleprompt-voice-kokoro`'s own
+    // the same fixture `teleprompt-voice-openai`'s own
     // `an_unreachable_server_names_the_url` uses, for the same reason (fast
     // and deterministic, no timeout to wait out).
     let p = project_with_config_and_script(

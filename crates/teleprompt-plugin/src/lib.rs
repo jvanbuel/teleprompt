@@ -12,8 +12,11 @@
 //! - [`protocol`]: a plugin as a program of its own, which teleprompt
 //!   finds and talks to; and serving a Rust plugin as one.
 //!
-//! An adapter hands teleprompt one [`Adapter`]; a voice, one
-//! [`voice::VoiceBackend`]. Nothing here knows any plugin by name.
+//! The two kinds of plugin are different things that share only the
+//! plumbing: [`tool`] and [`protocol`]. An adapter hands teleprompt one
+//! [`Adapter`], a scene language and a way to record it; a voice, one
+//! [`VoicePlugin`], which builds a [`voice::VoiceBackend`] from its
+//! settings. Nothing here knows any plugin by name.
 
 mod adapter;
 pub mod capture;
@@ -24,3 +27,4 @@ pub mod tool;
 pub mod voice;
 
 pub use adapter::Adapter;
+pub use voice::VoicePlugin;

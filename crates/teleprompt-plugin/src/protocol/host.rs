@@ -15,8 +15,8 @@ use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
 use super::{
     AdapterTraits, Body, Capture, Captured, Configure, Configured, Description, Kind, Probed,
-    Retime, Retimed, Shots, Spoken, Synthesize, Unavailable, Validation, VoiceTraits, Voices,
-    WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
+    Retime, Retimed, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits,
+    Voices, WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
 };
 use crate::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 use crate::scene::{BlockSource, Measured, SceneCompiler, Shot, Validated};
@@ -147,11 +147,11 @@ impl Plugin {
                         self.found.name, d.protocol
                     ));
                 }
-                if d.kind != self.found.kind || d.name != self.found.name {
+                if d.kind() != self.found.kind || d.name != self.found.name {
                     return Err(format!(
                         "{} describes itself as the {:?} `{}`",
                         self.found.path.display(),
-                        d.kind,
+                        d.kind(),
                         d.name
                     ));
                 }
@@ -301,7 +301,10 @@ impl ExternalScene {
         self.plugin
             .describe()
             .ok()
-            .and_then(|d| d.adapter.clone())
+            .and_then(|d| match &d.traits {
+                Traits::Adapter(t) => Some(t.clone()),
+                Traits::Voice(_) => None,
+            })
             .unwrap_or_default()
     }
 }
@@ -523,7 +526,10 @@ impl ExternalVoice {
         self.plugin
             .describe()
             .ok()
-            .and_then(|d| d.voice.clone())
+            .and_then(|d| match &d.traits {
+                Traits::Voice(t) => Some(t.clone()),
+                Traits::Adapter(_) => None,
+            })
             .unwrap_or_default()
     }
 

@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 use teleprompt_core::{BlockId, Hash, ShotId, SourceSpan};
 use teleprompt_plugin::capture::{Frame, Session, SessionShot};
 use teleprompt_plugin::protocol::host::{self, Found, Plugin};
-use teleprompt_plugin::protocol::Kind;
+use teleprompt_plugin::protocol::{Kind, Traits};
 use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, Validated};
 use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
 
@@ -57,7 +57,7 @@ fn an_outside_adapter_is_described_and_says_what_it_needs() {
     let plugin = Plugin::new(found);
     let d = plugin.describe().unwrap();
     assert_eq!(d.name, "card");
-    assert!(!d.adapter.as_ref().unwrap().continues);
+    assert!(matches!(d.traits, Traits::Adapter(ref t) if !t.continues && t.retimes));
     let needs = plugin.needs();
     assert_eq!(needs[0].name, "ffmpeg");
     // Asked once: the same tools again, not new ones.

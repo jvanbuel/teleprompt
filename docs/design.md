@@ -169,7 +169,7 @@ reading the manifest it just published.
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
 | `teleprompt-plugin` | what a plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend`, `Recorder` and `VoiceBackend` contracts, `Adapter` (an adapter's three under one name), PCM and WAV, the mock adapter, and helpers for running a plugin's tools. Every adapter and voice depends on it and core alone |
 | `teleprompt-voice` | the voice engine: the `DurationEstimator`, the registry, stretching a line to fit, the author's takes, and the `null` backend: silence at the estimated length |
-| `teleprompt-voice-kokoro` | HTTP against a Kokoro-FastAPI server |
+| `teleprompt-voice-openai` | HTTP against any server that speaks OpenAI's speech API: `kokoro` (Kokoro-FastAPI) and `openai` are its presets, and `[backends.<name>] api = "openai"` names any other |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
 | `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |
 | `teleprompt-cache` | the content-addressed voice cache |
@@ -228,7 +228,9 @@ pub trait VoiceBackend: Send + Sync {
 
 There is no downcast: the CLI holds every backend as `Arc<dyn
 VoiceBackend>`, built by its plugin's `VoicePlugin` from its own
-`[backends.<id>]` settings. `dub` checks a script's voices against
+`[backends.<id>]` settings. A `backends` table with `api = "openai"` and
+a name nothing ships is a voice of its own, built by the OpenAI-compatible
+backend: a speech server is configured, not written. `dub` checks a script's voices against
 `voices()` before synthesizing, where a backend lists them; `setup`
 prints `probe()`, within five seconds, for a backend with an `address()`;
 `voice clone` asks the first backend whose `capabilities().cloning` does
@@ -903,7 +905,7 @@ Documents are printed as they are written and carry no `ok`: the timeline
 - `manual/timelines/cli.en.json` is compared against a fresh compile of
   the manual, so a command that changes cannot leave its manual page
   behind.
-- Kokoro is tested against an in-process HTTP stub. One `#[ignore]`d test
+- The OpenAI-compatible backend is tested against an in-process HTTP stub. One `#[ignore]`d test
   uses a real server.
 - Render and capture tests need ffmpeg or the adapter's tool. They skip
   where it is missing, and CI sets `TELEPROMPT_REQUIRE_*` so a skip there
@@ -944,8 +946,9 @@ a video needs comes in three tiers.
    stay the CLI's. **No release artifact, whether binary, app bundle, installer
    or container image, includes a tool.** One that did would take on the
    tool's license: a deliberate choice, made in this document first.
-3. **Community plugins.** Adapters and voices of other people's, as
-   programs of their own: `teleprompt-adapter-<name>` or
+3. **Community plugins.** Adapters and voices of other people's. A voice
+   that is a server speaking OpenAI's API needs no plugin: the author
+   names it in `teleprompt.toml`. The rest are programs of their own: `teleprompt-adapter-<name>` or
    `teleprompt-voice-<name>`, on PATH or in the plugins directory,
    speaking JSON a line at a time on stdin and stdout
    ([the protocol](guide/plugins.md#the-protocol)). The author installs
@@ -954,7 +957,9 @@ a video needs comes in three tiers.
    what is installed. Teleprompt hosts nothing and passes no license on. A
    plugin starts when a command first needs it and stops when the command
    ends; teleprompt sends it one request at a time. A built-in plugin's
-   name wins. `teleprompt_plugin::protocol` is both sides: the host, which
+   name wins. The two kinds share only this plumbing, and `describe`'s
+   shared fields; each kind's own are tagged by `kind`, so an adapter
+   cannot claim a voice's. `teleprompt_plugin::protocol` is both sides: the host, which
    holds an outside plugin as the contract it implements, so nothing else
    in teleprompt can tell it from a built-in one; and `serve`, which makes
    a Rust plugin a program. `examples/plugins` has two in Python.

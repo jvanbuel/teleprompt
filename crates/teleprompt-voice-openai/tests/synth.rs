@@ -2,7 +2,7 @@ mod stub;
 
 use stub::{spawn, Reply};
 use teleprompt_plugin::voice::{SynthRequest, VoiceBackend, VoiceError};
-use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice, KOKORO_SAMPLE_RATE};
+use teleprompt_voice_openai::{OpenAiConfig, OpenAiVoice, PCM_SAMPLE_RATE};
 
 fn req(text: &str) -> SynthRequest {
     SynthRequest {
@@ -14,11 +14,11 @@ fn req(text: &str) -> SynthRequest {
     }
 }
 
-fn backend(base_url: &str, timeout_ms: u64) -> KokoroVoice {
-    KokoroVoice::new(KokoroConfig {
+fn backend(base_url: &str, timeout_ms: u64) -> OpenAiVoice {
+    OpenAiVoice::new(OpenAiConfig {
         base_url: base_url.to_string(),
         timeout_ms,
-        ..KokoroConfig::default()
+        ..OpenAiConfig::kokoro()
     })
     .unwrap()
 }
@@ -38,7 +38,7 @@ async fn a_successful_synthesis_decodes_to_24khz_mono() {
         .await
         .unwrap();
 
-    assert_eq!(out.pcm.sample_rate, KOKORO_SAMPLE_RATE);
+    assert_eq!(out.pcm.sample_rate, PCM_SAMPLE_RATE);
     assert_eq!(out.pcm.channels, 1);
     assert_eq!(out.pcm.samples.len(), 2400);
     assert_eq!(out.pcm.duration_ms(), 100);
