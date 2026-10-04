@@ -1,5 +1,5 @@
 //! Where core, scene, voice and schedule meet (docs/design.md#crates):
-//! walks a resolved [`Program`], has the adapters validate and split action
+//! walks a resolved [`Program`], has the scene plugins validate and split action
 //! blocks, takes each line's duration from the voice cache or a
 //! [`DurationEstimator`], pairs lines with the shots that follow them, and
 //! schedules the items into a [`Timeline`]. It never reaches a voice
@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path};
 
 use teleprompt_cache::{CacheKey, VoiceCache};
-use teleprompt_core::config::{default_adapter, Config, OutputConfig, SceneConfig};
+use teleprompt_core::config::{default_plugin, Config, OutputConfig, SceneConfig};
 use teleprompt_core::policy::Align;
 use teleprompt_core::program::{ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
@@ -92,8 +92,8 @@ impl VoiceContext<'_> {
     }
 }
 
-/// One action shot's source, as the adapter split it (and re-timed it), for
-/// whatever draws the scene. Not in the manifest: it is adapter-native code.
+/// One action shot's source, as the plugin split it (and re-timed it), for
+/// whatever draws the scene. Not in the manifest: it is scene plugin-native code.
 #[derive(Debug, Clone)]
 pub struct ShotSource {
     pub id: ShotId,
@@ -211,11 +211,11 @@ pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<
         .map(|j| words[j].start_ms)
 }
 
-/// Has each adapter rewrite a shot whose scheduled length differs from its
+/// Has each scene plugin rewrite a shot whose scheduled length differs from its
 /// own estimate, so the source captured is the one that fits its slot.
 ///
 /// The shot's hash moves with the source, which is how slot length reaches
-/// the capture key (docs/design.md#capture-key). Where an adapter cannot
+/// the capture key (docs/design.md#capture-key). Where a scene plugin cannot
 /// re-time, the source stands and the renderer holds the last frame.
 fn retime_stretched_shots(
     timeline: &mut Timeline,
@@ -260,7 +260,7 @@ const PAUSE_SCENE: &str = "pause";
 /// version, a change to the tape or script teleprompt writes, new window
 /// chrome, or a changed default.
 ///
-/// Neither the adapter name nor the settings cover this. The adapter names
+/// Neither the plugin name nor the settings cover this. The plugin names
 /// the scene language, not the program that rasterises it, and settings are
 /// only what the author wrote, so a changed default moves neither and stale
 /// clips would be served as current.
@@ -291,10 +291,11 @@ fn chain_capture_keys(
             continue;
         }
 
-        // name(n): recipe, adapter, scene settings, inputs, shot source.
+        // name(n): recipe, scene plugin, scene settings, inputs, shot source.
         let implicit = SceneConfig {
-            adapter: action.adapter.clone(),
+            plugin: action.adapter.clone(),
             settings: BTreeMap::new(),
+            root: config.root.clone(),
         };
         let scene = Some(config.scenes.get(&action.scene).unwrap_or(&implicit));
         let settings = scene
@@ -304,7 +305,7 @@ fn chain_capture_keys(
         let inputs = inputs
             .entry(action.scene.clone())
             .or_insert_with(|| match (scene, registry.get(&action.adapter)) {
-                (Some(scene), Some(adapter)) => fingerprint(&adapter.inputs(scene)),
+                (Some(scene), Some(adapter)) => fingerprint(&adapter.inputs(scene), &scene.root),
                 _ => String::new(),
             })
             .clone();
@@ -312,7 +313,7 @@ fn chain_capture_keys(
             (Some(scene), Some(adapter)) => shots
                 .iter()
                 .find(|s| s.id == action.shot)
-                .map(|s| fingerprint(&adapter.shot_inputs(scene, &s.source)))
+                .map(|s| fingerprint(&adapter.shot_inputs(scene, &s.source), &scene.root))
                 .unwrap_or_default(),
             _ => String::new(),
         };
@@ -328,7 +329,7 @@ fn chain_capture_keys(
         fields.push(&shot_hash);
         let name = Hash::of_fields(&fields);
 
-        // An adapter whose shots do not continue is keyed by name(n) alone.
+        // A scene plugin whose shots do not continue is keyed by name(n) alone.
         if registry
             .get(&action.adapter)
             .is_some_and(|adapter| !adapter.continues())
@@ -358,8 +359,8 @@ fn chain_capture_keys(
 /// `node_modules` and dot-entries. Empty when there is nothing to read.
 ///
 /// [`SceneCompiler::inputs`]: teleprompt_plugin::scene::SceneCompiler::inputs
-fn fingerprint(paths: &[std::path::PathBuf]) -> String {
-    fn walk(path: &Path, out: &mut Vec<String>) {
+fn fingerprint(paths: &[std::path::PathBuf], root: &Path) -> String {
+    fn walk(path: &Path, root: &Path, out: &mut Vec<String>) {
         if path.is_dir() {
             let Ok(entries) = std::fs::read_dir(path) else {
                 return;
@@ -369,16 +370,18 @@ fn fingerprint(paths: &[std::path::PathBuf]) -> String {
             for child in children {
                 let name = child.file_name().and_then(|n| n.to_str()).unwrap_or("");
                 if name != "node_modules" && !name.starts_with('.') {
-                    walk(&child, out);
+                    walk(&child, root, out);
                 }
             }
         } else if let Ok(hash) = Hash::of_file(path) {
-            out.push(format!("{}:{hash}", path.display()));
+            // Named as from the project, so the key is the same anywhere.
+            let name = path.strip_prefix(root).unwrap_or(path);
+            out.push(format!("{}:{hash}", name.display()));
         }
     }
     let mut files = Vec::new();
     for path in paths {
-        walk(path, &mut files);
+        walk(path, root, &mut files);
     }
     if files.is_empty() {
         return String::new();
@@ -473,15 +476,34 @@ pub fn compile(
             length.ms(),
         ));
     }
+    let scenes = scenes_shown(&timeline, &program.config);
     Ok(CompileOutput {
         timeline,
         warnings,
         narration: walker.narration,
         shots: shot_sources,
-        scenes: program.config.scenes.clone(),
+        scenes,
         chapters: program.chapters.clone(),
         output: program.config.output.clone(),
     })
+}
+
+/// The scenes as configured, and every scene a block names that none
+/// configures, with its plugin's defaults: what capture opens.
+fn scenes_shown(timeline: &Timeline, config: &Config) -> BTreeMap<String, SceneConfig> {
+    let mut scenes = config.scenes.clone();
+    for action in timeline.entries.iter().filter_map(|e| e.action.as_ref()) {
+        if action.scene != PAUSE_SCENE {
+            scenes
+                .entry(action.scene.clone())
+                .or_insert_with(|| SceneConfig {
+                    plugin: action.adapter.clone(),
+                    settings: BTreeMap::new(),
+                    root: config.root.clone(),
+                });
+        }
+    }
+    scenes
 }
 
 /// A line waiting to pair with the first shot of the next action block.
@@ -726,7 +748,7 @@ Read it, then remove the attribute.",
     /// The block's body, where its lines are numbered from, and the fragment
     /// an `include=file#fragment` names. `None` once the reason is reported.
     fn load_body(&mut self, b: &Block) -> Option<(String, BodyOrigin, Option<String>)> {
-        // The fragment is the adapter's to interpret (see `split`).
+        // The fragment is the plugin's to interpret (see `split`).
         let (include, fragment) = match b.include.map(|i| i.split_once('#')) {
             Some(Some((path, frag))) => (Some(path), Some(frag.to_string())),
             _ => (b.include, None),
@@ -756,7 +778,7 @@ Read it, then remove the attribute.",
         }
         let path = self.base_dir.join(rel);
         match std::fs::read_to_string(&path) {
-            // Adapter diagnostics then name this file.
+            // ScenePlugin diagnostics then name this file.
             Ok(s) => Some((
                 s,
                 BodyOrigin::Included {
@@ -794,7 +816,7 @@ Read it, then remove the attribute.",
         at_offset_ms(phrase, text, pending.map(|p| &p.input), policy, timed)
     }
 
-    /// The adapter configured for `scene`, or its default.
+    /// The plugin configured for `scene`, or its default.
     fn adapter_for(
         &mut self,
         scene: &str,
@@ -802,31 +824,31 @@ Read it, then remove the attribute.",
     ) -> Option<(String, &'a dyn SceneCompiler)> {
         let declared = config.scenes.get(scene);
         let adapter_name =
-            declared.map_or_else(|| default_adapter(scene).to_string(), |s| s.adapter.clone());
+            declared.map_or_else(|| default_plugin(scene).to_string(), |s| s.plugin.clone());
         let registry = self.registry;
         let Some(adapter) = registry.get(&adapter_name) else {
             let available = registry.available().join(", ");
             if declared.is_none() && adapter_name == scene {
                 self.diags.push(
                     Diagnostic::error(format!("unknown scene `{scene}`")).with_help(format!(
-                        "use an adapter's name as the scene ({available}), or declare \
-                             it under [scene.{scene}] in teleprompt.toml with its adapter"
+                        "use a scene plugin's name as the scene ({available}), or declare \
+                             it under [scene.{scene}] in teleprompt.toml with its plugin"
                     )),
                 );
                 return None;
             }
             self.diags.push(
                 Diagnostic::error(format!(
-                    "scene `{scene}` needs adapter `{adapter_name}`, but no adapter `{adapter_name}` is available"
+                    "scene `{scene}` needs the scene plugin `{adapter_name}`, which is not available"
                 ))
-                .with_help(format!("available adapters: {available}")),
+                .with_help(format!("available scene plugins: {available}")),
             );
             return None;
         };
         Some((adapter_name, adapter))
     }
 
-    /// Has the adapter validate the body, select its fragment, and split it
+    /// Has the plugin validate the body, select its fragment, and split it
     /// into shots.
     fn split(
         &mut self,
@@ -937,7 +959,7 @@ Read it, then remove the attribute.",
     }
 
     /// A shot's length with the block's `stretch=` applied. Only a shot that
-    /// states its own length can be stretched: the adapter re-times it to
+    /// states its own length can be stretched: the plugin re-times it to
     /// the new length ([`retime_stretched_shots`]). `None` once reported.
     fn stretched(&mut self, b: &Block, how: &Placing, measured: Measured) -> Option<Measured> {
         let Some(factor) = b.stretch else {

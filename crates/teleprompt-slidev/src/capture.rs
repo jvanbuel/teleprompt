@@ -102,7 +102,7 @@ impl CaptureBackend for SlidevRender {
             reason,
         };
 
-        let deck = absolute(Path::new(session.setting("deck", "slides.md")));
+        let deck = absolute(&session.path("deck", "slides.md"));
         let dir = deck.parent().unwrap_or(Path::new(".")).to_path_buf();
         let Some(slidev) = dir
             .ancestors()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""teleprompt-adapter-card: a scene of plain colour cards, as a plugin.
+"""teleprompt-scene-card: a scene of plain colour cards, as a plugin.
 
 A block of `scene=card` holds lines like these, split into shots at `mark`:
 
@@ -8,7 +8,7 @@ A block of `scene=card` holds lines like these, split into shots at `mark`:
     mark
     color black
 
-It is the smallest complete adapter: it validates a body, splits it into
+It is the smallest complete scene plugin: it validates a body, splits it into
 shots and says how long each takes (offline, for `check` and `plan`), and
 captures each shot with ffmpeg. Put it on PATH, or in teleprompt's plugins
 directory, and `teleprompt plugins` lists it. The protocol is
@@ -48,7 +48,7 @@ def directives(body):
 def describe(params, progress):
     return {
         "protocol": 1,
-        "kind": "adapter",
+        "kind": "scene",
         "name": NAME,
         "needs": [
             {

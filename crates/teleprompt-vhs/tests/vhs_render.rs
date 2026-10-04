@@ -52,7 +52,7 @@ fn shot(shot: &str, source: &str, ms: u64) -> PlannedShot {
     PlannedShot {
         id: shot.into(),
         scene: "terminal".into(),
-        adapter: "vhs".into(),
+        plugin: "vhs".into(),
         session: None,
         key: Hash::of(shot.as_bytes()),
         source: source.into(),

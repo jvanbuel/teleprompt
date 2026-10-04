@@ -16,9 +16,10 @@ use teleprompt_plugin::capture::{Session, SessionShot};
 fn the_shots_are_the_scheduled_durations_accumulated() {
     let s = Session {
         scene: "terminal".into(),
-        adapter: "vhs".into(),
+        plugin: "vhs".into(),
         name: None,
         settings: Default::default(),
+        root: Default::default(),
         shots: vec![
             a_shot("a", "", 800),
             a_shot("b", "", 1_200),
@@ -55,9 +56,10 @@ fn a_recording_that_stops_early_is_refused_rather_than_cut_into_empty_clips() {
     // them. `windows` would place the third at 2000..3000ms.
     let session = Session {
         scene: "terminal".into(),
-        adapter: "vhs".into(),
+        plugin: "vhs".into(),
         name: Some("short".into()),
         settings: Default::default(),
+        root: Default::default(),
         shots: vec![
             a_shot("a", "Sleep 1s", 1000),
             a_shot("b", "Sleep 1s", 1000),

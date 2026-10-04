@@ -39,10 +39,10 @@ pub fn is_script(text: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Definition {
     pub name: String,
-    /// What it is, in a word or two: a speaker's voice, a scene's adapter.
+    /// What it is, in a word or two: a speaker's voice, a scene's scene plugin.
     pub detail: String,
     /// The file it is defined in, and the line there (from 0); `None` for
-    /// one built in, such as an adapter used as a scene directly.
+    /// one built in, such as a scene plugin used as a scene directly.
     pub location: Option<(PathBuf, u32)>,
 }
 

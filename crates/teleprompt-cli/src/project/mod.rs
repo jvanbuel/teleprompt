@@ -87,9 +87,10 @@ impl Project {
             let candidate = dir.join("teleprompt.toml");
             if candidate.exists() {
                 let text = std::fs::read_to_string(&candidate)?;
-                let config = PartialConfig::from_toml(&text).map_err(|e| {
+                let mut config = PartialConfig::from_toml(&text).map_err(|e| {
                     std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
                 })?;
+                config.root = Some(dir.clone());
                 return Ok(Project { root: dir, config });
             }
             if !dir.pop() {

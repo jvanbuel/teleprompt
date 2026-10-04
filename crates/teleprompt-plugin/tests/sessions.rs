@@ -13,7 +13,7 @@ fn shot(shot: &str, scene: &str, source: &str) -> PlannedShot {
     PlannedShot {
         id: shot.into(),
         scene: scene.into(),
-        adapter: "mock".into(),
+        plugin: "mock".into(),
         session: None,
         key: Hash::of(shot.as_bytes()),
         source: source.into(),

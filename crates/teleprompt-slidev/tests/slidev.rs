@@ -55,7 +55,7 @@ fn a_bad_shot_is_refused_where_it_is() {
     assert_eq!(diags[0].span.expect("located").line, 13);
 }
 
-/// Marks split a block like every adapter's do; the compiler then refuses
+/// Marks split a block like every plugin's do; the compiler then refuses
 /// the shots after the first, which have no sentence to last as long as.
 #[test]
 fn marks_split_a_block_into_one_step_each() {
@@ -86,10 +86,12 @@ fn a_still_states_no_length_and_is_not_re_timed() {
 #[test]
 fn the_inputs_are_the_deck_and_its_folders() {
     let scene = teleprompt_core::config::SceneConfig {
-        adapter: "slidev".into(),
+        plugin: "slidev".into(),
         settings: [("deck".to_string(), "talk/slides.md".into())]
             .into_iter()
             .collect(),
+
+        root: Default::default(),
     };
     let inputs: Vec<String> = SlidevScene
         .inputs(&scene)

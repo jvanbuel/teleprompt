@@ -130,7 +130,7 @@ rather than overrun its slot and be cut:
 ```yaml
 scene:
   ui:
-    adapter: playwright
+    plugin: playwright
     annotation_ms: 600     # per action, and spent from the shot's budget
     annotation_size: 24    # the action title, in pixels
     cursor: pointer        # or `none`
@@ -143,7 +143,7 @@ binary does not work, point the scene at another one:
 ```yaml
 scene:
   ui:
-    adapter: playwright
+    plugin: playwright
     executable: /path/to/chrome
 ```
 

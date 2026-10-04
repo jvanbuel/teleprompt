@@ -33,7 +33,7 @@ impl BodyOrigin {
     }
 
     /// Point `d` at 0-based body line `i` in whichever file holds it.
-    /// Adapters route every body diagnostic through this.
+    /// Scene plugins route every body diagnostic through this.
     pub fn locate(&self, d: Diagnostic, i: usize, len: usize) -> Diagnostic {
         let d = d.at(self.span_of(i, len));
         match self.file() {
@@ -87,7 +87,7 @@ impl Measured {
 pub struct CommandError {
     pub message: String,
     /// Owned, because useful help is often computed (the directives an
-    /// adapter understands, the nearest correct spelling).
+    /// scene plugin understands, the nearest correct spelling).
     pub help: Option<String>,
 }
 
@@ -112,7 +112,7 @@ impl From<&BlockSource> for Validated {
 
 impl Shot {
     /// The `index`th shot of `block_id`, named `<block>#<index>`. `hash` is
-    /// the adapter's to choose: whatever identifies the shot's picture.
+    /// the plugin's to choose: whatever identifies the shot's picture.
     pub fn numbered(block_id: &BlockId, index: usize, source: String, hash: Hash) -> Self {
         Shot {
             id: ShotId::of(block_id, index),
@@ -219,7 +219,7 @@ pub fn validate_commands<T>(
     }
 }
 
-/// The compile-time half of a scene adapter: synchronous and free of IO.
+/// The compile-time half of a scene plugin: synchronous and free of IO.
 /// Rationale for each method is in `docs/design.md#scene-contract`.
 pub trait SceneCompiler: Send + Sync {
     fn kind(&self) -> &'static str;
@@ -268,7 +268,7 @@ pub trait SceneCompiler: Send + Sync {
 
     /// The part of an included body that `include=file#fragment` names. The
     /// compiler has already validated the whole file; the fragment's meaning
-    /// is the adapter's. The default refuses, naming the adapter.
+    /// is the plugin's. The default refuses, naming the plugin.
     fn select(&self, _body: &str, fragment: &str) -> Result<String, String> {
         Err(format!(
             "`{}` blocks do not take an `include=…#{fragment}`",

@@ -2,7 +2,7 @@
 //! and when each step of the recording began, become narration lines and
 //! the blocks between them (`docs/design.md#recording-a-session`).
 //!
-//! Pure: the caller reads the recording, as the adapter that made it
+//! Pure: the caller reads the recording, as the plugin that made it
 //! does, and transcribes the voice. A block names a run of steps; the
 //! script includes that part of the recording.
 //!
@@ -33,7 +33,7 @@ pub struct Word {
 pub struct Options {
     /// A silence at least this long ends a line.
     pub pause_ms: u64,
-    /// The scene the blocks run in: the recording adapter's own.
+    /// The scene the blocks run in: the recording plugin's own.
     pub scene: String,
     /// The recording, as the script's `include=` names it.
     pub include: String,

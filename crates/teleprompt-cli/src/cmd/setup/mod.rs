@@ -1,4 +1,4 @@
-//! `teleprompt setup`: the tools adapters run and the files backends read,
+//! `teleprompt setup`: the tools scene plugins run and the files backends read,
 //! found on this machine or installed with the author's own package manager.
 //! Teleprompt ships none of them (docs/design.md#what-teleprompt-ships): each
 //! is under its own license, which `setup` says, and is the author's to
@@ -126,7 +126,7 @@ pub fn punctuation_model(given: Option<&Path>) -> Option<PathBuf> {
         .or_else(|| installed_model("punctuation-model"))
 }
 
-/// The tools `names` stand for: an adapter's, or a tool by its own name;
+/// The tools `names` stand for: a scene plugin's, or a tool by its own name;
 /// each once, in order. Every tool when `names` is empty.
 pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
     if names.is_empty() {
@@ -147,7 +147,7 @@ pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
                 let adapters = crate::scene::adapter_names();
                 let tools: Vec<&str> = tools().iter().map(|t| t.name).collect();
                 return Err(format!(
-                    "`{name}` is neither an adapter ({}) nor a tool ({})",
+                    "`{name}` is neither a scene plugin ({}) nor a tool ({})",
                     adapters.join(", "),
                     tools.join(", ")
                 ));

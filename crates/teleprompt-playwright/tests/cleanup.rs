@@ -15,9 +15,10 @@ fn a_capture_that_cannot_run_leaves_no_work_dir() {
     };
     let session = Session {
         scene: "demo".into(),
-        adapter: "playwright".into(),
+        plugin: "playwright".into(),
         name: None,
         settings: BTreeMap::new(),
+        root: Default::default(),
         shots: vec![SessionShot {
             id: "a#0".into(),
             key: Hash::of(b"a"),

@@ -240,7 +240,7 @@ fn a_tape_that_states_its_timing_estimates_exactly() {
 }
 
 /// `Wait` is the exception, and it is an exception per shot rather than per
-/// adapter: it blocks until the prompt returns, so its length is whatever the
+/// scene plugin: it blocks until the prompt returns, so its length is whatever the
 /// command underneath takes, and that number is nowhere in the tape.
 #[test]
 fn a_shot_containing_wait_is_estimated_and_bounded_by_its_timeout() {
@@ -274,7 +274,7 @@ fn a_wait_scope_is_checked_rather_than_assumed() {
     assert!(e[0].message.contains("Wait+Prompt"), "{}", e[0].message);
 }
 
-/// The pass-through this adapter deliberately does not do. `Set Padding 20`
+/// The pass-through this scene plugin deliberately does not do. `Set Padding 20`
 /// and `Set TypingSped 10ms` are indistinguishable to a catch-all, and the
 /// second is a tape that types at a speed its author did not choose.
 #[test]
@@ -383,7 +383,7 @@ fn a_lowercase_command_is_diagnosed_as_a_lowercase_command() {
 fn the_adapter_answers_to_the_name_the_terminal_scene_resolves_to() {
     assert_eq!(VhsScene.kind(), "vhs");
     assert_eq!(
-        teleprompt_core::config::default_adapter("terminal"),
+        teleprompt_core::config::default_plugin("terminal"),
         VhsScene.kind()
     );
 }
@@ -534,7 +534,7 @@ fn screenshot_is_refused_like_output_is() {
     );
 }
 
-/// The rule the adapter already applied to `Set`, now applied to commands:
+/// The rule the plugin already applied to `Set`, now applied to commands:
 /// a line `check` accepts and the capture drops is a video that is wrong
 /// rather than missing. These are read, so they compile.
 #[test]

@@ -155,9 +155,10 @@ fn the_session_lays_shots_at_their_scheduled_offsets() {
     let parts = shots(V2);
     let session = Session {
         scene: "rec".into(),
-        adapter: "asciinema".into(),
+        plugin: "asciinema".into(),
         name: None,
         settings: Default::default(),
+        root: Default::default(),
         shots: parts
             .iter()
             .zip([3_000, 2_000])

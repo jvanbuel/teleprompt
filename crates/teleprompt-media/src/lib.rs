@@ -10,7 +10,7 @@ pub mod scene;
 pub use capture::MediaRender;
 pub use scene::MediaScene;
 
-/// The adapter, to register.
-pub fn adapter() -> teleprompt_plugin::Adapter {
-    teleprompt_plugin::Adapter::new(MediaScene, MediaRender::default())
+/// The plugin, to register.
+pub fn plugin() -> teleprompt_plugin::ScenePlugin {
+    teleprompt_plugin::ScenePlugin::new(MediaScene, MediaRender::default())
 }

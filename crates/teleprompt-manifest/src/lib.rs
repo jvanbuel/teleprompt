@@ -23,7 +23,7 @@ pub struct NarrationManifest {
     pub chapters: Vec<ChapterEntry>,
     pub lines: Vec<LineEntry>,
     /// One entry per scheduled action shot, in document order, with the
-    /// timings the scheduler arrived at rather than the adapter's own.
+    /// timings the scheduler arrived at rather than the plugin's own.
     pub shots: Vec<ShotEntry>,
 }
 
@@ -46,7 +46,7 @@ pub struct ChapterEntry {
 /// One scheduled action shot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShotEntry {
-    /// The shot's id, `<block>#<index>`, as the adapter minted it.
+    /// The shot's id, `<block>#<index>`, as the plugin minted it.
     pub shot: ShotId,
     /// The line paired with this shot, or `null` (always serialized). Only
     /// the first shot of a block that follows a paragraph is paired.
@@ -56,7 +56,7 @@ pub struct ShotEntry {
     pub start_ms: TimeMs,
     pub duration_ms: SpanMs,
     /// `exact` when the source states its timing in full, `estimated` for a
-    /// bound, `unknown` when the adapter cannot say and the shot took its
+    /// bound, `unknown` when the plugin cannot say and the shot took its
     /// line's length.
     pub duration_source: DurationSource,
     pub policy: PolicyKind,

@@ -220,7 +220,7 @@ fn the_scene_records_both_its_name_and_its_adapter() {
     assert_eq!(a.adapter, "mock");
 }
 
-/// An adapter's name is a scene without declaring one.
+/// A scene plugin's name is a scene without declaring one.
 #[test]
 fn an_undeclared_scene_named_after_an_adapter_uses_it() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock\nwait 100ms\n```\n";
@@ -232,7 +232,7 @@ fn an_undeclared_scene_named_after_an_adapter_uses_it() {
     );
 }
 
-/// A name that is neither declared nor an adapter is a mistake, not a
+/// A name that is neither declared nor a scene plugin is a mistake, not a
 /// placeholder video.
 #[test]
 fn an_unknown_scene_is_an_error_naming_the_adapters() {
@@ -251,11 +251,15 @@ fn an_unknown_scene_is_an_error_naming_the_adapters() {
 }
 
 #[test]
-fn an_unavailable_adapter_is_a_diagnostic_not_a_panic() {
+fn an_unavailable_scene_plugin_is_a_diagnostic_not_a_panic() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=browser\nawait page.goto('/');\n```\n";
     let p = program(src);
     let e = compile_program(&p).unwrap_err();
-    assert!(e.0[0].message.contains("no adapter `playwright`"));
+    let message = &e.0[0].message;
+    assert!(
+        message.contains("scene plugin `playwright`, which is not available"),
+        "{message}"
+    );
     assert!(e.0[0].help.as_deref().unwrap().contains("mock"));
 }
 
@@ -299,7 +303,7 @@ fn compilation_is_deterministic() {
 // `SourceSpan { line: 0, .. }`. The fence here opens on line 14 (verified
 // against `parse_script` independently), so the invalid `bogus` directive on
 // the block's second body line sits at absolute source line 16 (14 + 1 + 1, per
-// the mock adapter's `shot.line + i + 1` convention). A fabricated `line: 0`
+// the mock plugin's `shot.line + i + 1` convention). A fabricated `line: 0`
 // would instead report line 2 (0 + 1 + 1) — a small, visibly wrong number that
 // a real user's editor would never scroll to.
 const SPAN_SRC: &str = "# A\n\nOne. {#a}\n\n\n\n\n\n\n\n\n\n\n```teleprompt scene=mock\nwait 100ms\nbogus directive\n```\n";

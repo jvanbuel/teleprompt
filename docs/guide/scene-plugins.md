@@ -1,23 +1,22 @@
-# Writing an adapter
+# Writing a scene plugin
 
-An adapter brings a tool a script can show. It is a plugin
-([extending teleprompt](plugins.md) has how one ships, says what it needs,
-and is found); this page is what an adapter is.
+A scene plugin brings a kind of scene a script can show. It is one of the
+two kinds of plugin ([extending teleprompt](plugins.md) has how one ships,
+says what it needs, and is found); this page is what a scene plugin is.
 
-It is called an adapter, not a scene, because a project configures it into
-scenes: `[scene.demo] adapter = "vhs"` with a theme and a size, and
-`[scene.wide]` with another. A block names the scene, and the scene names
-its adapter.
+A project configures a scene plugin into scenes: `[scene.demo] plugin =
+"vhs"` with a theme and a size, and `[scene.wide]` with another. A block
+names the scene, and the scene names its plugin.
 
 ## The contract
 
-An adapter is a scene compiler, a capture backend and optionally a
-recorder, handed over as one `teleprompt_plugin::Adapter`, named by the
-compiler's `kind()`. That name is what a scene's `adapter` gives.
+A scene plugin is a scene compiler, a capture backend and optionally a
+recorder, handed over as one `teleprompt_plugin::ScenePlugin`, named by the
+compiler's `kind()`. That name is what a scene's `plugin` gives.
 
 ```rust
-pub fn adapter() -> teleprompt_plugin::Adapter {
-    teleprompt_plugin::Adapter::new(MyScene, MyCapture::default())
+pub fn plugin() -> teleprompt_plugin::ScenePlugin {
+    teleprompt_plugin::ScenePlugin::new(MyScene, MyCapture::default())
         // .recorded_with(MyRecorder), if your tool records sessions
 }
 ```
@@ -37,12 +36,12 @@ why it cannot run here (`unavailable`), usually with `tool::missing`.
 
 **`crates/teleprompt-media` is the smallest example**: images and videos,
 captured with ffmpeg. `teleprompt-vhs` and `teleprompt-asciinema` record
-sessions too. `examples/plugins/teleprompt-adapter-card` is a complete
-adapter in Python, as a program.
+sessions too. `examples/plugins/teleprompt-scene-card` is a complete
+scene plugin in Python, as a program.
 
 ## Testing it
 
-The `mock` adapter (`teleprompt_plugin::scene::MockScene` and
+The `mock` scene plugin (`teleprompt_plugin::scene::MockScene` and
 `capture::mock::MockCapture`) shows the contract with no tool behind it.
 A scene compiler is tested without its tool. A capture backend is tested
 against the real tool where it is installed, and skips, saying so, where
@@ -50,8 +49,8 @@ it is not.
 
 ## The protocol
 
-As a program, `teleprompt-adapter-<name>` describes itself with
-`"kind": "adapter"`, `continues` (whether a shot opens on the screen the
+As a program, `teleprompt-scene-<name>` describes itself with
+`"kind": "scene"`, `continues` (whether a shot opens on the screen the
 previous one left; true unless said) and `retimes` (whether it answers
 `retime`), and answers:
 

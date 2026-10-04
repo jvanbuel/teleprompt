@@ -71,7 +71,7 @@ fn the_committed_timeline_is_current() {
 
 #[test]
 fn every_terminal_action_is_timed_exactly() {
-    // The claim the tape adapter makes and the reason `plan` can report a
+    // The claim the tape scene plugin makes and the reason `plan` can report a
     // terminal scene's pacing with no terminal anywhere: a tape states its
     // own timing, so nothing here is a guess.
     let (_dir, p, s) = manual();

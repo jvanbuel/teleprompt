@@ -194,7 +194,7 @@ fn shell_quote(s: &str) -> String {
     }
 }
 
-/// What renders the video, and most adapters capture with.
+/// What renders the video, and most scene plugins capture with.
 pub static FFMPEG: Tool = Tool {
     name: "ffmpeg",
     what: "renders the video, and captures media, slide and terminal scenes",

@@ -1,7 +1,7 @@
 # Scenes
 
 An action block names a **scene**: what it shows, and what records it.
-The simplest scene is an adapter's own name:
+The simplest scene is a plugin's own name:
 
 ````markdown
 ```teleprompt scene=vhs
@@ -10,30 +10,34 @@ Enter
 ```
 ````
 
-An adapter installed as a [plugin](plugins.md) is named the same way:
-`scene=card` for `teleprompt-adapter-card`. `teleprompt plugins` lists
-what is installed.
+A scene plugin installed as a [program of its own](plugins.md) is named
+the same way: `scene=card` for `teleprompt-scene-card`. `teleprompt
+plugins` lists what is installed.
 
-Declare a scene when you want settings for it, or more than one of an
-adapter. The name is yours; the adapter does the work:
+Declare a scene when you want settings for it, or more than one of a
+plugin. The name is yours; the plugin does the work:
 
 ```toml
 [scene.server]
-adapter = "vhs"
+plugin = "vhs"
 
 [scene.client]
-adapter = "vhs"
+plugin = "vhs"
 env = { API = "http://localhost:8080" }
 ```
 
 Blocks of one scene run in one session (see [below](#a-scene-is-a-session)),
 so `server` and `client` are two terminals, each carrying on where it left
-off. A declared scene named after an adapter, like `[scene.vhs]`, just
-gives that adapter settings. A name that is neither declared nor an
-adapter is an error. `terminal` and `browser` still work, as older names
-for `vhs` and `playwright`.
+off. A declared scene named after a plugin, like `[scene.vhs]`, just
+gives that plugin settings. A name that is neither declared nor a
+plugin is an error. `terminal` and `browser` still work, as older names
+for `vhs` and `playwright`. In a declared scene, `adapter` is still
+accepted as an older name for `plugin`.
 
-| adapter | shows | a shot is | needs |
+A path in a scene's settings is relative to the project: the directory
+`teleprompt.toml` is in.
+
+| plugin | shows | a shot is | needs |
 |---|---|---|---|
 | [`vhs`](#terminals) | a terminal | a VHS tape | `vhs` |
 | [`asciinema`](#recordings) | a recorded terminal session | part of an asciicast | `agg` |
@@ -45,7 +49,7 @@ for `vhs` and `playwright`.
 | [`macos`](#desktop-apps) | a Mac app's window | the same actions | ffmpeg, and two permissions |
 
 `teleprompt setup` lists what this machine can record with, and `teleprompt
-setup <adapter>` says what each needs that is missing, under which
+setup <plugin>` says what each needs that is missing, under which
 license, and the command that installs it with your own package manager
 (`--run` runs it). Teleprompt ships none of these tools.
 
@@ -187,7 +191,7 @@ as a capture error naming the missing file.
 ## Recordings
 
 Some sessions shouldn't run again at capture time: a deploy, a migration,
-a build that takes twenty minutes. The `asciinema` adapter plays back a
+a build that takes twenty minutes. The `asciinema` plugin plays back a
 cast that [`asciinema rec`](https://asciinema.org) already made:
 
 ````markdown
@@ -268,7 +272,7 @@ In a plain script, `include=script.js#2` is the part after its first
 
 ## Motion graphics
 
-The `remotion` adapter renders compositions from an existing
+The `remotion` plugin renders compositions from an existing
 [Remotion](https://www.remotion.dev) project, unchanged. A shot names a
 composition and its props, as `npx remotion render <id> --props=…` takes
 them:
@@ -317,7 +321,7 @@ cargo run -- build examples/remotion/scripts/remotion.md
 
 ## Slides
 
-The `slidev` adapter shows slides from an existing
+The `slidev` plugin shows slides from an existing
 [Slidev](https://sli.dev) deck. A shot names a slide the way Slidev's URLs
 do. `3` is slide three as it opens, and `3?clicks=2` is slide three after
 two of its `v-click`s, so a list can be revealed a sentence at a time:
@@ -354,13 +358,13 @@ browser. See `examples/slidev`, whose script was
 
 ## Desktop apps
 
-A desktop app is shown by running it, as a terminal is: the `x11` adapter
+A desktop app is shown by running it, as a terminal is: the `x11` plugin
 on Linux and `macos` on a Mac. A scene names the app, and its blocks are
 what someone at the keyboard does:
 
 ```toml
 [scene.app]
-adapter = "x11"
+plugin = "x11"
 command = "gnome-text-editor notes.md"
 ```
 
@@ -401,7 +405,7 @@ where it really began rather than where the schedule said it would.
 
 ```toml
 [scene.app]
-adapter = "x11"
+plugin = "x11"
 command = "my-app --demo"   # run by sh, from where the build runs
 title = "My App"            # the window to follow, if it has several
 ready = "demo.db — My App"  # wait, unrecorded, until the title says this
@@ -434,7 +438,7 @@ See `examples/desktop`, a tour of teleprompt's own Linux app.
 
 ## Images, clips and title cards
 
-The `media` adapter needs only ffmpeg. One directive per shot:
+The `media` plugin needs only ffmpeg. One directive per shot:
 
 ````markdown
 ```teleprompt scene=media
@@ -456,7 +460,7 @@ included.
 
 ```toml
 [scene.media]
-dir = "media"            # what `src` is relative to, from where the build runs
+dir = "media"            # what `src` is relative to, from the project
 background = "#0b0d10"   # behind letterboxing, and a title's colour
 color = "#eef3f8"        # a title's text
 # font = "Sans"

@@ -365,11 +365,11 @@ fn a_transition_leaves_room_for_the_one_that_arrived_before_it() {
     );
 }
 
-/// An action whose adapter cannot say how long it takes fills the slot the
+/// An action whose scene plugin cannot say how long it takes fills the slot the
 /// narration gives it.
 ///
 /// A Playwright script states no duration — `await page.click(…)` takes as
-/// long as the page takes — so its adapter answers `Unknown`. That was
+/// long as the page takes — so its scene plugin answers `Unknown`. That was
 /// flattened to `0`, which is not "unknown", it is "takes no time": the
 /// shot got zero length, its picture never reached the video, and the
 /// renderer held the neighbouring frame over the whole slot. The build
@@ -421,7 +421,7 @@ fn a_cue_lands_on_the_word_not_a_lead_in_before_it() {
 }
 
 /// No input panics or wraps (#22): what an author wrote is at most a day by
-/// type, and the measured and adapter-reported values that are not bounded
+/// type, and the measured and scene plugin-reported values that are not bounded
 /// saturate, so offsets only ever move forward.
 #[test]
 fn absurd_durations_saturate_rather_than_overflow() {

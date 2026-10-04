@@ -1,4 +1,4 @@
-//! `teleprompt setup`: the tools adapters run, detected, and installed with
+//! `teleprompt setup`: the tools scene plugins run, detected, and installed with
 //! the author's own package manager, never shipped
 //! (docs/design.md#what-teleprompt-ships).
 
@@ -47,8 +47,8 @@ fn a_tool_without_a_package_falls_back_to_its_languages_installer() {
     assert_eq!(command("vhs", &ubuntu()), None);
 }
 
-/// What each adapter says it runs, capturing and then recording: the
-/// tools an adapter sends an author to `setup <adapter>` for.
+/// What each scene plugin says it runs, capturing and then recording: the
+/// tools a scene plugin sends an author to `setup <plugin>` for.
 #[test]
 fn an_adapter_names_the_tools_it_runs() {
     assert_eq!(names(&["vhs"]), ["vhs", "ttyd", "ffmpeg"]);
@@ -61,7 +61,7 @@ fn an_adapter_names_the_tools_it_runs() {
     assert_eq!(names(&["prompt"]), ["speech-model"]);
 }
 
-/// Every adapter this build has, down to one only for tests, names only
+/// Every scene plugin this build has, down to one only for tests, names only
 /// tools `setup` knows.
 #[test]
 fn every_adapter_needs_only_tools_setup_knows() {

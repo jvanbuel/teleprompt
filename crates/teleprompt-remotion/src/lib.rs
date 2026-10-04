@@ -12,7 +12,7 @@ pub mod tools;
 pub use capture::RemotionRender;
 pub use scene::RemotionScene;
 
-/// The adapter, to register.
-pub fn adapter() -> teleprompt_plugin::Adapter {
-    teleprompt_plugin::Adapter::new(RemotionScene, RemotionRender::default())
+/// The plugin, to register.
+pub fn plugin() -> teleprompt_plugin::ScenePlugin {
+    teleprompt_plugin::ScenePlugin::new(RemotionScene, RemotionRender::default())
 }

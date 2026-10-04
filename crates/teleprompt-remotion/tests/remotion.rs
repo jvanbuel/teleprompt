@@ -112,13 +112,14 @@ fn a_shot_is_re_timed_by_stating_its_length_once() {
 #[test]
 fn the_inputs_are_what_the_bundler_reads() {
     let scene: teleprompt_core::config::SceneConfig = teleprompt_core::config::SceneConfig {
-        adapter: "remotion".into(),
+        plugin: "remotion".into(),
         settings: [
             ("project".to_string(), "motion".into()),
             ("entry".to_string(), "app/main.ts".into()),
         ]
         .into_iter()
         .collect(),
+        root: Default::default(),
     };
     let inputs = RemotionScene.inputs(&scene);
     let names: Vec<String> = inputs.iter().map(|p| p.display().to_string()).collect();
@@ -161,9 +162,10 @@ mod capture {
     fn job(shots: Vec<SessionShot>) -> serde_json::Value {
         let session = Session {
             scene: "motion".into(),
-            adapter: "remotion".into(),
+            plugin: "remotion".into(),
             name: None,
             settings: Default::default(),
+            root: Default::default(),
             shots,
         };
         let frame = Frame {

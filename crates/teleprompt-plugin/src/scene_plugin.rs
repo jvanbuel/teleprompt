@@ -1,4 +1,4 @@
-//! An adapter, whole: how its blocks compile, how its scenes are captured
+//! A scene plugin, whole: how its blocks compile, how its scenes are captured
 //! and, where its tool can, how an author's session is recorded, under the
 //! one name a block's scene gives (`docs/design.md#crates`).
 
@@ -8,15 +8,15 @@ use crate::capture::CaptureBackend;
 use crate::record::{NamedRecorder, Recorder};
 use crate::tool::Tool;
 
-/// What an adapter crate hands the CLI to register. Its name is its scene
+/// What a scene plugin crate hands the CLI to register. Its name is its scene
 /// compiler's kind, so its halves cannot be registered under two.
-pub struct Adapter {
+pub struct ScenePlugin {
     scene: Box<dyn SceneCompiler>,
     capture: Box<dyn CaptureBackend>,
     recorder: Option<Box<dyn Recorder>>,
 }
 
-impl Adapter {
+impl ScenePlugin {
     pub fn new(
         scene: impl SceneCompiler + 'static,
         capture: impl CaptureBackend + 'static,
@@ -28,7 +28,7 @@ impl Adapter {
         }
     }
 
-    /// The adapter, also recording sessions with `recorder`.
+    /// The plugin, also recording sessions with `recorder`.
     pub fn recorded_with(mut self, recorder: impl Recorder + 'static) -> Self {
         self.recorder = Some(Box::new(recorder));
         self
@@ -55,7 +55,7 @@ impl Adapter {
     }
 
     /// What it runs, capturing and then recording, each once: what
-    /// `teleprompt setup <adapter>` installs.
+    /// `teleprompt setup <plugin>` installs.
     pub fn needs(&self) -> Vec<&'static Tool> {
         let recording = self.recorder.as_ref().map_or(&[][..], |r| r.needs());
         let mut out: Vec<&'static Tool> = Vec::new();

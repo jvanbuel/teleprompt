@@ -1,14 +1,13 @@
 # Extending teleprompt
 
-Teleprompt can be extended in two ways, and they are different things:
+There are two kinds of plugin, scene plugins and voice plugins:
 
-- **An adapter** brings a tool a script can show: a terminal, a browser,
+- **A scene plugin** brings a kind of scene: a terminal, a browser,
   slides, a desktop app. It has a language of its own for a block's body,
   compiles it into shots offline, and records them into clips. A project
-  names it in a scene (`[scene.demo] adapter = "vhs"`), and a block in
-  `scene=demo`: the adapter is the plugin, a scene is one configured use of
-  it. [Writing an adapter](adapters.md).
-- **A voice** speaks a line. Most speech servers now speak OpenAI's API,
+  configures it into scenes (`[scene.demo] plugin = "vhs"`), and a block
+  names the scene: `scene=demo`. [Writing a scene plugin](scene-plugins.md).
+- **A voice plugin** speaks a line. Most speech servers now speak OpenAI's API,
   and one of those needs **no plugin at all**: name it in `teleprompt.toml`
   ([any OpenAI-compatible server](voices.md#any-openai-compatible-server)).
   A voice that is not a server, such as a program on the author's machine,
@@ -28,7 +27,7 @@ short video made with them.
 
 A plugin ships in one of two ways:
 
-- **A program of its own**, in any language: `teleprompt-adapter-<name>`
+- **A program of its own**, in any language: `teleprompt-scene-<name>`
   or `teleprompt-voice-<name>`, on PATH or in the plugins directory.
   Teleprompt finds it, starts it when a command needs it, and talks to it
   in JSON ([the protocol](#the-protocol)). Installing one needs no rebuild.
@@ -44,15 +43,15 @@ different ones:
 
 | module | kind | what you implement |
 |---|---|---|
-| `scene` | adapter | `SceneCompiler`: a block in your tool's own language, validated and split into shots, offline |
-| `capture` | adapter | `CaptureBackend`: a session of shots run, and a clip kept for each |
-| `record` | adapter | `Recorder`, optional: an author's working session recorded, for `teleprompt record` |
+| `scene` | scene | `SceneCompiler`: a block in your tool's own language, validated and split into shots, offline |
+| `capture` | scene | `CaptureBackend`: a session of shots run, and a clip kept for each |
+| `record` | scene | `Recorder`, optional: an author's working session recorded, for `teleprompt record` |
 | `voice` | voice | `VoiceBackend`: a line of text turned into audio |
 | `tool` | both | `Tool`, for what your plugin needs that teleprompt does not ship, and helpers to run it |
 | `protocol` | both | a plugin as a program: teleprompt's side, and serving a Rust plugin |
 
-An adapter hands teleprompt a `teleprompt_plugin::Adapter`; a voice, a
-`teleprompt_plugin::VoicePlugin`.
+A scene plugin hands teleprompt a `teleprompt_plugin::ScenePlugin`; a voice
+plugin, a `teleprompt_plugin::VoicePlugin`.
 
 ## What it needs
 
@@ -91,7 +90,7 @@ built-in plugin's name wins over an installed one's, which `teleprompt
 plugins` says. Publish it with the GitHub topic `teleprompt-plugin`.
 
 **Compiled in:** add your crate to the workspace, and one line to
-`teleprompt-cli`: `built_in()` in `src/scene.rs` for an adapter,
+`teleprompt-cli`: `built_in()` in `src/scene.rs` for a scene plugin,
 `plugins()` in `src/voice.rs` for a voice. Then add your crate to
 `tools/check_deps.py`, with `PLUGIN` as what it may depend on.
 
@@ -114,26 +113,26 @@ Every plugin answers **`describe`** first, with what the two kinds share
 and, beside it, what its kind says of itself:
 
 ```json
-{"protocol": 1, "kind": "adapter", "name": "card", "needs": [],
+{"protocol": 1, "kind": "scene", "name": "card", "needs": [],
  "continues": false, "retimes": true}
 ```
 
 Its `name` matches its program's. A tool in `needs` is `{"name", "what",
 "license", "home", "program" or "package", "install":{"brew": "...", "apt":
 "...", ...}}`, which `teleprompt setup` lists and installs. The rest of
-the methods are the kind's own: [an adapter's](adapters.md#the-protocol),
+the methods are the kind's own: [a scene plugin's](scene-plugins.md#the-protocol),
 [a voice's](voices.md#as-a-program).
 
 ## A Rust plugin as a program
 
-`teleprompt_plugin::protocol::serve` serves an `Adapter` or a
+`teleprompt_plugin::protocol::serve` serves a `ScenePlugin` or a
 `VoicePlugin` over stdin and stdout, so a crate written against the
 contracts can be built as a program too:
 
 ```rust
-// src/bin/teleprompt-adapter-mine.rs
+// src/bin/teleprompt-scene-mine.rs
 fn main() -> std::io::Result<()> {
-    teleprompt_plugin::protocol::serve::adapter(my_adapter::adapter())
+    teleprompt_plugin::protocol::serve::scene(my_plugin::plugin())
 }
 ```
 

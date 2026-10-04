@@ -1,14 +1,14 @@
-//! A Rust plugin's side: an [`Adapter`] or [`VoicePlugin`] answering
+//! A Rust plugin's side: an [`ScenePlugin`] or [`VoicePlugin`] answering
 //! teleprompt over stdin and stdout, so one crate can be compiled into
 //! teleprompt or built as an executable of its own:
 //!
 //! ```no_run
 //! fn main() -> std::io::Result<()> {
-//!     # let adapter = teleprompt_plugin::Adapter::new(
+//!     # let plugin = teleprompt_plugin::ScenePlugin::new(
 //!     #     teleprompt_plugin::scene::MockScene,
 //!     #     teleprompt_plugin::capture::mock::MockCapture::default(),
 //!     # );
-//!     teleprompt_plugin::protocol::serve::adapter(adapter)
+//!     teleprompt_plugin::protocol::serve::scene(plugin)
 //! }
 //! ```
 
@@ -20,18 +20,18 @@ use serde::Serialize;
 use teleprompt_core::{BlockId, Hash, ShotId};
 
 use super::{
-    AdapterTraits, Body, Capture, Captured, Configure, Configured, Description, LineError, Probed,
-    Retime, Retimed, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits,
+    Body, Capture, Captured, Configure, Configured, Description, LineError, Probed, Retime,
+    Retimed, SceneTraits, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits,
     Voices, WireClip, WireProgress, WireShot, VERSION,
 };
 use crate::capture::{Frame, Session, SessionShot};
 use crate::scene::{BlockSource, BodyOrigin, Measured, Shot, Validated};
 use crate::voice::{wav, SynthRequest, VoiceBackend, VoicePlugin};
-use crate::Adapter;
+use crate::ScenePlugin;
 
-/// Serves `adapter` on stdin and stdout until teleprompt closes stdin.
-pub fn adapter(adapter: Adapter) -> std::io::Result<()> {
-    adapter_on(&adapter, std::io::stdin().lock(), std::io::stdout().lock())
+/// Serves `plugin` on stdin and stdout until teleprompt closes stdin.
+pub fn scene(plugin: ScenePlugin) -> std::io::Result<()> {
+    scene_on(&plugin, std::io::stdin().lock(), std::io::stdout().lock())
 }
 
 /// Serves `voice` on stdin and stdout until teleprompt closes stdin.
@@ -101,17 +101,17 @@ fn unknown(method: &str) -> Result<(), String> {
     Err(format!("unknown method `{method}`"))
 }
 
-/// Serves `adapter` on `input` and `out`; for tests, and for a plugin that
+/// Serves `plugin` on `input` and `out`; for tests, and for a plugin that
 /// talks over something other than its own stdin and stdout.
-pub fn adapter_on(adapter: &Adapter, input: impl BufRead, out: impl Write) -> std::io::Result<()> {
-    let scene = adapter.scene();
+pub fn scene_on(plugin: &ScenePlugin, input: impl BufRead, out: impl Write) -> std::io::Result<()> {
+    let scene = plugin.scene();
     serve(input, out, |r| match r.method.as_str() {
         "describe" => {
             let d = Description {
                 protocol: VERSION,
-                name: adapter.name().to_string(),
-                needs: adapter.needs().iter().map(|t| t.to_wire()).collect(),
-                traits: Traits::Adapter(AdapterTraits {
+                name: plugin.name().to_string(),
+                needs: plugin.needs().iter().map(|t| t.to_wire()).collect(),
+                traits: Traits::Scene(SceneTraits {
                     continues: scene.continues(),
                     retimes: true,
                 }),
@@ -175,9 +175,9 @@ pub fn adapter_on(adapter: &Adapter, input: impl BufRead, out: impl Write) -> st
             r.answer(answer)
         }
         "unavailable" => r.answer(Ok(Unavailable {
-            reason: adapter.capture().unavailable(),
+            reason: plugin.capture().unavailable(),
         })),
-        "capture" => capture(adapter, r),
+        "capture" => capture(plugin, r),
         other => r.answer(unknown(other)),
     })
 }
@@ -202,7 +202,7 @@ fn timed(source: String, m: Measured) -> WireShot {
     WireShot { source, ms, exact }
 }
 
-fn capture<W: Write>(adapter: &Adapter, r: &mut Request<'_, W>) -> std::io::Result<()> {
+fn capture<W: Write>(adapter: &ScenePlugin, r: &mut Request<'_, W>) -> std::io::Result<()> {
     let asked = match r.params::<Capture>() {
         Ok(c) => c,
         Err(e) => return r.answer(Err::<(), _>(e)),
@@ -229,9 +229,10 @@ fn capture<W: Write>(adapter: &Adapter, r: &mut Request<'_, W>) -> std::io::Resu
     };
     let session = Session {
         scene: asked.session.scene,
-        adapter: adapter.name().to_string(),
+        plugin: adapter.name().to_string(),
         name: asked.session.name,
         settings: asked.session.settings,
+        root: asked.session.root,
         shots,
     };
     let frame = Frame {
@@ -271,7 +272,7 @@ fn capture<W: Write>(adapter: &Adapter, r: &mut Request<'_, W>) -> std::io::Resu
     r.answer(clips)
 }
 
-/// Serves `voice` on `input` and `out`, as [`adapter_on`] does an adapter.
+/// Serves `voice` on `input` and `out`, as [`scene_on`] does a scene plugin.
 pub fn voice_on(voice: &VoicePlugin, input: impl BufRead, out: impl Write) -> std::io::Result<()> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

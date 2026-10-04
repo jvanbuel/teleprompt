@@ -155,7 +155,7 @@ impl CaptureBackend for MediaRender {
             shot: shot.into(),
             reason,
         };
-        let dir = Path::new(session.setting("dir", "media"));
+        let dir = session.path("dir", "media");
         let work = out_dir.join(format!(".media-{}", std::process::id()));
         std::fs::create_dir_all(&work)
             .map_err(|e| failed("", format!("{}: {e}", work.display())))?;
@@ -164,7 +164,7 @@ impl CaptureBackend for MediaRender {
         let mut result = Ok(());
         for shot in session.shots.iter().filter(|s| s.wanted) {
             let clip = out_dir.join(format!("{}.mp4", shot.key));
-            let Some(a) = args(shot, session, frame, dir, &work, &clip) else {
+            let Some(a) = args(shot, session, frame, &dir, &work, &clip) else {
                 result = Err(failed(&shot.id, "the shot is not a media directive".into()));
                 break;
             };

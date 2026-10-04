@@ -1,7 +1,7 @@
 //! `teleprompt import <recording> --voice <wav>`: a session recorded with
-//! an adapter's tool (a cast, a tape) and the voice recorded with it
+//! a scene plugin's tool (a cast, a tape) and the voice recorded with it
 //! become a script, and the takes its lines are spoken from. The deriving
-//! is `teleprompt-derive`; reading the recording is its adapter's; this
+//! is `teleprompt-derive`; reading the recording is its plugin's; this
 //! hears the voice and writes the results.
 
 use std::path::{Path, PathBuf};
@@ -29,7 +29,7 @@ pub enum Words<'a> {
 
 pub struct Import<'a> {
     pub recording: &'a Path,
-    /// The adapter whose tool made it; found by its extension when `None`.
+    /// The plugin whose tool made it; found by its extension when `None`.
     pub with: Option<&'a str>,
     pub voice: &'a Path,
     pub script: &'a Path,
@@ -406,7 +406,7 @@ pub struct Args {
     /// A session: the voice recorded with it, as a WAV
     #[arg(long, help_heading = "A recorded session")]
     pub voice: Option<PathBuf>,
-    /// The tool that made the session, by its adapter; found by its
+    /// The tool that made the session, by its scene plugin; found by its
     /// extension otherwise
     #[arg(long, help_heading = "A recorded session")]
     pub with: Option<String>,

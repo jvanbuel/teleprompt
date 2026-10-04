@@ -2,7 +2,7 @@
 teleprompt: 1
 scene:
   slidev:
-    deck: examples/slidev/deck/slides.md
+    deck: deck/slides.md
 ---
 
 # Narrated slides

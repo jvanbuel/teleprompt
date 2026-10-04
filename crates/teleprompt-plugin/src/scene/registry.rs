@@ -9,7 +9,7 @@ pub struct SceneRegistry {
 }
 
 impl SceneRegistry {
-    /// Only the mock: adapter crates depend on this one, so they are
+    /// Only the mock: scene plugin crates depend on this one, so they are
     /// registered by the CLI (`teleprompt_cli::scene::scenes`).
     pub fn with_builtins() -> Self {
         let mut r = Self::default();

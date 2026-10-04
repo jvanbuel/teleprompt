@@ -50,5 +50,5 @@ backend = "moo"
 voice = "bull"
 
 [scene.slidev]
-adapter = "slidev"
-deck = "examples/moo/deck/slides.md"   # from where teleprompt runs: the repository root
+plugin = "slidev"
+deck = "deck/slides.md"

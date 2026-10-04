@@ -16,13 +16,14 @@ use teleprompt_core::{Hash, ShotId};
 pub struct PlannedShot {
     pub id: ShotId,
     pub scene: String,
-    pub adapter: String,
+    /// The scene plugin that records it.
+    pub plugin: String,
     /// `session="…"`, naming a different run of the scene.
     pub session: Option<String>,
     /// What the clip is filed under: the chain, not the shot hash
     /// (`docs/design.md#capture-key`).
     pub key: Hash,
-    /// The adapter's own source for this shot, as re-timed and published.
+    /// The plugin's own source for this shot, as re-timed and published.
     pub source: String,
     /// How long the schedule gave this shot. A backend may not take longer;
     /// if it takes less, the renderer holds the last frame.
@@ -36,10 +37,13 @@ pub struct PlannedShot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Session {
     pub scene: String,
-    pub adapter: String,
+    pub plugin: String,
     pub name: Option<String>,
     /// The scene's settings, as every shot in it shares them.
     pub settings: BTreeMap<String, String>,
+    /// What a relative path in `settings` is relative to: the project's
+    /// directory. Empty, they are relative to where teleprompt runs.
+    pub root: PathBuf,
     pub shots: Vec<SessionShot>,
 }
 
@@ -57,6 +61,11 @@ impl Session {
     /// How many of this session's shots are to be kept.
     pub fn wanted(&self) -> usize {
         self.shots.iter().filter(|s| s.wanted).count()
+    }
+
+    /// The setting `key` as a path, or `default`, against [`Self::root`].
+    pub fn path(&self, key: &str, default: &str) -> PathBuf {
+        self.root.join(self.setting(key, default))
     }
 
     /// A setting, or what to use when the scene does not name one.
@@ -108,9 +117,10 @@ pub fn sessions(shots: &[PlannedShot], have: &dyn Fn(&Hash) -> bool) -> Vec<Sess
             Some(session) => session.shots.push(in_session),
             None => out.push(Session {
                 scene: shot.scene.clone(),
-                adapter: shot.adapter.clone(),
+                plugin: shot.plugin.clone(),
                 name: shot.session.clone(),
                 settings: shot.settings.clone(),
+                root: PathBuf::new(),
                 shots: vec![in_session],
             }),
         }
@@ -230,7 +240,7 @@ pub trait CaptureBackend {
 /// The backends a build can choose between.
 #[derive(Default)]
 pub struct CaptureRegistry {
-    /// Each backend under its adapter's name.
+    /// Each backend under its plugin's name.
     backends: Vec<(&'static str, Box<dyn CaptureBackend>)>,
 }
 
@@ -244,7 +254,7 @@ impl CaptureRegistry {
         self
     }
 
-    /// The backend for an adapter; `None` where this build has none, unlike
+    /// The backend for a scene plugin; `None` where this build has none, unlike
     /// [`CaptureBackend::unavailable`].
     pub fn for_adapter(&self, adapter: &str) -> Option<&dyn CaptureBackend> {
         self.backends
@@ -253,7 +263,7 @@ impl CaptureRegistry {
             .map(|(_, b)| b.as_ref())
     }
 
-    /// Each backend, under its adapter's name.
+    /// Each backend, under its plugin's name.
     pub fn backends(&self) -> impl Iterator<Item = (&'static str, &dyn CaptureBackend)> {
         self.backends.iter().map(|(name, b)| (*name, b.as_ref()))
     }

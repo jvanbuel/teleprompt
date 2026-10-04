@@ -351,9 +351,10 @@ mod tests {
     fn session(shots: &[(&str, u64)]) -> Session {
         Session {
             scene: "app".into(),
-            adapter: "x11".into(),
+            plugin: "x11".into(),
             name: None,
             settings: Default::default(),
+            root: Default::default(),
             shots: shots
                 .iter()
                 .enumerate()

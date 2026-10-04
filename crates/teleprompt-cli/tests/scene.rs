@@ -1,11 +1,11 @@
-//! The composition root: which adapters a built `teleprompt` can actually
+//! The composition root: which scene plugins a built `teleprompt` can actually
 //! reach.
 //!
-//! `SceneRegistry::with_builtins()` carries only the adapters inside
-//! `teleprompt_plugin::scene`, so an adapter living in its own crate is reachable
+//! `SceneRegistry::with_builtins()` carries only the scene plugins inside
+//! `teleprompt_plugin::scene`, so a scene plugin living in its own crate is reachable
 //! only if something adds it. That something is `scene::scenes()`, and these
 //! tests are what catch a command compiling against the narrower registry —
-//! which fails `scene=terminal` with "no adapter `vhs` is available" on a
+//! which fails `scene=terminal`, saying the scene plugin `vhs` is not available, on a
 //! build that ships one.
 
 use teleprompt_cli::scene::scenes;
@@ -113,4 +113,39 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
         "the slot really was stretched: {}ms",
         entry.duration_ms.ms()
     );
+}
+
+/// A path in a scene's settings is the project's, wherever teleprompt runs
+/// (these tests run in the crate's directory): the image a shot shows is
+/// found, so replacing it changes the shot's key.
+#[test]
+fn a_scene_reads_its_files_from_the_project() {
+    let dir = teleprompt_testkit::test_dir("scene-paths");
+    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    std::fs::write(
+        dir.join("teleprompt.toml"),
+        "[locales]\nsource = \"en\"\ntargets = []\n\n[scene.media]\ndir = \"pictures\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.join("pictures")).unwrap();
+    std::fs::write(
+        dir.join("scripts/pics.md"),
+        "---\nteleprompt: 1\n---\n\n# Pictures\n\nA picture. {#pic}\n\n```teleprompt scene=media\nimage src=a.png\n```\n",
+    )
+    .unwrap();
+    let key = || {
+        let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
+        let compiled = project
+            .compile(&dir.join("scripts/pics.md"), "en")
+            .unwrap_or_else(|e| panic!("{e:?}"));
+        compiled.0.timeline.entries[0]
+            .action
+            .as_ref()
+            .unwrap()
+            .capture_key
+    };
+    std::fs::write(dir.join("pictures/a.png"), b"one").unwrap();
+    let first = key();
+    std::fs::write(dir.join("pictures/a.png"), b"two").unwrap();
+    assert_ne!(first, key(), "the image was not read from the project");
 }

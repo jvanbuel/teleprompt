@@ -2,7 +2,7 @@
 //!
 //! The block *is* the script, run as written. A script states no timing,
 //! so `estimate` is [`Measured::Unknown`], `retime` keeps the contract's
-//! `None`, and the shot takes its line's length (`docs/design.md#adapters`).
+//! `None`, and the shot takes its line's length (`docs/design.md#scene-plugins`).
 //! A block may instead include one test of a test file ([`crate::spec`]).
 
 use teleprompt_core::Hash;

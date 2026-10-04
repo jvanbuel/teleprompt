@@ -37,7 +37,7 @@ pub fn installed() -> Vec<Installed> {
         .into_iter()
         .map(|found| {
             let shadowed = match found.kind {
-                Kind::Adapter => crate::scene::is_built_in(&found.name),
+                Kind::Scene => crate::scene::is_built_in(&found.name),
                 Kind::Voice => crate::voice::is_built_in(&found.name),
             };
             let (name, kind) = (found.name.clone(), found.kind);
@@ -81,7 +81,7 @@ pub fn run(_: Args, format: Format) -> Run {
 fn render(report: &PluginsReport) -> String {
     if report.plugins.is_empty() {
         return format!(
-            "No plugins installed. A plugin is a program named teleprompt-adapter-<name> \
+            "No plugins installed. A plugin is a program named teleprompt-scene-<name> \
              or teleprompt-voice-<name>, on PATH or in {}: docs/guide/plugins.md\n",
             report.dir
         );
@@ -89,7 +89,7 @@ fn render(report: &PluginsReport) -> String {
     let mut out = String::new();
     for p in &report.plugins {
         let kind = match p.kind {
-            Kind::Adapter => "adapter",
+            Kind::Scene => "scene",
             Kind::Voice => "voice",
         };
         out.push_str(&format!("{:<18} {kind:<8} {}\n", p.name, p.path));

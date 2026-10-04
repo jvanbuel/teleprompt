@@ -89,7 +89,7 @@ pub enum Element {
         /// are collected.
         review: Option<String>,
         /// Source location of the fence this action block came from, so a
-        /// scene adapter's diagnostics point at the real line.
+        /// scene plugin's diagnostics point at the real line.
         span: SourceSpan,
     },
     Pause {
@@ -372,7 +372,7 @@ impl Resolver<'_> {
                 Diagnostic::error("action block has no `scene`")
                     .at(block.span)
                     .with_help(
-                        "write ```teleprompt scene=<adapter or declared scene>, e.g. scene=vhs",
+                        "write ```teleprompt scene=<plugin or declared scene>, e.g. scene=vhs",
                     ),
             );
             return;

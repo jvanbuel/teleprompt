@@ -1,6 +1,6 @@
 //! The reference capture backend: a flat field of colour per shot.
 //!
-//! The counterpart of the `mock` scene adapter. A mock shot says nothing
+//! The counterpart of the `mock` scene plugin. A mock shot says nothing
 //! about what is on screen, so its picture is a colour taken from its
 //! capture key: two shots look different exactly when they are different.
 //! It lets the rest of the stage be tested without a terminal or display.

@@ -192,7 +192,7 @@ fn factor(v: &str) -> Result<f64, String> {
     })
 }
 
-/// [`DurationMs::parse`] as milliseconds, for adapters that count in `u64`.
+/// [`DurationMs::parse`] as milliseconds, for scene plugins that count in `u64`.
 pub fn parse_duration_ms(v: &str) -> Result<u64, String> {
     DurationMs::parse(v).map(DurationMs::ms)
 }

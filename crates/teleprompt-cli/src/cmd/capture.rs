@@ -30,7 +30,7 @@ pub(crate) fn cues_of(
         .map(|item| PlannedShot {
             id: item.shot.clone(),
             scene: item.scene.clone(),
-            adapter: item.adapter.clone(),
+            plugin: item.adapter.clone(),
             session: item.session.clone(),
             key: item.capture_key,
             source: shots
@@ -132,7 +132,12 @@ pub fn run_capture(
 ) -> CaptureReport {
     let shots = cues_of(manifest, shots, scenes);
     let have = |key: &teleprompt_core::Hash| clips_dir.join(format!("{key}.mp4")).is_file();
-    let planned = sessions(&shots, &have);
+    let mut planned = sessions(&shots, &have);
+    for session in &mut planned {
+        if let Some(scene) = scenes.get(&session.scene) {
+            session.root = scene.root.clone();
+        }
+    }
 
     let mut warnings = Vec::new();
     let mut captured = 0usize;
@@ -172,12 +177,12 @@ fn record(
     clips_dir: &Path,
     on_progress: &mut dyn FnMut(Progress),
 ) -> Result<usize, String> {
-    let Some(backend) = registry.for_adapter(&session.adapter) else {
+    let Some(backend) = registry.for_adapter(&session.plugin) else {
         return Err(format!(
-            "nothing in this build can record `{}` scenes (adapter `{}`), so \
+            "nothing in this build can record `{}` scenes (plugin `{}`), so \
              its {} shot(s) will render as slates",
             session.scene,
-            session.adapter,
+            session.plugin,
             session.wanted()
         ));
     };
@@ -185,7 +190,7 @@ fn record(
         return Err(format!(
             "`{}` cannot record `{}` scenes here: {reason}; its {} shot(s) \
              will render as slates",
-            session.adapter,
+            session.plugin,
             session.scene,
             session.wanted()
         ));
@@ -324,9 +329,10 @@ mod tests {
     fn session() -> Session {
         Session {
             scene: "terminal".into(),
-            adapter: "writes".into(),
+            plugin: "writes".into(),
             name: None,
             settings: BTreeMap::new(),
+            root: Default::default(),
             shots: vec![SessionShot {
                 id: "a#0".into(),
                 key: Hash::of(b"a#0"),

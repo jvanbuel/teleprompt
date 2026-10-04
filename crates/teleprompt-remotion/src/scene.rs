@@ -137,7 +137,7 @@ impl SceneCompiler for RemotionScene {
                 .unwrap_or(default)
                 .to_string()
         };
-        let project = PathBuf::from(setting("project", "."));
+        let project = scene.path("project", ".");
         let entry = project.join(setting("entry", "src/index.ts"));
         let mut out: Vec<PathBuf> = entry.parent().map(Path::to_path_buf).into_iter().collect();
         out.extend(

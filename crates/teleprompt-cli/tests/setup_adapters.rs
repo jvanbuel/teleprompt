@@ -1,12 +1,12 @@
-//! Every program an adapter says it is missing is one `teleprompt setup
-//! <adapter>` knows how to install: the two lists cannot drift apart.
+//! Every program a scene plugin says it is missing is one `teleprompt setup
+//! <plugin>` knows how to install: the two lists cannot drift apart.
 
 use teleprompt_cli::cmd::setup::resolve;
 use teleprompt_plugin::tool::NOT_ON_PATH;
 
 #[test]
 fn setup_covers_every_program_an_adapter_finds_missing() {
-    // Nothing on PATH, so every adapter that runs a program says which. The
+    // Nothing on PATH, so every scene plugin that runs a program says which. The
     // only test in this binary, so no other reads PATH meanwhile.
     let empty = teleprompt_testkit::test_dir("setup-adapters");
     std::env::set_var("PATH", empty.path());

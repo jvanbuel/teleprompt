@@ -1,5 +1,5 @@
 //! A Rust plugin served over the protocol: what teleprompt sends, and what
-//! `serve` answers for the adapter or voice behind it.
+//! `serve` answers for the plugin or voice behind it.
 
 use std::io::Cursor;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use teleprompt_plugin::voice::{
     async_trait, wav, LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend,
     VoiceCapabilities, VoiceError, VoicePlugin,
 };
-use teleprompt_plugin::Adapter;
+use teleprompt_plugin::ScenePlugin;
 
 /// Each request in turn, and each line answered.
 fn exchange(requests: &[Value], serve: impl FnOnce(Cursor<Vec<u8>>, &mut Vec<u8>)) -> Vec<Value> {
@@ -26,8 +26,8 @@ fn exchange(requests: &[Value], serve: impl FnOnce(Cursor<Vec<u8>>, &mut Vec<u8>
         .collect()
 }
 
-fn mock() -> Adapter {
-    Adapter::new(MockScene, MockCapture::default())
+fn mock() -> ScenePlugin {
+    ScenePlugin::new(MockScene, MockCapture::default())
 }
 
 fn request(id: u64, method: &str, params: Value) -> Value {
@@ -38,11 +38,11 @@ fn request(id: u64, method: &str, params: Value) -> Value {
 fn an_adapter_describes_itself_and_what_it_needs() {
     let answers = exchange(
         &[request(1, "describe", json!({ "protocol": 1 }))],
-        |i, o| serve::adapter_on(&mock(), i, o).unwrap(),
+        |i, o| serve::scene_on(&mock(), i, o).unwrap(),
     );
     let d = &answers[0]["result"];
     assert_eq!(d["protocol"], 1);
-    assert_eq!(d["kind"], "adapter");
+    assert_eq!(d["kind"], "scene");
     // Its traits sit beside the kind, and no voice's are there.
     assert_eq!(d["retimes"], true);
     assert!(d.get("lists_voices").is_none(), "{d}");
@@ -55,7 +55,7 @@ fn an_adapter_describes_itself_and_what_it_needs() {
 fn a_bad_line_is_named_by_its_place_in_the_body() {
     let body = json!({ "scene": "mock", "body": "wait 1s\nfly 2s\n" });
     let answers = exchange(&[request(7, "validate", body)], |i, o| {
-        serve::adapter_on(&mock(), i, o).unwrap()
+        serve::scene_on(&mock(), i, o).unwrap()
     });
     assert_eq!(answers[0]["id"], 7);
     let errors = answers[0]["result"]["errors"].as_array().unwrap();
@@ -68,7 +68,7 @@ fn a_bad_line_is_named_by_its_place_in_the_body() {
 fn shots_come_split_at_marks_with_their_lengths() {
     let body = json!({ "scene": "mock", "body": "wait 500ms\nmark\nopen\n" });
     let answers = exchange(&[request(1, "shots", body)], |i, o| {
-        serve::adapter_on(&mock(), i, o).unwrap()
+        serve::scene_on(&mock(), i, o).unwrap()
     });
     let shots = answers[0]["result"]["shots"].as_array().unwrap();
     assert_eq!(shots.len(), 2);
@@ -85,7 +85,7 @@ fn an_unknown_method_is_an_error_not_a_hang() {
             request(1, "dance", json!({})),
             request(2, "unavailable", json!(null)),
         ],
-        |i, o| serve::adapter_on(&mock(), i, o).unwrap(),
+        |i, o| serve::scene_on(&mock(), i, o).unwrap(),
     );
     assert!(answers[0]["error"].as_str().unwrap().contains("dance"));
     assert!(answers[1].get("result").is_some(), "{:?}", answers[1]);

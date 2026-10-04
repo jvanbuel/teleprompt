@@ -171,7 +171,7 @@ fn unknown_attribute_keys_surface_as_errors() {
 }
 
 /// `Element` carries the source span from the AST node it was built from, so an
-/// adapter validation error points at the real line instead of a fabricated
+/// scene plugin validation error points at the real line instead of a fabricated
 /// `line: 0`. This script puts the narration paragraph and the action fence on
 /// different lines, so the test would fail if the shots were swapped or both
 /// zeroed.

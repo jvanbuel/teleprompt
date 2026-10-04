@@ -1,5 +1,5 @@
 //! Plugins installed as programs of their own: found, listed with what they
-//! need, and compiled against as a built-in adapter is. Uses the example
+//! need, and compiled against as a built-in scene plugin is. Uses the example
 //! plugins in `examples/plugins`, which are Python.
 
 use std::path::PathBuf;
@@ -44,8 +44,8 @@ fn installed_plugins_are_listed_with_what_they_need() {
         return;
     }
     let dir = teleprompt_testkit::test_dir("plugins-list");
-    // A plugin a built-in adapter's name hides, in the plugins directory.
-    let mock = dir.join("teleprompt-adapter-mock");
+    // A plugin a built-in scene plugin's name hides, in the plugins directory.
+    let mock = dir.join("teleprompt-scene-mock");
     std::fs::write(&mock, "#!/bin/sh\nexit 1\n").unwrap();
     std::fs::set_permissions(&mock, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
     let out = teleprompt(&dir, &dir, &["--format", "json", "plugins"]);
@@ -58,7 +58,7 @@ fn installed_plugins_are_listed_with_what_they_need() {
     let plugins = report["plugins"].as_array().unwrap();
     let named = |name: &str| plugins.iter().find(|p| p["name"] == name).unwrap().clone();
     let card = named("card");
-    assert_eq!(card["kind"], "adapter");
+    assert_eq!(card["kind"], "scene");
     assert_eq!(card["needs"], serde_json::json!(["ffmpeg"]));
     assert!(card["problem"].is_null(), "{card}");
     assert_eq!(named("espeak")["kind"], "voice");
@@ -70,7 +70,7 @@ fn installed_plugins_are_listed_with_what_they_need() {
 }
 
 #[test]
-fn a_script_compiles_against_an_installed_adapter() {
+fn a_script_compiles_against_an_installed_scene_plugin() {
     if !have_python() {
         return;
     }

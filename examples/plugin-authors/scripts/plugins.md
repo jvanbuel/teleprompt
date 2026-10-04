@@ -10,9 +10,10 @@ output:
 
 # Writing a plugin
 
-Teleprompt has two kinds of plugin. An adapter brings a tool your script
-can show, and a voice speaks the lines. This blue card was drawn by an
-adapter: about a hundred lines of Python, in the examples folder. {#card}
+Teleprompt has two kinds of plugin. A scene plugin brings a tool your
+script can show, and a voice plugin speaks the lines. This blue card was
+drawn by a scene plugin: about a hundred lines of Python, in the examples
+folder. {#card}
 
 ```teleprompt scene=card policy=concurrent
 color #1d4ed8
@@ -20,7 +21,7 @@ color #1d4ed8
 
 # A program with a name
 
-A plugin is a program whose name says what it is. Teleprompt adapter,
+A plugin is a program whose name says what it is. Teleprompt scene,
 then a name, or teleprompt voice, then a name. Put it on your
 path, and teleprompt plugins lists it, with the tools it needs. {#name}
 
@@ -63,7 +64,7 @@ called studio. {#studio}
 ```teleprompt scene=asciinema policy=fit-action include=casts/session.cast#studio
 ```
 
-A voice that is not a server is a plugin. It is given its settings, then
+A voice that is not a server is a voice plugin. It is given its settings, then
 each line, and writes the line as a wave file. {#voice}
 
 ```teleprompt scene=card policy=concurrent

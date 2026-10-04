@@ -228,9 +228,10 @@ mod tests {
     fn session(shots: &[(&str, u64)]) -> Session {
         Session {
             scene: "terminal".into(),
-            adapter: "vhs".into(),
+            plugin: "vhs".into(),
             name: None,
             settings: Default::default(),
+            root: Default::default(),
             shots: shots
                 .iter()
                 .map(|(source, ms)| SessionShot {

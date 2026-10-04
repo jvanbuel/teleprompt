@@ -55,9 +55,9 @@ slate and `build` reports how many slates it rendered.
 | **script** | A Markdown source file. The unit of compilation. |
 | **chapter** | A heading and everything under it. |
 | **line** | One narration paragraph, with a stable id. The unit of voice. |
-| **action block** | A fenced `teleprompt` block of adapter-native source. |
+| **action block** | A fenced `teleprompt` block of source in its scene plugin's own language. |
 | **scene** | A domain a video can show (`terminal`, `browser`, `media`). What a fence names. |
-| **adapter** | The implementation serving a scene (`vhs`, `playwright`). Configuration, not part of the script. |
+| **scene plugin** | The implementation serving a scene (`vhs`, `playwright`). Configuration, not part of the script. |
 | **mark** | A point inside an action block where narration may interleave. |
 | **shot** | The part of an action block between marks. The unit of capture. |
 | **item** | A line, the shot that follows it, or both. The unit of scheduling. |
@@ -87,13 +87,13 @@ A paragraph that is only an HTML comment is a directive, not narration.
 normalised for speech: emphasis is stripped, and code spans and links read
 as their text.
 
-**An action block's body belongs to its adapter.** teleprompt reads the
+**An action block's body belongs to its scene's plugin.** teleprompt reads the
 fence attributes to learn the scene and hands the body to that scene's
-adapter to validate. It never interprets the body itself. Adding a scene
+plugin to validate. It never interprets the body itself. Adding a scene
 therefore never changes the Markdown grammar. `include=<path>` takes the
 body from a file, so a tape or a Playwright spec stays a real file that its
 own tooling can run. `include=<path>#<fragment>` selects part of that file.
-What a fragment means is the adapter's to decide (see
+What a fragment means is the plugin's to decide (see
 [`select`](#scene-contract)).
 
 ### Attributes
@@ -145,7 +145,7 @@ parse ─► resolve ─► voice ─► schedule ─► capture ─► compose
 ```
 
 1. **Parse**: Markdown to AST. Assign ids, validate attributes, and hand
-   each block to its adapter to validate and split into shots. `check`
+   each block to its scene's plugin to validate and split into shots. `check`
    stops here.
 2. **Resolve**: merge configuration and resolve each line's voice. The
    result is a `Program`.
@@ -167,7 +167,7 @@ reading the manifest it just published.
 |---|---|
 | `teleprompt-core` | AST, parser, ids, config, `Hash`, diagnostics, shared vocabulary such as `VoiceSource` |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
-| `teleprompt-plugin` | what a plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend`, `Recorder` and `VoiceBackend` contracts, `Adapter` (an adapter's three under one name), PCM and WAV, the mock adapter, and helpers for running a plugin's tools. Every adapter and voice depends on it and core alone |
+| `teleprompt-plugin` | what a plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend`, `Recorder` and `VoiceBackend` contracts, `ScenePlugin` (a scene plugin's three under one name), PCM and WAV, the mock scene plugin, and helpers for running a plugin's tools. Every scene and voice plugin depends on it and core alone |
 | `teleprompt-voice` | the voice engine: the `DurationEstimator`, the registry, stretching a line to fit, the author's takes, and the `null` backend: silence at the estimated length |
 | `teleprompt-voice-openai` | HTTP against any server that speaks OpenAI's speech API: `kokoro` (Kokoro-FastAPI) and `openai` are its presets, and `[backends.<name>] api = "openai"` names any other |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
@@ -182,24 +182,24 @@ reading the manifest it just published.
 | `teleprompt-lsp` | the language server: the protocol, positions and completion; what a script compiles to comes from an `Analyzer` the CLI implements, so it depends on core alone |
 | `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
-| `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `adapter()` |
-| `teleprompt-desktop` | what the desktop adapters share: their action language and scene compiler, and the runner that plays a session's shots against a window and cuts them where they began |
+| `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per scene plugin, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `plugin()` |
+| `teleprompt-desktop` | what the desktop scene plugins share: their action language and scene compiler, and the runner that plays a session's shots against a window and cuts them where they began |
 | `teleprompt-x11`, `-macos` | one crate per platform: the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation. Each records with ffmpeg |
-| `teleprompt-cli` | the `teleprompt` binary, and the registries every adapter and backend is composed into |
+| `teleprompt-cli` | the `teleprompt` binary, and the registries every scene plugin and backend is composed into |
 
 `schedule`, `plugin` and `manifest` depend on `core` alone, and not on
 one another. Anything that needs two of them belongs in `compile`.
 `render` reads the manifest and never the compiler. A plugin, built in or
 not, depends on `plugin` and `core` and nothing else of teleprompt's, so
 what an outside plugin can do, the built-in ones do
-([writing a plugin](guide/plugins.md)). Each adapter crate's `adapter()`
-hands over its compiler, capture backend and recorder as one `Adapter`,
+([writing a plugin](guide/plugins.md)). Each scene plugin crate's `plugin()`
+hands over its compiler, capture backend and recorder as one `ScenePlugin`,
 named by its compiler's kind, so its halves cannot be registered under two
 names. `compile`, and so `plan`, `check` and the prompter, reads a
 scene's shots and never runs its tool: it uses `plugin::scene` and
 `plugin::voice` only, which `tools/check_deps.py` checks by name, along
 with the allowed edges between workspace crates. CI fails on any other.
-Adapters and backends are registered only in the CLI, so adding one means
+Scene plugins and backends are registered only in the CLI, so adding one means
 one crate and one registry line, and no other crate learns its name.
 
 ## Voice
@@ -457,14 +457,14 @@ pronunciation re-renders exactly the lines that use that word.
 
 ### Recording a session
 
-Recording is an adapter's, like compiling and capturing: `record --with
-<adapter>` has the adapter's own tool record the author (`asciinema rec`
+Recording is a scene plugin's, like compiling and capturing: `record --with
+<plugin>` has the plugin's own tool record the author (`asciinema rec`
 with its keystrokes, `vhs record`, `playwright codegen`), while ffmpeg
 records the microphone; `import` takes a recording and a voice from
 elsewhere. A `Recorder` starts the tool, stops it as its own stop would
 (the recorded shell hung up, `vhs` sent SIGTERM), and reads what it wrote
 back as steps: when each began, its part of the file, and the mark that
-cuts the file before it in the adapter's scene. A cast's step is a command,
+cuts the file before it in the plugin's language. A cast's step is a command,
 from its first key to the next command's; a tape's, a command through its
 `Enter`, timed as `vhs` would play it; a codegen script's, a statement,
 timed by when it appeared in the file, which the recorder watches. The
@@ -546,9 +546,9 @@ The scheduler is a pure function from items, with their durations, to a
 | `trim-action` | An action longer than its line is cut to the line's length, with a warning when it is more than `trim_warn_above` times the line's length. A shorter action is left alone. |
 | `fit-line` | The line is sped up or slowed down to fit the action, which keeps its length: see [led by the picture](#led-by-the-picture). |
 
-A policy only changes a picture if the adapter can re-time its source (see
-`retime` under [the scene contract](#scene-contract)). Where the adapter
-cannot, the renderer holds the last frame for the rest of the slot.
+A policy only changes a picture if the scene's plugin can re-time its
+source (see `retime` under [the scene contract](#scene-contract)). Where
+the plugin cannot, the renderer holds the last frame for the rest of the slot.
 
 `align` on any policy but `concurrent` is an error naming the combination,
 since it would change nothing. Renamed spellings are errors that name
@@ -628,7 +628,7 @@ written, with a warning when it exceeds the quiet window.
 `timelines/<script>.<locale>.json` is committed, and it is the review
 surface. A reviewer reads it, not the video, to see what a prose change did
 to the pacing. For each item it records start and duration, the policy,
-the line's hashes, the shot's scene, adapter, `shot_hash`,
+the line's hashes, the shot's scene, its plugin (`adapter`), `shot_hash`,
 `capture_key` and duration source, and the transition. There are no
 timestamps and no floats, so the file is byte-stable. In code, a start is
 a `TimeMs` and a duration a `SpanMs`, so one is never added to or passed
@@ -645,15 +645,15 @@ without re-planning.
 
 ## Scenes
 
-A scene is a running instance of an adapter: one session, with its
-settings. A fence names it (`scene=vhs`). An adapter's name is a scene
-without being declared; declaring one (`[scene.server] adapter = "vhs"`)
-gives it settings, or a second instance of an adapter under another name.
-The block body is adapter-native, so a scene's name does not abstract
-over tools: moving a block to another adapter means rewriting it. A name
-that is neither declared nor an adapter is an error, not a placeholder.
-`terminal` and `browser` are kept as older names for `vhs` and
-`playwright`.
+A scene is a configured use of a scene plugin: one session, with its
+settings. A fence names it (`scene=vhs`). A plugin's name is a scene
+without being declared; declaring one (`[scene.server] plugin = "vhs"`)
+gives it settings, or a second instance of a plugin under another name.
+The block body is in the plugin's own language, so a scene's name does not
+abstract over tools: moving a block to another plugin means rewriting it.
+A name that is neither declared nor a plugin is an error, not a
+placeholder. `terminal` and `browser` are kept as older names for `vhs`
+and `playwright`, and `adapter` as an older name for `plugin`.
 
 ### Scene contract
 
@@ -670,14 +670,14 @@ IO, which is why `check` and `plan` stay offline however heavy the tool is.
   where the source does not state its timing. This is how `fit-action`
   reaches inside a tape.
 - `continues` says whether a shot opens on the screen the previous shot
-  left behind. It is true by default, and false for adapters whose shots
+  left behind. It is true by default, and false for plugins whose shots
   depend only on their own source.
 - `inputs` and `shot_inputs` name files outside the block that the picture
   is drawn from, such as a project or an image. The compiler reads and
   hashes them into the [capture key](#capture-key), so the contract itself
   stays free of IO.
 - `select` returns the part of an included body that a `#fragment` names.
-  The default refuses the fragment and names the adapter.
+  The default refuses the fragment and names the plugin.
 
 `CaptureBackend` is the runtime half. It runs one session, writes a clip
 for each shot it is asked for, and reports through `unavailable()` when
@@ -685,7 +685,7 @@ this machine cannot run it.
 
 ### Marks
 
-A mark is spelled as a comment in the adapter's own language (`# mark` in
+A mark is spelled as a comment in the plugin's own language (`# mark` in
 a tape, `// mark` in a Playwright script), so the body stays a file its
 tool can run unchanged. Without marks, a block is one shot and narration
 cannot interleave with it.
@@ -699,7 +699,7 @@ produce two different pictures. The key is a chain, in the same way as
 OCI's chain ID:
 
 ```
-name(n)  = H(recipe, adapter, scene config, inputs, shot source)
+name(n)  = H(recipe, plugin, scene config, inputs, shot source)
 chain(0) = H(name(0))
 chain(n) = H(chain(n-1) ‖ name(n))
 ```
@@ -708,13 +708,13 @@ Invalidation follows from the arithmetic. Editing a shot changes that
 shot's key and every later key in its session, and nothing before it or in
 another scene. Moving a paragraph changes start times but no key, because
 position is not in the key. Slot length enters through `retime`: a re-timed
-shot's source is the source that will be captured. An adapter whose
+shot's source is the source that will be captured. A plugin whose
 `continues` is false names each shot by `name(n)` alone.
 
 The *recipe* (`CAPTURE_RECIPE` in `teleprompt-compile`) versions how
 teleprompt draws a picture: the recorder's version, the tape or script it
 writes around a shot, a changed default. Bump it when the picture for the
-same script changes, since neither the adapter name nor the author's
+same script changes, since neither the plugin's name nor the author's
 settings would move. `inputs` are the scene's `inputs` and the shot's
 `shot_inputs`, hashed by content.
 
@@ -731,7 +731,7 @@ left to capture is not opened, and a session stops after the last shot it
 needs. A scene this machine cannot record produces a warning and a slate,
 not a failure.
 
-### Adapters
+### Scene plugins
 
 - **`vhs`**: a VHS tape, run by `vhs`. `Sleep` and `TypingSpeed` make a
   shot's timing exact, and a shot with `Wait` is `Estimated` at its
@@ -783,8 +783,8 @@ It carries `manifest_version` (3), provenance, `duration_ms`, the audio
 format, `chapters`, `lines` (id, text, chapter, start, duration, duration
 source, audio path, `source_hash`, `audio_hash`,
 and `words` when timed), and `shots` (the action schedule with scene,
-adapter, policy, transition, `shot_hash`, `capture_key` and session). A
-consumer must refuse a version it does not know.
+`adapter` (the scene's plugin), policy, transition, `shot_hash`,
+`capture_key` and session). A consumer must refuse a version it does not know.
 
 `audio_hash` hashes the WAV bytes on disk, not the voice cache key, so it
 changes only when the audio does.
@@ -907,7 +907,7 @@ Documents are printed as they are written and carry no `ok`: the timeline
   behind.
 - The OpenAI-compatible backend is tested against an in-process HTTP stub. One `#[ignore]`d test
   uses a real server.
-- Render and capture tests need ffmpeg or the adapter's tool. They skip
+- Render and capture tests need ffmpeg or the scene plugin's tool. They skip
   where it is missing, and CI sets `TELEPROMPT_REQUIRE_*` so a skip there
   is a failure.
 
@@ -917,13 +917,13 @@ Teleprompt is MIT, and everything in its binaries must let it stay that
 way, so that anyone can install, bundle or ship it without a lawyer. What
 a video needs comes in three tiers.
 
-1. **Built in.** Every adapter, voice backend and recognizer above is
+1. **Built in.** Every scene plugin, voice backend and recognizer above is
    teleprompt's own code, in every build; `listen` is a feature only
    because its native library is large. The crates they link are checked in
    CI (`deny.toml`, `cargo deny check licenses`) to be permissively
    licensed: a crate under the GPL, or any license not on the list, fails
    the build.
-2. **Tools, detected and never shipped.** What an adapter runs, `vhs`,
+2. **Tools, detected and never shipped.** What a scene plugin runs, `vhs`,
    Playwright, `asciinema`, `ffmpeg`, `Xvfb`, `xdotool`, Remotion and Slidev, and what a
    backend talks to, a Kokoro server or a speech model, are programs and
    files of their own, under their own licenses: `asciinema` and some
@@ -932,7 +932,7 @@ a video needs comes in three tiers.
    separate program, and links none of them. A hosted service, Gemini TTS
    or a translator's API, is the author's own account, used only when
    chosen. `teleprompt setup` says which are missing, and
-   `teleprompt setup <adapter or tool>` says how to install each with the author's own package manager, and its license, and runs
+   `teleprompt setup <plugin or tool>` says how to install each with the author's own package manager, and its license, and runs
    that command when asked (`--run`). Models go in
    `$TELEPROMPT_MODELS`, by default `teleprompt/models` in the user's data
    directory, where `serve`, `record` and `import` look when no
@@ -946,9 +946,9 @@ a video needs comes in three tiers.
    stay the CLI's. **No release artifact, whether binary, app bundle, installer
    or container image, includes a tool.** One that did would take on the
    tool's license: a deliberate choice, made in this document first.
-3. **Community plugins.** Adapters and voices of other people's. A voice
+3. **Community plugins.** Scene and voice plugins of other people's. A voice
    that is a server speaking OpenAI's API needs no plugin: the author
-   names it in `teleprompt.toml`. The rest are programs of their own: `teleprompt-adapter-<name>` or
+   names it in `teleprompt.toml`. The rest are programs of their own: `teleprompt-scene-<name>` or
    `teleprompt-voice-<name>`, on PATH or in the plugins directory,
    speaking JSON a line at a time on stdin and stdout
    ([the protocol](guide/plugins.md#the-protocol)). The author installs
@@ -958,7 +958,7 @@ a video needs comes in three tiers.
    plugin starts when a command first needs it and stops when the command
    ends; teleprompt sends it one request at a time. A built-in plugin's
    name wins. The two kinds share only this plumbing, and `describe`'s
-   shared fields; each kind's own are tagged by `kind`, so an adapter
+   shared fields; each kind's own are tagged by `kind`, so a scene plugin
    cannot claim a voice's. `teleprompt_plugin::protocol` is both sides: the host, which
    holds an outside plugin as the contract it implements, so nothing else
    in teleprompt can tell it from a built-in one; and `serve`, which makes
@@ -973,6 +973,6 @@ Named here so the rest of this document is not read as covering them:
   a recording of its owner reading a consent statement, which teleprompt
   does not collect; a voice made there is named by its id.
 - **Recording, scene inputs and cloning over the protocol.** A plugin
-  program can be an adapter's scene and capture, or a voice; recording a
+  program can be a scene plugin's scene and capture, or a voice; recording a
   session, the files a scene reads outside its block, `include=…#fragment`
   and cloning a voice are for compiled-in plugins only, until one asks.

@@ -15,13 +15,14 @@ fn ready() -> bool {
 fn session(command: &str, shots: &[(&str, u64, bool)]) -> Session {
     Session {
         scene: "term".into(),
-        adapter: "x11".into(),
+        plugin: "x11".into(),
         name: None,
         settings: [
             ("command".to_string(), command.to_string()),
             ("settle_ms".to_string(), "300".to_string()),
         ]
         .into(),
+        root: Default::default(),
         shots: shots
             .iter()
             .enumerate()

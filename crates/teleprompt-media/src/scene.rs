@@ -220,14 +220,10 @@ impl SceneCompiler for MediaScene {
     /// The one file a shot shows, by content: replacing it re-renders
     /// the shots that show it and nothing else. A title shows none.
     fn shot_inputs(&self, scene: &SceneConfig, source: &str) -> Vec<PathBuf> {
-        let dir = scene
-            .settings
-            .get("dir")
-            .and_then(|v| v.as_str())
-            .unwrap_or("media");
+        let dir = scene.path("dir", "media");
         match directive(source) {
             Some(Directive::Image { src, .. } | Directive::Clip { src, .. }) => {
-                vec![PathBuf::from(dir).join(src)]
+                vec![dir.join(src)]
             }
             _ => Vec::new(),
         }

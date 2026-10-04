@@ -1,6 +1,6 @@
 //! Plugins as programs of their own (`docs/guide/plugins.md#the-protocol`).
 //!
-//! A plugin is an executable named `teleprompt-adapter-<name>` or
+//! A plugin is an executable named `teleprompt-scene-<name>` or
 //! `teleprompt-voice-<name>`, on PATH or in the plugins directory. Teleprompt
 //! starts it the first time a command needs it and talks to it for the rest
 //! of that command: one JSON object a line, a request on its stdin and the
@@ -32,7 +32,7 @@ pub const VERSION: u32 = 1;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
-    Adapter,
+    Scene,
     Voice,
 }
 
@@ -40,7 +40,7 @@ impl Kind {
     /// The prefix its executable's name starts with.
     pub fn prefix(self) -> &'static str {
         match self {
-            Kind::Adapter => "teleprompt-adapter-",
+            Kind::Scene => "teleprompt-scene-",
             Kind::Voice => "teleprompt-voice-",
         }
     }
@@ -50,7 +50,7 @@ impl Kind {
 ///
 /// The two kinds share only this: a name, the protocol, and the tools they
 /// need. The rest is the kind's own, beside them on the wire, tagged by
-/// `kind`: `{"kind": "adapter", "continues": false, …}`.
+/// `kind`: `{"kind": "scene", "continues": false, …}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Description {
     pub protocol: u32,
@@ -67,14 +67,14 @@ pub struct Description {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Traits {
-    Adapter(AdapterTraits),
+    Scene(SceneTraits),
     Voice(VoiceTraits),
 }
 
 impl Description {
     pub fn kind(&self) -> Kind {
         match self.traits {
-            Traits::Adapter(_) => Kind::Adapter,
+            Traits::Scene(_) => Kind::Scene,
             Traits::Voice(_) => Kind::Voice,
         }
     }
@@ -84,9 +84,9 @@ fn yes() -> bool {
     true
 }
 
-/// How an adapter's scenes behave, beyond its methods.
+/// How a scene plugin's scenes behave, beyond its methods.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdapterTraits {
+pub struct SceneTraits {
     /// Whether a shot opens on the screen the previous one left.
     #[serde(default = "yes")]
     pub continues: bool,
@@ -95,7 +95,7 @@ pub struct AdapterTraits {
     pub retimes: bool,
 }
 
-impl Default for AdapterTraits {
+impl Default for SceneTraits {
     fn default() -> Self {
         Self {
             continues: true,
@@ -143,7 +143,7 @@ pub struct WireTool {
     pub install: BTreeMap<String, String>,
 }
 
-/// `validate` and `shots`: a block's body, in the adapter's language.
+/// `validate` and `shots`: a block's body, in the plugin's language.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Body {
     pub scene: String,
@@ -222,6 +222,10 @@ pub struct WireSession {
     pub name: Option<String>,
     #[serde(default)]
     pub settings: BTreeMap<String, String>,
+    /// What a relative path in `settings` is relative to: the project's
+    /// directory.
+    #[serde(default)]
+    pub root: PathBuf,
     pub shots: Vec<WireSessionShot>,
 }
 

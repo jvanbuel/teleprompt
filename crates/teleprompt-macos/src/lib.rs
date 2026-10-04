@@ -4,7 +4,7 @@
 //! forward, fits its window to the frame and drives it; ffmpeg records the
 //! screen with wall-clock timestamps, cropped to the window, which is what
 //! [`teleprompt_desktop::run`] cuts shots by. The language and its timing
-//! are `teleprompt-desktop`'s, as they are the Linux adapter's.
+//! are `teleprompt-desktop`'s, as they are the Linux plugin's.
 //!
 //! It needs, for whatever runs `teleprompt` (a terminal, the app):
 //! Accessibility, to press keys and move the pointer, and Screen Recording,
@@ -15,14 +15,14 @@ mod jxa;
 
 pub use capture::MacosRender;
 
-/// The adapter's name, and the scene a block names to use it.
+/// The plugin's name, and the scene a block names to use it.
 pub const ADAPTER: &str = "macos";
 
-/// The macos adapter's compiler.
+/// The macos plugin's compiler.
 pub const SCENE: teleprompt_desktop::DesktopScene =
     teleprompt_desktop::DesktopScene { kind: ADAPTER };
 
-/// The adapter, to register.
-pub fn adapter() -> teleprompt_plugin::Adapter {
-    teleprompt_plugin::Adapter::new(SCENE, MacosRender::default())
+/// The plugin, to register.
+pub fn plugin() -> teleprompt_plugin::ScenePlugin {
+    teleprompt_plugin::ScenePlugin::new(SCENE, MacosRender::default())
 }

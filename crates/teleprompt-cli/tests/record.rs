@@ -34,7 +34,7 @@ fn recorder(adapter: &str) -> Option<NamedRecorder> {
     }
 }
 
-/// In the child, records with `adapter` until the tool ends or the parent
+/// In the child, records with `scene plugin` until the tool ends or the parent
 /// asks it to stop, and writes each step's start and the whole file.
 fn child(adapter: &str, url: Option<&str>) -> bool {
     let Some(out) = std::env::var_os(CHILD).map(PathBuf::from) else {

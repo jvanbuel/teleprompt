@@ -120,7 +120,7 @@ fn an_include_escaping_the_project_root_is_refused() {
     assert!(e[0].contains("outside the project"));
 }
 
-/// `BlockSource` used to carry only the fence's shot, and the mock adapter
+/// `BlockSource` used to carry only the fence's shot, and the mock scene plugin
 /// offset body line `i` by `shot.line + i + 1`. Right for an inline body;
 /// meaningless for an included one — an error on line 3 of `steps.mock` came
 /// out as `scripts/h1.md:15:1` in a thirteen-line script. Ruling F12 removed a
@@ -184,7 +184,7 @@ fn an_inline_body_still_reports_the_scripts_own_path_and_offset_line() {
 }
 
 /// `include=file#fragment` reads the file and leaves the fragment to the
-/// adapter. One that does not take fragments says so, naming itself,
+/// scene plugin. One that does not take fragments says so, naming itself,
 /// rather than reading the whole file as if the fragment were not there.
 #[test]
 fn a_fragment_is_the_adapters_to_take_or_refuse() {

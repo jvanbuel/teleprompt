@@ -92,9 +92,9 @@ of a job offers to install it there.
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |
 | `voice clone <name>` | make a voice from your takes on a [Voicebox](docs/guide/voices.md#your-own-voice-voicebox) server, so unrecorded lines sound like you |
-| `setup [use, adapter or tool…]` | ask what you want to do and install what it needs; with names (`conversations`, `vhs`, `speech-model`…), say what is installed, the licenses, and how to install the rest, and `--run` installs them; in a project, also whether its voice's server answers |
+| `setup [use, plugin or tool…]` | ask what you want to do and install what it needs; with names (`conversations`, `vhs`, `speech-model`…), say what is installed, the licenses, and how to install the rest, and `--run` installs them; in a project, also whether its voice's server answers |
 | `cache` | report what the project's caches hold, or shrink them |
-| `plugins` | list the [plugins](docs/guide/plugins.md) installed as programs of their own: adapters and voices of other people's, in any language |
+| `plugins` | list the [plugins](docs/guide/plugins.md) installed as programs of their own: scene and voice plugins of other people's, in any language |
 | `lsp` | a [language server](docs/guide/editors.md) for your editor: problems as you type, completion, hover and go to definition |
 
 Every command accepts `--format json`. Exit codes are `0` for success, `1`
@@ -105,7 +105,7 @@ every JSON report says `ok`, true exactly when the exit code is 0.
 
 - [Writing scripts](docs/guide/scripts.md): lines and blocks, policies,
   cues, transitions, configuration, and drafting from a document
-- [Scenes](docs/guide/scenes.md): capture, sessions, and each adapter
+- [Scenes](docs/guide/scenes.md): capture, sessions, and each scene plugin
 - [Voices](docs/guide/voices.md): backends, the voice cache, and Kokoro
 - [Reading from a prompter](docs/guide/prompter.md): `serve`, which
   follows your voice
@@ -117,8 +117,8 @@ every JSON report says `ok`, true exactly when the exit code is 0.
   and watching an edit
 - [Editors](docs/guide/editors.md): `teleprompt lsp`, for problems,
   completion and navigation as you write
-- [Extending teleprompt](docs/guide/plugins.md): [an
-  adapter](docs/guide/adapters.md) for another tool, or [a
+- [Extending teleprompt](docs/guide/plugins.md): [a scene
+  plugin](docs/guide/scene-plugins.md) for another tool, or [a
   voice](docs/guide/voices.md#writing-a-voice)
 - [Rendering with Remotion](docs/integrations/remotion.md): consuming the
   manifest from a Remotion project

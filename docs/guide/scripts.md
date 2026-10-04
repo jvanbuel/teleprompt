@@ -59,7 +59,7 @@ speed.
 | `trim-action` | An action longer than its line is cut to the line's length, with a warning when it's more than `trim_warn_above` (2.0) times too long. |
 | `fit-line` | The picture leads: it keeps its length, and the line is played faster or slower to fit it. See [below](#led-by-the-picture). |
 
-Re-timing needs an adapter that can rewrite its source: tapes and
+Re-timing needs a scene plugin that can rewrite its source: tapes and
 recordings can, while scripts and compositions take their line's length
 anyway.
 
@@ -261,7 +261,7 @@ and a `pause`). The same limit applies to the `_ms` settings in
 
 `include=path` takes the block's body from a file, so a tape or a
 Playwright spec stays a real file its own tools can run.
-`include=path#fragment` selects part of it, where the adapter supports that
+`include=path#fragment` selects part of it, where the scene's plugin supports that
 (see [Recordings](scenes.md#recordings)).
 
 ## Configuration
@@ -287,7 +287,7 @@ Settings merge from these layers, with later ones winning:
 | `speaker` | who says a line with no label | the narrator |
 | `timing` | `lead_in_ms`, `tail_ms`, `turn_gap_ms`, `max_stretch`, `min_stretch`, `trim_warn_above`, `min_line_speed`, `max_line_speed`, `min_take_speed`, `max_take_speed`, `length_ms` | `150`, `150`, `250`, `3.0`, `0.33`, `2.0`, `0.9`, `1.15`, `0.95`, `1.08`, none |
 | `output` | `resolution`, `fps`, `transition`, `names` | `[1920, 1080]`, `30`, see above, `true` |
-| `scene.<name>` | `adapter`, plus the adapter's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |
+| `scene.<name>` | `plugin`, plus the plugin's own settings | `browser` → `playwright`, `terminal` → `vhs`, `media` → `media` |
 | `backends.<id>` | the backend's own settings, only in `teleprompt.toml` | |
 
 ## Drafting from a document

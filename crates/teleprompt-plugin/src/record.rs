@@ -1,9 +1,9 @@
-//! Recording an author at work with an adapter's own tool, which
+//! Recording an author at work with a scene plugin's own tool, which
 //! `teleprompt record` drafts a script from
 //! (`docs/design.md#recording-a-session`).
 //!
 //! The tool does the recording: asciinema, `vhs record`, `playwright
-//! codegen`. What an adapter adds is reading the tool's file back as timed
+//! codegen`. What a scene plugin adds is reading the tool's file back as timed
 //! steps, and knowing how to mark a cut between two of them so the script
 //! can `include=` each part.
 
@@ -12,7 +12,7 @@ use std::process::{Child, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-/// An adapter's recording tool.
+/// A scene plugin's recording tool.
 pub trait Recorder: Send + Sync {
     /// Why it cannot record here, such as its tool not being installed.
     fn unavailable(&self) -> Option<String>;
@@ -29,7 +29,7 @@ pub trait Recorder: Send + Sync {
     fn read(&self, text: &str) -> Result<Recorded, String>;
 }
 
-/// A recorder under the name of the adapter it records for, which is the
+/// A recorder under the name of the plugin it records for, which is the
 /// scene its drafts run in.
 pub struct NamedRecorder {
     pub adapter: &'static str,
@@ -82,7 +82,7 @@ pub struct Step {
     pub end_ms: u64,
     /// Its part of the file.
     pub text: String,
-    /// What cuts the file before it, as the adapter's scene splits: a
+    /// What cuts the file before it, as the plugin's scene splits: a
     /// `# mark` line, a cast's marker event.
     pub mark: String,
 }

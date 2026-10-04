@@ -114,13 +114,14 @@ mod capture {
     fn session(settings: &[(&str, &str)]) -> Session {
         Session {
             scene: "media".into(),
-            adapter: "media".into(),
+            plugin: "media".into(),
             name: None,
             settings: settings
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
             shots: Vec::new(),
+            root: Default::default(),
         }
     }
 
@@ -189,8 +190,9 @@ mod capture {
 #[test]
 fn a_shot_names_the_file_it_shows() {
     let scene = teleprompt_core::config::SceneConfig {
-        adapter: "media".into(),
+        plugin: "media".into(),
         settings: [("dir".to_string(), "assets".into())].into_iter().collect(),
+        root: Default::default(),
     };
     assert_eq!(
         MediaScene.shot_inputs(&scene, "image src=a/b.png"),

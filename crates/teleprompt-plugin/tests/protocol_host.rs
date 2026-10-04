@@ -32,8 +32,8 @@ fn card() -> Option<Found> {
     }
     Some(Found {
         name: "card".into(),
-        kind: Kind::Adapter,
-        path: examples().join("teleprompt-adapter-card"),
+        kind: Kind::Scene,
+        path: examples().join("teleprompt-scene-card"),
     })
 }
 
@@ -57,7 +57,7 @@ fn an_outside_adapter_is_described_and_says_what_it_needs() {
     let plugin = Plugin::new(found);
     let d = plugin.describe().unwrap();
     assert_eq!(d.name, "card");
-    assert!(matches!(d.traits, Traits::Adapter(ref t) if !t.continues && t.retimes));
+    assert!(matches!(d.traits, Traits::Scene(ref t) if !t.continues && t.retimes));
     let needs = plugin.needs();
     assert_eq!(needs[0].name, "ffmpeg");
     // Asked once: the same tools again, not new ones.
@@ -67,7 +67,7 @@ fn an_outside_adapter_is_described_and_says_what_it_needs() {
 #[test]
 fn its_errors_point_at_the_script_line() {
     let Some(found) = card() else { return };
-    let adapter = host::adapter(found);
+    let adapter = host::scene(found);
     let errors = adapter
         .scene()
         .validate(&source("color red\ncolour blue\n"))
@@ -81,7 +81,7 @@ fn its_errors_point_at_the_script_line() {
 #[test]
 fn its_shots_are_numbered_and_timed_as_a_built_in_adapters_are() {
     let Some(found) = card() else { return };
-    let adapter = host::adapter(found);
+    let adapter = host::scene(found);
     let scene = adapter.scene();
     let v = Validated {
         scene: "card".into(),
@@ -104,14 +104,15 @@ fn it_captures_a_clip_for_each_wanted_shot() {
         eprintln!("skipped: no ffmpeg");
         return;
     }
-    let adapter = host::adapter(found);
+    let adapter = host::scene(found);
     let out = teleprompt_testkit::test_dir("protocol-capture");
     let key = Hash::of(b"blue");
     let session = Session {
         scene: "card".into(),
-        adapter: "card".into(),
+        plugin: "card".into(),
         name: None,
         settings: Default::default(),
+        root: Default::default(),
         shots: vec![SessionShot {
             id: ShotId::new("intro-a#0"),
             key,
@@ -140,12 +141,12 @@ fn it_captures_a_clip_for_each_wanted_shot() {
 #[test]
 fn a_program_that_is_not_a_plugin_says_so() {
     let dir = teleprompt_testkit::test_dir("protocol-broken");
-    let path = dir.join("teleprompt-adapter-broken");
+    let path = dir.join("teleprompt-scene-broken");
     std::fs::write(&path, "#!/bin/sh\necho hello\n").unwrap();
     std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
     let plugin = Plugin::new(Found {
         name: "broken".into(),
-        kind: Kind::Adapter,
+        kind: Kind::Scene,
         path,
     });
     let why = plugin.describe().unwrap_err();

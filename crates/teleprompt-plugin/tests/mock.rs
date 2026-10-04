@@ -33,7 +33,7 @@ fn shot(shot: &str, ms: u64) -> PlannedShot {
     PlannedShot {
         id: shot.into(),
         scene: "terminal".into(),
-        adapter: "mock".into(),
+        plugin: "mock".into(),
         session: None,
         key: Hash::of(shot.as_bytes()),
         source: "wait 1000ms".into(),

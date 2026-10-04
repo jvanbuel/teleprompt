@@ -6,7 +6,7 @@ is the whole integration, and the seam between them is one file:
 
 > This page is the route where Remotion owns the *whole* video. Where
 > teleprompt should own the video and Remotion draw some of its scenes,
-> use a `scene=` block whose adapter is `remotion` instead: it renders
+> use a `scene=` block whose plugin is `remotion` instead: it renders
 > your project's own compositions by id — see
 > [Motion graphics](../guide/scenes.md#motion-graphics) and
 > `examples/remotion`.
@@ -116,6 +116,7 @@ export type Shot = {
   /** The line spoken over this shot, or null for one after a mark. */
   line: string | null;
   scene: string;
+  /** The scene's plugin, such as "vhs". */
   adapter: string;
   start_ms: number;
   duration_ms: number;
@@ -280,7 +281,7 @@ render and needs a writable checkout.
 ## Placing the picture
 
 `shots` is the other half: one entry per scheduled action shot, carrying the
-numbers the **scheduler** arrived at rather than the ones the adapter proposed.
+numbers the **scheduler** arrived at rather than the ones the scene's plugin proposed.
 That difference is the whole point — it is what separates replaying a tape at
 its authored pace from replaying it at the pace its narration bought.
 
@@ -303,7 +304,7 @@ Same arithmetic as a line, for the same reasons. A few notes on the fields:
   the policy left of it. It is also `null` for a pause.
 - **`scene: "pause"`** is a shot during which the picture holds. Skipping it
   runs the next shot early.
-- **`duration_source: "exact"`** means the adapter's language states the
+- **`duration_source: "exact"`** means the scene's language states the
   shot's timing in full. A tape containing `Wait` reports `estimated`
   instead, bounded by its timeout, and a Playwright script reports
   `unknown` and takes its line's length.
@@ -317,13 +318,13 @@ Same arithmetic as a line, for the same reasons. A few notes on the fields:
 
 What the manifest does not carry is the shot's **source** — the tape or the
 Playwright script. A consumer that draws its own picture does not need it;
-one that wants to replay the adapter's own actions does, and that is the
+one that wants to replay the scene's own actions does, and that is the
 renderer's business rather than an integrator's.
 
 ## Licence
 
 This route ships no Remotion code and takes no Remotion dependency. The
-`remotion` scene adapter is the other direction — teleprompt owns the video
+`remotion` scene plugin is the other direction — teleprompt owns the video
 and renders the project's compositions into it — and it too uses the
 project's own Remotion install rather than bundling one. Remotion's own
 licence — free for individuals and organisations up to three employees —

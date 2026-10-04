@@ -54,18 +54,52 @@ fn attributes_become_a_config_layer() {
 }
 
 #[test]
-fn scene_config_carries_an_adapter_and_free_form_settings() {
-    let yaml = "scene:\n  browser:\n    adapter: playwright\n    base_url: http://localhost:3000\n";
+fn scene_config_carries_its_plugin_and_free_form_settings() {
+    let yaml = "scene:\n  browser:\n    plugin: playwright\n    base_url: http://localhost:3000\n";
     let c = Config::merged(&[PartialConfig::from_yaml(yaml).unwrap()]);
     let s = c.scenes.get("browser").unwrap();
-    assert_eq!(s.adapter, "playwright");
+    assert_eq!(s.plugin, "playwright");
     assert_eq!(s.settings.get("base_url").unwrap(), "http://localhost:3000");
 }
 
+/// `adapter`, the key's older name, still picks the plugin.
 #[test]
-fn scene_adapter_defaults_by_scene_name() {
+fn a_scene_may_still_name_its_plugin_adapter() {
+    let toml = "[scene.server]\nadapter = \"vhs\"\n";
+    let c = Config::merged(&[PartialConfig::from_toml(toml).unwrap()]);
+    assert_eq!(c.scenes.get("server").unwrap().plugin, "vhs");
+}
+
+/// Paths in a scene's settings are the project's, whichever layer set
+/// them: the front matter's too.
+#[test]
+fn a_scene_path_is_relative_to_the_project() {
+    let mut project = PartialConfig::from_toml("[scene.slides]\nplugin = \"slidev\"\n").unwrap();
+    project.root = Some("/work/talk".into());
+    let front = PartialConfig::from_yaml("scene:\n  slides:\n    deck: deck/slides.md\n").unwrap();
+    let c = Config::merged(&[project, front]);
+    let scene = c.scenes.get("slides").unwrap();
+    assert_eq!(
+        scene.path("deck", "slides.md"),
+        std::path::Path::new("/work/talk/deck/slides.md")
+    );
+    assert_eq!(
+        scene.path("theme", "default"),
+        std::path::Path::new("/work/talk/default")
+    );
+    // An absolute path is left as it is.
+    let mut abs = scene.clone();
+    abs.settings.insert("deck".into(), "/elsewhere/s.md".into());
+    assert_eq!(
+        abs.path("deck", ""),
+        std::path::Path::new("/elsewhere/s.md")
+    );
+}
+
+#[test]
+fn scene_plugin_defaults_by_scene_name() {
     let c = Config::merged(&[PartialConfig::from_yaml("scene:\n  terminal: {}\n").unwrap()]);
-    assert_eq!(c.scenes.get("terminal").unwrap().adapter, "vhs");
+    assert_eq!(c.scenes.get("terminal").unwrap().plugin, "vhs");
 }
 
 #[test]
@@ -173,7 +207,7 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
     assert_eq!(c.default_scene.as_deref(), Some("browser"));
     let browser = c.scenes.get("browser").expect("browser scene configured");
     assert_eq!(
-        browser.adapter, "playwright",
+        browser.plugin, "playwright",
         "an unconfigured adapter still falls back by scene name"
     );
     assert_eq!(

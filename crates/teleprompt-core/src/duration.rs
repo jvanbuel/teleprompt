@@ -13,7 +13,7 @@ pub enum DurationSource {
     Exact,
     Estimated,
     Measured,
-    /// The adapter cannot say (a Playwright script). Neither an estimate nor
+    /// The plugin cannot say (a Playwright script). Neither an estimate nor
     /// zero: the scheduler gives the shot its line's length.
     Unknown,
 }

@@ -1,5 +1,5 @@
 //! The compile-time half, the same for every desktop: each platform's
-//! plugin registers it under its own adapter name.
+//! plugin registers it under its own scene plugin name.
 
 use teleprompt_core::{BlockId, Diagnostic, Hash};
 use teleprompt_plugin::scene::{
@@ -10,7 +10,7 @@ use crate::script::{
     classify, timing, Action, DEFAULT_POINTER_SPEED_MS, DEFAULT_TYPING_SPEED_MS, MARK,
 };
 
-/// A desktop scene's blocks, under the adapter name `kind`.
+/// A desktop scene's blocks, under the plugin name `kind`.
 #[derive(Debug, Clone, Copy)]
 pub struct DesktopScene {
     pub kind: &'static str,

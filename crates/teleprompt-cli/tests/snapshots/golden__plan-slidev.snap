@@ -13,7 +13,7 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "dcc6b50c657131892263c3e2eaa9dc680e7298d483a4827caccc6dec2d8b1abf",
+          "capture_key": "3ff2c515e86716908170c9d2befe680c3ccf6d530b37bfea26eac9fd9d4a1dc1",
           "duration_ms": 13850,
           "duration_source": "unknown",
           "scene": "slidev",
@@ -41,7 +41,7 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "2612c3d7639601a3b488aa8537f2acc158e9b9a97ee7ed144287d76db68a5c94",
+          "capture_key": "bdd81105a8339234f3871ccc5561611d2c100bc7424da72fd8af6054511edb1f",
           "duration_ms": 3850,
           "duration_source": "unknown",
           "scene": "slidev",
@@ -69,7 +69,7 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "2222149b57da35282133ff54ecbff95b9d1dc11d3a660547df8edcc2562a3b04",
+          "capture_key": "05ec8d437f77abc9b6ac392659a0971b37688491ce2874e74f9dc722e7d6c04d",
           "duration_ms": 3850,
           "duration_source": "unknown",
           "scene": "slidev",
@@ -97,7 +97,7 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "bee8c8258b4cf7ba5472182cba117f3c4cb02b330757721d2ffcdcd75b538bf1",
+          "capture_key": "3964c7d1b1802dcf00b8b44a3724bd3bfb45bc4bf0f9434aa7d535cb05dd777d",
           "duration_ms": 2650,
           "duration_source": "unknown",
           "scene": "slidev",
@@ -125,7 +125,7 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "9ecb94c16e07c63574d4746e2f50d754e534681f69a853f4a0a0403be73192d7",
+          "capture_key": "348af42b753d5475afad9cbd49deadd0afccc963d2cad0ea49fe65589f14b9e8",
           "duration_ms": 6000,
           "duration_source": "unknown",
           "scene": "slidev",
@@ -153,7 +153,7 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "8995018f114aadb8f4f000a16d4496403c0bd47b9bd108fbb42122470ace3469",
+          "capture_key": "b4b3560a883688d8e542fe362f97e173d93c7cc8b3caa030753f1a778e11e6a6",
           "duration_ms": 13950,
           "duration_source": "unknown",
           "scene": "slidev",
@@ -181,7 +181,7 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "0ef5da9b18d4c06912a918f158f50a6a52a75394276de5e40b41a5cf0fee2153",
+          "capture_key": "ea2ceb23cc162d07ae771576b31eb2cebb60ea14bce2a5337cceafe35341cae1",
           "duration_ms": 10750,
           "duration_source": "unknown",
           "scene": "slidev",
@@ -209,7 +209,7 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "slidev",
-          "capture_key": "cbb6256f52013953956d914291e6700d6a5e8c89e61dfb59483485af10b69736",
+          "capture_key": "b2a5cd3052be70c04ea5a0e82ce2514557f7e6eda0119ea9700cdf4ab2eef5fb",
           "duration_ms": 10250,
           "duration_source": "unknown",
           "scene": "slidev",

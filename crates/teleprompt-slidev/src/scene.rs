@@ -104,13 +104,7 @@ impl SceneCompiler for SlidevScene {
 
     /// The deck and what Slidev reads beside it, by Slidev's own layout.
     fn inputs(&self, scene: &SceneConfig) -> Vec<PathBuf> {
-        let deck = PathBuf::from(
-            scene
-                .settings
-                .get("deck")
-                .and_then(|v| v.as_str())
-                .unwrap_or("slides.md"),
-        );
+        let deck = scene.path("deck", "slides.md");
         let dir = deck.parent().map(PathBuf::from).unwrap_or_default();
         let mut out = vec![deck];
         out.extend(

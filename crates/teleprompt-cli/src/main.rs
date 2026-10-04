@@ -38,14 +38,14 @@ enum Command {
     /// what that needs. Teleprompt ships none of it: each tool and model is
     /// under its own license, which this says, and installed with your own
     /// package manager. Name uses (render, terminal, browser, slides,
-    /// desktop, prompt, drafts, conversations), adapters (vhs,
+    /// desktop, prompt, drafts, conversations), scene plugins (vhs,
     /// playwright…) or tools (ffmpeg, speech-model…) to see what they need;
     /// it prints the commands unless --run. Without names outside a
     /// terminal, it reports on all of them.
     Setup(setup::Args),
     /// List the plugins installed as programs of their own
     ///
-    /// A plugin is a program named teleprompt-adapter-<name> or
+    /// A plugin is a program named teleprompt-scene-<name> or
     /// teleprompt-voice-<name>, on PATH or in the plugins directory
     /// ($TELEPROMPT_PLUGINS, or teleprompt/plugins in your data directory).
     /// Each is asked what it is and needs; one that does not answer, or

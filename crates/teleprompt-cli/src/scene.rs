@@ -1,5 +1,5 @@
-//! Every adapter this build ships, registered in one place: each adapter
-//! crate hands over one `Adapter`, and no other crate learns its name
+//! Every scene plugin this build ships, registered in one place: each scene plugin
+//! crate hands over one `ScenePlugin`, and no other crate learns its name
 //! (docs/design.md#crates).
 
 use teleprompt_plugin::capture::mock::MockCapture;
@@ -7,51 +7,51 @@ use teleprompt_plugin::capture::CaptureRegistry;
 use teleprompt_plugin::protocol::{host, Kind};
 use teleprompt_plugin::record::NamedRecorder;
 use teleprompt_plugin::scene::{MockScene, SceneRegistry};
-use teleprompt_plugin::Adapter;
+use teleprompt_plugin::ScenePlugin;
 
-/// The adapters this build ships, in the order `setup` and errors list
+/// The scene plugins this build ships, in the order `setup` and errors list
 /// them.
-fn built_in() -> Vec<Adapter> {
+fn built_in() -> Vec<ScenePlugin> {
     vec![
-        teleprompt_vhs::adapter(),
-        teleprompt_playwright::adapter(),
-        teleprompt_remotion::adapter(),
-        teleprompt_slidev::adapter(),
-        teleprompt_asciinema::adapter(),
-        teleprompt_media::adapter(),
-        teleprompt_x11::adapter(),
-        teleprompt_macos::adapter(),
-        Adapter::new(MockScene, MockCapture::default()),
+        teleprompt_vhs::plugin(),
+        teleprompt_playwright::plugin(),
+        teleprompt_remotion::plugin(),
+        teleprompt_slidev::plugin(),
+        teleprompt_asciinema::plugin(),
+        teleprompt_media::plugin(),
+        teleprompt_x11::plugin(),
+        teleprompt_macos::plugin(),
+        ScenePlugin::new(MockScene, MockCapture::default()),
     ]
 }
 
-/// Every adapter: the built-in ones, then each plugin installed as a
+/// Every scene plugin: the built-in ones, then each plugin installed as a
 /// program of its own whose name none of them has. A plugin starts only
 /// when first asked something.
-fn adapters() -> Vec<Adapter> {
+fn adapters() -> Vec<ScenePlugin> {
     let mut all = built_in();
     for found in host::discover() {
-        if found.kind == Kind::Adapter && !all.iter().any(|a| a.name() == found.name) {
-            all.push(host::adapter(found));
+        if found.kind == Kind::Scene && !all.iter().any(|a| a.name() == found.name) {
+            all.push(host::scene(found));
         }
     }
     all
 }
 
-/// Whether `name` is an adapter this build ships, which a plugin of that
+/// Whether `name` is a scene plugin this build ships, which a plugin of that
 /// name does not replace.
 pub fn is_built_in(name: &str) -> bool {
     built_in().iter().any(|a| a.name() == name)
 }
 
-/// Every adapter's name, which a block may use as its scene.
+/// Every plugin's name, which a block may use as its scene.
 pub fn adapter_names() -> Vec<String> {
     adapters().iter().map(|a| a.name().to_string()).collect()
 }
 
-/// What adapter `name` runs, capturing and then recording, each once, by
-/// name; `None` when there is no such adapter. What `teleprompt setup
-/// <adapter>` installs.
+/// What scene plugin `name` runs, capturing and then recording, each once, by
+/// name; `None` when there is no such scene plugin. What `teleprompt setup
+/// <plugin>` installs.
 pub fn needs(name: &str) -> Option<Vec<&'static str>> {
     adapters()
         .into_iter()
@@ -59,17 +59,17 @@ pub fn needs(name: &str) -> Option<Vec<&'static str>> {
         .map(|a| a.needs().iter().map(|t| t.name).collect())
 }
 
-/// What every adapter runs, in the order they are registered.
+/// What every scene plugin runs, in the order they are registered.
 pub fn adapter_needs() -> Vec<&'static teleprompt_plugin::tool::Tool> {
-    adapters().iter().flat_map(Adapter::needs).collect()
+    adapters().iter().flat_map(ScenePlugin::needs).collect()
 }
 
-/// The adapters that can record a session, asciinema first: it records
+/// The scene plugins that can record a session, asciinema first: it records
 /// exactly, and what it shows is what was recorded.
 pub fn recorders() -> Vec<NamedRecorder> {
     let mut out: Vec<NamedRecorder> = adapters()
         .into_iter()
-        .filter_map(Adapter::into_recorder)
+        .filter_map(ScenePlugin::into_recorder)
         .collect();
     out.sort_by_key(|r| r.adapter != "asciinema");
     out

@@ -1,4 +1,4 @@
-//! `teleprompt record <script> --with <adapter>`: the adapter's own tool
+//! `teleprompt record <script> --with <plugin>`: the plugin's own tool
 //! records the author at work (asciinema, `vhs record`, `playwright
 //! codegen`), and ffmpeg records the microphone beside it. When the tool
 //! finishes, the two are drafted into `<script>` (`crate::cmd::import`).
@@ -18,7 +18,7 @@ use crate::project::Project;
 
 pub struct Record<'a> {
     pub script: &'a Path,
-    /// The adapter whose tool records; asciinema when `None`.
+    /// The plugin whose tool records; asciinema when `None`.
     pub with: Option<&'a str>,
     pub model: &'a Path,
     /// A punctuation model's directory, as for `import`.
@@ -301,7 +301,7 @@ pub struct Args {
     /// The script to write, e.g. scripts/tour.md
     #[arg(required_unless_present = "tools")]
     pub script: Option<std::path::PathBuf>,
-    /// The tool to record with, by its adapter: asciinema (the default),
+    /// The tool to record with, by its scene plugin: asciinema (the default),
     /// vhs or playwright
     #[arg(long)]
     pub with: Option<String>,

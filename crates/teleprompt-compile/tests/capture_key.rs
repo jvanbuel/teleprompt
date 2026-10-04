@@ -86,7 +86,7 @@ fn twice(first: &str, second: &str) -> String {
     )
 }
 
-/// A one-second step, in the reference adapter's language.
+/// A one-second step, in the reference plugin's language.
 const J: &str = "wait 1000ms\n";
 
 /// The bug this exists to stop. `shot_hash` is the hash of a tape and
@@ -191,7 +191,7 @@ fn a_beat_does_not_follow_a_shot_in_another_scene() {
     );
 
     // And the item in between opens a screen of its own, which — same
-    // adapter, same settings, same tape — is the same picture as the one
+    // scene plugin, same settings, same tape — is the same picture as the one
     // the first item opened. That is deduplication, not a collision: two
     // identically configured scenes really do show the same thing.
     assert_eq!(keys[0], keys[1]);
@@ -234,7 +234,7 @@ fn a_pause_does_not_join_the_chain() {
 }
 
 /// A clip is served from the cache on its key alone, so the key has to
-/// name whatever drew it. It did not. `adapter` says `vhs`, and every
+/// name whatever drew it. It did not. `scene plugin` says `vhs`, and every
 /// renderer teleprompt has ever pointed at a `vhs` scene also said `vhs`:
 /// the name identifies the *scene language*, not the program that turns it
 /// into pixels.
@@ -284,7 +284,7 @@ fn a_capture_key_names_the_recipe_that_recorded_it() {
     );
 }
 
-/// The mock adapter, speaking for a scene whose shots carry no state — a
+/// The mock scene plugin, speaking for a scene whose shots carry no state — a
 /// composition that draws the same frames whatever came before it.
 struct Still;
 
@@ -388,7 +388,7 @@ fn editing_a_file_the_scene_draws_from_re_captures_it() {
     assert_ne!(before[1], after[1], "and the second");
 }
 
-/// A stateless adapter each of whose shots shows one file of its own: the
+/// A stateless scene plugin each of whose shots shows one file of its own: the
 /// mock's `wait 1000ms` shows `one`, anything else `two`.
 struct Pictured;
 

@@ -60,7 +60,7 @@ impl Analyzer for ProjectAnalyzer {
             .iter()
             .map(|(name, scene)| Definition {
                 name: name.clone(),
-                detail: scene.adapter.clone(),
+                detail: scene.plugin.clone(),
                 location: line_of(&toml, &format!("[scene.{name}]"))
                     .map(|l| (toml_path.clone(), l)),
             })
@@ -69,7 +69,7 @@ impl Analyzer for ProjectAnalyzer {
             if !scenes.iter().any(|s| s.name == adapter) {
                 scenes.push(Definition {
                     name: adapter.clone(),
-                    detail: "adapter".into(),
+                    detail: "scene plugin".into(),
                     location: None,
                 });
             }

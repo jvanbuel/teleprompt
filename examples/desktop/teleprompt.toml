@@ -20,7 +20,7 @@ concurrency = 2
 
 # The app on its welcome page, as a first run sees it.
 [scene.welcome]
-adapter = "x11"
+plugin = "x11"
 command = "teleprompt-gtk"
 env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/welcome" }
 
@@ -28,7 +28,7 @@ env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG
 # of someone reading acme.md's first two lines, so the take is the same on
 # every capture; takes from an earlier capture are removed first.
 [scene.app]
-adapter = "x11"
+plugin = "x11"
 command = "sh -c 'rm -rf examples/desktop/takes && exec teleprompt-gtk examples/desktop/scripts/acme.md'"
 # The app loads its speech model, then the prompter page; the video starts
 # once the window's title names the script, which it does when the page

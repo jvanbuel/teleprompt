@@ -34,6 +34,9 @@ pub struct Config {
     pub voices: BTreeMap<String, PartialVoice>,
     /// Who says a line that names no speaker; the narrator when none.
     pub speaker: Option<String>,
+    /// The project's directory, which relative paths in scene settings are
+    /// relative to. Empty, they are relative to where teleprompt runs.
+    pub root: std::path::PathBuf,
 }
 
 /// What `translate` translates with. The provider's own settings (where
@@ -207,16 +210,21 @@ pub struct TransitionConfig {
     pub max_ms: DurationMs,
 }
 
-/// A resolved scene's adapter and its adapter-native settings.
+/// A resolved scene's scene plugin and its scene plugin-native settings.
 ///
 /// `settings` holds `serde_yaml::Value`, not `String`: a scene may configure
 /// `browser.viewport: [1920, 1080]`, and flattening structured YAML into a
 /// string map either rejects it (which is what happened) or lossily stringifies
-/// it. Adapters read whatever shape their own tool wants.
+/// it. Scene plugins read whatever shape their own tool wants.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SceneConfig {
-    pub adapter: String,
+    /// The scene plugin that records it.
+    pub plugin: String,
     pub settings: BTreeMap<String, serde_yaml::Value>,
+    /// What a relative path in `settings` is relative to: the project's
+    /// directory, set by whoever knows it. Not part of any key, so a cache
+    /// moves between machines.
+    pub root: std::path::PathBuf,
 }
 
 impl SceneConfig {
@@ -225,6 +233,12 @@ impl SceneConfig {
     /// Here rather than at the call site because this is the type that
     /// knows what its settings are: YAML of a `BTreeMap` is ordered and
     /// round-trips, where `{:?}` is a debug format nothing promises to keep.
+    /// The setting `key` as a path, or `default`, against [`Self::root`].
+    pub fn path(&self, key: &str, default: &str) -> std::path::PathBuf {
+        let given = self.settings.get(key).and_then(|v| v.as_str());
+        self.root.join(given.unwrap_or(default))
+    }
+
     pub fn settings_fingerprint(&self) -> String {
         // No settings is nothing to hash, declared or not.
         if self.settings.is_empty() {
@@ -284,15 +298,16 @@ impl Default for Config {
             },
             voices: BTreeMap::new(),
             speaker: None,
+            root: std::path::PathBuf::new(),
         }
     }
 }
 
-/// The adapter a scene uses when none is declared for it: the adapter of
+/// The plugin a scene uses when none is declared for it: the plugin of
 /// the same name.
-pub fn default_adapter(scene: &str) -> &str {
+pub fn default_plugin(scene: &str) -> &str {
     match scene {
-        // Older names, from before an adapter's name was a scene of its own.
+        // Older names, from before a scene plugin's name was a scene of its own.
         "browser" => "playwright",
         "terminal" => "vhs",
         name => name,
@@ -324,6 +339,10 @@ pub struct PartialConfig {
     pub voices: Option<BTreeMap<String, PartialVoice>>,
     /// `speaker: guest`: who says the lines that name no speaker.
     pub speaker: Option<String>,
+    /// The directory this layer's file is in, for a project's
+    /// `teleprompt.toml`: set by whoever read it, never written in it.
+    #[serde(skip)]
+    pub root: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -492,7 +511,9 @@ impl<'de> Deserialize<'de> for PartialScenes {
 /// "invalid type: sequence, expected a string".
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct PartialScene {
-    pub adapter: Option<String>,
+    /// The scene plugin that records it. `scene plugin` is its older name.
+    #[serde(alias = "adapter")]
+    pub plugin: Option<String>,
     #[serde(flatten)]
     pub settings: BTreeMap<String, serde_yaml::Value>,
 }
@@ -713,6 +734,9 @@ impl Config {
     pub fn merged(layers: &[PartialConfig]) -> Self {
         let mut c = Config::default();
         for layer in layers {
+            if let Some(root) = &layer.root {
+                c.root = root.clone();
+            }
             if let Some(l) = &layer.locales {
                 set!(c.locales.source, l.source.clone());
                 set!(c.locales.targets, l.targets.clone());
@@ -754,10 +778,11 @@ impl Config {
                 set!(c.default_scene, scenes.default.clone().map(Some));
                 for (name, ps) in &scenes.scenes {
                     let entry = c.scenes.entry(name.clone()).or_insert_with(|| SceneConfig {
-                        adapter: default_adapter(name).to_string(),
+                        plugin: default_plugin(name).to_string(),
                         settings: BTreeMap::new(),
+                        root: Default::default(),
                     });
-                    set!(entry.adapter, ps.adapter.clone());
+                    set!(entry.plugin, ps.plugin.clone());
                     for (k, v) in &ps.settings {
                         entry.settings.insert(k.clone(), v.clone());
                     }
@@ -801,6 +826,9 @@ impl Config {
                     }
                 }
             }
+        }
+        for scene in c.scenes.values_mut() {
+            scene.root = c.root.clone();
         }
         c
     }

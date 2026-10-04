@@ -1,5 +1,5 @@
 # A narrated video for plugin authors, made with the plugins it explains:
-# its cards are drawn by the card adapter in examples/plugins, and one of
+# its cards are drawn by the card scene plugin in examples/plugins, and one of
 # its lines is spoken by the eSpeak voice there. The narrator is no plugin
 # at all: `studio` is a speech server that speaks OpenAI's API, named here.
 # The terminal session was recorded once, with asciinema.

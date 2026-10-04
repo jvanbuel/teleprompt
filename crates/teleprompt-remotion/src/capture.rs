@@ -96,7 +96,7 @@ impl CaptureBackend for RemotionRender {
             reason,
         };
 
-        let project = absolute(Path::new(session.setting("project", ".")));
+        let project = absolute(&session.path("project", "."));
         if !project.join("node_modules/@remotion/renderer").is_dir()
             || !project.join("node_modules/@remotion/bundler").is_dir()
         {

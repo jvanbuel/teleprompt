@@ -16,9 +16,9 @@ base_url = "http://localhost:8880"
 timeout_ms = 60000
 concurrency = 2
 
-# `dir` is relative to the directory the build runs from, and its
-# contents are in every shot's capture key.
+# `dir` is relative to this project, and its contents are in every shot's
+# capture key.
 [scene.media]
-dir = "examples/media/scripts/media"
+dir = "scripts/media"
 background = "#0b0d10"
 color = "#eef3f8"

@@ -14,9 +14,9 @@ use serde::Serialize;
 use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
 use super::{
-    AdapterTraits, Body, Capture, Captured, Configure, Configured, Description, Kind, Probed,
-    Retime, Retimed, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits,
-    Voices, WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
+    Body, Capture, Captured, Configure, Configured, Description, Kind, Probed, Retime, Retimed,
+    SceneTraits, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits, Voices,
+    WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
 };
 use crate::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 use crate::scene::{BlockSource, Measured, SceneCompiler, Shot, Validated};
@@ -25,7 +25,7 @@ use crate::voice::{
     async_trait, wav, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
     VoiceError,
 };
-use crate::Adapter;
+use crate::ScenePlugin;
 
 /// A plugin found on disk, not yet started.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,7 +76,7 @@ pub fn discover() -> Vec<Found> {
 /// The plugin `path` is, if its name says it is one and it can be run.
 fn plugin_at(path: &Path) -> Option<Found> {
     let file = path.file_name()?.to_str()?;
-    let (kind, name) = [Kind::Adapter, Kind::Voice]
+    let (kind, name) = [Kind::Scene, Kind::Voice]
         .into_iter()
         .find_map(|k| Some((k, file.strip_prefix(k.prefix())?)))?;
     let valid = !name.is_empty()
@@ -201,12 +201,28 @@ impl Plugin {
     }
 
     fn start(&self) -> Result<Conn, String> {
-        let mut child = Command::new(&self.found.path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .map_err(|e| format!("cannot run {}: {e}", self.found.path.display()))?;
+        let spawn = || {
+            Command::new(&self.found.path)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::inherit())
+                .spawn()
+        };
+        // A program just written, as by an installer, can be briefly busy
+        // while another thread's child still holds it open: ETXTBSY.
+        let mut tries = 0;
+        let mut child = loop {
+            match spawn() {
+                Err(e) if e.raw_os_error() == Some(26) && tries < 20 => {
+                    tries += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+                other => {
+                    break other
+                        .map_err(|e| format!("cannot run {}: {e}", self.found.path.display()))?
+                }
+            }
+        };
         let stdin = child.stdin.take().expect("piped");
         let stdout = BufReader::new(child.stdout.take().expect("piped"));
         Ok(Conn {
@@ -274,11 +290,11 @@ impl Conn {
     }
 }
 
-/// An outside adapter, as teleprompt registers its built-in ones.
-pub fn adapter(found: Found) -> Adapter {
+/// An outside scene plugin, as teleprompt registers its built-in ones.
+pub fn scene(found: Found) -> ScenePlugin {
     let name: &'static str = Box::leak(found.name.clone().into_boxed_str());
     let plugin = Arc::new(Plugin::new(found));
-    Adapter::new(
+    ScenePlugin::new(
         ExternalScene {
             plugin: plugin.clone(),
             kind: name,
@@ -288,7 +304,7 @@ pub fn adapter(found: Found) -> Adapter {
     )
 }
 
-/// An outside adapter's scene compiler.
+/// An outside plugin's scene compiler.
 struct ExternalScene {
     plugin: Arc<Plugin>,
     kind: &'static str,
@@ -297,12 +313,12 @@ struct ExternalScene {
 }
 
 impl ExternalScene {
-    fn traits(&self) -> AdapterTraits {
+    fn traits(&self) -> SceneTraits {
         self.plugin
             .describe()
             .ok()
             .and_then(|d| match &d.traits {
-                Traits::Adapter(t) => Some(t.clone()),
+                Traits::Scene(t) => Some(t.clone()),
                 Traits::Voice(_) => None,
             })
             .unwrap_or_default()
@@ -407,7 +423,7 @@ impl SceneCompiler for ExternalScene {
     }
 }
 
-/// An outside adapter's capture backend.
+/// An outside plugin's capture backend.
 struct ExternalCapture {
     plugin: Arc<Plugin>,
 }
@@ -452,6 +468,7 @@ impl CaptureBackend for ExternalCapture {
                 scene: session.scene.clone(),
                 name: session.name.clone(),
                 settings: session.settings.clone(),
+                root: session.root.clone(),
                 shots: session
                     .shots
                     .iter()
@@ -528,7 +545,7 @@ impl ExternalVoice {
             .ok()
             .and_then(|d| match &d.traits {
                 Traits::Voice(t) => Some(t.clone()),
-                Traits::Adapter(_) => None,
+                Traits::Scene(_) => None,
             })
             .unwrap_or_default()
     }

@@ -2,7 +2,7 @@
 //!
 //! The unit tests in `teleprompt-derive` check what the draft *says*. This
 //! checks that what it says survives the command an author runs next — with
-//! the adapters this build actually ships, which is why it lives here and
+//! the scene plugins this build actually ships, which is why it lives here and
 //! not beside the drafting code.
 
 use std::path::PathBuf;
@@ -66,7 +66,7 @@ fn a_drafted_script_passes_check() {
 #[test]
 fn a_command_with_a_quote_in_it_survives_into_the_tape() {
     // The tape is generated, so nobody proof-read it: an unescaped quote
-    // would close `Type`'s string early, and the adapter is where that
+    // would close `Type`'s string early, and the plugin is where that
     // surfaces.
     let script = draft(
         "Deploy it.\n\n```bash\nacme deploy --message \"ship it\"\n```\n",

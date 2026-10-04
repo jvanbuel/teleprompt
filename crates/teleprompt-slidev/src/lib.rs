@@ -10,7 +10,7 @@ pub mod tools;
 pub use capture::SlidevRender;
 pub use scene::SlidevScene;
 
-/// The adapter, to register.
-pub fn adapter() -> teleprompt_plugin::Adapter {
-    teleprompt_plugin::Adapter::new(SlidevScene, SlidevRender::default())
+/// The plugin, to register.
+pub fn plugin() -> teleprompt_plugin::ScenePlugin {
+    teleprompt_plugin::ScenePlugin::new(SlidevScene, SlidevRender::default())
 }

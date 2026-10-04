@@ -1,6 +1,6 @@
 //! The browser scene: a Playwright script, read as a Playwright script.
 //!
-//! The vhs adapter reads a tape — it knows what every command costs, so it
+//! The vhs scene plugin reads a tape — it knows what every command costs, so it
 //! can say how long a shot takes and re-write it to last longer. None of
 //! that is available here, and pretending otherwise would mean inventing a
 //! dialect that looks like Playwright and isn't. A script says what it
@@ -31,7 +31,7 @@ fn shots(body: &str) -> Vec<teleprompt_plugin::scene::contract::Shot> {
         .expect("shots")
 }
 
-/// A script is arbitrary JavaScript. The adapter does not parse it, so it
+/// A script is arbitrary JavaScript. The plugin does not parse it, so it
 /// cannot say what it costs — and `Unknown` is how the contract spells
 /// that. The scheduler then gives the shot the length of the sentence over
 /// it, which is the behaviour a narrated demo wants anyway.
@@ -42,7 +42,7 @@ fn a_script_does_not_claim_to_know_its_own_duration() {
     assert_eq!(PlaywrightScene.estimate(&s[0]), Measured::Unknown);
 }
 
-/// The other half of the same fact: an adapter that cannot say how long a
+/// The other half of the same fact: a scene plugin that cannot say how long a
 /// shot takes cannot re-write it to take longer.
 #[test]
 fn a_script_cannot_be_re_timed() {
@@ -73,7 +73,7 @@ fn marks_split_a_script_into_one_shot_each() {
     );
 }
 
-/// A block of nothing is not a shot. Same rule the tape adapter applies to
+/// A block of nothing is not a shot. Same rule the tape scene plugin applies to
 /// a chunk of only comments.
 #[test]
 fn a_script_of_only_comments_is_not_a_shot() {
@@ -108,9 +108,10 @@ mod capture {
     fn session(shots: Vec<SessionShot>) -> Session {
         Session {
             scene: "ui".into(),
-            adapter: "playwright".into(),
+            plugin: "playwright".into(),
             name: None,
             settings: Default::default(),
+            root: Default::default(),
             shots,
         }
     }

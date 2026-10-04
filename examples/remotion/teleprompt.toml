@@ -22,7 +22,7 @@ base_url = "http://localhost:8880"
 timeout_ms = 60000
 concurrency = 2
 
-# `project` is an ordinary Remotion project, relative to the directory the
-# build runs from; `entry` (default `src/index.ts`) is relative to it.
+# `project` is an ordinary Remotion project, relative to this one; `entry`
+# (default `src/index.ts`) is relative to it.
 [scene.remotion]
-project = "examples/remotion/motion"
+project = "motion"

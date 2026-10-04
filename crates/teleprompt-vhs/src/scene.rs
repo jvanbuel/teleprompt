@@ -1,7 +1,7 @@
 //! Terminal scenes, served by VHS tapes.
 //!
 //! The block body is real VHS tape syntax and stays runnable by `vhs`
-//! itself. See `docs/design.md#adapters` for what is refused and why a shot
+//! itself. See `docs/design.md#scene-plugins` for what is refused and why a shot
 //! is `Exact` or `Estimated`.
 
 use teleprompt_core::attrs::parse_duration_ms;
@@ -11,7 +11,7 @@ use teleprompt_plugin::scene::{
     validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
 };
 
-/// The VHS adapter.
+/// The VHS scene plugin.
 #[derive(Debug)]
 pub struct VhsScene;
 

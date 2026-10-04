@@ -4,8 +4,8 @@ Two plugins as programs of their own, in Python with nothing beyond its
 standard library, to show what any language can do
 ([extending teleprompt](../../docs/guide/plugins.md)):
 
-- `teleprompt-adapter-card`: a scene of plain colour cards (`color`,
-  `hold`, `mark`), captured with ffmpeg. The smallest complete adapter.
+- `teleprompt-scene-card`: a scene of plain colour cards (`color`,
+  `hold`, `mark`), captured with ffmpeg. The smallest complete scene plugin.
 - `teleprompt-voice-espeak`: narration spoken by eSpeak NG, offline, in
   over a hundred languages.
 

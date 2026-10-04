@@ -63,7 +63,7 @@ pub struct Goal {
     /// What `setup` takes as a name for it.
     pub name: &'static str,
     pub label: &'static str,
-    /// Adapters and tools, as `resolve` takes them.
+    /// Scene plugins and tools, as `resolve` takes them.
     pub needs: &'static [&'static str],
     /// Whether it runs a speech model, which only the build with them can.
     pub listens: bool,
