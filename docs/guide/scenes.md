@@ -405,7 +405,7 @@ where it really began rather than where the schedule said it would.
 ```toml
 [scene.app]
 plugin = "x11"
-command = "my-app --demo"   # run by sh, from where the build runs
+command = "my-app --demo"   # run by sh, in the project's directory
 title = "My App"            # the window to follow, if it has several
 ready = "demo.db — My App"  # wait, unrecorded, until the title says this
 settle_ms = 1500            # then let it draw

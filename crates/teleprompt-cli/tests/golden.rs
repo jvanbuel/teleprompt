@@ -36,7 +36,7 @@ fn repo_root() -> PathBuf {
 }
 
 /// Copies the project `script` belongs to into `dest`, at the same path from
-/// the root: configs name their assets relative to the repository root.
+/// the root, so its path in a transcript is the one the docs show.
 fn copy_project(script: &str, dest: &Path) {
     let root = repo_root();
     let mut dir = root.join(script).parent().unwrap().to_path_buf();

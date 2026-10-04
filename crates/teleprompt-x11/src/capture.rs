@@ -257,7 +257,7 @@ impl X11Render {
     }
 }
 
-/// The scene's `command`, run by `sh` in the build's directory on
+/// The scene's `command`, run by `sh` in the project's directory on
 /// `display`, inside its own D-Bus session where `dbus-run-session` is
 /// installed: a GTK or Qt app expects one, and should not find the
 /// author's.
@@ -284,6 +284,10 @@ fn launch(command: &str, display: &str, session: &Session, log: &Path) -> Result
         .env_remove("WAYLAND_DISPLAY");
     for (key, value) in session.nested("env") {
         run.env(key, value);
+    }
+    // As the scene's other paths are: an empty root is where teleprompt runs.
+    if !session.root.as_os_str().is_empty() {
+        run.current_dir(&session.root);
     }
     run.stdin(Stdio::null())
         .stdout(output)

@@ -1,9 +1,12 @@
 # A tour of teleprompt's own Linux app, recorded by driving the app on a
-# virtual display, and spoken by Kokoro. Run from the repository root,
-# with `teleprompt-gtk` on PATH and a `listen` build of teleprompt for it
-# to run (`TELEPROMPT_BIN`, `TELEPROMPT_MODELS`; see apps/linux/README.md):
+# virtual display, and spoken by Kokoro. With `teleprompt-gtk` on PATH and
+# a `listen` build of teleprompt for it to run (`TELEPROMPT_BIN`,
+# `TELEPROMPT_MODELS`; see apps/linux/README.md), and from the repository
+# root:
 #
 #   cargo run -- build examples/desktop/scripts/tutorial.md
+#
+# A scene's command runs in this directory.
 [locales]
 source = "en"
 targets = []
@@ -29,11 +32,11 @@ env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG
 # every capture; takes from an earlier capture are removed first.
 [scene.app]
 plugin = "x11"
-command = "sh -c 'rm -rf examples/desktop/takes && exec teleprompt-gtk examples/desktop/scripts/acme.md'"
+command = "sh -c 'rm -rf takes && exec teleprompt-gtk scripts/acme.md'"
 # The app loads its speech model, then the prompter page; the video starts
 # once the window's title names the script, which it does when the page
 # has loaded.
 ready = "acme.md — Teleprompt"
 launch_timeout_ms = 90000
 settle_ms = 800
-env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/app", TELEPROMPT_MIC = "crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav" }
+env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/app", TELEPROMPT_MIC = "../../crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav" }

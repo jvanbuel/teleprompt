@@ -267,7 +267,7 @@ pub fn device_index(listing: &str, name: &str) -> Option<String> {
     })
 }
 
-/// The scene's `command`, run by `sh` in the build's directory.
+/// The scene's `command`, run by `sh` in the project's directory.
 fn launch(command: &str, session: &Session, log: &Path) -> Result<Owned, String> {
     let output = std::fs::File::create(log).map_err(|e| format!("{}: {e}", log.display()))?;
     let errors = output
@@ -277,6 +277,10 @@ fn launch(command: &str, session: &Session, log: &Path) -> Result<Owned, String>
     run.arg("-c").arg(format!("exec {command}"));
     for (key, value) in session.nested("env") {
         run.env(key, value);
+    }
+    // As the scene's other paths are: an empty root is where teleprompt runs.
+    if !session.root.as_os_str().is_empty() {
+        run.current_dir(&session.root);
     }
     run.stdin(Stdio::null())
         .stdout(output)

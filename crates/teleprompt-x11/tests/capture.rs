@@ -115,6 +115,24 @@ fn an_app_that_never_opens_a_window_says_so() {
     );
 }
 
+/// The command runs in the project's directory, as the scene's paths are
+/// relative to it.
+#[test]
+fn the_command_runs_in_the_project() {
+    if !ready() {
+        eprintln!("skipping: needs Xvfb, xdotool, ffmpeg and xterm");
+        return;
+    }
+    let (dir, project) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let mut s = session("sh -c 'pwd >&2; exit 3'", &[("Enter\n", 500, true)]);
+    s.root = project.path().canonicalize().unwrap();
+    let why = X11Render::default()
+        .capture(&s, &frame(), dir.path(), &mut |_| {})
+        .unwrap_err()
+        .to_string();
+    assert!(why.contains(&*s.root.to_string_lossy()), "{why}");
+}
+
 #[test]
 fn a_scene_without_a_command_says_how_to_name_one() {
     if !ready() {
