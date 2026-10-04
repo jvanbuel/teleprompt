@@ -107,7 +107,7 @@ def serve(methods: dict[str, Callable[[Json], Json]]) -> None:
             if method is None:
                 raise LookupError(f"unknown method `{request.get('method')}`")
             reply = {"id": request.get("id"), "result": method(request.get("params") or {})}
-        except Exception as e:  # the answer says why, and teleprompt reports it
+        except Exception as e:  # noqa: BLE001 -- the answer says why, and teleprompt reports it
             reply = {"id": request.get("id"), "error": str(e)}
         print(json.dumps(reply), flush=True)
 

@@ -99,7 +99,8 @@ final class AppModel: ObservableObject {
     /// The page's setup, with `wanted` ticked, saying `why`.
     func offerSetup(_ wanted: [String] = [], why: String? = nil) {
         if case .ready = phase, webView != nil {
-            let args = (try? JSONSerialization.data(withJSONObject: [wanted, why ?? NSNull()]))
+            let reason: Any = why ?? NSNull()
+            let args = (try? JSONSerialization.data(withJSONObject: [wanted, reason]))
                 .map { String(decoding: $0, as: UTF8.self) } ?? "[[], null]"
             return run("openSetup(...\(args))")
         }

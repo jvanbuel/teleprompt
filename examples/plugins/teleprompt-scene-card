@@ -141,6 +141,15 @@ class Card:
         return {"clips": clips}
 
 
+def reporter(rid: object) -> Progress:
+    """Tells teleprompt how request `rid` is going, before its answer."""
+
+    def progress(event: Json) -> None:
+        print(json.dumps({"id": rid, "progress": event}), flush=True)
+
+    return progress
+
+
 def serve(methods: dict[str, Callable[[Json, Progress], Json]]) -> None:
     """Answers teleprompt's requests, one JSON object a line, until it is done."""
     for line in sys.stdin:
@@ -148,16 +157,13 @@ def serve(methods: dict[str, Callable[[Json, Progress], Json]]) -> None:
             continue
         request = json.loads(line)
         rid = request.get("id")
-
-        def progress(event: Json) -> None:
-            print(json.dumps({"id": rid, "progress": event}), flush=True)
-
+        progress = reporter(rid)
         method = methods.get(request.get("method"))
         try:
             if method is None:
                 raise LookupError(f"unknown method `{request.get('method')}`")
             reply = {"id": rid, "result": method(request.get("params") or {}, progress)}
-        except Exception as e:  # the answer says why, and teleprompt reports it
+        except Exception as e:  # noqa: BLE001 -- the answer says why, and teleprompt reports it
             reply = {"id": rid, "error": str(e)}
         print(json.dumps(reply), flush=True)
 

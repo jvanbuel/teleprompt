@@ -28,7 +28,14 @@ const DUBBABLE: &[&str] = &["manual/scripts/cli.md", "demos/flowrs/scripts/demo.
 
 /// Caches, outputs and installs: whatever a local run leaves behind that a
 /// fresh checkout does not have.
-const NOT_SOURCES: &[&str] = &[".teleprompt", "build", "node_modules", "public", "target"];
+const NOT_SOURCES: &[&str] = &[
+    ".teleprompt",
+    "build",
+    "node_modules",
+    "public",
+    "takes",
+    "target",
+];
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

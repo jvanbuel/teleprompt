@@ -83,9 +83,10 @@ jobs:
         working-directory: examples
         run: |
           files="plugins/teleprompt-scene-card plugins/teleprompt-voice-espeak moo/deck/snippets/moo_server.py"
-          pipx run ruff check --config ruff.toml $files
-          pipx run ruff format --check --config ruff.toml $files
-          for f in plugins/teleprompt-*; do pipx run mypy --strict "$f"; done
+          ruff="pipx run --spec ruff==0.15.8 ruff"
+          $ruff check --config ruff.toml $files
+          $ruff format --check --config ruff.toml $files
+          for f in plugins/teleprompt-*; do pipx run --spec mypy==1.19.1 mypy --strict "$f"; done
 
   # What the binaries link is permissively licensed (deny.toml), so
   # teleprompt stays MIT to ship, and has no known vulnerability: the CLI

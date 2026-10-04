@@ -4,14 +4,10 @@ expression: transcript(&out)
 ---
 {
   "exit": 0,
-  "stderr": [
-    "warning: 9 of 9 lines have no current take and are synthesized: intro, glass, size, mirror, record, follow, keep, keys, outro"
-  ],
+  "stderr": [],
   "stdout": {
     "errors": [],
     "ok": true,
-    "warnings": [
-      "9 of 9 lines have no current take and are synthesized: intro, glass, size, mirror, record, follow, keep, keys, outro"
-    ]
+    "warnings": []
   }
 }
