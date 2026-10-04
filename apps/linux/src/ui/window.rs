@@ -1,6 +1,7 @@
-//! The window: the page `teleprompt serve` serves, shown in WebKit (its
-//! welcome, its setup and the prompter); and session mode, a terminal
-//! that `teleprompt record` runs in.
+//! The window: the welcome page, with the scripts opened last; the page
+//! `teleprompt serve` serves, shown in WebKit (the prompter, and setting
+//! teleprompt up); and session mode, a terminal that `teleprompt record`
+//! runs in.
 
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -45,11 +46,17 @@ struct Widgets {
     /// Session mode's Record: the page has its own.
     record: gtk::Button,
     record_label: gtk::Label,
+    /// The welcome page's scripts opened last.
+    recent: gtk::Box,
+    /// Who reads, on the welcome page: the author, or a voice.
+    narrator_voice: gtk::ToggleButton,
     loading_title: gtk::Label,
     loading_detail: gtk::Label,
     failed: adw::StatusPage,
     /// The prompter: the page the server serves.
     view: webkit::WebView,
+    /// The welcome page's sample of the glass, which a narrow window drops.
+    sample: gtk::Box,
     session: SessionPage,
     tally: Tally,
     toasts: adw::ToastOverlay,
@@ -69,6 +76,8 @@ struct Model {
     pending: Option<String>,
     /// Set while the page's setup is open for something under way here.
     after_setup: Option<AfterSetup>,
+    /// Whether the page has a script open.
+    opened: bool,
     /// The server's origin, once it listens: the only one the page may
     /// load from, and use the microphone for.
     origin: Option<String>,
@@ -114,14 +123,17 @@ impl Window {
             let countdown = this.config().countdown();
             hear_from_file(&this.w.view, std::path::Path::new(&wav), countdown);
         }
-        // A narrow window keeps the controls: the key hints go.
+        // A narrow window keeps the controls: the key hints and the
+        // welcome page's sample go.
         let narrow = adw::Breakpoint::new(
             adw::BreakpointCondition::parse("max-width: 900sp").expect("a condition"),
         );
         let hidden = false.to_value();
         narrow.add_setter(this.w.tally.keys(), "visible", Some(&hidden));
+        narrow.add_setter(&this.w.sample, "visible", Some(&hidden));
         this.window.add_breakpoint(narrow);
         this.window.set_size_request(560, 420);
+        this.show_welcome();
         let weak = Rc::downgrade(&this);
         glib::spawn_future_local(async move {
             while let Ok(event) = received.recv().await {
@@ -162,6 +174,14 @@ impl Window {
         self.w.record.connect_clicked(move |_| {
             if let Some(this) = weak.upgrade() {
                 this.record_key();
+            }
+        });
+        let weak = Rc::downgrade(this);
+        self.w.narrator_voice.connect_toggled(move |voice| {
+            if let Some(this) = weak.upgrade() {
+                let mut config = this.config();
+                config.voice_reads = voice.is_active();
+                this.set_config(config);
             }
         });
         let weak = Rc::downgrade(this);
@@ -264,8 +284,8 @@ impl Window {
     }
 
     /// What the page did, as it tells the app: a script opened, which the
-    /// app reopens next time; the welcome shown; its setup closed, on
-    /// what was under way here.
+    /// welcome lists next time; one that could not be; the scripts asked
+    /// for; its setup closed, on what was under way here.
     fn told(self: &Rc<Self>, message: &str) {
         let Ok(message) = serde_json::from_str::<serde_json::Value>(message) else {
             return;
@@ -275,20 +295,43 @@ impl Window {
                 let Some(script) = message["path"].as_str().map(PathBuf::from) else {
                     return;
                 };
-                let mut config = self.config();
-                config.last_script = Some(script.clone());
-                config.voice_reads = message["voice"].as_bool().unwrap_or(false);
-                self.set_config(config);
+                self.remember(&script);
+                self.model.borrow_mut().opened = true;
                 self.name_for(Some(&script));
             }
-            Some("home") => self.name_for(None),
+            Some("open-failed") => {
+                let errors: Vec<String> = message["errors"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|e| e.as_str().map(str::to_string))
+                    .collect();
+                self.show_welcome();
+                let name = message["path"]
+                    .as_str()
+                    .map(|p| file_name(std::path::Path::new(p)))
+                    .unwrap_or_default();
+                let alert = adw::AlertDialog::new(
+                    Some(&format!("Could not open {name}")),
+                    Some(&errors.join("\n")),
+                );
+                alert.add_response("close", "Close");
+                alert.present(Some(&self.window));
+            }
+            Some("scripts") => self.show_welcome(),
             Some("setup") => {
                 let installed = message["installed"]
                     .as_array()
                     .is_some_and(|a| !a.is_empty());
                 let then = self.model.borrow_mut().after_setup.take();
-                if self.model.borrow().session.is_some() {
+                let (session, opened) = {
+                    let model = self.model.borrow();
+                    (model.session.is_some(), model.opened)
+                };
+                if session {
                     self.w.stack.set_visible_child_name("session");
+                } else if !opened {
+                    self.show_welcome();
                 }
                 if let (Some(then), true) = (then, installed) {
                     then(self);
@@ -296,6 +339,16 @@ impl Window {
             }
             _ => {}
         }
+    }
+
+    /// `script` first among the scripts opened last, here and in the
+    /// desktop's own list.
+    fn remember(&self, script: &std::path::Path) {
+        let mut config = self.config();
+        config.remember(script.to_path_buf());
+        self.set_config(config);
+        let uri = gio::File::for_path(script).uri();
+        gtk::RecentManager::default().add_item(&uri);
     }
 
     /// The title bar and the window switcher name the script open, or the
@@ -567,27 +620,68 @@ impl Window {
         }
     }
 
-    /// The page's welcome: from the server running, or one started in
-    /// the last script's project.
-    pub fn show_home(self: &Rc<Self>) {
-        if self.model.borrow().origin.is_some() {
-            self.w.stack.set_visible_child_name("ready");
-            return self.run("showHome()");
+    /// The welcome page: open a script, one opened last, or draft one;
+    /// who narrates; and setting teleprompt up. The server, if one runs,
+    /// keeps running behind it.
+    pub fn show_welcome(self: &Rc<Self>) {
+        let recent = self.config().recent();
+        while let Some(child) = self.w.recent.first_child() {
+            self.w.recent.remove(&child);
         }
-        let dir = self.model.borrow().dir.clone();
-        let dir = dir
-            .or_else(|| self.last_script().map(|s| project_dir(&s)))
-            .or_else(|| std::env::current_dir().ok())
-            .unwrap_or_default();
-        self.serve(dir, self.query(&[]));
+        self.w.recent.set_visible(!recent.is_empty());
+        if !recent.is_empty() {
+            self.w.recent.append(
+                &gtk::Label::builder()
+                    .label("Recent")
+                    .xalign(0.0)
+                    .css_classes(["recent-title"])
+                    .build(),
+            );
+        }
+        for script in recent {
+            let labels = gtk::Box::builder()
+                .orientation(gtk::Orientation::Vertical)
+                .build();
+            labels.append(
+                &gtk::Label::builder()
+                    .label(file_name(&script))
+                    .xalign(0.0)
+                    .css_classes(["recent-name"])
+                    .build(),
+            );
+            labels.append(
+                &gtk::Label::builder()
+                    .label(project_name(&script))
+                    .xalign(0.0)
+                    .css_classes(["recent-where"])
+                    .build(),
+            );
+            let button = gtk::Button::builder()
+                .child(&labels)
+                .halign(gtk::Align::Start)
+                .tooltip_text(script.display().to_string())
+                .css_classes(["flat", "recent"])
+                .build();
+            let weak = Rc::downgrade(self);
+            button.connect_clicked(move |_| {
+                if let Some(this) = weak.upgrade() {
+                    this.open(script.clone());
+                }
+            });
+            self.w.recent.append(&button);
+        }
+        self.w
+            .narrator_voice
+            .set_active(self.model.borrow().config.voice_reads);
+        self.w.stack.set_visible_child_name("welcome");
+        self.name_for(None);
+        self.show_record();
     }
 
     /// Opens `script` in the page, from a server running in its project.
     pub fn open(self: &Rc<Self>, script: PathBuf) {
         let script = std::fs::canonicalize(&script).unwrap_or(script);
-        let mut config = self.config();
-        config.last_script = Some(script.clone());
-        self.set_config(config);
+        self.remember(&script);
         self.name_for(Some(&script));
         self.w.loading_title.set_label("Opening the script");
         self.w.loading_detail.set_label(&file_name(&script));
@@ -631,6 +725,7 @@ impl Window {
                 model.server = Some(server);
                 model.dir = Some(dir);
                 model.pending = Some(query);
+                model.opened = false;
             }
             Err(e) => {
                 drop(model);
@@ -948,6 +1043,7 @@ fn hear_from_file(view: &webkit::WebView, wav: &std::path::Path, countdown: bool
 
 impl Widgets {
     fn build() -> Self {
+        let (welcome, recent, sample, narrator_voice) = Self::welcome();
         let (loading, loading_title, loading_detail) = Self::loading();
         let failed = Self::failed();
         let view = prompter_view();
@@ -955,6 +1051,7 @@ impl Widgets {
             .transition_type(gtk::StackTransitionType::Crossfade)
             .transition_duration(220)
             .build();
+        stack.add_named(&welcome, Some("welcome"));
         stack.add_named(&loading, Some("loading"));
         stack.add_named(&failed, Some("failed"));
         stack.add_named(&view, Some("ready"));
@@ -980,14 +1077,160 @@ impl Widgets {
             title: adw::WindowTitle::new("Teleprompt", ""),
             record,
             record_label,
+            recent,
+            narrator_voice,
             loading_title,
             loading_detail,
             failed,
             view,
+            sample,
             session,
             tally: Tally::new(),
             toasts: adw::ToastOverlay::new(),
         }
+    }
+
+    fn welcome() -> (gtk::Box, gtk::Box, gtk::Box, gtk::ToggleButton) {
+        let column = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(18)
+            .valign(gtk::Align::Center)
+            .build();
+        let page = gtk::Box::builder()
+            .spacing(64)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Center)
+            .build();
+        page.append(&column);
+        let sample = Self::glass_sample();
+        page.append(&sample);
+        column.append(&Self::lockup());
+        column.append(
+            &gtk::Label::builder()
+                .label(
+                    "Open a script and read it aloud: the words follow your voice, \
+                     each shot plays as you reach it, and every line you finish is \
+                     kept as a take. Or let a voice read it, and direct it line by \
+                     line.",
+                )
+                .wrap(true)
+                .max_width_chars(46)
+                .xalign(0.0)
+                .css_classes(["hero-body"])
+                .build(),
+        );
+        let (narrator, narrator_voice) = Self::narrator();
+        column.append(&narrator);
+        let buttons = gtk::Box::builder().spacing(12).margin_top(10).build();
+        buttons.append(
+            &gtk::Button::builder()
+                .label("Open script…")
+                .action_name("app.open")
+                .css_classes(["pill", "primary"])
+                .build(),
+        );
+        buttons.append(
+            &gtk::Button::builder()
+                .label("Draft from a session…")
+                .action_name("app.session")
+                .css_classes(["pill"])
+                .build(),
+        );
+        column.append(&buttons);
+        let recent = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(2)
+            .build();
+        column.append(&recent);
+        column.append(
+            &gtk::Button::builder()
+                .label("Set up what teleprompt needs…")
+                .action_name("app.setup")
+                .halign(gtk::Align::Start)
+                .css_classes(["flat", "setup-link"])
+                .build(),
+        );
+        (page, recent, sample, narrator_voice)
+    }
+
+    /// Who reads the script: two linked toggles, "I read" and "A voice
+    /// reads". The voice's toggle, whose state is the choice.
+    fn narrator() -> (gtk::Box, gtk::ToggleButton) {
+        let me = gtk::ToggleButton::builder()
+            .label("I read")
+            .active(true)
+            .css_classes(["narrator"])
+            .build();
+        let voice = gtk::ToggleButton::builder()
+            .label("A voice reads")
+            .group(&me)
+            .css_classes(["narrator"])
+            .build();
+        let toggles = gtk::Box::builder()
+            .css_classes(["linked"])
+            .halign(gtk::Align::Start)
+            .build();
+        toggles.append(&me);
+        toggles.append(&voice);
+        let row = gtk::Box::builder().spacing(14).margin_top(4).build();
+        row.append(
+            &gtk::Label::builder()
+                .label("Who narrates")
+                .css_classes(["narrator-label"])
+                .build(),
+        );
+        row.append(&toggles);
+        (row, voice)
+    }
+
+    /// The logo beside the name, `apps/icons`, or the name alone if the
+    /// image cannot be read.
+    fn lockup() -> gtk::Widget {
+        let svg = include_str!("../../../icons/teleprompt-lockup-dark.svg");
+        picture(svg, 64).unwrap_or_else(|| {
+            gtk::Label::builder()
+                .label("Teleprompt")
+                .xalign(0.0)
+                .css_classes(["hero-title"])
+                .build()
+                .upcast()
+        })
+    }
+
+    /// A slice of the glass, to show what the prompter does before a
+    /// script is open: the reading line, what is said, the next word.
+    fn glass_sample() -> gtk::Box {
+        let card = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(10)
+            .css_classes(["sample-glass"])
+            .valign(gtk::Align::Center)
+            .build();
+        let lines = [
+            (false, "<span alpha='40%'>Every take starts here.</span>"),
+            (true, "<span alpha='40%'>The words follow</span> <span foreground='#ffb800' underline='single' underline_color='#ffb800'>your</span> voice,"),
+            (false, "<span alpha='55%'>and the shots play</span>"),
+            (false, "<span alpha='55%'>as you reach them.</span>"),
+        ];
+        for (current, markup) in lines {
+            let row = gtk::Box::builder().spacing(14).build();
+            let arrow = gtk::Label::builder()
+                .label("▶")
+                .css_classes(["sample-arrow"])
+                .opacity(if current { 1.0 } else { 0.0 })
+                .build();
+            row.append(&arrow);
+            row.append(
+                &gtk::Label::builder()
+                    .use_markup(true)
+                    .label(markup)
+                    .xalign(0.0)
+                    .css_classes(["sample-text"])
+                    .build(),
+            );
+            card.append(&row);
+        }
+        card
     }
 
     fn loading() -> (gtk::Box, gtk::Label, gtk::Label) {
@@ -1050,6 +1293,13 @@ impl Widgets {
             .build();
         if let Some(mark) = picture(include_str!("../../../icons/teleprompt.svg"), 28) {
             title.append(&mark);
+            // The welcome page shows the whole logo already.
+            let beside_logo =
+                |stack: &gtk::Stack| stack.visible_child_name().as_deref() == Some("welcome");
+            mark.set_visible(!beside_logo(&self.stack));
+            self.stack.connect_visible_child_name_notify(move |stack| {
+                mark.set_visible(!beside_logo(stack))
+            });
         }
         title.append(&self.title);
         let header = adw::HeaderBar::builder().title_widget(&title).build();

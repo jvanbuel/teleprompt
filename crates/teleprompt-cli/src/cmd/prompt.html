@@ -604,7 +604,8 @@ const PARAMS = new URLSearchParams(location.search);
 const VIEW = PARAMS.get("view");
 // `?countdown=0`: a take starts at once, without a count of three.
 const COUNT = PARAMS.get("countdown") !== "0";
-if (PARAMS.get("shell") === "1") document.body.classList.add("in-app");
+const IN_APP = PARAMS.get("shell") === "1";
+if (IN_APP) document.body.classList.add("in-app");
 let editMode = false;         // Edit mode: the shots on the glass, to drag
 let drag = null;              // { shot, grip, moved, piece } while a shot is dragged
 let retakes = null;           // { lines, at } while reworded lines are recorded again
@@ -1206,7 +1207,7 @@ setInterval(() => {
 document.addEventListener("keydown", (e) => {
   // Typing in the panel or a line's editor is typing; they take their own keys.
   if (e.target.closest?.("input, textarea")) return;
-  if (homeShown || $("setup").open) {
+  if (homeShown || $("setup").open || !script.lines.length) {
     if (homeShown && e.key === "Escape" && !$("home-back").hidden) hideHome();
     return;
   }
@@ -2125,12 +2126,8 @@ async function showHome() {
     return item;
   }));
   $("no-scripts").hidden = home.scripts.length > 0;
-  if (document.body.classList.contains("in-app")) {
-    $("no-scripts").textContent = `No scripts here. Open one with ${MAC ? "⌘O" : "Ctrl+O"}, or draft one from a session with ${MAC ? "⌘N" : "Ctrl+N"}.`;
-  }
   status(home.scripts.length ? "Choose a script" : "No scripts here");
   list.querySelector("button")?.focus();
-  tellShell({ event: "home" });
 }
 
 function narrator() {
@@ -2177,8 +2174,12 @@ async function openScript(path, voice) {
     return location.replace(`${location.pathname}?${kept}`);
   }
   if (answer.needs) {
-    if (!homeShown) await showHome();
+    if (!homeShown && !IN_APP) await showHome();
     return openSetup([answer.needs], answer.errors?.[0], () => openScript(path, voice));
+  }
+  if (IN_APP) {
+    status(`Could not open ${path.split("/").pop()}`, true);
+    return tellShell({ event: "open-failed", path, errors: answer.errors ?? [r.statusText] });
   }
   if (!homeShown) await showHome();
   $("home-errors").textContent = (answer.errors ?? [r.statusText]).join("\n");
@@ -2346,7 +2347,12 @@ $("setup").addEventListener("close", () => {
   tellShell({ event: "setup", installed });
 });
 $("home-back").addEventListener("click", hideHome);
-$("help-scripts").addEventListener("click", showHome);
+// In an app, its own welcome has the scripts.
+$("help-scripts").addEventListener("click", () => {
+  if (!IN_APP) return showHome();
+  $("help").close();
+  tellShell({ event: "scripts" });
+});
 $("help-setup").addEventListener("click", () => { $("help").close(); openSetup(); });
 for (const radio of document.querySelectorAll("#narrator input")) {
   radio.addEventListener("change", async () => {
@@ -2541,7 +2547,12 @@ async function start() {
   if (PARAMS.has("open")) return openScript(PARAMS.get("open"), PARAMS.get("narrator") === "voice");
   const r = await fetch(`${API}/script`).catch(() => null);
   if (r?.status === 404) {
-    await showHome();
+    // In an app, the app's own welcome lists the scripts; the page waits
+    // to be asked to open one, or to set teleprompt up.
+    if (IN_APP) {
+      document.body.classList.add("home");
+      status("");
+    } else await showHome();
   } else {
     await loadScript(r ? await r.json() : null);
     offerSaid();

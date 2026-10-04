@@ -1,8 +1,8 @@
 //! `teleprompt-gtk [SCRIPT]`: the prompter as a GTK app. It launches
-//! `teleprompt serve` itself and shows the page it serves: the welcome,
-//! setting teleprompt up and the prompter are that page, here as in a
-//! browser. Around it: opening a script, settings, and session mode's
-//! terminal.
+//! `teleprompt serve` itself and shows the page it serves: the prompter
+//! and setting teleprompt up are that page, here as in a browser. Around
+//! it: the welcome page with the scripts opened last, settings, and
+//! session mode's terminal.
 
 mod ui;
 
@@ -46,11 +46,7 @@ fn main() -> glib::ExitCode {
             .clone()
     };
     let activate = window_for.clone();
-    app.connect_activate(move |app| {
-        let window = activate(app);
-        window.window.present();
-        window.show_home();
-    });
+    app.connect_activate(move |app| activate(app).window.present());
     app.connect_open(move |app, files, _| {
         let window = window_for(app);
         window.window.present();
@@ -82,7 +78,7 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
         &[],
         Box::new(|w| match w.last_script() {
             Some(last) => w.open(last),
-            None => w.show_home(),
+            None => w.show_welcome(),
         }),
     );
     action(
@@ -95,7 +91,7 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
     action(
         "scripts",
         &["<Control><Shift>o"],
-        Box::new(|w| w.show_home()),
+        Box::new(|w| w.show_welcome()),
     );
     // From session mode, where a tool to record with is missing: the uses
     // that record, those not yet installed ticked.
@@ -185,7 +181,7 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
         "The project",
         &[
             ("<Control>o", "Open a script"),
-            ("<Control><Shift>o", "The project's scripts"),
+            ("<Control><Shift>o", "The welcome page and recent scripts"),
             ("<Control>n", "Draft from a session"),
             ("<Control>e", "Open the script in your editor"),
             ("<Control>comma", "Settings"),

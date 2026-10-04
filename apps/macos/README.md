@@ -5,12 +5,12 @@ text follows your voice, each shot plays as you reach it, and every line
 you read in full is kept as that line's take.
 
 The prompter is the page `teleprompt serve` serves, the same page a
-browser shows, and so are its welcome, which lists the project's scripts
-and who narrates, and setting teleprompt up. The app launches the server
-itself in the last script's project, shows its page in WebKit, gives it
-the microphone (macOS asks you first), and opens its screen in a second
-window when it asks. Around it the app has opening a script from
-anywhere, and settings. What the prompter does, and its keys, are in
+browser shows, and so is setting teleprompt up. The app opens on a
+welcome page of its own: open a script or one of those opened last (also
+under File › Open Recent), and who narrates. It launches the server
+itself in the script's project, shows its page in WebKit, gives it the
+microphone (macOS asks you first), and opens its screen in a second
+window when it asks. Around it the app has settings. What the prompter does, and its keys, are in
 `docs/guide/prompter.md`; `?` lists the keys in the app.
 
 It needs:
@@ -23,7 +23,7 @@ It needs:
 
 Set the binary in Settings (⌘,) the first time if it isn't where
 `cargo install` or Homebrew puts it. To have the script's voice read it
-instead, choose **A voice reads** under "Who narrates" on the welcome:
+instead, choose **A voice reads** under "Who narrates" on the welcome page:
 only the binary is needed then, built with or without the recognizer.
 
 ## Build
@@ -39,7 +39,7 @@ behalf of your terminal.
 | key | does |
 |---|---|
 | ⌘O | open a script |
-| ⇧⌘O | the project's scripts, on the welcome |
+| ⇧⌘O | the welcome page, with the scripts opened last |
 | ⌘E | open the script in your own editor |
 | ⌘, | settings |
 

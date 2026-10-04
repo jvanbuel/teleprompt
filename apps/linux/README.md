@@ -7,12 +7,13 @@ Open a script and read: the text follows your voice, each shot plays as you
 reach it, and every line you read in full is kept as that line's take.
 
 The prompter is the page `teleprompt serve` serves, the same page a
-browser shows, and so are its welcome, which lists the project's scripts
-and who narrates, and setting teleprompt up. The app launches the server
-itself in the last script's project, shows its page in WebKit, gives it
-the microphone, and opens its screen in a second window when it asks.
-Around it the app has opening a script from anywhere, settings, and
-session mode, which drafts a script from a terminal session. What the
+browser shows, and so is setting teleprompt up. The app opens on a
+welcome page of its own: open a script, one of those opened last, or
+draft one from a session, and who narrates. It launches the server
+itself in the script's project, shows its page in WebKit, gives it the
+microphone, and opens its screen in a second window when it asks.
+Around it the app has settings and session mode, which drafts a script
+from a terminal session. What the
 prompter does, and its keys, are in `docs/guide/prompter.md`; `?` lists
 the keys in the app.
 
@@ -52,7 +53,7 @@ To install it with a launcher entry:
 | key | does |
 |---|---|
 | Ctrl+O | open a script |
-| Ctrl+Shift+O | the project's scripts, on the welcome |
+| Ctrl+Shift+O | the welcome page, with the scripts opened last |
 | Ctrl+N | draft a script from a session |
 | Ctrl+E | open the script in your own editor |
 | Ctrl+, | settings |
@@ -64,7 +65,7 @@ starts after a count of three; Settings turns that off.
 
 ## Letting a voice read it
 
-Choose **A voice reads** under "Who narrates" on the welcome, and the
+Choose **A voice reads** under "Who narrates" on the welcome page, and the
 script opens read by its voice rather than following yours, as
 `teleprompt serve --voice` does: no speech model is needed. The app opens
 the next script the same way.
@@ -73,7 +74,7 @@ the next script the same way.
 ## Drafting from a session
 
 The app has a second mode for a script that doesn't exist yet: **Draft
-from a session…** in the menu, or Ctrl+N. Name the new script, and a
+from a session…** on the welcome page or in the menu, or Ctrl+N. Name the new script, and a
 terminal opens with the tools `teleprompt record --tools` found: asciinema
 or VHS for the terminal, Playwright for a browser, which opens its own
 window. Press Ctrl+Shift+Space to start recording, then talk while you

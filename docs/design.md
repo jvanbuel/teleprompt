@@ -309,10 +309,10 @@ so it stays current: keeping what you said instead of reading it again.
 `teleprompt serve` serves it as an API and the page that drives it.
 **The page is the only prompter.** The apps (`apps/linux`, `apps/macos`)
 show it in WebKit and add what a page cannot have: a window per screen,
-the microphone's permission, opening a script from anywhere, settings,
-and on Linux a terminal for session mode. The welcome, which lists the
-project's scripts and who narrates, and setup are the page's too. Each prompter feature is built once,
-in the page; the apps never learn of one. The page streams the microphone at
+the microphone's permission, a welcome page with the scripts opened
+last, as document apps open, settings, and on Linux a terminal for
+session mode. Setup is the page's: a browser needs it too. Each prompter
+feature is built once, in the page; the apps never learn of one. The page streams the microphone at
 its own rate; the session keeps that as the take and feeds the recognizer a
 16 kHz copy.
 When the take is kept, it is cut at the silence between lines, found
@@ -342,11 +342,14 @@ takes settings in its address: `?countdown=0` starts a take without a
 count of three, `?shell=1` leaves the script's name to an app's title bar,
 and `?view=monitor` is the screen alone, which the page opens in a window
 of its own for a second display and keeps in step with it. Without a
-script open the page is the welcome; `?open=<path>` opens that script,
-read as `?narrator=you|voice` says, and `?setup=<use>,<use>&why=<text>`
-opens setup with those ticked. An app hears what the page did as JSON
-strings posted to `window.webkit.messageHandlers.teleprompt`, where there
-is one: `{"event":"opened","path","voice"}`, `{"event":"home"}`, and
+script open the page is a welcome listing the project's scripts, in a
+browser; in an app, which has its own, it waits. `?open=<path>` opens
+that script, read as `?narrator=you|voice` says, and
+`?setup=<use>,<use>&why=<text>` opens setup with those ticked. An app
+hears what the page did as JSON strings posted to
+`window.webkit.messageHandlers.teleprompt`, where there is one:
+`{"event":"opened","path","voice"}`, `{"event":"open-failed","path","errors"}`,
+`{"event":"scripts"}` (Scripts… under `?`, for the app's welcome), and
 `{"event":"setup","installed":[<use>]}` when setup closes.
 
 | route | does |

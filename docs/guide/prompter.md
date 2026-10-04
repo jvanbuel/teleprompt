@@ -14,7 +14,8 @@ opens in the prompter; **Scripts…** under `?` comes back to choose another.
 
 It is one page, in a browser or in an app: `apps/linux` and `apps/macos`
 launch `teleprompt serve` themselves and show the same page in a window of
-their own, with opening a script from anywhere and settings around it.
+their own, with a native welcome page (the scripts opened last) and
+settings around it.
 Their READMEs say how to build them. To follow your voice, all of them need the
 recognizer and the model below.
 To have the script's voice read it instead, none do (see [Letting a voice
@@ -144,8 +145,8 @@ yours, and needs no recognizer or speech model, in any build:
 teleprompt serve --voice scripts/tour.md
 ```
 
-Open the address it prints. On the welcome, in a browser or the apps,
-choose **A voice reads** under "Who narrates". The voice makes each line in the
+Open the address it prints. On the welcome page, in a browser or the
+apps, choose **A voice reads** under "Who narrates". The voice makes each line in the
 background, into the same cache `dub` and `build` use, and the margin marks
 each line: a waveform, faint until the line is made; a tick for a line you
 recorded yourself, which plays from your take.

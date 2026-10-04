@@ -62,7 +62,7 @@ struct PrompterPage: NSViewRepresentable {
             origin.protocol == page.scheme && origin.host == page.host && origin.port == (page.port ?? 0)
         }
 
-        /// What the page did: a script opened, the welcome shown.
+        /// What the page did: a script opened or not, setup closed.
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard ours(message.frameInfo.securityOrigin), let body = message.body as? String else { return }
             model.told(body)

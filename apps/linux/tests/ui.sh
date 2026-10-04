@@ -2,10 +2,10 @@
 # The app itself, driven like a person would under a virtual X display. The
 # prompter is the page `teleprompt serve` serves, tested on its own in a
 # browser (crates/teleprompt-cli/tests/page); this tests what the app adds
-# around it: it launches the server and shows its page, whose welcome
-# opens a script, gives the page the microphone (WebKit's own, which hears
-# a tone), passes the record key to it, opens its screen in a window of its
-# own, and takes the server with it when it goes. Another run hears a
+# around it: its welcome opens a script opened before, it launches the
+# server and shows its page, gives the page the microphone (WebKit's own,
+# which hears a tone), passes the record key to it, opens its screen in a
+# window of its own, and takes the server with it when it goes. Another run hears a
 # recorded reading of apps/fixtures/tour (TELEPROMPT_MIC) and keeps it as
 # takes.
 #
@@ -14,12 +14,13 @@
 # Needs xvfb-run, xdotool, ImageMagick and ffmpeg. Screenshots are left in
 # $UI_SHOTS (default: a temporary directory).
 set -euo pipefail
-# Waits until the page is up: its next word, in the cue's amber, on the glass.
+# Waits until the page is up: its next word, in the cue's amber, on the glass
+# by the reading line (below the welcome page's logo, which is amber too).
 shown() {
   amber=0
   for _ in $(seq 120); do
     import -window root "$work/now.png" 2>/dev/null || true
-    amber=$(convert "$work/now.png" -crop 900x500+0+100 +repage -fuzz 12% -fill red -opaque '#ffb800' \
+    amber=$(convert "$work/now.png" -crop 900x300+0+300 +repage -fuzz 12% -fill red -opaque '#ffb800' \
       -fill black +opaque red -format '%[fx:mean.r>0.001]' info: 2>/dev/null || echo 0)
     [ "$amber" = 1 ] && return 0
     sleep 0.5
@@ -27,19 +28,28 @@ shown() {
   return 1
 }
 if [ "${1:-}" = --home ]; then
-  # Started with no script, in the project: the page's welcome lists its
-  # scripts, and one clicked opens.
+  # Started with no script: the welcome lists the scripts opened last, and
+  # one clicked opens in the prompter.
   export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
   export XDG_CONFIG_HOME="$work/config-home" XDG_CACHE_HOME="$work/cache" TELEPROMPT_MOCK_MIC=1
-  (cd "$work/project" && exec "$app") >"$work/app0.log" 2>&1 &
+  mkdir -p "$XDG_CONFIG_HOME/teleprompt"
+  printf '{"recent":["%s"]}' "$work/project/scripts/tour.md" >"$XDG_CONFIG_HOME/teleprompt/app.json"
+  "$app" >"$work/app0.log" 2>&1 &
   pid=$!
   for _ in $(seq 60); do
     xdotool search --name '^Teleprompt$' >/dev/null 2>&1 && break
     sleep 0.5
   done
-  sleep 4
+  sleep 3
   import -window root "$shots/000-welcome.png"
-  xdotool mousemove 930 310 click 1
+  # Set up opens the page's setup over the welcome; closing it comes back.
+  xdotool mousemove 214 621 click 1
+  sleep 8
+  import -window root "$shots/000-setup.png"
+  xdotool key Escape
+  sleep 2
+  import -window root "$shots/000-back.png"
+  xdotool mousemove 157 562 click 1
   shown && touch "$work/opened-from-welcome"
   import -window root "$shots/001-opened.png"
   kill "$pid"
@@ -112,7 +122,7 @@ xvfb-run -a -s "-screen 0 1400x860x24" "$0" --home
 xvfb-run -a -s "-screen 0 1400x860x24" "$0" --drive
 
 fail=0
-[ -e "$work/opened-from-welcome" ] && echo "ok: the welcome lists the project's scripts and opens one" \
+[ -e "$work/opened-from-welcome" ] && echo "ok: the welcome lists the scripts opened last, and opens one" \
   || { echo "FAIL: the welcome did not open the script"; tail -5 "$work/app0.log"; fail=1; }
 [ -s "$work/titled" ] && echo "ok: the window is named for the script" \
   || { echo "FAIL: the window is not named for the script"; fail=1; }

@@ -10,6 +10,9 @@ pub struct Config {
     pub model: Option<PathBuf>,
     pub locale: Option<String>,
     pub last_script: Option<PathBuf>,
+    /// The scripts opened last, newest first, for the welcome page.
+    #[serde(default)]
+    pub recent: Vec<PathBuf>,
     /// Whether a take counts down from three before it listens.
     pub countdown: Option<bool>,
     /// A sherpa-onnx punctuation model, for a session's draft to have
@@ -71,6 +74,25 @@ impl Config {
         self.punctuation
             .clone()
             .or_else(teleprompt_gtk::models::installed_punctuation)
+    }
+
+    /// Notes `script` as the one opened last.
+    pub fn remember(&mut self, script: PathBuf) {
+        self.recent.retain(|s| *s != script);
+        self.recent.insert(0, script.clone());
+        self.recent.truncate(6);
+        self.last_script = Some(script);
+    }
+
+    /// The recent scripts still on disk; the last one opened among them
+    /// when the list predates it.
+    pub fn recent(&self) -> Vec<PathBuf> {
+        let mut recent = self.recent.clone();
+        if recent.is_empty() {
+            recent.extend(self.last_script.clone());
+        }
+        recent.retain(|s| s.is_file());
+        recent
     }
 
     pub fn countdown(&self) -> bool {

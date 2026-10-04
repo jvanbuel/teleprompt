@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import TelepromptKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
@@ -8,6 +9,8 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             switch model.phase {
+            case .welcome:
+                Welcome()
             case .launching:
                 Loading()
             case let .ready(page):
@@ -47,7 +50,109 @@ struct ContentView: View {
         .fileImporter(isPresented: $model.chooseScript, allowedContentTypes: [.plainText, .init(filenameExtension: "md")!]) { result in
             if case let .success(url) = result { model.open(url) }
         }
-        .onAppear { model.showHome() }
+        .alert(
+            model.openFailure?.title ?? "",
+            isPresented: Binding(get: { model.openFailure != nil }, set: { if !$0 { model.openFailure = nil } })
+        ) {
+            Button("Close", role: .cancel) {}
+        } message: {
+            Text(model.openFailure?.errors.joined(separator: "\n") ?? "")
+        }
+    }
+}
+
+private struct Welcome: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        HStack(spacing: 64) {
+            VStack(alignment: .leading, spacing: 18) {
+                if let lockup = Theme.lockup {
+                    Image(nsImage: lockup)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 64)
+                        .accessibilityLabel("Teleprompt")
+                } else {
+                    Text("Teleprompt")
+                        .font(Theme.face(44, .heavy))
+                }
+                Text("Open a script and read it aloud: the words follow your voice, each shot plays as you reach it, and every line you finish is kept as a take. Or let a voice read it, and direct it line by line.")
+                    .font(Theme.face(18))
+                    .foregroundStyle(Theme.ink.opacity(0.62))
+                    .lineSpacing(4)
+                    .frame(maxWidth: 440, alignment: .leading)
+                HStack(spacing: 14) {
+                    Text("Who narrates")
+                        .font(Theme.face(14))
+                        .foregroundStyle(Theme.ink.opacity(0.66))
+                    Picker("Who narrates", selection: $model.voiceReads) {
+                        Text("I read").tag(false)
+                        Text("A voice reads").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                Button("Open script…") { model.chooseScript = true }
+                    .buttonStyle(Pill(primary: true))
+                    .keyboardShortcut(.defaultAction)
+                    .padding(.top, 10)
+                let recent = model.recentScripts
+                if !recent.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Recent")
+                            .font(Theme.face(13, .bold))
+                            .foregroundStyle(Theme.ink.opacity(0.55))
+                        ForEach(recent, id: \.self) { script in
+                            Button { model.open(script) } label: {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(script.lastPathComponent).font(Theme.face(14, .bold))
+                                    Text(projectDir(of: script).lastPathComponent)
+                                        .font(Theme.face(12))
+                                        .foregroundStyle(Theme.ink.opacity(0.5))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .help(script.path)
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+                Button("Set up what teleprompt needs…") { model.offerSetup() }
+                    .buttonStyle(.link)
+                    .font(Theme.face(13))
+                    .foregroundStyle(Theme.ink.opacity(0.66))
+            }
+            GlassSample()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// A slice of the glass, to show what the prompter does before a script is
+/// open: the reading line, what is said, the next word.
+private struct GlassSample: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            row(false, Text("Every take starts here.").foregroundColor(Theme.ink.opacity(0.32)))
+            row(true, Text("The words follow ").foregroundColor(Theme.ink.opacity(0.32))
+                + Text("your").foregroundColor(Theme.cue).underline(color: Theme.cue)
+                + Text(" voice,").foregroundColor(Theme.ink))
+            row(false, Text("and the shots play").foregroundColor(Theme.ink.opacity(0.55)))
+            row(false, Text("as you reach them.").foregroundColor(Theme.ink.opacity(0.55)))
+        }
+        .padding(EdgeInsets(top: 34, leading: 22, bottom: 34, trailing: 40))
+        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.glass))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.line))
+        .shadow(color: .black.opacity(0.45), radius: 30, y: 24)
+    }
+
+    private func row(_ current: Bool, _ text: Text) -> some View {
+        HStack(spacing: 14) {
+            CueArrow().fill(Theme.cue).frame(width: 9, height: 12).opacity(current ? 1 : 0)
+            text.font(Theme.face(27))
+        }
     }
 }
 
@@ -83,7 +188,7 @@ private struct Failure: View {
             }
             HStack(spacing: 12) {
                 Button("Try again") {
-                    if let last = model.lastScriptURL { model.open(last) } else { model.showHome() }
+                    if let last = model.lastScriptURL { model.open(last) } else { model.showWelcome() }
                 }
                 .buttonStyle(Pill(primary: true))
                 SettingsLink { Text("Settings") }.buttonStyle(Pill())

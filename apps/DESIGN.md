@@ -2,7 +2,7 @@
 
 The prompter is one page, the one `teleprompt serve` serves, in a browser
 or in the apps (`apps/linux`, `apps/macos`), which show it in a window of
-their own; so are its welcome and setup. What the apps draw around it,
+their own; so is setup. What the apps draw around it, a welcome page,
 settings and what shows while the page cannot, takes the same tokens and
 typeface.
 

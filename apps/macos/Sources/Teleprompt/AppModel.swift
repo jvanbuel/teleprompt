@@ -4,12 +4,14 @@ import SwiftUI
 import TelepromptKit
 import WebKit
 
-/// The app's state: the server it launched, and where its page is. The
-/// welcome, setup and the prompter are that page (`PrompterPage`), here as
-/// in a browser.
+/// The app's state: the welcome page's scripts, the server it launched,
+/// and where its page is. The prompter and setup are that page
+/// (`PrompterPage`), here as in a browser.
 @MainActor
 final class AppModel: ObservableObject {
     enum Phase: Equatable {
+        /// The welcome page: open a script, or one opened last.
+        case welcome
         /// The server is starting.
         case launching
         /// The server listens: its page, to show.
@@ -18,7 +20,9 @@ final class AppModel: ObservableObject {
         case failed([String])
     }
 
-    @Published private(set) var phase = Phase.launching
+    @Published private(set) var phase = Phase.welcome
+    /// A script the page could not open, and why.
+    @Published var openFailure: (title: String, errors: [String])?
     @Published var chooseScript = false
     @Published private(set) var scriptName = ""
     @Published private(set) var projectName = ""
@@ -28,10 +32,14 @@ final class AppModel: ObservableObject {
     @Published var locale: String { didSet { defaults.set(locale, forKey: "locale") } }
     @Published var countdownOn: Bool { didSet { defaults.set(countdownOn, forKey: "countdown") } }
     @Published private var lastScript: String { didSet { defaults.set(lastScript, forKey: "script") } }
+    /// The scripts opened last, newest first.
+    @Published private var recent: [String] { didSet { defaults.set(recent, forKey: "recent") } }
     /// Whether the script's voice reads it, rather than the author: as the
     /// page's welcome was last told.
     @Published var voiceReads: Bool { didSet { defaults.set(voiceReads, forKey: "voiceReads") } }
 
+    /// Whether the page has a script open.
+    private var opened = false
     /// The page's screen, in windows of its own, which it opened.
     var screens: [NSWindow] = []
     /// The page, once shown: what the app's commands run script in.
@@ -50,10 +58,19 @@ final class AppModel: ObservableObject {
         locale = defaults.string(forKey: "locale") ?? "en"
         countdownOn = defaults.object(forKey: "countdown") as? Bool ?? true
         lastScript = defaults.string(forKey: "script") ?? ""
+        recent = defaults.stringArray(forKey: "recent") ?? []
         voiceReads = defaults.bool(forKey: "voiceReads")
     }
 
     var lastScriptURL: URL? { lastScript.isEmpty ? nil : URL(fileURLWithPath: lastScript) }
+
+    /// The recent scripts still on disk; the last one opened when the
+    /// list predates it.
+    var recentScripts: [URL] {
+        (recent.isEmpty ? [lastScript].filter { !$0.isEmpty } : recent)
+            .filter { FileManager.default.fileExists(atPath: $0) }
+            .map { URL(fileURLWithPath: $0) }
+    }
 
     /// Where `teleprompt` usually is. An app does not get the shell's PATH.
     static func defaultBinary() -> String? {
@@ -62,11 +79,11 @@ final class AppModel: ObservableObject {
             .first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
-    /// The page's welcome: from the server running, or one started in the
-    /// last script's project.
-    func showHome() {
-        if case .ready = phase, webView != nil { return run("showHome()") }
-        serve(homeDir, [])
+    /// The welcome page. The server, if one runs, keeps running behind it.
+    func showWelcome() {
+        phase = .welcome
+        scriptName = ""
+        projectName = ""
     }
 
     private var homeDir: URL {
@@ -92,7 +109,8 @@ final class AppModel: ObservableObject {
     }
 
     /// What the page did, as it tells the app: a script opened, which the
-    /// app reopens next time; the welcome shown.
+    /// welcome lists next time; one that could not be; the scripts asked
+    /// for; its setup closed.
     func told(_ message: String) {
         guard let data = message.data(using: .utf8),
               let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -101,17 +119,27 @@ final class AppModel: ObservableObject {
         case "opened":
             guard let path = message["path"] as? String else { return }
             voiceReads = message["voice"] as? Bool ?? false
+            opened = true
             named(URL(fileURLWithPath: path))
-        case "home":
-            scriptName = ""
-            projectName = ""
+        case "open-failed":
+            let name = (message["path"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
+            showWelcome()
+            openFailure = ("Could not open \(name)", message["errors"] as? [String] ?? [])
+        case "scripts":
+            showWelcome()
+        case "setup":
+            if !opened { showWelcome() }
         default:
             break
         }
     }
 
+    /// `script` first among the scripts opened last, here and in the
+    /// system's Open Recent.
     private func named(_ script: URL) {
         lastScript = script.path
+        recent = Array(([script.path] + recent.filter { $0 != script.path }).prefix(6))
+        NSDocumentController.shared.noteNewRecentDocumentURL(script)
         scriptName = script.lastPathComponent
         projectName = projectDir(of: script).lastPathComponent
     }
@@ -139,6 +167,7 @@ final class AppModel: ObservableObject {
         self.server = server
         self.dir = dir
         pending = extra
+        opened = false
         phase = .launching
         do {
             try server.start { [weak self] event in

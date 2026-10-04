@@ -4,7 +4,7 @@ import CoreText
 import SwiftUI
 
 /// The prompters' design (`apps/DESIGN.md`), for the app around the page:
-/// its chrome, and what shows while the page cannot.
+/// the welcome page, its sample of the glass, and the chrome.
 enum Theme {
     static let glass = Color.black
     static let ink = Color(red: 0.949, green: 0.957, blue: 0.969)
@@ -18,6 +18,9 @@ enum Theme {
     static func face(_ size: CGFloat, _ weight: Font.Weight = .medium) -> Font {
         .custom(family, size: size).weight(weight)
     }
+
+    /// The logo beside the name, for the welcome page.
+    static let lockup = icon("teleprompt-lockup-dark.svg")
 
     /// The app's mark, beside the script's name in the toolbar.
     static let mark = icon("teleprompt.svg")
@@ -64,6 +67,18 @@ struct Pill: ButtonStyle {
             .padding(.vertical, 10)
             .background(Capsule().fill(primary ? Theme.ink : Theme.raised))
             .opacity(configuration.isPressed ? 0.8 : 1)
+    }
+}
+
+/// The reading line's cue arrow.
+struct CueArrow: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 #endif
