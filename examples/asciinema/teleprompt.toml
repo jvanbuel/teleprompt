@@ -7,7 +7,7 @@
 #   cargo run -- build examples/asciinema/scripts/recording.md
 #
 # Kokoro-FastAPI has to be listening on base_url for `dub` and `build`;
-# `check`, `plan` and `diff` need neither it nor agg.
+# `check` and `plan` need neither it nor agg.
 [locales]
 source = "en"
 targets = []

@@ -634,7 +634,7 @@ a `TimeMs` and a duration a `SpanMs`, so one is never added to or passed
 for the other, and a `fit-line` tempo is a `Tempo`, which is never the
 1000‰ that means no change.
 
-### Diff
+### Drift
 
 `plan --check` compares the computed timeline with the committed one and names a
 reason for each change: `text edited`, `now measured`, `audio changed`, and

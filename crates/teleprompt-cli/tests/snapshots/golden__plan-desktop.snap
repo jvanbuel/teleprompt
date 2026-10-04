@@ -1,0 +1,271 @@
+---
+source: crates/teleprompt-cli/tests/golden.rs
+expression: transcript(&out)
+---
+{
+  "exit": 0,
+  "stderr": [
+    "warning: 9 of 9 narration durations are estimated; run `teleprompt dub` to measure them before committing this timeline"
+  ],
+  "stdout": {
+    "duration_ms": 80550,
+    "entries": [
+      {
+        "action": {
+          "capture_key": "b913c6396c3a101a9b95374de411da296a7466bc5e6a52fd5993ecbed9fea2a0",
+          "duration_ms": 11700,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "welcome",
+          "shot": "intro-a#0",
+          "shot_hash": "028acb42fad709d4e580cc1629b045ddca25e3d3a723144eb2e610283e944cd3",
+          "start_ms": 0
+        },
+        "duration_ms": 11700,
+        "item": "intro",
+        "narration": {
+          "audio_hash": "ff85e62e652a412dacab19bfaaf3a1377de08042aa3b570aa80d65e6fa033759",
+          "duration_ms": 11400,
+          "duration_source": "estimated",
+          "line": "intro",
+          "source_hash": "b4ed1176b5e289ced5b05c90cd9679bc10ac28906ebfd23a837b0ae259df354b",
+          "start_ms": 150
+        },
+        "policy": "fit-action",
+        "start_ms": 0,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "e0f30742b6d01af9bc06c60d3dc71e9f1fe79bc288f935bce5cca9400e1e68d5",
+          "duration_ms": 11300,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "app",
+          "shot": "glass-a#0",
+          "shot_hash": "52481fd903722f829b0e8c4a4ee46f7b6b40da82b4b9550e63be637238521847",
+          "start_ms": 11700
+        },
+        "duration_ms": 11300,
+        "item": "glass",
+        "narration": {
+          "audio_hash": "7602959c94fb342f3163e9a37999077464dcc1adb132359cb01eb65375763c03",
+          "duration_ms": 11000,
+          "duration_source": "estimated",
+          "line": "glass",
+          "source_hash": "d6db99829bf6fb1180640ccc4dbca7139fcbd11f956d430f1c5e2568460eaf8d",
+          "start_ms": 11850
+        },
+        "policy": "fit-action",
+        "start_ms": 11700,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "5ea976c6670a5aacaf55f7436afdd0ac2437d2146d9930140bf80689b05c0147",
+          "duration_ms": 6400,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "app",
+          "shot": "size-a#0",
+          "shot_hash": "c9bb18d31155102247ca38f760b2f06600720f53726359f386546cd75e4e5771",
+          "start_ms": 23000
+        },
+        "duration_ms": 6400,
+        "item": "size",
+        "narration": {
+          "audio_hash": "95cad244d9c6222af758c52e55d65bd22d4f54d3523f42c03866e1f5347ded84",
+          "duration_ms": 6100,
+          "duration_source": "estimated",
+          "line": "size",
+          "source_hash": "81c9d818196bb6de927cf6fc7567a1a95f7bb3c59f74eb06ddbdeeecbd4b0db0",
+          "start_ms": 23150
+        },
+        "policy": "fit-action",
+        "start_ms": 23000,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "a02f6af4a16e7f875e4f4a74c63e33e3d70d18fc3f7614ccf76d5008b3994d6b",
+          "duration_ms": 8800,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "app",
+          "shot": "mirror-a#0",
+          "shot_hash": "7fae47f6795e6aa6e2dd206a6d2b3e7fd89c898d89fa2ffa7ddf094b74505b3c",
+          "start_ms": 29400
+        },
+        "duration_ms": 8800,
+        "item": "mirror",
+        "narration": {
+          "audio_hash": "d9647efb07baa7dd236b9a12bb6efa42facc31d4d36e1a85b7d6d0d24ced6cd0",
+          "duration_ms": 8500,
+          "duration_source": "estimated",
+          "line": "mirror",
+          "source_hash": "32f456b413abbf58946ed125c055fb98d72af13d2efd383a081ca13e9b66f23c",
+          "start_ms": 29550
+        },
+        "policy": "fit-action",
+        "start_ms": 29400,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "ed67aea2de09bc5c9ab7b8a0b6b26397d355c16cc17ec0bd60c6873ed0777636",
+          "duration_ms": 9300,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "app",
+          "shot": "record-a#0",
+          "shot_hash": "8f840fdb476a7929d76ad049686bd1ee44fd482177d8de3e77be37bee63874ab",
+          "start_ms": 38200
+        },
+        "duration_ms": 9300,
+        "item": "record",
+        "narration": {
+          "audio_hash": "a6fade38cbabaf7559b8f982578d8a93f0c7f40a8db94e3b47ff068bcb47c609",
+          "duration_ms": 9000,
+          "duration_source": "estimated",
+          "line": "record",
+          "source_hash": "c5dd799ae9c3b18d6d9abc05b9ac209b88bf9d5e83eaaa3e198841ce7d0006ab",
+          "start_ms": 38350
+        },
+        "policy": "fit-action",
+        "start_ms": 38200,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "32f9f41f03b66f3d8794077e2d8b6c061cda4d769b40d50e9848a2c43dacd66f",
+          "duration_ms": 8950,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "app",
+          "shot": "follow-a#0",
+          "shot_hash": "7d49c0763ee24a9b4025b8b77a4376fd265859f0c6bfb7b61abb95d0f2db8604",
+          "start_ms": 47500
+        },
+        "duration_ms": 8950,
+        "item": "follow",
+        "narration": {
+          "audio_hash": "62a70c082ae79c4135eeb92fb8615b061910651143993743442c4320aca88114",
+          "duration_ms": 8650,
+          "duration_source": "estimated",
+          "line": "follow",
+          "source_hash": "8dafc0cf748a8493dc4214e1242e3ae7f115a9cf2c1413ab7e11fd4490ec73f9",
+          "start_ms": 47650
+        },
+        "policy": "fit-action",
+        "start_ms": 47500,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "4833733310a01611a0075cbc664e90b9e74e3a34e58f451b000c174bda746f7a",
+          "duration_ms": 11550,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "app",
+          "shot": "keep-a#0",
+          "shot_hash": "74b6b052e8ba27665a9f1de7497e4785a94b10d1172e2e716212d958d9317578",
+          "start_ms": 56450
+        },
+        "duration_ms": 11550,
+        "item": "keep",
+        "narration": {
+          "audio_hash": "0571f5bcdaa9cebe85ad6b7e6acb802372587ddc5d0571ad9264c4df6830840f",
+          "duration_ms": 11250,
+          "duration_source": "estimated",
+          "line": "keep",
+          "source_hash": "68a3425d14a29f9ff92a74bcdc5d6412fbbe4ca5459a2784f76ef7b275011492",
+          "start_ms": 56600
+        },
+        "policy": "fit-action",
+        "start_ms": 56450,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "2d36c936ec77d9a0847e4c76946b84a8a712cbb2717976cdbc97d8296e89a2c6",
+          "duration_ms": 5600,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "app",
+          "shot": "keys-a#0",
+          "shot_hash": "288f3c2061a31e9ec09ce3698efd6e8111ad07b32b95312fe463a3fa383fee74",
+          "start_ms": 68000
+        },
+        "duration_ms": 5600,
+        "item": "keys",
+        "narration": {
+          "audio_hash": "4ad66d319ef261c4afa08d699df1936a9e1805ffb0e053d3bd56f8c2e975eb8f",
+          "duration_ms": 5300,
+          "duration_source": "estimated",
+          "line": "keys",
+          "source_hash": "3cf32a3cc6707afa595cc475d7a0e7fea17ac28e3667e7c496f0a07661de44a7",
+          "start_ms": 68150
+        },
+        "policy": "fit-action",
+        "start_ms": 68000,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "370763c378801e63f8047a263e2f32b869b29d2fe87736912e91bd1e6754a502",
+          "duration_ms": 6950,
+          "duration_source": "exact",
+          "plugin": "x11",
+          "scene": "app",
+          "shot": "outro-a#0",
+          "shot_hash": "26a676704ecf980329c499c94c590265f430f6b570438e94048da1944cd04b60",
+          "start_ms": 73600
+        },
+        "duration_ms": 6950,
+        "item": "outro",
+        "narration": {
+          "audio_hash": "96b2322fea3b02df14946c8db102b7f36fa514c53e7ec330734dbbf93a1ad053",
+          "duration_ms": 6650,
+          "duration_source": "estimated",
+          "line": "outro",
+          "source_hash": "f1a932e9d0dbe79be6c985a094c0247a23b72cea880d256c43808b7bb08dff16",
+          "start_ms": 73750
+        },
+        "policy": "fit-action",
+        "start_ms": 73600,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      }
+    ],
+    "generated_by": "teleprompt 0.1.0",
+    "locale": "en",
+    "script": "tutorial.md",
+    "version": 1
+  }
+}

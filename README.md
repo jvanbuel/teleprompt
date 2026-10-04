@@ -34,6 +34,7 @@ ffmpeg:
 | browsers | [Playwright](https://playwright.dev) scripts |
 | motion graphics | an existing [Remotion](https://www.remotion.dev) project |
 | slides | an existing [Slidev](https://sli.dev) deck |
+| desktop apps | the app itself, driven on a virtual X display, or on macOS |
 | images, clips, title cards | ffmpeg alone |
 
 Narration comes from any speech server that speaks OpenAI's API, such as

@@ -37,9 +37,10 @@ model misses the first words of a stream, and the test catches it. Behind a
 proxy its build script may not trust, download the native archive yourself
 and point `SHERPA_ONNX_ARCHIVE_DIR` at the directory holding it.
 
-`crates/teleprompt-cli/tests/golden.rs` pins `plan` output for every example
-project, and every command's failure output and exit code. When a change is
-meant to alter output, review the new snapshots with `cargo insta review`
+`crates/teleprompt-cli/tests/golden.rs` pins `check` and `plan` output for
+every example project whose plugins are built in (all but
+`plugin-authors`), and every command's failure output and exit code. When
+a change is meant to alter output, review the new snapshots with `cargo insta review`
 (or rerun with `INSTA_UPDATE=always`) and commit them with the change. When
 a change isn't meant to alter output, the snapshots must not move.
 

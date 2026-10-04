@@ -1,0 +1,13 @@
+---
+source: crates/teleprompt-cli/tests/golden.rs
+expression: transcript(&out)
+---
+{
+  "exit": 0,
+  "stderr": [],
+  "stdout": {
+    "errors": [],
+    "ok": true,
+    "warnings": []
+  }
+}

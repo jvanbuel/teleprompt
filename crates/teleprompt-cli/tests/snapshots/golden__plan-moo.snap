@@ -1,0 +1,557 @@
+---
+source: crates/teleprompt-cli/tests/golden.rs
+expression: transcript(&out)
+---
+{
+  "exit": 0,
+  "stderr": [
+    "warning: 21 of 21 narration durations are estimated; run `teleprompt dub` to measure them before committing this timeline"
+  ],
+  "stdout": {
+    "duration_ms": 164050,
+    "entries": [
+      {
+        "action": {
+          "capture_key": "a433bb411dd02fe7711b4dd013694489799cbb500570eba12e8175d966766d1f",
+          "duration_ms": 13950,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "intro-a#0",
+          "shot_hash": "9cc9e00fe88431b22d1dae6f5c4dd58963cfd080c85a51ca09f3846a06f77627",
+          "start_ms": 0
+        },
+        "duration_ms": 13950,
+        "item": "intro",
+        "narration": {
+          "audio_hash": "05e1c2fa9bc0048cf6fbf34a5ed895a7831158ee7779df0f063e10672b4caf85",
+          "duration_ms": 13650,
+          "duration_source": "estimated",
+          "line": "intro",
+          "source_hash": "27f410bb3c4e4267ee25054359b1e596e7db8ab21f1b39146dfd9e4495311be9",
+          "start_ms": 150
+        },
+        "policy": "concurrent",
+        "start_ms": 0,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "duration_ms": 5800,
+        "item": "hello",
+        "narration": {
+          "audio_hash": "f839a81a2833470138d8a3f9965ffda239a4026f38b5c86eed54140c044d27ce",
+          "duration_ms": 5250,
+          "duration_source": "estimated",
+          "line": "hello",
+          "source_hash": "c42d4b6b3de272625ad40836490ef8abe8f67868645c5640655b39def27c3a03",
+          "start_ms": 14350
+        },
+        "policy": "hold",
+        "start_ms": 13950,
+        "transition": {
+          "duration_ms": 300,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "09a2d1560b8761fd134449a15b16c80519d51b5ffb7209982b351b047cf006f9",
+          "duration_ms": 11700,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "api-a#0",
+          "shot_hash": "91683a8348ea1d2705f6e957986b4508c3b63eaa2607333644789dc2ce00e1c4",
+          "start_ms": 19450
+        },
+        "duration_ms": 11700,
+        "item": "api",
+        "narration": {
+          "audio_hash": "f8e7d8f236b6da506cb6787349acc557f1d528deebff37373c4cfec44cc648f7",
+          "duration_ms": 11150,
+          "duration_source": "estimated",
+          "line": "api",
+          "source_hash": "5a47b60558576c461b81d01f06562eb2788f2bfb1aedbce3ee9c1bb6410dd8f0",
+          "start_ms": 19850
+        },
+        "policy": "concurrent",
+        "start_ms": 19450,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "f72f426910d36ef4113c284a46b619a172967a695a6f6ed3fa01b8aa38ee528d",
+          "duration_ms": 8350,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "pcm-a#0",
+          "shot_hash": "87687f3fd24cbcdb6bcc958268cdb6f08faed289cbe87dc4030b544bec18d08d",
+          "start_ms": 31150
+        },
+        "duration_ms": 8350,
+        "item": "pcm",
+        "narration": {
+          "audio_hash": "17f2521e1e06465c746b704cb670baecaaa20e82de450d350b9eff978b2db347",
+          "duration_ms": 8050,
+          "duration_source": "estimated",
+          "line": "pcm",
+          "source_hash": "75de83daa4e1aa6a38d6c5a74571f3f49fe19b337da2f12431538098cfbc1d62",
+          "start_ms": 31300
+        },
+        "policy": "concurrent",
+        "start_ms": 31150,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "6ea35496a38117dc26345971d6e08e697e185b08f5576e3f79bbb101ac4e1265",
+          "duration_ms": 15650,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "typed-a#0",
+          "shot_hash": "e246f8a7896798c8c8b45b535d141591bdcfabd2943dc59a120b7a12a631523d",
+          "start_ms": 39500
+        },
+        "duration_ms": 15650,
+        "item": "typed",
+        "narration": {
+          "audio_hash": "54fdeebda1fec0b97727f369a9a6c91b1ad6780af4538ecaa35152b9bb82327a",
+          "duration_ms": 15350,
+          "duration_source": "estimated",
+          "line": "typed",
+          "source_hash": "f3ef2fcbc643c22d7ca1a64d61e37ba3530d48be2a313a33947f8aadd79dec13",
+          "start_ms": 39650
+        },
+        "policy": "concurrent",
+        "start_ms": 39500,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "98ead1723a97c89c5ba25052d2c8d08a0560a4e769f024d650222c2014109369",
+          "duration_ms": 3050,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "path-a#0",
+          "shot_hash": "7b66b9b07882047d680f2ca73b73f031c42a0690e2865d07176006e3588de494",
+          "start_ms": 55150
+        },
+        "duration_ms": 3050,
+        "item": "path",
+        "narration": {
+          "audio_hash": "1e43d5d5aeafadd049793b3b19f636d03bbd571c8180452afae0ef180a757829",
+          "duration_ms": 2750,
+          "duration_source": "estimated",
+          "line": "path",
+          "source_hash": "b9f07eea5eeb16e72c183052c7c24643ed2d507a11b2024c1f029a372bd081aa",
+          "start_ms": 55300
+        },
+        "policy": "concurrent",
+        "start_ms": 55150,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "eca6643ddcdc2be9f254568396338896bbfca491a3fafc5e2810c54fdd991757",
+          "duration_ms": 7600,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "refuse-a#0",
+          "shot_hash": "c3ba709aa3109d7e0d78594ef1478056fad999eeb9db22f15db25d4a4fcc3bf3",
+          "start_ms": 58200
+        },
+        "duration_ms": 7600,
+        "item": "refuse",
+        "narration": {
+          "audio_hash": "413fa5c8a61e6983b12b680b6ee838ff5720c214d0a1106e719126be867a3bc3",
+          "duration_ms": 7300,
+          "duration_source": "estimated",
+          "line": "refuse",
+          "source_hash": "09233cd33e4f750e4ee292f89c0f09ab3fbff29cee742314d6212c783ddb1e2f",
+          "start_ms": 58350
+        },
+        "policy": "concurrent",
+        "start_ms": 58200,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "1a115fd960f5183c2df8ea7339acd3c0993e8f5870c19a83b2c8427a35bfcfe9",
+          "duration_ms": 4800,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "send-a#0",
+          "shot_hash": "4c8c3729b0f31b573de75bbe336b2f31fb36ac95b09638cc760d2b774027fd4c",
+          "start_ms": 65800
+        },
+        "duration_ms": 4800,
+        "item": "send",
+        "narration": {
+          "audio_hash": "c9d82b7cc5bef94520095eb1c0b2cf26c52789df24e597b60282af2b525416da",
+          "duration_ms": 4500,
+          "duration_source": "estimated",
+          "line": "send",
+          "source_hash": "5ab3fac08f7650562a146d1a2ea735ae82c853d921d8cf65746a4c39dba1dff7",
+          "start_ms": 65950
+        },
+        "policy": "concurrent",
+        "start_ms": 65800,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "2933b495358b563b82f53f0da5ef54854ea487ea308927f7070431a5a1b4370d",
+          "duration_ms": 12350,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "list-a#0",
+          "shot_hash": "e43b231dc41dc4c5009c152b9bf4be91e3793eead968e21e2715b3d6f61b7d0e",
+          "start_ms": 70600
+        },
+        "duration_ms": 12350,
+        "item": "list",
+        "narration": {
+          "audio_hash": "7cca0ce779aac8f6c27b31e7752ec81b213ff6aea7879a90ce3564de82c7bcb3",
+          "duration_ms": 12050,
+          "duration_source": "estimated",
+          "line": "list",
+          "source_hash": "79b2867f0a7f092a2c2c3a44dc1da4b26f1ef7d4fa8d80379729cf2915d2c37f",
+          "start_ms": 70750
+        },
+        "policy": "concurrent",
+        "start_ms": 70600,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "73f318fc499eb5715d66d100f466431b497a5399a55fdaf4a46c4b0965ec0b11",
+          "duration_ms": 10100,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "words-a#0",
+          "shot_hash": "7bef38282036d8c0696cff129e4bf634d05eaecffa40dcf85de85bbce254584b",
+          "start_ms": 82950
+        },
+        "duration_ms": 10100,
+        "item": "words",
+        "narration": {
+          "audio_hash": "b6f4ffeb833dc2406fcc5bb9b7f1c45328af1a9b1564c5ec36b89343042b24f7",
+          "duration_ms": 9800,
+          "duration_source": "estimated",
+          "line": "words",
+          "source_hash": "01e7a15a50c9731ce144a874060c30af431916ce2b7f866d69eef4b4aed582c8",
+          "start_ms": 83100
+        },
+        "policy": "concurrent",
+        "start_ms": 82950,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "c38f820af474fbb7475dcfb3611a2bde7d90e6dd74619f894caa4eb4a5bed2fa",
+          "duration_ms": 3050,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "speed-a#0",
+          "shot_hash": "7acde7528e88bbf38c24118f8ba5f10836bdd998f3d9d5db471cb66e3b84683e",
+          "start_ms": 93050
+        },
+        "duration_ms": 3050,
+        "item": "speed",
+        "narration": {
+          "audio_hash": "1c0878b52bd93caf809db6dffd49ed480c1e12a33ae178f0a92fc7d3ff3c8a77",
+          "duration_ms": 2750,
+          "duration_source": "estimated",
+          "line": "speed",
+          "source_hash": "2efa704ebb443642841dd063a1643ad576a0d082cf25775e903f5bc0684e743d",
+          "start_ms": 93200
+        },
+        "policy": "concurrent",
+        "start_ms": 93050,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "f4f313f2b49676cb9daf37e8308405fa90df956b812af2be7f07ad002f399d18",
+          "duration_ms": 11300,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "hum-a#0",
+          "shot_hash": "90fa5a5c5ce1c803f25d1680da9c9c8e4fe64ee73f61597afc71b972ca99ce83",
+          "start_ms": 96100
+        },
+        "duration_ms": 11300,
+        "item": "hum",
+        "narration": {
+          "audio_hash": "a7285cc45bb43ed4a43e4d627acace3eaa6453c7bc44f1dce1fe569160db5279",
+          "duration_ms": 11000,
+          "duration_source": "estimated",
+          "line": "hum",
+          "source_hash": "d994f0a08728ba3b1ac6bc3f638eb797a11013c26bb4be7f25d770ed4aaf663a",
+          "start_ms": 96250
+        },
+        "policy": "concurrent",
+        "start_ms": 96100,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "626313aa9cc511bd3cf61f056e7c7bc99192902950a8c693155a821b4623ad96",
+          "duration_ms": 4550,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "faster-a#0",
+          "shot_hash": "9453d19cb0f270490f848b40135405e528f454d35e01d3d15225ce1fd659a308",
+          "start_ms": 107400
+        },
+        "duration_ms": 4550,
+        "item": "faster",
+        "narration": {
+          "audio_hash": "3400334fe6f8fab5bad8bb03797a779c16e8501c7f089b5e711de606be3a400a",
+          "duration_ms": 4250,
+          "duration_source": "estimated",
+          "line": "faster",
+          "source_hash": "3f7982b49bad5c0a5cd3e74d81721fddd6b10e473e2cb0247d783898742ebfa6",
+          "start_ms": 107550
+        },
+        "policy": "concurrent",
+        "start_ms": 107400,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "c92cba4c595a2d8287f69be7d9d501a28d9896753a0568f86a12a49c05b9c9c5",
+          "duration_ms": 5050,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "pitches-a#0",
+          "shot_hash": "87ce3a06c957d136ffa26c96b3aeb1c25b21d09013b320e545667cd5fa29f878",
+          "start_ms": 111950
+        },
+        "duration_ms": 5050,
+        "item": "pitches",
+        "narration": {
+          "audio_hash": "3df2534cfa0204d163b429638337e25f8f7b60c53e2abaccd57cbe8de66b9cc8",
+          "duration_ms": 4750,
+          "duration_source": "estimated",
+          "line": "pitches",
+          "source_hash": "87ed41174240a31831954e15f5eee3c2379e76a431cb67d8df650364704855f3",
+          "start_ms": 112100
+        },
+        "policy": "concurrent",
+        "start_ms": 111950,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "duration_ms": 2650,
+        "item": "calf",
+        "narration": {
+          "audio_hash": "02ee6318fc8c17aeb3334a925e96886dea5a400cd5590c8d94cdeaea3b8404af",
+          "duration_ms": 2100,
+          "duration_source": "estimated",
+          "line": "calf",
+          "source_hash": "1f6ebc0ead680dc0b48a104b7fba5891237b5de1817b2829133baec8feb6d59c",
+          "start_ms": 117400
+        },
+        "policy": "hold",
+        "start_ms": 117000,
+        "transition": {
+          "duration_ms": 300,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "duration_ms": 2100,
+        "item": "bull",
+        "narration": {
+          "audio_hash": "2bcd7640dfb12689f02cedff4dca1d3dc8746cb1b9bb868020ef77e19d304e0d",
+          "duration_ms": 1550,
+          "duration_source": "estimated",
+          "line": "bull",
+          "source_hash": "a5afaccadfc5f896ca7ce6c4f96d38778c10fef9bf8a95932d89c7dc17937dd6",
+          "start_ms": 119750
+        },
+        "policy": "hold",
+        "start_ms": 119350,
+        "transition": {
+          "duration_ms": 300,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "b58faefc2642712f95c55736417d31363e3718509055b137aec980bb8dcf145a",
+          "duration_ms": 7750,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "name-a#0",
+          "shot_hash": "775427139465101e311ce581b95186ddfbeb08f4daed334d851067972264a45c",
+          "start_ms": 121150
+        },
+        "duration_ms": 7750,
+        "item": "name",
+        "narration": {
+          "audio_hash": "dd4d2ab958f7cea92eb230dc8ba79e11f38a95375aafa45def111324d4a487c3",
+          "duration_ms": 7200,
+          "duration_source": "estimated",
+          "line": "name",
+          "source_hash": "18fb9bf5a2221d7bbadf9b62f7b487cc0b5a1c940630fe2fabdebdab68b84fee",
+          "start_ms": 121550
+        },
+        "policy": "concurrent",
+        "start_ms": 121150,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "90b85bdc67c97e87147bff71d27cdb91b1f7af8a7c81782bb2259de528f02b03",
+          "duration_ms": 8400,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "cast-a#0",
+          "shot_hash": "a2d50853314b884f043c55b45f55e7b6208b41f13c7885456b51ac3a7c7b9ae0",
+          "start_ms": 128900
+        },
+        "duration_ms": 8400,
+        "item": "cast",
+        "narration": {
+          "audio_hash": "28dd8a90c9dda32db04d75ed61d5db69b82c4c73e1801168de4cb8e67f44ee0d",
+          "duration_ms": 8100,
+          "duration_source": "estimated",
+          "line": "cast",
+          "source_hash": "60275ebaece80a6adc681161f356a87ac0c53bcc5b2351254c8d3b9a943fa59c",
+          "start_ms": 129050
+        },
+        "policy": "concurrent",
+        "start_ms": 128900,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "duration_ms": 5850,
+        "item": "peace",
+        "narration": {
+          "audio_hash": "550ef85ad8cf162f982da2685709dc194bb7874f1180cfbbb42e20adfd486551",
+          "duration_ms": 5300,
+          "duration_source": "estimated",
+          "line": "peace",
+          "source_hash": "b7cdf6767c7d3974a426fa894523de0f22737626b4ae31fb9cb3d55a06ff140b",
+          "start_ms": 137700
+        },
+        "policy": "hold",
+        "start_ms": 137300,
+        "transition": {
+          "duration_ms": 300,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "action": {
+          "capture_key": "80516678f9f3178a9fd2d38710cd2e51bfd38cf558af55040112e470da14643d",
+          "duration_ms": 14100,
+          "duration_source": "unknown",
+          "plugin": "slidev",
+          "scene": "slidev",
+          "shot": "yours-a#0",
+          "shot_hash": "92424560f3c0803e6d53353198556e14c5dde6c96aaca4d537bfb38a2d6f11f1",
+          "start_ms": 142850
+        },
+        "duration_ms": 14100,
+        "item": "yours",
+        "narration": {
+          "audio_hash": "653cccfa6d4373803234aeef985409a1c6fba0b853c9a13673043c162f45e856",
+          "duration_ms": 13550,
+          "duration_source": "estimated",
+          "line": "yours",
+          "source_hash": "b52b3731951625fb2869dc15ace09274dc34536773af4a2b26eef6058a4cce23",
+          "start_ms": 143250
+        },
+        "policy": "concurrent",
+        "start_ms": 142850,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      },
+      {
+        "duration_ms": 7100,
+        "item": "where",
+        "narration": {
+          "audio_hash": "1c810343555eca7e7f061c82d99e1dddb4204dc3e88d5f0397e01733defb97e9",
+          "duration_ms": 6800,
+          "duration_source": "estimated",
+          "line": "where",
+          "source_hash": "3896ae0b98d59f2f53107aebd8093e710bf28e3e257003b7b7eda6faf2cedb44",
+          "start_ms": 157100
+        },
+        "policy": "hold",
+        "start_ms": 156950,
+        "transition": {
+          "duration_ms": 0,
+          "kind": "crossfade"
+        }
+      }
+    ],
+    "generated_by": "teleprompt 0.1.0",
+    "locale": "en",
+    "script": "moo.md",
+    "version": 1
+  }
+}

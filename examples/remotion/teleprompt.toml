@@ -7,7 +7,7 @@
 #   cargo run -- build examples/remotion/scripts/remotion.md
 #
 # Kokoro-FastAPI has to be listening on base_url for `dub` and `build`;
-# `check`, `plan` and `diff` need neither it nor Node.
+# `check` and `plan` need neither it nor Node.
 [locales]
 source = "en"
 targets = []

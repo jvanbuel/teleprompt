@@ -4,12 +4,12 @@
 # speaker notes, and names the deck in its own front matter:
 #
 #   (cd examples/slidev/deck && npm install)
-#   cargo run -- from examples/slidev/deck/slides.md --slidev \
+#   cargo run -- import examples/slidev/deck/slides.md --slidev \
 #       --out examples/slidev/scripts/slides.md
 #   cargo run -- build examples/slidev/scripts/slides.md
 #
 # Kokoro-FastAPI has to be listening on base_url for `dub` and `build`;
-# `check`, `plan` and `diff` need neither it nor Node.
+# `check` and `plan` need neither it nor Node.
 [locales]
 source = "en"
 targets = []
