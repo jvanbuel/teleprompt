@@ -13,7 +13,6 @@ use teleprompt_derive::{derive, Draft, Line, Options, Word};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
-use crate::cmd::check::compile_script;
 use crate::project::Project;
 
 /// Where the words come from.
@@ -175,18 +174,15 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
     write(session.script, &draft.markdown(&options))?;
 
     // The script as the compiler reads it, which is what names its lines.
-    let (compiled, _) = compile_script(
-        &project,
-        session.script,
-        &crate::cmd::check::source_locale(&project),
-    )
-    .map_err(|errors| {
-        format!(
-            "the drafted {} does not compile, which is a bug in `import`:\n{}",
-            session.script.display(),
-            errors.join("\n")
-        )
-    })?;
+    let (compiled, _) = project
+        .compile(session.script, &project.source_locale())
+        .map_err(|errors| {
+            format!(
+                "the drafted {} does not compile, which is a bug in `import`:\n{}",
+                session.script.display(),
+                errors.join("\n")
+            )
+        })?;
     let lines: Vec<(LineId, String)> = compiled
         .narration
         .iter()

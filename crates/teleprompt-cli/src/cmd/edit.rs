@@ -10,7 +10,6 @@ use teleprompt_core::edit::{apply, Edit};
 
 use teleprompt_voice::takes::Takes;
 
-use crate::cmd::check::compile_script;
 use crate::output::Outcome;
 use crate::project::Project;
 
@@ -71,8 +70,8 @@ pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditRep
     let edited = script.with_file_name(name);
     let io = |e: std::io::Error| EditError::Io(format!("cannot write {}: {e}", script.display()));
     std::fs::write(&edited, &after).map_err(io)?;
-    let locale = crate::cmd::check::source_locale(project);
-    if let Err(errors) = compile_script(project, &edited, &locale) {
+    let locale = project.source_locale();
+    if let Err(errors) = project.compile(&edited, &locale) {
         let _ = std::fs::remove_file(&edited);
         let mut reasons = vec!["not written, since the script would not compile:".to_string()];
         reasons.extend(
@@ -113,7 +112,8 @@ pub fn run_keep(
     script: &Path,
     line: Option<&str>,
 ) -> Result<EditReport, EditError> {
-    let (compiled, _) = compile_script(project, script, &crate::cmd::check::source_locale(project))
+    let (compiled, _) = project
+        .compile(script, &project.source_locale())
         .map_err(EditError::Invalid)?;
     let mut takes = Takes::load(&project.takes_dir()).map_err(|e| EditError::Io(e.to_string()))?;
     if let Some(line) = line {
@@ -143,7 +143,8 @@ pub fn run_keep(
 /// Rewords line `line` to what its take was heard to say, and keeps the
 /// take as the line's: it says what the line now does.
 pub fn run_said(project: &Project, script: &Path, line: &str) -> Result<EditReport, EditError> {
-    let (compiled, _) = compile_script(project, script, &crate::cmd::check::source_locale(project))
+    let (compiled, _) = project
+        .compile(script, &project.source_locale())
         .map_err(EditError::Invalid)?;
     let text = compiled
         .narration

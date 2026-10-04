@@ -10,7 +10,6 @@ use teleprompt_core::ast::slugify;
 use teleprompt_core::LineId;
 use teleprompt_voice::Pcm;
 
-use crate::cmd::check::{compile_script, source_locale};
 use crate::cmd::import::{cut_takes, read_voice};
 use crate::project::Project;
 use serde::Serialize;
@@ -421,7 +420,8 @@ fn speak_from(
             script.display()
         )
     })?;
-    let (compiled, _) = compile_script(&project, script, &source_locale(&project))
+    let (compiled, _) = project
+        .compile(script, &project.source_locale())
         .map_err(|errors| format!("the draft does not compile:\n{}", errors.join("\n")))?;
     let lines: Vec<(LineId, String)> = compiled
         .narration

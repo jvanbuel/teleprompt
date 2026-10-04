@@ -242,7 +242,8 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
     }
 
     let (_dir, p, s) = manual();
-    let (out, _) = teleprompt_cli::cmd::check::compile_script(&p, &s, "en")
+    let (out, _) = p
+        .compile(&s, "en")
         .unwrap_or_else(|e| panic!("the manual compiles: {e:?}"));
 
     let dir = teleprompt_testkit::test_dir("manual-tapes");

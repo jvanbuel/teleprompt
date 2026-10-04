@@ -268,7 +268,7 @@ pub struct ProjectVoice {
 
 /// [`ProjectVoice`] for `project`, asking its backend's server.
 pub async fn project_voice(project: &crate::project::Project) -> ProjectVoice {
-    let backends = crate::cmd::check::backends_of(project);
+    let backends = project.backends();
     let backend = project
         .config
         .voice

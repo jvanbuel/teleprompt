@@ -80,8 +80,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     .unwrap();
 
     let project = Project::discover(&dir).unwrap();
-    let (compiled, _) =
-        teleprompt_cli::cmd::check::compile_script(&project, &script, "en").expect("it compiles");
+    let (compiled, _) = project.compile(&script, "en").expect("it compiles");
 
     let entry = compiled
         .timeline

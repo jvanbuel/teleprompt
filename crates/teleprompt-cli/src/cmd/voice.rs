@@ -69,7 +69,7 @@ pub async fn run_clone(
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let backends = crate::cmd::check::backends_of(project);
+    let backends = project.backends();
     let voicebox = backends
         .voicebox("voicebox")
         .ok_or_else(|| "`[backends.voicebox]` in teleprompt.toml does not validate".to_string())?;

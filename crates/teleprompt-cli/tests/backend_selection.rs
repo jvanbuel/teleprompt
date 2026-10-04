@@ -260,7 +260,7 @@ async fn each_speaker_is_spoken_by_their_own_backend() {
 #[test]
 fn an_unregistered_backend_is_still_rejected() {
     let (_dir, project, script) = project_with("unknown", SCRIPT);
-    let Err(errors) = teleprompt_cli::cmd::check::compile_script(&project, &script, "en") else {
+    let Err(errors) = project.compile(&script, "en") else {
         panic!("the default registry does not ship `tone`, so this must fail");
     };
     assert!(errors.join("\n").contains("tone"), "{errors:?}");

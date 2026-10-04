@@ -45,7 +45,7 @@ impl ScriptArgs {
     fn locale(&self, project: &Project) -> String {
         self.locale
             .clone()
-            .unwrap_or_else(|| check::source_locale(project))
+            .unwrap_or_else(|| project.source_locale())
     }
 }
 

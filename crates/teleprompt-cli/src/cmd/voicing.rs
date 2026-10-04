@@ -38,7 +38,7 @@ struct Voiced {
     /// The narrator's backend.
     backend: Arc<dyn VoiceBackend>,
     /// Every backend a line is spoken by, the narrator's included.
-    voices: crate::cmd::check::Voices,
+    voices: crate::voice::Voices,
     lines: Vec<NarrationDetail>,
     length_ms: u64,
     /// Each line and shot in time, as [`timeline_json`] says it.
@@ -65,18 +65,15 @@ impl Voicing {
     /// The script compiled as it now reads, or as it last compiled.
     fn refresh(&self) -> Option<Voiced> {
         let mut voiced = self.voiced.lock().unwrap_or_else(PoisonError::into_inner);
-        let backends = crate::cmd::check::backends_of(&self.project);
-        let compiled = crate::cmd::check::compile_script_with(
-            &backends,
-            &self.project,
-            &self.script,
-            &self.locale,
-        );
+        let backends = self.project.backends();
+        let compiled = self
+            .project
+            .compile_with(&backends, &self.script, &self.locale);
         match compiled {
             Ok((compiled, backend)) => {
-                let voices =
-                    crate::cmd::check::voices_for(&backends, &backend, &compiled.narration)
-                        .unwrap_or_default();
+                let voices = backends
+                    .voices(&backend, &compiled.narration)
+                    .unwrap_or_default();
                 *voiced = Some(Voiced {
                     backend,
                     voices,
@@ -108,21 +105,18 @@ impl Voicing {
     /// reads, every line's audio made first; or, if it no longer compiles,
     /// the one last made, and why only if there is none.
     pub fn manifest(&self) -> Result<NarrationManifest, Vec<String>> {
-        let backends = crate::cmd::check::backends_of(&self.project);
+        let backends = self.project.backends();
         let compile = || {
-            crate::cmd::check::compile_script_with(
-                &backends,
-                &self.project,
-                &self.script,
-                &self.locale,
-            )
+            self.project
+                .compile_with(&backends, &self.script, &self.locale)
         };
         let last = || lock(&self.published).as_ref().map(|p| p.manifest.clone());
         let (compiled, backend) = match compile() {
             Ok(compiled) => compiled,
             Err(errors) => return last().ok_or(errors),
         };
-        let voices = crate::cmd::check::voices_for(&backends, &backend, &compiled.narration)
+        let voices = backends
+            .voices(&backend, &compiled.narration)
             .map_err(|e| vec![e])?;
         let synthesized = self
             .runtime()
@@ -250,7 +244,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// The audio of every line without a take, in document order: from the
 /// voice cache, or synthesized into it now, one after another.
 async fn voiced(
-    voices: &crate::cmd::check::Voices,
+    voices: &crate::voice::Voices,
     cache: &VoiceCache,
     narration: &[NarrationDetail],
 ) -> Result<Vec<LineAudio>, String> {

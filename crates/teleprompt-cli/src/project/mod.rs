@@ -1,3 +1,7 @@
+mod compile;
+
+pub use compile::{translation_path, Compiled};
+
 use std::path::{Path, PathBuf};
 
 use teleprompt_core::config::PartialConfig;

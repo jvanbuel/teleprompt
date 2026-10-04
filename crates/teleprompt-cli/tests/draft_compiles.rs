@@ -101,14 +101,14 @@ fn a_drafted_transcript_passes_check_and_casts_its_speakers() {
     let script = dir.join("scripts/talk.md");
     std::fs::write(&script, &drafted.script).unwrap();
     let project = Project::discover(&dir).unwrap();
-    let compiled = teleprompt_cli::cmd::check::compile_source(
-        &teleprompt_cli::voice::Backends::defaults(),
-        &project,
-        &script,
-        &drafted.script,
-        "en",
-    )
-    .unwrap_or_else(|e| panic!("{e:?}"));
+    let compiled = project
+        .compile_source(
+            &teleprompt_cli::voice::Backends::defaults(),
+            &script,
+            &drafted.script,
+            "en",
+        )
+        .unwrap_or_else(|e| panic!("{e:?}"));
     let said: Vec<(Option<String>, String)> = compiled
         .program
         .elements

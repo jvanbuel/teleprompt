@@ -10,7 +10,7 @@ use teleprompt_core::program::Element;
 use teleprompt_core::{Diagnostic, SourceSpan};
 use teleprompt_lsp::{Analysis, Analyzer, Definition, Project as Outline};
 
-use crate::cmd::check::{backends_of, compile_source, source_locale, Compiled};
+use crate::project::Compiled;
 use crate::project::Project;
 
 /// Serves on stdin and stdout until the editor says to exit.
@@ -91,8 +91,8 @@ impl Analyzer for ProjectAnalyzer {
                 }
             }
         };
-        let locale = source_locale(&project);
-        match compile_source(&backends_of(&project), &project, script, text, &locale) {
+        let locale = project.source_locale();
+        match project.compile_source(&project.backends(), script, text, &locale) {
             Ok(compiled) => analysis(&compiled),
             Err(d) => Analysis {
                 diagnostics: d.0,

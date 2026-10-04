@@ -8,7 +8,7 @@ use serde::Serialize;
 use teleprompt_core::translation::{items, merged, pending, Translation};
 use teleprompt_translate::{Known, Request, Translator, Wanted};
 
-use crate::cmd::check::{resolved, source_program, translation_path};
+use crate::project::translation_path;
 use crate::project::Project;
 
 pub enum TranslateError {
@@ -63,7 +63,8 @@ pub fn translator(
     target: &str,
     choice: &Choice,
 ) -> Result<Translator, TranslateError> {
-    let config = resolved(project, script, target)
+    let config = project
+        .resolved(script, target)
         .map_err(TranslateError::Validation)?
         .config;
     let timeout_ms = config.translate.timeout_ms;
@@ -89,7 +90,9 @@ pub async fn run_translate(
     target: &str,
     translator: &Translator,
 ) -> Result<TranslateReport, TranslateError> {
-    let program = source_program(project, script).map_err(TranslateError::Validation)?;
+    let program = project
+        .source_program(script)
+        .map_err(TranslateError::Validation)?;
     let source = program.locale.clone();
     if target == source {
         return Err(TranslateError::Validation(vec![format!(

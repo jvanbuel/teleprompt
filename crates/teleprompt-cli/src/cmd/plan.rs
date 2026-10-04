@@ -4,7 +4,6 @@ use teleprompt_compile::CompileOutput;
 use teleprompt_core::SpanMs;
 use teleprompt_schedule::{diff, Timeline, TimelineDiff, TIMELINE_VERSION};
 
-use crate::cmd::check::compile_script;
 use crate::project::Project;
 
 /// Compiles the timeline and returns it without writing anything to disk.
@@ -13,7 +12,7 @@ pub fn run_plan(
     script: &Path,
     locale: &str,
 ) -> Result<CompileOutput, Vec<String>> {
-    compile_script(project, script, locale).map(|(out, _)| out)
+    project.compile(script, locale).map(|(out, _)| out)
 }
 
 /// Renders a `plan` result as a short prose report, one line per item.

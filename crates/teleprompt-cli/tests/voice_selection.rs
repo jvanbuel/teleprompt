@@ -189,7 +189,7 @@ Every video in this repository is built from a script you can read.
 
 /// A script's own front matter can carry `backends:` too — `Config`'s doc
 /// comment says so, and `resolve` genuinely merges it into
-/// `program.config.backends`. But the registry `compile_script` builds is
+/// `program.config.backends`. But the registry `Project::compile` builds is
 /// constructed from the *project's* `backends:` alone, before this script
 /// is ever read, so the override the merge computed is never seen by
 /// anything that could act on it. That must be named, not dropped.

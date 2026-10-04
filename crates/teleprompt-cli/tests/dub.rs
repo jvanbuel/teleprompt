@@ -620,7 +620,7 @@ struct TestProject {
 /// Scaffold a project whose `teleprompt.toml` is replaced by `config_toml`
 /// (verbatim TOML — the project's own `backends:` settings are what
 /// `run_dub` builds its registry from, before the script is ever read; see
-/// `compile_script`'s doc comment), and drop `script` at `scripts/test.md`.
+/// `Project::compile`'s doc comment), and drop `script` at `scripts/test.md`.
 fn project_with_config_and_script(config_toml: &str, script: &str) -> TestProject {
     let dir = tempdir("inprocess");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();

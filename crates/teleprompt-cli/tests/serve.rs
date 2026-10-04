@@ -497,7 +497,8 @@ fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, TOUR).unwrap();
     let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
-    teleprompt_cli::cmd::check::compile_script(&project, &script, "en")
+    project
+        .compile(&script, "en")
         .unwrap_or_else(|e| panic!("{e:?}"))
         .0
 }

@@ -268,6 +268,31 @@ impl Backends {
     }
 }
 
+/// Each backend a line is spoken by, by id.
+pub type Voices = BTreeMap<String, Arc<dyn VoiceBackend>>;
+
+impl Backends {
+    /// The backends `narration` is spoken by: `main`, and each a speaker's
+    /// line picks. The compile has already found them all.
+    pub fn voices(
+        &self,
+        main: &Arc<dyn VoiceBackend>,
+        narration: &[teleprompt_compile::NarrationDetail],
+    ) -> Result<Voices, String> {
+        let mut voices = Voices::new();
+        voices.insert(main.id().to_string(), main.clone());
+        for detail in narration {
+            if !voices.contains_key(&detail.backend) {
+                let backend = self
+                    .resolve(&detail.backend)
+                    .map_err(|d| format!("line `{}`: {}", detail.line_id, d.message))?;
+                voices.insert(detail.backend.clone(), backend);
+            }
+        }
+        Ok(voices)
+    }
+}
+
 /// Shorter than a backend's own `timeout_ms`, which is sized for synthesis:
 /// listing voices runs no model, so a server this slow to answer is broken.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(5_000);

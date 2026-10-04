@@ -137,7 +137,7 @@ fn prompt_of(
     script: &std::path::Path,
     locale: &str,
 ) -> Result<Prompt, Vec<String>> {
-    let (compiled, _) = crate::cmd::check::compile_script(project, script, locale)?;
+    let (compiled, _) = project.compile(script, locale)?;
     Ok(Prompt {
         name: script
             .file_name()

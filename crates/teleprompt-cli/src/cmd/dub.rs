@@ -12,7 +12,6 @@ use teleprompt_manifest::{captions, chapters};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
 
-use crate::cmd::check::compile_script_with;
 use crate::project::Project;
 use crate::voice::Backends;
 
@@ -174,13 +173,13 @@ pub async fn run_dub(
     check_only: bool,
 ) -> Result<DubOutput, DubError> {
     // The project's `backends:` settings; a script's front-matter override
-    // does not reach construction, as in `compile_script`.
-    let backends = crate::cmd::check::backends_of(project);
+    // does not reach construction, as in `Project::compile`.
+    let backends = project.backends();
     run_dub_with(&backends, project, script, locale, out_root, check_only).await
 }
 
 /// [`run_dub`] against caller-supplied backends; the seam exists for the
-/// reason `compile_script_with` gives.
+/// reason `Project::compile_with` gives.
 pub async fn run_dub_with(
     backends: &Backends,
     project: &Project,
@@ -190,11 +189,13 @@ pub async fn run_dub_with(
     check_only: bool,
 ) -> Result<DubOutput, DubError> {
     // Synthesize only with the backend the keys were computed from; see
-    // `compile_script_with`.
-    let (compiled, backend) =
-        compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
+    // `Project::compile_with`.
+    let (compiled, backend) = project
+        .compile_with(backends, script, locale)
+        .map_err(DubError::Validation)?;
     let cache = Arc::new(VoiceCache::new(project.caches().root));
-    let voices = crate::cmd::check::voices_for(backends, &backend, &compiled.narration)
+    let voices = backends
+        .voices(&backend, &compiled.narration)
         .map_err(DubError::Runtime)?;
 
     for id in voices.keys() {
@@ -226,8 +227,9 @@ pub async fn run_dub_with(
     // Recompile against the now-warm cache: the first compile ran before
     // anything was rendered, so on a cold project it holds estimates. This
     // makes `dub` idempotent, and costs no synthesis.
-    let (compiled, _) =
-        compile_script_with(backends, project, script, locale).map_err(DubError::Validation)?;
+    let (compiled, _) = project
+        .compile_with(backends, script, locale)
+        .map_err(DubError::Validation)?;
     let published = publish::publish(&compiled, audio).map_err(DubError::Runtime)?;
     let built = published.manifest.clone();
 
@@ -330,7 +332,7 @@ async fn check_voices(
 /// every task in flight; entries already stored stay, since the cache is
 /// content-addressed.
 async fn render_all(
-    voices: &crate::cmd::check::Voices,
+    voices: &crate::voice::Voices,
     cache: &Arc<VoiceCache>,
     narration: &[NarrationDetail],
     limit: usize,
