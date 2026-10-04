@@ -18,16 +18,6 @@ struct TelepromptApp: App {
         }
         .commands { PrompterCommands(model: model) }
 
-        // The screen on its own, for a second display.
-        Window("Monitor", id: "screen") {
-            MonitorScreen()
-                .environmentObject(model)
-                .padding(12)
-                .background(Theme.glass)
-                .preferredColorScheme(.dark)
-                .frame(minWidth: 480, minHeight: 270)
-        }
-
         Settings {
             SettingsView()
                 .environmentObject(model)
@@ -46,9 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 
+/// The app's commands. The prompter's own keys are the page's: its ?
+/// lists them.
 struct PrompterCommands: Commands {
     @ObservedObject var model: AppModel
-    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(after: .appSettings) {
@@ -57,48 +48,9 @@ struct PrompterCommands: Commands {
         CommandGroup(after: .newItem) {
             Button("Open Script…") { model.chooseScript = true }
                 .keyboardShortcut("o")
-        }
-        // The plain keys (return, p, m, w, + −, s) are the prompter's own;
-        // see PrompterView. Here they would fire while typing in Settings.
-        CommandMenu("Prompter") {
-            // The record key, the same in every mode: ⌘⇧Space starts a take
-            // and keeps it. (⌘Space is Spotlight's.)
-            Button(model.voiced ? (model.isReading ? "Stop" : "Play") : model.isTaking ? "Keep Take" : "Record") {
-                model.recordOrKeep()
-            }
-            .keyboardShortcut(.space, modifiers: [.command, .shift])
-            .disabled(!model.isReady)
-            Button("Record from the Top") { model.take(from: 0) }
-                .keyboardShortcut("t")
-                .disabled(!model.isReady)
-            Button("Keep Take") { model.keep() }
-                .keyboardShortcut(.return)
-                .disabled(!model.isTaking)
-            Button(model.paused ? "Resume" : "Pause") { model.togglePause() }
-                .keyboardShortcut("p", modifiers: [.command, .shift])
-                .disabled(!model.isTaking)
-            // W on the glass, too.
-            Button("Keep What You Said…") { model.reviewSaid() }
-                .disabled(!model.isReady || model.isTaking || model.state.saidOtherwise == nil)
-            // F2 on the glass, too.
-            Button("Reword Line") { model.rewordCurrent() }
-                .disabled(!model.isReady || model.isTaking || model.rewording != nil)
-            Button("Undo Last Edit") { model.undoEdit() }
-                .keyboardShortcut("z", modifiers: [.command, .option])
-                .disabled(!model.canUndoEdit)
-            Divider()
-            Toggle("Mirror Text", isOn: $model.mirrored)
-            Button("Larger Text") { model.textSize += 4 }
-                .keyboardShortcut("+")
-            Button("Smaller Text") { model.textSize = max(16, model.textSize - 4) }
-                .keyboardShortcut("-")
-            Divider()
-            Toggle("Show Monitor", isOn: $model.showsScreen)
-            Button("Monitor in Its Own Window") {
-                model.showsScreen = false
-                openWindow(id: "screen")
-            }
-            .keyboardShortcut("s", modifiers: [.command, .shift])
+            Button("Open in Editor") { model.openInEditor() }
+                .keyboardShortcut("e")
+                .disabled(model.lastScriptURL == nil)
         }
     }
 }

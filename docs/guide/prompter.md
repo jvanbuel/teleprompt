@@ -8,10 +8,11 @@ are by matching what a local speech model hears against the script, and
 keeps the next word highlighted a third of the way down the screen. Nothing
 you say leaves the machine.
 
-It runs in a browser, and as a native app: `apps/macos` in SwiftUI and
-`apps/linux` in GTK. The apps launch `teleprompt prompt` themselves and play
-the shots with the system's player; their READMEs say how to build them.
-To follow your voice, all of them need the recognizer and the model below.
+It is one page, in a browser or in an app: `apps/linux` and `apps/macos`
+launch `teleprompt prompt` themselves and show the same page in a window of
+their own, with a welcome page, settings and setup around it. Their READMEs
+say how to build them. To follow your voice, all of them need the
+recognizer and the model below.
 To have the script's voice read it instead, none do (see [Letting a voice
 read it](#letting-a-voice-read-it)).
 
@@ -65,6 +66,8 @@ there, which is how you read one line again.
 | Escape | throw the take away, or cancel the count before it |
 | Ctrl+Z (⌘Z) | undo the take just kept: each line gets back the recording it replaced |
 | click a line, or Enter on it | between takes, start a new take from that line |
+| r | record again, one after another, the lines reworded since their takes |
+| e | Edit: move and stretch the shots on the glass |
 | ? | list these keys |
 | p | pause and resume listening |
 | w | review a line said in other words than it reads |
@@ -99,10 +102,33 @@ A shot the video would start part-way through its line (`align=end` or
 Capture the clips first, with `teleprompt capture`. A shot without a clip
 shows as missing, both in the text and on the screen. If you read on before
 a clip ends, the next shot cuts it off, because the screen follows you and
-not the clock. Press `s` to hide or show the screen.
+not the clock. Press `s` to hide or show the screen, and **Own window**,
+above the rundown, puts it in a window of its own, for a second display.
 
-Clips are H.264, which Chrome, Edge and Safari play. Chromium builds without
+Clips are H.264, which Chrome, Edge, Safari and the macOS app play, and the
+Linux app with GStreamer's libav plugin. Chromium builds without
 proprietary codecs cannot play them.
+
+**Capture** and **Build**, at the top, run `teleprompt capture` and
+`teleprompt build` on the script, as you would in a terminal, and say how
+far they have got as they go. A build leaves the video where `build` puts
+it, and says where.
+
+## Moving shots on the glass
+
+**Edit** (or `e`) shows each shot under the words it plays over, in its
+scene's colour, or after its line when it plays once the line is said.
+
+- Drag a shot onto a word to start it there, on its own line or another.
+  Drop it past a line's last word to play it after the line.
+- Drag a shot's grip, at its end, along its line to make it last until that
+  word.
+- Hover over a word to see on the screen what plays as it is said.
+
+While you drag, a label says what the drop will do. Each drop goes through
+`teleprompt edit` (`cue`, `hold`, `move` and `stretch` on the command
+line), which writes nothing that would not compile, and Ctrl+Z (⌘Z) puts
+the script back as it was before it.
 
 ## Letting a voice read it
 
@@ -135,10 +161,11 @@ recorded yourself, which plays from your take.
 
 Every change goes through `teleprompt edit` (`reword <line> <text>` and
 `instruct <line> [text]` on the command line), which writes nothing that
-would not compile; Ctrl+Z (⌘Z) undoes the last. For anything bigger, such
-as lines added, split or moved, or a shot's block changed, edit the script
-in your own editor (the Linux app's **Open in Editor**, Ctrl+E, opens it
-there): the prompter reloads it when you save. Where the voice gives no word timings, a word's moment is
+would not compile; Ctrl+Z (⌘Z) undoes the last, unless you have changed
+the file since. For anything bigger, such as lines added, split or moved,
+or a shot's block changed, edit the script in your own editor (the apps'
+**Open in Editor**, Ctrl+E or ⌘E, opens it there): the prompter picks up
+what you save within a few seconds. Where the voice gives no word timings, a word's moment is
 estimated from its share of the line's letters, so the highlight may run a
 word early or late.
 
@@ -155,6 +182,8 @@ A recorded line is the line's voice from then on: `plan`, `dub`, `build`
 and the preview use it, paced to its real length, and the lines without one
 are synthesized. Every command names those. Edit a line and its recording
 no longer matches it, so the line is synthesized until you read it again.
+Press `r` to read those lines again one after another: each take starts on
+the next reworded line and is kept once you have read past it.
 
 Recordings are source, like the script: commit `takes/`. The microphone is
 recorded as it is, without the browser's noise suppression, so record

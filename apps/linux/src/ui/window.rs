@@ -1,36 +1,22 @@
-//! The window: which page shows, and what the prompter does with the
-//! server, the microphone and the screen.
+//! The window: the welcome page; the prompter, which is the page
+//! `teleprompt prompt` serves, shown in WebKit; and session mode, a
+//! terminal that `teleprompt record` runs in.
 
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::path::PathBuf;
-use std::rc::{Rc, Weak};
-use std::sync::{mpsc, Arc, Mutex};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use adw::prelude::*;
 use gtk::{gio, glib};
-use teleprompt_gtk::api::{ClientMessage, Script, ServerMessage};
 use teleprompt_gtk::launch::{LaunchEvent, LaunchRequest, ServerProcess};
-use teleprompt_gtk::make::{self, Job, Progress};
-use teleprompt_gtk::mic::{Mic, RATE};
-use teleprompt_gtk::retake::Queue;
-use teleprompt_gtk::ribbons;
-use teleprompt_gtk::said;
-use teleprompt_gtk::session::{Incoming, Outgoing, SessionClient};
-use teleprompt_gtk::state::{PrompterState, Status};
-use teleprompt_gtk::timeline::{self as plan, Edit, Timeline};
 use teleprompt_gtk::tools::{self, Tool};
 use vte4::prelude::*;
+use webkit::prelude::*;
 
 use super::config::Config;
-use super::glass::Glass;
-use super::monitor::Monitor;
 use super::session::SessionPage;
-use super::tally::Tally;
-
-mod line_edit;
-mod reading;
+use super::tally::{Status, Tally};
 
 /// Starts and stops recording, in every mode.
 const RECORD_KEY: &str = "Ctrl ⇧ Space";
@@ -39,31 +25,8 @@ const RECORD_KEY: &str = "Ctrl ⇧ Space";
 /// belong to so a stale one is dropped.
 enum Event {
     Launch(u64, LaunchEvent),
-    Connected(
-        u64,
-        Result<(SessionClient, Script, mpsc::Sender<Outgoing>), String>,
-    ),
-    Incoming(u64, Incoming),
-    Refreshed(u64, Script),
-    Clip(u64, String, Result<PathBuf, String>),
-    Level(f32),
     /// The tools a session can record with, for the session it was asked for.
     Tools(u64, Result<Vec<Tool>, String>),
-    /// The script's timeline, as `plan` lays it out.
-    Planned(u64, Result<Timeline, String>),
-    /// An edit written, said as the author would; or what was not done,
-    /// and why.
-    Edited(u64, Result<String, (&'static str, String)>),
-    /// A line reworded to what its take says; or why not.
-    Reworded(u64, Result<String, String>),
-    /// How far a capture or build has got.
-    Making(u64, Progress),
-    /// A capture or build done: the video, for a build; or why it failed.
-    Made(u64, Result<Option<PathBuf>, String>),
-    /// A line's audio, fetched to read it aloud, and the script after.
-    Voice(u64, usize, Result<(PathBuf, Option<Script>), String>),
-    /// The background voicing made a line, or could not.
-    Voicing(u64, Result<Script, String>),
 }
 
 /// What the prompter needs that it does not have, and how to get it.
@@ -79,81 +42,44 @@ pub struct Window {
 struct Widgets {
     stack: gtk::Stack,
     title: adw::WindowTitle,
+    /// Session mode's Record: the page has its own.
     record: gtk::Button,
     record_label: gtk::Label,
-    /// Read by a voice: Play, in the record button's place.
-    play: gtk::Button,
-    play_label: gtk::Label,
     reopen: gtk::Button,
     /// Who reads, on the welcome page: the author, or a voice.
     narrator_voice: gtk::ToggleButton,
+    loading_title: gtk::Label,
     loading_detail: gtk::Label,
     failed: adw::StatusPage,
-    glass: Glass,
-    /// Edit mode: the shots on the glass, to drag.
-    edit: gtk::ToggleButton,
-    /// Says Edit mode is on, and ends it.
-    editing: adw::Banner,
+    /// The prompter: the page the server serves.
+    view: webkit::WebView,
     /// The welcome page's sample of the glass, which a narrow window drops.
     sample: gtk::Box,
-    monitor: Monitor,
     session: SessionPage,
-    /// How far a capture or build has got, over the tally.
-    working: gtk::ProgressBar,
     tally: Tally,
     toasts: adw::ToastOverlay,
-    text_css: gtk::CssProvider,
 }
 
 #[derive(Default)]
 struct Model {
     config: Config,
-    state: PrompterState,
     generation: u64,
     server: Option<ServerProcess>,
-    client: Option<SessionClient>,
-    socket: Option<mpsc::Sender<Outgoing>>,
-    /// The socket, for the microphone's thread.
-    outlet: Arc<Mutex<Option<mpsc::Sender<Outgoing>>>>,
-    mic: Option<Mic>,
-    media: Option<gtk::MediaFile>,
-    /// Screens in windows of their own.
-    screens: Vec<gtk::Picture>,
+    /// The server's origin, once it listens: the only one the page may
+    /// load from, and use the microphone for.
+    origin: Option<String>,
+    /// The screen in windows of its own, which the page opened.
+    screens: Vec<gtk::Window>,
     /// Session mode: the script a session is drafted into, and the
     /// `teleprompt record` recording it, once started.
     session: Option<Session>,
-    /// The script as it was before each timeline edit, latest last.
-    undo: Vec<String>,
-    /// A capture or build is under way.
-    making: bool,
-    /// The reworded lines being recorded again, one after another.
-    queue: Option<Queue>,
-    /// The script's timeline, as last planned.
-    timeline: Option<Timeline>,
-    /// The shot the monitor shows still, for a word hovered in Edit mode,
-    /// and how far into it.
-    scrub: Option<(String, u64)>,
-    /// Lines said as other words, by id and those words: offered once, and
-    /// the ones the author kept the script for.
-    said_offered: HashSet<(String, String)>,
-    said_declined: HashSet<(String, String)>,
-    /// The toast offering them, taken down if the take they are in is undone.
-    said_toast: Option<adw::Toast>,
-    /// The window is too narrow for the monitor beside the glass.
-    narrow: bool,
-    /// The script file, watched for edits made elsewhere.
-    watch: Option<gio::FileMonitor>,
-    /// The voice reading the script aloud, while it does.
-    reading: Option<reading::Reading>,
-    /// Whether the voice is making lines in the background.
-    voicing: Option<Arc<std::sync::atomic::AtomicBool>>,
-    /// The line whose words are being edited on the glass.
-    rewording: Option<usize>,
+    status: Status,
 }
 
 struct Session {
     script: PathBuf,
     recording: Option<glib::Pid>,
+    since: Option<Instant>,
     /// What it can record with, once `teleprompt record --tools` has said.
     tools: Vec<Tool>,
 }
@@ -179,55 +105,22 @@ impl Window {
             events,
         });
         this.connect(&this);
-        let weak = Rc::downgrade(&this);
-        this.w.glass.ribbons.connect_drop(move |edit, said| {
-            if let Some(this) = weak.upgrade() {
-                this.timeline_drop(edit, said);
-            }
-        });
-        let weak = Rc::downgrade(&this);
-        this.w.glass.ribbons.connect_scrub(move |ms| {
-            if let Some(this) = weak.upgrade() {
-                this.scrub(ms);
-            }
-        });
-        let weak = Rc::downgrade(&this);
-        this.w.edit.connect_toggled(move |button| {
-            let Some(this) = weak.upgrade() else { return };
-            if button.is_active() && this.is_taking() {
-                return button.set_active(false);
-            }
-            this.w.glass.ribbons.set_editing(button.is_active());
-            this.w.editing.set_revealed(button.is_active());
-            this.show_status();
-        });
-        let edit = this.w.edit.clone();
-        this.w
-            .editing
-            .connect_button_clicked(move |_| edit.set_active(false));
-        // A narrow window keeps the glass and the controls: the monitor,
-        // the key hints and the welcome page's sample go.
+        this.connect_view(&this);
+        if let Some(wav) = std::env::var_os("TELEPROMPT_MIC") {
+            let countdown = this.config().countdown();
+            hear_from_file(&this.w.view, std::path::Path::new(&wav), countdown);
+        }
+        // A narrow window keeps the controls: the key hints and the
+        // welcome page's sample go.
         let narrow = adw::Breakpoint::new(
             adw::BreakpointCondition::parse("max-width: 900sp").expect("a condition"),
         );
         let hidden = false.to_value();
-        for (signal, is_narrow) in [("apply", true), ("unapply", false)] {
-            let weak = Rc::downgrade(&this);
-            narrow.connect_local(signal, false, move |_| {
-                if let Some(this) = weak.upgrade() {
-                    this.model.borrow_mut().narrow = is_narrow;
-                    this.show_monitor();
-                }
-                None
-            });
-        }
         narrow.add_setter(this.w.tally.keys(), "visible", Some(&hidden));
         narrow.add_setter(&this.w.sample, "visible", Some(&hidden));
         this.window.add_breakpoint(narrow);
         this.window.set_size_request(560, 420);
-        this.w.glass.set_text_size(&this.w.text_css, 48.0);
         this.show_welcome();
-        this.show_status();
         let weak = Rc::downgrade(&this);
         glib::spawn_future_local(async move {
             while let Ok(event) = received.recv().await {
@@ -247,29 +140,9 @@ impl Window {
     }
 
     fn connect(&self, this: &Rc<Self>) {
-        // The prompter's keys, wherever the focus is on its page: after the
-        // focused widget, so a dialog still takes its own Escape.
-        let weak = Rc::downgrade(this);
-        let keys = gtk::EventControllerKey::new();
-        keys.connect_key_pressed(move |_, key, _, modifiers| {
-            let handled = weak.upgrade().is_some_and(|this| {
-                this.w
-                    .stack
-                    .visible_child_name()
-                    .is_some_and(|page| page == "ready")
-                    && this.key(key, modifiers)
-            });
-            if handled {
-                glib::Propagation::Stop
-            } else {
-                glib::Propagation::Proceed
-            }
-        });
-        self.window.add_controller(keys);
-
-        // The record key, Ctrl+Shift+Space: starts and stops recording in
-        // every mode, wherever the focus is, and is never typed into the
-        // session's shell.
+        // The record key, Ctrl+Shift+Space, in session mode: wherever the
+        // focus is, and never typed into the session's shell. Elsewhere it
+        // goes on to the page, whose key it is too.
         let weak = Rc::downgrade(this);
         let record = gtk::EventControllerKey::new();
         record.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -285,53 +158,19 @@ impl Window {
         self.window.add_controller(record);
 
         let weak = Rc::downgrade(this);
-        let click = gtk::GestureClick::new();
-        click.connect_released(move |_, _, x, y| {
-            let Some(this) = weak.upgrade() else { return };
-            // In Edit mode a click is on the shots, not a take.
-            if this.w.edit.is_active() {
-                return;
-            }
-            if let Some(line) = this.w.glass.line_at(x, y) {
-                if this.voice_reads() {
-                    return this.line_clicked(line);
-                }
-                if this.is_taking() {
-                    this.model.borrow_mut().state.status =
-                        Status::info("Keep or discard this take first");
-                    return this.show_status();
-                }
-                this.take(line);
-            }
-        });
-        self.w.glass.view.add_controller(click);
-
-        let weak = Rc::downgrade(this);
-        self.w.glass.verdict_undo.connect_clicked(move |_| {
-            if let Some(this) = weak.upgrade() {
-                this.undo_take();
-            }
-        });
-
-        let weak = Rc::downgrade(this);
         self.w.record.connect_clicked(move |_| {
             if let Some(this) = weak.upgrade() {
                 this.record_key();
             }
         });
         let weak = Rc::downgrade(this);
-        self.w.play.connect_clicked(move |_| {
-            if let Some(this) = weak.upgrade() {
-                this.play_or_stop();
-            }
-        });
-        let weak = Rc::downgrade(this);
         self.w.narrator_voice.connect_toggled(move |voice| {
             if let Some(this) = weak.upgrade() {
-                this.set_voice_reads(voice.is_active());
+                let mut config = this.config();
+                config.voice_reads = voice.is_active();
+                this.set_config(config);
             }
         });
-
         let weak = Rc::downgrade(this);
         self.w
             .session
@@ -341,7 +180,6 @@ impl Window {
                     this.session_ended(status);
                 }
             });
-
         let weak = Rc::downgrade(this);
         self.w.reopen.connect_clicked(move |_| {
             let Some(this) = weak.upgrade() else { return };
@@ -358,16 +196,109 @@ impl Window {
         });
     }
 
-    /// The record key and the Record button: start or stop recording in
-    /// whichever mode is showing; false when there is nothing to record.
+    /// The page: shown once it has loaded, given the microphone and
+    /// nothing else, and its monitor opened in a window of its own.
+    fn connect_view(&self, this: &Rc<Self>) {
+        let weak = Rc::downgrade(this);
+        self.w.view.connect_load_changed(move |view, event| {
+            let Some(this) = weak.upgrade() else { return };
+            let ours = this
+                .model
+                .borrow()
+                .origin
+                .as_ref()
+                .is_some_and(|o| view.uri().is_some_and(|u| u.starts_with(o.as_str())));
+            if event == webkit::LoadEvent::Finished && ours {
+                this.w.stack.set_visible_child_name("ready");
+                this.w.view.grab_focus();
+                // Named for the window switcher, once there is a script to
+                // read: what a recording of the app waits for.
+                let name = this.w.title.title();
+                this.window.set_title(Some(&format!("{name} — Teleprompt")));
+            }
+        });
+        let weak = Rc::downgrade(this);
+        self.w.view.connect_load_failed(move |view, _, uri, error| {
+            let Some(this) = weak.upgrade() else {
+                return false;
+            };
+            // Leaving a page for the next is no failure.
+            if error.matches(webkit::NetworkError::Cancelled) || view.uri().as_deref() != Some(uri)
+            {
+                return false;
+            }
+            this.shutdown();
+            this.show_failed(&[format!("Could not show the prompter: {error}")]);
+            true
+        });
+        let weak = Rc::downgrade(this);
+        self.w
+            .view
+            .connect_permission_request(move |view, request| {
+                let allowed = weak
+                    .upgrade()
+                    .is_some_and(|this| this.allows(view, request));
+                if allowed {
+                    request.allow();
+                } else {
+                    request.deny();
+                }
+                true
+            });
+        // The page's own controls, not the browser's: no Reload, no Back.
+        self.w.view.connect_context_menu(|_, _, _| true);
+        let weak = Rc::downgrade(this);
+        self.w.view.connect_create(move |view, _| {
+            let screen = webkit::WebView::builder().related_view(view).build();
+            if let Some(this) = weak.upgrade() {
+                this.screen_window(&screen);
+            }
+            screen.upcast()
+        });
+    }
+
+    /// The microphone, for the page this server serves; nothing else, for
+    /// any page.
+    fn allows(&self, view: &webkit::WebView, request: &webkit::PermissionRequest) -> bool {
+        let Some(media) = request.downcast_ref::<webkit::UserMediaPermissionRequest>() else {
+            return false;
+        };
+        let origin = self.model.borrow().origin.clone();
+        let ours = origin.is_some_and(|o| view.uri().is_some_and(|u| u.starts_with(&o)));
+        ours && media.is_for_audio_device() && !media.is_for_video_device()
+    }
+
+    /// The page's monitor, which it opened, in a window of its own: for a
+    /// second display.
+    fn screen_window(&self, view: &webkit::WebView) {
+        let window = gtk::Window::builder()
+            .title("Teleprompt · Screen")
+            .default_width(800)
+            .default_height(520)
+            .child(view)
+            .build();
+        view.connect_ready_to_show(glib::clone!(
+            #[weak]
+            window,
+            move |_| window.present()
+        ));
+        view.connect_close(glib::clone!(
+            #[weak]
+            window,
+            move |_| window.close()
+        ));
+        view.connect_context_menu(|_, _, _| true);
+        self.model.borrow_mut().screens.push(window);
+    }
+
+    /// The record key and the Record button, in session mode: start or
+    /// stop recording; false anywhere else.
     fn record_key(self: &Rc<Self>) -> bool {
         match self.session_recording() {
             Some(true) => {
                 self.stop_session();
             }
             Some(false) => self.start_session(),
-            None if self.voice_reads() => self.play_or_stop(),
-            None if self.model.borrow().socket.is_some() => self.record_or_keep(),
             None => return false,
         }
         true
@@ -388,13 +319,13 @@ impl Window {
         {
             let mut model = self.model.borrow_mut();
             model.generation += 1;
-            model.state = PrompterState::default();
             model.session = Some(Session {
                 script: script.clone(),
                 recording: None,
+                since: None,
                 tools: Vec::new(),
             });
-            model.state.status = Status::info(format!("New script: {}", file_name(&script)));
+            model.status = Status::info(format!("New script: {}", file_name(&script)));
         }
         self.w.title.set_title(&file_name(&script));
         self.w.title.set_subtitle("Draft from a session");
@@ -438,16 +369,14 @@ impl Window {
                     this.set_config(config);
                 }
             });
-        if let Some(session) = self.model.borrow_mut().session.as_mut() {
-            session.tools = listed;
-        }
-        if let Some(script) = self
-            .model
-            .borrow()
-            .session
-            .as_ref()
-            .map(|s| s.script.clone())
-        {
+        let script = {
+            let mut model = self.model.borrow_mut();
+            model.session.as_mut().map(|session| {
+                session.tools = listed;
+                session.script.clone()
+            })
+        };
+        if let Some(script) = script {
             self.w.session.show_idle(&script);
         }
     }
@@ -508,25 +437,21 @@ impl Window {
     }
 
     fn session_started(&self, pid: glib::Pid) {
-        {
+        let in_terminal = {
             let mut model = self.model.borrow_mut();
+            let chosen = self.w.session.chosen();
             let Some(session) = model.session.as_mut() else {
                 return;
             };
             session.recording = Some(pid);
-            let model = &mut *model;
-            model.state.take.start(Instant::now());
-            model.state.status = Status::info("Recording: talk as you work");
-        }
-        let in_terminal = {
-            let model = self.model.borrow();
-            let chosen = self.w.session.chosen();
-            model.session.as_ref().is_none_or(|s| {
-                s.tools
-                    .iter()
-                    .find(|t| Some(&t.adapter) == chosen.as_ref())
-                    .is_none_or(|t| t.in_terminal)
-            })
+            session.since = Some(Instant::now());
+            let in_terminal = session
+                .tools
+                .iter()
+                .find(|t| Some(&t.adapter) == chosen.as_ref())
+                .is_none_or(|t| t.in_terminal);
+            model.status = Status::info("Recording: talk as you work");
+            in_terminal
         };
         self.w.session.show_recording(in_terminal);
         self.show_status();
@@ -545,7 +470,7 @@ impl Window {
         unsafe {
             libc::kill(pid.0, libc::SIGTERM);
         }
-        self.model.borrow_mut().state.status = Status::info("Drafting the script…");
+        self.model.borrow_mut().status = Status::info("Drafting the script…");
         self.w.session.show_drafting();
         self.show_status();
         true
@@ -556,11 +481,11 @@ impl Window {
     fn session_ended(self: &Rc<Self>, status: i32) {
         let script = {
             let mut model = self.model.borrow_mut();
-            model.state.take.stop(Instant::now());
             let Some(session) = model.session.as_mut() else {
                 return;
             };
             session.recording = None;
+            session.since = None;
             session.script.clone()
         };
         if status == 0 && script.exists() {
@@ -572,110 +497,23 @@ impl Window {
             )));
             return;
         }
-        self.model.borrow_mut().state.status = Status::error("The session did not become a script");
+        self.model.borrow_mut().status = Status::error("The session did not become a script");
         self.w.session.show_failed();
         self.show_status();
         self.show_record();
-    }
-
-    /// A take from the line you are on, or
-    /// keep the one under way.
-    pub fn record_or_keep(self: &Rc<Self>) {
-        if self.is_taking() {
-            return self.keep();
-        }
-        let (at, lines) = {
-            let model = self.model.borrow();
-            (model.state.at.line, model.state.script.lines.len())
-        };
-        self.take(if at < lines { at } else { 0 });
-    }
-
-    /// The prompter's own keys, while it has focus. Ctrl combinations are
-    /// the app's accelerators and pass through.
-    fn key(self: &Rc<Self>, key: gtk::gdk::Key, modifiers: gtk::gdk::ModifierType) -> bool {
-        use gtk::gdk::Key;
-        if modifiers
-            .intersects(gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::ALT_MASK)
-        {
-            return false;
-        }
-        if self.model.borrow().rewording.is_some() {
-            return false;
-        }
-        match key {
-            Key::F2 => self.reword_current(),
-            Key::space if self.voice_reads() => self.play_or_stop(),
-            Key::Escape if self.is_reading() => self.stop_reading(None),
-            Key::Escape => self.discard(),
-            Key::p => self.toggle_pause(),
-            Key::r => self.retake(),
-            Key::w => self.review_said(),
-            Key::e | Key::E => self.w.edit.set_active(!self.w.edit.is_active()),
-            Key::m => self
-                .w
-                .glass
-                .root
-                .set_mirrored(!self.w.glass.root.is_mirrored()),
-            Key::s => self
-                .w
-                .monitor
-                .root
-                .set_visible(!self.w.monitor.root.is_visible()),
-            Key::plus | Key::equal | Key::KP_Add => self.resize(4.0),
-            Key::minus | Key::KP_Subtract => self.resize(-4.0),
-            _ => return false,
-        }
-        true
     }
 
     fn handle(self: &Rc<Self>, event: Event) {
         let generation = self.model.borrow().generation;
         match event {
             Event::Launch(g, e) if g == generation => self.launched(e),
-            Event::Connected(g, result) if g == generation => {
-                self.connected(result);
-                self.watch_script();
-            }
-            Event::Incoming(g, incoming) if g == generation => self.incoming(incoming),
-            Event::Refreshed(g, script) if g == generation => {
-                self.model.borrow_mut().state.script = script;
-                self.render();
-                self.replan();
-                self.show_reworded();
-                self.offer_said();
-                self.voice_unmade();
-                if self.voice_reads() && !self.is_reading() {
-                    self.show_voice_status();
-                    self.show_status();
-                }
-            }
-            Event::Clip(g, shot, clip) if g == generation => self.clip_fetched(&shot, clip),
             Event::Tools(g, tools) if g == generation => self.tools_listed(tools),
-            Event::Planned(g, planned) if g == generation => self.planned(planned),
-            Event::Edited(g, edited) if g == generation => self.edited(edited),
-            Event::Reworded(g, reworded) if g == generation => self.reworded(reworded),
-            Event::Making(g, progress) if g == generation => {
-                self.w.set_working(Some(progress.fraction()));
-                self.model.borrow_mut().state.status = Status::info(progress.label());
-                self.show_status();
-            }
-            Event::Made(g, made) if g == generation => self.made(made),
-            Event::Voice(g, line, fetched) if g == generation => self.voice_fetched(line, fetched),
-            Event::Voicing(g, news) if g == generation => self.voicing(news),
-            Event::Level(rms) => {
-                if self.model.borrow().state.take.is_sending() {
-                    self.w.tally.set_level(rms);
-                } else {
-                    self.w.tally.set_level(0.0);
-                }
-            }
             _ => {}
         }
     }
 
     /// Launches `teleprompt prompt` for `script`, replacing any server
-    /// already running.
+    /// already running, and shows its page once it listens.
     pub fn open(self: &Rc<Self>, script: PathBuf) {
         self.shutdown();
         let mut model = self.model.borrow_mut();
@@ -723,6 +561,11 @@ impl Window {
         let name = file_name(&script);
         self.w.title.set_title(&name);
         self.w.title.set_subtitle(&project_name(&script));
+        self.w.loading_title.set_label(if voice {
+            "Opening the script"
+        } else {
+            "Loading the speech model"
+        });
         self.w.loading_detail.set_label(&name);
         self.w.stack.set_visible_child_name("loading");
         self.show_record();
@@ -731,18 +574,18 @@ impl Window {
     fn launched(&self, event: LaunchEvent) {
         match event {
             LaunchEvent::Listening(origin) => {
-                let (events, generation) = (self.events.clone(), self.model.borrow().generation);
-                std::thread::spawn(move || {
-                    let client = SessionClient::new(origin);
-                    let result = client.script().and_then(|script| {
-                        let incoming = events.clone();
-                        let socket = client.open(move |i| {
-                            let _ = incoming.send_blocking(Event::Incoming(generation, i));
-                        })?;
-                        Ok((client, script, socket))
-                    });
-                    let _ = events.send_blocking(Event::Connected(generation, result));
-                });
+                // Settings the page takes in its address: it is in an
+                // app, whose title bar names the script, and whether a
+                // take counts down.
+                let countdown = if self.config().countdown() {
+                    ""
+                } else {
+                    "&countdown=0"
+                };
+                self.w
+                    .view
+                    .load_uri(&format!("{origin}/?shell=1{countdown}"));
+                self.model.borrow_mut().origin = Some(origin);
             }
             LaunchEvent::Ended(reasons) => {
                 self.shutdown();
@@ -751,1095 +594,40 @@ impl Window {
         }
     }
 
-    fn connected(&self, result: Result<(SessionClient, Script, mpsc::Sender<Outgoing>), String>) {
-        let (client, script, socket) = match result {
-            Ok(connected) => connected,
-            Err(e) => return self.show_failed(&[e]),
-        };
-        {
-            let mut model = self.model.borrow_mut();
-            *model.outlet.lock().unwrap_or_else(|p| p.into_inner()) = Some(socket.clone());
-            model.client = Some(client);
-            model.socket = Some(socket);
-            model.state = PrompterState::default();
-            model.state.load(script);
-            // A clock left from a session, or another script, starts over:
-            // the state is new.
-            model.state.status =
-                Status::info("Press Ctrl+Shift+Space to record from here, or click a line");
-        }
-        if self.voice_reads() {
-            let status = self.voice_status();
-            self.model.borrow_mut().state.status = status;
-            self.voice_unmade();
-        } else if let Err(e) = self.open_mic() {
-            // Opened now, so a take starts the moment it is asked for.
-            self.model.borrow_mut().state.status = Status::error(e);
-        }
-        self.w.monitor.set_shots(&self.model.borrow().state);
-        self.show_monitor();
-        self.render();
-        self.play();
-        self.w.stack.set_visible_child_name("ready");
-        // Named for the window switcher, once there is a script to read.
-        self.window
-            .set_title(Some(&format!("{} — Teleprompt", self.w.title.title())));
-        self.w.glass.view.grab_focus();
-        self.show_status();
-        self.show_record();
-        self.replan();
-    }
-
-    /// Lays the script out again, off the main thread, for the timeline.
-    fn replan(&self) {
-        let model = self.model.borrow();
-        let (Some(binary), Some(script)) =
-            (model.config.binary(), model.config.last_script.clone())
-        else {
-            return;
-        };
-        let (events, generation) = (self.events.clone(), model.generation);
-        std::thread::spawn(move || {
-            let _ = events.send_blocking(Event::Planned(generation, plan::plan(&binary, &script)));
-        });
-    }
-
-    fn planned(&self, planned: Result<Timeline, String>) {
-        // A script that does not plan keeps the timeline it had.
-        let Ok(timeline) = planned else { return };
-        let lines: Vec<(String, String)> = self
-            .model
-            .borrow()
-            .state
-            .script
-            .lines
-            .iter()
-            .map(|l| (l.id.clone(), l.text.clone()))
-            .collect();
-        self.model.borrow_mut().timeline = Some(timeline.clone());
-        self.w.glass.ribbons.set(timeline.clone(), lines.clone());
-    }
-
-    /// A drag on the timeline: `teleprompt edit` writes it, if the script
-    /// still compiles with it. The script before is kept to undo to.
-    fn timeline_drop(&self, edit: Edit, said: String) {
-        self.edit_script(edit, said, "Not moved");
-    }
-
-    /// `teleprompt edit` writes `edit`, if the script still compiles with
-    /// it, and says `done`, or `failed` and why. The script before is kept
-    /// to undo to.
-    fn edit_script(&self, edit: Edit, done: String, failed: &'static str) {
-        if self.is_taking() {
-            return;
-        }
-        let model = self.model.borrow();
-        let (Some(binary), Some(script)) =
-            (model.config.binary(), model.config.last_script.clone())
-        else {
-            return;
-        };
-        let (events, generation) = (self.events.clone(), model.generation);
-        drop(model);
-        let Ok(before) = std::fs::read_to_string(&script) else {
-            return;
-        };
-        {
-            // The edit is now the last thing done, for Undo.
-            let mut model = self.model.borrow_mut();
-            model.undo.push(before);
-            model.state.undoable = false;
-        }
-        std::thread::spawn(move || {
-            let out = std::process::Command::new(&binary)
-                .arg("edit")
-                .arg(&script)
-                .args(edit.args())
-                .output();
-            let result = match out {
-                Ok(o) if o.status.success() => Ok(done),
-                Ok(o) => Err((
-                    failed,
-                    String::from_utf8_lossy(&o.stderr).trim().to_string(),
-                )),
-                Err(e) => Err((failed, format!("cannot run {}: {e}", binary.display()))),
-            };
-            let _ = events.send_blocking(Event::Edited(generation, result));
-        });
-    }
-
-    fn edited(self: &Rc<Self>, edited: Result<String, (&'static str, String)>) {
-        match edited {
-            Ok(said) => {
-                let toast = adw::Toast::builder()
-                    .title(said.as_str())
-                    .button_label("Undo")
-                    .action_name("app.undo")
-                    .timeout(5)
-                    .build();
-                self.w.toasts.add_toast(toast);
-            }
-            Err((failed, why)) => {
-                self.model.borrow_mut().undo.pop();
-                // The compiler's reason, on its first line.
-                let reason = why
-                    .lines()
-                    .find(|l| l.starts_with("error:"))
-                    .map_or(why.as_str(), |l| l.trim_start_matches("error:").trim());
-                self.w
-                    .toasts
-                    .add_toast(adw::Toast::new(&format!("{failed}: {reason}")));
-            }
-        }
-        // The prompter places its shots again as it fetches the script.
-        self.refresh();
-    }
-
-    /// Captures the shots not yet captured, or changed since, and for a
-    /// build renders the video; one job at a time, never during a take.
-    pub fn make(&self, job: Job) {
-        if self.is_taking() || self.model.borrow().making {
-            return;
-        }
-        let model = self.model.borrow();
-        let (Some(binary), Some(script)) =
-            (model.config.binary(), model.config.last_script.clone())
-        else {
-            return;
-        };
-        if model.socket.is_none() {
-            return;
-        }
-        let (events, generation) = (self.events.clone(), model.generation);
-        drop(model);
-        self.model.borrow_mut().making = true;
-        self.w.set_working(Some(0.0));
-        std::thread::spawn(move || {
-            let progress = events.clone();
-            let made = make::run(&binary, &script, job, |p| {
-                let _ = progress.send_blocking(Event::Making(generation, p));
-            });
-            let _ = events.send_blocking(Event::Made(generation, made));
-        });
-    }
-
-    fn made(self: &Rc<Self>, made: Result<Option<PathBuf>, String>) {
-        self.model.borrow_mut().making = false;
-        self.w.set_working(None);
-        let (status, toast) = match made {
-            Ok(Some(video)) => {
-                let name = file_name(&video);
-                let toast = adw::Toast::builder()
-                    .title(format!("Built {name}"))
-                    .button_label("Play")
-                    .timeout(8)
-                    .build();
-                let uri = gio::File::for_path(&video).uri();
-                toast.connect_button_clicked(move |_| {
-                    let _ = gio::AppInfo::launch_default_for_uri(&uri, gio::AppLaunchContext::NONE);
-                });
-                (Status::info(format!("Built {name}")), toast)
-            }
-            Ok(None) => (
-                Status::info("Every shot is captured"),
-                adw::Toast::new("Every shot is captured"),
-            ),
-            Err(why) => {
-                let first = why.lines().next().unwrap_or("").to_string();
-                (
-                    Status::error(format!("Could not build: {first}")),
-                    adw::Toast::new(&format!("Could not build: {first}")),
-                )
-            }
-        };
-        self.model.borrow_mut().state.status = status;
-        self.show_status();
-        self.w.toasts.add_toast(toast);
-        // New clips for the monitor, and the shots' lengths as captured.
-        self.refresh();
-    }
-
-    /// Undoes the last thing done: outside Edit mode, a take just kept;
-    /// otherwise the last timeline edit.
-    pub fn undo(&self) {
-        let take = self.model.borrow().state.undoable && !self.w.edit.is_active();
-        if take {
-            return self.undo_take();
-        }
-        let (Some(before), Some(script)) = ({
-            let mut model = self.model.borrow_mut();
-            (model.undo.pop(), model.config.last_script.clone())
-        }) else {
-            return;
-        };
-        if std::fs::write(&script, before).is_ok() {
-            self.w.toasts.add_toast(adw::Toast::new("Undone"));
-            self.refresh();
-        }
-    }
-
-    /// Puts back what the last take kept replaced.
-    pub fn undo_take(&self) {
-        let model = self.model.borrow();
-        if !model.state.undoable || model.state.take.is_taking() {
-            return;
-        }
-        if let Some(socket) = model.socket.as_ref() {
-            let _ = socket.send(Outgoing::Command(ClientMessage::Undo));
-        }
-        drop(model);
-        self.w.glass.unsay();
-        if let Some(toast) = self.model.borrow_mut().said_toast.take() {
-            toast.dismiss();
-        }
-    }
-
-    /// Ends the take, or the count before it, keeping nothing.
-    pub fn discard(&self) {
-        {
-            let mut model = self.model.borrow_mut();
-            if model.state.take.is_counting() {
-                drop(model);
-                return self.keep();
-            }
-            let (Some(mic), Some(socket)) = (model.mic.as_ref(), model.socket.as_ref()) else {
-                return;
-            };
-            if !model.state.take.is_under_way() {
-                return;
-            }
-            mic.set_sending(false);
-            mic.flush();
-            let _ = socket.send(Outgoing::Command(ClientMessage::Discard));
-            model.state.take.stop(Instant::now());
-            model.state.status = Status::info("Discarding the take…");
-        }
-        self.show_status();
-        self.show_record();
-    }
-
-    fn incoming(self: &Rc<Self>, incoming: Incoming) {
-        match incoming {
-            Incoming::Message(message) => {
-                let (before, stopped, played) = {
-                    let mut model = self.model.borrow_mut();
-                    let before = model.state.playing.clone();
-                    let stopped = matches!(
-                        message,
-                        ServerMessage::Stopped { .. }
-                            | ServerMessage::Discarded
-                            | ServerMessage::Undone { .. }
-                    );
-                    let played =
-                        matches!(&message, ServerMessage::Reached { play, .. } if !play.is_empty());
-                    model.state.apply(message);
-                    (before, stopped, played)
-                };
-                if played {
-                    self.render();
-                } else {
-                    self.w.glass.show_position(&self.model.borrow().state);
-                }
-                if self.model.borrow().state.playing != before {
-                    self.play();
-                }
-                if stopped {
-                    {
-                        let model = self.model.borrow();
-                        self.w
-                            .glass
-                            .say(&model.state.status.text, model.state.undoable);
-                    }
-                    self.refresh();
-                    // The status bar says what was kept, and the gutter ticks it.
-                    self.show_record();
-                    self.play();
-                    self.retake_next();
-                } else if self.queued_line_read() {
-                    self.keep();
-                }
-            }
-            Incoming::Closed(Some(why)) => {
-                let mut model = self.model.borrow_mut();
-                model.state.take.stop(Instant::now());
-                model.state.status = Status::error(why);
-            }
-            Incoming::Closed(None) => {}
-        }
-        self.show_status();
-    }
-
-    /// Starts the retake queue: the lines reworded since their takes,
-    /// recorded one after another.
-    pub fn retake(self: &Rc<Self>) {
-        if self.is_taking() || self.model.borrow().queue.is_some() {
-            return;
-        }
-        let queue = Queue::of(&self.model.borrow().state.script);
-        let Some(line) = queue.line() else {
-            self.w
-                .toasts
-                .add_toast(adw::Toast::new("No line has been reworded since its take"));
-            return;
-        };
-        self.model.borrow_mut().queue = Some(queue);
-        self.take(line);
-        self.show_queue();
-    }
-
-    /// Whether the line the queue is re-recording has been read.
-    fn queued_line_read(&self) -> bool {
-        let model = self.model.borrow();
-        model.state.take.is_sending()
-            && model.queue.as_ref().is_some_and(|q| q.read(model.state.at))
-    }
-
-    /// A queued line kept: on to the next, once its take is saved.
-    fn retake_next(self: &Rc<Self>) {
-        let next = {
-            let mut model = self.model.borrow_mut();
-            let Some(queue) = model.queue.as_mut() else {
-                return;
-            };
-            let next = queue.advance();
-            if next.is_none() {
-                let done = queue.len();
-                model.queue = None;
-                model.state.status = Status::info(format!(
-                    "Re-recorded {done} line{}",
-                    if done == 1 { "" } else { "s" }
-                ));
-            }
-            next
-        };
-        let Some(line) = next else {
-            return self.show_status();
-        };
-        let weak = Rc::downgrade(self);
-        glib::timeout_add_local_once(Duration::from_millis(600), move || {
-            if let Some(this) = weak.upgrade() {
-                this.take(line);
-                this.show_queue();
-            }
-        });
-    }
-
-    fn show_queue(&self) {
-        let says = self.model.borrow().queue.as_ref().map(Queue::says);
-        if let Some(says) = says {
-            self.model.borrow_mut().state.status = Status::info(format!("Re-recording {says}"));
-            self.show_status();
-        }
-    }
-
-    /// Says how many lines were reworded since their takes, when no take
-    /// or queue is under way.
-    /// A take kept of other words than its line's: a toast offers to keep
-    /// what was said, once for those words.
-    fn offer_said(&self) {
-        if self.is_taking() || self.model.borrow().queue.is_some() {
-            return;
-        }
-        let fresh: Vec<(usize, (String, String))> = {
-            let model = self.model.borrow();
-            model
-                .state
-                .script
-                .lines
-                .iter()
-                .enumerate()
-                .filter_map(|(i, l)| Some((i, (l.id.clone(), l.said.clone()?))))
-                .filter(|(_, key)| !model.said_offered.contains(key))
-                .collect()
-        };
-        let Some(&(first, _)) = fresh.first() else {
-            return;
-        };
-        self.model
-            .borrow_mut()
-            .said_offered
-            .extend(fresh.iter().map(|(_, k)| k.clone()));
-        let title = if fresh.len() == 1 {
-            format!("Line {} was said in other words", first + 1)
-        } else {
-            format!("{} lines were said in other words", fresh.len())
-        };
-        let toast = adw::Toast::builder()
-            .title(title)
-            .button_label("Review")
-            .action_name("app.review-said")
-            .timeout(8)
-            .build();
-        self.w.toasts.add_toast(toast.clone());
-        self.model.borrow_mut().said_toast = Some(toast);
-    }
-
-    /// The next line said in other words than it reads, as a diff: keep
-    /// what was said, or the script.
-    pub fn review_said(self: &Rc<Self>) {
-        if self.is_taking() {
-            return;
-        }
-        let next = {
-            let model = self.model.borrow();
-            model
-                .state
-                .script
-                .lines
-                .iter()
-                .enumerate()
-                .find_map(|(i, l)| {
-                    let said = l.said.clone()?;
-                    let key = (l.id.clone(), said.clone());
-                    (!model.said_declined.contains(&key)).then(|| (i, l.said_diff.clone(), key))
-                })
-        };
-        let Some((line, changes, (id, said))) = next else {
-            self.w
-                .toasts
-                .add_toast(adw::Toast::new("Every line reads as it was said"));
-            return;
-        };
-        let body = gtk::Label::builder()
-            .use_markup(true)
-            .wrap(true)
-            .css_classes(["said"])
-            .label(said::markup(&changes))
-            .build();
-        let dialog = adw::AlertDialog::builder()
-            .heading(format!("Keep what you said on line {}?", line + 1))
-            .body("The take says this, not what the line reads. Keep it, and the line is reworded to match: nothing to record again.")
-            .extra_child(&body)
-            .build();
-        dialog.add_responses(&[("script", "Keep the Script"), ("said", "Use What I Said")]);
-        dialog.set_response_appearance("said", adw::ResponseAppearance::Suggested);
-        dialog.set_default_response(Some("said"));
-        dialog.set_close_response("script");
-        let weak = Rc::downgrade(self);
-        dialog.connect_response(None, move |_, response| {
-            let Some(this) = weak.upgrade() else { return };
-            if response == "said" {
-                this.keep_said(id.clone(), line);
-            } else {
-                this.model
-                    .borrow_mut()
-                    .said_declined
-                    .insert((id.clone(), said.clone()));
-            }
-        });
-        dialog.present(Some(&self.window));
-    }
-
-    /// `teleprompt edit <script> said <id>`, off the main thread.
-    fn keep_said(&self, id: String, line: usize) {
-        let model = self.model.borrow();
-        let (Some(binary), Some(script)) =
-            (model.config.binary(), model.config.last_script.clone())
-        else {
-            return;
-        };
-        let (events, generation) = (self.events.clone(), model.generation);
-        std::thread::spawn(move || {
-            let out = std::process::Command::new(&binary)
-                .arg("edit")
-                .arg(&script)
-                .args(["said", &id])
-                .output();
-            let result = match out {
-                Ok(o) if o.status.success() => {
-                    Ok(format!("Line {} now reads as you said it", line + 1))
-                }
-                Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
-                Err(e) => Err(format!("cannot run {}: {e}", binary.display())),
-            };
-            let _ = events.send_blocking(Event::Reworded(generation, result));
-        });
-    }
-
-    fn reworded(&self, reworded: Result<String, String>) {
-        let text = match reworded {
-            Ok(said) => said,
-            Err(why) => {
-                let reason = why
-                    .lines()
-                    .find(|l| l.starts_with("error:"))
-                    .map_or(why.as_str(), |l| l.trim_start_matches("error:").trim());
-                format!("Not reworded: {reason}")
-            }
-        };
-        self.w.toasts.add_toast(adw::Toast::new(&text));
-        self.refresh();
-    }
-
-    fn show_reworded(&self) {
-        if self.is_taking() || self.model.borrow().queue.is_some() {
-            return;
-        }
-        let n = Queue::of(&self.model.borrow().state.script).len();
-        if n > 0 {
-            self.model.borrow_mut().state.status = Status::info(format!(
-                "{n} line{} reworded since recorded · R to record {}",
-                if n == 1 { "" } else { "s" },
-                if n == 1 { "it again" } else { "them again" }
-            ));
-            self.show_status();
-        }
-    }
-
-    /// Watches the script file: an edit made elsewhere reloads it.
-    fn watch_script(self: &Rc<Self>) {
-        let Some(script) = self.model.borrow().config.last_script.clone() else {
-            return;
-        };
-        let Ok(monitor) = gio::File::for_path(&script)
-            .monitor_file(gio::FileMonitorFlags::NONE, gio::Cancellable::NONE)
-        else {
-            return;
-        };
-        let weak = Rc::downgrade(self);
-        monitor.connect_changed(move |_, _, _, event| {
-            if matches!(
-                event,
-                gio::FileMonitorEvent::ChangesDoneHint | gio::FileMonitorEvent::Created
-            ) {
-                if let Some(this) = weak.upgrade() {
-                    this.refresh();
-                }
-            }
-        });
-        self.model.borrow_mut().watch = Some(monitor);
-    }
-
-    /// Reads the script again, for which lines are now recorded.
-    fn refresh(&self) {
-        let model = self.model.borrow();
-        let Some(client) = model.client.clone() else {
-            return;
-        };
-        let (events, generation) = (self.events.clone(), model.generation);
-        std::thread::spawn(move || {
-            if let Ok(script) = client.script() {
-                let _ = events.send_blocking(Event::Refreshed(generation, script));
-            }
-        });
-    }
-
-    fn is_taking(&self) -> bool {
-        self.model.borrow().state.take.is_taking()
-    }
-
-    /// Starts a take at `line`, after a count of three if that is on.
-    pub fn take(self: &Rc<Self>, line: usize) {
-        {
-            let model = self.model.borrow();
-            if model.socket.is_none() || model.state.take.is_counting() {
-                return;
-            }
-        }
-        if self.voice_reads() {
-            return self.read_from(line, false, false);
-        }
-        if let Err(e) = self.open_mic() {
-            self.model.borrow_mut().state.status = Status::error(e);
-            return self.show_status();
-        }
-        {
-            // Nothing heard before the take starts is part of it.
-            let mut model = self.model.borrow_mut();
-            let mic = model.mic.as_ref().expect("opened");
-            mic.set_sending(false);
-            mic.flush();
-            model.state.take.stop(Instant::now());
-            model.state.at = teleprompt_gtk::api::Position { line, word: 0 };
-        }
-        self.w.glass.show_position(&self.model.borrow().state);
-        if !self.model.borrow().config.countdown() {
-            return self.begin_take(line);
-        }
-        self.model.borrow_mut().state.take.count();
-        self.model.borrow_mut().state.status =
-            Status::info(format!("Recording from line {} in…", line + 1));
-        self.show_status();
-        self.show_record();
-        self.count(line, 3);
-    }
-
-    fn count(self: &Rc<Self>, line: usize, n: u32) {
-        if n == 0 {
-            self.w.glass.show_countdown(None);
-            // Not taking until `begin_take` says so: it may not.
-            self.model.borrow_mut().state.take.stop(Instant::now());
-            return self.begin_take(line);
-        }
-        self.w.glass.show_countdown(Some(n));
-        let weak = Rc::downgrade(self);
-        glib::timeout_add_local_once(Duration::from_millis(650), move || {
-            if let Some(this) = weak.upgrade() {
-                if this.model.borrow().state.take.is_counting() {
-                    this.count(line, n - 1);
-                }
-            }
-        });
-    }
-
-    fn begin_take(&self, line: usize) {
-        // A take is read, not edited.
-        self.w.edit.set_active(false);
-        self.w.glass.unsay();
-        self.model.borrow_mut().scrub = None;
-        {
-            let mut model = self.model.borrow_mut();
-            let Some(socket) = model.socket.clone() else {
-                return;
-            };
-            model.state.start_take(line, Instant::now());
-            model.state.status = Status::info(format!("Recording from line {}", line + 1));
-            let _ = socket.send(Outgoing::Command(ClientMessage::Start {
-                from: line,
-                rate: RATE,
-            }));
-            let started = model.mic.as_ref().expect("opened").start();
-            if let Err(e) = started {
-                model.state.status = Status::error(e);
-            }
-            model.mic.as_ref().expect("opened").set_sending(true);
-        }
-        self.render();
-        self.play();
-        self.show_status();
-        self.show_record();
-        self.w.glass.view.grab_focus();
-    }
-
-    /// Ends the take; the server keeps the lines read in full.
-    pub fn keep(&self) {
-        {
-            let mut model = self.model.borrow_mut();
-            if model.state.take.is_counting() {
-                model.state.take.stop(Instant::now());
-                model.state.status =
-                    Status::info("Press Ctrl+Shift+Space to record from here, or click a line");
-                drop(model);
-                self.w.glass.show_countdown(None);
-                self.show_status();
-                return self.show_record();
-            }
-            let (Some(mic), Some(socket)) = (model.mic.as_ref(), model.socket.as_ref()) else {
-                return;
-            };
-            if !model.state.take.is_under_way() {
-                return;
-            }
-            mic.set_sending(false);
-            let _ = socket.send(Outgoing::Audio(mic.flush()));
-            let _ = socket.send(Outgoing::Command(ClientMessage::Stop));
-            model.state.take.stop(Instant::now());
-            model.state.status = Status::info("Keeping the take…");
-        }
-        self.show_status();
-        self.show_record();
-    }
-
-    fn toggle_pause(&self) {
-        {
-            let mut model = self.model.borrow_mut();
-            if model.mic.is_none() {
-                return;
-            }
-            let Some(paused) = model.state.take.toggle_pause(Instant::now()) else {
-                return;
-            };
-            model.mic.as_ref().expect("checked").set_sending(!paused);
-            model.state.status = Status::info(if paused { "Paused" } else { "Recording" });
-        }
-        self.show_status();
-        self.show_record();
-    }
-
-    fn open_mic(&self) -> Result<(), String> {
-        let mut model = self.model.borrow_mut();
-        if model.mic.is_some() {
-            return Ok(());
-        }
-        let outlet = model.outlet.clone();
-        let levels = self.events.clone();
-        model.mic = Some(Mic::open(
-            move |samples| {
-                if let Some(socket) = outlet.lock().unwrap_or_else(|p| p.into_inner()).as_ref() {
-                    let _ = socket.send(Outgoing::Audio(samples));
-                }
-            },
-            move |rms| {
-                let _ = levels.try_send(Event::Level(rms));
-            },
-        )?);
-        Ok(())
-    }
-
-    /// Shows the shot that should be playing: fetches its clip, or shows
-    /// why there is none.
-    fn play(&self) {
-        // A still hovered in Edit mode stays until the pointer leaves it.
-        if self.model.borrow().scrub.is_some() && !self.is_taking() {
-            return;
-        }
-        let (playing, clip, started) = {
-            let model = self.model.borrow();
-            (
-                model.state.playing.clone(),
-                model.state.playing_clip().map(str::to_string),
-                !model.state.started.is_empty(),
-            )
-        };
-        self.w.monitor.update(&self.model.borrow().state);
-        match (playing, clip) {
-            (Some(shot), Some(path)) => self.fetch_clip(shot, path),
-            (Some(shot), None) => self.show_slate(
-                "This shot was never captured. Run teleprompt capture to record it.",
-                Some(&shot),
-                true,
-            ),
-            (None, _) => {
-                let next = self.next_shot();
-                let text = match &next {
-                    Some((name, line)) => format!("Next: {name}, at line {line}"),
-                    None if started => "Every shot has played.".to_string(),
-                    None => "Each shot plays here as your reading reaches it.".to_string(),
-                };
-                self.show_slate(&text, None, false)
-            }
-        }
-    }
-
-    /// The next captured shot the reader has yet to reach, and its line.
-    fn next_shot(&self) -> Option<(String, usize)> {
-        let model = self.model.borrow();
-        let state = &model.state;
-        state
-            .script
-            .shots
-            .iter()
-            .find(|s| s.clip.is_some() && !state.started.contains(&s.shot) && s.at >= state.at)
-            .map(|s| {
-                (
-                    s.shot.strip_suffix("#0").unwrap_or(&s.shot).to_string(),
-                    s.at.line + 1,
-                )
-            })
-    }
-
-    fn fetch_clip(&self, shot: String, path: String) {
-        let model = self.model.borrow();
-        let Some(client) = model.client.clone() else {
-            return;
-        };
-        let (events, generation) = (self.events.clone(), model.generation);
-        let cache = glib::user_cache_dir().join("teleprompt/clips");
-        std::thread::spawn(move || {
-            let name = path.rsplit('/').next().unwrap_or("clip.mp4").to_string();
-            let file = cache.join(name);
-            let result = if file.is_file() {
-                Ok(file)
-            } else {
-                client.fetch(&path).and_then(|bytes| {
-                    std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
-                    std::fs::write(&file, bytes).map_err(|e| e.to_string())?;
-                    Ok(file)
-                })
-            };
-            let _ = events.send_blocking(Event::Clip(generation, shot, result));
-        });
-    }
-
-    fn clip_fetched(self: &Rc<Self>, shot: &str, clip: Result<PathBuf, String>) {
-        let scrub = self.model.borrow().scrub.clone();
-        if let Some((scrubbed, at)) = scrub {
-            if scrubbed == shot {
-                if let Ok(path) = clip {
-                    self.show_still(shot, &path, at);
-                }
-            }
-            return;
-        }
-        if self.model.borrow().state.playing.as_deref() != Some(shot) {
-            return;
-        }
-        let path = match clip {
-            Ok(path) => path,
-            Err(e) => {
-                return self.show_slate(&format!("The clip did not load: {e}"), Some(shot), true)
-            }
-        };
-        let media = gtk::MediaFile::for_filename(&path);
-        // The clip's sound would be heard by the microphone.
-        media.set_muted(true);
-        let weak: Weak<Self> = Rc::downgrade(self);
-        media.connect_ended_notify(move |media| {
-            if media.is_ended() {
-                if let Some(this) = weak.upgrade() {
-                    this.clip_ended();
-                }
-            }
-        });
-        let monitor = self.w.monitor.clone();
-        media.connect_timestamp_notify(move |media| monitor.show_progress(media));
-        media.play();
-        self.w.monitor.show_clip(shot, &media);
-        for screen in &self.model.borrow().screens {
-            screen.set_paintable(Some(&media));
-        }
-        self.model.borrow_mut().media = Some(media);
-    }
-
-    /// A word hovered in Edit mode: the monitor shows what is on screen as
-    /// it is said, still; `None` as the pointer leaves the words.
-    fn scrub(self: &Rc<Self>, ms: Option<u64>) {
-        if self.is_taking() {
-            return;
-        }
-        let Some(ms) = ms else {
-            if self.model.borrow_mut().scrub.take().is_some() {
-                if let Some(media) = self.model.borrow_mut().media.take() {
-                    media.pause();
-                }
-                self.play();
-            }
-            return;
-        };
-        let found = {
-            let model = self.model.borrow();
-            model.timeline.as_ref().and_then(|t| {
-                let (i, into) = ribbons::on_screen(t, ms)?;
-                let shot = t.shots[i].shot.to_string();
-                let clip = model
-                    .state
-                    .script
-                    .shots
-                    .iter()
-                    .find(|s| s.shot == shot)
-                    .and_then(|s| s.clip.clone());
-                Some((shot, into, clip))
-            })
-        };
-        let Some((shot, into, clip)) = found else {
-            self.model.borrow_mut().scrub = None;
-            return self.show_slate("Nothing is on screen as this is said.", None, false);
-        };
-        let Some(path) = clip else {
-            self.model.borrow_mut().scrub = None;
-            return self.show_slate("This shot was never captured.", Some(&shot), true);
-        };
-        let mut model = self.model.borrow_mut();
-        let same = model.scrub.as_ref().is_some_and(|(s, _)| *s == shot);
-        model.scrub = Some((shot.clone(), into));
-        match (&model.media, same) {
-            (Some(media), true) => media.seek(into as i64 * 1000),
-            _ => {
-                drop(model);
-                self.fetch_clip(shot, path);
-            }
-        }
-    }
-
-    /// `shot`'s clip on the monitor, still at `at_ms`.
-    fn show_still(&self, shot: &str, path: &std::path::Path, at_ms: u64) {
-        let media = gtk::MediaFile::for_filename(path);
-        media.set_muted(true);
-        let monitor = self.w.monitor.clone();
-        media.connect_timestamp_notify(move |media| monitor.show_progress(media));
-        media.connect_prepared_notify(move |media| {
-            if media.is_prepared() {
-                media.seek(at_ms as i64 * 1000);
-            }
-        });
-        self.w.monitor.show_clip(shot, &media);
-        if let Some(old) = self.model.borrow_mut().media.replace(media) {
-            old.pause();
-        }
-    }
-
-    fn clip_ended(&self) {
-        self.model.borrow_mut().state.clip_ended();
-        self.play();
-    }
-
-    fn show_slate(&self, text: &str, shot: Option<&str>, missing: bool) {
-        let mut model = self.model.borrow_mut();
-        if let Some(media) = model.media.take() {
-            media.pause();
-        }
-        for screen in &model.screens {
-            screen.set_paintable(None::<&gtk::gdk::Paintable>);
-        }
-        self.w.monitor.show_slate(text, shot, missing);
-    }
-
-    fn resize(&self, by: f64) {
-        let size = (self.w.glass.text_size() + by).clamp(24.0, 120.0);
-        self.w.glass.set_text_size(&self.w.text_css, size);
-    }
-
-    /// The screen in a window of its own, for a second display.
-    pub fn screen_window(self: &Rc<Self>) {
-        let picture = gtk::Picture::builder().css_classes(["monitor"]).build();
-        if let Some(media) = &self.model.borrow().media {
-            picture.set_paintable(Some(media));
-        }
-        let window = gtk::Window::builder()
-            .title("Screen")
-            .default_width(960)
-            .default_height(540)
-            .transient_for(&self.window)
-            .child(&picture)
-            .build();
-        self.model.borrow_mut().screens.push(picture.clone());
-        let weak = Rc::downgrade(self);
-        window.connect_close_request(move |_| {
-            if let Some(this) = weak.upgrade() {
-                this.model.borrow_mut().screens.retain(|p| p != &picture);
-            }
-            glib::Propagation::Proceed
-        });
-        self.w.monitor.root.set_visible(false);
-        window.present();
-    }
-
-    /// The monitor beside the glass, when there are shots and room for it.
-    fn show_monitor(&self) {
-        let model = self.model.borrow();
-        self.w
-            .monitor
-            .root
-            .set_visible(!model.state.script.shots.is_empty() && !model.narrow);
-    }
-
-    fn render(&self) {
-        let model = self.model.borrow();
-        self.w.glass.render(&model.state);
-        self.w.monitor.update(&model.state);
-        drop(model);
-    }
-
     fn show_status(&self) {
         let model = self.model.borrow();
-        self.w.tally.set_status(&model.state.status);
-        self.w.tally.set_on_air(model.state.take.is_sending());
-        self.w
-            .glass
-            .show_on_air(model.state.take.is_sending(), model.state.take.is_paused());
-        let session = self
-            .w
-            .stack
-            .visible_child_name()
-            .is_some_and(|n| n == "session");
-        let keys: &[(&str, &str)] = if session {
-            // Before recording, the page itself says what the key does.
-            if model.state.take.is_sending() {
-                &[(RECORD_KEY, "Stop")]
-            } else {
-                &[]
-            }
-        } else if model.state.take.is_counting() {
-            &[("Esc", "Cancel")]
-        } else if model.state.take.is_paused() {
-            &[
-                (RECORD_KEY, "Keep take"),
-                ("Esc", "Discard"),
-                ("P", "Resume"),
-            ]
-        } else if model.state.take.is_sending() {
-            &[
-                (RECORD_KEY, "Keep take"),
-                ("Esc", "Discard"),
-                ("P", "Pause"),
-            ]
-        } else if model.rewording.is_some() {
-            &[("Enter", "Keep"), ("Esc", "Leave it")]
-        } else if model.reading.is_some() {
-            &[("Space", "Stop"), ("Esc", "Stop")]
-        } else if model
-            .state
-            .script
-            .voice
+        let recording = model
+            .session
             .as_ref()
-            .is_some_and(|v| !v.listens)
-        {
-            &[
-                ("Space", "Play"),
-                ("Click", "Direct a line"),
-                ("F2", "Reword"),
-                ("Ctrl B", "Build"),
-                ("M", "Mirror"),
-            ]
-        } else if model.socket.is_some() {
-            &[
-                (RECORD_KEY, "Record"),
-                ("Ctrl T", "From the top"),
-                ("Ctrl B", "Build"),
-                (
-                    "E",
-                    if self.w.edit.is_active() {
-                        "Done"
-                    } else {
-                        "Edit"
-                    },
-                ),
-                ("M", "Mirror"),
-            ]
+            .is_some_and(|s| s.recording.is_some());
+        self.w.tally.set_status(&model.status);
+        self.w.tally.set_on_air(recording);
+        // Before recording, the session page itself says what the key does.
+        self.w.tally.set_keys(if recording {
+            &[(RECORD_KEY, "Stop")]
         } else {
             &[]
-        };
-        self.w.tally.set_keys(keys);
-        if !model.state.take.is_sending() {
-            self.w.tally.set_level(0.0);
-        }
+        });
     }
 
     fn show_time(&self) {
-        let model = self.model.borrow();
-        let ran = model.state.take.elapsed(Instant::now()).as_secs_f64();
-        drop(model);
-        self.w.tally.set_time(self.reading_time().unwrap_or(ran));
+        let since = self.model.borrow().session.as_ref().and_then(|s| s.since);
+        self.w
+            .tally
+            .set_time(since.map_or(0.0, |s| s.elapsed().as_secs_f64()));
     }
 
-    /// The header's one action: record, or keep the take under way.
+    /// Session mode's Record, and its tally bar: the prompter page has
+    /// its own.
     fn show_record(&self) {
-        if let Some(recording) = self.session_recording() {
-            self.w.play.set_visible(false);
-            self.w.edit.set_visible(false);
-            self.w.record.set_visible(true);
-            self.w.tally.root.set_visible(true);
-            self.w
-                .record_label
-                .set_label(if recording { "Stop" } else { "Record" });
-            if recording {
-                self.w.record.add_css_class("keep");
-            } else {
-                self.w.record.remove_css_class("keep");
-            }
-            return;
-        }
-        let (counting, under_way) = {
-            let take = &self.model.borrow().state.take;
-            (take.is_counting(), take.is_under_way())
-        };
-        let ready = self.model.borrow().socket.is_some();
-        let voiced = ready && self.voice_reads();
-        self.w.play.set_visible(voiced);
+        let recording = self.session_recording();
+        self.w.record.set_visible(recording.is_some());
+        self.w.tally.root.set_visible(recording.is_some());
+        let recording = recording.unwrap_or(false);
         self.w
-            .play_label
-            .set_label(if self.is_reading() { "Stop" } else { "Play" });
-        self.w.record.set_visible(ready && !voiced);
-        self.w.edit.set_visible(ready);
-        self.w.tally.root.set_visible(ready);
-        self.w.record_label.set_label(if counting {
-            "Cancel"
-        } else if under_way {
-            "Keep take"
-        } else {
-            "Record"
-        });
-        if under_way {
+            .record_label
+            .set_label(if recording { "Stop" } else { "Record" });
+        if recording {
             self.w.record.add_css_class("keep");
         } else {
             self.w.record.remove_css_class("keep");
@@ -1854,7 +642,9 @@ impl Window {
                 .reopen
                 .set_label(&format!("Reopen {}", file_name(last)));
         }
-        self.show_narrator();
+        self.w
+            .narrator_voice
+            .set_active(self.model.borrow().config.voice_reads);
         self.w.stack.set_visible_child_name("welcome");
         self.window.set_title(Some("Teleprompt"));
         self.show_record();
@@ -1896,29 +686,39 @@ impl Window {
         self.show_record();
     }
 
+    /// The script in the author's own editor, for what the page does not
+    /// edit: lines added, split or moved, and the shots' blocks.
+    pub fn open_in_editor(&self) {
+        let Some(script) = self.last_script() else {
+            return;
+        };
+        let launcher = gtk::FileLauncher::new(Some(&gio::File::for_path(&script)));
+        let toasts = self.w.toasts.clone();
+        launcher.launch(Some(&self.window), gio::Cancellable::NONE, move |result| {
+            if let Err(e) = result {
+                toasts.add_toast(adw::Toast::new(&format!("Could not open the script: {e}")));
+            }
+        });
+    }
+
     pub fn last_script(&self) -> Option<PathBuf> {
         self.model.borrow().config.last_script.clone()
     }
 
-    /// Stops the microphone, the session and the server.
+    /// Stops the session, the page and the server.
     pub fn shutdown(&self) {
         self.stop_session();
-        self.halt();
-        if let Some(voicing) = self.model.borrow_mut().voicing.take() {
-            voicing.store(false, std::sync::atomic::Ordering::SeqCst);
+        let screens = {
+            let mut model = self.model.borrow_mut();
+            model.server = None;
+            model.origin = None;
+            std::mem::take(&mut model.screens)
+        };
+        // The page lets go of the microphone as it goes.
+        self.w.view.load_uri("about:blank");
+        for screen in screens {
+            screen.close();
         }
-        let mut model = self.model.borrow_mut();
-        if let Some(socket) = model.socket.take() {
-            let _ = socket.send(Outgoing::Close);
-        }
-        *model.outlet.lock().unwrap_or_else(|p| p.into_inner()) = None;
-        model.mic = None;
-        model.client = None;
-        model.state.take.stop(Instant::now());
-        if let Some(media) = model.media.take() {
-            media.pause();
-        }
-        model.server = None;
     }
 
     pub fn config(&self) -> Config {
@@ -1998,42 +798,73 @@ fn project_name(script: &std::path::Path) -> String {
     file_name(dir)
 }
 
-impl Widgets {
-    fn set_working(&self, fraction: Option<f64>) {
-        self.working.set_visible(fraction.is_some());
-        self.working.set_fraction(fraction.unwrap_or(0.0));
+/// The prompter's view: the page plays a shot's clip without a click, and
+/// asks for the microphone, which the window answers.
+fn prompter_view() -> webkit::WebView {
+    let view = webkit::WebView::new();
+    if let Some(settings) = WebViewExt::settings(&view) {
+        settings.set_enable_media_stream(true);
+        settings.set_media_playback_requires_user_gesture(false);
+        // A microphone where there is no sound server, for a test: WebKit's
+        // own, which hears a tone.
+        settings.set_enable_mock_capture_devices(std::env::var_os("TELEPROMPT_MOCK_MIC").is_some());
     }
 
+    // Black while it loads, as the glass is.
+    view.set_background_color(&gtk::gdk::RGBA::BLACK);
+    view.set_vexpand(true);
+    view.set_hexpand(true);
+    view
+}
+
+/// `TELEPROMPT_MIC`: a WAV the page hears as its microphone, for a test or
+/// a recorded demonstration of the app, from when a take starts: after the
+/// count of three, if there is one, as a reader would wait for it. WebKit
+/// hears only devices, so the page's own `getUserMedia` is replaced.
+fn hear_from_file(view: &webkit::WebView, wav: &std::path::Path, countdown: bool) {
+    let bytes = match std::fs::read(wav) {
+        Ok(bytes) => bytes,
+        Err(e) => return eprintln!("TELEPROMPT_MIC: cannot read {}: {e}", wav.display()),
+    };
+    let source = format!(
+        r#"(() => {{
+  const wav = Uint8Array.from(atob("{}"), (c) => c.charCodeAt(0)).buffer;
+  // On the prototype: WebKit keeps no property set on the object itself.
+  Object.defineProperty(MediaDevices.prototype, "getUserMedia", {{
+    configurable: true,
+    writable: true,
+    value: async () => {{
+      const ctx = new AudioContext();
+      const reading = ctx.createBufferSource();
+      reading.buffer = await ctx.decodeAudioData(wav.slice(0));
+      const out = ctx.createMediaStreamDestination();
+      reading.connect(out);
+      reading.start(ctx.currentTime + {});
+      return out.stream;
+    }},
+  }});
+}})();"#,
+        glib::base64_encode(&bytes),
+        // The page's count, three beats of 650 ms, and a breath after it.
+        if countdown { 2.4 } else { 0.4 }
+    );
+    if let Some(content) = view.user_content_manager() {
+        content.add_script(&webkit::UserScript::new(
+            &source,
+            webkit::UserContentInjectedFrames::TopFrame,
+            webkit::UserScriptInjectionTime::Start,
+            &[],
+            &[],
+        ));
+    }
+}
+
+impl Widgets {
     fn build() -> Self {
-        let text_css = gtk::CssProvider::new();
-        gtk::style_context_add_provider_for_display(
-            &gtk::gdk::Display::default().expect("a display"),
-            &text_css,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
-        );
-        let glass = Glass::new();
-        let monitor = Monitor::new();
-        let paned = gtk::Paned::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .start_child(&glass.root)
-            .end_child(&monitor.root)
-            .resize_end_child(false)
-            .shrink_end_child(false)
-            .shrink_start_child(false)
-            .wide_handle(false)
-            .build();
         let (welcome, reopen, sample, narrator_voice) = Self::welcome();
-        let editing = adw::Banner::builder()
-            .title("Editing shots: drag a shot onto a word, or its end to stretch it")
-            .button_label("Done")
-            .build();
-        let ready = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .build();
-        ready.append(&editing);
-        ready.append(&paned);
-        let (loading, loading_detail) = Self::loading();
+        let (loading, loading_title, loading_detail) = Self::loading();
         let failed = Self::failed();
+        let view = prompter_view();
         let stack = gtk::Stack::builder()
             .transition_type(gtk::StackTransitionType::Crossfade)
             .transition_duration(220)
@@ -2041,11 +872,7 @@ impl Widgets {
         stack.add_named(&welcome, Some("welcome"));
         stack.add_named(&loading, Some("loading"));
         stack.add_named(&failed, Some("failed"));
-        stack.add_named(&ready, Some("ready"));
-        let working = gtk::ProgressBar::builder()
-            .css_classes(["working"])
-            .visible(false)
-            .build();
+        stack.add_named(&view, Some("ready"));
         let session = SessionPage::new();
         stack.add_named(&session.root, Some("session"));
         let record_label = gtk::Label::new(Some("Record"));
@@ -2060,17 +887,7 @@ impl Widgets {
         let record = gtk::Button::builder()
             .child(&record_inner)
             .css_classes(["record"])
-            .tooltip_text("Record from the line you are on, or keep the take (Ctrl+Shift+Space)")
-            .visible(false)
-            .build();
-        let play_label = gtk::Label::new(Some("Play"));
-        let play_inner = gtk::Box::builder().spacing(8).build();
-        play_inner.append(&gtk::Image::from_icon_name("media-playback-start-symbolic"));
-        play_inner.append(&play_label);
-        let play = gtk::Button::builder()
-            .child(&play_inner)
-            .css_classes(["record", "play"])
-            .tooltip_text("Read aloud from the line you are on, or stop (Space)")
+            .tooltip_text("Record the session, or stop and draft it (Ctrl+Shift+Space)")
             .visible(false)
             .build();
         Self {
@@ -2078,30 +895,16 @@ impl Widgets {
             title: adw::WindowTitle::new("Teleprompt", ""),
             record,
             record_label,
-            play,
-            play_label,
             reopen,
             narrator_voice,
+            loading_title,
             loading_detail,
             failed,
-            glass,
-            edit: {
-                let edit = gtk::ToggleButton::builder()
-                    .icon_name("document-edit-symbolic")
-                    .tooltip_text("Edit shots on the glass (E)")
-                    .visible(false)
-                    .build();
-                labelled(&edit, "Edit shots");
-                edit
-            },
-            monitor,
-            session,
-            working,
-            editing,
+            view,
             sample,
-            tally: super::tally::Tally::new(),
+            session,
+            tally: Tally::new(),
             toasts: adw::ToastOverlay::new(),
-            text_css,
         }
     }
 
@@ -2119,10 +922,8 @@ impl Widgets {
         page.append(&column);
         let sample = Self::glass_sample();
         page.append(&sample);
-        let page_for_column = page.clone();
-        let page = column;
-        page.append(&Self::lockup());
-        page.append(
+        column.append(&Self::lockup());
+        column.append(
             &gtk::Label::builder()
                 .label(
                     "Open a script and read it aloud: the words follow your voice, \
@@ -2152,9 +953,9 @@ impl Widgets {
         buttons.append(&reopen);
         buttons.append(&session);
         let (narrator, narrator_voice) = Self::narrator();
-        page.append(&narrator);
-        page.append(&buttons);
-        page.append(
+        column.append(&narrator);
+        column.append(&buttons);
+        column.append(
             &gtk::Button::builder()
                 .label("Set up what teleprompt needs…")
                 .action_name("app.setup")
@@ -2162,7 +963,7 @@ impl Widgets {
                 .css_classes(["flat", "setup-link"])
                 .build(),
         );
-        (page_for_column, reopen, sample, narrator_voice)
+        (page, reopen, sample, narrator_voice)
     }
 
     /// Who reads the script: two linked toggles, "I read" and "A voice
@@ -2245,7 +1046,7 @@ impl Widgets {
         card
     }
 
-    fn loading() -> (gtk::Box, gtk::Label) {
+    fn loading() -> (gtk::Box, gtk::Label, gtk::Label) {
         let page = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(10)
@@ -2260,17 +1061,16 @@ impl Widgets {
                 .margin_bottom(8)
                 .build(),
         );
-        page.append(
-            &gtk::Label::builder()
-                .label("Loading the speech model")
-                .css_classes(["loading-title"])
-                .build(),
-        );
+        let title = gtk::Label::builder()
+            .label("Loading the speech model")
+            .css_classes(["loading-title"])
+            .build();
+        page.append(&title);
         let detail = gtk::Label::builder()
             .css_classes(["loading-detail"])
             .build();
         page.append(&detail);
-        (page, detail)
+        (page, title, detail)
     }
 
     fn failed() -> adw::StatusPage {
@@ -2332,21 +1132,12 @@ impl Widgets {
             menu.append_section(None, &part);
         };
         section(&[
-            ("Record from the top", "app.take-top"),
-            ("Record reworded lines again", "app.retake"),
-            ("Keep what you said…", "app.review-said"),
-        ]);
-        section(&[
-            ("Capture shots", "app.capture"),
-            ("Build video", "app.build"),
             ("Open in editor", "app.open-editor"),
-        ]);
-        section(&[
             ("Draft from a session…", "app.session"),
-            ("Screen in its own window", "app.screen-window"),
         ]);
         section(&[
             ("Settings", "app.settings"),
+            ("Set up teleprompt…", "app.setup"),
             ("Keyboard shortcuts", "app.shortcuts"),
             ("Quit", "app.quit"),
         ]);
@@ -2359,13 +1150,10 @@ impl Widgets {
         labelled(&menu_button, "Menu");
         header.pack_end(&menu_button);
         header.pack_end(&self.record);
-        header.pack_end(&self.play);
-        header.pack_end(&self.edit);
         let view = adw::ToolbarView::new();
         view.add_top_bar(&header);
         self.toasts.set_child(Some(&self.stack));
         view.set_content(Some(&self.toasts));
-        view.add_bottom_bar(&self.working);
         view.add_bottom_bar(&self.tally.root);
         view
     }

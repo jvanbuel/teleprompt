@@ -12,14 +12,8 @@ struct ContentView: View {
                 Welcome()
             case let .launching(script):
                 Loading(name: script.lastPathComponent)
-            case .ready:
-                HStack(spacing: 0) {
-                    PrompterView()
-                    if model.showsScreen && !model.state.script.shots.isEmpty {
-                        MonitorView()
-                    }
-                }
-                TallyBar()
+            case let .ready(page):
+                PrompterPage(page: page, model: model)
             case let .failed(reasons):
                 Failure(reasons: reasons)
             }
@@ -53,73 +47,11 @@ struct ContentView: View {
                     }
                 }
             }
-            ToolbarItem(placement: .primaryAction) {
-                if model.voiced {
-                    PlayButton()
-                } else if model.isReady {
-                    RecordButton()
-                }
-            }
         }
         .toolbarBackground(Theme.chrome, for: .windowToolbar)
         .fileImporter(isPresented: $model.chooseScript, allowedContentTypes: [.plainText, .init(filenameExtension: "md")!]) { result in
             if case let .success(url) = result { model.open(url) }
         }
-    }
-}
-
-/// The header's one action: record from the line the reader is on, or keep
-/// the take under way.
-struct RecordButton: View {
-    @EnvironmentObject private var model: AppModel
-
-    var body: some View {
-        let taking = model.isTaking
-        Button {
-            model.recordOrKeep()
-        } label: {
-            HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: taking ? 1 : 4)
-                    .fill(taking ? Color.black : Color.white)
-                    .frame(width: 8, height: 8)
-                Text(taking ? "Keep take" : "Record")
-                    .font(Theme.face(13, .bold))
-            }
-            .foregroundStyle(taking ? Color.black : Color.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(taking ? Theme.ink : Theme.tally))
-        }
-        .buttonStyle(.plain)
-        .help("Record from the line you are on (⌘T from the top)")
-    }
-}
-
-/// Read by a voice, the header's action is Play: in the chrome, with no
-/// red, since nothing records.
-struct PlayButton: View {
-    @EnvironmentObject private var model: AppModel
-
-    var body: some View {
-        let reading = model.isReading
-        Button {
-            model.playOrStop()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: reading ? "stop.fill" : "play.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Theme.cue)
-                Text(reading ? "Stop" : "Play")
-                    .font(Theme.face(13, .bold))
-            }
-            .foregroundStyle(Theme.ink)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(Theme.raised))
-            .overlay(Capsule().stroke(Theme.line))
-        }
-        .buttonStyle(.plain)
-        .help("Read aloud from the line you are on, or stop (Space)")
     }
 }
 

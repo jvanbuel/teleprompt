@@ -7,6 +7,7 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -180,11 +181,49 @@ pub type KeepSaid = Box<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
 /// Makes an edit to the script, or says why not.
 pub type EditScript = Box<dyn Fn(&Edit) -> Result<(), String> + Send + Sync>;
 
+/// Puts back what the last edit changed, or says why not.
+pub type UndoEdit = Box<dyn Fn() -> Result<(), String> + Send + Sync>;
+
+/// Runs a job on the script, handing on each progress event it reports;
+/// then the video, for a build.
+pub type Make = Box<
+    dyn Fn(Job, &mut dyn FnMut(serde_json::Value)) -> Result<Option<PathBuf>, String> + Send + Sync,
+>;
+
+/// What a prompter can have made of its script.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Job {
+    /// `teleprompt capture`: the shots not yet captured, or changed since.
+    Capture,
+    /// `teleprompt build`: captured, then rendered.
+    Build,
+}
+
+impl Job {
+    fn parse(name: &str) -> Option<Self> {
+        match name {
+            "capture" => Some(Self::Capture),
+            "build" => Some(Self::Build),
+            _ => None,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Capture => "capture",
+            Self::Build => "build",
+        }
+    }
+}
+
 /// What a prompter reading a script file can do to it.
 pub struct Edits {
     pub reload: Reload,
     pub keep_said: KeepSaid,
     pub edit: EditScript,
+    pub undo: UndoEdit,
+    /// None where nothing can be captured or built from it.
+    pub make: Option<Make>,
     /// How its lines sound when its voice reads them; none for a script
     /// that is not a project's file.
     pub voice: Option<Voicing>,
@@ -192,11 +231,20 @@ pub struct Edits {
     pub listens: bool,
 }
 
-/// `script`'s edits: reloaded when changed, and a line reworded as
-/// `teleprompt edit <script> said <line>` does.
+/// `script`'s edits: reloaded when changed, a line reworded as
+/// `teleprompt edit <script> said <line>` does, each edit kept to undo,
+/// and captured or built as the commands do.
 pub fn edits_of(project: &Project, script: &std::path::Path, locale: &str) -> Edits {
     let (keeper, path) = (project.clone(), script.to_path_buf());
     let (editor, edited) = (project.clone(), script.to_path_buf());
+    // The script before and after each edit, latest last.
+    let history = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+    let (kept, undone) = (history.clone(), script.to_path_buf());
+    let (root, made, locale_of) = (
+        project.root.clone(),
+        script.to_path_buf(),
+        locale.to_string(),
+    );
     Edits {
         reload: reload_on_edit(project, script, locale),
         keep_said: Box::new(move |line| {
@@ -205,13 +253,85 @@ pub fn edits_of(project: &Project, script: &std::path::Path, locale: &str) -> Ed
                 .map_err(|e| e.to_string())
         }),
         edit: Box::new(move |edit| {
-            crate::cmd::edit::run_edit(&editor, &edited, edit)
-                .map(|_| ())
-                .map_err(|e| e.to_string())
+            let before = std::fs::read_to_string(&edited).map_err(|e| e.to_string())?;
+            crate::cmd::edit::run_edit(&editor, &edited, edit).map_err(|e| e.to_string())?;
+            let after = std::fs::read_to_string(&edited).map_err(|e| e.to_string())?;
+            if after != before {
+                lock(&kept).push((before, after));
+            }
+            Ok(())
         }),
+        undo: Box::new(move || {
+            let (before, after) = lock(&history)
+                .pop()
+                .ok_or_else(|| "nothing to undo".to_string())?;
+            let now = std::fs::read_to_string(&undone).map_err(|e| e.to_string())?;
+            if now != after {
+                lock(&history).clear();
+                return Err("the script has changed since: undo it in your editor".into());
+            }
+            std::fs::write(&undone, before).map_err(|e| e.to_string())
+        }),
+        make: Some(Box::new(move |job, progress| {
+            make(&root, &made, &locale_of, job, progress)
+        })),
         voice: Some(Voicing::new(project, script, locale)),
         listens: true,
     }
+}
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Runs `job` as the command would be run, from `root`, handing on each
+/// progress event it reports on stderr; then the video, for a build.
+fn make(
+    root: &std::path::Path,
+    script: &std::path::Path,
+    locale: &str,
+    job: Job,
+    progress: &mut dyn FnMut(serde_json::Value),
+) -> Result<Option<PathBuf>, String> {
+    let me = std::env::current_exe().map_err(|e| format!("cannot find teleprompt: {e}"))?;
+    let mut child = std::process::Command::new(&me)
+        .args(["--format", "json", job.name()])
+        .arg(script)
+        .args(["--locale", locale])
+        .current_dir(root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("cannot run {}: {e}", me.display()))?;
+    let stdout = child.stdout.take().expect("piped");
+    let report = std::thread::spawn(move || std::io::read_to_string(stdout).unwrap_or_default());
+    let mut said = String::new();
+    for line in BufReader::new(child.stderr.take().expect("piped")).lines() {
+        let line = line.unwrap_or_default();
+        match serde_json::from_str::<serde_json::Value>(&line) {
+            Ok(event) if event["event"] == "progress" => progress(event),
+            _ => {
+                said.push_str(&line);
+                said.push('\n');
+            }
+        }
+    }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    let report: serde_json::Value =
+        serde_json::from_str(&report.join().unwrap_or_default()).unwrap_or_default();
+    if !status.success() {
+        let errors: Vec<&str> = report["errors"]
+            .as_array()
+            .map(|e| e.iter().filter_map(serde_json::Value::as_str).collect())
+            .unwrap_or_default();
+        return Err(if errors.is_empty() {
+            said.trim().to_string()
+        } else {
+            errors.join("\n")
+        });
+    }
+    Ok(report["output"].as_str().map(PathBuf::from))
 }
 
 /// Where the command listens, for `--format json`: the API's origin and
@@ -253,6 +373,7 @@ pub fn prompt_watching<R: Recognizer + Send + 'static>(
     let server = Arc::new(Server {
         session: Mutex::new(Session::new(prompt, recognizer)?),
         open: AtomicBool::new(false),
+        making: AtomicBool::new(false),
         edits,
     });
     for stream in listener.incoming() {
@@ -277,6 +398,8 @@ struct Server<R> {
     session: Mutex<Session<R>>,
     /// Whether a session socket is open.
     open: AtomicBool,
+    /// Whether a capture or build is running.
+    making: AtomicBool,
     edits: Option<Edits>,
 }
 
@@ -301,6 +424,11 @@ impl<R: Recognizer> Server<R> {
         }
         if request.method == "GET" && request.path == "/api/v1/session" {
             return self.open_session(stream, &request);
+        }
+        if request.method == "POST" {
+            if let Some(query) = request.path.strip_prefix("/api/v1/make?") {
+                return self.make(stream, query);
+            }
         }
         let (status, kind, body) = self.route(&request);
         respond(&mut stream, status, kind, &[], &body)
@@ -357,6 +485,51 @@ impl<R: Recognizer> Server<R> {
                 None => not_found(),
             },
         }
+    }
+
+    /// `POST /api/v1/make?job=capture|build`: the job's progress events,
+    /// one JSON object a line as they come, then `made` or `failed`.
+    fn make(&self, mut stream: TcpStream, query: &str) -> std::io::Result<()> {
+        let job = query
+            .split('&')
+            .find_map(|q| q.strip_prefix("job="))
+            .and_then(Job::parse);
+        let Some(job) = job else {
+            let body = b"job= is capture or build";
+            return respond(&mut stream, "400 Bad Request", "text/plain", &[], body);
+        };
+        let Some(make) = self.edits.as_ref().and_then(|e| e.make.as_ref()) else {
+            let (status, kind, body) = not_found();
+            return respond(&mut stream, status, kind, &[], &body);
+        };
+        if self.making.swap(true, Ordering::SeqCst) {
+            let body = b"a capture or build is already running";
+            return respond(&mut stream, "409 Conflict", "text/plain", &[], body);
+        }
+        struct Making<'a>(&'a AtomicBool);
+        impl Drop for Making<'_> {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::SeqCst);
+            }
+        }
+        let _making = Making(&self.making);
+        stream.write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\n\
+              Cache-Control: no-store\r\nConnection: close\r\n\r\n",
+        )?;
+        stream.flush()?;
+        let mut say = |event: serde_json::Value| {
+            // A page gone mid-job leaves the job to finish.
+            let _ = writeln!(stream, "{event}").and_then(|()| stream.flush());
+        };
+        let last = match make(job, &mut say) {
+            Ok(video) => serde_json::json!({ "event": "made", "job": job.name(), "video": video }),
+            Err(why) => {
+                serde_json::json!({ "event": "failed", "job": job.name(), "errors": [why] })
+            }
+        };
+        say(last);
+        Ok(())
     }
 
     /// Upgrades `stream` to the session socket, unless one is open.
@@ -468,23 +641,21 @@ impl<R: Recognizer> Server<R> {
                     None => error("this prompter has no script file to reword".into()),
                 })
             }
-            Some(kind @ ("reword" | "instruct")) => {
-                let line = message["line"].as_str().unwrap_or_default();
-                let text = message["text"].as_str().map(str::to_string);
-                let edit = match (kind, text) {
-                    ("reword", Some(text)) => Edit::Reword {
-                        line: line.into(),
-                        text,
-                    },
-                    ("reword", None) => return Some(error("a reword needs its text".into())),
-                    (_, text) => Edit::Instruct {
-                        line: line.into(),
-                        text: text.filter(|t| !t.trim().is_empty()),
-                    },
+            Some("undo_edit") => Some(match &self.edits {
+                Some(edits) => match (edits.undo)() {
+                    Ok(()) => serde_json::json!({ "type": "edit_undone" }),
+                    Err(e) => error(e),
+                },
+                None => error("this prompter has no script file to edit".into()),
+            }),
+            Some("reword" | "instruct" | "cue" | "hold" | "move" | "stretch") => {
+                let (edit, edited) = match edit_of(&message) {
+                    Ok(edit) => edit,
+                    Err(e) => return Some(error(e)),
                 };
                 Some(match &self.edits {
                     Some(edits) => match (edits.edit)(&edit) {
-                        Ok(()) => serde_json::json!({ "type": "edited", "line": line }),
+                        Ok(()) => edited,
                         Err(e) => error(e),
                     },
                     None => error("this prompter has no script file to edit".into()),
@@ -493,6 +664,56 @@ impl<R: Recognizer> Server<R> {
             _ => Some(error(format!("not a message this server knows: {text}"))),
         }
     }
+}
+
+/// The edit a message asks for, and the answer once it is made: naming
+/// the line it changed, or the block it moved.
+fn edit_of(message: &serde_json::Value) -> Result<(Edit, serde_json::Value), String> {
+    let text = |key: &str| message[key].as_str().map(str::to_string);
+    let line = || text("line").ok_or("which line? `line` names it");
+    let block = || text("block").ok_or("which block? `block` names it");
+    let word = || message["word"].as_u64().map(|w| w as usize);
+    let edit = match message["type"].as_str().unwrap_or_default() {
+        "reword" => Edit::Reword {
+            line: line()?.into(),
+            text: text("text").ok_or("a reword needs its text")?,
+        },
+        "instruct" => Edit::Instruct {
+            line: line()?.into(),
+            text: text("text").filter(|t| !t.trim().is_empty()),
+        },
+        "cue" => Edit::Cue {
+            block: block()?.into(),
+            word: word().ok_or("a cue needs its `word`")?,
+        },
+        "hold" => Edit::Hold {
+            block: block()?.into(),
+        },
+        "move" => Edit::Move {
+            block: block()?.into(),
+            after: text("after")
+                .ok_or("a move needs the line it goes `after`")?
+                .into(),
+            word: word(),
+        },
+        _ => Edit::Stretch {
+            block: block()?.into(),
+            by: message["by"]
+                .as_f64()
+                .filter(|by| *by > 0.0 && by.is_finite())
+                .ok_or("a stretch needs `by`, more than 0")?,
+        },
+    };
+    let edited = match &edit {
+        Edit::Reword { line, .. } | Edit::Instruct { line, .. } => {
+            serde_json::json!({ "type": "edited", "line": line })
+        }
+        Edit::Cue { block, .. }
+        | Edit::Hold { block }
+        | Edit::Move { block, .. }
+        | Edit::Stretch { block, .. } => serde_json::json!({ "type": "edited", "block": block }),
+    };
+    Ok((edit, edited))
 }
 
 fn reached_json(r: &Reached) -> serde_json::Value {
@@ -535,6 +756,7 @@ fn voiced(script: &mut serde_json::Value, edits: &Edits) {
     };
     script["voice"] = serde_json::json!({ "name": voice.name, "listens": edits.listens });
     script["length_ms"] = voice.length_ms.into();
+    script["timeline"] = voice.timeline;
     let Some(lines) = script["lines"].as_array_mut() else {
         return;
     };

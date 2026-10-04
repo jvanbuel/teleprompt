@@ -33,162 +33,6 @@ headerbar {
   border-bottom: 1px solid @line_color;
 }
 
-/* The glass. */
-textview.glass,
-textview.glass > text {
-  background-color: @glass;
-  color: @ink;
-  font-family: "Atkinson Hyperlegible Next";
-  font-weight: 500;
-  caret-color: transparent;
-}
-
-textview.glass > text > selection {
-  background-color: alpha(@ink, 0.12);
-}
-
-.glass-frame {
-  background-color: @glass;
-}
-
-/* On air, the glass itself says so: where the reader looks, and the
-   same in a reflection. */
-.tally-frame {
-  border: 6px solid transparent;
-  transition: border-color 120ms;
-}
-
-.tally-frame.on {
-  border-color: @tally;
-}
-
-.tally-frame.paused {
-  border-color: alpha(@tally, 0.35);
-}
-
-/* What a take did, large enough to read from where the reader sits. */
-.verdict {
-  background-color: @raised;
-  border: 1px solid @line_color;
-  border-radius: 16px;
-  padding: 14px 22px;
-}
-
-.verdict-text {
-  font-size: 24px;
-  font-weight: 700;
-  color: @ink;
-}
-
-button.verdict-undo {
-  background-color: @ink;
-  color: #000000;
-  font-weight: 700;
-}
-
-.scrim {
-  background-color: alpha(@glass, 0.78);
-}
-
-.countdown {
-  font-size: 180px;
-  font-weight: 300;
-  color: alpha(@ink, 0.92);
-  font-feature-settings: "tnum";
-}
-
-/* The monitor: what the video shows at this point. */
-.monitor-pane {
-  background-color: @chrome;
-  border-left: 1px solid @line_color;
-}
-
-.monitor {
-  background-color: @glass;
-  border-radius: 10px;
-  border: 1px solid @line_color;
-}
-
-.slate {
-  color: alpha(@ink, 0.6);
-  font-size: 15px;
-}
-
-.slate.missing {
-  color: @missing;
-}
-
-.shot-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: @ink;
-}
-
-.shot-time {
-  font-size: 13px;
-  color: alpha(@ink, 0.55);
-  font-feature-settings: "tnum";
-}
-
-progressbar.clip-progress > trough {
-  min-height: 3px;
-  background-color: @line_color;
-  border-radius: 2px;
-}
-
-progressbar.clip-progress > trough > progress {
-  min-height: 3px;
-  background-color: @ink;
-  border-radius: 2px;
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: alpha(@ink, 0.55);
-}
-
-list.rundown {
-  background: none;
-}
-
-list.rundown > row {
-  padding: 7px 4px;
-  border-radius: 6px;
-}
-
-list.rundown > row:hover {
-  background-color: alpha(@ink, 0.04);
-}
-
-.rundown-name {
-  font-size: 14px;
-  color: @ink;
-}
-
-.rundown-where {
-  font-size: 13px;
-  color: alpha(@ink, 0.6);
-  font-feature-settings: "tnum";
-}
-
-.aired .rundown-name,
-.aired .rundown-where {
-  color: alpha(@ink, 0.58);
-}
-
-.on-screen .rundown-name {
-  font-weight: 700;
-}
-
-.on-screen .rundown-where {
-  color: @ink;
-}
-
-.not-captured .rundown-where {
-  color: @missing;
-}
-
 /* The tally bar. */
 .tally-bar {
   background-color: @raised;
@@ -228,23 +72,6 @@ list.rundown > row:hover {
 
 .status.error {
   color: @missing;
-}
-
-levelbar.meter > trough {
-  min-height: 4px;
-  min-width: 72px;
-  background-color: @line_color;
-  border-radius: 2px;
-  padding: 0;
-}
-
-levelbar.meter > trough > block.filled {
-  background-color: @recorded;
-  border-radius: 2px;
-}
-
-levelbar.meter > trough > block.empty {
-  background: none;
 }
 
 .keycap {
@@ -412,19 +239,6 @@ button.pill.primary {
   color: #000000;
 }
 
-/* How far a capture or build has got: a hairline over the tally. */
-progressbar.working > trough {
-  min-height: 2px;
-  background: none;
-  border-radius: 0;
-}
-
-progressbar.working > trough > progress {
-  min-height: 2px;
-  background-color: @ink;
-  border-radius: 0;
-}
-
 /* Read by a voice. Play is the header's action, as Record is, in the
    same chrome: no red, since nothing records. */
 button.record.play image {
@@ -444,49 +258,6 @@ button.narrator {
 button.narrator:checked {
   background-color: @ink;
   color: #000000;
-}
-
-/* A line's words, edited where they stand: the glass's type on black,
-   underlined in the cue's amber. */
-textview.line-editor,
-textview.line-editor > text {
-  background-color: @glass;
-  color: @ink;
-  font-family: "Atkinson Hyperlegible Next";
-  font-weight: 500;
-  caret-color: @cue;
-}
-
-textview.line-editor {
-  padding: 8px 12px;
-  border-bottom: 2px solid @cue;
-}
-
-.line-panel .panel-title {
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.line-panel .panel-subtitle {
-  font-size: 13px;
-  color: alpha(@ink, 0.66);
-}
-
-.line-panel .panel-hint {
-  font-size: 12px;
-  color: alpha(@ink, 0.55);
-}
-
-/* The panel hangs off the glass, whose type is the prompter's; its own is
-   the chrome's. */
-popover.line-panel {
-  font-size: 14px;
-  font-weight: 400;
-}
-
-popover.line-panel button.pill {
-  padding: 6px 14px;
-  font-weight: 600;
 }
 
 /* The welcome page's way to setup: there, but quieter than the actions. */

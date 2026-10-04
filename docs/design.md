@@ -302,9 +302,12 @@ so it stays current: keeping what you said instead of reading it again.
 
 `prompt` records takes. The prompter is `teleprompt-prompter`, a
 `Session` with typed calls (`start`, `listen`, `stop`, `script`, `clip`);
-`teleprompt prompt` serves it as an API and the page that drives it, so
-another front end, such as a native app, can drive the same session through
-the API or call the library directly. The page streams the microphone at
+`teleprompt prompt` serves it as an API and the page that drives it.
+**The page is the only prompter.** The apps (`apps/linux`, `apps/macos`)
+show it in WebKit and add what a page cannot have: a window per screen,
+the microphone's permission, a welcome page, settings, setup, and on
+Linux a terminal for session mode. Each prompter feature is built once,
+in the page; the apps never learn of one. The page streams the microphone at
 its own rate; the session keeps that as the take and feeds the recognizer a
 16 kHz copy.
 When the take is kept, it is cut at the silence between lines, found
@@ -324,22 +327,24 @@ HTTP; the session is a WebSocket, since the microphone is a stream.
 Loopback keeps other machines out but not other web pages, which a browser
 lets reach it, WebSockets included. So both this server and the preview
 answer 403 to a `Host` other than `127.0.0.1` or `localhost` (a rebound DNS
-name) and to an `Origin` other than their own page; a native app sends no
-`Origin`. With
+name) and to an `Origin` other than their own page; a client that is not
+a page sends no `Origin`. With
 `--format json` and `--port 0`, the command picks a free port and prints
 `{"event":"listening","url","api"}` on stdout once it listens, so an app
-that launched it knows where to connect. `docs/api/v1/examples` has one of
-each message; the server and the native apps (`apps/macos`, `apps/linux`)
-are all tested against them. The Linux app also reads `plan --format json`
-for its timeline, as `teleprompt-schedule`'s own `Timeline`: it builds
-against the crates, so a field the plan drops fails its build.
+that launched it knows where to load the page from. `docs/api/v1/examples`
+has one of each message, and the server is tested against them. The page
+takes settings in its address: `?countdown=0` starts a take without a
+count of three, `?shell=1` leaves the script's name to an app's title bar,
+and `?view=monitor` is the screen alone, which the page opens in a window
+of its own for a second display and keeps in step with it.
 
 | route | does |
 |---|---|
-| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said","said_diff"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. `said_diff` is the line against `said` word by word, runs of `{"kind":"same"|"gone"|"new","words"}`, empty without it: what keeping it changes, for a prompter to show. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded. For a project's script it also has `"voice":{"name","listens"}`, who reads it and whether the prompter follows a reader by ear (false under `--voice`); `"length_ms"`, the video's length as the timeline has it now; and on each line `"speaker"`, who says it from the script's cast, or null for the narrator; `"instruct"`, how its voice is told to say it, or null; and `"audio":{"source":"take"|"voice","url","ready","duration_ms","words"}`: where the line's audio comes from, whether it is made yet, and once it is, its length and when each word starts, in milliseconds (the voice's own timings where it gives one per word, spread over the line's characters otherwise) |
+| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said","said_diff"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. `said_diff` is the line against `said` word by word, runs of `{"kind":"same"|"gone"|"new","words"}`, empty without it: what keeping it changes, for a prompter to show. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded. For a project's script it also has `"voice":{"name","listens"}`, who reads it and whether the prompter follows a reader by ear (false under `--voice`); `"length_ms"`, the video's length as the timeline has it now; and on each line `"speaker"`, who says it from the script's cast, or null for the narrator; `"instruct"`, how its voice is told to say it, or null; and `"audio":{"source":"take"|"voice","url","ready","duration_ms","words"}`: where the line's audio comes from, whether it is made yet, and once it is, its length and when each word starts, in milliseconds (the voice's own timings where it gives one per word, spread over the line's characters otherwise). And `"timeline":{"duration_ms","lines":[{"id","start_ms","end_ms"}],"shots":[{"shot","block","scene","line","start_ms","end_ms","timed"}]}`, the scheduler's plan as the page draws it on the glass in Edit mode: each line from its first sound to its last, and each shot with the line it runs with or after, and whether it states its own length, so can be stretched |
 | `GET /api/v1/clips/<key>.mp4` | a cued shot's clip; nothing else in the cache |
 | `GET /api/v1/voice/<line id>.wav` | the line's audio: its current take, or its voice's, synthesized now into the voice cache if it is not there yet. `?fresh=1` synthesizes it again, for a voice that says a line differently each time |
 | `GET /api/v1/session` | the session socket; one at a time, a second gets 409 |
+| `POST /api/v1/make?job=capture\|build` | runs `teleprompt capture` or `build` on the script, as the command would be run, and answers with what it reports as it goes: each of its [progress events](#cli), one JSON object a line, then `{"event":"made","job","video"}` (`video` null for a capture) or `{"event":"failed","job","errors"}`. One at a time, a second gets 409 |
 
 On the socket, the client sends:
 
@@ -359,6 +364,14 @@ On the socket, the client sends:
   tell its voice how to say it (a null or empty `text` removes the
   instruction), as `teleprompt edit` does: written only if the script
   still compiles.
+- `{"type":"cue","block":id,"word":N}`, `{"type":"hold","block":id}`,
+  `{"type":"move","block":id,"after":line id,"word":N|null}` and
+  `{"type":"stretch","block":id,"by":X}`: a shot dragged on the glass, as
+  `teleprompt edit` makes each, and as carefully.
+- `{"type":"undo_edit"}`: put the script back as it was before the last
+  edit. The server keeps it as it was before each, and refuses once the
+  file has been changed since by anything else: an edit made in the
+  author's editor is never undone over.
 
 The server sends:
 
@@ -370,7 +383,9 @@ The server sends:
 - `{"type":"discarded"}`.
 - `{"type":"undone","lines":[line id]}`: the lines put back.
 - `{"type":"kept_said","line":id}` once the line is reworded.
-- `{"type":"edited","line":id}` once a `reword` or `instruct` is written.
+- `{"type":"edited","line":id}` once a `reword` or `instruct` is written,
+  and `{"type":"edited","block":id}` once a shot's edit is.
+- `{"type":"edit_undone"}`.
 - `{"type":"error","message"}` for a message it did not understand or a
   take it could not save or line it could not reword; the session goes on.
   Under `--voice`, where the script's voice reads it, a `start` is one.
@@ -843,6 +858,11 @@ Documents are printed as they are written and carry no `ok`: the timeline
   and `dub` run end to end offline.
 - `crates/teleprompt-cli/tests/golden.rs` pins `plan` for every example
   project, and every command's failure output and exit code.
+- `crates/teleprompt-cli/tests/page` drives the prompter page in Chromium
+  against a real `teleprompt prompt`, with a recorded reading as the
+  microphone: a take followed and kept, shots dragged and a drag undone, a
+  build, a reworded line re-recorded. `apps/linux/tests/ui.sh` drives the
+  Linux app around it under a virtual display.
 - `manual/timelines/cli.en.json` is compared against a fresh compile of
   the manual, so a command that changes cannot leave its manual page
   behind.

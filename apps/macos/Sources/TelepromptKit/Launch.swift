@@ -1,5 +1,11 @@
 import Foundation
 
+/// The prompter API, version 1 (`docs/design.md#prompter-api-version-1`):
+/// what the listening event names, to be sure of what is listening.
+public enum API {
+    public static let version = "/api/v1"
+}
+
 /// How to run `teleprompt prompt` for the app.
 public struct LaunchRequest: Equatable, Sendable {
     /// The `teleprompt` binary, built with `--features listen` to follow a

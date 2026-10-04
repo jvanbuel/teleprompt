@@ -4,8 +4,6 @@
 use std::ffi::{c_char, c_int, c_void, CString};
 use std::os::unix::ffi::OsStrExt;
 
-pub const FAMILY: &str = "Atkinson Hyperlegible Next";
-
 const FILES: [(&str, &[u8]); 2] = [
     (
         "AtkinsonHyperlegibleNext[wght].ttf",

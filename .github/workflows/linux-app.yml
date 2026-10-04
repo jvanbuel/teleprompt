@@ -1,6 +1,7 @@
 name: Linux app
 
-# The app and what it talks to: the prompter's API and the crates behind it.
+# The prompter page, in a browser and in the app around it, and the server
+# and crates behind it.
 on:
   push:
     branches: [main]
@@ -9,6 +10,8 @@ on:
       - apps/fixtures/**
       - docs/api/**
       - crates/teleprompt-cli/src/cmd/prompt*
+      - crates/teleprompt-cli/src/cmd/voicing.rs
+      - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
       - crates/teleprompt-schedule/**
       - crates/teleprompt-prompter/**
@@ -21,6 +24,8 @@ on:
       - apps/fixtures/**
       - docs/api/**
       - crates/teleprompt-cli/src/cmd/prompt*
+      - crates/teleprompt-cli/src/cmd/voicing.rs
+      - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
       - crates/teleprompt-schedule/**
       - crates/teleprompt-prompter/**
@@ -50,13 +55,13 @@ jobs:
           workspaces: |
             .
             apps/linux
-      - name: GTK, GStreamer, and a display to run the app on
+      - name: GTK, WebKit, and a display to run the app on
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev libwebkitgtk-6.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
-            libgtk-4-media-gstreamer xvfb xdotool imagemagick ffmpeg asciinema
+            xvfb xdotool imagemagick ffmpeg asciinema
       # The server the app launches, with the recognizer.
       - run: cargo build -p teleprompt-cli --features listen
       - uses: actions/cache@v6
@@ -69,13 +74,21 @@ jobs:
             mkdir -p model
             curl -sSfL "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$MODEL.tar.bz2" | tar xj -C model
           fi
+      # The prompter itself: the page, driven in Chrome against the server,
+      # with a recorded reading as the microphone.
+      - name: The page
+        working-directory: crates/teleprompt-cli/tests/page
+        env:
+          TELEPROMPT_BIN: ${{ github.workspace }}/target/debug/teleprompt
+          TELEPROMPT_MODEL: ${{ github.workspace }}/model/${{ env.MODEL }}
+        run: |
+          npm ci
+          TELEPROMPT_CHROMIUM=$(command -v google-chrome) UI_SHOTS=${{ runner.temp }}/shots/page node prompter.mjs
       - name: Check, build and test the app
         working-directory: apps/linux
         env:
           TELEPROMPT_BIN: ${{ github.workspace }}/target/debug/teleprompt
           TELEPROMPT_MODEL: ${{ github.workspace }}/model/${{ env.MODEL }}
-          # Turns the end-to-end test's skip into a failure.
-          TELEPROMPT_REQUIRE_E2E: "1"
         run: |
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings

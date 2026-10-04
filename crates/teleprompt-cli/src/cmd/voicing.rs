@@ -31,6 +31,8 @@ struct Voiced {
     voices: crate::cmd::check::Voices,
     lines: Vec<NarrationDetail>,
     length_ms: u64,
+    /// Each line and shot in time, as [`timeline_json`] says it.
+    timeline: serde_json::Value,
 }
 
 impl Voicing {
@@ -65,6 +67,7 @@ impl Voicing {
                 backend,
                 voices,
                 length_ms: compiled.timeline.duration_ms.ms(),
+                timeline: timeline_json(&compiled.timeline),
                 lines: compiled.narration,
             });
         }
@@ -95,6 +98,7 @@ impl Voicing {
             name,
             length_ms: voiced.length_ms,
             lines,
+            timeline: voiced.timeline,
         })
     }
 
@@ -155,6 +159,31 @@ pub struct Description {
     pub name: String,
     pub length_ms: u64,
     pub lines: Vec<(String, serde_json::Value)>,
+    pub timeline: serde_json::Value,
+}
+
+/// The scheduler's plan as a prompter draws it on the glass: each line
+/// from its first sound to its last, and each shot with the line it runs
+/// with or after, and whether it states its own length, so can stretch.
+fn timeline_json(plan: &teleprompt_schedule::Timeline) -> serde_json::Value {
+    let (mut lines, mut shots) = (Vec::new(), Vec::new());
+    for entry in &plan.entries {
+        let line = entry.narration.as_ref().map(|n| n.line.to_string());
+        if let Some(n) = &entry.narration {
+            lines.push(serde_json::json!({
+                "id": n.line, "start_ms": n.start_ms.ms(),
+                "end_ms": (n.start_ms + n.duration_ms).ms(),
+            }));
+        }
+        if let Some(a) = &entry.action {
+            shots.push(serde_json::json!({
+                "shot": a.shot, "block": a.shot.block(), "scene": a.scene, "line": line,
+                "start_ms": a.start_ms.ms(), "end_ms": (a.start_ms + a.duration_ms).ms(),
+                "timed": a.duration_source != teleprompt_core::DurationSource::Unknown,
+            }));
+        }
+    }
+    serde_json::json!({ "duration_ms": plan.duration_ms.ms(), "lines": lines, "shots": shots })
 }
 
 /// Where a line's audio comes from, whether it is made yet, how long it

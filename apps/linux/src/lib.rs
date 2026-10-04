@@ -1,21 +1,8 @@
-//! A native Linux prompter for teleprompt. Everything here but `mic` is
-//! free of GTK: the API, launching `teleprompt prompt`, the session with
-//! it, the prompter's state, the timeline and what a drag on it edits,
-//! capturing and building, the tools a session records with, and a
-//! script read by its voice. The window is in the binary.
+//! The Linux app around the prompter page: launching `teleprompt prompt`,
+//! the models setup installed, setting teleprompt up, and the tools a
+//! session records with. Free of GTK; the window is in the binary.
 
-pub mod api;
 pub mod launch;
-pub mod make;
-pub mod mic;
 pub mod models;
-pub mod retake;
-pub mod ribbons;
-pub mod said;
-pub mod session;
 pub mod setup;
-pub mod state;
-pub mod take;
-pub mod timeline;
 pub mod tools;
-pub mod voice;

@@ -1,9 +1,13 @@
 # The prompter's design
 
-The prompters (`apps/linux`, `apps/macos` and the page `teleprompt prompt`
-serves) share one design. It comes from what a prompter is for: someone
-alone, reading to a camera, often through beam-splitter glass. The next word
-must be impossible to miss, and everything else must recede.
+The prompter is one page, the one `teleprompt prompt` serves, in a browser
+or in the apps (`apps/linux`, `apps/macos`), which show it in a window of
+their own. What the apps draw around it, a welcome page, settings and
+setup, takes the same tokens and typeface.
+
+The design comes from what a prompter is for: someone alone, reading to a
+camera, often through beam-splitter glass. The next word must be
+impossible to miss, and everything else must recede.
 
 It borrows from broadcast prompting and the studio:
 
@@ -27,7 +31,7 @@ It borrows from broadcast prompting and the studio:
 | recorded | `#3ddc84` | a line with a take; the level meter |
 | missing | `#f28b82` | a shot never captured |
 | heard | `#8ab5f7` | a take heard saying other words |
-| speakers | `#c58af9`, `#4dd0c8`, `#f28bd0`, `#d7b98e` | a speaker's initial in the margin: the one at the sum of the name's UTF-8 bytes, modulo four, so each app gives a speaker the same colour |
+| speakers | `#c58af9`, `#4dd0c8`, `#f28bd0`, `#d7b98e` | a speaker's initial in the margin: the one at the sum of the name's UTF-8 bytes, modulo four, so a speaker always has the same colour |
 | chrome | `#17181b`, raised `#202227`, lines `#2c2f36` | everything around the glass |
 
 Type is **Atkinson Hyperlegible Next** (`apps/fonts`), everywhere. The Braille

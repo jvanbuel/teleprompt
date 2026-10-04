@@ -3,27 +3,15 @@ import AppKit
 import CoreText
 import SwiftUI
 
-/// The prompters' design (`apps/DESIGN.md`): the glass is black because a
-/// beam-splitter does not reflect black; amber marks the next word and the
-/// reading line, and nothing else; red is the tally, and means recording.
+/// The prompters' design (`apps/DESIGN.md`), for the app around the page:
+/// the welcome page, its sample of the glass, and the chrome.
 enum Theme {
     static let glass = Color.black
     static let ink = Color(red: 0.949, green: 0.957, blue: 0.969)
     static let cue = Color(red: 1.0, green: 0.722, blue: 0.0)
-    static let tally = Color(red: 1.0, green: 0.231, blue: 0.188)
-    static let recorded = Color(red: 0.239, green: 0.863, blue: 0.518)
-    static let missing = Color(red: 0.949, green: 0.545, blue: 0.510)
-    /// A take heard saying other words than its line.
-    static let heard = Color(red: 0.541, green: 0.710, blue: 0.969)
-    static let brought = Color(red: 0.506, green: 0.788, blue: 0.584)
     static let chrome = Color(red: 0.090, green: 0.094, blue: 0.106)
     static let raised = Color(red: 0.125, green: 0.133, blue: 0.153)
     static let line = Color(red: 0.173, green: 0.184, blue: 0.212)
-
-    /// Where the reading line is, as a fraction of the glass's height.
-    static let reading: CGFloat = 0.36
-    /// A line of the script's height, as a multiple of its size.
-    static let leading: CGFloat = 1.32
 
     static let family = "Atkinson Hyperlegible Next"
 
@@ -67,21 +55,6 @@ enum Theme {
     }
 }
 
-/// A key as a keycap.
-struct Keycap: View {
-    let key: String
-
-    var body: some View {
-        Text(key)
-            .font(Theme.face(12, .bold))
-            .foregroundStyle(Theme.ink)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 1)
-            .background(RoundedRectangle(cornerRadius: 5).fill(Theme.chrome))
-            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Theme.line))
-    }
-}
-
 /// A rounded button: ink on black for the main action, raised otherwise.
 struct Pill: ButtonStyle {
     var primary = false
@@ -94,18 +67,6 @@ struct Pill: ButtonStyle {
             .padding(.vertical, 10)
             .background(Capsule().fill(primary ? Theme.ink : Theme.raised))
             .opacity(configuration.isPressed ? 0.8 : 1)
-    }
-}
-
-extension Color {
-    /// `#rrggbb`, as the speakers' colours are written.
-    init(hex: String) {
-        let value = UInt32(hex.dropFirst(), radix: 16) ?? 0
-        self.init(
-            red: Double((value >> 16) & 0xFF) / 255,
-            green: Double((value >> 8) & 0xFF) / 255,
-            blue: Double(value & 0xFF) / 255
-        )
     }
 }
 

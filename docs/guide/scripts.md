@@ -114,7 +114,7 @@ you would write: `cue <block> --word N` starts a block on a word of its
 line, `hold <block>` runs it after the line, `move <block> --after <line>`
 pairs it with another line, and `stretch <block> --by F` scales its
 stretch. Blocks and lines are named by their ids in `plan`. Nothing is
-written if the script would then not compile. The Linux app's timeline
+written if the script would then not compile. The prompter's Edit mode
 drags shots with it, with Ctrl+Z to undo; it is left out of `teleprompt
 --help` for that reason, since by hand the attributes are quicker.
 

@@ -233,6 +233,20 @@ fn the_voiced_examples_are_what_the_server_says_and_takes() {
     edited["line"] = "welcome".into();
     assert_eq!(ask(&mut ws, reword), edited);
     assert_eq!(ask(&mut ws, example("instruct.json")), edited);
+    let mut moved = example("edited_block.json");
+    moved["block"] = "the-loop-a".into();
+    for name in ["cue.json", "stretch.json", "hold.json"] {
+        let mut edit = example(name);
+        edit["block"] = "the-loop-a".into();
+        assert_eq!(ask(&mut ws, edit), moved, "{name}");
+    }
+    let mut to = example("move.json");
+    (to["block"], to["after"]) = ("the-loop-a".into(), "welcome".into());
+    assert_eq!(ask(&mut ws, to), moved);
+    assert_eq!(
+        ask(&mut ws, example("undo_edit.json")),
+        example("edit_undone.json")
+    );
 }
 
 /// The page, served by a voiced prompter, plays rather than records, and
@@ -256,4 +270,127 @@ fn the_page_reads_with_the_voice() {
     let record = page.split(r#"id="record""#).nth(1).unwrap();
     assert!(record.contains(">Play<"), "{record}");
     assert!(page.contains(r#"class="line voiced"#), "{page}");
+}
+
+/// The script as the scheduler lays it out: each line and shot in time,
+/// for a prompter to draw the shots on the glass and drag them.
+#[test]
+fn the_script_comes_with_its_timeline() {
+    let served = voiced("prompt-voice-timeline");
+    let s = script(served.addr);
+    let timeline = &s["timeline"];
+    assert!(timeline["duration_ms"].as_u64().unwrap() > 0, "{timeline}");
+    let lines = timeline["lines"].as_array().unwrap();
+    assert_eq!(lines.len(), 2, "{timeline}");
+    assert_eq!(lines[0]["id"], "welcome");
+    assert!(lines[0]["start_ms"].as_u64() < lines[0]["end_ms"].as_u64());
+    let shots = timeline["shots"].as_array().unwrap();
+    assert_eq!(shots.len(), 2, "{timeline}");
+    assert_eq!(shots[1]["shot"], "the-loop-a#0");
+    assert_eq!(shots[1]["block"], "the-loop-a");
+    assert_eq!(shots[1]["scene"], "mock");
+    assert_eq!(shots[1]["line"], "the-loop");
+    assert_eq!(shots[1]["timed"], true);
+    assert!(shots[1]["start_ms"].as_u64() < shots[1]["end_ms"].as_u64());
+}
+
+fn demo(served: &Served) -> String {
+    std::fs::read_to_string(served.dir.join("scripts/demo.md")).unwrap()
+}
+
+/// A shot dragged on the glass: cued to a word, held after its line,
+/// moved to another line or stretched; and the last edit undone.
+#[test]
+fn a_shot_is_moved_over_the_socket_and_the_edit_undone() {
+    let served = voiced("prompt-voice-shots");
+    let before = demo(&served);
+    let mut ws = session(served.addr);
+    let cue = serde_json::json!({ "type": "cue", "block": "the-loop-a", "word": 3 });
+    assert_eq!(
+        ask(&mut ws, cue),
+        serde_json::json!({ "type": "edited", "block": "the-loop-a" })
+    );
+    assert!(demo(&served).contains("cue="), "{}", demo(&served));
+    let stretch = serde_json::json!({ "type": "stretch", "block": "welcome-a", "by": 2.0 });
+    assert_eq!(ask(&mut ws, stretch)["type"], "edited");
+    let hold = serde_json::json!({ "type": "hold", "block": "the-loop-a" });
+    assert_eq!(ask(&mut ws, hold)["type"], "edited");
+    let moved = serde_json::json!({ "type": "move", "block": "welcome-a", "after": "the-loop", "word": null });
+    assert_eq!(ask(&mut ws, moved)["type"], "edited");
+    for _ in 0..4 {
+        let undone = ask(&mut ws, serde_json::json!({ "type": "undo_edit" }));
+        assert_eq!(undone, serde_json::json!({ "type": "edit_undone" }));
+    }
+    assert_eq!(demo(&served), before);
+    let nothing = ask(&mut ws, serde_json::json!({ "type": "undo_edit" }));
+    assert_eq!(nothing["type"], "error", "{nothing}");
+    // A block the script lacks is refused, and nothing is kept to undo.
+    let refused = ask(
+        &mut ws,
+        serde_json::json!({ "type": "cue", "block": "nope", "word": 0 }),
+    );
+    assert_eq!(refused["type"], "error", "{refused}");
+}
+
+/// An edit made since in the author's editor is not undone over it.
+#[test]
+fn an_edit_is_not_undone_over_the_authors_own() {
+    let served = voiced("prompt-voice-undo-theirs");
+    let mut ws = session(served.addr);
+    let reword = serde_json::json!({ "type": "reword", "line": "welcome", "text": "Hello there." });
+    assert_eq!(ask(&mut ws, reword)["type"], "edited");
+    let theirs = demo(&served).replace("Hello there.", "Hello from my editor.");
+    std::fs::write(served.dir.join("scripts/demo.md"), &theirs).unwrap();
+    let undone = ask(&mut ws, serde_json::json!({ "type": "undo_edit" }));
+    assert_eq!(undone["type"], "error", "{undone}");
+    assert_eq!(demo(&served), theirs);
+}
+
+/// A POST: the status code and each line of the body as it came.
+fn post_lines(addr: SocketAddr, path: &str) -> (u16, Vec<serde_json::Value>) {
+    let mut s = TcpStream::connect(addr).unwrap();
+    s.set_read_timeout(Some(Duration::from_secs(120))).unwrap();
+    write!(
+        s,
+        "POST {path} HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n"
+    )
+    .unwrap();
+    let mut response = String::new();
+    s.read_to_string(&mut response).unwrap();
+    let (head, body) = response.split_once("\r\n\r\n").unwrap();
+    let status = head[9..12].parse().unwrap();
+    if status != 200 {
+        return (status, Vec::new());
+    }
+    let lines = body
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("{e}: {l:?}")))
+        .collect();
+    (status, lines)
+}
+
+/// Capturing from the prompter: `teleprompt capture`, its progress events
+/// passed on line by line as it goes, and what it made last.
+#[test]
+fn the_prompter_captures_the_scripts_shots_and_says_how_it_goes() {
+    let served = voiced("prompt-voice-make");
+    let (status, events) = post_lines(served.addr, "/api/v1/make?job=capture");
+    assert_eq!(status, 200, "{events:?}");
+    let captured = events
+        .iter()
+        .filter(|e| e["event"] == "progress" && e["stage"] == "capture")
+        .count();
+    assert_eq!(captured, 2, "{events:?}");
+    let last = events.last().unwrap();
+    assert_eq!(
+        last,
+        &serde_json::json!({ "event": "made", "job": "capture", "video": null })
+    );
+    // The shots now have clips to show.
+    let s = script(served.addr);
+    assert!(s["shots"][0]["clip"].is_string(), "{s}");
+    // Only a POST makes anything, and only a job it knows.
+    assert_eq!(get(served.addr, "/api/v1/make?job=capture").0, 404);
+    assert_eq!(post_lines(served.addr, "/api/v1/make?job=nope").0, 400);
 }

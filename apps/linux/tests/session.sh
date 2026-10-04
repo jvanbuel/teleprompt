@@ -11,7 +11,7 @@
 # $UI_SHOTS (default: a temporary directory).
 set -euo pipefail
 if [ "${1:-}" = --drive ]; then
-  export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1
+  export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
   export XDG_CONFIG_HOME="$work/config" XDG_CACHE_HOME="$work/cache"
   export TELEPROMPT_RECORD_MIC="-re -i $work/voice.wav"
   "$app" >"$work/app.log" 2>&1 &
@@ -50,12 +50,15 @@ if [ "${1:-}" = --drive ]; then
     [ -f "$work/project/scripts/session.md" ] && break
   done
   # The draft opens in the prompter, whose server loads the model first:
-  # the red Record button shows when it has.
+  # the page is up once its next word, in the cue's amber, is on the glass.
   for _ in $(seq 60); do
-    red=$(import -window root -crop 1x1+1030+27 -format "%[fx:r>0.8&&g<0.4]" info: 2>/dev/null || echo 0)
-    [ "$red" = 1 ] && break
+    import -window root "$work/now.png" 2>/dev/null || true
+    amber=$(convert "$work/now.png" -crop 900x500+0+100 +repage -fuzz 12% -fill red -opaque '#ffb800' \
+      -fill black +opaque red -format '%[fx:mean.r>0.001]' info: 2>/dev/null || echo 0)
+    [ "$amber" = 1 ] && break
     sleep 0.5
   done
+  echo "$amber" >"$work/drafted-shown"
   import -window root "$shots/04-drafted.png"
   kill "$pid"
   wait "$pid" || true
@@ -92,7 +95,7 @@ else
 fi
 takes=$(ls "$work/project/takes" 2>/dev/null | grep -c '\.wav$' || true)
 [ "$takes" -ge 2 ] && echo "ok: $takes takes" || { echo "FAIL: $takes takes"; fail=1; }
-# The draft opens in the prompter: its Record button is red.
-red=$(convert "$shots/04-drafted.png" -crop 1x1+1030+27 -format "%[fx:r>0.8&&g<0.4]" info:)
-[ "$red" = 1 ] && echo "ok: the draft opened in the prompter" || { echo "FAIL: the draft did not open"; fail=1; }
+# The draft opens in the prompter.
+[ "$(cat "$work/drafted-shown" 2>/dev/null)" = 1 ] && echo "ok: the draft opened in the prompter" \
+  || { echo "FAIL: the draft did not open"; fail=1; }
 exit $fail

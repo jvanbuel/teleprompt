@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use crate::api::VERSION;
+/// The prompter API's version: `docs/design.md#prompter-api-version-1`.
+pub const VERSION: &str = "/api/v1";
 
 /// How to run `teleprompt prompt`.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -9,11 +9,10 @@ let package = Package(
         .library(name: "TelepromptKit", targets: ["TelepromptKit"]),
     ],
     targets: [
-        // Everything but the screen and the microphone: the API, launching
-        // `teleprompt prompt`, and the prompter's state. Foundation only, so
-        // it builds and is tested on Linux too.
+        // Launching `teleprompt prompt`, and setting teleprompt up through
+        // it. Foundation only, so it builds and is tested on Linux too.
         .target(name: "TelepromptKit"),
-        // The macOS app: SwiftUI, AVFoundation.
+        // The macOS app: SwiftUI around the prompter page, in WebKit.
         .executableTarget(name: "Teleprompt", dependencies: ["TelepromptKit"]),
         .testTarget(name: "TelepromptKitTests", dependencies: ["TelepromptKit"]),
     ]

@@ -25,5 +25,18 @@
   "shots": [
     { "shot": "intro#0", "at": { "line": 0, "word": 0 }, "clip": null },
     { "shot": "welcome-b#0", "at": { "line": 1, "word": 0 }, "clip": null }
-  ]
+  ],
+  "timeline": {
+    "duration_ms": 6120,
+    "lines": [
+      { "id": "welcome", "start_ms": 150, "end_ms": 2750 },
+      { "id": "deploy", "start_ms": 3200, "end_ms": 5800 }
+    ],
+    "shots": [
+      { "shot": "intro#0", "block": "intro", "scene": "terminal", "line": "welcome",
+        "start_ms": 0, "end_ms": 2900, "timed": true },
+      { "shot": "welcome-b#0", "block": "welcome-b", "scene": "browser", "line": "deploy",
+        "start_ms": 2900, "end_ms": 6120, "timed": false }
+    ]
+  }
 }

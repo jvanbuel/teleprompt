@@ -1,0 +1,8 @@
+{
+  "name": "teleprompt-page-tests",
+  "private": true,
+  "description": "The prompter page driven in Chromium against a real `teleprompt prompt`",
+  "type": "module",
+  "scripts": { "test": "node prompter.mjs" },
+  "devDependencies": { "playwright-core": "1.56.1" }
+}

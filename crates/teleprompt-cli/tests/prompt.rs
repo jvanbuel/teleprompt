@@ -688,6 +688,8 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
                 reload,
                 keep_said: Box::new(|_| Ok(())),
                 edit: Box::new(|_| Ok(())),
+                undo: Box::new(|| Ok(())),
+                make: None,
                 voice: None,
                 listens: true,
             }),
@@ -719,6 +721,8 @@ fn prompting_with_keep(
         reload: Box::new(|| None),
         keep_said,
         edit: Box::new(|_| Ok(())),
+        undo: Box::new(|| Ok(())),
+        make: None,
         voice: None,
         listens: true,
     };

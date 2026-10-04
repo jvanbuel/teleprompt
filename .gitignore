@@ -15,3 +15,6 @@ shot.tape
 
 # The desktop example records takes into its project on every capture.
 /examples/desktop/takes/
+
+# The page test's playwright-core, from `npm install` beside it.
+node_modules/

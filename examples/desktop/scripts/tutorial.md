@@ -83,12 +83,11 @@ Sleep 3s
 
 ## Finding your way
 
-Every action has a key, and Control and question mark lists them all.
-{#keys}
+Every action has a key, and the question mark lists them all. {#keys}
 
 ```teleprompt scene=app policy=fit-action
 Sleep 300ms
-Ctrl+?
+Key ?
 Sleep 3s
 Escape
 Sleep 300ms

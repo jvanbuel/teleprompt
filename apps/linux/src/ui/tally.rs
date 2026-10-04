@@ -1,16 +1,36 @@
-//! The tally bar: whether the take is on air, its running time, the
-//! microphone's level, what just happened, and the keys that matter now.
+//! Session mode's tally bar: whether it is recording, for how long, what
+//! just happened, and the keys that matter now.
 
 use gtk::prelude::*;
 
-use teleprompt_gtk::state::Status;
+/// What the tally bar says: what just happened, or what went wrong.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Status {
+    pub text: String,
+    pub is_error: bool,
+}
+
+impl Status {
+    pub fn info(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            is_error: false,
+        }
+    }
+
+    pub fn error(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            is_error: true,
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Tally {
     pub root: gtk::Box,
     light: gtk::Box,
     timecode: gtk::Label,
-    meter: gtk::LevelBar,
     status: gtk::Label,
     keys: gtk::Box,
 }
@@ -26,21 +46,6 @@ impl Tally {
             .label("00:00.0")
             .css_classes(["timecode"])
             .build();
-        let meter = gtk::LevelBar::builder()
-            .min_value(0.0)
-            .max_value(1.0)
-            .valign(gtk::Align::Center)
-            .css_classes(["meter"])
-            .visible(false)
-            .build();
-        // The level bar's own marks colour it by value; the meter is one colour.
-        for name in [
-            gtk::LEVEL_BAR_OFFSET_LOW,
-            gtk::LEVEL_BAR_OFFSET_HIGH,
-            gtk::LEVEL_BAR_OFFSET_FULL,
-        ] {
-            meter.remove_offset_value(Some(name));
-        }
         let status = gtk::Label::builder()
             .xalign(0.0)
             .hexpand(true)
@@ -55,7 +60,6 @@ impl Tally {
         for w in [
             light.upcast_ref::<gtk::Widget>(),
             timecode.upcast_ref(),
-            meter.upcast_ref(),
             status.upcast_ref(),
             keys.upcast_ref(),
         ] {
@@ -66,7 +70,6 @@ impl Tally {
             root,
             light,
             timecode,
-            meter,
             status,
             keys,
         }
@@ -99,12 +102,6 @@ impl Tally {
             tenths / 10 % 60,
             tenths % 10
         ));
-    }
-
-    pub fn set_level(&self, rms: f32) {
-        self.meter.set_visible(true);
-        // Speech sits around 0.02–0.2 RMS; a square root spreads it out.
-        self.meter.set_value(f64::from(rms).sqrt().min(1.0));
     }
 
     pub fn set_status(&self, status: &Status) {

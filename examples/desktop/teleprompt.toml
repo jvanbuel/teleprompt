@@ -22,7 +22,7 @@ concurrency = 2
 [scene.welcome]
 adapter = "x11"
 command = "teleprompt-gtk"
-env = { GSK_RENDERER = "cairo", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/welcome" }
+env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/welcome" }
 
 # The app with a script open. The take it records is the test recording
 # of someone reading acme.md's first two lines, so the take is the same on
@@ -30,9 +30,10 @@ env = { GSK_RENDERER = "cairo", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-examp
 [scene.app]
 adapter = "x11"
 command = "sh -c 'rm -rf examples/desktop/takes && exec teleprompt-gtk examples/desktop/scripts/acme.md'"
-# The app loads its speech model before it shows the script; the video
-# starts once the window's title names it.
+# The app loads its speech model, then the prompter page; the video starts
+# once the window's title names the script, which it does when the page
+# has loaded.
 ready = "acme.md — Teleprompt"
 launch_timeout_ms = 90000
 settle_ms = 800
-env = { GSK_RENDERER = "cairo", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/app", TELEPROMPT_MIC = "filesrc location=crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav ! wavparse" }
+env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/app", TELEPROMPT_MIC = "crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav" }

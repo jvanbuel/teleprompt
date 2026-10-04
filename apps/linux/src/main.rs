@@ -1,5 +1,7 @@
 //! `teleprompt-gtk [SCRIPT]`: the prompter as a GTK app. It launches
-//! `teleprompt prompt` itself and talks to it over the prompter API.
+//! `teleprompt prompt` itself and shows the page it serves: the prompter
+//! is that page, here as in a browser. Around it: the welcome page,
+//! settings, setting teleprompt up, and session mode's terminal.
 
 mod ui;
 
@@ -79,30 +81,10 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
             }
         }),
     );
-    action("take-top", &["<Control>t"], Box::new(|w| w.take(0)));
     action(
         "open-editor",
         &["<Control>e"],
         Box::new(|w| w.open_in_editor()),
-    );
-    action("undo", &["<Control>z"], Box::new(|w| w.undo()));
-    action("retake", &[], Box::new(|w| w.retake()));
-    action("review-said", &[], Box::new(|w| w.review_said()));
-    action(
-        "capture",
-        &["<Control><Shift>c"],
-        Box::new(|w| w.make(teleprompt_gtk::make::Job::Capture)),
-    );
-    action(
-        "build",
-        &["<Control>b"],
-        Box::new(|w| w.make(teleprompt_gtk::make::Job::Build)),
-    );
-    action("keep", &["<Control>Return"], Box::new(|w| w.keep()));
-    action(
-        "screen-window",
-        &["<Control><Shift>s"],
-        Box::new(|w| w.screen_window()),
     );
     action("settings", &["<Control>comma"], Box::new(settings));
     action("setup", &[], Box::new(|w| w.offer_setup(&[], None)));
@@ -181,48 +163,20 @@ fn choose_draft(window: &Rc<Window>) {
     );
 }
 
-/// Where `teleprompt` and the speech model are, and the locale.
-/// Every key, where it can be looked up rather than remembered.
+/// The app's keys. The prompter's own are the page's: its ? lists them.
 const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
     (
-        "Takes",
-        &[
-            (
-                "<Control><Shift>space",
-                "Record from the line you are on, or keep the take",
-            ),
-            ("<Control>Return", "Keep the take"),
-            ("Escape", "Throw the take away, or cancel the count"),
-            ("<Control>z", "Undo the take just kept, or the last edit"),
-            ("p", "Pause and resume"),
-            ("<Control>t", "Record from the top"),
-        ],
-    ),
-    (
-        "Read by a voice",
-        &[
-            ("space", "Read aloud from the line you are on, or stop"),
-            ("Escape", "Stop reading"),
-        ],
-    ),
-    (
-        "The glass",
-        &[
-            ("e", "Edit shots on the glass"),
-            ("m", "Mirror the text"),
-            ("plus minus", "Text size"),
-            ("s", "Hide or show the screen"),
-            ("w", "Review a line said in other words"),
-            ("F2", "Reword the line you are on"),
-        ],
+        "Session mode",
+        &[(
+            "<Control><Shift>space",
+            "Record the session, or stop and draft it",
+        )],
     ),
     (
         "The project",
         &[
             ("<Control>o", "Open a script"),
             ("<Control>n", "Draft from a session"),
-            ("<Control><Shift>c", "Capture shots"),
-            ("<Control>b", "Build the video"),
             ("<Control>e", "Open the script in your editor"),
             ("<Control>comma", "Settings"),
             ("<Control>question", "Keyboard shortcuts"),
@@ -266,7 +220,7 @@ fn shortcuts(window: &Rc<Window>) {
 fn settings(window: &Rc<Window>) {
     let config = window.config();
     let group = adw::PreferencesGroup::builder()
-        .description("Following your voice needs teleprompt built with --features listen, and its speech model: Set up teleprompt installs it where the app finds it.")
+        .description("Following your voice needs teleprompt built with --features listen, and its speech model: Set up teleprompt installs it where the app finds it. The prompter's own settings, its text size and mirroring, are on its page.")
         .build();
     let binary = path_row(
         window,

@@ -2,25 +2,31 @@
 
 ![The prompter mid-take](../../docs/images/prompter.png)
 
-A native prompter for teleprompt, in GTK 4 and libadwaita. Open a script
-and read: the text follows your voice, each shot plays as you reach it, and
-every line you read in full is kept as that line's take.
+Teleprompt's prompter in a window of its own, in GTK 4 and libadwaita.
+Open a script and read: the text follows your voice, each shot plays as you
+reach it, and every line you read in full is kept as that line's take.
 
-The app launches `teleprompt prompt` itself and talks to it over the
-prompter API (`docs/design.md#prompter-api-version-1`). It needs:
+The prompter is the page `teleprompt prompt` serves, the same page a
+browser shows. The app launches the server itself, shows its page in
+WebKit, gives it the microphone, and opens its screen in a second window
+when it asks. Around it the app has a welcome page, settings, setup, and
+session mode, which drafts a script from a terminal session. What the
+prompter does, and its keys, are in `docs/guide/prompter.md`; `?` lists
+the keys in the app.
+
+It needs:
 
 - `teleprompt` built with the speech recognizer:
   `cargo install --path crates/teleprompt-cli --features listen`
 - a speech model: `teleprompt setup speech-model --run` installs
-  sherpa-onnx's streaming English model where the app finds it
-- GTK 4.14, libadwaita 1.5, VTE for GTK 4 (session mode's terminal),
-  GStreamer with the plugins to play the captured clips, and ffmpeg (a
-  session's microphone). On Ubuntu 24.04:
+  sherpa-onnx's streaming English model where the app finds it, or the app
+  offers to when you open a script
+- GTK 4.14, libadwaita 1.5, WebKitGTK 6.0, VTE for GTK 4 (session mode's
+  terminal), GStreamer's plugins to play the captured clips and hear the
+  microphone, and ffmpeg (a session's microphone). On Ubuntu 24.04:
 
-      sudo apt install libgtk-4-dev libadwaita-1-dev libvte-2.91-gtk4-dev ffmpeg \
-        libgstreamer1.0-dev \
-        libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good \
-        gstreamer1.0-libav libgtk-4-media-gstreamer
+      sudo apt install libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev \
+        libvte-2.91-gtk4-dev ffmpeg gstreamer1.0-plugins-good gstreamer1.0-libav
 
 Set the binary in Settings (Ctrl+,) the first time if it isn't where
 `cargo install` puts it. The model is the one `teleprompt setup` installed
@@ -39,89 +45,26 @@ To install it with a launcher entry:
     install -Dm644 apps/icons/teleprompt.svg \
       ~/.local/share/icons/hicolor/scalable/apps/io.github.jvanbuel.Teleprompt.svg
 
-## Keys
+## The app's keys
 
 | key | does |
 |---|---|
-| Ctrl+Shift+Space | record from the line you are on; during a take, keep it (during the count of three: cancel) |
-| click a line | record from there |
-| Ctrl+T | record from the top |
-| Return | keep the take |
-| p | pause or resume |
-| r | record the lines reworded since their takes again, one after another |
-| e | Edit mode: the shots on the glass, to drag (again: Read mode) |
-| w | review a line said in other words than it reads: keep what you said, or the script |
-| m | mirror the text, for beam-splitter glass |
-| + / − | text size |
-| s | show or hide the monitor |
-| Ctrl+Shift+S | the monitor in its own window, for a second display |
-| Ctrl+Z | undo the last drag on the glass |
-| Ctrl+Shift+C | capture the shots not yet captured, or changed since |
-| Ctrl+B | capture, then build the video |
-| F2 | reword the line you are on, where it stands |
+| Ctrl+O | open a script |
+| Ctrl+N | draft a script from a session |
 | Ctrl+E | open the script in your own editor |
+| Ctrl+, | settings |
+| Ctrl+? | these keys |
+| Ctrl+Shift+Space | in session mode, start recording, and stop and draft |
 
-A take starts after a count of three; Settings turns that off.
+The prompter's keys are the page's, the same as in a browser. A take
+starts after a count of three; Settings turns that off.
 
 ## Letting a voice read it
 
 Choose **A voice reads** under "Who narrates" on the welcome page, and the
-app reads the script with its voice (`teleprompt prompt --voice`) rather
-than following yours. It needs no speech model then: only the binary and
-the project's `[voice]`. Play (Space) reads from the line you're on,
-lighting the words and playing the shots as it goes; click a line for its
-panel (Listen, Read on from here, How to say it, Say it again, Reword);
-F2 rewords a line in place. The margin marks each line: a waveform, faint
-until the voice has made it; a tick for a line read from your own take.
+app runs `teleprompt prompt --voice`: the script is read by its voice
+rather than following yours, and no speech model is needed.
 `docs/guide/prompter.md#letting-a-voice-read-it` has the rest.
-
-## Rewording a line
-
-F2 edits the words of the line you're on where they stand (Enter keeps
-them, Escape doesn't), through `teleprompt edit`, so Ctrl+Z undoes it.
-Or edit the script while it's open in any editor (Ctrl+E opens it in
-yours): the app reloads it, and a
-line reworded since its take gets an amber ring in the margin, since its
-take no longer says what it says. Press R to record those lines again,
-one after another: each is kept as you read past it, and the next starts.
-
-## Keeping what you said
-
-When a take stops, the recognizer hears it again whole, and a line you
-said in other words than it reads gets a blue dot beside its tick, and a
-toast. Press W (or **Review** on the toast, or **Keep what you said…** in
-the menu) to see the difference: the words you didn't say struck through,
-the ones you said instead in bold. **Use What I Said** rewords the line
-to match with `teleprompt edit <script> said <line>`, and its take stays
-current: nothing to record again. **Keep the Script** leaves it, to read
-again. A small recognizer mishears, so a word a letter off, or heard as
-two ("a round"), doesn't count as other words.
-
-## Editing shots on the glass
-
-The glass is the timeline. Press E, or the pencil in the header, for Edit
-mode: each shot shows on the glass itself, as a ribbon under the words it
-plays over, or as a pill in the pause after its line when it plays after
-it. Drag a ribbon onto a word to start the shot there, into the pause
-after a line to play it after, or onto another line to move it; drag its
-grip onto a word of its line to end it there. A chip says what a drop will
-do before you let go. Each drop is written into the script with
-`teleprompt edit`, and refused if the script would no longer compile;
-Ctrl+Z undoes the last. Lines don't move: they're as long as the voice
-says them. A shot that states no length of its own (a Playwright script, a
-composition) moves but doesn't stretch.
-
-Hover a word and the monitor shows, still, what is on screen as it is
-said. A click on a line doesn't start a take in Edit mode, and a take
-always starts in Read mode, with the shots out of the way.
-
-Where a take was recorded, a word's moment is estimated from its share of
-the line's letters, as the markers are, so a ribbon may sit a word off
-from where the shot starts in the video.
-
-A moved or stretched shot needs capturing again: Ctrl+Shift+C captures
-what's missing, and Ctrl+B captures and builds the video, its progress a
-hairline over the tally. When it's built, the toast plays it.
 
 ## Drafting from a session
 
@@ -148,15 +91,15 @@ stops with the app, even if the app is killed. The look is described in
 
 ## Tests
 
-    cargo test                        # the API, launching, the state
-    TELEPROMPT_BIN=… TELEPROMPT_MODEL=… cargo test   # and the real server
-    TELEPROMPT_BIN=… TELEPROMPT_MODEL=… tests/ui.sh  # and the window
-    TELEPROMPT_BIN=… TELEPROMPT_MODEL=… tests/session.sh  # and session mode
+    cargo test                                             # launching, setup, tools
+    TELEPROMPT_BIN=… TELEPROMPT_MODEL=… tests/ui.sh        # and the window
+    TELEPROMPT_BIN=… TELEPROMPT_MODEL=… tests/session.sh   # and session mode
 
-`tests/end_to_end.rs` launches the real server and reads it a recording of
-`apps/fixtures/tour`. `tests/ui.sh` runs the app itself under Xvfb with that
-recording as its microphone (`TELEPROMPT_MIC` takes any GStreamer source),
-starts a take with Ctrl+T, keeps it with Return, and checks both lines were
-kept, a clip was on screen, and the server went when the app was killed.
-The API tests read `docs/api/v1/examples`, which the server is tested
-against too.
+The prompter itself is tested as a page, in a browser:
+`crates/teleprompt-cli/tests/page`. `tests/ui.sh` runs the app under Xvfb
+and checks what it adds: the page shows, a take goes on air with WebKit's
+own microphone (`TELEPROMPT_MOCK_MIC`), the screen opens in its own
+window, and the server goes when the app is killed. Then it runs the app
+again hearing a recording of `apps/fixtures/tour` as its microphone
+(`TELEPROMPT_MIC`, a WAV the page hears from when a take starts), and
+checks both lines were kept.
