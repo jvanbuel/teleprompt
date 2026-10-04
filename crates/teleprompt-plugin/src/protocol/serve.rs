@@ -12,17 +12,19 @@
 //! }
 //! ```
 
+use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::sync::Arc;
 
+use base64::Engine;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use teleprompt_core::{BlockId, Hash, ShotId};
 
 use super::{
-    Body, Capture, Captured, Configure, Configured, Description, LineError, Probed, Retime,
-    Retimed, SceneTraits, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits,
-    Voices, WireClip, WireProgress, WireShot, VERSION,
+    Body, Capture, Captured, Description, LineError, Probed, Retime, Retimed, SceneTraits,
+    Settings, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits, Voices,
+    WireClip, WireProgress, WireShot, VERSION,
 };
 use crate::capture::{Frame, Session, SessionShot};
 use crate::scene::{BlockSource, BodyOrigin, Measured, Shot, Validated};
@@ -277,12 +279,26 @@ pub fn voice_on(voice: &VoicePlugin, input: impl BufRead, out: impl Write) -> st
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let mut backend: Option<Arc<dyn VoiceBackend>> = None;
+    // Each request carries its settings: built once for each it is given.
+    let mut built: HashMap<String, Arc<dyn VoiceBackend>> = HashMap::new();
+    let mut backend =
+        |settings: Option<serde_json::Value>| -> Result<Arc<dyn VoiceBackend>, String> {
+            let key = serde_json::to_string(&settings).unwrap_or_default();
+            if let Some(b) = built.get(&key) {
+                return Ok(b.clone());
+            }
+            let settings: Option<serde_yaml::Value> = settings
+                .map(|s| serde_yaml::to_value(s).map_err(|e| e.to_string()))
+                .transpose()?;
+            let b = (voice.build)(settings.as_ref())?;
+            built.insert(key, b.clone());
+            Ok(b)
+        };
     serve(input, out, |r| match r.method.as_str() {
         "describe" => {
-            // What it can do, as its defaults show: settings come after.
-            let probe = (voice.build)(None).ok();
-            let caps = probe.as_ref().map(|b| b.capabilities());
+            // What it can do, as its defaults show.
+            let default = (voice.build)(None).ok();
+            let caps = default.as_ref().map(|b| b.capabilities());
             let d = Description {
                 protocol: VERSION,
                 name: voice.id.to_string(),
@@ -290,27 +306,15 @@ pub fn voice_on(voice: &VoicePlugin, input: impl BufRead, out: impl Write) -> st
                 traits: Traits::Voice(VoiceTraits {
                     word_timings: caps.as_ref().is_some_and(|c| c.word_timings),
                     speed_control: caps.as_ref().is_some_and(|c| c.speed_control),
-                    address: probe.as_ref().and_then(|b| b.address()),
+                    address: default.as_ref().and_then(|b| b.address()),
+                    version: caps.map(|c| c.version).unwrap_or_default(),
                 }),
             };
             r.answer(Ok(d))
         }
-        "configure" => {
-            let answer = r.params::<Configure>().and_then(|c| {
-                let settings: Option<serde_yaml::Value> = c
-                    .settings
-                    .map(|s| serde_yaml::to_value(s).map_err(|e| e.to_string()))
-                    .transpose()?;
-                let built = (voice.build)(settings.as_ref())?;
-                let version = built.capabilities().version;
-                backend = Some(built);
-                Ok(Configured { version })
-            });
-            r.answer(answer)
-        }
         "synthesize" => {
-            let answer = configured(&backend).and_then(|b| {
-                let s = r.params::<Synthesize>()?;
+            let answer = r.params::<Synthesize>().and_then(|s| {
+                let b = backend(s.settings)?;
                 let req = SynthRequest {
                     text: s.text,
                     locale: s.locale,
@@ -321,38 +325,38 @@ pub fn voice_on(voice: &VoicePlugin, input: impl BufRead, out: impl Write) -> st
                 let spoken = runtime
                     .block_on(b.synthesize(&req))
                     .map_err(|e| e.to_string())?;
-                std::fs::write(&s.out, wav::encode(&spoken.pcm))
-                    .map_err(|e| format!("cannot write {}: {e}", s.out.display()))?;
                 Ok(Spoken {
+                    audio: base64::engine::general_purpose::STANDARD
+                        .encode(wav::encode(&spoken.pcm)),
                     word_timings: spoken.word_timings,
                 })
             });
             r.answer(answer)
         }
         "voices" => {
-            let answer = configured(&backend).and_then(|b| match runtime.block_on(b.voices()) {
-                Some(listed) => listed
-                    .map(|voices| Voices { voices })
-                    .map_err(|e| e.to_string()),
-                None => Err(super::unknown_method("voices")),
-            });
+            let answer = r
+                .params::<Settings>()
+                .and_then(|s| backend(s.settings))
+                .and_then(|b| match runtime.block_on(b.voices()) {
+                    Some(listed) => listed
+                        .map(|voices| Voices { voices })
+                        .map_err(|e| e.to_string()),
+                    None => Err(super::unknown_method("voices")),
+                });
             r.answer(answer)
         }
         "probe" => {
-            let answer = configured(&backend).and_then(|b| {
-                runtime
-                    .block_on(b.probe())
-                    .map(|line| Probed { line })
-                    .map_err(|e| e.to_string())
-            });
+            let answer = r
+                .params::<Settings>()
+                .and_then(|s| backend(s.settings))
+                .and_then(|b| {
+                    runtime
+                        .block_on(b.probe())
+                        .map(|line| Probed { line })
+                        .map_err(|e| e.to_string())
+                });
             r.answer(answer)
         }
         other => r.answer(unknown(other)),
     })
-}
-
-fn configured(backend: &Option<Arc<dyn VoiceBackend>>) -> Result<Arc<dyn VoiceBackend>, String> {
-    backend
-        .clone()
-        .ok_or_else(|| "asked before `configure`".to_string())
 }

@@ -155,3 +155,24 @@ fn a_reader_refuses_what_decode_refuses() {
         assert_eq!(read, whole);
     }
 }
+
+/// A WAVE written as it was made (`espeak-ng --stdout`, `ffmpeg -f wav -`)
+/// cannot know its length, so it says one past any file: the samples are
+/// whatever follows. A truncated file that says a real length still fails.
+#[test]
+fn a_streamed_wave_is_read_to_its_end() {
+    let pcm = Pcm {
+        sample_rate: 22_050,
+        channels: 1,
+        samples: vec![1, -2, 3, -4],
+    };
+    let mut bytes = wav::encode(&pcm);
+    let unknown = 0x7FFF_F000u32.to_le_bytes();
+    bytes[40..44].copy_from_slice(&unknown);
+    bytes[4..8].copy_from_slice(&0x7FFF_F024u32.to_le_bytes());
+    assert_eq!(wav::decode(&bytes).unwrap(), pcm);
+
+    let mut truncated = wav::encode(&pcm);
+    truncated.truncate(truncated.len() - 2);
+    assert!(wav::decode(&truncated).is_err());
+}

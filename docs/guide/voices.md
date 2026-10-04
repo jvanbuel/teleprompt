@@ -256,16 +256,22 @@ and is found).
 
 ### As a program
 
-`teleprompt-voice-<name>` describes itself with `"kind": "voice"` and what
-it can do beyond speaking a line: `word_timings`, `speed_control` and
-`address` (where its server is, if it has one). It answers:
+`teleprompt-voice-<name>` describes itself with `"kind": "voice"`, its
+`version` (what its audio depends on beyond the request and its settings,
+such as its program's version) and what it can do beyond speaking a line:
+`word_timings`, `speed_control` and `address` (where its server is, if it
+has one). Every request after that carries `settings`, its
+`[backends.<name>]` table or null, so a plugin keeps no state. It answers:
 
 | method | params | result |
 |---|---|---|
-| `configure` | `settings`, its `[backends.<name>]` table, or null | `version`: what the audio depends on beyond the request, such as a model. Part of the voice cache's key, so never a path or a host |
-| `synthesize` | `text`, `locale`, `voice`, `speed`, `instruct`, `out` | the line written to `out` as a WAV file; `word_timings` if it has them |
-| `voices`, optional | | `voices`: the names its `voice.voice` may give |
-| `probe`, optional | | `line`: one line on its server, for `setup` |
+| `synthesize` | `text`, `locale`, `voice`, `speed`, `instruct`, `settings` | `audio`: the line as a WAV file, base64; `word_timings` if it has them |
+| `voices`, optional | `settings` | `voices`: the names its `voice.voice` may give |
+| `probe`, optional | `settings` | `line`: one line on its server, for `setup` |
+
+The voice cache's key is the plugin's name, its `version` and a hash of
+its settings, so a cache made with other settings is never reused. A WAV
+streamed as it is made, whose header cannot know its length, is fine.
 
 A method a plugin does not have answers the error ``unknown method `name` ``,
 so teleprompt knows it is missing rather than failing: a voice without

@@ -16,6 +16,7 @@ plugins` lists it. The protocol is in docs/guide/voices.md#as-a-program.
 Python's standard library alone.
 """
 
+import base64
 import json
 import shutil
 import subprocess
@@ -41,17 +42,17 @@ ESPEAK_NG: Json = {
 }
 
 
-def espeak(*args: str) -> str:
+def espeak(*args: str) -> bytes:
     """Runs eSpeak NG and returns what it printed."""
     program = shutil.which("espeak-ng") or shutil.which("espeak")
     if program is None:
         raise RuntimeError("espeak-ng is not on PATH: `teleprompt setup espeak` says how to install it")
-    return subprocess.run([program, *args], check=True, capture_output=True, text=True).stdout
+    return subprocess.run([program, *args], check=True, capture_output=True).stdout
 
 
 @dataclass
 class Settings:
-    """`[backends.espeak]`."""
+    """`[backends.espeak]`, which comes with every request."""
 
     wpm: int = 160
 
@@ -66,33 +67,33 @@ class Settings:
         return cls(wpm=wpm)
 
 
-class Espeak:
-    """The voice. teleprompt describes it, configures it, then asks for lines."""
+def describe(params: Json) -> Json:
+    # What the audio depends on beyond the request and the settings: the
+    # program's version, but not where its data is, as a cache key naming a
+    # machine is a cache that never leaves it.
+    version = espeak("--version").decode().split("Data at")[0].strip()
+    return {
+        "protocol": 1,
+        "kind": "voice",
+        "name": "espeak",
+        "needs": [ESPEAK_NG],
+        "version": version,
+        "speed_control": True,
+    }
 
-    def __init__(self) -> None:
-        self.settings = Settings()
 
-    def describe(self, params: Json) -> Json:
-        return {"protocol": 1, "kind": "voice", "name": "espeak", "needs": [ESPEAK_NG], "speed_control": True}
+def synthesize(params: Json) -> Json:
+    settings = Settings.parse(params.get("settings"))
+    voice = params.get("voice") or params["locale"].lower()
+    rate = round(settings.wpm * params.get("speed", 1.0))
+    wav = espeak("-v", voice, "-s", str(rate), "--stdout", params["text"])
+    return {"audio": base64.b64encode(wav).decode()}
 
-    def configure(self, params: Json) -> Json:
-        self.settings = Settings.parse(params.get("settings"))
-        # What the audio depends on beyond the request, which keys the cache:
-        # the program's version and the rate, but not where its data is, as
-        # a key naming a machine is a cache that never leaves it.
-        version = espeak("--version").split("Data at")[0].strip()
-        return {"version": f"{version}; wpm {self.settings.wpm}"}
 
-    def synthesize(self, params: Json) -> Json:
-        voice = params.get("voice") or params["locale"].lower()
-        rate = round(self.settings.wpm * params.get("speed", 1.0))
-        espeak("-v", voice, "-s", str(rate), "-w", params["out"], params["text"])
-        return {}
-
-    def voices(self, params: Json) -> Json:
-        # Pty Language Age/Gender VoiceName File Other: the language column.
-        rows = espeak("--voices").splitlines()[1:]
-        return {"voices": sorted({row.split()[1] for row in rows if row.split()})}
+def voices(params: Json) -> Json:
+    # Pty Language Age/Gender VoiceName File Other: the language column.
+    rows = espeak("--voices").decode().splitlines()[1:]
+    return {"voices": sorted({row.split()[1] for row in rows if row.split()})}
 
 
 def serve(methods: dict[str, Callable[[Json], Json]]) -> None:
@@ -112,12 +113,4 @@ def serve(methods: dict[str, Callable[[Json], Json]]) -> None:
 
 
 if __name__ == "__main__":
-    voice = Espeak()
-    serve(
-        {
-            "describe": voice.describe,
-            "configure": voice.configure,
-            "synthesize": voice.synthesize,
-            "voices": voice.voices,
-        }
-    )
+    serve({"describe": describe, "synthesize": synthesize, "voices": voices})

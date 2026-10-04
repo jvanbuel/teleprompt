@@ -155,7 +155,7 @@ fn a_program_that_is_not_a_plugin_says_so() {
 }
 
 #[test]
-fn an_outside_voice_is_configured_and_speaks() {
+fn an_outside_voice_speaks_with_its_settings() {
     if !runs("python3") || !runs("espeak-ng") {
         eprintln!("skipped: no python3 or espeak-ng");
         return;
@@ -168,7 +168,18 @@ fn an_outside_voice_is_configured_and_speaks() {
         },
         Some(serde_json::json!({ "wpm": 200 })),
     );
-    assert!(voice.capabilities().version.contains("wpm 200"));
+    // Its settings are in the cache's key, hashed.
+    let version = voice.capabilities().version;
+    assert!(version.starts_with("espeak:eSpeak NG"), "{version}");
+    let other = host::voice(
+        Found {
+            name: "espeak".into(),
+            kind: Kind::Voice,
+            path: examples().join("teleprompt-voice-espeak"),
+        },
+        Some(serde_json::json!({ "wpm": 160 })),
+    );
+    assert_ne!(version, other.capabilities().version);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();

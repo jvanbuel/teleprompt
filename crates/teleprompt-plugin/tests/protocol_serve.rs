@@ -4,6 +4,7 @@
 use std::io::Cursor;
 use std::sync::Arc;
 
+use base64::Engine;
 use serde_json::{json, Value};
 use teleprompt_plugin::capture::mock::MockCapture;
 use teleprompt_plugin::protocol::serve;
@@ -136,37 +137,36 @@ fn hush() -> VoicePlugin {
 }
 
 #[test]
-fn a_voice_is_configured_then_writes_each_line_as_a_wav() {
-    let dir = teleprompt_testkit::test_dir("protocol-voice");
-    let out = dir.join("line.wav");
+fn a_voice_answers_each_line_with_its_audio() {
     let answers = exchange(
         &[
             request(1, "describe", json!({ "protocol": 1 })),
-            request(2, "configure", json!({ "settings": null })),
             request(
-                3,
+                2,
                 "synthesize",
-                json!({ "text": "Hello.", "locale": "en", "speed": 1.0, "out": out }),
+                json!({ "text": "Hello.", "locale": "en", "speed": 1.0, "settings": null }),
             ),
         ],
         |i, o| serve::voice_on(&hush(), i, o).unwrap(),
     );
     assert_eq!(answers[0]["result"]["kind"], "voice");
-    assert_eq!(answers[1]["result"]["version"], "hush 1");
-    assert!(answers[2].get("result").is_some(), "{:?}", answers[2]);
-    let pcm = wav::decode(&std::fs::read(&out).unwrap()).unwrap();
-    assert_eq!(pcm.duration_ms(), 1000);
+    assert_eq!(answers[0]["result"]["version"], "hush 1");
+    let audio = answers[1]["result"]["audio"].as_str().expect("audio");
+    let wav_bytes = base64::engine::general_purpose::STANDARD
+        .decode(audio)
+        .unwrap();
+    assert_eq!(wav::decode(&wav_bytes).unwrap().duration_ms(), 1000);
 }
 
 #[test]
 fn settings_a_voice_refuses_say_why() {
     let answers = exchange(
-        &[
-            request(1, "configure", json!({ "settings": { "loud": true } })),
-            request(2, "voices", json!(null)),
-        ],
+        &[request(
+            1,
+            "synthesize",
+            json!({ "text": "Hi.", "locale": "en", "speed": 1.0, "settings": { "loud": true } }),
+        )],
         |i, o| serve::voice_on(&hush(), i, o).unwrap(),
     );
     assert_eq!(answers[0]["error"], "hush takes no settings");
-    assert!(answers[1]["error"].as_str().unwrap().contains("configure"));
 }

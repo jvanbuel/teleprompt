@@ -116,6 +116,10 @@ pub struct VoiceTraits {
     /// Where its server is, for errors and `setup`.
     #[serde(default)]
     pub address: Option<String>,
+    /// What its audio depends on beyond the request and its settings, such
+    /// as its program's version. With the settings, the voice cache's key.
+    #[serde(default)]
+    pub version: String,
 }
 
 /// The error a plugin answers for a method it does not have.
@@ -273,22 +277,15 @@ pub struct WireClip {
     pub path: PathBuf,
 }
 
-/// `configure`: a voice's own `[backends.<name>]` settings, before
-/// anything else is asked of it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Configure {
+/// `voices` and `probe`: the voice's own `[backends.<name>]` settings,
+/// which every voice request carries.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Settings {
     #[serde(default)]
     pub settings: Option<serde_json::Value>,
 }
 
-/// `configure`'s answer: what the audio depends on beyond the request (a
-/// model, say), which is part of the voice cache's key.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Configured {
-    pub version: String,
-}
-
-/// `synthesize`: a line, and the WAV file to write it to.
+/// `synthesize`: a line, and the settings to speak it with.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Synthesize {
     pub text: String,
@@ -298,12 +295,14 @@ pub struct Synthesize {
     pub speed: f64,
     #[serde(default)]
     pub instruct: Option<String>,
-    pub out: PathBuf,
+    #[serde(default)]
+    pub settings: Option<serde_json::Value>,
 }
 
-/// `synthesize`'s answer, once the WAV is written.
+/// `synthesize`'s answer: the line as a WAV file, base64-encoded.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Spoken {
+    pub audio: String,
     #[serde(default)]
     pub word_timings: Option<Vec<WordTiming>>,
 }

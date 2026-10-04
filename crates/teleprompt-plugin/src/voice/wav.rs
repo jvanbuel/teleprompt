@@ -81,7 +81,13 @@ pub struct Reader<R> {
     channels: u16,
     /// Bytes of the `data` chunk not yet read.
     left: u64,
+    /// Whether the `data` chunk's length is a placeholder, as a WAVE
+    /// streamed while it was made says: the samples are what follows.
+    streamed: bool,
 }
+
+/// A `data` length at least this large is a streamed WAVE's placeholder.
+const STREAMED: u32 = 0x7FFF_0000;
 
 impl<R: Read> Reader<R> {
     /// Reads the header up to the start of the samples.
@@ -123,6 +129,7 @@ impl<R: Read> Reader<R> {
                         sample_rate,
                         channels,
                         left: u64::from(len),
+                        streamed: len >= STREAMED,
                     });
                 }
                 _ => {
@@ -154,8 +161,20 @@ impl<R: Read> Reader<R> {
             return Ok(None);
         }
         let mut bytes = vec![0u8; want as usize];
-        if fill(&mut self.inner, &mut bytes)? < bytes.len() {
-            return Err(PAST_END.to_string());
+        let got = fill(&mut self.inner, &mut bytes)?;
+        if got < bytes.len() {
+            if !self.streamed {
+                return Err(PAST_END.to_string());
+            }
+            // The end of a streamed WAVE: its last whole frames.
+            bytes.truncate(got - got % frame as usize);
+            self.left = 0;
+            return Ok((!bytes.is_empty()).then(|| {
+                bytes
+                    .chunks_exact(2)
+                    .map(|s| i16::from_le_bytes([s[0], s[1]]))
+                    .collect()
+            }));
         }
         self.left -= want;
         Ok(Some(

@@ -6,17 +6,17 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use base64::Engine;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
 use super::{
-    is_unknown_method, Body, Capture, Captured, Configure, Configured, Description, Kind, Probed,
-    Retime, Retimed, SceneTraits, Shots, Spoken, Synthesize, Traits, Unavailable, Validation,
-    VoiceTraits, Voices, WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
+    is_unknown_method, Body, Capture, Captured, Description, Kind, Probed, Retime, Retimed,
+    SceneTraits, Settings, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits,
+    Voices, WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
 };
 use crate::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 use crate::scene::{BlockSource, Measured, SceneCompiler, Shot, Validated};
@@ -514,24 +514,19 @@ impl CaptureBackend for ExternalCapture {
     }
 }
 
-/// An outside voice, as teleprompt registers its built-in ones. It starts,
-/// and is given `settings`, only when first asked for something.
+/// An outside voice, as teleprompt registers its built-in ones. It starts
+/// only when first asked for something, and is given `settings` with every
+/// request.
 pub fn voice(found: Found, settings: Option<serde_json::Value>) -> ExternalVoice {
     ExternalVoice {
         plugin: Arc::new(Plugin::new(found)),
         settings,
-        configured: OnceLock::new(),
-        lines: AtomicU64::new(0),
     }
 }
 
 pub struct ExternalVoice {
     plugin: Arc<Plugin>,
     settings: Option<serde_json::Value>,
-    /// Its version, once configured.
-    configured: OnceLock<Result<String, String>>,
-    /// How many lines it has been asked for, to name each one's file.
-    lines: AtomicU64,
 }
 
 impl ExternalVoice {
@@ -539,31 +534,20 @@ impl ExternalVoice {
         &self.plugin
     }
 
-    fn traits(&self) -> VoiceTraits {
-        self.plugin
-            .describe()
-            .ok()
-            .and_then(|d| match &d.traits {
-                Traits::Voice(t) => Some(t.clone()),
-                Traits::Scene(_) => None,
-            })
-            .unwrap_or_default()
+    fn traits(&self) -> Result<VoiceTraits, VoiceError> {
+        match &self.plugin.describe().map_err(VoiceError::Other)?.traits {
+            Traits::Voice(t) => Ok(t.clone()),
+            Traits::Scene(_) => Err(VoiceError::Other(format!(
+                "`{}` is a scene plugin, not a voice",
+                self.plugin.name()
+            ))),
+        }
     }
 
-    /// Its version, giving it its settings first if not yet given.
-    fn configure(&self) -> Result<&str, VoiceError> {
-        self.configured
-            .get_or_init(|| {
-                self.plugin.describe()?;
-                let asked = Configure {
-                    settings: self.settings.clone(),
-                };
-                self.plugin
-                    .call::<Configured>("configure", asked, &mut |_| {})
-                    .map(|c| c.version)
-            })
-            .as_deref()
-            .map_err(|e| VoiceError::Other(e.clone()))
+    fn settings(&self) -> Settings {
+        Settings {
+            settings: self.settings.clone(),
+        }
     }
 }
 
@@ -575,6 +559,18 @@ impl VoiceBackend for ExternalVoice {
 
     fn capabilities(&self) -> VoiceCapabilities {
         let traits = self.traits();
+        // The settings are hashed, so a key never spells out a host or a path.
+        let settings = serde_json::to_string(&self.settings).unwrap_or_default();
+        let version = match &traits {
+            Ok(t) => format!(
+                "{}:{}:{}",
+                self.plugin.name(),
+                t.version,
+                Hash::of(settings.as_bytes())
+            ),
+            Err(e) => format!("unusable: {e}"),
+        };
+        let traits = traits.unwrap_or_default();
         VoiceCapabilities {
             languages: LanguageSupport::Any,
             cloning: false,
@@ -582,66 +578,59 @@ impl VoiceBackend for ExternalVoice {
             word_timings: traits.word_timings,
             ssml: false,
             speed_control: traits.speed_control,
-            // A voice that cannot be configured keys nothing it could make.
-            version: match self.configure() {
-                Ok(v) => format!("{}:{v}", self.plugin.name()),
-                Err(e) => format!("unusable: {e}"),
-            },
+            version,
         }
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
-        self.configure()?;
-        let n = self.lines.fetch_add(1, Ordering::SeqCst);
-        let out = std::env::temp_dir().join(format!(
-            "teleprompt-{}-{}-{n}.wav",
-            self.plugin.name(),
-            std::process::id()
-        ));
+        let traits = self.traits()?;
         let asked = Synthesize {
             text: req.text.clone(),
             locale: req.locale.clone(),
             voice: req.voice.clone(),
             speed: req.speed,
             instruct: req.instruct.clone(),
-            out: out.clone(),
+            settings: self.settings.clone(),
         };
-        let spoken = self.plugin.call::<Spoken>("synthesize", asked, &mut |_| {});
-        let bytes = std::fs::read(&out);
-        let _ = std::fs::remove_file(&out);
-        let spoken = spoken.map_err(VoiceError::Other)?;
-        let bytes = bytes.map_err(|e| {
-            VoiceError::Other(format!(
-                "plugin `{}` wrote no audio to {}: {e}",
-                self.plugin.name(),
-                out.display()
-            ))
-        })?;
+        let spoken = self
+            .plugin
+            .call::<Spoken>("synthesize", asked, &mut |_| {})
+            .map_err(VoiceError::Other)?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(spoken.audio.trim())
+            .map_err(|e| {
+                VoiceError::Other(format!(
+                    "plugin `{}` answered audio that is not base64: {e}",
+                    self.plugin.name()
+                ))
+            })?;
         let pcm = wav::decode(&bytes).map_err(VoiceError::Other)?;
         Ok(Synthesized {
             pcm,
-            word_timings: spoken.word_timings.filter(|_| self.traits().word_timings),
+            word_timings: spoken.word_timings.filter(|_| traits.word_timings),
         })
     }
 
     fn address(&self) -> Option<String> {
-        self.traits().address
+        self.traits().ok()?.address
     }
 
     /// `None` for a voice that has no `voices`.
     async fn voices(&self) -> Option<Result<Vec<String>, VoiceError>> {
-        if let Err(e) = self.configure() {
-            return Some(Err(e));
-        }
-        match self.plugin.call::<Voices>("voices", (), &mut |_| {}) {
+        match self
+            .plugin
+            .call::<Voices>("voices", self.settings(), &mut |_| {})
+        {
             Err(e) if is_unknown_method(&e) => None,
             listed => Some(listed.map(|v| v.voices).map_err(VoiceError::Other)),
         }
     }
 
     async fn probe(&self) -> Result<String, VoiceError> {
-        self.configure()?;
-        match self.plugin.call::<Probed>("probe", (), &mut |_| {}) {
+        match self
+            .plugin
+            .call::<Probed>("probe", self.settings(), &mut |_| {})
+        {
             Err(e) if is_unknown_method(&e) => Err(self.unsupported("a probe")),
             probed => probed.map(|p| p.line).map_err(VoiceError::Other),
         }
