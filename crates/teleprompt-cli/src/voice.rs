@@ -15,6 +15,7 @@ fn plugins() -> Vec<VoicePlugin> {
         teleprompt_voice_openai::openai(),
         teleprompt_voice_voicebox::plugin(),
         teleprompt_voice_gemini::plugin(),
+        teleprompt_voice_elevenlabs::plugin(),
     ]
 }
 

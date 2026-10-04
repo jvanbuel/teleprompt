@@ -12,10 +12,11 @@ OpenAI's speech API, so one backend speaks to all of them:
 - [any other server](#any-openai-compatible-server) that speaks the API,
   under a name you give it in `teleprompt.toml`. No plugin needed.
 
-Two servers speak APIs of their own: `voicebox`, a
+Three speak APIs of their own: `voicebox`, a
 [Voicebox](https://voicebox.sh) app, which can speak in [your own
-voice](#your-own-voice-voicebox), and `gemini`, [Google's Gemini
-TTS](#gemini-tts), with your own API key. And a voice that is not a server
+voice](#your-own-voice-voicebox); `gemini`, [Google's Gemini
+TTS](#gemini-tts); and [`elevenlabs`](#elevenlabs). The last two run at
+their makers, with your own API key. And a voice that is not a server
 at all, such as a program on your machine, is a
 [plugin](#writing-a-voice): `examples/plugins` has one spoken by eSpeak
 NG. teleprompt bundles no model and runs no Python.
@@ -199,6 +200,42 @@ LuxTTS and Kokoro are Apache-2.0, Chatterbox MIT (and watermarks its
 audio), and TADA's weights come under the Llama 3.2 Community License,
 which has conditions. A voice cloned again under the same name keeps
 speaking the old audio from the cache; give the new one a new name.
+
+## ElevenLabs
+
+`elevenlabs` speaks with [ElevenLabs](https://elevenlabs.io)' models,
+which run at ElevenLabs: the narration is sent there, and your key pays
+for it. Make a key at
+[elevenlabs.io/app/settings/api-keys](https://elevenlabs.io/app/settings/api-keys)
+and put it in `ELEVENLABS_API_KEY`. It's read only when a line is spoken,
+so `check` and `plan` need none.
+
+```toml
+[voice]
+backend = "elevenlabs"
+voice = "George"       # a voice in your account, by its name or its id
+
+[backends.elevenlabs]
+model = "eleven_multilingual_v2"
+```
+
+| setting | default | meaning |
+|---|---|---|
+| `model` | `eleven_multilingual_v2` | the model: `eleven_v3`, `eleven_flash_v2_5`, … |
+| `api_key_env` | `ELEVENLABS_API_KEY` | the environment variable holding the key |
+| `timeout_ms` | `60000` | limit for each line |
+| `concurrency` | `2` | lines `dub` sends at once; a plan allows only so many |
+| `seed` | none | sent with every line when set |
+| `stability`, `similarity_boost`, `style` | the voice's own | the voice's settings, each from 0 to 1 |
+
+`voice.voice` defaults to George, a premade voice every account has, and
+names any voice your account lists, premade or your own, by name or id;
+`dub` checks a script's against the list first. Every line comes back
+with when each word is said, so `cue=` starts exactly on its phrase.
+`voice.speed` goes from 0.7 to 1.2. ElevenLabs takes no delivery
+instructions beside the words, so `voice.instruct` must stay unset for
+it rather than be quietly dropped. The model, seed and voice settings are
+in the cache key.
 
 ## Gemini TTS
 

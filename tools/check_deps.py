@@ -36,6 +36,7 @@ ALLOWED = {
     "voice-openai": PLUGIN,
     "voice-voicebox": PLUGIN,
     "voice-gemini": PLUGIN,
+    "voice-elevenlabs": PLUGIN,
     "compile": {"core", "plugin", "schedule", "voice", "cache", "manifest"},
     "render": {"core", "manifest"},
     "vhs": PLUGIN,

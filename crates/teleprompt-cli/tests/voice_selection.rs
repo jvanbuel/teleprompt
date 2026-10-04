@@ -13,7 +13,14 @@ fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
 fn kokoro_is_registered_by_default() {
     assert_eq!(
         Backends::defaults().ids(),
-        vec!["gemini", "kokoro", "null", "openai", "voicebox"]
+        vec![
+            "elevenlabs",
+            "gemini",
+            "kokoro",
+            "null",
+            "openai",
+            "voicebox"
+        ]
     );
 }
 
@@ -67,7 +74,14 @@ fn a_bad_setting_for_one_backend_leaves_the_others_usable() {
     );
     assert_eq!(
         b.ids(),
-        vec!["gemini", "kokoro", "null", "openai", "voicebox"],
+        vec![
+            "elevenlabs",
+            "gemini",
+            "kokoro",
+            "null",
+            "openai",
+            "voicebox"
+        ],
         "a misconfigured backend is still one this build ships"
     );
 }

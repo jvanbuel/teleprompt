@@ -171,6 +171,7 @@ reading the manifest it just published.
 | `teleprompt-voice` | the voice engine: the `DurationEstimator`, the registry, stretching a line to fit, the author's takes, and the `null` backend: silence at the estimated length |
 | `teleprompt-voice-openai` | HTTP against any server that speaks OpenAI's speech API: `kokoro` (Kokoro-FastAPI) and `openai` are its presets, and `[backends.<name>] api = "openai"` names any other |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
+| `teleprompt-voice-elevenlabs` | HTTP against ElevenLabs: premade or the account's own voices, found by name, with each word's timing |
 | `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |
 | `teleprompt-cache` | the content-addressed voice cache |
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest; and what `dub` publishes from each line's audio, which the prompter plays too |

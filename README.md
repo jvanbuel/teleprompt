@@ -39,8 +39,9 @@ ffmpeg:
 Narration comes from any speech server that speaks OpenAI's API, such as
 a local [Kokoro](https://github.com/remsky/Kokoro-FastAPI) server or
 OpenAI's own; a [Voicebox](https://voicebox.sh) voice made from your own
-takes; Google's [Gemini TTS](docs/guide/voices.md#gemini-tts) with your
-API key; or the built-in `null` voice, which is silent but correctly timed
+takes; Google's [Gemini TTS](docs/guide/voices.md#gemini-tts) or
+[ElevenLabs](docs/guide/voices.md#elevenlabs) with your API key; or the
+built-in `null` voice, which is silent but correctly timed
 and needs nothing installed.
 
 ## Try it

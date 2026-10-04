@@ -2023,6 +2023,7 @@ dependencies = [
  "teleprompt-translate",
  "teleprompt-vhs",
  "teleprompt-voice",
+ "teleprompt-voice-elevenlabs",
  "teleprompt-voice-gemini",
  "teleprompt-voice-openai",
  "teleprompt-voice-voicebox",
@@ -2241,6 +2242,19 @@ dependencies = [
  "teleprompt-plugin",
  "teleprompt-testkit",
  "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
+name = "teleprompt-voice-elevenlabs"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "teleprompt-plugin",
  "tokio",
 ]
 
