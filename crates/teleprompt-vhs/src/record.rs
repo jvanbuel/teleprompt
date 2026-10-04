@@ -79,11 +79,12 @@ impl Recording for Session {
         self.started
     }
 
-    /// `vhs record` writes its tape when it is told to stop, as on
-    /// SIGTERM, or when the shell exits.
+    /// `vhs record` handles no signal: it writes its tape only when its
+    /// shell exits, and a signal to it loses the tape. So a stop hangs up
+    /// its shell, which an interactive shell, deaf to SIGTERM, obeys.
     fn wait(mut self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, String> {
         let pid = self.child.id();
-        wait_for(&mut self.child, stop, "TERM", || Some(pid.to_string()))?;
+        wait_for(&mut self.child, stop, "HUP", || shell_of(pid))?;
         let text =
             std::fs::read_to_string(&self.file).map_err(|e| format!("vhs wrote no tape: {e}"))?;
         if text.trim().is_empty() {
@@ -91,6 +92,18 @@ impl Recording for Session {
         }
         Ok(read(&text))
     }
+}
+
+/// The shell `vhs record` (process `pid`) started.
+fn shell_of(pid: u32) -> Option<String> {
+    let listed = Command::new("pgrep")
+        .args(["-P", &pid.to_string()])
+        .output()
+        .ok()?;
+    String::from_utf8_lossy(&listed.stdout)
+        .split_whitespace()
+        .next()
+        .map(str::to_string)
 }
 
 /// A tape as steps: one per command, from its first key through `Enter`
