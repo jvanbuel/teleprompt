@@ -262,8 +262,7 @@ pub async fn run_dub_with(
 ///
 /// Here, not in `check`: `check` stays offline, and a gate that depends on a
 /// running server would pass a script on one machine and fail it on
-/// another. It goes through `Backends::kokoro` rather than the trait,
-/// because listing voices is not something every backend can do
+/// another. Only a backend that lists its voices is checked
 /// (docs/design.md#voice-contract). A fully cached project needs no server,
 /// so it is not asked.
 async fn check_voices(
@@ -281,8 +280,9 @@ async fn check_voices(
                 Ok(teleprompt_cache::CacheRead::Hit(_))
             )
     });
-    let Some(kokoro) = backends
-        .kokoro(backend_id)
+    let Some(backend) = backends
+        .registry()
+        .get(backend_id)
         .filter(|_| anything_to_synthesize)
     else {
         return Ok(());
@@ -299,18 +299,18 @@ async fn check_voices(
     // A server that fails to answer is a runtime failure (exit 1,
     // docs/design.md#backend-failure; the error names the URL). Only one
     // that answers without the voice is a script problem (exit 2).
-    let available = kokoro
-        .voices()
-        .await
-        .map_err(|e| DubError::Runtime(e.to_string()))?;
+    let Some(available) = backend.voices().await else {
+        return Ok(());
+    };
+    let available = available.map_err(|e| DubError::Runtime(e.to_string()))?;
+    let address = backend.address().unwrap_or_default();
     let problems: Vec<String> = wanted
         .iter()
         .filter(|v| !available.contains(v))
         .map(|v| {
             format!(
-                "voice `{v}` is not available on the kokoro server at {} \
+                "voice `{v}` is not available on the {backend_id} server at {address} \
                  (available: {})",
-                kokoro.base_url(),
                 available.join(", ")
             )
         })

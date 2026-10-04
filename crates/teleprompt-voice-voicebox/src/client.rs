@@ -3,18 +3,9 @@ use std::sync::Mutex;
 use teleprompt_plugin::voice::with_causes;
 
 use serde::Deserialize;
-use teleprompt_plugin::voice::{Pcm, VoiceError};
+use teleprompt_plugin::voice::{Pcm, VoiceError, VoiceSample as Sample};
 
 use crate::config::VoiceboxConfig;
-
-/// A recording to clone a voice from, and what it says.
-#[derive(Debug, Clone)]
-pub struct Sample {
-    /// The file name the server is given.
-    pub file: String,
-    pub wav: Vec<u8>,
-    pub text: String,
-}
 
 /// A voice on the server.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

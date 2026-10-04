@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use teleprompt_plugin::voice::{
-    async_trait, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
-    VoiceError,
+    async_trait, ClonedVoice, LanguageSupport, SynthRequest, Synthesized, VoiceBackend,
+    VoiceCapabilities, VoiceError, VoicePlugin, VoiceSample,
 };
 
-use crate::client::{Client, Profile, Sample};
+use crate::client::{Client, Profile};
 use crate::config::VoiceboxConfig;
 
 pub struct VoiceboxVoice {
@@ -25,23 +27,19 @@ impl VoiceboxVoice {
     pub async fn profiles(&self) -> Result<Vec<Profile>, VoiceError> {
         self.client.profiles().await
     }
+}
 
-    /// A voice named `name`, cloned from `samples` (docs/design.md#voice).
-    pub async fn clone_voice(
-        &self,
-        name: &str,
-        language: &str,
-        samples: &[Sample],
-    ) -> Result<Profile, VoiceError> {
-        self.client.clone_voice(name, language, samples).await
-    }
-
-    pub fn base_url(&self) -> &str {
-        &self.client.config().base_url
-    }
-
-    pub fn concurrency(&self) -> usize {
-        self.client.config().concurrency
+/// Voicebox as teleprompt registers it: built from `[backends.voicebox]`.
+pub fn plugin() -> VoicePlugin {
+    VoicePlugin {
+        id: "voicebox",
+        build: |settings| {
+            let cfg = match settings {
+                Some(v) => VoiceboxConfig::from_value(v)?,
+                None => VoiceboxConfig::default(),
+            };
+            Ok(Arc::new(VoiceboxVoice::new(cfg)?))
+        },
     }
 }
 
@@ -87,6 +85,43 @@ impl VoiceBackend for VoiceboxVoice {
         Ok(Synthesized {
             pcm,
             word_timings: None,
+        })
+    }
+
+    fn concurrency(&self) -> usize {
+        self.client.config().concurrency
+    }
+
+    fn address(&self) -> Option<String> {
+        Some(self.client.config().base_url.clone())
+    }
+
+    async fn probe(&self) -> Result<String, VoiceError> {
+        let profiles = self.client.profiles().await?;
+        let voices = if profiles.is_empty() {
+            "none yet (`teleprompt voice clone`)".to_string()
+        } else {
+            let names: Vec<&str> = profiles.iter().map(|p| p.name.as_str()).collect();
+            names.join(", ")
+        };
+        Ok(format!(
+            "{} — reachable, {}, voices: {voices}",
+            self.client.config().base_url,
+            self.version
+        ))
+    }
+
+    /// A voice named `name`, cloned from `samples` (docs/design.md#voice).
+    async fn clone_voice(
+        &self,
+        name: &str,
+        language: &str,
+        samples: &[VoiceSample],
+    ) -> Result<ClonedVoice, VoiceError> {
+        let profile = self.client.clone_voice(name, language, samples).await?;
+        Ok(ClonedVoice {
+            name: profile.name,
+            id: profile.id,
         })
     }
 }

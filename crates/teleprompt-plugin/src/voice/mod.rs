@@ -11,7 +11,22 @@ mod resample;
 pub mod wav;
 
 pub use contract::{
-    LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
-    WordTiming,
+    ClonedVoice, LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
+    VoiceError, VoiceSample, WordTiming,
 };
 pub use resample::{resample, Resampler};
+
+use std::sync::Arc;
+
+/// A voice backend as teleprompt registers it: its id, which
+/// `voice.backend` names, and how it is built from its own
+/// `[backends.<id>]` settings (`None` when the project has none). A build
+/// that fails is kept, and reported only where that backend is chosen.
+pub struct VoicePlugin {
+    pub id: &'static str,
+    pub build: Build,
+}
+
+/// How a voice plugin is built from its settings: the backend, or why its
+/// settings do not make one.
+pub type Build = fn(Option<&serde_yaml::Value>) -> Result<Arc<dyn VoiceBackend>, String>;

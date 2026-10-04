@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use teleprompt_plugin::voice::{
     async_trait, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
-    VoiceError,
+    VoiceError, VoicePlugin,
 };
 
 use crate::client::Client;
@@ -26,13 +28,19 @@ impl KokoroVoice {
     pub async fn voices(&self) -> Result<Vec<String>, VoiceError> {
         self.client.voices().await
     }
+}
 
-    pub fn base_url(&self) -> &str {
-        &self.client.config().base_url
-    }
-
-    pub fn concurrency(&self) -> usize {
-        self.client.config().concurrency
+/// Kokoro as teleprompt registers it: built from `[backends.kokoro]`.
+pub fn plugin() -> VoicePlugin {
+    VoicePlugin {
+        id: "kokoro",
+        build: |settings| {
+            let cfg = match settings {
+                Some(v) => KokoroConfig::from_value(v)?,
+                None => KokoroConfig::default(),
+            };
+            Ok(Arc::new(KokoroVoice::new(cfg)?))
+        },
     }
 }
 
@@ -78,5 +86,28 @@ impl VoiceBackend for KokoroVoice {
             pcm,
             word_timings: None,
         })
+    }
+
+    fn concurrency(&self) -> usize {
+        self.client.config().concurrency
+    }
+
+    fn address(&self) -> Option<String> {
+        Some(self.client.config().base_url.clone())
+    }
+
+    async fn voices(&self) -> Option<Result<Vec<String>, VoiceError>> {
+        Some(self.client.voices().await)
+    }
+
+    /// The model beside the address: docs/design.md#voice-cache.
+    async fn probe(&self) -> Result<String, VoiceError> {
+        let voices = self.client.voices().await?;
+        Ok(format!(
+            "{} — reachable, model {}, {} voices",
+            self.client.config().base_url,
+            self.version,
+            voices.len()
+        ))
     }
 }

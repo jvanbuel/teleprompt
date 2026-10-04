@@ -2142,6 +2142,7 @@ dependencies = [
  "async-trait",
  "serde",
  "serde_json",
+ "serde_yaml",
  "teleprompt-core",
  "teleprompt-testkit",
  "tempfile",

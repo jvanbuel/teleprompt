@@ -118,11 +118,27 @@ pub enum VoiceError {
     Other(String),
 }
 
+/// A recording of the author to clone a voice from, and what it says.
+#[derive(Debug, Clone)]
+pub struct VoiceSample {
+    /// The file name the server is given.
+    pub file: String,
+    pub wav: Vec<u8>,
+    pub text: String,
+}
+
+/// A voice a backend made: its name, as `voice.voice` gives it, and its
+/// server's own id for it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClonedVoice {
+    pub name: String,
+    pub id: String,
+}
+
 /// See `docs/design.md#voice-contract`. There is deliberately no downcast:
-/// a caller needing a backend's own methods (listing a server's voices)
-/// keeps the concrete type from construction, as `teleprompt-cli`'s
-/// `Backends::kokoro` does. A second backend needing the same thing means
-/// this trait should grow a real method.
+/// what teleprompt asks of a backend beyond speaking a line is a method
+/// here, with a default for a backend that has nothing to say, so the CLI
+/// holds every backend the same way.
 #[async_trait::async_trait]
 pub trait VoiceBackend: Send + Sync {
     fn id(&self) -> &str;
@@ -130,4 +146,47 @@ pub trait VoiceBackend: Send + Sync {
 
     /// Caching and duration prediction are not the backend's concern.
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError>;
+
+    /// How many lines `dub` sends it at once.
+    fn concurrency(&self) -> usize {
+        1
+    }
+
+    /// Where its server is, as `setup` and errors name it; `None` for a
+    /// backend with no server.
+    fn address(&self) -> Option<String> {
+        None
+    }
+
+    /// The voices its server offers, which `dub` checks a script's against
+    /// before synthesizing anything; `None` when it cannot list them.
+    /// Never called by `check`, which does not touch the network.
+    async fn voices(&self) -> Option<Result<Vec<String>, VoiceError>> {
+        None
+    }
+
+    /// One line on its server for `setup`: that it answers, and what with
+    /// (a model, its voices, whether a key is accepted).
+    async fn probe(&self) -> Result<String, VoiceError> {
+        Err(self.unsupported("a probe"))
+    }
+
+    /// A voice named `name`, cloned from `samples` of the author's takes,
+    /// where `capabilities().cloning`.
+    async fn clone_voice(
+        &self,
+        _name: &str,
+        _language: &str,
+        _samples: &[VoiceSample],
+    ) -> Result<ClonedVoice, VoiceError> {
+        Err(self.unsupported("cloning a voice"))
+    }
+
+    /// The error a default method answers with.
+    fn unsupported(&self, what: &str) -> VoiceError {
+        VoiceError::Unsupported {
+            backend: self.id().to_string(),
+            what: what.to_string(),
+        }
+    }
 }

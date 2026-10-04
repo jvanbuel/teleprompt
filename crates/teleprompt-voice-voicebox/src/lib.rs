@@ -2,12 +2,12 @@
 //! (https://github.com/jamiepine/voicebox), speaking in a voice cloned from
 //! their own takes or one designed from a description. teleprompt ships
 //! none of it and runs no Python (docs/design.md#what-teleprompt-ships).
-//! Like the other backends, written against `teleprompt-voice` alone.
+//! Like the other backends, written against `teleprompt-plugin` alone.
 
 mod backend;
 mod client;
 mod config;
 
-pub use backend::VoiceboxVoice;
-pub use client::{Profile, Sample};
+pub use backend::{plugin, VoiceboxVoice};
+pub use client::Profile;
 pub use config::VoiceboxConfig;

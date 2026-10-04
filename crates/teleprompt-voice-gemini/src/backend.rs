@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use teleprompt_plugin::voice::{
     async_trait, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
-    VoiceError,
+    VoiceError, VoicePlugin,
 };
 
 use crate::client::Client;
@@ -24,10 +26,6 @@ impl GeminiVoice {
         })
     }
 
-    pub fn concurrency(&self) -> usize {
-        self.client.config().concurrency
-    }
-
     /// For `setup`: the address, and whether the key opens the model.
     pub async fn check(&self) -> Result<String, VoiceError> {
         let name = self.client.model_name().await?;
@@ -36,6 +34,20 @@ impl GeminiVoice {
             self.client.config().base_url,
             self.version
         ))
+    }
+}
+
+/// Gemini as teleprompt registers it: built from `[backends.gemini]`.
+pub fn plugin() -> VoicePlugin {
+    VoicePlugin {
+        id: "gemini",
+        build: |settings| {
+            let cfg = match settings {
+                Some(v) => GeminiConfig::from_value(v)?,
+                None => GeminiConfig::default(),
+            };
+            Ok(Arc::new(GeminiVoice::new(cfg)?))
+        },
     }
 }
 
@@ -74,5 +86,17 @@ impl VoiceBackend for GeminiVoice {
             pcm,
             word_timings: None,
         })
+    }
+
+    fn concurrency(&self) -> usize {
+        self.client.config().concurrency
+    }
+
+    fn address(&self) -> Option<String> {
+        Some(self.client.config().base_url.clone())
+    }
+
+    async fn probe(&self) -> Result<String, VoiceError> {
+        self.check().await
     }
 }

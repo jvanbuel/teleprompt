@@ -206,7 +206,9 @@ one crate and one registry line, and no other crate learns its name.
 
 ### Voice contract
 
-A backend does one thing: it turns text into audio.
+A backend does one thing: it turns text into audio. Three methods are
+required; the rest have defaults, for what teleprompt asks of a backend
+that has a server or more to offer.
 
 ```rust
 #[async_trait]
@@ -214,8 +216,23 @@ pub trait VoiceBackend: Send + Sync {
     fn id(&self) -> &str;
     fn capabilities(&self) -> VoiceCapabilities;
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError>;
+
+    fn concurrency(&self) -> usize { 1 }            // lines dub sends at once
+    fn address(&self) -> Option<String> { None }     // its server, for errors and setup
+    async fn voices(&self) -> Option<Result<Vec<String>, VoiceError>> { None }
+    async fn probe(&self) -> Result<String, VoiceError>;           // setup's one line
+    async fn clone_voice(&self, name: &str, language: &str, samples: &[VoiceSample])
+        -> Result<ClonedVoice, VoiceError>;                        // voice clone
 }
 ```
+
+There is no downcast: the CLI holds every backend as `Arc<dyn
+VoiceBackend>`, built by its plugin's `VoicePlugin` from its own
+`[backends.<id>]` settings. `dub` checks a script's voices against
+`voices()` before synthesizing, where a backend lists them; `setup`
+prints `probe()`, within five seconds, for a backend with an `address()`;
+`voice clone` asks the first backend whose `capabilities().cloning` does
+not answer `Unsupported`.
 
 The trait does not return a duration separately. The audio's length is the
 duration, so a backend cannot report a length its samples do not have.
