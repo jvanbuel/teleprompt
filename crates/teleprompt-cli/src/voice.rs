@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use teleprompt_core::Diagnostic;
+use teleprompt_voice::NullVoice;
 use teleprompt_voice::{VoiceBackend, VoiceRegistry};
 use teleprompt_voice_gemini::{GeminiConfig, GeminiVoice};
 use teleprompt_voice_kokoro::{KokoroConfig, KokoroVoice};
-use teleprompt_voice_null::NullVoice;
 use teleprompt_voice_voicebox::{VoiceboxConfig, VoiceboxVoice};
 
 /// The backends this build ships, together with everything the project's

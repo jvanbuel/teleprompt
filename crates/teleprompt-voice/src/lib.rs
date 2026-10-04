@@ -5,6 +5,7 @@ pub use teleprompt_core::error::with_causes;
 
 pub mod contract;
 pub mod estimator;
+pub mod null;
 pub mod registry;
 mod resample;
 pub mod stretch;
@@ -16,5 +17,6 @@ pub use contract::{
     WordTiming,
 };
 pub use estimator::{DurationEstimator, WpmEstimator, DEFAULT_WPM};
+pub use null::{NullVoice, NULL_SAMPLE_RATE};
 pub use registry::VoiceRegistry;
 pub use resample::{resample, Resampler};

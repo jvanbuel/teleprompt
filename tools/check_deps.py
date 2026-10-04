@@ -27,7 +27,6 @@ ALLOWED = {
     "capture": {"core", "scene"},
     "manifest": {"core"},
     "cache": {"core", "voice"},
-    "voice-null": {"core", "voice"},
     "voice-kokoro": {"core", "voice"},
     "voice-voicebox": {"voice"},
     "voice-gemini": {"voice"},

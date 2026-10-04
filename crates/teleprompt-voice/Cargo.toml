@@ -14,6 +14,7 @@ thiserror.workspace = true
 
 [dev-dependencies]
 teleprompt-testkit = { path = "../teleprompt-testkit" }
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

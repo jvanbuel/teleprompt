@@ -1,5 +1,5 @@
 //! A minimal `VoiceBackend` for exercising `VoiceRegistry` without pulling
-//! in `teleprompt-voice-null`. The registry only ever looks at `id()`, so
+//! in `teleprompt_voice::null`. The registry only ever looks at `id()`, so
 //! everything else here is the smallest thing that satisfies the trait.
 
 use teleprompt_voice::async_trait;

@@ -1,10 +1,13 @@
-use teleprompt_voice::async_trait;
-use teleprompt_voice::{
+//! The reference backend: silence of exactly the estimated length, for
+//! `check`, `plan` and tests, and every project until it picks a voice.
+
+use crate::async_trait;
+use crate::{
     LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
 };
 
-use teleprompt_voice::estimator::estimate_ms;
-use teleprompt_voice::DEFAULT_WPM;
+use crate::estimator::estimate_ms;
+use crate::DEFAULT_WPM;
 
 pub struct NullVoice {
     pub wpm: f64,

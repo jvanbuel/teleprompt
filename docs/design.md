@@ -167,8 +167,7 @@ reading the manifest it just published.
 |---|---|
 | `teleprompt-core` | AST, parser, ids, config, `Hash`, diagnostics, shared vocabulary such as `VoiceSource` |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
-| `teleprompt-voice` | the `VoiceBackend` and `DurationEstimator` contracts, WAV encoding, the registry |
-| `teleprompt-voice-null` | silence at the estimated length, and `WpmEstimator` |
+| `teleprompt-voice` | the `VoiceBackend` and `DurationEstimator` contracts, WAV encoding, the registry, and the `null` backend: silence at the estimated length |
 | `teleprompt-voice-kokoro` | HTTP against a Kokoro-FastAPI server |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
 | `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |

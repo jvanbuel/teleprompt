@@ -1952,7 +1952,6 @@ dependencies = [
  "teleprompt-voice",
  "teleprompt-voice-gemini",
  "teleprompt-voice-kokoro",
- "teleprompt-voice-null",
  "teleprompt-voice-voicebox",
  "teleprompt-x11",
  "tempfile",
@@ -1973,7 +1972,6 @@ dependencies = [
  "teleprompt-schedule",
  "teleprompt-testkit",
  "teleprompt-voice",
- "teleprompt-voice-null",
  "tokio",
 ]
 
@@ -2159,6 +2157,7 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-testkit",
  "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -2183,14 +2182,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "teleprompt-voice",
- "tokio",
-]
-
-[[package]]
-name = "teleprompt-voice-null"
-version = "0.1.0"
-dependencies = [
  "teleprompt-voice",
  "tokio",
 ]

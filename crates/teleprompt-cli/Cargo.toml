@@ -45,7 +45,6 @@ teleprompt-voice = { path = "../teleprompt-voice" }
 teleprompt-voice-kokoro = { path = "../teleprompt-voice-kokoro" }
 teleprompt-voice-voicebox = { path = "../teleprompt-voice-voicebox" }
 teleprompt-voice-gemini = { path = "../teleprompt-voice-gemini" }
-teleprompt-voice-null = { path = "../teleprompt-voice-null" }
 teleprompt-lsp = { path = "../teleprompt-lsp" }
 clap.workspace = true
 serde.workspace = true
