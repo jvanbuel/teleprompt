@@ -8,7 +8,7 @@ use teleprompt_core::error::with_causes;
 use crate::prompt::{answer, schema, SYSTEM};
 use crate::{Request, Response};
 
-/// `[backends.openai]`.
+/// `[translate.openai]`.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
@@ -40,7 +40,7 @@ impl std::fmt::Debug for OpenAi {
 impl OpenAi {
     pub fn new(model: Option<&str>, settings: Settings) -> Result<Self, String> {
         let url = settings.url.ok_or(
-            "the openai provider needs the server's address: set `url` under [backends.openai], \
+            "the openai provider needs the server's address: set `url` under [translate.openai], \
              e.g. http://localhost:1234/v1 for LM Studio",
         )?;
         let model =

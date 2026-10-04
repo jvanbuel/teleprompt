@@ -79,7 +79,7 @@ pub fn translator(
     } else {
         None
     });
-    Translator::new(provider, model, config.backends.get(provider))
+    Translator::new(provider, model, config.translate.settings.get(provider))
         .map(|t| t.timeout(timeout_ms))
         .map_err(TranslateError::Runtime)
 }

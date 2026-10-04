@@ -14,7 +14,7 @@ pub const DEFAULT_MODEL: &str = "gemma3:12b";
 /// Where Ollama listens unless `OLLAMA_HOST` or the settings say otherwise.
 const DEFAULT_URL: &str = "http://localhost:11434";
 
-/// `[backends.ollama]`.
+/// `[translate.ollama]`.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {

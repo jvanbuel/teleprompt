@@ -39,8 +39,7 @@ pub struct Config {
     pub root: std::path::PathBuf,
 }
 
-/// What `translate` translates with. The provider's own settings (where
-/// to reach it, a key) are under `backends.<provider>`, as a voice's are.
+/// What `translate` translates with.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TranslateConfig {
     pub provider: String,
@@ -48,6 +47,10 @@ pub struct TranslateConfig {
     pub model: Option<String>,
     /// How long one batch may take, whichever the provider.
     pub timeout_ms: u64,
+    /// `[translate.ollama]`: each provider's own settings (where to reach
+    /// it, a key), by provider. They are apart from `[backends]`, which are
+    /// the voices', so `openai` can name both a voice and a translator.
+    pub settings: BTreeMap<String, serde_yaml::Value>,
 }
 
 /// A model on a laptop can take minutes over twenty lines.
@@ -295,6 +298,7 @@ impl Default for Config {
                 provider: "ollama".into(),
                 model: None,
                 timeout_ms: TRANSLATE_TIMEOUT_MS,
+                settings: BTreeMap::new(),
             },
             voices: BTreeMap::new(),
             speaker: None,
@@ -340,6 +344,11 @@ pub struct PartialTranslate {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub timeout_ms: Option<u64>,
+    // The providers are teleprompt's own, so they are named here and a
+    // misspelt one is an error rather than a setting nothing reads.
+    pub ollama: Option<serde_yaml::Value>,
+    pub openai: Option<serde_yaml::Value>,
+    pub command: Option<serde_yaml::Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -775,27 +784,20 @@ impl Config {
                 if t.model.is_some() {
                     c.translate.model = t.model.clone();
                 }
+                let providers = [
+                    ("ollama", &t.ollama),
+                    ("openai", &t.openai),
+                    ("command", &t.command),
+                ];
+                for (id, settings) in providers {
+                    if let Some(settings) = settings {
+                        merge_settings(&mut c.translate.settings, id, settings);
+                    }
+                }
             }
             if let Some(bs) = &layer.backends {
                 for (id, settings) in bs {
-                    // Merge the inner mapping key by key so a script
-                    // overriding one setting does not discard the project's
-                    // others. A non-mapping value replaces wholesale —
-                    // there is nothing sensible to merge into.
-                    match (c.backends.get_mut(id), settings.as_mapping()) {
-                        (Some(existing), Some(new)) => {
-                            if let Some(target) = existing.as_mapping_mut() {
-                                for (k, v) in new {
-                                    target.insert(k.clone(), v.clone());
-                                }
-                                continue;
-                            }
-                            c.backends.insert(id.clone(), settings.clone());
-                        }
-                        _ => {
-                            c.backends.insert(id.clone(), settings.clone());
-                        }
-                    }
+                    merge_settings(&mut c.backends, id, settings);
                 }
             }
         }
@@ -804,4 +806,24 @@ impl Config {
         }
         c
     }
+}
+
+/// Settings for `id` laid over what an earlier layer set, key by key, so a
+/// script overriding one setting does not discard the project's others. A
+/// non-mapping value replaces wholesale: there is nothing to merge into.
+fn merge_settings(
+    all: &mut BTreeMap<String, serde_yaml::Value>,
+    id: &str,
+    settings: &serde_yaml::Value,
+) {
+    if let (Some(target), Some(new)) = (
+        all.get_mut(id).and_then(|v| v.as_mapping_mut()),
+        settings.as_mapping(),
+    ) {
+        for (k, v) in new {
+            target.insert(k.clone(), v.clone());
+        }
+        return;
+    }
+    all.insert(id.to_string(), settings.clone());
 }

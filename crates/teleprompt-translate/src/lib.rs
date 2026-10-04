@@ -7,7 +7,7 @@
 //! items leaves the rest for next time.
 //!
 //! A provider is chosen by name ([`PROVIDERS`]), with its own settings from
-//! `backends.<name>`. Adding one is a module with a `translate` method and
+//! `[translate.<name>]`. Adding one is a module with a `translate` method and
 //! an arm in [`Translator::new`]; `command` and `openai` reach anything
 //! else without a new build.
 
@@ -117,7 +117,7 @@ pub enum Translator {
     Command(Program),
 }
 
-/// `[backends.command]`.
+/// `[translate.command]`.
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CommandSettings {
@@ -126,7 +126,7 @@ struct CommandSettings {
 
 impl Translator {
     /// The provider named `provider`, with `model` if given, configured
-    /// from its `backends.<provider>` section.
+    /// from its `[translate.<provider>]` section.
     pub fn new(
         provider: &str,
         model: Option<&str>,
@@ -136,17 +136,11 @@ impl Translator {
             provider: &str,
             settings: Option<&serde_yaml::Value>,
         ) -> Result<T, String> {
-            if settings.is_some_and(|v| v.get("timeout_ms").is_some()) {
-                return Err(format!(
-                    "backends.{provider}: `timeout_ms` is set under [translate] now, \
-                     one limit for every provider"
-                ));
-            }
             settings.map_or_else(
                 || Ok(T::default()),
                 |v| {
                     serde_yaml::from_value(v.clone())
-                        .map_err(|e| format!("backends.{provider}: {e}"))
+                        .map_err(|e| format!("translate.{provider}: {e}"))
                 },
             )
         }
@@ -164,7 +158,7 @@ impl Translator {
                 let s: CommandSettings = read(provider, settings)?;
                 let program = s.run.as_deref().map(Program::new);
                 program.map(Translator::Command).ok_or_else(|| {
-                    "the command provider needs a program: set `run` under [backends.command], \
+                    "the command provider needs a program: set `run` under [translate.command], \
                      or pass --command"
                         .to_string()
                 })

@@ -81,12 +81,12 @@ provider = "ollama"
 model = "gemma3:4b"
 
 # only if Ollama isn't at localhost:11434 (OLLAMA_HOST is read too)
-[backends.ollama]
+[translate.ollama]
 url = "http://gpu-box:11434"
 ```
 
 Other providers are chosen the same way, each with its own settings under
-`[backends.<provider>]`:
+`[translate.<provider>]`:
 
 | provider | translates with | settings |
 |---|---|---|
@@ -101,7 +101,7 @@ Other providers are chosen the same way, each with its own settings under
 provider = "openai"
 model = "qwen2.5-7b-instruct"
 
-[backends.openai]
+[translate.openai]
 url = "http://localhost:1234/v1"
 ```
 
@@ -120,7 +120,7 @@ teleprompt translate scripts/tour.md --to fr --provider claude
 
 A `command` provider gets the request as JSON on stdin and answers on
 stdout, so any service can be plugged in with a short script. Set it
-under `[backends.command]` as `run = "./my-translator"`, or pass
+under `[translate.command]` as `run = "./my-translator"`, or pass
 `--command ./my-translator` for one run.
 
 ```json

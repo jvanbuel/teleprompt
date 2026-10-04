@@ -133,14 +133,14 @@ fn the_source_locale_is_not_a_target() {
 }
 
 /// The provider comes from teleprompt.toml, with its own settings under
-/// [backends.<provider>].
+/// [translate.<provider>].
 #[test]
 fn the_provider_is_configured_in_the_project() {
     let dir = project("configured");
     let toml = std::fs::read_to_string(dir.join("teleprompt.toml")).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
-        format!("{toml}\n[translate]\nprovider = \"command\"\n\n[backends.command]\nrun = '''{FAKE}'''\n"),
+        format!("{toml}\n[translate]\nprovider = \"command\"\n\n[translate.command]\nrun = '''{FAKE}'''\n"),
     )
     .unwrap();
     let out = tp(&dir, &["translate", "scripts/tour.md", "--to", "nl"]);
@@ -152,6 +152,28 @@ fn the_provider_is_configured_in_the_project() {
     assert!(std::fs::read_to_string(dir.join("scripts/tour.nl.yaml"))
         .unwrap()
         .contains("[nl] Welcome"));
+}
+
+/// A translator's settings are not a voice's: the project still compiles
+/// with them, and with a voice of the same name configured beside them.
+#[test]
+fn a_translator_setting_is_not_a_voice() {
+    let dir = project("apart");
+    let toml = std::fs::read_to_string(dir.join("teleprompt.toml")).unwrap();
+    std::fs::write(
+        dir.join("teleprompt.toml"),
+        format!(
+            "{toml}\n[translate.ollama]\nurl = \"http://gpu-box:11434\"\n\n\
+             [translate.openai]\nurl = \"http://localhost:1234/v1\"\n"
+        ),
+    )
+    .unwrap();
+    let out = tp(&dir, &["check", "scripts/tour.md"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 /// By default a local model translates; with none running, the error says

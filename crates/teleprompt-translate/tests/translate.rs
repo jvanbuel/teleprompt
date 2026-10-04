@@ -225,9 +225,9 @@ fn providers_say_what_they_are_missing() {
             .unwrap()
     };
     assert!(err("deepl", None).contains("ollama, openai, claude, command"));
-    assert!(err("openai", None).contains("[backends.openai]"));
-    assert!(err("command", None).contains("[backends.command]"));
-    assert!(err("ollama", Some("adress: x")).contains("backends.ollama"));
+    assert!(err("openai", None).contains("[translate.openai]"));
+    assert!(err("command", None).contains("[translate.command]"));
+    assert!(err("ollama", Some("adress: x")).contains("translate.ollama"));
 }
 
 /// A server that takes the request and never answers, as a wedged model
@@ -269,19 +269,6 @@ async fn a_provider_that_never_answers_is_given_up_on() {
             err.contains("`timeout_ms` under [translate]"),
             "{provider}: {err}"
         );
-    }
-}
-
-/// The limit is one setting, under `[translate]`: a provider's section
-/// that still sets one says where it went.
-#[test]
-fn a_timeout_under_a_provider_says_where_it_went() {
-    for provider in ["ollama", "openai", "command"] {
-        let yaml = settings("timeout_ms: 5");
-        let err = Translator::new(provider, None, Some(&yaml))
-            .err()
-            .unwrap_or_else(|| panic!("{provider} took timeout_ms"));
-        assert!(err.contains("[translate]"), "{provider}: {err}");
     }
 }
 
