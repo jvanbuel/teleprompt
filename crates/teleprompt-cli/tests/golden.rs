@@ -193,7 +193,7 @@ fn every_command_fails_as_before() {
     let mut runs = serde_json::Map::new();
     for (case, args) in [
         ("new existing", &["new", "proj"][..]),
-        ("from missing", &["from", "proj/nothing.md"][..]),
+        ("import missing", &["import", "proj/nothing.md"][..]),
     ] {
         for format in ["human", "json"] {
             let mut args = args.to_vec();
@@ -201,5 +201,5 @@ fn every_command_fails_as_before() {
             runs.insert(format!("{case} {format}"), transcript(&tp(root, &args)));
         }
     }
-    insta::assert_json_snapshot!("fail-new-from", runs);
+    insta::assert_json_snapshot!("fail-new-import", runs);
 }

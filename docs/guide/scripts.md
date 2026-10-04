@@ -293,10 +293,10 @@ Settings merge from these layers, with later ones winning:
 ## Drafting from a document
 
 ```bash
-teleprompt from README.md
+teleprompt import README.md
 ```
 
-`from` turns an existing Markdown document into a draft script. Prose
+`import` turns an existing Markdown document into a draft script. Prose
 becomes lines, with ids assigned up front so the first edit can't shift
 them. Shell code blocks become tapes that **type** the command and never
 run it. They're marked `review=pending`, and `check` warns about them until
@@ -304,13 +304,13 @@ someone has read the tape and removed the attribute. Anything else, such as
 a JSON payload or a TypeScript snippet, stays ordinary Markdown.
 
 The result is a draft. No pacing is inferred and every block gets the
-default policy, so choosing `concurrent` over `hold` is left to you. `from`
+default policy, so choosing `concurrent` over `hold` is left to you. `import`
 won't overwrite an existing file.
 
 ### From a Slidev deck
 
 ```bash
-teleprompt from talk/slides.md --slidev --out scripts/talk.md
+teleprompt import talk/slides.md --slidev --out scripts/talk.md
 ```
 
 A deck's speaker notes are already what is said over each slide. `--slidev`
@@ -331,13 +331,13 @@ This becomes three paragraphs over `2`, `2?clicks=1` and `2?clicks=2`.
 numbers them: a `hide: true` or `disabled: true` slide has no number and its
 notes are dropped with a warning, and a `src:` import contributes the
 slides of the file it names (or the `#2-3` range of them). A slide with no
-notes is left out, and `from` names it.
+notes is left out, and `import` names it.
 
 ### From a transcript
 
 ```bash
-teleprompt from interview.vtt --out scripts/interview.md
-teleprompt from interview.txt --transcript --out scripts/interview.md
+teleprompt import interview.vtt --out scripts/interview.md
+teleprompt import interview.txt --transcript --out scripts/interview.md
 ```
 
 The transcript of a conversation becomes a script with a line per turn,
@@ -375,7 +375,7 @@ where.
 #### Keeping their own voices
 
 ```bash
-teleprompt from interview.vtt --audio interview.m4a --out scripts/interview.md
+teleprompt import interview.vtt --audio interview.m4a --out scripts/interview.md
 ```
 
 With the conversation's recording, each line is given its stretch of it as
@@ -404,10 +404,10 @@ corrected.
 
 ```bash
 teleprompt setup conversations --run
-teleprompt from interview.m4a --out scripts/interview.md
+teleprompt import interview.m4a --out scripts/interview.md
 ```
 
-With no transcript at all, `from` transcribes the recording itself, on
+With no transcript at all, `import` transcribes the recording itself, on
 your machine, and tells the voices in it apart: each turn becomes a line
 labelled `**Speaker 1:**`, `**Speaker 2:**` in the order they first speak,
 each speaking its stretch of the recording as its take. A turn begins and
@@ -419,11 +419,11 @@ tells them apart better than guessing; `--revoice` works as with
 `setup conversations` installs the three models it uses: the speech
 model (310 MB) to transcribe, the punctuation model (31 MB) for capitals
 and full stops, and the speaker models (47 MB) to tell the voices apart.
-Run in a terminal without them, `from` offers to install them.
+Run in a terminal without them, `import` offers to install them.
 
 Rename the speakers in the cast, `speaker-1: { name: "Ada Lovelace" }`,
 which is how the video names them, then read the draft through: the
 transcription will have misheard some words, and `edit keep` keeps the
 takes of the lines you correct. Without the speaker models every line is
-the narrator's, and `from` says so. This needs the build with speech
+the narrator's, and `import` says so. This needs the build with speech
 models (`--features listen`), as `prompt` and `import` do.

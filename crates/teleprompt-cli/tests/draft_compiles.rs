@@ -1,4 +1,4 @@
-//! The second seam `from` was agreed at: a drafted script is a script.
+//! The second seam `import` was agreed at: a drafted script is a script.
 //!
 //! The unit tests in `teleprompt-derive` check what the draft *says*. This
 //! checks that what it says survives the command an author runs next — with

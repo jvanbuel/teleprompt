@@ -1,7 +1,7 @@
-//! `from` with the conversation's recording: each line speaks its stretch
+//! `import` with the conversation's recording: each line speaks its stretch
 //! of it, in its speaker's own voice, until it is reworded.
 
-use teleprompt_cli::cmd::from::{run_from, Audio, Reading};
+use teleprompt_cli::cmd::document::{run_document, Audio, Reading};
 use teleprompt_cli::project::Project;
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
@@ -45,7 +45,7 @@ fn each_line_is_given_its_stretch_of_the_recording() {
         path: Some(&audio),
         ..Audio::default()
     };
-    let report = run_from(&doc, Some(script.clone()), Reading::Document, audio).unwrap();
+    let report = run_document(&doc, Some(script.clone()), Reading::Document, audio).unwrap();
     assert_eq!(report.takes, 3, "{}", report.render());
 
     let project = Project::discover(&dir).unwrap();
@@ -74,7 +74,7 @@ fn a_transcript_with_no_times_cannot_be_heard() {
         path: Some(&audio),
         ..Audio::default()
     };
-    let err = run_from(&doc, Some(script.clone()), Reading::Transcript, audio).unwrap_err();
+    let err = run_document(&doc, Some(script.clone()), Reading::Transcript, audio).unwrap_err();
     assert!(err.to_string().contains("turn 1"), "{err}");
     assert!(!script.exists(), "nothing is written");
 }
@@ -94,7 +94,7 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
         speakers: None,
     };
     let script = dir.join("scripts/talk.md");
-    let report = run_from(&doc, Some(script), Reading::Document, audio).unwrap();
+    let report = run_document(&doc, Some(script), Reading::Document, audio).unwrap();
     assert_eq!(report.takes, 2);
     let takes = Takes::load(&Project::discover(&dir).unwrap().takes_dir()).unwrap();
     let ids: Vec<&str> = takes.iter().map(|(id, _)| id).collect();
@@ -102,7 +102,7 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
 
     let nobody = ["Byron".to_string()];
     let audio = dir.join("talk.wav");
-    let err = run_from(
+    let err = run_document(
         &doc,
         Some(dir.join("scripts/again.md")),
         Reading::Document,
@@ -126,7 +126,7 @@ fn a_recording_needs_the_listening_build() {
     let doc = dir.join("talk.wav");
     std::fs::write(&doc, wav::encode(&recording())).unwrap();
     let script = dir.join("scripts/talk.md");
-    let err = run_from(
+    let err = run_document(
         &doc,
         Some(script.clone()),
         Reading::Document,
@@ -152,7 +152,7 @@ fn a_corrected_line_keeps_its_take_when_told_to() {
         path: Some(&audio),
         ..Audio::default()
     };
-    run_from(&doc, Some(script.clone()), Reading::Document, audio).unwrap();
+    run_document(&doc, Some(script.clone()), Reading::Document, audio).unwrap();
     let corrected = std::fs::read_to_string(&script)
         .unwrap()
         .replace("Quite.", "Quite so.");

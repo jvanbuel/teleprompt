@@ -106,7 +106,7 @@
           "license": "MIT (pyannote segmentation), Apache-2.0 (3D-Speaker embedding)",
           "name": "speaker-model",
           "password": false,
-          "what": "what `from` tells the voices in a recording apart with"
+          "what": "what `import` tells the voices in a recording apart with"
         }
       ]
     }

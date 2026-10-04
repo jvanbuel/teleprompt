@@ -8,8 +8,8 @@ use teleprompt_cli::cmd::build;
 use teleprompt_cli::cmd::cache;
 use teleprompt_cli::cmd::capture as capture_cmd;
 use teleprompt_cli::cmd::check::{self, CheckReport};
+use teleprompt_cli::cmd::document;
 use teleprompt_cli::cmd::dub;
-use teleprompt_cli::cmd::from;
 use teleprompt_cli::cmd::import::{self, Import, Words};
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
@@ -111,74 +111,106 @@ struct RecordArgs {
     shell: Vec<String>,
 }
 
-/// What `from` reads, and where it writes.
+/// What `import` reads, and where it writes. A session recording takes
+/// the session flags; anything else, the document flags.
 #[derive(Args)]
-struct FromArgs {
-    doc: PathBuf,
-    /// Where to write the draft; defaults to <doc>.teleprompt.md
+struct ImportArgs {
+    /// What to draft from: a Markdown document, a Slidev deck, a
+    /// conversation's captions, transcript or recording, or a session you
+    /// recorded while talking (an asciicast, a `vhs record` tape)
+    source: PathBuf,
+    /// Where to write the script; defaults to <doc>.teleprompt.md, or for a
+    /// session scripts/<recording>.md in the project
     #[arg(long)]
     out: Option<PathBuf>,
-    /// Read <doc> as a Slidev deck: its speaker notes become the
-    /// narration, a paragraph per `[click]` step
-    #[arg(long, conflicts_with = "transcript")]
+
+    /// A document: read it as a Slidev deck, whose speaker notes become
+    /// the narration, a paragraph per `[click]` step
+    #[arg(long, conflicts_with = "transcript", help_heading = "A document")]
     slidev: bool,
-    /// Read <doc> as the transcript of a conversation: each turn
-    /// becomes a line opening with who says it, `**Ada:**`, and
-    /// everyone in it the cast. Captions (.vtt, .srt) are read as one
-    /// without it
-    #[arg(long)]
+    /// A document: read it as the transcript of a conversation, each turn
+    /// a line opening with who says it, `**Ada:**`, and everyone in it the
+    /// cast. Captions (.vtt, .srt) are read as one without it
+    #[arg(long, help_heading = "A document")]
     transcript: bool,
-    /// The conversation's recording (WAV, or anything ffmpeg reads):
-    /// each line's stretch of it becomes its take, so it is spoken in
-    /// its speaker's own voice until reworded. Draft into a project
-    #[arg(long, value_name = "RECORDING")]
+    /// A conversation's recording (WAV, or anything ffmpeg reads): each
+    /// line's stretch of it becomes its take, so it is spoken in its
+    /// speaker's own voice until reworded. Draft into a project
+    #[arg(long, value_name = "RECORDING", help_heading = "A document")]
     audio: Option<PathBuf>,
     /// Leave this speaker's lines to their voice in the cast rather than
     /// the recording; may be repeated
-    #[arg(long, value_name = "SPEAKER")]
+    #[arg(long, value_name = "SPEAKER", help_heading = "A document")]
     revoice: Vec<String>,
     /// How many people speak in a recording, where you know: it tells
     /// their voices apart better than guessing
-    #[arg(long, value_name = "N")]
+    #[arg(long, value_name = "N", help_heading = "A document")]
     speakers: Option<usize>,
-}
 
-/// What `import` reads, and where it writes.
-#[derive(Args)]
-struct ImportArgs {
-    /// The recording: an asciicast with keystrokes, or a tape `vhs record`
-    /// wrote
-    recording: PathBuf,
-    /// The tool that made it, by its adapter; found by its extension
-    /// otherwise
-    #[arg(long)]
+    /// A session: the voice recorded with it, as a WAV
+    #[arg(long, help_heading = "A recorded session")]
+    voice: Option<PathBuf>,
+    /// The tool that made the session, by its adapter; found by its
+    /// extension otherwise
+    #[arg(long, help_heading = "A recorded session")]
     with: Option<String>,
-    /// The voice, as a WAV
-    #[arg(long)]
-    voice: PathBuf,
-    /// Where to write the script; defaults to scripts/<recording>.md in the
-    /// project
-    #[arg(long)]
-    out: Option<PathBuf>,
     /// Directory of an unpacked sherpa-onnx streaming zipformer model;
     /// defaults to the one `teleprompt setup speech-model` installed
-    #[arg(long)]
+    #[arg(long, help_heading = "A recorded session")]
     model: Option<PathBuf>,
     /// Timed words as JSON ([{text, start_ms, end_ms}]) instead of --model
-    #[arg(long, conflicts_with = "model")]
+    #[arg(long, conflicts_with = "model", help_heading = "A recorded session")]
     words: Option<PathBuf>,
-    /// How many milliseconds after the recording the voice recording
-    /// started
-    #[arg(long, default_value_t = 0, allow_negative_numbers = true)]
+    /// How many milliseconds after the session the voice recording started
+    #[arg(
+        long,
+        default_value_t = 0,
+        allow_negative_numbers = true,
+        help_heading = "A recorded session"
+    )]
     offset_ms: i64,
     /// Directory of an unpacked sherpa-onnx punctuation model, to give the
     /// narration capitals and punctuation
-    #[arg(long)]
+    #[arg(long, help_heading = "A recorded session")]
     punctuation: Option<PathBuf>,
     /// Replace the script, its recording and its lines' takes, if they
     /// exist
-    #[arg(long)]
+    #[arg(long, help_heading = "A recorded session")]
     force: bool,
+}
+
+impl ImportArgs {
+    /// Whether `source` is a session a recorder reads, rather than a
+    /// document: named as one, given its voice, or by its extension.
+    fn is_session(&self) -> bool {
+        self.voice.is_some()
+            || self.with.is_some()
+            || import::recorder_for(None, &self.source).is_ok()
+    }
+
+    /// The flags given that are for the other kind of source.
+    fn misplaced(&self, session: bool) -> Vec<&'static str> {
+        let document = [
+            ("--slidev", self.slidev),
+            ("--transcript", self.transcript),
+            ("--audio", self.audio.is_some()),
+            ("--revoice", !self.revoice.is_empty()),
+            ("--speakers", self.speakers.is_some()),
+        ];
+        let recorded = [
+            ("--model", self.model.is_some()),
+            ("--words", self.words.is_some()),
+            ("--offset-ms", self.offset_ms != 0),
+            ("--punctuation", self.punctuation.is_some()),
+            ("--force", self.force),
+        ];
+        let other = if session { &document } else { &recorded };
+        other
+            .iter()
+            .filter(|(_, given)| *given)
+            .map(|(f, _)| *f)
+            .collect()
+    }
 }
 
 /// One edit `edit` makes, naming blocks and lines by their ids in `plan`.
@@ -302,26 +334,30 @@ enum Command {
         #[arg(long)]
         prune_to_mb: Option<u64>,
     },
-    /// Draft a script from a document, deck, transcript or recording you have
+    /// Draft a script from something you have: a document, a deck, a
+    /// conversation, or a session you recorded while talking
     ///
-    /// Prose becomes narration lines with their ids promoted, shell code
-    /// blocks become terminal tapes that type the command and are marked
-    /// `review=pending` until a human has read them, and everything else is
-    /// left as ordinary Markdown for you to promote by hand. A transcript
-    /// becomes a line per turn, labelled with who says it, and so does a
-    /// recording, transcribed and its voices told apart, each line speaking
-    /// its stretch of it (opt-in build).
-    From(FromArgs),
-    /// Draft a script from a session you recorded while talking
+    /// From a document, prose becomes narration lines with their ids
+    /// promoted, shell code blocks become terminal tapes that type the
+    /// command and are marked `review=pending` until a human has read
+    /// them, and everything else is left as ordinary Markdown for you to
+    /// promote by hand. A transcript becomes a line per turn, labelled with
+    /// who says it, and so does a recording, transcribed and its voices
+    /// told apart, each line speaking its stretch of it (opt-in build).
     ///
-    /// What you said becomes the narration, cut into lines where you
-    /// paused; what you did becomes blocks that include the recording's
-    /// parts, run with the line you were saying or after the one before,
-    /// as they were. Each line is then spoken from your recording. Record
-    /// the session with `asciinema rec --stdin` (asciinema 3:
-    /// `--capture-input`) or `vhs record` and your voice at the same time,
-    /// or use `teleprompt record`.
+    /// From a session (an asciicast recorded with `asciinema rec --stdin`,
+    /// asciinema 3: `--capture-input`, or a `vhs record` tape) and the
+    /// voice recorded with it, what you said becomes the narration, cut
+    /// into lines where you paused, and what you did becomes blocks that
+    /// include the recording's parts. Each line is spoken from your voice.
+    /// `teleprompt record` records both at once.
     Import(ImportArgs),
+    /// Now `import`; says so rather than being unknown.
+    #[command(hide = true)]
+    From {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        rest: Vec<String>,
+    },
     /// Move or stretch a shot, as a timeline drag does; or reword a line
     /// to what its take says
     ///
@@ -710,10 +746,39 @@ fn run_translate_cmd(
     Ok(Outcome::Ok)
 }
 
+/// `import`: a recorded session, or anything else as a document.
 fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
-    let script = match args.out {
+    let session = args.is_session();
+    let misplaced = args.misplaced(session);
+    if !misplaced.is_empty() {
+        let kind = if session {
+            "a document or conversation, and this is a recorded session"
+        } else {
+            "a recorded session, which is given with --voice"
+        };
+        return Err(Outcome::ValidationError(vec![format!(
+            "{} {} for {kind}",
+            misplaced.join(", "),
+            if misplaced.len() == 1 { "is" } else { "are" },
+        )]));
+    }
+    if session {
+        run_session_import(format, args)
+    } else {
+        run_document_import(format, args)
+    }
+}
+
+fn run_session_import(format: Format, args: ImportArgs) -> Run {
+    let Some(voice) = args.voice.as_deref() else {
+        return Err(Outcome::ValidationError(vec![format!(
+            "{} is a recorded session: give the voice recorded with it, --voice <wav>",
+            args.source.display()
+        )]));
+    };
+    let script = match args.out.clone() {
         Some(out) => out,
-        None => default_import_script(&args.recording)?,
+        None => default_import_script(&args.source)?,
     };
     let model;
     let words = match &args.words {
@@ -725,9 +790,9 @@ fn run_import_cmd(format: Format, args: ImportArgs) -> Run {
     };
     let punctuation = setup::punctuation_model(args.punctuation.as_deref());
     let report = import::run_import(&Import {
-        recording: &args.recording,
+        recording: &args.source,
         with: args.with.as_deref(),
-        voice: &args.voice,
+        voice,
         script: &script,
         words,
         offset_ms: args.offset_ms,
@@ -812,18 +877,19 @@ fn run_prompt_cmd(
     Ok(Outcome::Ok)
 }
 
-fn run_from_cmd(format: Format, args: FromArgs) -> Run {
+fn run_document_import(format: Format, args: ImportArgs) -> Run {
     let reading = match (args.slidev, args.transcript) {
-        (true, _) => from::Reading::Slidev,
-        (_, true) => from::Reading::Transcript,
-        _ => from::Reading::Document,
+        (true, _) => document::Reading::Slidev,
+        (_, true) => document::Reading::Transcript,
+        _ => document::Reading::Document,
     };
-    let audio = from::Audio {
+    let audio = document::Audio {
         path: args.audio.as_deref(),
         revoice: &args.revoice,
         speakers: args.speakers,
     };
-    let report = from::run_from(&args.doc, args.out, reading, audio).map_err(runtime_failure)?;
+    let report =
+        document::run_document(&args.source, args.out, reading, audio).map_err(runtime_failure)?;
     emit(format, &report, &report.render());
     Ok(Outcome::Ok)
 }
@@ -839,7 +905,7 @@ fn run(command: Command, format: Format) -> Run {
             emit(format, &report, &report.render());
             Ok(Outcome::Ok)
         }
-        Command::From(args) => run_from_cmd(format, args),
+        Command::From { .. } => Err(replaced("from", "import")),
         Command::Import(args) => run_import_cmd(format, args),
         Command::Edit { script, edit } => run_edit_cmd(format, &script, edit),
         Command::Translate {

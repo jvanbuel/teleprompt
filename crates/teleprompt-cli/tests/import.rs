@@ -257,3 +257,38 @@ fn a_vhs_tape_drafts_as_vhs_blocks() {
         "{warnings:?}"
     );
 }
+
+/// `import` reads what it is given: a document is drafted as one, a
+/// recorded session wants its voice, and a flag for the other kind of
+/// source is refused rather than ignored.
+#[test]
+fn import_tells_a_document_from_a_recorded_session() {
+    let s = session();
+    let run = |args: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+            .args(["import"])
+            .args(args)
+            .current_dir(&s.root)
+            .output()
+            .unwrap()
+    };
+    let err = |out: &std::process::Output| String::from_utf8_lossy(&out.stderr).into_owned();
+
+    std::fs::write(s.root.join("notes.md"), "# Notes\n\nA paragraph to say.\n").unwrap();
+    let doc = run(&["notes.md"]);
+    assert!(doc.status.success(), "{}", err(&doc));
+    assert!(s.root.join("notes.teleprompt.md").exists());
+
+    let cast = s.cast.to_str().unwrap();
+    let no_voice = run(&[cast]);
+    assert_eq!(no_voice.status.code(), Some(2));
+    assert!(err(&no_voice).contains("--voice"), "{}", err(&no_voice));
+
+    let mixed = run(&[cast, "--voice", s.voice.to_str().unwrap(), "--slidev"]);
+    assert_eq!(mixed.status.code(), Some(2));
+    assert!(err(&mixed).contains("--slidev"), "{}", err(&mixed));
+
+    let wrong = run(&["notes.md", "--force"]);
+    assert_eq!(wrong.status.code(), Some(2));
+    assert!(err(&wrong).contains("--force"), "{}", err(&wrong));
+}

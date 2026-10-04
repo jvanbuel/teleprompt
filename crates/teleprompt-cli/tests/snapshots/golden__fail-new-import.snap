@@ -3,14 +3,14 @@ source: crates/teleprompt-cli/tests/golden.rs
 expression: runs
 ---
 {
-  "from missing human": {
+  "import missing human": {
     "exit": 1,
     "stderr": [
       "error: cannot read proj/nothing.md: No such file or directory (os error 2)"
     ],
     "stdout": ""
   },
-  "from missing json": {
+  "import missing json": {
     "exit": 1,
     "stderr": [],
     "stdout": {

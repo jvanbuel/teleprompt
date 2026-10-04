@@ -455,6 +455,7 @@ fn a_removed_command_names_its_replacement() {
         (&["diff", "demo.md", "--exit-code"][..], "plan --check"),
         (&["serve", "demo.md", "--port", "0"][..], "prompt --voice"),
         (&["doctor"][..], "setup"),
+        (&["from", "README.md"][..], "import"),
         (&["prompt", "demo.md", "--preview"][..], "prompt --voice"),
     ] {
         let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))

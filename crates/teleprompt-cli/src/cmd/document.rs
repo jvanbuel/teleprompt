@@ -1,5 +1,7 @@
-//! `teleprompt from <doc>`: the file handling around
-//! `teleprompt_derive::document` and `::transcript`, which do the drafting.
+//! `teleprompt import <doc>`: a document, deck or conversation drafted into
+//! a script. The file handling around `teleprompt_derive::document` and
+//! `::transcript`, which do the drafting; a recorded session is `import`'s
+//! other half, `crate::cmd::import`.
 
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -15,9 +17,9 @@ use serde::Serialize;
 use teleprompt_derive::document::{draft, draft_slidev};
 use teleprompt_derive::transcript::{conversation, draft_transcript, turns, Format, Turn};
 
-/// The stable, typed shape of `from`'s output in both formats.
+/// The stable, typed shape of `import`'s output in both formats.
 #[derive(Debug, Serialize)]
-pub struct FromReport {
+pub struct DocumentReport {
     pub source: PathBuf,
     pub created: PathBuf,
     /// Action blocks written as `review=pending`, which `check` will warn
@@ -43,7 +45,7 @@ fn is_zero(n: &usize) -> bool {
     *n == 0
 }
 
-impl FromReport {
+impl DocumentReport {
     pub fn render(&self) -> String {
         let mut s = format!(
             "drafted {} from {}\n",
@@ -104,7 +106,7 @@ fn default_out(doc: &Path) -> PathBuf {
     doc.with_extension("teleprompt.md")
 }
 
-/// What `from` reads a document as.
+/// What `import` reads a document as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reading {
     Document,
@@ -127,7 +129,7 @@ fn is_recording(path: &Path) -> bool {
         .is_some_and(|e| RECORDINGS.contains(&e.to_ascii_lowercase().as_str()))
 }
 
-/// A conversation's recording, for `from` to give each line its stretch
+/// A conversation's recording, for `import` to give each line its stretch
 /// of as its take, but for the lines of the speakers in `revoice`: `audio`
 /// beside a transcript, or the document itself when it is a recording.
 /// `speakers` is how many voices a recording has, where known.
@@ -138,12 +140,12 @@ pub struct Audio<'a> {
     pub speakers: Option<usize>,
 }
 
-pub fn run_from(
+pub fn run_document(
     doc: &Path,
     out: Option<PathBuf>,
     reading: Reading,
     audio: Audio,
-) -> std::io::Result<FromReport> {
+) -> std::io::Result<DocumentReport> {
     let created = out.unwrap_or_else(|| default_out(doc));
     if created.exists() {
         return Err(Error::new(
@@ -224,7 +226,7 @@ pub fn run_from(
         conversation.cast,
     );
 
-    Ok(FromReport {
+    Ok(DocumentReport {
         source: doc.to_path_buf(),
         created,
         unreviewed: script.matches("review=pending").count(),
@@ -428,7 +430,7 @@ fn speak_from(
         .collect();
     if lines.len() != spans.len() {
         return Err(format!(
-            "the draft has {} line(s) for {} turn(s), which is a bug in `from`",
+            "the draft has {} line(s) for {} turn(s), which is a bug in `import`",
             lines.len(),
             spans.len()
         ));

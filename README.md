@@ -81,10 +81,9 @@ of a job offers to install it there.
 | command | does |
 |---|---|
 | `new <path>` | scaffold a new project |
-| `from <doc>` | draft a script from a Markdown document, a Slidev deck, or a conversation: its transcript or its recording |
+| `import <source>` | draft a script from something you have: a Markdown document, a Slidev deck, a conversation's transcript or recording, or a cast or tape with a recording of your voice (`--voice`) |
 | `record <script>` | record yourself working (asciinema, VHS or Playwright) while you talk, and get a script spoken in your voice (opt-in build) |
 | `translate <script> --to <locale>` | translate the narration, for a video in another language |
-| `import <recording>` | the same, from a cast or tape and a recording of your voice you already have |
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it; `--check` compares it with the committed one and exits 3 on drift |
 | `prompt <script>` | a prompter that follows your voice, plays its shots as you reach them and records your takes (opt-in build); `--voice` has the script's voice read it, and plays the video as it will play |

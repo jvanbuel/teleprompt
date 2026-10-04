@@ -1,4 +1,4 @@
-//! `from`'s drafting step, at the seam it was agreed at: Markdown in,
+//! `import`'s drafting step, at the seam it was agreed at: Markdown in,
 //! teleprompt script out, no filesystem.
 
 use teleprompt_derive::document::draft;

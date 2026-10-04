@@ -404,7 +404,7 @@ static TOOLS: &[Tool] = &[
     },
     Tool {
         name: "speaker-model",
-        what: "what `from` tells the voices in a recording apart with",
+        what: "what `import` tells the voices in a recording apart with",
         license: "MIT (pyannote segmentation), Apache-2.0 (3D-Speaker embedding)",
         home: "https://github.com/k2-fsa/sherpa-onnx",
         guide: None,
