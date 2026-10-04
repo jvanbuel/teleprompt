@@ -89,3 +89,38 @@ fn stretch_is_a_factor() {
         .expect_err("refused");
     assert!(err.0[0].message.contains("factor"), "{err:?}");
 }
+
+/// A `fit-action` shot its plugin cannot shorten would be cut off at its
+/// slot's end. That is never silent: the warning names the line and says
+/// how much is lost.
+#[test]
+fn a_fit_action_shot_that_cannot_shrink_says_it_is_cut() {
+    let out =
+        compile_it("Go. {#a}\n\n```teleprompt scene=mock policy=fit-action\nwait 5000ms\n```\n")
+            .unwrap();
+    assert!(action_ms(&out) < 5000, "the slot is the line's");
+    let cut: Vec<_> = out
+        .warnings
+        .iter()
+        .filter(|w| w.contains("cannot shorten"))
+        .collect();
+    assert_eq!(cut.len(), 1, "{:?}", out.warnings);
+    assert!(
+        cut[0].contains("#a") || cut[0].contains("a-a#0"),
+        "{}",
+        cut[0]
+    );
+}
+
+/// `trim-action` cuts on purpose, and its own warning says so.
+#[test]
+fn a_trimmed_shot_is_not_said_to_be_cut_by_accident() {
+    let out =
+        compile_it("Go. {#a}\n\n```teleprompt scene=mock policy=trim-action\nwait 5000ms\n```\n")
+            .unwrap();
+    assert!(
+        !out.warnings.iter().any(|w| w.contains("cannot shorten")),
+        "{:?}",
+        out.warnings
+    );
+}

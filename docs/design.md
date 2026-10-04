@@ -548,7 +548,9 @@ The scheduler is a pure function from items, with their durations, to a
 
 A policy only changes a picture if the scene's plugin can re-time its
 source (see `retime` under [the scene contract](#scene-contract)). Where
-the plugin cannot, the renderer holds the last frame for the rest of the slot.
+the plugin cannot, the renderer holds the last frame for the rest of the slot;
+and a `fit-action` shot it cannot shorten is cut at the slot's end, which
+`check` warns about, naming the shot and how much is lost.
 
 `align` on any policy but `concurrent` is an error naming the combination,
 since it would change nothing. There are no aliases: one name for each

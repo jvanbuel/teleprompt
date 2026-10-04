@@ -115,9 +115,16 @@ fn re_timing_moves_pauses_not_keystrokes() {
 
     let short = retimed(&c, 1.0).unwrap();
     assert!((short.events[2].time - 1.0).abs() < 1e-9, "{short:?}");
+
+    // Shorter than the pauses allow: the whole session still plays, faster,
+    // never cut off before its last output.
+    let squeezed = retimed(&c, 0.2).expect("always re-timed");
+    assert_eq!(squeezed.duration, 0.2);
+    assert_eq!(squeezed.events.len(), 3);
+    assert!(squeezed.events[2].time <= 0.2 + 1e-9, "{squeezed:?}");
     assert!(
-        retimed(&c, 0.2).is_none(),
-        "the pause cannot go below typing speed"
+        squeezed.events.windows(2).all(|w| w[0].time < w[1].time),
+        "in order: {squeezed:?}"
     );
 }
 

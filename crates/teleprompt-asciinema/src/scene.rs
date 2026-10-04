@@ -255,9 +255,14 @@ pub fn select(cast: &Cast, fragment: &str) -> Result<Cast, String> {
 }
 
 /// The same cast lasting `target` seconds, by lengthening or shortening
-/// its pauses in proportion — never its typing — or `None` where the
-/// pauses cannot absorb the difference.
+/// its pauses in proportion, never its typing. Shorter than the pauses
+/// allow, the pauses go to typing speed and then everything plays faster
+/// alike: the whole session is shown, never cut off. `None` only for a
+/// target that is not a length.
 pub fn retimed(cast: &Cast, target: f64) -> Option<Cast> {
+    if !(target > 0.0) {
+        return None;
+    }
     let mut times: Vec<f64> = vec![0.0];
     times.extend(cast.events.iter().map(|e| e.time));
     times.push(cast.duration);
@@ -273,7 +278,7 @@ pub fn retimed(cast: &Cast, target: f64) -> Option<Cast> {
             .map(|g| g - TYPING)
             .sum();
         if delta < 0.0 && -delta > room {
-            return None;
+            return Some(faster(cast, &gaps, target));
         }
         gaps.iter()
             .map(|g| {
@@ -292,13 +297,28 @@ pub fn retimed(cast: &Cast, target: f64) -> Option<Cast> {
         *g.last_mut()? += delta;
         g
     } else {
-        return None;
+        return Some(faster(cast, &gaps, target));
     };
+    Some(with_gaps(cast, &new_gaps, target))
+}
+
+/// `cast` in `target` seconds with every pause at typing speed and all of
+/// it played faster alike.
+fn faster(cast: &Cast, gaps: &[f64], target: f64) -> Cast {
+    let floored: Vec<f64> = gaps.iter().map(|g| g.min(TYPING)).collect();
+    let total: f64 = floored.iter().sum();
+    let scale = if total > 0.0 { target / total } else { 0.0 };
+    let scaled: Vec<f64> = floored.iter().map(|g| g * scale).collect();
+    with_gaps(cast, &scaled, target)
+}
+
+/// `cast` with its events at `gaps` from one another, lasting `target`.
+fn with_gaps(cast: &Cast, gaps: &[f64], target: f64) -> Cast {
     let mut t = 0.0;
     let events = cast
         .events
         .iter()
-        .zip(&new_gaps)
+        .zip(gaps)
         .map(|(e, g)| {
             t += g;
             Event {
@@ -307,11 +327,11 @@ pub fn retimed(cast: &Cast, target: f64) -> Option<Cast> {
             }
         })
         .collect();
-    Some(Cast {
+    Cast {
         duration: target,
         events,
         ..cast.clone()
-    })
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]

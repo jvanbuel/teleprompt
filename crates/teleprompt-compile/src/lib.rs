@@ -217,11 +217,16 @@ pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<
 /// The shot's hash moves with the source, which is how slot length reaches
 /// the capture key (docs/design.md#capture-key). Where a scene plugin cannot
 /// re-time, the source stands and the renderer holds the last frame.
+///
+/// A `fit-action` shot its plugin cannot re-time any shorter is cut at its
+/// slot's end, which is said: `trim-action` cuts on purpose, and a shot
+/// that is too short only holds its last frame.
 fn retime_stretched_shots(
     timeline: &mut Timeline,
     shots: &mut [ShotSource],
     registry: &SceneRegistry,
-) {
+) -> Vec<String> {
+    let mut warnings = Vec::new();
     for entry in &mut timeline.entries {
         let Some(action) = entry.action.as_mut() else {
             continue;
@@ -240,16 +245,31 @@ fn retime_stretched_shots(
             hash: action.shot_hash,
             index: 0,
         };
-        if plugin.estimate(&shot).duration_ms() == Some(action.duration_ms.ms()) {
+        let natural = plugin.estimate(&shot).duration_ms();
+        let slot = action.duration_ms.ms();
+        if natural == Some(slot) {
             continue;
         }
 
-        if let Some(source) = plugin.retime(&shot, action.duration_ms.ms()) {
+        if let Some(source) = plugin.retime(&shot, slot) {
             action.shot_hash = Hash::of(source.as_bytes());
             action.duration_source = DurationSource::Exact;
             published.source = source;
+        } else if let Some(natural) = natural.filter(|n| *n > slot) {
+            if entry.policy == PolicyKind::FitAction {
+                warnings.push(format!(
+                    "shot `{}` lasts {:.1}s but its line gives it {:.1}s, and the `{}` plugin \
+                     cannot shorten it: the last {:.1}s are cut",
+                    action.shot,
+                    natural as f64 / 1000.0,
+                    slot as f64 / 1000.0,
+                    action.plugin,
+                    (natural - slot) as f64 / 1000.0,
+                ));
+            }
         }
     }
+    warnings
 }
 
 /// The scene name a pause wears, which is not a scene and has no picture.
@@ -463,11 +483,12 @@ pub fn compile(
         &program.locale,
         version,
     );
-    retime_stretched_shots(&mut timeline, &mut shot_sources, registry);
+    let cut_warnings = retime_stretched_shots(&mut timeline, &mut shot_sources, registry);
     chain_capture_keys(&mut timeline, &program.config, registry, &shot_sources);
     // Cache warnings first: they explain the scheduler's numbers.
     let mut warnings = walker.warnings;
     warnings.extend(scheduling_warnings);
+    warnings.extend(cut_warnings);
     if let Some(length) = program.config.timing.length_ms {
         warnings.extend(length::over_length(
             &timeline,

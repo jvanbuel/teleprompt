@@ -214,7 +214,8 @@ terminal carries on from one to the next.
 A cast states its timing in full, so every shot is `exact`, with the
 recording's `idle_time_limit` applied the way `asciinema play` applies it.
 `policy=fit-action` re-times a shot by moving its pauses, never its
-keystrokes. `check` reads the cast and reports a bad line at its line
+keystrokes. A line too short for even the shortest pauses plays the
+whole session faster, so the end is never cut off. `check` reads the cast and reports a bad line at its line
 number in the cast file.
 
 ```toml
