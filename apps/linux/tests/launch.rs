@@ -11,7 +11,7 @@ use teleprompt_gtk::launch::{
 fn request(binary: PathBuf) -> LaunchRequest {
     LaunchRequest {
         binary,
-        script: "/p/scripts/tour.md".into(),
+        dir: std::env::temp_dir(),
         model: Some("/models/zipformer".into()),
         locale: "en".into(),
     }
@@ -25,7 +25,6 @@ fn the_command_asks_for_json_and_a_free_port() {
             "--format",
             "json",
             "serve",
-            "/p/scripts/tour.md",
             "--locale",
             "en",
             "--port",
@@ -37,14 +36,16 @@ fn the_command_asks_for_json_and_a_free_port() {
 }
 
 #[test]
-fn without_a_model_the_scripts_voice_reads_it() {
-    let voiced = LaunchRequest {
+fn without_a_model_the_server_finds_the_one_setup_installed() {
+    let args = LaunchRequest {
         model: None,
         ..request("/bin/teleprompt".into())
-    };
-    let args = voiced.args();
-    assert_eq!(args.last().map(String::as_str), Some("--voice"));
-    assert!(!args.iter().any(|a| a == "--model"), "{args:?}");
+    }
+    .args();
+    assert!(
+        !args.iter().any(|a| a == "--model" || a == "--voice"),
+        "{args:?}"
+    );
 }
 
 #[test]

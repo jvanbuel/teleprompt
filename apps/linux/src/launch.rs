@@ -8,14 +8,16 @@ use std::sync::{Arc, Mutex};
 /// The prompter API's version: `docs/design.md#prompter-api-version-1`.
 pub const VERSION: &str = "/api/v1";
 
-/// How to run `teleprompt serve`.
+/// How to run `teleprompt serve`: with no script, so its page welcomes,
+/// and opens the script it is asked to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaunchRequest {
     /// The `teleprompt` binary, built with `--features listen`.
     pub binary: PathBuf,
-    pub script: PathBuf,
+    /// Where it runs: the project whose scripts the welcome lists.
+    pub dir: PathBuf,
     /// An unpacked sherpa-onnx streaming zipformer, to follow a reader by
-    /// ear; without one, the script's voice reads it.
+    /// ear; without one, the one `teleprompt setup` installed.
     pub model: Option<PathBuf>,
     pub locale: String,
 }
@@ -28,15 +30,13 @@ impl LaunchRequest {
             "--format".into(),
             "json".into(),
             "serve".into(),
-            self.script.display().to_string(),
             "--locale".into(),
             self.locale.clone(),
             "--port".into(),
             "0".into(),
         ];
-        match &self.model {
-            Some(model) => args.extend(["--model".into(), model.display().to_string()]),
-            None => args.push("--voice".into()),
+        if let Some(model) = &self.model {
+            args.extend(["--model".into(), model.display().to_string()]);
         }
         args
     }
@@ -106,6 +106,7 @@ impl ServerProcess {
         let mut command = Command::new(&request.binary);
         command
             .args(request.args())
+            .current_dir(&request.dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());

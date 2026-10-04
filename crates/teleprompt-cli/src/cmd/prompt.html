@@ -206,7 +206,8 @@
   #help table { border-collapse: collapse; width: 100%; }
   #help td { padding: 6px 0; vertical-align: top; }
   #help td:first-child { white-space: nowrap; padding-right: 18px; }
-  #help form { display: flex; justify-content: flex-end; margin-top: 16px; }
+  #help form { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  #help button.quiet { background: var(--chrome); color: var(--ink); border: 1px solid var(--line); }
   #help button {
     font: 700 14px var(--face); border-radius: 8px; padding: 8px 16px; cursor: pointer;
     background: var(--ink); color: #000; border: 0;
@@ -223,6 +224,71 @@
   }
   #review button.suggested { background: var(--ink); color: #000; border-color: var(--ink); }
   @media (prefers-reduced-motion: reduce) { #toast, #meter > div { transition: none; } }
+
+  /* The welcome, with no script open: what teleprompt does, who narrates,
+     the project's scripts to open, and setting it up. */
+  #home {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px;
+    align-content: center; padding: 48px clamp(16px, 6vw, 96px); overflow: auto;
+  }
+  #home[hidden] { display: none; }
+  body.home main { display: none; }
+  body.home #tools, body.home #record, body.home #keys,
+  body.home #tally, body.home #timecode, body.home #meter { visibility: hidden; }
+  #home h1 { margin: 0 0 14px; font-size: 40px; font-weight: 800; }
+  #home h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em;
+             color: var(--later); }
+  #home p { margin: 0 0 22px; font-size: 18px; line-height: 1.5; color: rgb(242 244 247 / 0.7);
+            max-width: 34em; }
+  #narrator { border: 0; padding: 0; margin: 0 0 22px; display: flex; gap: 8px; flex-wrap: wrap;
+              align-items: center; }
+  #narrator legend { float: left; margin-right: 10px; font-weight: 700; }
+  #narrator label {
+    display: inline-flex; gap: 8px; align-items: center; padding: 8px 14px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px;
+  }
+  #narrator label:has(input:checked) { background: var(--raised); border-color: var(--ink); }
+  #narrator label:has(input:disabled) { opacity: 0.5; cursor: default; }
+  #narrator-note { font-size: 14px; color: var(--later); margin: -12px 0 22px; }
+  #home button, #setup button {
+    font: 700 14px var(--face); border-radius: 8px; padding: 10px 16px; cursor: pointer;
+    background: var(--chrome); color: var(--ink); border: 1px solid var(--line);
+  }
+  #home button.suggested, #setup button.suggested {
+    background: var(--ink); color: #000; border-color: var(--ink);
+  }
+  #home button:disabled, #setup button:disabled { opacity: 0.5; cursor: default; }
+  #home-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 0; padding: 0; }
+  #scripts { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
+  #scripts button {
+    width: 100%; text-align: left; display: flex; justify-content: space-between; gap: 12px;
+    font-size: 17px; padding: 14px 16px; background: var(--raised);
+  }
+  #scripts button .open-now { color: var(--cue); font-size: 13px; }
+  #home-errors { color: var(--missing); white-space: pre-wrap; font-size: 14px; }
+  #setup {
+    width: min(620px, calc(100vw - 32px)); padding: 24px; border-radius: 14px;
+    background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+  }
+  #setup::backdrop { background: rgb(0 0 0 / 0.55); }
+  #setup h2 { margin: 0 0 8px; font-size: 19px; color: var(--ink); }
+  #setup-why { margin: 0 0 14px; color: var(--cue); }
+  #uses { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+  #uses label { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; padding: 10px 12px;
+                border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+  #uses label:has(input:disabled) { cursor: default; }
+  #uses input { grid-row: span 2; margin-top: 4px; }
+  #uses .use-state { font-size: 13px; color: var(--later); }
+  #uses .use-state.ok { color: var(--recorded); }
+  #uses details { font-size: 13px; color: var(--later); margin: 4px 12px 0 40px; }
+  #uses details p { margin: 6px 0; }
+  #uses code { font-size: 12px; overflow-wrap: anywhere; }
+  #setup-says { min-height: 1.4em; margin: 0 0 10px; }
+  #setup-says.bad { color: var(--missing); white-space: pre-wrap; }
+  #setup-bar { height: 4px; border-radius: 2px; background: var(--line); margin: 0 0 14px; overflow: hidden; }
+  #setup-bar > div { height: 100%; width: 0; background: var(--cue); transition: width 0.3s; }
+  #setup menu { display: flex; justify-content: flex-end; gap: 10px; margin: 0; padding: 0; }
+  @media (max-width: 720px) { #home { grid-template-columns: minmax(0, 1fr); gap: 32px; } }
 
   /* Edit mode: the glass is the timeline. Each shot is a ribbon under the
      words it plays over, in its scene's colour, or a pill in the pause
@@ -288,6 +354,9 @@
   body.monitor-view #caption { margin-top: 0; }
   /* In an app's window (?shell=1), whose own title bar names the script. */
   body.in-app #brand { visibility: hidden; }
+  /* The app's title bar names it; the welcome has nothing else for this one. */
+  body.in-app.home header { display: none; }
+  body.in-app.home { grid-template-rows: minmax(0, 1fr) auto; }
 
   /* Read by a voice: Play is the header's action, in the chrome, with no
      red, since nothing records. */
@@ -423,7 +492,11 @@
       <tr><td><kbd>F2</kbd></td><td>Reword the line you are on, where it stands</td></tr>
       <tr class="voice-only"><td><kbd>Space</kbd></td><td>Read by a voice: play the video from the line you are on, or stop</td></tr>
     </table>
-    <form method="dialog"><button>Close</button></form>
+    <form method="dialog">
+      <button type="button" id="help-scripts" class="quiet">Scripts…</button>
+      <button type="button" id="help-setup" class="quiet">Set up…</button>
+      <button>Close</button>
+    </form>
   </dialog>
   <dialog id="panel" aria-labelledby="panel-title">
     <h2 id="panel-title"></h2>
@@ -450,6 +523,42 @@
     <ul id="rundown"></ul>
   </aside>
 </main>
+<section id="home" hidden aria-labelledby="home-title">
+  <div>
+    <h1 id="home-title">Teleprompt</h1>
+    <p>Open a script and read it aloud: the words follow your voice, each shot plays as you
+      reach it, and every line you finish is kept as a take. Or let a voice read it, and direct
+      it line by line.</p>
+    <fieldset id="narrator">
+      <legend>Who narrates</legend>
+      <label><input type="radio" name="narrator" value="you" checked> You read</label>
+      <label><input type="radio" name="narrator" value="voice"> A voice reads</label>
+    </fieldset>
+    <p id="narrator-note" hidden></p>
+    <menu id="home-actions">
+      <button id="setup-open">Set up teleprompt…</button>
+      <button id="home-back" hidden>Back to the script</button>
+    </menu>
+  </div>
+  <div>
+    <h2 id="scripts-title">Scripts</h2>
+    <ul id="scripts"></ul>
+    <p id="no-scripts" hidden>No scripts here. Run <code>teleprompt serve</code> in a project, or
+      <code>teleprompt serve path/to/script.md</code>.</p>
+    <div id="home-errors" role="alert"></div>
+  </div>
+</section>
+<dialog id="setup" aria-labelledby="setup-title">
+  <h2 id="setup-title">Set up teleprompt</h2>
+  <p id="setup-why" hidden></p>
+  <ul id="uses"></ul>
+  <p id="setup-says" role="status"></p>
+  <div id="setup-bar" hidden><div></div></div>
+  <menu>
+    <button id="setup-close">Close</button>
+    <button id="setup-install" class="suggested" disabled>Install</button>
+  </menu>
+</dialog>
 <footer>
   <span id="tally" role="img" aria-label="Off air"></span>
   <span id="timecode">00:00.0</span>
@@ -1097,6 +1206,10 @@ setInterval(() => {
 document.addEventListener("keydown", (e) => {
   // Typing in the panel or a line's editor is typing; they take their own keys.
   if (e.target.closest?.("input, textarea")) return;
+  if (homeShown || $("setup").open) {
+    if (homeShown && e.key === "Escape" && !$("home-back").hidden) hideHome();
+    return;
+  }
   if ($("panel").open && e.key === "Escape") { e.preventDefault(); return $("panel").close(); }
   if ($("panel").open && e.target.closest?.("#panel")) return;
   const command = MAC ? e.metaKey : e.ctrlKey;
@@ -1907,26 +2020,11 @@ async function make(job) {
   keys();
   try {
     const r = await fetch(`${API}/make?job=${job}`, { method: "POST" });
-    if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
-    const reader = r.body.getReader(), text = new TextDecoder();
-    let buffer = "", last = null;
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (value) buffer += text.decode(value, { stream: true });
-      let nl;
-      while ((nl = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        if (!line) continue;
-        const e = JSON.parse(line);
-        if (e.event !== "progress") { last = e; continue; }
-        const [says, fraction] = progressSays(e);
-        status(says);
-        $("working").firstElementChild.style.width = `${fraction * 100}%`;
-      }
-      if (done) break;
-    }
-    if (!last) throw new Error("the server stopped without saying how it went");
+    const last = await events(r, (e) => {
+      const [says, fraction] = progressSays(e);
+      status(says);
+      $("working").firstElementChild.style.width = `${fraction * 100}%`;
+    });
     if (last.event === "failed") throw new Error(last.errors.join("\n"));
     const said = last.video ? `Built ${last.video.split("/").pop()}` : "Every shot is captured";
     status(last.video ? `Built ${last.video}` : said);
@@ -1941,6 +2039,319 @@ async function make(job) {
   }
   // New clips for the monitor, and the shots' lengths as captured.
   await loadScript();
+}
+
+/** Reads a long job's answer: each progress event to `progress` as it
+ *  comes, and the last event, which says how the job went. */
+async function events(r, progress) {
+  if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+  const reader = r.body.getReader(), text = new TextDecoder();
+  let buffer = "", last = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buffer += text.decode(value, { stream: true });
+    let nl;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line) continue;
+      const e = JSON.parse(line);
+      if (e.event === "progress") progress(e);
+      else last = e;
+    }
+    if (done) break;
+  }
+  if (!last) throw new Error("the server stopped without saying how it went");
+  return last;
+}
+
+// ---- The welcome: a script to open, and who narrates ---------------------
+
+let homeShown = false;
+
+/** Tells the app around the page, if there is one, what the page did: a
+ *  script opened, the welcome shown, setup closed. */
+function tellShell(message) {
+  try { window.webkit?.messageHandlers?.teleprompt?.postMessage(JSON.stringify(message)); } catch {}
+}
+
+/** The project's scripts, to open one: at start when none is open, or from
+ *  the help to open another. */
+async function showHome() {
+  if (listening || paused || counting || making || reading || editing) {
+    return status("Finish what is under way first");
+  }
+  let home;
+  try {
+    const r = await fetch(`${API}/home`);
+    if (!r.ok) return status("This prompter serves one script; run teleprompt serve to open others", true);
+    home = await r.json();
+  } catch {
+    return status("The server is not answering", true);
+  }
+  $("help").close();
+  homeShown = true;
+  document.body.classList.add("home");
+  $("home").hidden = false;
+  document.title = "Teleprompt";
+  $("home-title").textContent = home.project ? `Teleprompt · ${home.project}` : "Teleprompt";
+  $("home-back").hidden = !home.opened;
+
+  // You read when this teleprompt can hear you; a voice reads otherwise.
+  const you = document.querySelector('#narrator input[value="you"]');
+  let chosen = PARAMS.get("narrator");
+  try { chosen ??= localStorage.getItem("narrator"); } catch {}
+  you.disabled = !home.can_hear;
+  if (!home.can_hear || (!home.hears && chosen !== "you")) chosen = "voice";
+  document.querySelector(`#narrator input[value="${chosen === "voice" ? "voice" : "you"}"]`).checked = true;
+  narratorNote(home);
+
+  const list = $("scripts");
+  list.replaceChildren(...home.scripts.map((s) => {
+    const item = document.createElement("li");
+    const open = document.createElement("button");
+    const title = document.createElement("span");
+    title.textContent = s.name;
+    open.append(title);
+    if (s.name === home.opened) {
+      const now = document.createElement("span");
+      now.className = "open-now";
+      now.textContent = "Open";
+      open.append(now);
+    }
+    open.title = s.path;
+    open.addEventListener("click", () => openScript(s.path, narrator() === "voice"));
+    item.append(open);
+    return item;
+  }));
+  $("no-scripts").hidden = home.scripts.length > 0;
+  if (document.body.classList.contains("in-app")) {
+    $("no-scripts").textContent = `No scripts here. Open one with ${MAC ? "⌘O" : "Ctrl+O"}, or draft one from a session with ${MAC ? "⌘N" : "Ctrl+N"}.`;
+  }
+  status(home.scripts.length ? "Choose a script" : "No scripts here");
+  list.querySelector("button")?.focus();
+  tellShell({ event: "home" });
+}
+
+function narrator() {
+  return document.querySelector("#narrator input:checked")?.value ?? "you";
+}
+
+/** Why you cannot read, or what reading needs first. */
+function narratorNote(home) {
+  const note = $("narrator-note");
+  note.hidden = false;
+  if (!home.can_hear) note.textContent = "This teleprompt was built without speech models, so a voice reads.";
+  else if (!home.hears && narrator() === "you") note.textContent = "Following your voice needs the speech model: opening a script offers to install it.";
+  else note.hidden = true;
+}
+
+function hideHome() {
+  homeShown = false;
+  document.body.classList.remove("home");
+  $("home").hidden = true;
+  if (script.name) document.title = script.name;
+  if (voiced) voiceStatus();
+  else status(READY);
+}
+
+/** Opens `path` in place of what is open, then shows it; what it needs
+ *  first, it offers to set up. */
+async function openScript(path, voice) {
+  $("home-errors").textContent = "";
+  status(`Opening ${path.split("/").pop()}…`);
+  let r, answer;
+  try {
+    r = await fetch(`${API}/open?script=${encodeURIComponent(path)}${voice ? "&voice=1" : ""}`, { method: "POST" });
+    answer = await r.json().catch(() => ({ errors: [r.statusText] }));
+  } catch {
+    return status("The server is not answering", true);
+  }
+  if (r.ok) {
+    try { localStorage.setItem("narrator", voice ? "voice" : "you"); } catch {}
+    tellShell({ event: "opened", path, voice });
+    // The page as it starts with a script open, on what this one was asked.
+    const kept = new URLSearchParams(PARAMS);
+    for (const k of ["open", "setup"]) kept.delete(k);
+    kept.set("narrator", voice ? "voice" : "you");
+    return location.replace(`${location.pathname}?${kept}`);
+  }
+  if (answer.needs) {
+    if (!homeShown) await showHome();
+    return openSetup([answer.needs], answer.errors?.[0], () => openScript(path, voice));
+  }
+  if (!homeShown) await showHome();
+  $("home-errors").textContent = (answer.errors ?? [r.statusText]).join("\n");
+  status(`Could not open ${path.split("/").pop()}`, true);
+}
+
+// ---- Setting teleprompt up ------------------------------------------------
+
+let uses = [];                // what the server can set up, as it last said
+let installing = false;
+let afterSetup = null;        // what to do once what was wanted is installed
+let installed = [];           // what was installed since the dialog opened
+
+/** What teleprompt can be set up to do, with `wanted` ticked; `then` runs
+ *  once it is installed. */
+async function openSetup(wanted = [], why = null, then = null) {
+  afterSetup = then;
+  if (!$("setup").open) installed = [];
+  $("setup-why").hidden = !why;
+  $("setup-why").textContent = why ?? "";
+  if (!$("setup").open) $("setup").showModal();
+  await listUses(wanted);
+}
+
+async function listUses(wanted = []) {
+  setupSays("Looking at what is here…");
+  try {
+    const r = await fetch(`${API}/setup`);
+    if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+    uses = (await r.json()).uses;
+  } catch (e) {
+    return setupSays(`Could not tell what is here: ${e.message}`, true);
+  }
+  $("uses").replaceChildren(...uses.map((u) => useRow(u, wanted.includes(u.name))));
+  setupSays("");
+  chosenChanged();
+}
+
+function useRow(u, wanted) {
+  const item = document.createElement("li");
+  const label = document.createElement("label");
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.value = u.name;
+  box.disabled = u.installed || !u.available || installing;
+  box.checked = wanted && !box.disabled;
+  box.addEventListener("change", chosenChanged);
+  const title = document.createElement("span");
+  title.textContent = u.label;
+  const state = document.createElement("span");
+  state.className = `use-state${u.installed ? " ok" : ""}`;
+  state.textContent = useState(u);
+  label.append(box, title, state);
+  const more = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.textContent = "What it uses";
+  more.append(summary, ...u.tools.map((t) => {
+    const p = document.createElement("p");
+    const head = document.createElement("strong");
+    head.textContent = t.name;
+    p.append(head, ` ${t.what}. ${t.license}. `);
+    if (t.installed) p.append("Installed.");
+    else if (t.command) {
+      const code = document.createElement("code");
+      code.textContent = t.command;
+      p.append(code);
+    } else p.append(t.guide ?? "Nothing here can install it.");
+    return p;
+  }));
+  item.append(label, more);
+  return item;
+}
+
+/** What a use needs here, as its row says it. */
+function useState(u) {
+  if (!u.available) return "Needs teleprompt built with speech models";
+  if (u.installed) return "Installed";
+  const missing = u.tools.filter((t) => t.installed === false);
+  const programs = missing.filter((t) => t.download_mb == null).map((t) => t.name);
+  const models = missing.length - programs.length;
+  if (models) programs.push(models === 1 ? "a model" : `${models} models`);
+  let says = `Needs ${programs.join(", ")}`;
+  if (u.download_mb) says += ` · ${u.download_mb} MB`;
+  if (missing.some((t) => t.password)) says += " · asks for your password";
+  return says;
+}
+
+function chosen() {
+  return [...document.querySelectorAll("#uses input:checked")].map((i) => i.value);
+}
+
+/** The Install button says what the uses ticked download, each model once. */
+function chosenChanged() {
+  const names = chosen();
+  const seen = new Map();
+  for (const t of uses.filter((u) => names.includes(u.name)).flatMap((u) => u.tools)) {
+    if (t.installed === false && t.download_mb) seen.set(t.name, t.download_mb);
+  }
+  const mb = [...seen.values()].reduce((a, b) => a + b, 0);
+  $("setup-install").disabled = installing || !names.length;
+  $("setup-install").textContent = mb ? `Install · ${mb} MB` : "Install";
+}
+
+function setupSays(text, bad = false) {
+  $("setup-says").textContent = text;
+  $("setup-says").classList.toggle("bad", bad);
+}
+
+/** A tool as a sentence names it. */
+function spoken(tool) {
+  return { "speech-model": "the speech model", "punctuation-model": "the punctuation model",
+    "speaker-model": "the speaker models" }[tool] ?? tool;
+}
+
+async function install() {
+  const names = chosen();
+  if (!names.length || installing) return;
+  installing = true;
+  for (const box of document.querySelectorAll("#uses input")) box.disabled = true;
+  $("setup-close").disabled = true;
+  chosenChanged();
+  $("setup-bar").hidden = false;
+  const bar = $("setup-bar").firstElementChild;
+  bar.style.width = "0";
+  setupSays("Installing…");
+  let ok = false;
+  try {
+    const r = await fetch(`${API}/setup?uses=${names.map(encodeURIComponent).join(",")}`, { method: "POST" });
+    const last = await events(r, (e) => {
+      if (e.stage !== "install") return;
+      if (e.state === "start") setupSays(`Installing ${spoken(e.tool)}…`);
+      if (e.state === "downloading") {
+        setupSays(`Downloading ${spoken(e.tool)} · ${Math.min(e.mb, e.of)} of ${e.of} MB`);
+        bar.style.width = `${Math.min(1, e.mb / Math.max(1, e.of)) * 100}%`;
+      }
+      if (e.state === "done") setupSays(`Installed ${spoken(e.tool)}.`);
+    });
+    if (last.event === "failed") throw new Error(last.errors.join("\n"));
+    installed.push(...names);
+    ok = true;
+  } catch (e) {
+    setupSays(`Could not install: ${e.message}`, true);
+  } finally {
+    installing = false;
+    $("setup-close").disabled = false;
+    $("setup-bar").hidden = true;
+  }
+  if (!ok) return listUses(names).then(() => setupSays($("setup-says").textContent || "Could not install", true));
+  await listUses();
+  setupSays("Installed.");
+  if (afterSetup) {
+    const then = afterSetup;
+    afterSetup = null;
+    $("setup").close();
+    then();
+  }
+}
+
+$("setup-open").addEventListener("click", () => openSetup());
+$("setup-install").addEventListener("click", install);
+$("setup-close").addEventListener("click", () => $("setup").close());
+$("setup").addEventListener("cancel", (e) => { if (installing) e.preventDefault(); });
+$("setup").addEventListener("close", () => {
+  afterSetup = null;
+  tellShell({ event: "setup", installed });
+});
+$("home-back").addEventListener("click", hideHome);
+$("help-scripts").addEventListener("click", showHome);
+$("help-setup").addEventListener("click", () => { $("help").close(); openSetup(); });
+for (const radio of document.querySelectorAll("#narrator input")) {
+  radio.addEventListener("change", async () => {
+    try { narratorNote(await (await fetch(`${API}/home`)).json()); } catch {}
+  });
 }
 
 // ---- The monitor in a window of its own -----------------------------------
@@ -2120,15 +2531,28 @@ if (VIEW === "monitor") {
   addEventListener("resize", margins);
   margins();
   document.fonts?.ready.then(drawRibbons);
-  loadScript().then(() => {
+  start();
+}
+
+/** Opens what `?open=` names, read as `?narrator=you|voice` says, or the
+ *  script the server has open; with none, the welcome. `?setup=a,b`
+ *  offers to set those up, saying `?why=`. */
+async function start() {
+  if (PARAMS.has("open")) return openScript(PARAMS.get("open"), PARAMS.get("narrator") === "voice");
+  const r = await fetch(`${API}/script`).catch(() => null);
+  if (r?.status === 404) {
+    await showHome();
+  } else {
+    await loadScript(r ? await r.json() : null);
     offerSaid();
     if (voiced) {
       voiceStatus();
       voiceUnmade();
     } else status(READY);
     keys();
-    setInterval(watch, 4000);
-  });
+  }
+  setInterval(() => { if (!homeShown) watch(); }, 4000);
+  if (PARAMS.has("setup")) openSetup(PARAMS.get("setup").split(",").filter(Boolean), PARAMS.get("why"));
 }
 </script>
 </body>

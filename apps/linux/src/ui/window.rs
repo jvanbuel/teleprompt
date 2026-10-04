@@ -1,6 +1,6 @@
-//! The window: the welcome page; the prompter, which is the page
-//! `teleprompt serve` serves, shown in WebKit; and session mode, a
-//! terminal that `teleprompt record` runs in.
+//! The window: the page `teleprompt serve` serves, shown in WebKit (its
+//! welcome, its setup and the prompter); and session mode, a terminal
+//! that `teleprompt record` runs in.
 
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -15,7 +15,7 @@ use vte4::prelude::*;
 use webkit::prelude::*;
 
 use super::config::Config;
-use super::session::SessionPage;
+use super::session::{project_dir, SessionPage};
 use super::tally::{Status, Tally};
 
 /// Starts and stops recording, in every mode.
@@ -45,26 +45,30 @@ struct Widgets {
     /// Session mode's Record: the page has its own.
     record: gtk::Button,
     record_label: gtk::Label,
-    reopen: gtk::Button,
-    /// Who reads, on the welcome page: the author, or a voice.
-    narrator_voice: gtk::ToggleButton,
     loading_title: gtk::Label,
     loading_detail: gtk::Label,
     failed: adw::StatusPage,
     /// The prompter: the page the server serves.
     view: webkit::WebView,
-    /// The welcome page's sample of the glass, which a narrow window drops.
-    sample: gtk::Box,
     session: SessionPage,
     tally: Tally,
     toasts: adw::ToastOverlay,
 }
+
+/// What to do once the page's setup has installed something.
+type AfterSetup = Box<dyn Fn(&Rc<Window>)>;
 
 #[derive(Default)]
 struct Model {
     config: Config,
     generation: u64,
     server: Option<ServerProcess>,
+    /// Where the server runs: the project its welcome lists.
+    dir: Option<PathBuf>,
+    /// The page's address to load once the server listens.
+    pending: Option<String>,
+    /// Set while the page's setup is open for something under way here.
+    after_setup: Option<AfterSetup>,
     /// The server's origin, once it listens: the only one the page may
     /// load from, and use the microphone for.
     origin: Option<String>,
@@ -110,17 +114,14 @@ impl Window {
             let countdown = this.config().countdown();
             hear_from_file(&this.w.view, std::path::Path::new(&wav), countdown);
         }
-        // A narrow window keeps the controls: the key hints and the
-        // welcome page's sample go.
+        // A narrow window keeps the controls: the key hints go.
         let narrow = adw::Breakpoint::new(
             adw::BreakpointCondition::parse("max-width: 900sp").expect("a condition"),
         );
         let hidden = false.to_value();
         narrow.add_setter(this.w.tally.keys(), "visible", Some(&hidden));
-        narrow.add_setter(&this.w.sample, "visible", Some(&hidden));
         this.window.add_breakpoint(narrow);
         this.window.set_size_request(560, 420);
-        this.show_welcome();
         let weak = Rc::downgrade(&this);
         glib::spawn_future_local(async move {
             while let Ok(event) = received.recv().await {
@@ -164,14 +165,6 @@ impl Window {
             }
         });
         let weak = Rc::downgrade(this);
-        self.w.narrator_voice.connect_toggled(move |voice| {
-            if let Some(this) = weak.upgrade() {
-                let mut config = this.config();
-                config.voice_reads = voice.is_active();
-                this.set_config(config);
-            }
-        });
-        let weak = Rc::downgrade(this);
         self.w
             .session
             .terminal
@@ -181,13 +174,6 @@ impl Window {
                 }
             });
         let weak = Rc::downgrade(this);
-        self.w.reopen.connect_clicked(move |_| {
-            let Some(this) = weak.upgrade() else { return };
-            if let Some(last) = this.last_script() {
-                this.open(last);
-            }
-        });
-        let weak = Rc::downgrade(this);
         self.window.connect_close_request(move |_| {
             if let Some(this) = weak.upgrade() {
                 this.shutdown();
@@ -196,27 +182,32 @@ impl Window {
         });
     }
 
-    /// The page: shown once it has loaded, given the microphone and
-    /// nothing else, and its monitor opened in a window of its own.
+    /// The page: shown once it has loaded, unless session mode is; given
+    /// the microphone and nothing else; heard when it says what it did;
+    /// and its monitor opened in a window of its own.
     fn connect_view(&self, this: &Rc<Self>) {
         let weak = Rc::downgrade(this);
         self.w.view.connect_load_changed(move |view, event| {
             let Some(this) = weak.upgrade() else { return };
-            let ours = this
-                .model
-                .borrow()
-                .origin
-                .as_ref()
-                .is_some_and(|o| view.uri().is_some_and(|u| u.starts_with(o.as_str())));
-            if event == webkit::LoadEvent::Finished && ours {
+            let shown = {
+                let model = this.model.borrow();
+                model.session.is_none() || model.after_setup.is_some()
+            };
+            if event == webkit::LoadEvent::Finished && this.ours(view) && shown {
                 this.w.stack.set_visible_child_name("ready");
                 this.w.view.grab_focus();
-                // Named for the window switcher, once there is a script to
-                // read: what a recording of the app waits for.
-                let name = this.w.title.title();
-                this.window.set_title(Some(&format!("{name} — Teleprompt")));
             }
         });
+        if let Some(content) = self.w.view.user_content_manager() {
+            content.register_script_message_handler("teleprompt", None);
+            let weak = Rc::downgrade(this);
+            content.connect_script_message_received(Some("teleprompt"), move |_, value| {
+                let Some(this) = weak.upgrade() else { return };
+                if this.ours(&this.w.view) {
+                    this.told(&value.to_str());
+                }
+            });
+        }
         let weak = Rc::downgrade(this);
         self.w.view.connect_load_failed(move |view, _, uri, error| {
             let Some(this) = weak.upgrade() else {
@@ -257,15 +248,72 @@ impl Window {
         });
     }
 
+    /// Whether `view` shows the page this server serves.
+    fn ours(&self, view: &webkit::WebView) -> bool {
+        let origin = self.model.borrow().origin.clone();
+        origin.is_some_and(|o| view.uri().is_some_and(|u| u.starts_with(&format!("{o}/"))))
+    }
+
     /// The microphone, for the page this server serves; nothing else, for
     /// any page.
     fn allows(&self, view: &webkit::WebView, request: &webkit::PermissionRequest) -> bool {
         let Some(media) = request.downcast_ref::<webkit::UserMediaPermissionRequest>() else {
             return false;
         };
-        let origin = self.model.borrow().origin.clone();
-        let ours = origin.is_some_and(|o| view.uri().is_some_and(|u| u.starts_with(&o)));
-        ours && media.is_for_audio_device() && !media.is_for_video_device()
+        self.ours(view) && media.is_for_audio_device() && !media.is_for_video_device()
+    }
+
+    /// What the page did, as it tells the app: a script opened, which the
+    /// app reopens next time; the welcome shown; its setup closed, on
+    /// what was under way here.
+    fn told(self: &Rc<Self>, message: &str) {
+        let Ok(message) = serde_json::from_str::<serde_json::Value>(message) else {
+            return;
+        };
+        match message["event"].as_str() {
+            Some("opened") => {
+                let Some(script) = message["path"].as_str().map(PathBuf::from) else {
+                    return;
+                };
+                let mut config = self.config();
+                config.last_script = Some(script.clone());
+                config.voice_reads = message["voice"].as_bool().unwrap_or(false);
+                self.set_config(config);
+                self.name_for(Some(&script));
+            }
+            Some("home") => self.name_for(None),
+            Some("setup") => {
+                let installed = message["installed"]
+                    .as_array()
+                    .is_some_and(|a| !a.is_empty());
+                let then = self.model.borrow_mut().after_setup.take();
+                if self.model.borrow().session.is_some() {
+                    self.w.stack.set_visible_child_name("session");
+                }
+                if let (Some(then), true) = (then, installed) {
+                    then(self);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// The title bar and the window switcher name the script open, or the
+    /// app: what a recording of the app waits for.
+    fn name_for(&self, script: Option<&std::path::Path>) {
+        match script {
+            Some(script) => {
+                let name = file_name(script);
+                self.w.title.set_title(&name);
+                self.w.title.set_subtitle(&project_name(script));
+                self.window.set_title(Some(&format!("{name} — Teleprompt")));
+            }
+            None => {
+                self.w.title.set_title("Teleprompt");
+                self.w.title.set_subtitle("");
+                self.window.set_title(Some("Teleprompt"));
+            }
+        }
     }
 
     /// The page's monitor, which it opened, in a window of its own: for a
@@ -314,8 +362,8 @@ impl Window {
     }
 
     /// Session mode, drafting into `script`: the record key starts it.
-    pub fn new_session(&self, script: PathBuf) {
-        self.shutdown();
+    pub fn new_session(self: &Rc<Self>, script: PathBuf) {
+        self.stop_session();
         {
             let mut model = self.model.borrow_mut();
             model.generation += 1;
@@ -337,6 +385,13 @@ impl Window {
         self.show_status();
         self.show_record();
         self.list_tools();
+        // The page lets go of the microphone and the speech model.
+        let origin = self.model.borrow().origin.clone();
+        if let Some(origin) = origin {
+            self.w
+                .view
+                .load_uri(&format!("{origin}/?{}", self.query(&[])));
+        }
     }
 
     /// Asks `teleprompt` what it can record with, off the main thread.
@@ -512,79 +567,114 @@ impl Window {
         }
     }
 
-    /// Launches `teleprompt serve` for `script`, replacing any server
-    /// already running, and shows its page once it listens.
+    /// The page's welcome: from the server running, or one started in
+    /// the last script's project.
+    pub fn show_home(self: &Rc<Self>) {
+        if self.model.borrow().origin.is_some() {
+            self.w.stack.set_visible_child_name("ready");
+            return self.run("showHome()");
+        }
+        let dir = self.model.borrow().dir.clone();
+        let dir = dir
+            .or_else(|| self.last_script().map(|s| project_dir(&s)))
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_default();
+        self.serve(dir, self.query(&[]));
+    }
+
+    /// Opens `script` in the page, from a server running in its project.
     pub fn open(self: &Rc<Self>, script: PathBuf) {
+        let script = std::fs::canonicalize(&script).unwrap_or(script);
+        let mut config = self.config();
+        config.last_script = Some(script.clone());
+        self.set_config(config);
+        self.name_for(Some(&script));
+        self.w.loading_title.set_label("Opening the script");
+        self.w.loading_detail.set_label(&file_name(&script));
+        let query = self.query(&[("open", &script.display().to_string())]);
+        self.serve(project_dir(&script), query);
+    }
+
+    /// The page at `query`, served from `dir`: by the server running
+    /// there, or one started there in place of any other.
+    fn serve(self: &Rc<Self>, dir: PathBuf, query: String) {
+        let running = {
+            let model = self.model.borrow();
+            model.server.is_some() && model.dir.as_ref() == Some(&dir)
+        };
+        if running {
+            let origin = self.model.borrow().origin.clone();
+            match origin {
+                Some(origin) => self.w.view.load_uri(&format!("{origin}/?{query}")),
+                None => self.model.borrow_mut().pending = Some(query),
+            }
+            return;
+        }
         self.shutdown();
         let mut model = self.model.borrow_mut();
         model.generation += 1;
-        model.config.last_script = Some(script.clone());
-        model.config.save();
-        // A voice reads without a speech model; the author, with one.
-        let voice = model.config.voice_reads;
-        let (Some(binary), speech) = (model.config.binary(), model.config.model()) else {
+        let Some(binary) = model.config.binary() else {
             drop(model);
             return self.show_failed(&[NO_BINARY.into()]);
         };
-        if speech.is_none() && !voice {
-            drop(model);
-            self.show_welcome();
-            let again = script.clone();
-            return self.offer_setup_then(
-                &["prompt"],
-                Some(
-                    "Following your voice needs the speech model. The script opens \
-                 once it is installed. Or let a voice read it: choose \u{201c}A voice \
-                 reads\u{201d} on the welcome page.",
-                ),
-                move |this| this.open(again.clone()),
-            );
-        }
         let request = LaunchRequest {
             binary,
-            script: script.clone(),
-            model: speech.filter(|_| !voice),
+            dir: dir.clone(),
+            model: model.config.model(),
             locale: model.config.locale(),
         };
         let (events, generation) = (self.events.clone(), model.generation);
         match ServerProcess::start(&request, move |e| {
             let _ = events.send_blocking(Event::Launch(generation, e));
         }) {
-            Ok(server) => model.server = Some(server),
+            Ok(server) => {
+                model.server = Some(server);
+                model.dir = Some(dir);
+                model.pending = Some(query);
+            }
             Err(e) => {
                 drop(model);
                 return self
                     .show_failed(&[format!("Could not run {}: {e}", request.binary.display())]);
             }
         }
+        let shown = model.session.is_none() || model.after_setup.is_some();
         drop(model);
-        let name = file_name(&script);
-        self.w.title.set_title(&name);
-        self.w.title.set_subtitle(&project_name(&script));
-        self.w.loading_title.set_label(if voice {
-            "Opening the script"
-        } else {
-            "Loading the speech model"
-        });
-        self.w.loading_detail.set_label(&name);
-        self.w.stack.set_visible_child_name("loading");
+        if shown {
+            self.w.stack.set_visible_child_name("loading");
+        }
         self.show_record();
+    }
+
+    /// The page's address: in an app, whether a take counts down, who
+    /// reads, and `extra`.
+    fn query(&self, extra: &[(&str, &str)]) -> String {
+        let config = self.config();
+        let mut query = vec![("shell", "1")];
+        if !config.countdown() {
+            query.push(("countdown", "0"));
+        }
+        query.push(("narrator", if config.voice_reads { "voice" } else { "you" }));
+        query.extend_from_slice(extra);
+        query
+            .iter()
+            .map(|(k, v)| format!("{k}={}", glib::Uri::escape_string(v, None, false)))
+            .collect::<Vec<_>>()
+            .join("&")
+    }
+
+    /// Runs `script` in the page.
+    fn run(&self, script: &str) {
+        self.w
+            .view
+            .evaluate_javascript(script, None, None, gio::Cancellable::NONE, |_| {});
     }
 
     fn launched(&self, event: LaunchEvent) {
         match event {
             LaunchEvent::Listening(origin) => {
-                // Settings the page takes in its address: it is in an
-                // app, whose title bar names the script, and whether a
-                // take counts down.
-                let countdown = if self.config().countdown() {
-                    ""
-                } else {
-                    "&countdown=0"
-                };
-                self.w
-                    .view
-                    .load_uri(&format!("{origin}/?shell=1{countdown}"));
+                let query = self.model.borrow_mut().pending.take().unwrap_or_default();
+                self.w.view.load_uri(&format!("{origin}/?{query}"));
                 self.model.borrow_mut().origin = Some(origin);
             }
             LaunchEvent::Ended(reasons) => {
@@ -634,26 +724,14 @@ impl Window {
         }
     }
 
-    pub fn show_welcome(&self) {
-        let last = self.last_script();
-        self.w.reopen.set_visible(last.is_some());
-        if let Some(last) = &last {
-            self.w
-                .reopen
-                .set_label(&format!("Reopen {}", file_name(last)));
-        }
-        self.w
-            .narrator_voice
-            .set_active(self.model.borrow().config.voice_reads);
-        self.w.stack.set_visible_child_name("welcome");
-        self.window.set_title(Some("Teleprompt"));
-        self.show_record();
-    }
-
-    /// Opens setup with `wanted` ticked, saying `why`: what a command
-    /// found missing, to install there rather than fail.
+    /// The page's setup, with `wanted` ticked, saying `why`: what a
+    /// command found missing, to install there rather than fail.
     pub fn offer_setup(self: &Rc<Self>, wanted: &[&str], why: Option<&str>) {
-        self.offer_setup_then(wanted, why, |this| this.list_tools());
+        self.offer_setup_then(wanted, why, |this| {
+            if this.model.borrow().session.is_some() {
+                this.list_tools();
+            }
+        });
     }
 
     /// As [`Self::offer_setup`], and `then` once something is installed:
@@ -664,18 +742,27 @@ impl Window {
         why: Option<&str>,
         then: impl Fn(&Rc<Self>) + 'static,
     ) {
-        let weak = Rc::downgrade(self);
-        super::setup::present(
-            self.file_dialog_parent(),
-            self.config().binary(),
-            wanted,
-            why,
-            move || {
-                if let Some(this) = weak.upgrade() {
-                    then(&this);
-                }
-            },
-        );
+        self.model.borrow_mut().after_setup = Some(Box::new(then));
+        if self.model.borrow().origin.is_none() {
+            let wanted = wanted.join(",");
+            let mut extra = vec![("setup", wanted.as_str())];
+            if let Some(why) = why {
+                extra.push(("why", why));
+            }
+            let query = self.query(&extra);
+            let dir = self.model.borrow().dir.clone();
+            let dir = dir
+                .or_else(|| self.last_script().map(|s| project_dir(&s)))
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_default();
+            return self.serve(dir, query);
+        }
+        self.w.stack.set_visible_child_name("ready");
+        self.run(&format!(
+            "openSetup({}, {})",
+            serde_json::json!(wanted),
+            serde_json::json!(why)
+        ));
     }
 
     fn show_failed(&self, reasons: &[String]) {
@@ -861,7 +948,6 @@ fn hear_from_file(view: &webkit::WebView, wav: &std::path::Path, countdown: bool
 
 impl Widgets {
     fn build() -> Self {
-        let (welcome, reopen, sample, narrator_voice) = Self::welcome();
         let (loading, loading_title, loading_detail) = Self::loading();
         let failed = Self::failed();
         let view = prompter_view();
@@ -869,7 +955,6 @@ impl Widgets {
             .transition_type(gtk::StackTransitionType::Crossfade)
             .transition_duration(220)
             .build();
-        stack.add_named(&welcome, Some("welcome"));
         stack.add_named(&loading, Some("loading"));
         stack.add_named(&failed, Some("failed"));
         stack.add_named(&view, Some("ready"));
@@ -895,155 +980,14 @@ impl Widgets {
             title: adw::WindowTitle::new("Teleprompt", ""),
             record,
             record_label,
-            reopen,
-            narrator_voice,
             loading_title,
             loading_detail,
             failed,
             view,
-            sample,
             session,
             tally: Tally::new(),
             toasts: adw::ToastOverlay::new(),
         }
-    }
-
-    fn welcome() -> (gtk::Box, gtk::Button, gtk::Box, gtk::ToggleButton) {
-        let column = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .spacing(18)
-            .valign(gtk::Align::Center)
-            .build();
-        let page = gtk::Box::builder()
-            .spacing(64)
-            .halign(gtk::Align::Center)
-            .valign(gtk::Align::Center)
-            .build();
-        page.append(&column);
-        let sample = Self::glass_sample();
-        page.append(&sample);
-        column.append(&Self::lockup());
-        column.append(
-            &gtk::Label::builder()
-                .label(
-                    "Open a script and read it aloud: the words follow your voice, \
-                     each shot plays as you reach it, and every line you finish is \
-                     kept as a take. Or let a voice read it, and direct it line by \
-                     line.",
-                )
-                .wrap(true)
-                .max_width_chars(46)
-                .xalign(0.0)
-                .css_classes(["hero-body"])
-                .build(),
-        );
-        let open = gtk::Button::builder()
-            .label("Open script…")
-            .action_name("app.open")
-            .css_classes(["pill", "primary"])
-            .build();
-        let reopen = gtk::Button::builder().css_classes(["pill"]).build();
-        let session = gtk::Button::builder()
-            .label("Draft from a session…")
-            .action_name("app.session")
-            .css_classes(["pill"])
-            .build();
-        let buttons = gtk::Box::builder().spacing(12).margin_top(10).build();
-        buttons.append(&open);
-        buttons.append(&reopen);
-        buttons.append(&session);
-        let (narrator, narrator_voice) = Self::narrator();
-        column.append(&narrator);
-        column.append(&buttons);
-        column.append(
-            &gtk::Button::builder()
-                .label("Set up what teleprompt needs…")
-                .action_name("app.setup")
-                .halign(gtk::Align::Start)
-                .css_classes(["flat", "setup-link"])
-                .build(),
-        );
-        (page, reopen, sample, narrator_voice)
-    }
-
-    /// Who reads the script: two linked toggles, "I read" and "A voice
-    /// reads". The voice's toggle, whose state is the choice.
-    fn narrator() -> (gtk::Box, gtk::ToggleButton) {
-        let me = gtk::ToggleButton::builder()
-            .label("I read")
-            .active(true)
-            .css_classes(["narrator"])
-            .build();
-        let voice = gtk::ToggleButton::builder()
-            .label("A voice reads")
-            .group(&me)
-            .css_classes(["narrator"])
-            .build();
-        let toggles = gtk::Box::builder()
-            .css_classes(["linked"])
-            .halign(gtk::Align::Start)
-            .build();
-        toggles.append(&me);
-        toggles.append(&voice);
-        let row = gtk::Box::builder().spacing(14).margin_top(4).build();
-        row.append(
-            &gtk::Label::builder()
-                .label("Who narrates")
-                .css_classes(["narrator-label"])
-                .build(),
-        );
-        row.append(&toggles);
-        (row, voice)
-    }
-
-    /// The logo beside the name, `apps/icons`, or the name alone if the
-    /// image cannot be read.
-    fn lockup() -> gtk::Widget {
-        let svg = include_str!("../../../icons/teleprompt-lockup-dark.svg");
-        picture(svg, 64).unwrap_or_else(|| {
-            gtk::Label::builder()
-                .label("Teleprompt")
-                .xalign(0.0)
-                .css_classes(["hero-title"])
-                .build()
-                .upcast()
-        })
-    }
-
-    /// A slice of the glass, to show what the prompter does before a
-    /// script is open: the reading line, what is said, the next word.
-    fn glass_sample() -> gtk::Box {
-        let card = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .spacing(10)
-            .css_classes(["sample-glass"])
-            .valign(gtk::Align::Center)
-            .build();
-        let lines = [
-            (false, "<span alpha='40%'>Every take starts here.</span>"),
-            (true, "<span alpha='40%'>The words follow</span> <span foreground='#ffb800' underline='single' underline_color='#ffb800'>your</span> voice,"),
-            (false, "<span alpha='55%'>and the shots play</span>"),
-            (false, "<span alpha='55%'>as you reach them.</span>"),
-        ];
-        for (current, markup) in lines {
-            let row = gtk::Box::builder().spacing(14).build();
-            let arrow = gtk::Label::builder()
-                .label("▶")
-                .css_classes(["sample-arrow"])
-                .opacity(if current { 1.0 } else { 0.0 })
-                .build();
-            row.append(&arrow);
-            row.append(
-                &gtk::Label::builder()
-                    .use_markup(true)
-                    .label(markup)
-                    .xalign(0.0)
-                    .css_classes(["sample-text"])
-                    .build(),
-            );
-            card.append(&row);
-        }
-        card
     }
 
     fn loading() -> (gtk::Box, gtk::Label, gtk::Label) {
@@ -1106,13 +1050,6 @@ impl Widgets {
             .build();
         if let Some(mark) = picture(include_str!("../../../icons/teleprompt.svg"), 28) {
             title.append(&mark);
-            // The welcome page shows the whole logo already.
-            let beside_logo =
-                |stack: &gtk::Stack| stack.visible_child_name().as_deref() == Some("welcome");
-            mark.set_visible(!beside_logo(&self.stack));
-            self.stack.connect_visible_child_name_notify(move |stack| {
-                mark.set_visible(!beside_logo(stack))
-            });
         }
         title.append(&self.title);
         let header = adw::HeaderBar::builder().title_widget(&title).build();
@@ -1132,6 +1069,7 @@ impl Widgets {
             menu.append_section(None, &part);
         };
         section(&[
+            ("Scripts", "app.scripts"),
             ("Open in editor", "app.open-editor"),
             ("Draft from a session…", "app.session"),
         ]);

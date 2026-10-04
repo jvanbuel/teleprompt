@@ -1,9 +1,10 @@
 // The prompter page, driven as a person would in Chromium, against a real
 // `teleprompt serve` following a recorded reading of apps/fixtures/tour,
-// which Chromium plays as its microphone. It records a take, plays the
-// video as it will play, drags the shots on the glass and undoes a drag,
-// builds the video, and re-records a line reworded in the file, keeping
-// what was said.
+// which Chromium plays as its microphone. Served without a script, the
+// page welcomes, lists what setup can install, and opens the script
+// chosen. Then it records a take, plays the video as it will play, drags
+// the shots on the glass and undoes a drag, builds the video, and
+// re-records a line reworded in the file, keeping what was said.
 //
 //   TELEPROMPT_BIN=…/teleprompt TELEPROMPT_MODEL=…/zipformer node prompter.mjs
 //
@@ -52,9 +53,10 @@ const check = (ok, said, why = "") => {
   if (!ok) failed = 1;
 };
 
-/** `teleprompt serve` on a port the OS picks, and where it listens. */
-async function serve() {
-  const server = spawn(bin, ["--format", "json", "serve", "scripts/tour.md", "--model", model, "--port", "0"],
+/** `teleprompt serve` on a port the OS picks, and where it listens;
+ *  with no script, the page's welcome. */
+async function serve(script = "scripts/tour.md") {
+  const server = spawn(bin, ["--format", "json", "serve", ...(script ? [script] : []), "--model", model, "--port", "0"],
     { cwd: project, stdio: ["ignore", "pipe", "inherit"] });
   const [line] = await createInterface({ input: server.stdout })[Symbol.asyncIterator]().next()
     .then(({ value }) => [value]);
@@ -91,6 +93,37 @@ async function drag(page, from, to) {
   await until(page, () => document.getElementById("toast").classList.contains("on"));
   await page.waitForTimeout(800);
   return said;
+}
+
+// With no script, the page welcomes: it lists the project's scripts, says
+// what teleprompt can be set up to do, and opens the script chosen.
+{
+  const { server, url } = await serve(null);
+  const browser = await chromium.launch({ executablePath });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 860 } });
+    page.on("pageerror", (e) => check(false, "the welcome runs without errors", e.message));
+    await page.goto(`${url}/?countdown=0`);
+    await until(page, () => document.querySelectorAll("#scripts button").length > 0, 10000).catch(() => {});
+    const listed = await page.$$eval("#scripts button", (b) => b.map((x) => x.textContent));
+    check(await page.isVisible("#home") && listed.join() === "tour.md", `the welcome lists the scripts (${listed})`);
+    check(await page.isChecked('#narrator input[value="you"]'), "you read, where the speech model is here");
+    await page.screenshot({ path: join(shots, "00-welcome.png") });
+    await page.click("#setup-open");
+    await until(page, () => document.querySelectorAll("#uses li").length > 0, 20000).catch(() => {});
+    const uses = await page.$$eval("#uses label > span:not(.use-state)", (s) => s.map((x) => x.textContent));
+    check(uses.includes("Render videos") && await page.isDisabled("#setup-install"),
+      `Set up lists the uses, nothing ticked (${uses.length})`);
+    await page.screenshot({ path: join(shots, "00-setup.png") });
+    await page.click("#setup-close");
+    await page.click("#scripts button");
+    await until(page, () => document.querySelectorAll("#script .line").length > 0, 20000).catch(() => {});
+    check(!(await page.isVisible("#home")) && (await page.$$("#script .line")).length > 0,
+      "a script chosen opens in the prompter", await status(page));
+  } finally {
+    await browser.close();
+    server.kill();
+  }
 }
 
 const { server, url } = await serve();

@@ -6,20 +6,22 @@ public enum API {
     public static let version = "/api/v1"
 }
 
-/// How to run `teleprompt serve` for the app.
+/// How to run `teleprompt serve` for the app: with no script, so its page
+/// welcomes, and opens the script it is asked to.
 public struct LaunchRequest: Equatable, Sendable {
     /// The `teleprompt` binary, built with `--features listen` to follow a
     /// reader by ear.
     public var binary: URL
-    public var script: URL
+    /// Where it runs: the project whose scripts the welcome lists.
+    public var dir: URL
     /// An unpacked sherpa-onnx streaming zipformer, to follow a reader by
-    /// ear; without one, the script's voice reads it.
+    /// ear; without one, the one `teleprompt setup` installed.
     public var model: URL?
     public var locale: String
 
-    public init(binary: URL, script: URL, model: URL?, locale: String = "en") {
+    public init(binary: URL, dir: URL, model: URL?, locale: String = "en") {
         self.binary = binary
-        self.script = script
+        self.dir = dir
         self.model = model
         self.locale = locale
     }
@@ -27,9 +29,16 @@ public struct LaunchRequest: Equatable, Sendable {
     /// JSON output, so the app can read where it listens; port 0, so the
     /// OS picks a free one.
     public var arguments: [String] {
-        ["--format", "json", "serve", script.path, "--locale", locale, "--port", "0"]
-            + (model.map { ["--model", $0.path] } ?? ["--voice"])
+        ["--format", "json", "serve", "--locale", locale, "--port", "0"]
+            + (model.map { ["--model", $0.path] } ?? [])
     }
+}
+
+/// The directory to serve `script` from: its project, the folder above
+/// `scripts/`.
+public func projectDir(of script: URL) -> URL {
+    let dir = script.deletingLastPathComponent()
+    return dir.lastPathComponent == "scripts" ? dir.deletingLastPathComponent() : dir
 }
 
 /// What a launched server reports.
@@ -73,6 +82,7 @@ public final class ServerProcess: @unchecked Sendable {
     public init(_ request: LaunchRequest) {
         process.executableURL = request.binary
         process.arguments = request.arguments
+        process.currentDirectoryURL = request.dir
     }
 
     /// Starts the server; `onEvent` is called, on some background queue,

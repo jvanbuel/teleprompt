@@ -86,7 +86,7 @@ of a job offers to install it there.
 | `translate <script> --to <locale>` | translate the narration, for a video in another language |
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it; `--check` compares it with the committed one and exits 3 on drift |
-| `serve <script>` | a prompter that follows your voice, plays its shots as you reach them and records your takes (opt-in build); `--voice` has the script's voice read it, and plays the video as it will play |
+| `serve [script]` | a prompter that follows your voice, plays its shots as you reach them and records your takes (opt-in build); `--voice` has the script's voice read it, and plays the video as it will play. Without a script, it opens on the project's scripts, and sets teleprompt up |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |

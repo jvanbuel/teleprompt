@@ -3,9 +3,10 @@ import AppKit
 import SwiftUI
 import WebKit
 
-/// The prompter: the page `teleprompt serve` serves, in WebKit. The page
-/// does the prompting; this gives it the microphone, and nothing else, and
-/// opens its screen in a window of its own when it asks.
+/// The page `teleprompt serve` serves, in WebKit: its welcome, its setup
+/// and the prompter. The page does those; this gives it the microphone,
+/// and nothing else, hears what it says it did, and opens its screen in a
+/// window of its own when it asks.
 struct PrompterPage: NSViewRepresentable {
     let page: URL
     let model: AppModel
@@ -15,7 +16,10 @@ struct PrompterPage: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> WKWebView {
-        let view = WKWebView(frame: .zero, configuration: Self.configuration())
+        let configuration = Self.configuration()
+        configuration.userContentController.add(context.coordinator, name: "teleprompt")
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        model.webView = view
         view.uiDelegate = context.coordinator
         view.navigationDelegate = context.coordinator
         // Black while it loads, as the glass is.
@@ -31,6 +35,7 @@ struct PrompterPage: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ view: WKWebView, coordinator: Coordinator) {
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "teleprompt")
         // The page lets go of the microphone as it goes.
         view.load(URLRequest(url: URL(string: "about:blank")!))
     }
@@ -43,7 +48,7 @@ struct PrompterPage: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
         var page: URL
         let model: AppModel
 
@@ -55,6 +60,12 @@ struct PrompterPage: NSViewRepresentable {
         /// Whether `origin` is the server's: the only page the app shows.
         private func ours(_ origin: WKSecurityOrigin) -> Bool {
             origin.protocol == page.scheme && origin.host == page.host && origin.port == (page.port ?? 0)
+        }
+
+        /// What the page did: a script opened, the welcome shown.
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard ours(message.frameInfo.securityOrigin), let body = message.body as? String else { return }
+            model.told(body)
         }
 
         func webView(

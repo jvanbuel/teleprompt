@@ -8,10 +8,8 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             switch model.phase {
-            case .idle:
-                Welcome()
-            case let .launching(script):
-                Loading(name: script.lastPathComponent)
+            case .launching:
+                Loading()
             case let .ready(page):
                 PrompterPage(page: page, model: model)
             case let .failed(reasons):
@@ -22,9 +20,6 @@ struct ContentView: View {
         .background(Theme.chrome)
         .foregroundStyle(Theme.ink)
         .preferredColorScheme(.dark)
-        .sheet(item: $model.setup) { request in
-            SetupView(binary: URL(fileURLWithPath: model.binaryPath), request: request)
-        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 // The app's mark beside the script's name: in the chrome,
@@ -52,98 +47,18 @@ struct ContentView: View {
         .fileImporter(isPresented: $model.chooseScript, allowedContentTypes: [.plainText, .init(filenameExtension: "md")!]) { result in
             if case let .success(url) = result { model.open(url) }
         }
-    }
-}
-
-private struct Welcome: View {
-    @EnvironmentObject private var model: AppModel
-
-    var body: some View {
-        HStack(spacing: 64) {
-            VStack(alignment: .leading, spacing: 18) {
-                if let lockup = Theme.lockup {
-                    Image(nsImage: lockup)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(height: 64)
-                        .accessibilityLabel("Teleprompt")
-                } else {
-                    Text("Teleprompt")
-                        .font(Theme.face(44, .heavy))
-                }
-                Text("Open a script and read it aloud: the words follow your voice, each shot plays as you reach it, and every line you finish is kept as a take. Or let a voice read it, and direct it line by line.")
-                    .font(Theme.face(18))
-                    .foregroundStyle(Theme.ink.opacity(0.62))
-                    .lineSpacing(4)
-                    .frame(maxWidth: 440, alignment: .leading)
-                HStack(spacing: 14) {
-                    Text("Who narrates")
-                        .font(Theme.face(14))
-                        .foregroundStyle(Theme.ink.opacity(0.66))
-                    Picker("Who narrates", selection: $model.voiceReads) {
-                        Text("I read").tag(false)
-                        Text("A voice reads").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .fixedSize()
-                }
-                HStack(spacing: 12) {
-                    Button("Open script…") { model.chooseScript = true }
-                        .buttonStyle(Pill(primary: true))
-                        .keyboardShortcut(.defaultAction)
-                    if let last = model.lastScriptURL {
-                        Button("Reopen \(last.lastPathComponent)") { model.open(last) }
-                            .buttonStyle(Pill())
-                    }
-                }
-                .padding(.top, 10)
-                Button("Set up what teleprompt needs…") { model.offerSetup() }
-                    .buttonStyle(.link)
-                    .font(Theme.face(13))
-                    .foregroundStyle(Theme.ink.opacity(0.66))
-            }
-            GlassSample()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-/// A slice of the glass, to show what the prompter does before a script is
-/// open: the reading line, what is said, the next word.
-private struct GlassSample: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            row(false, Text("Every take starts here.").foregroundColor(Theme.ink.opacity(0.32)))
-            row(true, Text("The words follow ").foregroundColor(Theme.ink.opacity(0.32))
-                + Text("your").foregroundColor(Theme.cue).underline(color: Theme.cue)
-                + Text(" voice,").foregroundColor(Theme.ink))
-            row(false, Text("and the shots play").foregroundColor(Theme.ink.opacity(0.55)))
-            row(false, Text("as you reach them.").foregroundColor(Theme.ink.opacity(0.55)))
-        }
-        .padding(EdgeInsets(top: 34, leading: 22, bottom: 34, trailing: 40))
-        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.glass))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.line))
-        .shadow(color: .black.opacity(0.45), radius: 30, y: 24)
-    }
-
-    private func row(_ current: Bool, _ text: Text) -> some View {
-        HStack(spacing: 14) {
-            CueArrow().fill(Theme.cue).frame(width: 9, height: 12).opacity(current ? 1 : 0)
-            text.font(Theme.face(27))
-        }
+        .onAppear { model.showHome() }
     }
 }
 
 private struct Loading: View {
     @EnvironmentObject private var model: AppModel
-    let name: String
 
     var body: some View {
         VStack(spacing: 10) {
             ProgressView().controlSize(.large).padding(.bottom, 8)
-            Text(model.voiceReads ? "Starting the voice" : "Loading the speech model").font(Theme.face(22, .bold))
-            Text(name).font(Theme.face(15)).foregroundStyle(Theme.ink.opacity(0.5))
+            Text("Starting the prompter").font(Theme.face(22, .bold))
+            Text(model.scriptName).font(Theme.face(15)).foregroundStyle(Theme.ink.opacity(0.5))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -167,9 +82,10 @@ private struct Failure: View {
                     .textSelection(.enabled)
             }
             HStack(spacing: 12) {
-                if let last = model.lastScriptURL {
-                    Button("Try again") { model.open(last) }.buttonStyle(Pill(primary: true))
+                Button("Try again") {
+                    if let last = model.lastScriptURL { model.open(last) } else { model.showHome() }
                 }
+                .buttonStyle(Pill(primary: true))
                 SettingsLink { Text("Settings") }.buttonStyle(Pill())
             }
             .padding(.top, 8)

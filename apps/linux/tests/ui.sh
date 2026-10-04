@@ -2,11 +2,12 @@
 # The app itself, driven like a person would under a virtual X display. The
 # prompter is the page `teleprompt serve` serves, tested on its own in a
 # browser (crates/teleprompt-cli/tests/page); this tests what the app adds
-# around it: it launches the server and shows its page, gives the page the
-# microphone (WebKit's own, which hears a tone), passes the record key to
-# it, opens its screen in a window of its own, and takes the server with it
-# when it goes. A second run hears a recorded reading of apps/fixtures/tour
-# (TELEPROMPT_MIC) and keeps it as takes.
+# around it: it launches the server and shows its page, whose welcome
+# opens a script, gives the page the microphone (WebKit's own, which hears
+# a tone), passes the record key to it, opens its screen in a window of its
+# own, and takes the server with it when it goes. Another run hears a
+# recorded reading of apps/fixtures/tour (TELEPROMPT_MIC) and keeps it as
+# takes.
 #
 #   TELEPROMPT_BIN=…/teleprompt TELEPROMPT_MODEL=…/zipformer apps/linux/tests/ui.sh
 #
@@ -25,6 +26,26 @@ shown() {
   done
   return 1
 }
+if [ "${1:-}" = --home ]; then
+  # Started with no script, in the project: the page's welcome lists its
+  # scripts, and one clicked opens.
+  export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
+  export XDG_CONFIG_HOME="$work/config-home" XDG_CACHE_HOME="$work/cache" TELEPROMPT_MOCK_MIC=1
+  (cd "$work/project" && exec "$app") >"$work/app0.log" 2>&1 &
+  pid=$!
+  for _ in $(seq 60); do
+    xdotool search --name '^Teleprompt$' >/dev/null 2>&1 && break
+    sleep 0.5
+  done
+  sleep 4
+  import -window root "$shots/000-welcome.png"
+  xdotool mousemove 930 310 click 1
+  shown && touch "$work/opened-from-welcome"
+  import -window root "$shots/001-opened.png"
+  kill "$pid"
+  wait "$pid" || true
+  exit 0
+fi
 if [ "${1:-}" = --read ]; then
   export GSK_RENDERER=cairo GDK_BACKEND=x11 NO_AT_BRIDGE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
   export XDG_CONFIG_HOME="$work/config" XDG_CACHE_HOME="$work/cache" TELEPROMPT_MIC="$work/reading.wav"
@@ -87,9 +108,12 @@ ffmpeg -v error -i "$repo/crates/teleprompt-listen-sherpa/tests/fixtures/two-lin
   -af apad=pad_dur=3 "$work/reading.wav"
 
 export app work shots
+xvfb-run -a -s "-screen 0 1400x860x24" "$0" --home
 xvfb-run -a -s "-screen 0 1400x860x24" "$0" --drive
 
 fail=0
+[ -e "$work/opened-from-welcome" ] && echo "ok: the welcome lists the project's scripts and opens one" \
+  || { echo "FAIL: the welcome did not open the script"; tail -5 "$work/app0.log"; fail=1; }
 [ -s "$work/titled" ] && echo "ok: the window is named for the script" \
   || { echo "FAIL: the window is not named for the script"; fail=1; }
 # The on-air frame, at the glass's left edge.
@@ -110,11 +134,12 @@ for line in welcome deploy; do
   fi
 done
 # The app was killed, not closed: its server must have gone with it.
+server="$TELEPROMPT_BIN --format json serve"
 for _ in $(seq 10); do
-  pgrep -f "$work/project/scripts/tour.md" >/dev/null || break
+  pgrep -f "$server" >/dev/null || break
   sleep 0.5
 done
-if pgrep -f "$work/project/scripts/tour.md" >/dev/null; then
+if pgrep -f "$server" >/dev/null; then
   echo "FAIL: the server outlived the app"; fail=1
 else
   echo "ok: the server went with the app"

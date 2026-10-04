@@ -5,23 +5,28 @@ final class LaunchTests: XCTestCase {
     func testTheCommandAsksForJSONAndAFreePort() {
         let request = LaunchRequest(
             binary: URL(fileURLWithPath: "/bin/teleprompt"),
-            script: URL(fileURLWithPath: "/p/scripts/tour.md"),
+            dir: URL(fileURLWithPath: "/p"),
             model: URL(fileURLWithPath: "/models/zipformer")
         )
         XCTAssertEqual(request.arguments, [
-            "--format", "json", "serve", "/p/scripts/tour.md", "--locale", "en",
+            "--format", "json", "serve", "--locale", "en",
             "--port", "0", "--model", "/models/zipformer",
         ])
     }
 
-    func testWithoutAModelTheScriptsVoiceReadsIt() {
+    func testWithoutAModelTheServerFindsTheOneSetupInstalled() {
         let request = LaunchRequest(
             binary: URL(fileURLWithPath: "/bin/teleprompt"),
-            script: URL(fileURLWithPath: "/p/scripts/tour.md"),
+            dir: URL(fileURLWithPath: "/p"),
             model: nil
         )
-        XCTAssertEqual(request.arguments.last, "--voice")
         XCTAssertFalse(request.arguments.contains("--model"))
+        XCTAssertFalse(request.arguments.contains("--voice"))
+    }
+
+    func testAScriptIsServedFromItsProject() {
+        XCTAssertEqual(projectDir(of: URL(fileURLWithPath: "/p/scripts/tour.md")).path, "/p")
+        XCTAssertEqual(projectDir(of: URL(fileURLWithPath: "/q/tour.md")).path, "/q")
     }
 
     func testTheListeningExampleNamesTheOrigin() throws {
@@ -51,7 +56,7 @@ final class LaunchTests: XCTestCase {
     private func launch(_ body: String) throws -> (ServerProcess, XCTestExpectation, Box) {
         let request = LaunchRequest(
             binary: try fake(body),
-            script: URL(fileURLWithPath: "/s.md"),
+            dir: FileManager.default.temporaryDirectory,
             model: URL(fileURLWithPath: "/m")
         )
         let server = ServerProcess(request)

@@ -7,9 +7,11 @@ Open a script and read: the text follows your voice, each shot plays as you
 reach it, and every line you read in full is kept as that line's take.
 
 The prompter is the page `teleprompt serve` serves, the same page a
-browser shows. The app launches the server itself, shows its page in
-WebKit, gives it the microphone, and opens its screen in a second window
-when it asks. Around it the app has a welcome page, settings, setup, and
+browser shows, and so are its welcome, which lists the project's scripts
+and who narrates, and setting teleprompt up. The app launches the server
+itself in the last script's project, shows its page in WebKit, gives it
+the microphone, and opens its screen in a second window when it asks.
+Around it the app has opening a script from anywhere, settings, and
 session mode, which drafts a script from a terminal session. What the
 prompter does, and its keys, are in `docs/guide/prompter.md`; `?` lists
 the keys in the app.
@@ -19,8 +21,8 @@ It needs:
 - `teleprompt` built with the speech recognizer:
   `cargo install --path crates/teleprompt-cli --features listen`
 - a speech model: `teleprompt setup speech-model --run` installs
-  sherpa-onnx's streaming English model where the app finds it, or the app
-  offers to when you open a script
+  sherpa-onnx's streaming English model where teleprompt finds it, or the
+  page offers to when you open a script
 - GTK 4.14, libadwaita 1.5, WebKitGTK 6.0, VTE for GTK 4 (session mode's
   terminal), GStreamer's plugins to play the captured clips and hear the
   microphone, and ffmpeg (a session's microphone). On Ubuntu 24.04:
@@ -50,6 +52,7 @@ To install it with a launcher entry:
 | key | does |
 |---|---|
 | Ctrl+O | open a script |
+| Ctrl+Shift+O | the project's scripts, on the welcome |
 | Ctrl+N | draft a script from a session |
 | Ctrl+E | open the script in your own editor |
 | Ctrl+, | settings |
@@ -61,15 +64,16 @@ starts after a count of three; Settings turns that off.
 
 ## Letting a voice read it
 
-Choose **A voice reads** under "Who narrates" on the welcome page, and the
-app runs `teleprompt serve --voice`: the script is read by its voice
-rather than following yours, and no speech model is needed.
+Choose **A voice reads** under "Who narrates" on the welcome, and the
+script opens read by its voice rather than following yours, as
+`teleprompt serve --voice` does: no speech model is needed. The app opens
+the next script the same way.
 `docs/guide/prompter.md#letting-a-voice-read-it` has the rest.
 
 ## Drafting from a session
 
 The app has a second mode for a script that doesn't exist yet: **Draft
-from a session…** on the start page, or Ctrl+N. Name the new script, and a
+from a session…** in the menu, or Ctrl+N. Name the new script, and a
 terminal opens with the tools `teleprompt record --tools` found: asciinema
 or VHS for the terminal, Playwright for a browser, which opens its own
 window. Press Ctrl+Shift+Space to start recording, then talk while you

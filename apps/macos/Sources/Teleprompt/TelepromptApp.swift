@@ -48,6 +48,8 @@ struct PrompterCommands: Commands {
         CommandGroup(after: .newItem) {
             Button("Open Script…") { model.chooseScript = true }
                 .keyboardShortcut("o")
+            Button("Scripts") { model.showHome() }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
             Button("Open in Editor") { model.openInEditor() }
                 .keyboardShortcut("e")
                 .disabled(model.lastScriptURL == nil)

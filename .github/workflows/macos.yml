@@ -1,6 +1,6 @@
 name: macOS app
 
-# The app around the prompter page: launching the server, and setup.
+# The app around the prompter page: launching the server.
 on:
   push:
     branches: [main]

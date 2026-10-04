@@ -5,10 +5,12 @@ text follows your voice, each shot plays as you reach it, and every line
 you read in full is kept as that line's take.
 
 The prompter is the page `teleprompt serve` serves, the same page a
-browser shows. The app launches the server itself, shows its page in
-WebKit, gives it the microphone (macOS asks you first), and opens its
-screen in a second window when it asks. Around it the app has a welcome
-page, settings and setup. What the prompter does, and its keys, are in
+browser shows, and so are its welcome, which lists the project's scripts
+and who narrates, and setting teleprompt up. The app launches the server
+itself in the last script's project, shows its page in WebKit, gives it
+the microphone (macOS asks you first), and opens its screen in a second
+window when it asks. Around it the app has opening a script from
+anywhere, and settings. What the prompter does, and its keys, are in
 `docs/guide/prompter.md`; `?` lists the keys in the app.
 
 It needs:
@@ -16,12 +18,12 @@ It needs:
 - `teleprompt` built with the speech recognizer:
   `cargo install --path crates/teleprompt-cli --features listen`
 - a speech model: `teleprompt setup speech-model --run` installs
-  sherpa-onnx's streaming English model where the app finds it, or the app
-  offers to when you open a script
+  sherpa-onnx's streaming English model where teleprompt finds it, or the
+  page offers to when you open a script
 
 Set the binary in Settings (⌘,) the first time if it isn't where
 `cargo install` or Homebrew puts it. To have the script's voice read it
-instead, choose **A voice reads** under "Who narrates" on the welcome page:
+instead, choose **A voice reads** under "Who narrates" on the welcome:
 only the binary is needed then, built with or without the recognizer.
 
 ## Build
@@ -37,6 +39,7 @@ behalf of your terminal.
 | key | does |
 |---|---|
 | ⌘O | open a script |
+| ⇧⌘O | the project's scripts, on the welcome |
 | ⌘E | open the script in your own editor |
 | ⌘, | settings |
 
@@ -47,12 +50,12 @@ described in `apps/DESIGN.md`; the typeface and the icon are bundled by
 
 ## Layout
 
-- `Sources/TelepromptKit`: launching the server, and setting teleprompt up
-  through it. Foundation only; builds and is tested on Linux too.
+- `Sources/TelepromptKit`: launching the server. Foundation only; builds
+  and is tested on Linux too.
 - `Sources/Teleprompt`: the SwiftUI app, and the page in WebKit
   (`PrompterPage.swift`).
-- `Tests/TelepromptKitTests`: launching and setup, against
-  `docs/api/v1/examples/listening.json` and `apps/fixtures/setup-uses.json`.
+- `Tests/TelepromptKitTests`: launching, against
+  `docs/api/v1/examples/listening.json`.
 
 The prompter itself is tested as a page, in a browser:
 `crates/teleprompt-cli/tests/page`.

@@ -1,7 +1,8 @@
 //! `teleprompt-gtk [SCRIPT]`: the prompter as a GTK app. It launches
-//! `teleprompt serve` itself and shows the page it serves: the prompter
-//! is that page, here as in a browser. Around it: the welcome page,
-//! settings, setting teleprompt up, and session mode's terminal.
+//! `teleprompt serve` itself and shows the page it serves: the welcome,
+//! setting teleprompt up and the prompter are that page, here as in a
+//! browser. Around it: opening a script, settings, and session mode's
+//! terminal.
 
 mod ui;
 
@@ -45,7 +46,11 @@ fn main() -> glib::ExitCode {
             .clone()
     };
     let activate = window_for.clone();
-    app.connect_activate(move |app| activate(app).window.present());
+    app.connect_activate(move |app| {
+        let window = activate(app);
+        window.window.present();
+        window.show_home();
+    });
     app.connect_open(move |app, files, _| {
         let window = window_for(app);
         window.window.present();
@@ -75,10 +80,9 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
     action(
         "reopen",
         &[],
-        Box::new(|w| {
-            if let Some(last) = w.last_script() {
-                w.open(last);
-            }
+        Box::new(|w| match w.last_script() {
+            Some(last) => w.open(last),
+            None => w.show_home(),
         }),
     );
     action(
@@ -88,6 +92,11 @@ fn actions(app: &adw::Application, window: &Rc<Window>) {
     );
     action("settings", &["<Control>comma"], Box::new(settings));
     action("setup", &[], Box::new(|w| w.offer_setup(&[], None)));
+    action(
+        "scripts",
+        &["<Control><Shift>o"],
+        Box::new(|w| w.show_home()),
+    );
     // From session mode, where a tool to record with is missing: the uses
     // that record, those not yet installed ticked.
     action(
@@ -176,6 +185,7 @@ const SHORTCUTS: &[(&str, &[(&str, &str)])] = &[
         "The project",
         &[
             ("<Control>o", "Open a script"),
+            ("<Control><Shift>o", "The project's scripts"),
             ("<Control>n", "Draft from a session"),
             ("<Control>e", "Open the script in your editor"),
             ("<Control>comma", "Settings"),

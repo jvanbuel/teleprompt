@@ -309,8 +309,9 @@ so it stays current: keeping what you said instead of reading it again.
 `teleprompt serve` serves it as an API and the page that drives it.
 **The page is the only prompter.** The apps (`apps/linux`, `apps/macos`)
 show it in WebKit and add what a page cannot have: a window per screen,
-the microphone's permission, a welcome page, settings, setup, and on
-Linux a terminal for session mode. Each prompter feature is built once,
+the microphone's permission, opening a script from anywhere, settings,
+and on Linux a terminal for session mode. The welcome, which lists the
+project's scripts and who narrates, and setup are the page's too. Each prompter feature is built once,
 in the page; the apps never learn of one. The page streams the microphone at
 its own rate; the session keeps that as the take and feeds the recognizer a
 16 kHz copy.
@@ -340,16 +341,26 @@ has one of each message, and the server is tested against them. The page
 takes settings in its address: `?countdown=0` starts a take without a
 count of three, `?shell=1` leaves the script's name to an app's title bar,
 and `?view=monitor` is the screen alone, which the page opens in a window
-of its own for a second display and keeps in step with it.
+of its own for a second display and keeps in step with it. Without a
+script open the page is the welcome; `?open=<path>` opens that script,
+read as `?narrator=you|voice` says, and `?setup=<use>,<use>&why=<text>`
+opens setup with those ticked. An app hears what the page did as JSON
+strings posted to `window.webkit.messageHandlers.teleprompt`, where there
+is one: `{"event":"opened","path","voice"}`, `{"event":"home"}`, and
+`{"event":"setup","installed":[<use>]}` when setup closes.
 
 | route | does |
 |---|---|
-| `GET /api/v1/script` | `{"lines":[{"id","text","recorded","stale","said","said_diff"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. `said_diff` is the line against `said` word by word, runs of `{"kind":"same"|"gone"|"new","words"}`, empty without it: what keeping it changes, for a prompter to show. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded. For a project's script it also has `"voice":{"name","listens"}`, who reads it and whether the prompter follows a reader by ear (false under `--voice`); `"length_ms"`, the video's length as the timeline has it now; and on each line `"speaker"`, who says it from the script's cast, or null for the narrator; `"instruct"`, how its voice is told to say it, or null; and `"audio":{"source":"take"|"voice","url","ready","duration_ms","words"}`: where the line's audio comes from, whether it is made yet, and once it is, its length and when each word starts, in milliseconds (the voice's own timings where it gives one per word, spread over the line's characters otherwise). And `"timeline":{"duration_ms","lines":[{"id","start_ms","end_ms"}],"shots":[{"shot","block","scene","line","start_ms","end_ms","timed"}]}`, the scheduler's plan as the page draws it on the glass in Edit mode: each line from its first sound to its last, and each shot with the line it runs with or after, and whether it states its own length, so can be stretched. And `"error"`: the compile errors of the script as last saved, while it does not compile and the rest is the last version that did, or null |
+| `GET /api/v1/script` | 404 while no script is open (`serve` without one, until the page opens one). Otherwise `{"lines":[{"id","text","recorded","stale","said","said_diff"}],"shots":[{"shot","at":{"line","word"},"clip"}]}`; `clip` is a URL, or null if the shot was never captured. `stale` marks a line reworded since its take, due to be recorded again. `said` is the line as its take was heard to say it, where that is other words, or null: `keep_said` on the socket, or `teleprompt edit <script> said <line>`, keeps it. `said_diff` is the line against `said` word by word, runs of `{"kind":"same"|"gone"|"new","words"}`, empty without it: what keeping it changes, for a prompter to show. If the script's file changed since last asked, it is reloaded first, between takes: a shot moved, a line reworded. For a project's script it also has `"voice":{"name","listens"}`, who reads it and whether the prompter follows a reader by ear (false under `--voice`); `"length_ms"`, the video's length as the timeline has it now; and on each line `"speaker"`, who says it from the script's cast, or null for the narrator; `"instruct"`, how its voice is told to say it, or null; and `"audio":{"source":"take"|"voice","url","ready","duration_ms","words"}`: where the line's audio comes from, whether it is made yet, and once it is, its length and when each word starts, in milliseconds (the voice's own timings where it gives one per word, spread over the line's characters otherwise). And `"timeline":{"duration_ms","lines":[{"id","start_ms","end_ms"}],"shots":[{"shot","block","scene","line","start_ms","end_ms","timed"}]}`, the scheduler's plan as the page draws it on the glass in Edit mode: each line from its first sound to its last, and each shot with the line it runs with or after, and whether it states its own length, so can be stretched. And `"error"`: the compile errors of the script as last saved, while it does not compile and the rest is the last version that did, or null |
 | `GET /api/v1/clips/<key>.mp4` | a cued shot's clip; nothing else in the cache |
 | `GET /api/v1/voice/<line id>.wav` | the line's audio: its current take, or its voice's, synthesized now into the voice cache if it is not there yet. `?fresh=1` synthesizes it again, for a voice that says a line differently each time. `?fit=1` is the line as the manifest publishes it, the file `dub` writes: in the video's format, and a `fit-line` line at its tempo |
 | `GET /api/v1/manifest` | the manifest `dub` would publish (`narration.json`, version 3), with every line synthesized first; the page plays the video from it. While the script does not compile it is the last one that did; if it never has, 422 with `{"ok":false,"errors"}` |
 | `GET /api/v1/session` | the session socket; one at a time, a second gets 409 |
 | `POST /api/v1/make?job=capture\|build` | runs `teleprompt capture` or `build` on the script, as the command would be run, and answers with what it reports as it goes: each of its [progress events](#cli), one JSON object a line, then `{"event":"made","job","video"}` (`video` null for a capture) or `{"event":"failed","job","errors"}`. One at a time, a second gets 409 |
+| `GET /api/v1/home` | the welcome: `{"project","scripts":[{"name","path"}],"opened","hears","can_hear"}`, the scripts in the project around where `serve` runs, the one open, whether a speech model is here to follow a reader, and whether this build can follow one at all. 404 from a server embedded on one prompt alone (`prompt_on`), which opens no other |
+| `POST /api/v1/open?script=<path>[&voice=1]` | opens the script in place of the one open (404 as `home`), followed by ear or read by its voice: `{"ok":true,"name"}`. 409 during a take; 422 `{"ok":false,"needs":null,"errors"}` for a script that does not compile; 409 with `"needs":"prompt"` when there is nothing to hear with, for the page to offer setup |
+| `GET /api/v1/setup` | what `teleprompt setup --uses` reports: each use, what it needs here, each tool's license and command |
+| `POST /api/v1/setup?uses=<use>,<use>` | installs what they need, as `teleprompt setup <uses> --run` does, its progress events streamed a line each, then `{"event":"installed","uses"}` or `{"event":"failed","errors"}`; one long job at a time, with `make` |
 
 On the socket, the client sends:
 
@@ -906,9 +917,10 @@ a video needs comes in three tiers.
    project or a Kokoro server, `setup` explains rather than installs.
    `setup` is organised by use (render, terminal, browser, prompt,
    drafts, conversations…), since that is what an author knows they
-   want; `setup --uses` reports them for the apps, which install through
-   the same command and read its progress events. The apps add nothing:
-   what a use needs and how it installs stay the CLI's. **No release artifact, whether binary, app bundle, installer
+   want; `setup --uses` reports them for the prompter page's setup, which
+   installs through the same command and reads its progress events. The
+   page and the apps add nothing: what a use needs and how it installs
+   stay the CLI's. **No release artifact, whether binary, app bundle, installer
    or container image, includes a tool.** One that did would take on the
    tool's license: a deliberate choice, made in this document first.
 3. **Community plugins, not yet built.** Adapters and voices of other

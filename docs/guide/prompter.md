@@ -8,10 +8,14 @@ are by matching what a local speech model hears against the script, and
 keeps the next word highlighted a third of the way down the screen. Nothing
 you say leaves the machine.
 
+Without a script, `teleprompt serve` opens on a welcome: the project's
+scripts, who narrates, and **Set up teleprompt**. Choose a script and it
+opens in the prompter; **Scripts…** under `?` comes back to choose another.
+
 It is one page, in a browser or in an app: `apps/linux` and `apps/macos`
 launch `teleprompt serve` themselves and show the same page in a window of
-their own, with a welcome page, settings and setup around it. Their READMEs
-say how to build them. To follow your voice, all of them need the
+their own, with opening a script from anywhere and settings around it.
+Their READMEs say how to build them. To follow your voice, all of them need the
 recognizer and the model below.
 To have the script's voice read it instead, none do (see [Letting a voice
 read it](#letting-a-voice-read-it)).
@@ -32,9 +36,9 @@ you ask:
 teleprompt setup prompt --run
 ```
 
-The apps ask for you: open a script to read aloud without the model, and
-they offer to install it, then open the script. **Set up teleprompt**, on
-the welcome page and in Settings, lists everything else they can install,
+The page asks for you: open a script to read aloud without the model, and
+it offers to install it, then opens the script. **Set up teleprompt**, on
+the welcome and under `?`, lists everything else it can install,
 each use with what it still needs and how much it downloads, as
 `teleprompt setup` does in a terminal. A command that needs your password
 (`apt`, say) goes through the desktop's password dialog where there is one
@@ -140,8 +144,8 @@ yours, and needs no recognizer or speech model, in any build:
 teleprompt serve --voice scripts/tour.md
 ```
 
-Open the address it prints. In the apps, choose **A voice reads** under
-"Who narrates" on the welcome page. The voice makes each line in the
+Open the address it prints. On the welcome, in a browser or the apps,
+choose **A voice reads** under "Who narrates". The voice makes each line in the
 background, into the same cache `dub` and `build` use, and the margin marks
 each line: a waveform, faint until the line is made; a tick for a line you
 recorded yourself, which plays from your take.

@@ -2,8 +2,9 @@
 
 The prompter is one page, the one `teleprompt serve` serves, in a browser
 or in the apps (`apps/linux`, `apps/macos`), which show it in a window of
-their own. What the apps draw around it, a welcome page, settings and
-setup, takes the same tokens and typeface.
+their own; so are its welcome and setup. What the apps draw around it,
+settings and what shows while the page cannot, takes the same tokens and
+typeface.
 
 The design comes from what a prompter is for: someone alone, reading to a
 camera, often through beam-splitter glass. The next word must be

@@ -11,7 +11,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpListener};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockWriteGuard};
 
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -59,74 +59,55 @@ pub enum Ear<'a> {
     Voice,
 }
 
-/// Serves a prompter for `script`'s narration on loopback, following the
-/// reader with the speech model in `ear`, or reading it with its voice.
+/// The recognizer a prompter hears its reader with, chosen when a script
+/// is opened.
+type Hearing = Box<dyn Recognizer + Send>;
+
+/// What `serve` was started with, for opening a script from the page: the
+/// speech model named, and the locale.
+pub struct Opener {
+    pub model: Option<PathBuf>,
+    pub locale: Option<String>,
+}
+
+/// Serves the prompter on loopback: `script`'s, opened now, following the
+/// reader with the speech model in `ear` or reading it with its voice; or,
+/// without one, the page's welcome, which opens a script and sets
+/// teleprompt up.
 pub fn run_serve(
-    project: &Project,
-    script: &std::path::Path,
-    locale: &str,
+    script: Option<&std::path::Path>,
+    locale: Option<&str>,
     port: u16,
     ear: Ear<'_>,
     format: Format,
 ) -> Result<(), PromptError> {
-    match ear {
-        Ear::Voice => serve(
-            project,
-            script,
-            locale,
-            port,
-            format,
-            teleprompt_listen::Deaf,
-            false,
-        ),
-        Ear::Model(model) => {
-            let recognizer = recognizer(model)?;
-            serve(project, script, locale, port, format, recognizer, true)
-        }
-    }
-}
-
-#[cfg(feature = "listen")]
-fn recognizer(
-    model: Option<&std::path::Path>,
-) -> Result<teleprompt_listen_sherpa::SherpaRecognizer, PromptError> {
-    let dir = model.ok_or_else(|| {
-        PromptError::Runtime(format!(
-            "`serve` needs a speech model: `teleprompt setup speech-model` installs \
-             one, or download and unpack {MODEL} and pass its directory with --model"
-        ))
-    })?;
-    teleprompt_listen_sherpa::SherpaRecognizer::new(dir).map_err(PromptError::Runtime)
-}
-
-/// A build without the recognizer cannot follow anyone; it says how to get
-/// one, or to let the voice read.
-#[cfg(not(feature = "listen"))]
-fn recognizer(_model: Option<&std::path::Path>) -> Result<teleprompt_listen::Deaf, PromptError> {
-    Err(PromptError::Runtime(
-        "this teleprompt was built without a speech recognizer; \
-         rebuild it with `--features listen`, or pass --voice to have the \
-         script's voice read it"
-            .to_string(),
-    ))
-}
-
-fn serve<R: Recognizer + Send + 'static>(
-    project: &Project,
-    script: &std::path::Path,
-    locale: &str,
-    port: u16,
-    format: Format,
-    recognizer: R,
-    listens: bool,
-) -> Result<(), PromptError> {
-    let prompt = prompt_of(project, script, locale).map_err(PromptError::Validation)?;
+    let opener = Opener {
+        model: match &ear {
+            Ear::Model(model) => model.map(std::path::Path::to_path_buf),
+            Ear::Voice => None,
+        },
+        locale: locale.map(str::to_string),
+    };
+    let opened = match script {
+        Some(script) => Some(opener.open(script, matches!(ear, Ear::Voice)).map_err(
+            |e| match e {
+                OpenError::Invalid(errors) => PromptError::Validation(errors),
+                OpenError::Unheard(why) | OpenError::Busy(why) => PromptError::Runtime(why),
+            },
+        )?),
+        None => None,
+    };
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
         .map_err(|e| PromptError::Runtime(format!("cannot listen on port {port}: {e}")))?;
     let addr = listener
         .local_addr()
         .map_err(|e| PromptError::Runtime(e.to_string()))?;
-    eprintln!("prompting at http://{addr}/ — open it, click, and read");
+    let says = if opened.is_some() {
+        "open it, click, and read"
+    } else {
+        "open it and choose a script"
+    };
+    eprintln!("prompting at http://{addr}/ — {says}");
     if format == Format::Json {
         // An app that launched the command reads where to connect from this.
         println!("{}", listening_event(addr));
@@ -134,10 +115,120 @@ fn serve<R: Recognizer + Send + 'static>(
             .flush()
             .map_err(|e| PromptError::Runtime(e.to_string()))?;
     }
-    let mut edits = edits_of(project, script, locale);
-    edits.listens = listens;
-    prompt_watching(listener, prompt, recognizer, Some(edits))
-        .map_err(|e| PromptError::Runtime(e.to_string()))
+    let server = Server::new(opened, Some(opener));
+    serve_on(listener, server).map_err(|e| PromptError::Runtime(e.to_string()))
+}
+
+/// Why a script could not be opened.
+pub enum OpenError {
+    /// It does not compile.
+    Invalid(Vec<String>),
+    /// There is nothing to hear the reader with: the speech model, or the
+    /// build with the recognizer.
+    Unheard(String),
+    /// A take is under way.
+    Busy(String),
+}
+
+/// A script open in the prompter: its session, and what can be done to it.
+struct Opened {
+    session: Session<Hearing>,
+    edits: Edits,
+}
+
+impl Opener {
+    /// `script`, compiled and ready to read: by ear, or with `voice` by its
+    /// voice.
+    fn open(&self, script: &std::path::Path, voice: bool) -> Result<Opened, OpenError> {
+        let project =
+            Project::for_script(script).map_err(|e| OpenError::Invalid(vec![e.to_string()]))?;
+        let locale = self
+            .locale
+            .clone()
+            .unwrap_or_else(|| project.source_locale());
+        let prompt = prompt_of(&project, script, &locale).map_err(OpenError::Invalid)?;
+        let hearing: Hearing = if voice {
+            Box::new(teleprompt_listen::Deaf)
+        } else {
+            let model = self
+                .model
+                .clone()
+                .or_else(|| crate::cmd::setup::speech_model(None).ok());
+            recognizer(model.as_deref()).map_err(|e| match e {
+                PromptError::Runtime(why) => OpenError::Unheard(why),
+                PromptError::Validation(why) => OpenError::Unheard(why.join("\n")),
+            })?
+        };
+        let session =
+            Session::new(prompt, hearing).map_err(|e| OpenError::Invalid(vec![e.to_string()]))?;
+        let mut edits = edits_of(&project, script, &locale);
+        edits.listens = !voice;
+        Ok(Opened { session, edits })
+    }
+}
+
+impl Opener {
+    /// What the page's welcome offers: the project around the working
+    /// directory and its scripts, the one open, and whether a reader can
+    /// be heard here or only a voice can read.
+    fn home(&self, opened: Option<String>) -> serde_json::Value {
+        let here = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let project = Project::discover(&here).ok();
+        let mut scripts: Vec<PathBuf> = project
+            .as_ref()
+            .and_then(|p| std::fs::read_dir(p.root.join("scripts")).ok())
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "md"))
+            .collect();
+        scripts.sort();
+        let scripts: Vec<serde_json::Value> = scripts
+            .iter()
+            .map(|p| {
+                serde_json::json!({
+                    "name": p.file_name().map(|n| n.to_string_lossy().into_owned()),
+                    "path": p,
+                })
+            })
+            .collect();
+        let model = self
+            .model
+            .clone()
+            .or_else(|| crate::cmd::setup::speech_model(None).ok());
+        serde_json::json!({
+            "project": project.as_ref().and_then(|p| p.root.file_name()).map(|n| n.to_string_lossy()),
+            "scripts": scripts,
+            "opened": opened,
+            "hears": cfg!(feature = "listen") && model.is_some(),
+            "can_hear": cfg!(feature = "listen"),
+        })
+    }
+}
+
+#[cfg(feature = "listen")]
+fn recognizer(model: Option<&std::path::Path>) -> Result<Hearing, PromptError> {
+    let dir = model.ok_or_else(|| {
+        PromptError::Runtime(format!(
+            "`serve` needs a speech model: `teleprompt setup speech-model` installs \
+             one, or download and unpack {MODEL} and pass its directory with --model"
+        ))
+    })?;
+    teleprompt_listen_sherpa::SherpaRecognizer::new(dir)
+        .map(|r| Box::new(r) as Hearing)
+        .map_err(PromptError::Runtime)
+}
+
+/// A build without the recognizer cannot follow anyone; it says how to get
+/// one, or to let the voice read.
+#[cfg(not(feature = "listen"))]
+fn recognizer(_model: Option<&std::path::Path>) -> Result<Hearing, PromptError> {
+    Err(PromptError::Runtime(
+        "this teleprompt was built without a speech recognizer; \
+         rebuild it with `--features listen`, or pass --voice to have the \
+         script's voice read it"
+            .to_string(),
+    ))
 }
 
 /// What the prompter shows of `script`, as it now reads.
@@ -293,6 +384,10 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+fn write<T>(l: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
+    l.write().unwrap_or_else(PoisonError::into_inner)
+}
+
 /// Runs `job` as the command would be run, from `root`, handing on each
 /// progress event it reports on stderr; then the video, for a build.
 fn make(
@@ -302,12 +397,29 @@ fn make(
     job: Job,
     progress: &mut dyn FnMut(serde_json::Value),
 ) -> Result<Option<PathBuf>, String> {
+    let args: Vec<std::ffi::OsString> = vec![
+        job.name().into(),
+        script.into(),
+        "--locale".into(),
+        locale.into(),
+    ];
+    let report = teleprompt(root, &args, progress)?;
+    Ok(report["output"].as_str().map(PathBuf::from))
+}
+
+/// Runs this teleprompt with `args` and `--format json` in `dir`, handing
+/// on each progress event it reports on stderr; then its report, or why it
+/// failed, in its own words.
+fn teleprompt(
+    dir: &std::path::Path,
+    args: &[std::ffi::OsString],
+    progress: &mut dyn FnMut(serde_json::Value),
+) -> Result<serde_json::Value, String> {
     let me = std::env::current_exe().map_err(|e| format!("cannot find teleprompt: {e}"))?;
     let mut child = std::process::Command::new(&me)
-        .args(["--format", "json", job.name()])
-        .arg(script)
-        .args(["--locale", locale])
-        .current_dir(root)
+        .args(["--format", "json"])
+        .args(args)
+        .current_dir(dir)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -340,7 +452,7 @@ fn make(
             errors.join("\n")
         });
     }
-    Ok(report["output"].as_str().map(PathBuf::from))
+    Ok(report)
 }
 
 /// Where the command listens, for `--format json`: the API's origin and
@@ -379,12 +491,13 @@ pub fn prompt_watching<R: Recognizer + Send + 'static>(
     recognizer: R,
     edits: Option<Edits>,
 ) -> std::io::Result<()> {
-    let server = Arc::new(Server {
-        session: Mutex::new(Session::new(prompt, recognizer)?),
-        open: AtomicBool::new(false),
-        making: AtomicBool::new(false),
-        edits,
-    });
+    let server = Server::new(None, None);
+    *server.session() = Some(Session::new(prompt, Box::new(recognizer) as Hearing)?);
+    *write(&server.edits) = edits.map(Arc::new);
+    serve_on(listener, server)
+}
+
+fn serve_on(listener: TcpListener, server: Arc<Server>) -> std::io::Result<()> {
     listener.set_nonblocking(true)?;
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -396,7 +509,7 @@ pub fn prompt_watching<R: Recognizer + Send + 'static>(
 }
 
 /// The page and API version 1, behind the loopback guard.
-fn router<R: Recognizer + Send + 'static>(server: Arc<Server<R>>) -> Router {
+fn router(server: Arc<Server>) -> Router {
     Router::new()
         .route("/", get(|| async { Html(PAGE) }))
         .route("/favicon.ico", get(|| async { StatusCode::NO_CONTENT }))
@@ -408,12 +521,15 @@ fn router<R: Recognizer + Send + 'static>(server: Arc<Server<R>>) -> Router {
             ICON_PATH,
             get(|| async { ([(CONTENT_TYPE, "image/svg+xml")], ICON) }),
         )
-        .route("/api/v1/script", get(script_route::<R>))
-        .route("/api/v1/manifest", get(manifest_route::<R>))
-        .route("/api/v1/voice/{file}", get(voice_route::<R>))
-        .route("/api/v1/clips/{file}", get(clip_route::<R>))
-        .route("/api/v1/make", post(make_route::<R>))
-        .route("/api/v1/session", get(session_route::<R>))
+        .route("/api/v1/script", get(script_route))
+        .route("/api/v1/manifest", get(manifest_route))
+        .route("/api/v1/voice/{file}", get(voice_route))
+        .route("/api/v1/clips/{file}", get(clip_route))
+        .route("/api/v1/make", post(make_route))
+        .route("/api/v1/session", get(session_route))
+        .route("/api/v1/home", get(home_route))
+        .route("/api/v1/open", post(open_route))
+        .route("/api/v1/setup", get(uses_route).post(install_route))
         .fallback(|| async { not_found() })
         .layer(middleware::from_fn(guard))
         .with_state(server)
@@ -436,18 +552,22 @@ async fn guard(request: Request, next: Next) -> Response {
     response
 }
 
-type Shared<R> = State<Arc<Server<R>>>;
+type Shared = State<Arc<Server>>;
 
 /// `GET /api/v1/script`: reloaded first if its file has changed.
-async fn script_route<R: Recognizer + Send + 'static>(State(server): Shared<R>) -> Response {
-    block_in_place(|| json(server.script()))
+async fn script_route(State(server): Shared) -> Response {
+    match block_in_place(|| server.script()) {
+        Some(script) => json(script),
+        None => (StatusCode::NOT_FOUND, "no script is open").into_response(),
+    }
 }
 
 /// `GET /api/v1/manifest`: the manifest `dub` would publish.
-async fn manifest_route<R: Recognizer + Send + 'static>(State(server): Shared<R>) -> Response {
-    let Some(voice) = server.voice() else {
+async fn manifest_route(State(server): Shared) -> Response {
+    let Some(edits) = server.edits().filter(|e| e.voice.is_some()) else {
         return not_found();
     };
+    let voice = edits.voice.as_ref().expect("filtered");
     match block_in_place(|| voice.manifest()) {
         Ok(manifest) => json(serde_json::to_value(manifest).unwrap_or_default()),
         Err(errors) => (
@@ -461,12 +581,14 @@ async fn manifest_route<R: Recognizer + Send + 'static>(State(server): Shared<R>
 
 /// `GET /api/v1/voice/<line>.wav`, `?fresh=1` made anew, `?fit=1` as the
 /// manifest publishes it.
-async fn voice_route<R: Recognizer + Send + 'static>(
-    State(server): Shared<R>,
+async fn voice_route(
+    State(server): Shared,
     Path(file): Path<String>,
     Query(query): Query<HashMap<String, String>>,
 ) -> Response {
-    let (Some(id), Some(voice)) = (file.strip_suffix(".wav"), server.voice()) else {
+    let edits = server.edits();
+    let voice = edits.as_ref().and_then(|e| e.voice.as_ref());
+    let (Some(id), Some(voice)) = (file.strip_suffix(".wav"), voice) else {
         return not_found();
     };
     let asked = |flag: &str| query.get(flag).is_some_and(|v| v == "1");
@@ -478,13 +600,10 @@ async fn voice_route<R: Recognizer + Send + 'static>(
 }
 
 /// `GET /api/v1/clips/<key>.mp4`: a shot's captured clip.
-async fn clip_route<R: Recognizer + Send + 'static>(
-    State(server): Shared<R>,
-    Path(file): Path<String>,
-) -> Response {
+async fn clip_route(State(server): Shared, Path(file): Path<String>) -> Response {
     let clip = file
         .strip_suffix(".mp4")
-        .and_then(|key| server.session().clip(key));
+        .and_then(|key| server.session().as_ref()?.clip(key));
     let Some(clip) = clip else {
         return not_found();
     };
@@ -496,45 +615,49 @@ async fn clip_route<R: Recognizer + Send + 'static>(
 
 /// `POST /api/v1/make?job=capture|build`: the job's progress events, one
 /// JSON object a line as they come, then `made` or `failed`.
-async fn make_route<R: Recognizer + Send + 'static>(
-    State(server): Shared<R>,
+async fn make_route(
+    State(server): Shared,
     Query(query): Query<HashMap<String, String>>,
 ) -> Response {
     let Some(job) = query.get("job").and_then(|j| Job::parse(j)) else {
         return (StatusCode::BAD_REQUEST, "job= is capture or build").into_response();
     };
-    if server
-        .edits
-        .as_ref()
-        .and_then(|e| e.make.as_ref())
-        .is_none()
-    {
+    let Some(edits) = server.edits().filter(|e| e.make.is_some()) else {
         return not_found();
-    }
+    };
+    streamed(&server, move |say| {
+        let make = edits.make.as_ref().expect("filtered");
+        match make(job, say) {
+            Ok(video) => serde_json::json!({ "event": "made", "job": job.name(), "video": video }),
+            Err(why) => {
+                serde_json::json!({ "event": "failed", "job": job.name(), "errors": [why] })
+            }
+        }
+    })
+}
+
+/// A long job's progress events as a streamed body, one JSON object a
+/// line as they come, then what `job` answers last. One job at a time.
+fn streamed(
+    server: &Arc<Server>,
+    job: impl FnOnce(&mut dyn FnMut(serde_json::Value)) -> serde_json::Value + Send + 'static,
+) -> Response {
     if server.making.swap(true, Ordering::SeqCst) {
         return (
             StatusCode::CONFLICT,
-            "a capture or build is already running",
+            "a capture, build or install is already running",
         )
             .into_response();
     }
+    let server = server.clone();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     tokio::task::spawn_blocking(move || {
         let _making = Flag(&server.making);
-        let make = server.edits.as_ref().and_then(|e| e.make.as_ref());
         // A page gone mid-job leaves the job to finish.
         let mut say = |event: serde_json::Value| {
             let _ = tx.send(format!("{event}\n"));
         };
-        let last = match make.map(|make| make(job, &mut say)) {
-            Some(Ok(video)) => {
-                serde_json::json!({ "event": "made", "job": job.name(), "video": video })
-            }
-            Some(Err(why)) => {
-                serde_json::json!({ "event": "failed", "job": job.name(), "errors": [why] })
-            }
-            None => return,
-        };
+        let last = job(&mut say);
         say(last);
     });
     let lines = futures_util::stream::unfold(rx, |mut rx| async move {
@@ -548,9 +671,103 @@ async fn make_route<R: Recognizer + Send + 'static>(
         .into_response()
 }
 
+/// `GET /api/v1/home`: what the page offers when no script is open, or to
+/// open another: the project's scripts, and whether a reader can be heard
+/// here.
+async fn home_route(State(server): Shared) -> Response {
+    let Some(opener) = &server.opener else {
+        return not_found();
+    };
+    json(block_in_place(|| opener.home(server.opened_name())))
+}
+
+/// `POST /api/v1/open?script=<path>[&voice=1]`: opens a script in place of
+/// the one open, read by ear or by its voice.
+async fn open_route(
+    State(server): Shared,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let Some(opener) = &server.opener else {
+        return not_found();
+    };
+    let Some(script) = query.get("script") else {
+        return (StatusCode::BAD_REQUEST, "script= names the script").into_response();
+    };
+    if server.open.load(Ordering::SeqCst) {
+        return failure(
+            StatusCode::CONFLICT,
+            None,
+            vec!["a take is under way".into()],
+        );
+    }
+    let voice = query.get("voice").is_some_and(|v| v == "1");
+    match block_in_place(|| opener.open(std::path::Path::new(script), voice)) {
+        Ok(opened) => {
+            let name = opened.session.script().name;
+            *server.session() = Some(opened.session);
+            *write(&server.edits) = Some(Arc::new(opened.edits));
+            json(serde_json::json!({ "ok": true, "name": name }))
+        }
+        Err(OpenError::Invalid(errors)) => failure(StatusCode::UNPROCESSABLE_ENTITY, None, errors),
+        Err(OpenError::Unheard(why)) => failure(StatusCode::CONFLICT, Some("prompt"), vec![why]),
+        Err(OpenError::Busy(why)) => failure(StatusCode::CONFLICT, None, vec![why]),
+    }
+}
+
+/// `GET /api/v1/setup`: what teleprompt can be set up to do here, as
+/// `teleprompt setup --uses` says it.
+async fn uses_route() -> Response {
+    let uses = block_in_place(|| crate::cmd::setup::Setup::detect().uses());
+    json(serde_json::to_value(uses).unwrap_or_default())
+}
+
+/// `POST /api/v1/setup?uses=<use>,<use>`: installs what they need, as
+/// `teleprompt setup <uses> --run` does, its progress events streamed;
+/// then `installed` or `failed`.
+async fn install_route(
+    State(server): Shared,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let uses: Vec<String> = query
+        .get("uses")
+        .map(|u| {
+            u.split(',')
+                .filter(|u| !u.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    if uses.is_empty() {
+        return (StatusCode::BAD_REQUEST, "uses= names what to set up").into_response();
+    }
+    if let Err(why) = crate::cmd::setup::resolve(&uses) {
+        return failure(StatusCode::BAD_REQUEST, None, vec![why]);
+    }
+    let dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    streamed(&server, move |say| {
+        let mut args: Vec<std::ffi::OsString> = vec!["setup".into()];
+        args.extend(uses.iter().map(Into::into));
+        args.push("--run".into());
+        match teleprompt(&dir, &args, say) {
+            Ok(_) => serde_json::json!({ "event": "installed", "uses": uses }),
+            Err(why) => serde_json::json!({ "event": "failed", "errors": [why] }),
+        }
+    })
+}
+
+/// A refusal the page can act on: why, and what to set up first.
+fn failure(status: StatusCode, needs: Option<&str>, errors: Vec<String>) -> Response {
+    (
+        status,
+        [(CONTENT_TYPE, "application/json")],
+        serde_json::json!({ "ok": false, "needs": needs, "errors": errors }).to_string(),
+    )
+        .into_response()
+}
+
 /// `GET /api/v1/session`: the session socket, one at a time.
-async fn session_route<R: Recognizer + Send + 'static>(
-    State(server): Shared<R>,
+async fn session_route(
+    State(server): Shared,
     upgrade: Result<WebSocketUpgrade, axum::extract::ws::rejection::WebSocketUpgradeRejection>,
 ) -> Response {
     let Ok(upgrade) = upgrade else {
@@ -583,46 +800,74 @@ impl Drop for Flag<'_> {
 }
 
 /// Marks the session closed when dropped.
-struct OpenSession<R>(Arc<Server<R>>);
+struct OpenSession(Arc<Server>);
 
-impl<R> Drop for OpenSession<R> {
+impl Drop for OpenSession {
     fn drop(&mut self) {
         self.0.open.store(false, Ordering::SeqCst);
     }
 }
 
-struct Server<R> {
-    session: Mutex<Session<R>>,
+struct Server {
+    /// The open script's session; none until a script is opened.
+    session: Mutex<Option<Session<Hearing>>>,
+    /// What can be done to the open script's file.
+    edits: RwLock<Option<Arc<Edits>>>,
+    /// How to open a script from the page; none where only the one given
+    /// is served.
+    opener: Option<Opener>,
     /// Whether a session socket is open.
     open: AtomicBool,
-    /// Whether a capture or build is running.
+    /// Whether a capture, build or install is running.
     making: AtomicBool,
-    edits: Option<Edits>,
 }
 
-impl<R: Recognizer> Server<R> {
-    fn session(&self) -> MutexGuard<'_, Session<R>> {
+impl Server {
+    fn new(opened: Option<Opened>, opener: Option<Opener>) -> Arc<Self> {
+        let (session, edits) = match opened {
+            Some(o) => (Some(o.session), Some(Arc::new(o.edits))),
+            None => (None, None),
+        };
+        Arc::new(Self {
+            session: Mutex::new(session),
+            edits: RwLock::new(edits),
+            opener,
+            open: AtomicBool::new(false),
+            making: AtomicBool::new(false),
+        })
+    }
+
+    fn session(&self) -> MutexGuard<'_, Option<Session<Hearing>>> {
         self.session.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn voice(&self) -> Option<&Voicing> {
-        self.edits.as_ref().and_then(|e| e.voice.as_ref())
+    fn edits(&self) -> Option<Arc<Edits>> {
+        self.edits
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    fn opened_name(&self) -> Option<String> {
+        self.session().as_ref().map(|s| s.script().name)
     }
 
     /// The script as the page draws it, reloaded first if its file has
-    /// changed; compiled outside the lock, which the session needs.
-    fn script(&self) -> serde_json::Value {
-        let edited = self.edits.as_ref().and_then(|e| (e.reload)());
+    /// changed; compiled outside the lock, which the session needs. None
+    /// while no script is open.
+    fn script(&self) -> Option<serde_json::Value> {
+        let edits = self.edits();
+        let edited = edits.as_ref().and_then(|e| (e.reload)());
         let mut session = self.session();
+        let session = session.as_mut()?;
         if let Some(prompt) = edited {
             session.replace(prompt);
         }
         let mut script = script(session.script());
-        drop(session);
-        if let Some(edits) = &self.edits {
+        if let Some(edits) = &edits {
             voiced(&mut script, edits);
         }
-        script
+        Some(script)
     }
 
     async fn run_session(&self, mut socket: WebSocket) {
@@ -634,7 +879,14 @@ impl<R: Recognizer> Server<R> {
                     block_in_place(|| self.command(text.as_str(), &mut rate, &mut at))
                 }
                 Message::Binary(audio) => {
-                    let reached = block_in_place(|| self.session().listen(&samples(&audio), rate));
+                    let reached = block_in_place(|| {
+                        self.session()
+                            .as_mut()
+                            .map(|s| s.listen(&samples(&audio), rate))
+                    });
+                    let Some(reached) = reached else {
+                        return;
+                    };
                     let news = at != Some(reached.at) || !reached.play.is_empty();
                     at = Some(reached.at);
                     news.then(|| reached_json(&reached))
@@ -665,8 +917,13 @@ impl<R: Recognizer> Server<R> {
             Ok(message) => message,
             Err(e) => return Some(error(format!("not JSON: {e}"))),
         };
+        let edits = self.edits();
+        let mut session = self.session();
+        let Some(session) = session.as_mut() else {
+            return Some(error("no script is open".into()));
+        };
         match message["type"].as_str() {
-            Some("start") if !self.edits.as_ref().is_none_or(|e| e.listens) => Some(error(
+            Some("start") if !edits.as_ref().is_none_or(|e| e.listens) => Some(error(
                 "this prompter reads the script with its voice; it does not listen".into(),
             )),
             Some("start") => {
@@ -676,25 +933,25 @@ impl<R: Recognizer> Server<R> {
                     .and_then(|r| u32::try_from(r).ok())
                     .filter(|&r| r > 0)
                     .unwrap_or(LISTEN_RATE);
-                let reached = self.session().start(from);
+                let reached = session.start(from);
                 *at = Some(reached.at);
                 Some(reached_json(&reached))
             }
-            Some("stop") => Some(match self.session().stop() {
+            Some("stop") => Some(match session.stop() {
                 Ok(saved) => serde_json::json!({ "type": "stopped", "saved": saved }),
                 Err(e) => error(e.to_string()),
             }),
             Some("discard") => {
-                self.session().discard();
+                session.discard();
                 Some(serde_json::json!({ "type": "discarded" }))
             }
-            Some("undo") => Some(match self.session().undo() {
+            Some("undo") => Some(match session.undo() {
                 Ok(lines) => serde_json::json!({ "type": "undone", "lines": lines }),
                 Err(e) => error(e.to_string()),
             }),
             Some("keep_said") => {
                 let line = message["line"].as_str().unwrap_or_default();
-                Some(match &self.edits {
+                Some(match &edits {
                     Some(edits) => match (edits.keep_said)(line) {
                         Ok(()) => serde_json::json!({ "type": "kept_said", "line": line }),
                         Err(e) => error(e),
@@ -702,7 +959,7 @@ impl<R: Recognizer> Server<R> {
                     None => error("this prompter has no script file to reword".into()),
                 })
             }
-            Some("undo_edit") => Some(match &self.edits {
+            Some("undo_edit") => Some(match &edits {
                 Some(edits) => match (edits.undo)() {
                     Ok(()) => serde_json::json!({ "type": "edit_undone" }),
                     Err(e) => error(e),
@@ -714,7 +971,7 @@ impl<R: Recognizer> Server<R> {
                     Ok(edit) => edit,
                     Err(e) => return Some(error(e)),
                 };
-                Some(match &self.edits {
+                Some(match &edits {
                     Some(edits) => match (edits.edit)(&edit) {
                         Ok(()) => edited,
                         Err(e) => error(e),
@@ -850,8 +1107,12 @@ fn samples(body: &[u8]) -> Vec<f32> {
 /// `serve`'s arguments.
 #[derive(clap::Args)]
 pub struct Args {
-    #[command(flatten)]
-    pub script: crate::cli::ScriptArgs,
+    /// The script to open; without one, the page opens on its welcome,
+    /// which lists the project's scripts and sets teleprompt up
+    pub script: Option<std::path::PathBuf>,
+    /// The locale to compile for; the project's `locales.source` if not given
+    #[arg(long, value_parser = crate::cli::language_tag)]
+    pub locale: Option<String>,
     /// Port to listen on; 0 picks a free one
     #[arg(long, default_value_t = 7879)]
     pub port: u16,
@@ -868,15 +1129,17 @@ pub struct Args {
 /// `serve`, following the reader by ear with the speech model named or
 /// installed, or with `--voice`, reading the script with its voice.
 pub fn run(args: Args, format: Format) -> crate::cli::Run {
-    let project = args.script.project()?;
+    if let Some(script) = &args.script {
+        // A script outside any project is said as every command says it.
+        crate::cli::project_for(script)?;
+    }
     let model = (!args.voice).then(|| {
         args.model
             .or_else(|| crate::cmd::setup::speech_model(None).ok())
     });
     run_serve(
-        &project,
-        &args.script.script,
-        &args.script.locale(&project),
+        args.script.as_deref(),
+        args.locale.as_deref(),
         args.port,
         match &model {
             Some(model) => Ear::Model(model.as_deref()),

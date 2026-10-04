@@ -17,7 +17,7 @@ struct SettingsView: View {
             }
             Section {
                 path("Speech model", model.modelPath) { choosing = .model }
-                Text("Not needed when Set Up Teleprompt has installed one: that one is used.")
+                Text("Not needed when Set Up Teleprompt has installed one: teleprompt finds that one.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

@@ -17,6 +17,18 @@ pub trait Recognizer {
     fn reset(&mut self);
 }
 
+/// A boxed recognizer is one: for a prompter that picks its ear when a
+/// script is opened.
+impl<R: Recognizer + ?Sized> Recognizer for Box<R> {
+    fn listen(&mut self, samples: &[f32]) -> Heard {
+        (**self).listen(samples)
+    }
+
+    fn reset(&mut self) {
+        (**self).reset()
+    }
+}
+
 /// A recognizer that hears nothing: for a prompter whose script is read
 /// by a synthesized voice, not followed by ear.
 pub struct Deaf;

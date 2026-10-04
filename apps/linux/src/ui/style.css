@@ -135,20 +135,6 @@ button.record.keep .record-dot {
   background-color: #ffffff;
 }
 
-/* Pages before the prompter. */
-.hero-title {
-  font-size: 44px;
-  font-weight: 800;
-  color: @ink;
-  letter-spacing: -0.5px;
-}
-
-.hero-body {
-  font-size: 18px;
-  line-height: 1.3;
-  color: alpha(@ink, 0.62);
-}
-
 button.pill.primary {
   background-color: @ink;
   color: #000000;
@@ -166,27 +152,8 @@ button.pill.primary {
   color: alpha(@ink, 0.5);
 }
 
-.sample-glass {
-  background-color: @glass;
-  border-radius: 14px;
-  border: 1px solid @line_color;
-  padding: 34px 40px 34px 22px;
-  box-shadow: 0 24px 60px alpha(black, 0.45);
-}
-
-.sample-text {
-  font-size: 27px;
-  font-weight: 500;
-  color: @ink;
-}
-
-.sample-arrow {
-  font-size: 15px;
-  color: @cue;
-}
-
-/* Session mode: the terminal behind glass, framed like the welcome page's
-   sample, and ringed in the tally's red while it records. */
+/* Session mode: the terminal behind glass, ringed in the tally's red while
+   it records. */
 .session-frame {
   background-color: @glass;
   border: 1px solid @line_color;
@@ -245,24 +212,3 @@ button.record.play image {
   color: @cue;
 }
 
-.narrator-label {
-  font-size: 14px;
-  color: alpha(@ink, 0.66);
-}
-
-button.narrator {
-  padding: 4px 14px;
-  font-weight: 600;
-}
-
-button.narrator:checked {
-  background-color: @ink;
-  color: #000000;
-}
-
-/* The welcome page's way to setup: there, but quieter than the actions. */
-button.setup-link {
-  padding-left: 0;
-  font-weight: normal;
-  opacity: 0.75;
-}
