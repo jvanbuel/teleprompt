@@ -120,6 +120,29 @@ fn a_stale_translation_is_spoken_and_reported() {
     );
 }
 
+/// `check --locale` lints what is said in that locale: the translation.
+#[test]
+fn check_lints_the_translation() {
+    let dir = project("lint");
+    let doubled = dutch(false).replace("één commando.", "één commando commando.");
+    std::fs::write(dir.join("scripts/tour.nl.yaml"), doubled).unwrap();
+    let out = tp(
+        &dir,
+        &[
+            "check",
+            "scripts/tour.md",
+            "--locale",
+            "nl",
+            "--format",
+            "json",
+        ],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(report["ok"], true, "{report}");
+    let warnings = report["warnings"].to_string();
+    assert!(warnings.contains("commando commando"), "{warnings}");
+}
+
 /// A take is of the English: the translated line is synthesized, while the
 /// English video still speaks the take.
 #[test]

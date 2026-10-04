@@ -58,11 +58,22 @@ impl Project {
         script: &Path,
         locale: &str,
     ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
+        self.compile_file(backends, script, locale)
+            .map(|c| (c.output, c.backend))
+    }
+
+    /// [`Project::compile_source`] on `script` as saved, its problems
+    /// rendered.
+    pub fn compile_file(
+        &self,
+        backends: &Backends,
+        script: &Path,
+        locale: &str,
+    ) -> Result<Compiled, Vec<String>> {
         let display = script.display().to_string();
         let src = std::fs::read_to_string(script)
             .map_err(|e| vec![format!("cannot read {display}: {e}")])?;
         self.compile_source(backends, script, &src, locale)
-            .map(|c| (c.output, c.backend))
             .map_err(|d| render(&d, &display))
     }
 }

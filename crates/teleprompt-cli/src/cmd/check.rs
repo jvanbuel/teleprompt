@@ -10,15 +10,20 @@ pub fn run_check(
     script: &Path,
     locale: &str,
 ) -> Result<Vec<String>, Vec<String>> {
-    let mut warnings = project.compile(script, locale)?.0.warnings;
-    // What is hard to say aloud, in the language the lines are said in.
-    let program = project.resolved(script, locale)?;
+    let compiled = project.compile_file(&project.backends(), script, locale)?;
+    let mut warnings = compiled.output.warnings;
+    // What is hard to say aloud, as it is said: translated, for a locale
+    // with a translation.
     let display = script.display().to_string();
-    warnings.extend(teleprompt_core::lint::lint(&program).iter().map(|d| {
-        d.render(&display)
-            .trim_start_matches("warning: ")
-            .to_string()
-    }));
+    warnings.extend(
+        teleprompt_core::lint::lint(&compiled.program)
+            .iter()
+            .map(|d| {
+                d.render(&display)
+                    .trim_start_matches("warning: ")
+                    .to_string()
+            }),
+    );
     Ok(warnings)
 }
 
