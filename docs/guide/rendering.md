@@ -138,15 +138,21 @@ writable checkout.
 ## Watching an edit
 
 ```bash
-teleprompt prompt --preview scripts/tour.md
+teleprompt prompt --voice scripts/tour.md
 ```
 
-The preview recompiles when you save, synthesizes only the lines whose text
-changed, and opens on the first item that moved, with the ones that shifted
-marked on the timeline strip. A reworded paragraph is audible about a second
-later. The preview reads the same `narration.json` an outside consumer
-does. A script that stops compiling shows its error while the last version
-that compiled keeps playing.
+Press V on the prompter to play the video as it will play: every line at
+the length and tempo the video gives it, the shots cut in where the plan
+puts them. It plays from the manifest `dub` would publish
+(`GET /api/v1/manifest`), the same one an outside consumer reads, so it
+can't show timing the video won't have. ← and → skip five seconds.
+
+When you save, it recompiles, synthesizes only the lines whose text
+changed, and marks the lines that moved; playing, it carries on from the
+first of them. J plays the moved lines again. A reworded paragraph is
+audible about a second later. A save that stops compiling shows its error
+above the glass, while the last version that compiled stays playable.
+A shot never captured shows as a slate saying so.
 
 ## Environment variables
 

@@ -1,6 +1,6 @@
 //! The narration manifest: the published contract a renderer reads
 //! (docs/design.md#manifest). `teleprompt-compile` builds it; renderers,
-//! the preview and outside consumers read it.
+//! the prompter and outside consumers read it.
 
 use serde::{Deserialize, Serialize};
 use teleprompt_core::config::TransitionKind;

@@ -146,9 +146,16 @@ background, into the same cache `dub` and `build` use, and the margin marks
 each line: a waveform, faint until the line is made; a tick for a line you
 recorded yourself, which plays from your take.
 
-- **Space** (or **Play**) reads from the line you're on, lighting each word
-  as it's said and starting the shots as it reaches them, as a take would.
-  Space again, or Escape, stops.
+- **Space** (or **Play**) plays the video from the line you're on, as it
+  will play: each line at its length in the video, lighting each word as
+  it's said, and each shot where the plan puts it. Space again, or Escape,
+  stops; ← and → skip five seconds.
+- **V** (or **Play video**) does the same from the top, and works when you
+  read the script yourself too, between takes, when the project has a voice.
+- When you save, the lines whose timing changed are marked in the margin,
+  and **J** plays them again; while playing, it carries on from the first.
+  A save that doesn't compile shows its errors above the glass, which keeps
+  the last version that did.
 - **Click a line** for its panel. **Listen** plays that line alone, and
   **Read on from here** plays from it. **How to say it** tells the voice
   how to read it ("slower, amused"), for a backend that takes directions;
@@ -179,7 +186,7 @@ after each one, so leave a breath between paragraphs. Lines with a
 recording are marked at their left edge.
 
 A recorded line is the line's voice from then on: `plan`, `dub`, `build`
-and the preview use it, paced to its real length, and the lines without one
+and the prompter's video use it, paced to its real length, and the lines without one
 are synthesized. Every command names those. Edit a line and its recording
 no longer matches it, so the line is synthesized until you read it again.
 Press `r` to read those lines again one after another: each take starts on

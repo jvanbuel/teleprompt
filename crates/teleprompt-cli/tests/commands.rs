@@ -448,13 +448,14 @@ fn plan_check_exits_3_on_drift_and_0_once_committed() {
     );
 }
 
-/// The commands `plan --check` and `prompt --preview` replaced say so,
+/// The commands `plan --check` and the prompter replaced say so,
 /// whatever they are given, rather than being unknown.
 #[test]
 fn a_removed_command_names_its_replacement() {
     for (args, instead) in [
         (&["diff", "demo.md", "--exit-code"][..], "plan --check"),
-        (&["serve", "demo.md", "--port", "0"][..], "prompt --preview"),
+        (&["serve", "demo.md", "--port", "0"][..], "prompt --voice"),
+        (&["prompt", "demo.md", "--preview"][..], "prompt --voice"),
     ] {
         let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
             .args(args)

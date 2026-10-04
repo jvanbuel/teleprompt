@@ -25,15 +25,24 @@ impl Drop for Served {
 
 /// The scaffolded project, prompted in voice mode on a port the OS picks.
 fn voiced(tag: &str) -> Served {
+    voiced_script(tag, "demo.md", None)
+}
+
+/// [`voiced`], prompting `scripts/<name>`, written as `source` if given.
+fn voiced_script(tag: &str, name: &str, source: Option<&str>) -> Served {
     let dir = teleprompt_testkit::test_dir(tag);
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    if let Some(source) = source {
+        std::fs::write(dir.join("scripts").join(name), source).unwrap();
+    }
+    let script = format!("scripts/{name}");
     let mut child = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(&dir)
         .args([
             "--format",
             "json",
             "prompt",
-            "scripts/demo.md",
+            script.as_str(),
             "--voice",
             "--port",
             "0",
@@ -393,4 +402,116 @@ fn the_prompter_captures_the_scripts_shots_and_says_how_it_goes() {
     // Only a POST makes anything, and only a job it knows.
     assert_eq!(get(served.addr, "/api/v1/make?job=capture").0, 404);
     assert_eq!(post_lines(served.addr, "/api/v1/make?job=nope").0, 400);
+}
+
+/// The video as it will play: the manifest `dub` publishes, made by the
+/// prompter on asking, with every line's audio synthesized first.
+#[test]
+fn the_manifest_is_the_one_dub_publishes() {
+    let served = voiced("prompt-voice-manifest");
+    let (status, body) = get(served.addr, "/api/v1/manifest");
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+    let served_manifest: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let out = served.dir.join("out");
+    let dubbed = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .current_dir(&served.dir)
+        .args(["dub", "scripts/demo.md", "--out"])
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert!(
+        dubbed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&dubbed.stderr)
+    );
+    let dubbed: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(out.join("en/narration.json")).unwrap())
+            .unwrap();
+    for key in ["manifest_version", "duration_ms", "audio", "shots"] {
+        assert_eq!(served_manifest[key], dubbed[key], "{key}");
+    }
+    // `audio_hash` is the hash of the file `dub` writes, converted to the
+    // published format; the page keys what it decoded by it, nothing more.
+    let lines = |m: &serde_json::Value| {
+        let mut lines = m["lines"].clone();
+        for line in lines.as_array_mut().unwrap() {
+            line.as_object_mut().unwrap().remove("audio_hash");
+        }
+        lines
+    };
+    assert_eq!(lines(&served_manifest), lines(&dubbed));
+}
+
+/// With no narration there is no audio to read a format from, and the
+/// manifest must still say what `dub` does (#24).
+#[test]
+fn a_script_with_no_narration_has_the_audio_format_dub_publishes() {
+    let silent = "---\nteleprompt: 1\n---\n\n# Silence\n";
+    let served = voiced_script("prompt-voice-silent", "silent.md", Some(silent));
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&get(served.addr, "/api/v1/manifest").1).unwrap();
+    let out = served.dir.join("out");
+    let dubbed = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .current_dir(&served.dir)
+        .args(["dub", "scripts/silent.md", "--out"])
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert!(
+        dubbed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&dubbed.stderr)
+    );
+    let dubbed: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(out.join("en/narration.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest["audio"], dubbed["audio"]);
+}
+
+/// A `fit-line` line plays at the tempo it will be published at: asked for
+/// as the video plays it, its audio is as long as the manifest says.
+#[test]
+fn a_fit_line_lines_audio_is_at_its_tempo_as_the_video_plays_it() {
+    let script = "---\nteleprompt: 1\n---\n\n# Fit\n\n\
+        Deployment is one command, and it streams progress as it goes. {#deploy}\n\n\
+        ```teleprompt scene=mock policy=fit-line\nwait 1000ms\n```\n";
+    let served = voiced_script("prompt-voice-fit", "fit.md", Some(script));
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&get(served.addr, "/api/v1/manifest").1).unwrap();
+    let line = &manifest["lines"][0];
+    assert_eq!(line["tempo_permille"], 1150, "{manifest}");
+    let (_, body) = get(served.addr, "/api/v1/voice/deploy.wav?fit=1");
+    let pcm = teleprompt_voice::wav::decode(&body).unwrap();
+    assert_eq!(pcm.duration_ms(), line["duration_ms"].as_u64().unwrap());
+    // As the voice made it, otherwise.
+    let (_, raw) = get(served.addr, "/api/v1/voice/deploy.wav");
+    let raw = teleprompt_voice::wav::decode(&raw).unwrap();
+    assert_ne!(raw.duration_ms(), pcm.duration_ms());
+}
+
+/// A save that no longer compiles is said beside the script as it last
+/// compiled: the author sees the error, and keeps what they had.
+#[test]
+fn a_save_that_does_not_compile_is_said_beside_the_last_good_script() {
+    let served = voiced("prompt-voice-broken");
+    let manifest = get(served.addr, "/api/v1/manifest").1;
+    let good = script(served.addr);
+    assert!(good["error"].is_null(), "{good}");
+    let md = served.dir.join("scripts/demo.md");
+    let source = std::fs::read_to_string(&md).unwrap();
+    std::fs::write(
+        &md,
+        format!("{source}\n```teleprompt scene=mock\nwiat 1s\n```\n"),
+    )
+    .unwrap();
+    let broken = script(served.addr);
+    let errors = broken["error"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{broken}"));
+    assert!(errors[0].as_str().unwrap().contains("wiat"), "{errors:?}");
+    assert_eq!(broken["lines"], good["lines"]);
+    // The video as it last compiled, still.
+    assert_eq!(get(served.addr, "/api/v1/manifest").1, manifest);
+    std::fs::write(&md, source).unwrap();
+    assert!(script(served.addr)["error"].is_null());
 }

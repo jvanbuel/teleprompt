@@ -66,8 +66,8 @@ cargo run -- plan --check demo/scripts/demo.md
 ```
 
 `plan` and `plan --check` are instant and offline, whatever voice you configure.
-When you want to hear the result, `prompt --preview` gives you a live preview that
-opens on the item you just changed, and `build` renders the video.
+When you want to hear the result, `prompt --voice` reads it to you and plays
+the video as it will be, from the line you just changed, and `build` renders it.
 
 teleprompt ships no tools or models of its own. `teleprompt setup` asks what
 you want to do (render videos, show a browser, have the prompter follow
@@ -87,7 +87,7 @@ of a job offers to install it there.
 | `import <recording>` | the same, from a cast or tape and a recording of your voice you already have |
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it; `--check` compares it with the committed one and exits 3 on drift |
-| `prompt <script>` | a prompter that follows your voice, plays its shots as you reach them and records your takes (opt-in build); `--preview` serves a live preview that opens on the item that changed |
+| `prompt <script>` | a prompter that follows your voice, plays its shots as you reach them and records your takes (opt-in build); `--voice` has the script's voice read it, and plays the video as it will play |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |
@@ -114,7 +114,7 @@ every JSON report says `ok`, true exactly when the exit code is 0.
 - [Recording a session](docs/guide/recording.md): `record` and `import`,
   which draft a script from a terminal session you narrated
 - [Rendering](docs/guide/rendering.md): `build`, `dub` and the manifest,
-  and the live preview
+  and watching an edit
 - [Editors](docs/guide/editors.md): `teleprompt lsp`, for problems,
   completion and navigation as you write
 - [Rendering with Remotion](docs/integrations/remotion.md): consuming the

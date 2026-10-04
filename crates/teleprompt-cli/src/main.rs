@@ -14,7 +14,6 @@ use teleprompt_cli::cmd::from;
 use teleprompt_cli::cmd::import::{self, Import, Words};
 use teleprompt_cli::cmd::new::{self, NewReport};
 use teleprompt_cli::cmd::plan;
-use teleprompt_cli::cmd::preview;
 use teleprompt_cli::cmd::setup;
 use teleprompt_cli::output::{exit_code_for, ErrorReport, Format, Outcome};
 use teleprompt_cli::project::Project;
@@ -387,18 +386,17 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
-    /// Show the script as a prompter that follows your voice, or preview it
+    /// Show the script as a prompter that follows your voice, and play it as the video will
     ///
     /// Serves a page on loopback that listens through the microphone and
     /// scrolls to where you are reading, by matching what a local speech
     /// model hears against the script. Nothing leaves the machine. Needs a
     /// build with `--features listen` and a streaming model (see --model).
     ///
-    /// With --preview, serves a live preview instead, in any build: it
-    /// watches the script, recompiles on save, synthesizes only what the
-    /// cache is missing, and opens on the item that changed. It reads the
-    /// published narration manifest, the artifact an outside consumer
-    /// reads, so it cannot drift from what `build` renders.
+    /// V on the page plays the video as it will play: the manifest `dub`
+    /// publishes, the artifact an outside consumer reads, so it cannot
+    /// drift from what `build` renders. A save while it plays opens on what
+    /// moved. With --voice the script's voice reads it, in any build.
     Prompt {
         #[command(flatten)]
         args: ScriptArgs,
@@ -407,14 +405,14 @@ enum Command {
         port: u16,
         /// Directory of an unpacked sherpa-onnx streaming zipformer model;
         /// defaults to the one `teleprompt setup speech-model` installed
-        #[arg(long, conflicts_with = "preview")]
-        model: Option<std::path::PathBuf>,
-        /// Watch the script and preview the video as it will play
         #[arg(long)]
+        model: Option<std::path::PathBuf>,
+        /// Now the prompter's own: says so rather than being unknown
+        #[arg(long, hide = true)]
         preview: bool,
         /// Read the script with its voice instead of following yours:
         /// needs no speech model, in any build
-        #[arg(long, conflicts_with_all = ["preview", "model"])]
+        #[arg(long, conflicts_with = "model")]
         voice: bool,
     },
     /// Synthesize narration and write audio plus a manifest
@@ -479,7 +477,7 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         rest: Vec<String>,
     },
-    /// Now `prompt --preview`; says so rather than being unknown.
+    /// Now `prompt --voice`; says so rather than being unknown.
     #[command(hide = true)]
     Serve {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -815,7 +813,7 @@ fn run_from_cmd(format: Format, args: FromArgs) -> Run {
 fn run(command: Command, format: Format) -> Run {
     match command {
         Command::Diff { .. } => Err(replaced("diff", "plan --check")),
-        Command::Serve { .. } => Err(replaced("serve", "prompt --preview")),
+        Command::Serve { .. } => Err(replaced("serve", "prompt --voice")),
         Command::New { path } => {
             let report = NewReport {
                 created: new::scaffold(&path).map_err(runtime_failure)?,
@@ -881,12 +879,9 @@ fn run(command: Command, format: Format) -> Run {
         }
         Command::Plan { args, check: false } => run_plan(format, &args),
         Command::Plan { args, check: true } => run_plan_check(format, &args),
-        Command::Prompt {
-            args,
-            port,
-            preview: true,
-            ..
-        } => run_preview(&args, port),
+        Command::Prompt { preview: true, .. } => {
+            Err(replaced("prompt --preview", "prompt --voice"))
+        }
         Command::Prompt {
             args,
             port,
@@ -916,15 +911,6 @@ fn run_plan_check(format: Format, args: &ScriptArgs) -> Run {
     } else {
         Outcome::Ok
     })
-}
-
-fn run_preview(args: &ScriptArgs, port: u16) -> Run {
-    let project = project_for(&args.script)?;
-    let locale = args.locale(&project);
-    runtime()
-        .map_err(runtime_failure)?
-        .block_on(preview::run_preview(&project, &args.script, &locale, port))?;
-    Ok(Outcome::Ok)
 }
 
 /// `check` reports its own failure: its JSON report has room for the errors.

@@ -2,6 +2,7 @@
   "name": "tour.md",
   "voice": { "name": "kokoro · af_heart", "listens": false },
   "length_ms": 6120,
+  "error": null,
   "lines": [
     {
       "id": "welcome", "text": "Welcome to Acme. Let me show you around.",

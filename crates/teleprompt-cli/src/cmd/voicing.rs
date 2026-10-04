@@ -1,13 +1,16 @@
 //! How each line of a prompted script sounds when its voice reads it: the
 //! prompter's view of what `dub` would make. A line with a current take is
 //! read from it; any other is synthesized when first asked for, into the
-//! voice cache `dub` and `build` read from.
+//! voice cache `dub` and `build` read from. And the video as it will play:
+//! the manifest `dub` publishes, which the page plays as an outside
+//! renderer would, so it cannot show timing the video will not have.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::NarrationDetail;
+use teleprompt_manifest::{AudioInfo, NarrationManifest};
 use teleprompt_voice::VoiceBackend;
 
 use crate::project::Project;
@@ -20,6 +23,11 @@ pub struct Voicing {
     locale: String,
     /// The last compile: each line's request and take, and who reads.
     voiced: Mutex<Option<Voiced>>,
+    /// Why the script, as its file now reads, does not compile; `None` once
+    /// it does again.
+    error: Mutex<Option<Vec<String>>>,
+    /// The manifest last made, which a line's audio is fitted to.
+    manifest: Mutex<Option<NarrationManifest>>,
     runtime: OnceLock<Result<tokio::runtime::Runtime, String>>,
 }
 
@@ -42,6 +50,8 @@ impl Voicing {
             script: script.to_path_buf(),
             locale: locale.to_string(),
             voiced: Mutex::new(None),
+            error: Mutex::new(None),
+            manifest: Mutex::new(None),
             runtime: OnceLock::new(),
         }
     }
@@ -60,18 +70,73 @@ impl Voicing {
             &self.script,
             &self.locale,
         );
-        if let Ok((compiled, backend)) = compiled {
-            let voices = crate::cmd::check::voices_for(&backends, &backend, &compiled.narration)
-                .unwrap_or_default();
-            *voiced = Some(Voiced {
-                backend,
-                voices,
-                length_ms: compiled.timeline.duration_ms.ms(),
-                timeline: timeline_json(&compiled.timeline),
-                lines: compiled.narration,
-            });
+        match compiled {
+            Ok((compiled, backend)) => {
+                let voices =
+                    crate::cmd::check::voices_for(&backends, &backend, &compiled.narration)
+                        .unwrap_or_default();
+                *voiced = Some(Voiced {
+                    backend,
+                    voices,
+                    length_ms: compiled.timeline.duration_ms.ms(),
+                    timeline: timeline_json(&compiled.timeline),
+                    lines: compiled.narration,
+                });
+                *lock(&self.error) = None;
+            }
+            Err(errors) => *lock(&self.error) = Some(errors),
         }
         voiced.clone()
+    }
+
+    fn runtime(&self) -> Result<&tokio::runtime::Runtime, String> {
+        self.runtime
+            .get_or_init(|| {
+                tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(1)
+                    .enable_all()
+                    .build()
+                    .map_err(|e| format!("cannot start the voice's runtime: {e}"))
+            })
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+
+    /// The manifest `dub` would publish for the script as its file now
+    /// reads, every line's audio made first; or, if it no longer compiles,
+    /// the one last made, and why only if there is none.
+    pub fn manifest(&self) -> Result<NarrationManifest, Vec<String>> {
+        let backends = crate::cmd::check::backends_of(&self.project);
+        let compile = || {
+            crate::cmd::check::compile_script_with(
+                &backends,
+                &self.project,
+                &self.script,
+                &self.locale,
+            )
+        };
+        let (compiled, backend) = match compile() {
+            Ok(compiled) => compiled,
+            Err(errors) => return lock(&self.manifest).clone().ok_or(errors),
+        };
+        let voices = crate::cmd::check::voices_for(&backends, &backend, &compiled.narration)
+            .map_err(|e| vec![e])?;
+        let audio = self
+            .runtime()
+            .map_err(|e| vec![e])?
+            .block_on(warm(&voices, &self.cache(), &compiled))
+            .map_err(|e| vec![e])?;
+        // Compiled again, as `dub` does: the first pass read durations from
+        // a cache `warm` had not yet filled.
+        let (compiled, _) = compile()?;
+        let manifest = teleprompt_compile::manifest::build(
+            &compiled.timeline,
+            &compiled.chapters,
+            &compiled.narration,
+            audio,
+        );
+        *lock(&self.manifest) = Some(manifest.clone());
+        Ok(manifest)
     }
 
     /// Who reads the script, how long it runs, and each line's audio by
@@ -79,6 +144,7 @@ impl Voicing {
     pub fn describe(&self) -> Option<Description> {
         let voiced = self.refresh()?;
         // The narrator's: the voice of a line no speaker says.
+        let error = lock(&self.error).clone();
         let voice = voiced
             .lines
             .iter()
@@ -99,13 +165,34 @@ impl Voicing {
             length_ms: voiced.length_ms,
             lines,
             timeline: voiced.timeline,
+            error,
         })
+    }
+
+    /// Line `id`'s audio as a WAV, as [`Self::voice`] makes it; with `fit`,
+    /// at the tempo and length the last manifest gives a `fit-line` line, as
+    /// `dub` writes it.
+    pub fn audio(&self, id: &str, fresh: bool, fit: bool) -> Result<Option<Vec<u8>>, String> {
+        let Some(bytes) = self.voice(id, fresh)? else {
+            return Ok(None);
+        };
+        let tempo = fit
+            .then(|| lock(&self.manifest).clone())
+            .flatten()
+            .and_then(|m| m.lines.into_iter().find(|l| l.id == id))
+            .and_then(|l| l.tempo_permille.map(|t| (t.permille(), l.duration_ms.ms())));
+        Ok(Some(match tempo {
+            Some((tempo, ms)) => {
+                teleprompt_voice::stretch::fit_wav(&bytes, tempo, ms).unwrap_or(bytes)
+            }
+            None => bytes,
+        }))
     }
 
     /// Line `id`'s audio as a WAV: its take, or its voice's, made now if
     /// the cache lacks it or `fresh` asks for it anew. `None` for a line
     /// the script does not have.
-    pub fn audio(&self, id: &str, fresh: bool) -> Result<Option<Vec<u8>>, String> {
+    fn voice(&self, id: &str, fresh: bool) -> Result<Option<Vec<u8>>, String> {
         let known = self
             .voiced
             .lock()
@@ -133,17 +220,7 @@ impl Voicing {
         {
             return Ok(Some(hit.wav));
         }
-        let runtime = self
-            .runtime
-            .get_or_init(|| {
-                tokio::runtime::Builder::new_multi_thread()
-                    .worker_threads(1)
-                    .enable_all()
-                    .build()
-                    .map_err(|e| format!("cannot start the voice's runtime: {e}"))
-            })
-            .as_ref()
-            .map_err(Clone::clone)?;
+        let runtime = self.runtime()?;
         let backend = voiced
             .voices
             .get(&line.backend)
@@ -160,6 +237,49 @@ pub struct Description {
     pub length_ms: u64,
     pub lines: Vec<(String, serde_json::Value)>,
     pub timeline: serde_json::Value,
+    /// Why the script as its file now reads does not compile, if it does not.
+    pub error: Option<Vec<String>>,
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Fills the voice cache's misses, one after another, and says the audio's
+/// shape, as the manifest publishes it. A recorded line is played from its
+/// take, and needs nothing.
+async fn warm(
+    voices: &crate::cmd::check::Voices,
+    cache: &VoiceCache,
+    compiled: &teleprompt_compile::CompileOutput,
+) -> Result<AudioInfo, String> {
+    let mut shape: Option<(u32, u16)> = None;
+    for detail in compiled.narration.iter().filter(|d| d.take.is_none()) {
+        let hit = cache
+            .lookup_meta(&detail.cache_key)
+            .map_err(|e| format!("line `{}`: {e}", detail.line_id))?
+            .hit();
+        let (rate, channels) = match hit {
+            Some(meta) => (meta.sample_rate, meta.channels),
+            None => {
+                let backend = voices.get(&detail.backend).ok_or_else(|| {
+                    format!(
+                        "line `{}`: no voice backend `{}`",
+                        detail.line_id, detail.backend
+                    )
+                })?;
+                let stored = crate::cmd::dub::synthesize_and_store(backend, cache, detail).await?;
+                (stored.sample_rate, stored.channels)
+            }
+        };
+        shape.get_or_insert((rate, channels));
+    }
+    let (sample_rate, channels) = shape.unwrap_or((crate::cmd::dub::NO_AUDIO_SAMPLE_RATE, 1));
+    Ok(AudioInfo {
+        format: "wav".to_string(),
+        sample_rate,
+        channels,
+    })
 }
 
 /// The scheduler's plan as a prompter draws it on the glass: each line

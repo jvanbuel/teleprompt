@@ -176,7 +176,7 @@ fn every_command_fails_as_before() {
         ("dub", &["dub", "--out", "out"]),
         ("build", &["build"]),
         ("capture", &["capture"]),
-        ("prompt-preview", &["prompt", "--preview", "--port", "0"]),
+        ("prompt-voice", &["prompt", "--voice", "--port", "0"]),
     ];
     for (label, cmd) in commands {
         let mut runs = serde_json::Map::new();

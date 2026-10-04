@@ -10,7 +10,6 @@ pub mod import;
 pub mod lsp;
 pub mod new;
 pub mod plan;
-pub mod preview;
 pub mod prompt;
 #[cfg(unix)]
 pub mod record;

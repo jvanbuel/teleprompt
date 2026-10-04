@@ -1,8 +1,9 @@
 // The prompter page, driven as a person would in Chromium, against a real
 // `teleprompt prompt` following a recorded reading of apps/fixtures/tour,
-// which Chromium plays as its microphone. It records a take, drags the
-// shots on the glass and undoes a drag, builds the video, and re-records a
-// line reworded in the file, keeping what was said.
+// which Chromium plays as its microphone. It records a take, plays the
+// video as it will play, drags the shots on the glass and undoes a drag,
+// builds the video, and re-records a line reworded in the file, keeping
+// what was said.
 //
 //   TELEPROMPT_BIN=…/teleprompt TELEPROMPT_MODEL=…/zipformer node prompter.mjs
 //
@@ -112,6 +113,20 @@ try {
   for (const line of ["welcome", "deploy"]) {
     check(existsSync(join(project, `takes/${line}.json`)), `${line} was kept as a take`);
   }
+
+  // V plays the video as it will play, from the manifest: the takes just
+  // kept, the clock running, and the held shot on screen once line 1 ends.
+  await page.keyboard.press("v");
+  await until(page, () => /^Playing the video/.test(document.getElementById("status").textContent), 60000)
+    .catch(() => {});
+  await until(page, () => document.getElementById("shot-title").textContent, 20000).catch(() => {});
+  const clock = await page.textContent("#timecode"), title = await page.textContent("#shot-title");
+  check(/^Playing the video/.test(await status(page)) && clock >= "00:01.0" && title === "welcome-a",
+    `V plays the video, its shots where the plan puts them (${clock}, ${title})`, await status(page));
+  await page.screenshot({ path: join(shots, "01-video.png") });
+  await page.keyboard.press("v");
+  await page.waitForTimeout(300);
+  check(!/^Playing/.test(await status(page)), "V again stops it", await status(page));
 
   // Edit mode: a word hovered shows its moment; the shots' ribbons dragged
   // write the script, and Ctrl+Z puts it back.

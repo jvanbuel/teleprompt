@@ -80,7 +80,7 @@ pub fn compile_source(
 ) -> Result<Compiled, Diagnostics> {
     // Before the script is read: an unknown `backends:` key is wrong for
     // every script. Here rather than in `compile_script` so that `dub` and
-    // the preview, which call this directly, cannot reach a server with it.
+    // the prompter, which call this directly, cannot reach a server with it.
     let config_diags = backends.diagnostics();
     if !config_diags.is_empty() {
         return Err(Diagnostics(config_diags));

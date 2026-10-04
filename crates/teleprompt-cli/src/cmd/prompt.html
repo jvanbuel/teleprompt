@@ -253,6 +253,17 @@
     white-space: nowrap;
   }
   #tools button[hidden] { display: none; }
+  /* A save that does not compile: said over the glass, which keeps the
+     version that did. */
+  #broken {
+    position: absolute; top: 12px; left: 76px; right: 24px; z-index: 2; padding: 12px 16px;
+    background: var(--raised); border: 1px solid var(--missing); border-radius: 12px;
+  }
+  #broken[hidden] { display: none; }
+  #broken strong { color: var(--missing); }
+  #broken pre { margin: 6px 0 0; font: 13px/1.5 ui-monospace, monospace; white-space: pre-wrap; max-height: 9em; overflow: auto; }
+  /* A line the last save moved: its number in blue, as J plays from it. */
+  .line.moved .gutter { color: var(--heard); }
   #tools .divider { width: 1px; background: var(--line); margin: 4px 4px; }
   #tools button:disabled { opacity: 0.45; cursor: default; }
   #working { width: 96px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
@@ -365,6 +376,7 @@
     <button id="mirror" title="Mirror the text, for beam-splitter glass (M)" aria-pressed="false">Mirror</button>
     <button id="keys-help" title="Keys (?)" aria-label="Keys">?</button>
     <span class="divider" aria-hidden="true"></span>
+    <button id="video" title="Play the video as it will play, from the line you are on (V)" hidden>Play video</button>
     <button id="edit" title="Edit: drag the shots on the glass (E)" aria-pressed="false" hidden>Edit</button>
     <button id="capture" title="Capture the shots not yet captured, or changed since" hidden>Capture</button>
     <button id="build" title="Build the video" hidden>Build</button>
@@ -379,6 +391,7 @@
       <div id="reading"></div>
     </div>
     <div id="countdown" aria-live="assertive"></div>
+    <div id="broken" role="alert" hidden><strong>This save does not compile. The glass shows the version that did.</strong><pre></pre></div>
     <div id="toast" role="status" aria-live="polite"></div>
   </section>
   <dialog id="review">
@@ -403,10 +416,12 @@
       <tr><td><kbd>+</kbd> <kbd>−</kbd></td><td>Text size</td></tr>
       <tr><td><kbd>S</kbd></td><td>Hide or show the screen</td></tr>
       <tr><td><kbd>R</kbd></td><td>Record again, one after another, the lines reworded since their takes</td></tr>
+      <tr><td><kbd>V</kbd></td><td>Play the video as it will play, from the line you are on, or stop; <kbd>←</kbd> <kbd>→</kbd> five seconds back or on</td></tr>
+      <tr><td><kbd>J</kbd></td><td>Play from what the last save moved</td></tr>
       <tr class="has-timeline"><td><kbd>E</kbd></td><td>Edit: drag a shot onto a word to start it there, or its grip to set how long it runs; hover a word to see the screen then</td></tr>
       <tr><td><kbd>Enter</kbd> on a line</td><td>Between takes, start a take from that line</td></tr>
       <tr><td><kbd>F2</kbd></td><td>Reword the line you are on, where it stands</td></tr>
-      <tr class="voice-only"><td><kbd>Space</kbd></td><td>Read by a voice: read aloud from the line you are on, or stop</td></tr>
+      <tr class="voice-only"><td><kbd>Space</kbd></td><td>Read by a voice: play the video from the line you are on, or stop</td></tr>
     </table>
     <form method="dialog"><button>Close</button></form>
   </dialog>
@@ -470,7 +485,7 @@ let offered = new Set();     // and of those a toast has told of
 
 // Read by a voice (`teleprompt prompt --voice`) rather than following one.
 let voiced = false;
-let reading = null;           // { line, only, from, audio, url, raf } while the voice reads
+let reading = null;           // { origin, until, since, nodes, shot, raf } while the video plays
 let editing = null;           // { line, editor, body } while a line's words are edited
 let undoEdits = 0;            // edits the server keeps to undo
 let lastEdit = null;          // what the edit sent will be said as, until the server answers it
@@ -504,14 +519,14 @@ const RECORD_KEY = MAC ? "⌘ ⇧ Space" : "Ctrl ⇧ Space";
 function keys() {
   const retake = staleLines().length ? [["R", "Retake"]] : [];
   const pairs = editing ? [["Enter", "Keep"], ["Esc", "Leave it"]]
-    : reading ? [["Space", "Stop"], ["Esc", "Stop"]]
+    : reading ? [[voiced ? "Space" : "V", "Stop"], ["← →", "5 s"], ["Esc", "Stop"]]
     : editMode ? [["Drag", "Move a shot"], [MAC ? "⌘Z" : "Ctrl Z", "Undo"], ["E", "Done"]]
     : voiced ? [["Space", "Play"], ["Click", "Direct a line"], ["F2", "Reword"], ["M", "Mirror"]]
     : counting ? [["Esc", "Cancel"]]
     : paused ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Resume"]]
     : listening ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Pause"]]
     : heardOtherwise() !== null ? [[RECORD_KEY, "Record"], ["W", "Review"], ...retake]
-    : [[RECORD_KEY, "Record"], ...retake, ["M", "Mirror"]];
+    : [[RECORD_KEY, "Record"], ...retake, ["V", "Play video"]];
   $("keys").replaceChildren(...pairs.map(([k, action]) => {
     const pair = document.createElement("span");
     const kbd = document.createElement("kbd");
@@ -526,6 +541,9 @@ function keys() {
       : job === "build" ? "Build" : "Capture";
   }
   $("edit").disabled = taking || !!reading;
+  $("video").hidden = voiced || !script.voice;
+  $("video").disabled = taking;
+  $("video").textContent = reading ? "Stop" : "Play video";
   $("edit").setAttribute("aria-pressed", editMode);
   document.body.classList.toggle("editing", editMode);
   $("record").textContent = voiced ? (reading ? "Stop" : "Play")
@@ -602,6 +620,9 @@ async function loadScript(given = null) {
   $("edit").hidden = !hasTimeline();
   for (const row of document.querySelectorAll("#help .has-timeline")) row.hidden = !hasTimeline();
   if (editMode && !hasTimeline()) setEdit(false);
+  showBroken(script.error);
+  const marked = new Set(moved.map((m) => m.id));
+  lines.forEach((el, l) => el.classList.toggle("moved", marked.has(script.lines[l]?.id)));
   show(at, true);
   slate();
   drawRibbons();
@@ -996,6 +1017,7 @@ function level(rms) {
 async function take(from = 0) {
   if (counting) return;
   if (editMode) setEdit(false);
+  halt();
   try {
     await openMic();
     await openSession();
@@ -1099,6 +1121,10 @@ document.addEventListener("keydown", (e) => {
     "s": () => { document.body.classList.toggle("no-monitor"); drawRibbons(); },
     "e": () => setEdit(!editMode),
     "r": retake,
+    "v": playOrStop,
+    "j": playMoved,
+    "ArrowLeft": () => skip(-5000),
+    "ArrowRight": () => skip(5000),
     "+": () => resize(4), "=": () => resize(4), "-": () => resize(-4),
   }[e.key];
   if (!handled) return;
@@ -1135,7 +1161,7 @@ function voiceStatus() {
   if (made < audio.length) return status(`${name} is reading the lines: ${made} of ${audio.length}`);
   const tap = matchMedia("(pointer: coarse)").matches;
   status(`${name} · ${clock(script.length_ms ?? 0)} long. ${tap
-    ? "Tap Play to read from here, or tap a line" : "Space reads from here; click a line to direct it"}`);
+    ? "Tap Play to play from here, or tap a line" : "Space plays the video from here; click a line to direct it"}`);
 }
 
 /** The script's lines again, for which the voice has made; the whole
@@ -1174,113 +1200,222 @@ async function voiceUnmade() {
   }
 }
 
-function playOrStop() {
-  if (!voiced || editing) return;
-  if (reading) return stopReading();
-  readFrom(at.line < words.length ? at.line : 0);
+// ---- The video, as it will play ------------------------------------------
+// Played from the manifest `dub` publishes, as an outside renderer reads it:
+// every line and shot where the manifest puts it, on one clock, each line at
+// the tempo it will have. So it shows no timing the video will not have.
+
+let manifest = null;          // the video as it will play, once asked for
+let buffers = new Map();      // a line's audio_hash to its decoded audio
+let ctx = null;               // the clock the video plays on
+let moved = [];               // what the last save moved: { at, what, id }, in order
+
+function videoClock() {
+  if (!ctx) ctx = new AudioContext();
+  if (ctx.state === "suspended") ctx.resume();
+  return ctx;
 }
 
-/** Reads from line `from` to the end, or only it; `fresh` has the voice
- *  make it anew first. */
-function readFrom(from, only = false, fresh = false) {
-  if (!voiced) return;
+/** The manifest as the script now reads, every line voiced first; after
+ *  a save, also what it moved since the one before. `null`, and why in the
+ *  status, if it cannot be made. */
+async function fetchManifest(saved = false) {
+  const unmade = script.lines.filter((l) => l.audio && !l.audio.ready).length;
+  if (unmade) status(`Voicing ${unmade} line${unmade === 1 ? "" : "s"} for the video…`);
+  let fresh;
+  try {
+    const r = await fetch(`${API}/manifest`);
+    fresh = await r.json();
+    if (!r.ok) throw new Error((fresh.errors ?? []).join("\n") || r.statusText);
+    if (fresh.manifest_version !== 3) throw new Error(`a manifest v${fresh.manifest_version}; this page reads v3`);
+  } catch (e) {
+    status(`The video could not be made: ${String(e.message).split("\n")[0]}`, true);
+    return null;
+  }
+  if (saved && manifest) moved = movedBetween(manifest, fresh);
+  manifest = fresh;
+  await Promise.all(fresh.lines.map(async (line) => {
+    if (buffers.has(line.audio_hash)) return;
+    const r = await fetch(`${API}/voice/${encodeURIComponent(line.id)}.wav?fit=1`);
+    if (r.ok) buffers.set(line.audio_hash, await videoClock().decodeAudioData(await r.arrayBuffer()));
+  }));
+  if (saved) markMoved();
+  return fresh;
+}
+
+/** What moved between two manifests, as places to play from: a line
+ *  reworded or moved, a shot changed or moved. */
+function movedBetween(before, after) {
+  const was = (list, key, id) => list.find((x) => x[key] === id);
+  return [
+    ...after.lines.filter((l) => {
+      const b = was(before.lines, "id", l.id);
+      return !b || b.source_hash !== l.source_hash || b.start_ms !== l.start_ms || b.duration_ms !== l.duration_ms;
+    }).map((l) => ({ at: l.start_ms, id: l.id, what: `line ${script.lines.findIndex((s) => s.id === l.id) + 1}` })),
+    ...after.shots.filter((s) => {
+      const b = was(before.shots, "shot", s.shot);
+      return !b || b.capture_key !== s.capture_key || b.start_ms !== s.start_ms || b.duration_ms !== s.duration_ms;
+    }).map((s) => ({ at: s.start_ms, id: s.shot, what: name(s.shot) })),
+  ].sort((a, b) => a.at - b.at);
+}
+
+/** The lines a save moved, marked in the margin, and said. */
+function markMoved() {
+  const ids = new Set(moved.map((m) => m.id));
+  lines.forEach((el, l) => el.classList.toggle("moved", ids.has(script.lines[l]?.id)));
+  if (moved.length && !reading) {
+    status(`Moved since the last save: ${moved.slice(0, 4).map((m) => m.what).join(", ")}${moved.length > 4 ? "…" : ""}. J plays from there`);
+  }
+}
+
+/** Plays the video from `fromMs`, to `untilMs` or its end. */
+async function playVideo(fromMs, untilMs = null) {
+  if (listening || paused || counting || editing) return;
   halt();
   $("panel").close();
-  queue = [];
-  playing = null;
-  started = new Set();
-  const start = { line: from, word: 0 };
-  reading = { line: from, only, from: start, since: performance.now() };
-  reach(start);
-  status(only ? `Reading line ${from + 1}` : `Reading from line ${from + 1}`);
+  const mine = reading = { until: untilMs, since: performance.now(), nodes: [], shot: undefined };
   keys();
-  readLine(from, fresh);
-}
-
-/** Moves the reading to `pos`, starting the shots it reaches. */
-function reach(pos) {
-  const after = (a, b) => a.line > b.line || (a.line === b.line && a.word >= b.word);
-  const due = script.shots
-    .filter((s) => after(s.at, reading.from) && after(pos, s.at) && !started.has(s.shot))
-    .map((s) => s.shot);
-  show(pos);
-  play(due);
-  if (!playing) slate();
-}
-
-async function readLine(l, fresh) {
-  const line = script.lines[l];
-  if (!line?.audio) return stopReading(`Line ${l + 1} has no voice to read it`);
-  const mine = reading;
-  let url;
-  try {
-    const r = await fetch(line.audio.url + (fresh ? "?fresh=1" : ""));
-    if (!r.ok) throw new Error((await r.text()).trim());
-    url = URL.createObjectURL(await r.blob());
-    if (!line.audio.ready || fresh) await refreshLines();
-  } catch (e) {
-    if (reading === mine) stopReading(`The voice failed: ${e.message}`, true);
-    return;
+  const m = await fetchManifest();
+  if (reading !== mine) return;
+  if (!m) return halt(), keys();
+  const c = videoClock();
+  const from = Math.min(Math.max(0, fromMs), m.duration_ms);
+  for (const line of m.lines) {
+    const buf = buffers.get(line.audio_hash);
+    if (!buf || line.start_ms + line.duration_ms <= from) continue;
+    if (untilMs !== null && line.start_ms >= untilMs) continue;
+    const node = c.createBufferSource();
+    node.buffer = buf;
+    node.connect(c.destination);
+    // Every line against one origin, so none drifts from the others.
+    node.start(c.currentTime + Math.max(0, line.start_ms - from) / 1000, Math.max(0, from - line.start_ms) / 1000);
+    mine.nodes.push(node);
   }
-  if (reading !== mine || reading.line !== l) return URL.revokeObjectURL(url);
-  const audio = new Audio(url);
-  reading.audio = audio;
-  reading.url = url;
-  audio.addEventListener("ended", () => { if (reading === mine) lineRead(); });
-  const tick = () => {
-    if (reading !== mine || reading.audio !== audio) return;
-    const starts = script.lines[l]?.audio?.words ?? [];
-    const pos = { line: l, word: wordAt(starts, audio.currentTime * 1000) };
-    if (pos.word !== at.word || pos.line !== at.line) reach(pos);
-    reading.raf = requestAnimationFrame(tick);
-  };
-  try {
-    await audio.play();
-  } catch (e) {
-    return stopReading(`The browser would not play the voice: ${e.message}`, true);
-  }
-  tick();
+  mine.origin = c.currentTime - from / 1000;
+  mine.since = performance.now() - from;
+  status(untilMs === null ? `Playing the video from ${clock(from)}` : "Playing the line");
+  frame();
 }
 
-/** The voice finished a line: on to the next, or done. */
-function lineRead() {
-  const { line, only } = reading;
-  dropAudio();
-  const next = line + 1;
-  if (only || next >= script.lines.length) {
-    const end = { line: Math.min(next, script.lines.length - 1), word: 0 };
-    reading = null;
-    show(end);
-    status(only ? `Read line ${line + 1}` : "Read to the end");
+/** Where the video is, in milliseconds. */
+const videoAt = () => (videoClock().currentTime - reading.origin) * 1000;
+
+/** One frame of the video: the word being said lit, and the shot on screen. */
+function frame() {
+  if (!reading || reading.origin === undefined) return;
+  const t = videoAt();
+  const end = reading.until ?? manifest.duration_ms;
+  if (t >= end) {
+    const only = reading.until !== null;
+    halt();
+    status(only ? "Played the line" : "Played to the end");
     return keys();
   }
-  reading.line = next;
-  reach({ line: next, word: 0 });
-  readLine(next, false);
+  const line = manifest.lines.find((l) => t >= l.start_ms && t < l.start_ms + l.duration_ms);
+  const l = line ? script.lines.findIndex((s) => s.id === line.id) : -1;
+  if (l >= 0) {
+    const spoken = script.lines[l];
+    // The voice's own word timings, fitted to the line's length as played.
+    const raw = spoken.audio?.duration_ms;
+    const starts = spoken.audio?.words && raw
+      ? spoken.audio.words.map((w) => (w * line.duration_ms) / raw)
+      : shares(spoken.text, line.duration_ms).map(([s]) => s);
+    const word = wordAt(starts, t - line.start_ms);
+    if (l !== at.line || word !== at.word) show({ line: l, word });
+  }
+  screenAt(t);
+  reading.raf = requestAnimationFrame(frame);
 }
 
-function dropAudio() {
+/** The monitor at `t`: the shot the manifest has on screen, as far into
+ *  its clip as `t` is into the shot. */
+function screenAt(t) {
+  const shot = manifest.shots.findLast((s) => s.start_ms <= t && t < s.start_ms + s.duration_ms);
+  const video = $("clip");
+  const id = shot?.shot ?? null;
+  if (id !== reading.shot) {
+    reading.shot = id;
+    playing = id;
+    rundown();
+    $("progress").firstElementChild.style.width = "0";
+    $("shot-time").textContent = "";
+    $("slate").classList.remove("missing");
+    const clip = id && shots.get(id)?.clip;
+    if (!shot || shot.scene === "pause" || !clip) {
+      video.pause();
+      video.hidden = true;
+      $("shot-title").textContent = id ? name(id) : "";
+      $("slate").textContent = !shot ? "No picture at this point"
+        : shot.scene === "pause" ? `Holding for ${seconds(shot.duration_ms)}`
+        : "This shot was never captured. Capture records it.";
+      $("slate").classList.toggle("missing", !!shot && shot.scene !== "pause" && !clip);
+      return broadcast();
+    }
+    $("shot-title").textContent = name(id);
+    $("slate").textContent = "";
+    video.hidden = false;
+    video.src = clip;
+    video.currentTime = (t - shot.start_ms) / 1000;
+    video.play().catch(() => {});
+    return broadcast();
+  }
+  // A clip that has drifted from the clock is put back on it.
+  if (shot && !video.hidden && !video.seeking && Math.abs(video.currentTime * 1000 - (t - shot.start_ms)) > 300) {
+    video.currentTime = (t - shot.start_ms) / 1000;
+  }
+}
+
+/** Ends any playing, quietly. */
+function halt() {
   if (!reading) return;
   cancelAnimationFrame(reading.raf);
-  reading.audio?.pause();
-  if (reading.url) URL.revokeObjectURL(reading.url);
-  reading.audio = null;
-  reading.url = null;
-}
-
-/** Ends any reading, quietly. */
-function halt() {
-  dropAudio();
+  for (const node of reading.nodes ?? []) { try { node.stop(); } catch {} }
   reading = null;
+  $("clip").pause();
+  playing = null;
+  rundown();
 }
 
 function stopReading(why = null, bad = false) {
   if (!reading) return;
   halt();
-  show({ line: at.line, word: at.word });
   if (why) status(why, bad);
-  else status(`Stopped. ${matchMedia("(pointer: coarse)").matches ? "Tap Play" : "Space"} reads on from here`);
+  else status(`Stopped. ${voiced ? "Space" : "V"} plays on from here`);
   keys();
+}
+
+function playOrStop() {
+  if (editing || listening || paused || counting) return;
+  if (reading) return stopReading();
+  readFrom(at.line < words.length ? at.line : 0);
+}
+
+/** Plays from line `l` to the end, or only it; `fresh` has the voice make
+ *  it anew first. */
+async function readFrom(l, only = false, fresh = false) {
+  const line = script.lines[l];
+  if (!line) return;
+  if (fresh) {
+    status(`Voicing line ${l + 1} again…`);
+    const r = await fetch(`${line.audio.url}?fresh=1`);
+    if (!r.ok) return status(`The voice failed: ${(await r.text()).trim()}`, true);
+    await refreshLines();
+  }
+  const m = manifest && !fresh ? manifest : await fetchManifest();
+  const placed = m?.lines.find((p) => p.id === line.id);
+  if (!placed) return status(`Line ${l + 1} has no voice to read it`, true);
+  playVideo(placed.start_ms, only ? placed.start_ms + placed.duration_ms : null);
+}
+
+/** Five seconds back or on, playing on. */
+function skip(ms) {
+  if (!reading || reading.origin === undefined) return;
+  playVideo(Math.max(0, videoAt() + ms), reading.until);
+}
+
+/** Plays from the first thing the last save moved, with a run-in. */
+function playMoved() {
+  if (moved.length) playVideo(Math.max(0, moved[0].at - 400));
 }
 
 /** A line clicked, read by a voice: while it reads, it reads on from
@@ -1865,7 +2000,7 @@ function showMonitor() {
 /** Looks again at the script between takes: a line reworded or a shot
  *  moved in the author's editor shows here too. */
 async function watch() {
-  const busy = () => document.hidden || listening || paused || counting || reading || editing
+  const busy = () => document.hidden || listening || paused || counting || editing
     || drag || making || voicing || $("panel").open || $("review").open;
   if (busy()) return;
   let fresh;
@@ -1875,11 +2010,29 @@ async function watch() {
     return;
   }
   if (busy()) return;
+  showBroken(fresh.error);
   const shape = (s) => JSON.stringify([s.lines.map((l) => l.text), s.shots, s.timeline ?? null]);
-  if (shape(fresh) !== shape(script)) return loadScript(fresh).then(keys);
-  script.length_ms = fresh.length_ms;
-  markRecorded(fresh.lines);
+  if (shape(fresh) === shape(script)) {
+    script.length_ms = fresh.length_ms;
+    markRecorded(fresh.lines);
+    return keys();
+  }
+  // A save while the video plays: it plays on from what the save moved,
+  // so what was changed is heard at once.
+  const wasPlaying = !!reading;
+  halt();
+  await loadScript(fresh);
+  if (manifest) {
+    await fetchManifest(true);
+    if (wasPlaying) moved.length ? playMoved() : playOrStop();
+  }
   keys();
+}
+
+/** The errors of a save that does not compile, over the glass; none hides them. */
+function showBroken(errors) {
+  $("broken").hidden = !errors?.length;
+  $("broken").querySelector("pre").textContent = errors?.join("\n") ?? "";
 }
 
 function resize(by) {
@@ -1916,6 +2069,7 @@ $("keys-help").addEventListener("click", () => $("help").showModal());
 $("record").addEventListener("click", () =>
   voiced ? playOrStop() : listening || paused || counting ? keep() : take(at.line < words.length ? at.line : 0));
 $("edit").addEventListener("click", () => setEdit(!editMode));
+$("video").addEventListener("click", playOrStop);
 $("capture").addEventListener("click", () => make("capture"));
 $("build").addEventListener("click", () => make("build"));
 $("pop").addEventListener("click", popOut);

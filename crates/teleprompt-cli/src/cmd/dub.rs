@@ -17,7 +17,7 @@ use crate::project::Project;
 use crate::voice::Backends;
 
 /// The `AudioInfo` sample rate for a locale with no lines. Any other
-/// manifest takes its rate from the audio produced. The preview publishes
+/// manifest takes its rate from the audio produced. The prompter serves
 /// the same, since it serves what `dub` would.
 pub(crate) const NO_AUDIO_SAMPLE_RATE: u32 = 48_000;
 

@@ -6,7 +6,6 @@ expression: runs
   "invalid human": {
     "exit": 2,
     "stderr": [
-      "previewing at http://127.0.0.1:PORT/",
       "error: content appears before the first heading",
       "  --> proj/scripts/bad.md:1:1",
       "  help: every line and action block must belong to a chapter",
@@ -18,9 +17,7 @@ expression: runs
   },
   "invalid json": {
     "exit": 2,
-    "stderr": [
-      "previewing at http://127.0.0.1:PORT/"
-    ],
+    "stderr": [],
     "stdout": {
       "errors": [
         "error: content appears before the first heading\n  --> proj/scripts/bad.md:1:1\n  help: every line and action block must belong to a chapter",
@@ -32,16 +29,13 @@ expression: runs
   "missing human": {
     "exit": 2,
     "stderr": [
-      "previewing at http://127.0.0.1:PORT/",
       "error: cannot read proj/scripts/missing.md: No such file or directory (os error 2)"
     ],
     "stdout": ""
   },
   "missing json": {
     "exit": 2,
-    "stderr": [
-      "previewing at http://127.0.0.1:PORT/"
-    ],
+    "stderr": [],
     "stdout": {
       "errors": [
         "cannot read proj/scripts/missing.md: No such file or directory (os error 2)"

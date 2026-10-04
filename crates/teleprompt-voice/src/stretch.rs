@@ -131,7 +131,7 @@ pub fn stretch_to(pcm: &Pcm, tempo_permille: u32, ms: u64) -> Pcm {
 }
 
 /// [`stretch_to`] on a WAV file's bytes, as `dub` writes a `fit-line` line
-/// and the preview serves it.
+/// and the prompter serves it.
 pub fn fit_wav(bytes: &[u8], tempo_permille: u32, ms: u64) -> Result<Vec<u8>, String> {
     let pcm = crate::wav::decode(bytes)?;
     Ok(crate::wav::encode(&stretch_to(&pcm, tempo_permille, ms)))

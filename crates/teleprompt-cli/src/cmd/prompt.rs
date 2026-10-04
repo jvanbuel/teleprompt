@@ -2,7 +2,7 @@
 //!
 //! The prompter itself is `teleprompt-prompter`; this is its API, version
 //! 1, and the page that drives it: HTTP for the script and clips, and a
-//! WebSocket for the session. Hand-rolled over `TcpListener` like the preview:
+//! WebSocket for the session. Hand-rolled over `TcpListener`:
 //! one reader, on localhost.
 
 use std::io::{BufRead, BufReader, Write};
@@ -446,9 +446,9 @@ impl<R: Recognizer> Server<R> {
             .strip_prefix("/api/v1/voice/")
             .and_then(|name| name.strip_suffix(".wav"))
         {
-            let fresh = query.split('&').any(|q| q == "fresh=1");
+            let asked = |flag: &str| query.split('&').any(|q| q == flag);
             let voice = self.edits.as_ref().and_then(|e| e.voice.as_ref());
-            return match voice.map(|v| v.audio(id, fresh)) {
+            return match voice.map(|v| v.audio(id, asked("fresh=1"), asked("fit=1"))) {
                 Some(Ok(Some(wav))) => ("200 OK", "audio/wav", wav),
                 Some(Err(e)) => failed(std::io::Error::other(e)),
                 Some(Ok(None)) | None => not_found(),
@@ -459,6 +459,19 @@ impl<R: Recognizer> Server<R> {
             "/favicon.ico" => ("204 No Content", "text/plain", Vec::new()),
             FONT_PATH => ("200 OK", "font/woff2", FONT.to_vec()),
             ICON_PATH => ("200 OK", "image/svg+xml", ICON.to_vec()),
+            "/api/v1/manifest" => match self.edits.as_ref().and_then(|e| e.voice.as_ref()) {
+                Some(voice) => match voice.manifest() {
+                    Ok(manifest) => json(serde_json::to_value(manifest).unwrap_or_default()),
+                    Err(errors) => (
+                        "422 Unprocessable Entity",
+                        "application/json",
+                        serde_json::json!({ "ok": false, "errors": errors })
+                            .to_string()
+                            .into_bytes(),
+                    ),
+                },
+                None => not_found(),
+            },
             "/api/v1/script" => {
                 // Compiled outside the lock, which the session needs.
                 let edited = self.edits.as_ref().and_then(|e| (e.reload)());
@@ -757,6 +770,7 @@ fn voiced(script: &mut serde_json::Value, edits: &Edits) {
     script["voice"] = serde_json::json!({ "name": voice.name, "listens": edits.listens });
     script["length_ms"] = voice.length_ms.into();
     script["timeline"] = voice.timeline;
+    script["error"] = voice.error.into();
     let Some(lines) = script["lines"].as_array_mut() else {
         return;
     };
