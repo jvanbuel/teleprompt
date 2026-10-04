@@ -170,6 +170,6 @@ fn a_scene_kind_with_no_backend_has_none_rather_than_a_broken_one() {
     }
 
     let registry = CaptureRegistry::new().with("vhs", Box::new(Fake));
-    assert!(registry.for_adapter("vhs").is_some());
-    assert!(registry.for_adapter("playwright").is_none());
+    assert!(registry.for_plugin("vhs").is_some());
+    assert!(registry.for_plugin("playwright").is_none());
 }

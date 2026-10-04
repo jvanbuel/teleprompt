@@ -451,7 +451,7 @@ mod items {
     }
 
     #[test]
-    fn a_shot_carries_the_scheduled_numbers_not_the_adapters() {
+    fn a_shot_carries_the_scheduled_numbers_not_the_plugins() {
         // The mock says `wait 900ms`; `concurrent` does not change that, so
         // the two agree here — the point is that the published number comes
         // from the timeline, which is what `fit-action` would move.
@@ -499,11 +499,11 @@ mod items {
     }
 
     #[test]
-    fn shots_and_lines_agree_about_the_scene_and_adapter() {
+    fn shots_and_lines_agree_about_the_scene_and_plugin() {
         let m = manifest_for(TWO_BEATS);
         for item in m.shots.iter().filter(|b| b.scene != "pause") {
             assert_eq!(item.scene, "mock");
-            assert_eq!(item.adapter, "mock");
+            assert_eq!(item.plugin, "mock");
             assert_eq!(
                 item.duration_source,
                 DurationSource::Exact,

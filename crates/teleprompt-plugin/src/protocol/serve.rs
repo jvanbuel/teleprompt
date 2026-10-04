@@ -202,7 +202,7 @@ fn timed(source: String, m: Measured) -> WireShot {
     WireShot { source, ms, exact }
 }
 
-fn capture<W: Write>(adapter: &ScenePlugin, r: &mut Request<'_, W>) -> std::io::Result<()> {
+fn capture<W: Write>(plugin: &ScenePlugin, r: &mut Request<'_, W>) -> std::io::Result<()> {
     let asked = match r.params::<Capture>() {
         Ok(c) => c,
         Err(e) => return r.answer(Err::<(), _>(e)),
@@ -229,7 +229,7 @@ fn capture<W: Write>(adapter: &ScenePlugin, r: &mut Request<'_, W>) -> std::io::
     };
     let session = Session {
         scene: asked.session.scene,
-        plugin: adapter.name().to_string(),
+        plugin: plugin.name().to_string(),
         name: asked.session.name,
         settings: asked.session.settings,
         root: asked.session.root,
@@ -253,7 +253,7 @@ fn capture<W: Write>(adapter: &ScenePlugin, r: &mut Request<'_, W>) -> std::io::
                 sent = r.send(serde_json::json!({ "id": id, "progress": event }));
             }
         };
-        adapter
+        plugin
             .capture()
             .capture(&session, &frame, &asked.out_dir, &mut progress)
     };

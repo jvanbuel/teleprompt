@@ -126,7 +126,6 @@ fn policy_and_align_are_parsed_at_the_block() {
 
     for (raw, says) in [
         ("policy=sideways", "unknown policy `sideways`"),
-        ("policy=stretch", "renamed to `fit-action`"),
         ("align=middle", "unknown align `middle`"),
     ] {
         let (_, d) = BlockAttrs::parse(raw, SPAN);
@@ -136,12 +135,9 @@ fn policy_and_align_are_parsed_at_the_block() {
     }
 }
 
-/// Every policy name parses, and the retired spellings are errors naming
-/// their replacement rather than aliases (issue #1: `stretch` and `trim`
-/// named an operation without its object, so both read as if the speech
-/// were adjusted).
+/// Every policy name parses, and nothing else does.
 #[test]
-fn policy_names_parse_and_the_old_ones_name_their_replacement() {
+fn policy_names_parse() {
     for (name, kind) in [
         ("hold", PolicyKind::Hold),
         ("concurrent", PolicyKind::Concurrent),
@@ -151,16 +147,9 @@ fn policy_names_parse_and_the_old_ones_name_their_replacement() {
         assert_eq!(PolicyKind::parse(name), Ok(kind));
         assert_eq!(kind.label(), name);
     }
-    for (old, new) in [
-        ("stretch", "fit-action"),
-        ("stretch-action", "fit-action"),
-        ("trim", "trim-action"),
-    ] {
-        let (message, help) = PolicyKind::parse(old).unwrap_err();
-        assert!(message.contains(new), "{message}");
-        assert!(help.contains(&format!("policy={new}")), "{help}");
+    for unknown in ["nonsense", "stretch", "trim"] {
+        assert!(PolicyKind::parse(unknown).is_err(), "{unknown}");
     }
-    assert!(PolicyKind::parse("nonsense").is_err());
 }
 
 /// Every line is synthesized: there is no recorder and no voice cloning, so
@@ -177,24 +166,11 @@ fn voice_source_is_not_a_line_attribute() {
     );
 }
 
-/// A renamed block key is an error naming its replacement, like a renamed
-/// policy, rather than an unknown key with a spelling guess (issue #15:
-/// `max_speedup` never sped anything up).
 #[test]
-fn a_renamed_block_key_names_its_replacement() {
+fn trim_warn_above_is_a_block_key() {
     let (a, d) = BlockAttrs::parse("trim_warn_above=2", SPAN);
     assert!(d.is_empty(), "{d:?}");
     assert_eq!(a.trim_warn_above, Some(2.0));
-
-    let (_, d) = BlockAttrs::parse("max_speedup=2", SPAN);
-    assert_eq!(d.len(), 1, "{d:?}");
-    assert!(
-        d[0].message
-            .contains("`max_speedup` was renamed to `trim_warn_above`"),
-        "{}",
-        d[0].message
-    );
-    assert_eq!(d[0].span, Some(SPAN));
 }
 
 /// `fit-line`: the picture leads, and `budget=` gives a picture's length

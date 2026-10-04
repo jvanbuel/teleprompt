@@ -118,7 +118,7 @@ fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
 // `transition` lives inside `output:` — a top-level `transition` key fails to
 // deserialize under `deny_unknown_fields`.
 const ONE_BEAT: &str = r#"---
-scene: { mock: { adapter: mock } }
+scene: { mock: { plugin: mock } }
 output:
   transition: { duration: 0ms }
 ---
@@ -172,7 +172,7 @@ fn action_duration_comes_from_the_scene_estimate() {
 #[test]
 fn each_mark_after_the_first_shot_becomes_its_own_shot() {
     let src = r#"---
-scene: { mock: { adapter: mock } }
+scene: { mock: { plugin: mock } }
 ---
 
 # Intro
@@ -203,7 +203,7 @@ wait 300ms
 
 #[test]
 fn a_pause_directive_becomes_a_silent_shot() {
-    let src = "---\nscene: { mock: { adapter: mock } }\n---\n\n# A\n\nOne. {#a}\n\n<!-- teleprompt: pause 800ms -->\n";
+    let src = "---\nscene: { mock: { plugin: mock } }\n---\n\n# A\n\nOne. {#a}\n\n<!-- teleprompt: pause 800ms -->\n";
     let out = run(src);
     assert_eq!(out.timeline.entries.len(), 2);
     let p = &out.timeline.entries[1];
@@ -213,21 +213,21 @@ fn a_pause_directive_becomes_a_silent_shot() {
 }
 
 #[test]
-fn the_scene_records_both_its_name_and_its_adapter() {
+fn the_scene_records_both_its_name_and_its_plugin() {
     let out = run(ONE_BEAT);
     let a = out.timeline.entries[0].action.as_ref().unwrap();
     assert_eq!(a.scene, "mock");
-    assert_eq!(a.adapter, "mock");
+    assert_eq!(a.plugin, "mock");
 }
 
 /// A scene plugin's name is a scene without declaring one.
 #[test]
-fn an_undeclared_scene_named_after_an_adapter_uses_it() {
+fn an_undeclared_scene_named_after_an_plugin_uses_it() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock\nwait 100ms\n```\n";
     let out = run(src);
     let action = out.timeline.entries[0].action.as_ref().unwrap();
     assert_eq!(
-        (action.scene.as_str(), action.adapter.as_str()),
+        (action.scene.as_str(), action.plugin.as_str()),
         ("mock", "mock")
     );
 }
@@ -235,7 +235,7 @@ fn an_undeclared_scene_named_after_an_adapter_uses_it() {
 /// A name that is neither declared nor a scene plugin is a mistake, not a
 /// placeholder video.
 #[test]
-fn an_unknown_scene_is_an_error_naming_the_adapters() {
+fn an_unknown_scene_is_an_error_naming_the_plugins() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=moc\nwait 100ms\n```\n";
     let e = compile_program(&program(src)).unwrap_err();
     assert!(
@@ -252,7 +252,7 @@ fn an_unknown_scene_is_an_error_naming_the_adapters() {
 
 #[test]
 fn an_unavailable_scene_plugin_is_a_diagnostic_not_a_panic() {
-    let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=browser\nawait page.goto('/');\n```\n";
+    let src = "---\nscene:\n  web:\n    plugin: playwright\n---\n\n# A\n\nOne. {#a}\n\n```teleprompt scene=web\nawait page.goto('/');\n```\n";
     let p = program(src);
     let e = compile_program(&p).unwrap_err();
     let message = &e.0[0].message;
@@ -264,7 +264,7 @@ fn an_unavailable_scene_plugin_is_a_diagnostic_not_a_panic() {
 }
 
 #[test]
-fn adapter_validation_errors_reach_the_caller() {
+fn plugin_validation_errors_reach_the_caller() {
     let src = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock\nclick everything\n```\n";
     let p = program(src);
     let e = compile_program(&p).unwrap_err();
@@ -309,7 +309,7 @@ fn compilation_is_deterministic() {
 const SPAN_SRC: &str = "# A\n\nOne. {#a}\n\n\n\n\n\n\n\n\n\n\n```teleprompt scene=mock\nwait 100ms\nbogus directive\n```\n";
 
 #[test]
-fn adapter_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
+fn plugin_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
     let p = program(SPAN_SRC);
     let e = compile_program(&p).unwrap_err();
     assert!(e.0[0].message.contains("unknown mock directive `bogus`"));
@@ -327,7 +327,7 @@ fn adapter_diagnostics_report_the_real_source_line_not_a_fabricated_zero() {
 #[test]
 fn a_narration_does_not_jump_an_empty_action_block_to_pair_with_a_later_one() {
     let src = r#"---
-scene: { mock: { adapter: mock } }
+scene: { mock: { plugin: mock } }
 ---
 
 # Intro
@@ -368,7 +368,7 @@ wait 400ms
 #[test]
 fn a_narration_followed_by_an_empty_action_block_at_end_of_program_still_flushes() {
     let src = r#"---
-scene: { mock: { adapter: mock } }
+scene: { mock: { plugin: mock } }
 ---
 
 # Intro
@@ -396,7 +396,7 @@ const SEGMENT_WITH_LEAD_IN: &str = "One two three. {#a lead_in=1000ms}";
 
 fn lead_in_fixture(with_action: bool) -> String {
     let mut s = format!(
-        "---\nscene: {{ mock: {{ adapter: mock }} }}\n---\n\n# A\n\n{SEGMENT_WITH_LEAD_IN}\n"
+        "---\nscene: {{ mock: {{ plugin: mock }} }}\n---\n\n# A\n\n{SEGMENT_WITH_LEAD_IN}\n"
     );
     if with_action {
         s.push_str("\n```teleprompt scene=mock\nwait 100ms\n```\n");
@@ -932,7 +932,7 @@ fn a_cue_only_makes_sense_where_the_two_run_together() {
 #[test]
 fn a_scene_declared_empty_keys_as_one_left_undeclared() {
     let body = "# A\n\nOne. {#a}\n\n```teleprompt scene=mock\nwait 100ms\n```\n";
-    let declared = format!("---\nscene:\n  mock:\n    adapter: mock\n---\n\n{body}");
+    let declared = format!("---\nscene:\n  mock:\n    plugin: mock\n---\n\n{body}");
     let key = |src: &str| {
         run(src).timeline.entries[0]
             .action

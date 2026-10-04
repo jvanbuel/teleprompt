@@ -5,18 +5,18 @@ use teleprompt_cli::cmd::setup::resolve;
 use teleprompt_plugin::tool::NOT_ON_PATH;
 
 #[test]
-fn setup_covers_every_program_an_adapter_finds_missing() {
+fn setup_covers_every_program_an_plugin_finds_missing() {
     // Nothing on PATH, so every scene plugin that runs a program says which. The
     // only test in this binary, so no other reads PATH meanwhile.
-    let empty = teleprompt_testkit::test_dir("setup-adapters");
+    let empty = teleprompt_testkit::test_dir("setup-plugins");
     std::env::set_var("PATH", empty.path());
     let mut checked = 0;
-    for (adapter, backend) in teleprompt_cli::scene::captures().backends() {
+    for (plugin, backend) in teleprompt_cli::scene::captures().backends() {
         // Held back by something setup cannot install (macos off a Mac).
         let Some(why) = backend.unavailable().filter(|w| w.ends_with(NOT_ON_PATH)) else {
             continue;
         };
-        let known: Vec<&str> = resolve(&[adapter.to_string()])
+        let known: Vec<&str> = resolve(&[plugin.to_string()])
             .unwrap()
             .iter()
             .map(|t| t.name)
@@ -24,7 +24,7 @@ fn setup_covers_every_program_an_adapter_finds_missing() {
         for program in why.trim_end_matches(NOT_ON_PATH).split(" and ") {
             assert!(
                 known.contains(&program),
-                "{adapter} runs {program}, which setup does not know"
+                "{plugin} runs {program}, which setup does not know"
             );
             checked += 1;
         }

@@ -10,7 +10,7 @@ const SRC: &str = r#"---
 timing:
   lead_in_ms: 200
 scene:
-  mock: { adapter: mock }
+  mock: { plugin: mock }
 ---
 
 # Intro

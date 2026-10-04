@@ -237,7 +237,7 @@ fn action_entry(a: &ActionInput, item_start_ms: u64, l: &Layout) -> ActionEntry 
     ActionEntry {
         shot: a.shot_id.clone(),
         scene: a.scene.clone(),
-        adapter: a.adapter.clone(),
+        plugin: a.plugin.clone(),
         shot_hash: a.shot_hash,
         // Placeholder: `compile` chains the real key after re-timing,
         // from the source that will actually be captured.

@@ -134,7 +134,7 @@ pub static GOALS: &[Goal] = &[
 /// plugin needs, in the order the CLI registers them, and the models.
 pub fn tools() -> Vec<&'static Tool> {
     let mut out: Vec<&'static Tool> = vec![&teleprompt_plugin::tool::FFMPEG];
-    let plugins = crate::scene::adapter_needs()
+    let plugins = crate::scene::plugin_needs()
         .into_iter()
         .chain(crate::voice::plugin_needs());
     for tool in plugins.chain(MODELS.iter()) {

@@ -16,7 +16,7 @@ const SCRIPT: &str = "\
 teleprompt: 1
 scene:
   demo:
-    adapter: mock
+    plugin: mock
 ---
 
 # A short tour
@@ -178,7 +178,7 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
             .warnings
             .iter()
             .any(|w| w.contains("demo") && w.contains("mock")),
-        "the warning names the scene the author wrote and the adapter it \
+        "the warning names the scene the author wrote and the plugin it \
          needs: {:?}",
         report.warnings
     );

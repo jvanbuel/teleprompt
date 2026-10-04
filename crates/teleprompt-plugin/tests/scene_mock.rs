@@ -89,7 +89,7 @@ fn shot_hashes_differ_by_content_and_repeat_for_identical_content() {
 }
 
 #[test]
-fn registry_resolves_builtin_adapters_and_rejects_unknown_ones() {
+fn registry_resolves_builtin_plugins_and_rejects_unknown_ones() {
     let r = SceneRegistry::with_builtins();
     assert_eq!(r.get("mock").map(|a| a.kind()), Some("mock"));
     assert!(r.get("playwright").is_none(), "not a builtin");

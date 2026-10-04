@@ -65,10 +65,10 @@ impl Analyzer for ProjectAnalyzer {
                     .map(|l| (toml_path.clone(), l)),
             })
             .collect();
-        for adapter in crate::scene::adapter_names() {
-            if !scenes.iter().any(|s| s.name == adapter) {
+        for plugin in crate::scene::plugin_names() {
+            if !scenes.iter().any(|s| s.name == plugin) {
                 scenes.push(Definition {
-                    name: adapter.clone(),
+                    name: plugin.clone(),
                     detail: "scene plugin".into(),
                     location: None,
                 });
@@ -212,7 +212,7 @@ fn hovers(compiled: &Compiled) -> std::collections::BTreeMap<usize, String> {
                     span.line,
                     format!(
                         "**block `{block_id}`** · scene `{scene}` ({}) · {policy}\n\n{} {noun}, {} at {}",
-                        first.adapter,
+                        first.plugin,
                         shots.len(),
                         seconds(total),
                         clock(first.start_ms.ms())

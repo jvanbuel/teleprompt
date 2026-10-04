@@ -16,7 +16,7 @@ const SCRIPT: &str = "\
 teleprompt: 1
 scene:
   terminal:
-    adapter: vhs
+    plugin: vhs
 ---
 
 # A short tour

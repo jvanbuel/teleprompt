@@ -249,17 +249,17 @@ impl CaptureRegistry {
         Self::default()
     }
 
-    pub fn with(mut self, adapter: &'static str, backend: Box<dyn CaptureBackend>) -> Self {
-        self.backends.push((adapter, backend));
+    pub fn with(mut self, plugin: &'static str, backend: Box<dyn CaptureBackend>) -> Self {
+        self.backends.push((plugin, backend));
         self
     }
 
     /// The backend for a scene plugin; `None` where this build has none, unlike
     /// [`CaptureBackend::unavailable`].
-    pub fn for_adapter(&self, adapter: &str) -> Option<&dyn CaptureBackend> {
+    pub fn for_plugin(&self, plugin: &str) -> Option<&dyn CaptureBackend> {
         self.backends
             .iter()
-            .find(|(name, _)| *name == adapter)
+            .find(|(name, _)| *name == plugin)
             .map(|(_, b)| b.as_ref())
     }
 

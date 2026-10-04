@@ -17,8 +17,6 @@ pub enum PolicyKind {
 }
 
 impl PolicyKind {
-    /// An old spelling is an error, not an alias, and names its replacement
-    /// (`docs/design.md#policies`).
     pub fn parse(s: &str) -> Result<Self, (String, String)> {
         match s {
             "hold" => Ok(Self::Hold),
@@ -26,17 +24,6 @@ impl PolicyKind {
             "fit-action" => Ok(Self::FitAction),
             "trim-action" => Ok(Self::TrimAction),
             "fit-line" => Ok(Self::FitLine),
-            "stretch" | "stretch-action" | "trim" => {
-                let current = if s == "trim" {
-                    "trim-action"
-                } else {
-                    "fit-action"
-                };
-                Err((
-                    format!("policy `{s}` was renamed to `{current}`"),
-                    format!("write `policy={current}`; it adjusts the action, never the narration"),
-                ))
-            }
             _ => Err((
                 format!("unknown policy `{s}`"),
                 "policy is hold|concurrent|fit-action|trim-action|fit-line".to_string(),

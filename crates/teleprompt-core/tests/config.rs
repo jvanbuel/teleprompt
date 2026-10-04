@@ -62,10 +62,10 @@ fn scene_config_carries_its_plugin_and_free_form_settings() {
     assert_eq!(s.settings.get("base_url").unwrap(), "http://localhost:3000");
 }
 
-/// `adapter`, the key's older name, still picks the plugin.
+/// `plugin`, the key's older name, still picks the plugin.
 #[test]
-fn a_scene_may_still_name_its_plugin_adapter() {
-    let toml = "[scene.server]\nadapter = \"vhs\"\n";
+fn a_scene_may_still_name_its_plugin_plugin() {
+    let toml = "[scene.server]\nplugin = \"vhs\"\n";
     let c = Config::merged(&[PartialConfig::from_toml(toml).unwrap()]);
     assert_eq!(c.scenes.get("server").unwrap().plugin, "vhs");
 }
@@ -98,8 +98,8 @@ fn a_scene_path_is_relative_to_the_project() {
 
 #[test]
 fn scene_plugin_defaults_by_scene_name() {
-    let c = Config::merged(&[PartialConfig::from_yaml("scene:\n  terminal: {}\n").unwrap()]);
-    assert_eq!(c.scenes.get("terminal").unwrap().plugin, "vhs");
+    let c = Config::merged(&[PartialConfig::from_yaml("scene:\n  vhs: {}\n").unwrap()]);
+    assert_eq!(c.scenes.get("vhs").unwrap().plugin, "vhs");
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn transition_duration_accepts_auto_or_a_number() {
 /// `the_specs_own_section_3_1_front_matter_deserializes_verbatim` below.
 #[test]
 fn the_schema_version_and_output_block_reach_the_merged_config() {
-    let yaml = "teleprompt: 1\nlocales:\n  source: en\noutput:\n  resolution: [1920, 1080]\n  fps: 30\n  transition: { duration: auto, max_ms: 600 }\nscene:\n  mock: { adapter: mock }\n";
+    let yaml = "teleprompt: 1\nlocales:\n  source: en\noutput:\n  resolution: [1920, 1080]\n  fps: 30\n  transition: { duration: auto, max_ms: 600 }\nscene:\n  mock: { plugin: mock }\n";
     let c = Config::merged(&[PartialConfig::from_yaml(yaml).unwrap()]);
     assert_eq!(c.transition.max_ms, DurationMs::millis(600));
     assert_eq!(c.locales.source, "en");
@@ -207,8 +207,8 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
     assert_eq!(c.default_scene.as_deref(), Some("browser"));
     let browser = c.scenes.get("browser").expect("browser scene configured");
     assert_eq!(
-        browser.plugin, "playwright",
-        "an unconfigured adapter still falls back by scene name"
+        browser.plugin, "browser",
+        "an undeclared plugin is the scene's own name"
     );
     assert_eq!(
         browser.settings.get("viewport"),
@@ -406,22 +406,8 @@ fn voice_source_is_not_a_config_setting() {
     }
 }
 
-/// An old key in `teleprompt.toml` or front matter names its replacement
-/// instead of failing as an unknown field (issue #15).
 #[test]
-fn a_renamed_timing_key_names_its_replacement() {
-    let toml = PartialConfig::from_toml("[timing]\nmax_speedup = 2.5\n")
-        .unwrap_err()
-        .to_string();
-    let yaml = PartialConfig::from_yaml("timing:\n  max_speedup: 2.5\n")
-        .unwrap_err()
-        .to_string();
-    for e in [toml, yaml] {
-        assert!(
-            e.contains("`timing.max_speedup` was renamed to `timing.trim_warn_above`"),
-            "{e}"
-        );
-    }
+fn trim_warn_above_is_a_timing_key() {
     let c =
         Config::merged(&[PartialConfig::from_toml("[timing]\ntrim_warn_above = 2.5\n").unwrap()]);
     assert_eq!(c.timing.trim_warn_above, 2.5);

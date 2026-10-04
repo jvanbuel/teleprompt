@@ -20,15 +20,15 @@ use teleprompt_plugin::record::{NamedRecorder, Start};
 /// Set in the child: where it writes what it recorded.
 const CHILD: &str = "TELEPROMPT_RECORD_TEST_OUT";
 
-fn recorder(adapter: &str) -> Option<NamedRecorder> {
+fn recorder(plugin: &str) -> Option<NamedRecorder> {
     let r = teleprompt_cli::scene::recorders()
         .into_iter()
-        .find(|r| r.adapter == adapter)
+        .find(|r| r.plugin == plugin)
         .expect("a recorder");
     match r.unavailable() {
         None => Some(r),
         Some(why) if std::env::var_os("TELEPROMPT_REQUIRE_TOOLS").is_some() => {
-            panic!("{adapter}: {why}")
+            panic!("{plugin}: {why}")
         }
         Some(_) => None,
     }
@@ -36,11 +36,11 @@ fn recorder(adapter: &str) -> Option<NamedRecorder> {
 
 /// In the child, records with `scene plugin` until the tool ends or the parent
 /// asks it to stop, and writes each step's start and the whole file.
-fn child(adapter: &str, url: Option<&str>) -> bool {
+fn child(plugin: &str, url: Option<&str>) -> bool {
     let Some(out) = std::env::var_os(CHILD).map(PathBuf::from) else {
         return false;
     };
-    let recorder = recorder(adapter).expect("checked by the parent");
+    let recorder = recorder(plugin).expect("checked by the parent");
     let stop = Arc::new(AtomicBool::new(false));
     let asked = out.with_extension("stop");
     let flag = Arc::clone(&stop);
@@ -266,7 +266,7 @@ fn record_lists_its_tools() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|t| t["adapter"].as_str().unwrap())
+        .map(|t| t["plugin"].as_str().unwrap())
         .collect();
     assert_eq!(names, ["asciinema", "vhs", "playwright"]);
     assert_eq!(tools[2]["in_terminal"], false);

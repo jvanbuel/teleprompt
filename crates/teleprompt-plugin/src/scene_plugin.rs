@@ -49,9 +49,9 @@ impl ScenePlugin {
 
     /// Its recorder, if its tool records sessions.
     pub fn into_recorder(self) -> Option<NamedRecorder> {
-        let adapter = self.name();
+        let plugin = self.name();
         self.recorder
-            .map(|recorder| NamedRecorder { adapter, recorder })
+            .map(|recorder| NamedRecorder { plugin, recorder })
     }
 
     /// What it runs, capturing and then recording, each once: what

@@ -471,7 +471,7 @@ const TOUR: &str = "\
 teleprompt: 1
 scene:
   demo:
-    adapter: mock
+    plugin: mock
 ---
 
 # A tour

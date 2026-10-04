@@ -50,7 +50,7 @@ fn a_tool_without_a_package_falls_back_to_its_languages_installer() {
 /// What each scene plugin says it runs, capturing and then recording: the
 /// tools a scene plugin sends an author to `setup <plugin>` for.
 #[test]
-fn an_adapter_names_the_tools_it_runs() {
+fn an_plugin_names_the_tools_it_runs() {
     assert_eq!(names(&["vhs"]), ["vhs", "ttyd", "ffmpeg"]);
     assert_eq!(names(&["asciinema"]), ["agg", "ffmpeg", "asciinema"]);
     assert_eq!(names(&["playwright"]), ["node", "ffmpeg", "playwright"]);
@@ -64,11 +64,11 @@ fn an_adapter_names_the_tools_it_runs() {
 /// Every scene plugin this build has, down to one only for tests, names only
 /// tools `setup` knows.
 #[test]
-fn every_adapter_needs_only_tools_setup_knows() {
-    for adapter in teleprompt_cli::scene::adapter_names() {
-        let needs = teleprompt_cli::scene::needs(&adapter).unwrap();
-        assert!(!needs.is_empty(), "{adapter}");
-        resolve(&[adapter]).unwrap();
+fn every_plugin_needs_only_tools_setup_knows() {
+    for plugin in teleprompt_cli::scene::plugin_names() {
+        let needs = teleprompt_cli::scene::needs(&plugin).unwrap();
+        assert!(!needs.is_empty(), "{plugin}");
+        resolve(&[plugin]).unwrap();
     }
 }
 

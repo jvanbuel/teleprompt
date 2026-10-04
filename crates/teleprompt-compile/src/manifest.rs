@@ -74,7 +74,7 @@ pub fn build(
                 shot: a.shot.clone(),
                 line: entry.narration.as_ref().map(|n| n.line.clone()),
                 scene: a.scene.clone(),
-                adapter: a.adapter.clone(),
+                plugin: a.plugin.clone(),
                 start_ms: a.start_ms,
                 duration_ms: a.duration_ms,
                 duration_source: a.duration_source,

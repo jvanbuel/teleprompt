@@ -28,7 +28,7 @@ fn built_in() -> Vec<ScenePlugin> {
 /// Every scene plugin: the built-in ones, then each plugin installed as a
 /// program of its own whose name none of them has. A plugin starts only
 /// when first asked something.
-fn adapters() -> Vec<ScenePlugin> {
+fn plugins() -> Vec<ScenePlugin> {
     let mut all = built_in();
     for found in host::discover() {
         if found.kind == Kind::Scene && !all.iter().any(|a| a.name() == found.name) {
@@ -45,40 +45,40 @@ pub fn is_built_in(name: &str) -> bool {
 }
 
 /// Every plugin's name, which a block may use as its scene.
-pub fn adapter_names() -> Vec<String> {
-    adapters().iter().map(|a| a.name().to_string()).collect()
+pub fn plugin_names() -> Vec<String> {
+    plugins().iter().map(|a| a.name().to_string()).collect()
 }
 
 /// What scene plugin `name` runs, capturing and then recording, each once, by
 /// name; `None` when there is no such scene plugin. What `teleprompt setup
 /// <plugin>` installs.
 pub fn needs(name: &str) -> Option<Vec<&'static str>> {
-    adapters()
+    plugins()
         .into_iter()
         .find(|a| a.name() == name)
         .map(|a| a.needs().iter().map(|t| t.name).collect())
 }
 
 /// What every scene plugin runs, in the order they are registered.
-pub fn adapter_needs() -> Vec<&'static teleprompt_plugin::tool::Tool> {
-    adapters().iter().flat_map(ScenePlugin::needs).collect()
+pub fn plugin_needs() -> Vec<&'static teleprompt_plugin::tool::Tool> {
+    plugins().iter().flat_map(ScenePlugin::needs).collect()
 }
 
 /// The scene plugins that can record a session, asciinema first: it records
 /// exactly, and what it shows is what was recorded.
 pub fn recorders() -> Vec<NamedRecorder> {
-    let mut out: Vec<NamedRecorder> = adapters()
+    let mut out: Vec<NamedRecorder> = plugins()
         .into_iter()
         .filter_map(ScenePlugin::into_recorder)
         .collect();
-    out.sort_by_key(|r| r.adapter != "asciinema");
+    out.sort_by_key(|r| r.plugin != "asciinema");
     out
 }
 
 /// The scene registry every command compiles against.
 pub fn scenes() -> SceneRegistry {
     let mut registry = SceneRegistry::default();
-    for a in adapters() {
+    for a in plugins() {
         registry.register(a.into_scene());
     }
     registry
@@ -86,7 +86,7 @@ pub fn scenes() -> SceneRegistry {
 
 /// The capture backends a build records with.
 pub fn captures() -> CaptureRegistry {
-    adapters().into_iter().fold(CaptureRegistry::new(), |r, a| {
+    plugins().into_iter().fold(CaptureRegistry::new(), |r, a| {
         let name = a.name();
         r.with(name, a.into_capture())
     })
@@ -95,8 +95,8 @@ pub fn captures() -> CaptureRegistry {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn every_adapter_has_its_own_name() {
-        let mut names = super::adapter_names();
+    fn every_plugin_has_its_own_name() {
+        let mut names = super::plugin_names();
         names.sort();
         names.dedup();
         assert_eq!(names.len(), 9);

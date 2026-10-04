@@ -12,10 +12,10 @@ expression: transcript(&out)
     "entries": [
       {
         "action": {
-          "adapter": "slidev",
           "capture_key": "3ff2c515e86716908170c9d2befe680c3ccf6d530b37bfea26eac9fd9d4a1dc1",
           "duration_ms": 13850,
           "duration_source": "unknown",
+          "plugin": "slidev",
           "scene": "slidev",
           "shot": "this-video-is-a#0",
           "shot_hash": "9cc9e00fe88431b22d1dae6f5c4dd58963cfd080c85a51ca09f3846a06f77627",
@@ -40,10 +40,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "slidev",
           "capture_key": "bdd81105a8339234f3871ccc5561611d2c100bc7424da72fd8af6054511edb1f",
           "duration_ms": 3850,
           "duration_source": "unknown",
+          "plugin": "slidev",
           "scene": "slidev",
           "shot": "the-deck-does-a#0",
           "shot_hash": "91683a8348ea1d2705f6e957986b4508c3b63eaa2607333644789dc2ce00e1c4",
@@ -68,10 +68,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "slidev",
           "capture_key": "05ec8d437f77abc9b6ac392659a0971b37688491ce2874e74f9dc722e7d6c04d",
           "duration_ms": 3850,
           "duration_source": "unknown",
+          "plugin": "slidev",
           "scene": "slidev",
           "shot": "you-can-still-a#0",
           "shot_hash": "87687f3fd24cbcdb6bcc958268cdb6f08faed289cbe87dc4030b544bec18d08d",
@@ -96,10 +96,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "slidev",
           "capture_key": "3964c7d1b1802dcf00b8b44a3724bd3bfb45bc4bf0f9434aa7d535cb05dd777d",
           "duration_ms": 2650,
           "duration_source": "unknown",
+          "plugin": "slidev",
           "scene": "slidev",
           "shot": "you-can-still-2-a#0",
           "shot_hash": "426c4b2501bfb43f187a75cb4bca8b11187ab6a20c8d346a2d9bff0b8a253ae5",
@@ -124,10 +124,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "slidev",
           "capture_key": "348af42b753d5475afad9cbd49deadd0afccc963d2cad0ea49fe65589f14b9e8",
           "duration_ms": 6000,
           "duration_source": "unknown",
+          "plugin": "slidev",
           "scene": "slidev",
           "shot": "teleprompt-only-names-a#0",
           "shot_hash": "481f24bec98eabd22a2810cef7b3def085adcc08dae1da75fd70374339ec7f44",
@@ -152,10 +152,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "slidev",
           "capture_key": "b4b3560a883688d8e542fe362f97e173d93c7cc8b3caa030753f1a778e11e6a6",
           "duration_ms": 13950,
           "duration_source": "unknown",
+          "plugin": "slidev",
           "scene": "slidev",
           "shot": "a-block-names-a#0",
           "shot_hash": "e246f8a7896798c8c8b45b535d141591bdcfabd2943dc59a120b7a12a631523d",
@@ -180,10 +180,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "slidev",
           "capture_key": "ea2ceb23cc162d07ae771576b31eb2cebb60ea14bce2a5337cceafe35341cae1",
           "duration_ms": 10750,
           "duration_source": "unknown",
+          "plugin": "slidev",
           "scene": "slidev",
           "shot": "each-slide-stays-a#0",
           "shot_hash": "7b66b9b07882047d680f2ca73b73f031c42a0690e2865d07176006e3588de494",
@@ -208,10 +208,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "slidev",
           "capture_key": "b2a5cd3052be70c04ea5a0e82ce2514557f7e6eda0119ea9700cdf4ab2eef5fb",
           "duration_ms": 10250,
           "duration_source": "unknown",
+          "plugin": "slidev",
           "scene": "slidev",
           "shot": "the-draft-is-a#0",
           "shot_hash": "7bef38282036d8c0696cff129e4bf634d05eaecffa40dcf85de85bbce254584b",

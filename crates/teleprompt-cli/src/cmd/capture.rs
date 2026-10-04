@@ -30,7 +30,7 @@ pub(crate) fn cues_of(
         .map(|item| PlannedShot {
             id: item.shot.clone(),
             scene: item.scene.clone(),
-            plugin: item.adapter.clone(),
+            plugin: item.plugin.clone(),
             session: item.session.clone(),
             key: item.capture_key,
             source: shots
@@ -177,7 +177,7 @@ fn record(
     clips_dir: &Path,
     on_progress: &mut dyn FnMut(Progress),
 ) -> Result<usize, String> {
-    let Some(backend) = registry.for_adapter(&session.plugin) else {
+    let Some(backend) = registry.for_plugin(&session.plugin) else {
         return Err(format!(
             "nothing in this build can record `{}` scenes (plugin `{}`), so \
              its {} shot(s) will render as slates",

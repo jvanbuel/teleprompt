@@ -52,7 +52,7 @@ pub struct ShotEntry {
     /// the first shot of a block that follows a paragraph is paired.
     pub line: Option<LineId>,
     pub scene: String,
-    pub adapter: String,
+    pub plugin: String,
     pub start_ms: TimeMs,
     pub duration_ms: SpanMs,
     /// `exact` when the source states its timing in full, `estimated` for a

@@ -61,7 +61,7 @@ drifts from the manifest, the manifest is right and this document is wrong —
       "shot": "prose-and-action-a#0",
       "line": "prose-and-action",
       "scene": "terminal",
-      "adapter": "vhs",
+      "plugin": "vhs",
       "start_ms": 32581,
       "duration_ms": 2630,
       "duration_source": "exact",
@@ -117,7 +117,7 @@ export type Shot = {
   line: string | null;
   scene: string;
   /** The scene's plugin, such as "vhs". */
-  adapter: string;
+  plugin: string;
   start_ms: number;
   duration_ms: number;
   duration_source: "exact" | "measured" | "estimated" | "unknown";

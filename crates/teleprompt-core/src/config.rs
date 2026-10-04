@@ -303,17 +303,6 @@ impl Default for Config {
     }
 }
 
-/// The plugin a scene uses when none is declared for it: the plugin of
-/// the same name.
-pub fn default_plugin(scene: &str) -> &str {
-    match scene {
-        // Older names, from before a scene plugin's name was a scene of its own.
-        "browser" => "playwright",
-        "terminal" => "vhs",
-        name => name,
-    }
-}
-
 /// All-optional mirror of `Config`, deserialized from one configuration layer
 /// (`teleprompt.toml`, script/chapter front matter, or line/block attributes).
 ///
@@ -389,23 +378,6 @@ pub struct PartialTiming {
     pub min_take_speed: Option<f64>,
     pub max_take_speed: Option<f64>,
     pub length_ms: Option<DurationMs>,
-    /// Renamed to `trim_warn_above`. Read only to say so: as an unknown
-    /// field it would fail without naming the new key.
-    #[serde(default, deserialize_with = "renamed_max_speedup")]
-    pub max_speedup: Option<Renamed>,
-}
-
-/// A config key that was renamed; it never deserializes.
-#[derive(Debug, Clone, Copy)]
-pub enum Renamed {}
-
-fn renamed_max_speedup<'de, D: serde::Deserializer<'de>>(
-    _: D,
-) -> Result<Option<Renamed>, D::Error> {
-    Err(serde::de::Error::custom(
-        "`timing.max_speedup` was renamed to `timing.trim_warn_above`: \
-         it sets when trimming is reported, and never sped anything up",
-    ))
 }
 
 /// The `output:` front-matter block: frame size, rate and transitions.
@@ -511,8 +483,7 @@ impl<'de> Deserialize<'de> for PartialScenes {
 /// "invalid type: sequence, expected a string".
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct PartialScene {
-    /// The scene plugin that records it. `scene plugin` is its older name.
-    #[serde(alias = "adapter")]
+    /// The scene plugin that records it.
     pub plugin: Option<String>,
     #[serde(flatten)]
     pub settings: BTreeMap<String, serde_yaml::Value>,
@@ -778,7 +749,8 @@ impl Config {
                 set!(c.default_scene, scenes.default.clone().map(Some));
                 for (name, ps) in &scenes.scenes {
                     let entry = c.scenes.entry(name.clone()).or_insert_with(|| SceneConfig {
-                        plugin: default_plugin(name).to_string(),
+                        // Undeclared, a scene is the plugin of its own name.
+                        plugin: name.clone(),
                         settings: BTreeMap::new(),
                         root: Default::default(),
                     });

@@ -325,7 +325,7 @@ targets = []
 backend = \"null\"
 
 [scene.mock]
-adapter = \"mock\"
+plugin = \"mock\"
 ";
 
 const KOKORO_PROJECT: &str = "\
@@ -337,7 +337,7 @@ targets = []
 backend = \"kokoro\"
 
 [scene.mock]
-adapter = \"mock\"
+plugin = \"mock\"
 ";
 
 /// I2, end to end. `check` and `plan` are the offline inner loop: a project

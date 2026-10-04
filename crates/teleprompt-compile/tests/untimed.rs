@@ -34,7 +34,7 @@ impl SceneCompiler for Untimed {
 }
 
 fn compile_it(body: &str) -> Result<teleprompt_compile::CompileOutput, Diagnostics> {
-    let src = format!("---\nscene: {{ s: {{ adapter: untimed }} }}\n---\n\n# A\n\n{body}");
+    let src = format!("---\nscene: {{ s: {{ plugin: untimed }} }}\n---\n\n# A\n\n{body}");
     let cache =
         VoiceCache::new(std::env::temp_dir().join(format!("tp-untimed-{}", std::process::id())));
     let estimator = WpmEstimator::default();

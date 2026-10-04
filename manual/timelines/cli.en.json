@@ -21,7 +21,7 @@
       "action": {
         "shot": "welcome-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "c590e04a8aa99440733a0ad195e0f6c4e281e62c2e82bd16a9880fd52fb83ad4",
         "capture_key": "cc98e507042e3a18b32e52923a40d32b59b2f18345f2b1fda3bd5e451435c484",
         "start_ms": 20450,
@@ -49,7 +49,7 @@
       "action": {
         "shot": "prose-and-action-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "f92e17fc935b44cceaedb00e6521d058837b6a9d5212c517a83c436d2de7e809",
         "capture_key": "e38b02cba478e0897fd6ac51e5e4960f4256dae5a3f84fd7aa15e25d5041e4c6",
         "start_ms": 22480,
@@ -77,7 +77,7 @@
       "action": {
         "shot": "vhs-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "b63a9c7181bcd72e8366b281d96983c70eeabba30f645b20ee764f4cb7a4216f",
         "capture_key": "12a9cf14e5785e03537d3d9c1a226d7894e296e87411edb5fc1b29bcf6f37444",
         "start_ms": 66930,
@@ -105,7 +105,7 @@
       "action": {
         "shot": "the-mark-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "52580d2de20767021e7a613bea91f859546e75c446e49d37addcab00dcf29606",
         "capture_key": "ac8ea3dd90a839d3fd41c8bc7fce613c871ca2ecc17975effa49b5781e9282cb",
         "start_ms": 71490,
@@ -133,7 +133,7 @@
       "action": {
         "shot": "new-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "7d53e075d547893fad969c116a389ae873d279c85ffc38e806065970352c436d",
         "capture_key": "73e2737dd2b4ec3ccd616cb965cbe173d0ab3da1438eeb94358bfe7dffbd6106",
         "start_ms": 105790,
@@ -153,7 +153,7 @@
       "action": {
         "shot": "new-a#1",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "5041686bca8a6833c8968945b67960860418fca9019a9ef1d40124a035d94c69",
         "capture_key": "9188c12109e586d43e5b921fbcf99b6b33a0f0436687d6470bf623e916a2ed4d",
         "start_ms": 106790,
@@ -181,7 +181,7 @@
       "action": {
         "shot": "scaffold-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "31177f0f13f9168d5b1e708e3dbdddb25d9b51f5ee4afe33829219c702c7fa05",
         "capture_key": "25ff1b523c4a3fc3949315633fe65af8f335d2438a30ec2339a7d7d0ceeb8f01",
         "start_ms": 108270,
@@ -209,7 +209,7 @@
       "action": {
         "shot": "check-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "8bc04e8ed57bdeff01469d1052f80257d7e6c772cd2c870ade8cf18230f3fe84",
         "capture_key": "a3a4045cc026cb4f12eb859ae366baaba245f6f45953b6aa511b90529bed7b66",
         "start_ms": 137120,
@@ -237,7 +237,7 @@
       "action": {
         "shot": "diagnostics-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "f9f28d47c6d3be915b4b28fa40b61b85d7352df61d43ad22e68e313c5d03c620",
         "capture_key": "46c46ace1d180ae814b53f23864de07686ba069f762361e7a1549eb1baacd0ae",
         "start_ms": 138460,
@@ -265,7 +265,7 @@
       "action": {
         "shot": "plan-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "98e78984d06ed1979aed4cabaeda03c3d37ec5be77bf664c97e5c7e36fc06b7e",
         "capture_key": "d6860e6583fbd5c232b041f89fba693fbd991cb68f166f8d3b2704d55490a90d",
         "start_ms": 170410,
@@ -293,7 +293,7 @@
       "action": {
         "shot": "estimated-vs-measured-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "9a7a1c63d5321f597b91df6bace8586f8c81e9c068ef6f43e127fe74836aad6c",
         "capture_key": "572d7abd374f574eb4742f31577632f64b50b35abe623984886d820a31c40596",
         "start_ms": 173420,
@@ -321,7 +321,7 @@
       "action": {
         "shot": "exact-actions-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "9ac50a40998b79f78a5b85c3ea585e48756b4e53f347f1f94f39c08706281c21",
         "capture_key": "cacc31661aaa6c09e2f1107d8a74d3265d325a21149dcd37128c0813accbf814",
         "start_ms": 211370,
@@ -349,7 +349,7 @@
       "action": {
         "shot": "commit-the-timeline-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "6325dbe2fa3a82d66f96b32cc26f66a2495c9a35d03daaada8632998db0c5d12",
         "capture_key": "528c2f56842f389a5a04712244d958e71a731b77f1f6880198f41d5a12f80f4c",
         "start_ms": 214840,
@@ -377,7 +377,7 @@
       "action": {
         "shot": "edit-the-prose-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "14a2294c6efadf9c64d5d956750a783526d754495d0c4544b474f6e56ee74249",
         "capture_key": "6c66221793250efdfc0656e4ff07be1820d7c77cc70012cce7077dbb209b11b8",
         "start_ms": 226490,
@@ -405,7 +405,7 @@
       "action": {
         "shot": "the-diff-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "559634b706aa54bea8ed12b57485e4745c85f7ee806567416f044196e21bdf89",
         "capture_key": "d6cdde1d1596c94e3162b0b28ac15bfdd62d8190651d14872aef709214e30a3e",
         "start_ms": 260990,
@@ -433,7 +433,7 @@
       "action": {
         "shot": "dub-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "6f6e47df7942bc323d65ede1e2798867fee93b6d95b1d2e184d6a257d4fbe052",
         "capture_key": "811415fd480d15811df7bac6b40a65214af403118b87348f704fee271c6f42c2",
         "start_ms": 264740,
@@ -453,7 +453,7 @@
       "action": {
         "shot": "dub-a#1",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "e2c37062e75bace482bf9c186575565e01940a68482d6af48931679ce9faeecc",
         "capture_key": "cff6505618b8058e6d06981c8b1900190a412b2ceae768fdca2969b2fc1a4c05",
         "start_ms": 281140,
@@ -481,7 +481,7 @@
       "action": {
         "shot": "manifest-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "e5b2ded9e87f5dc2ad3f3c31348be93ce7d6e784bf75442b90e0ade7be7f2324",
         "capture_key": "7206046ec0c2aa0def0b5e93cb13f4921ae27fe2cbf0e201bd83914ea10b5ac6",
         "start_ms": 303330,
@@ -509,7 +509,7 @@
       "action": {
         "shot": "measured-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "f6212eda87d51253dd63dc30fb35cfd39074f1301f6afbb6cbd5d731d2020392",
         "capture_key": "6fb83d4649bb74b7a6276e848e78e6ece9f7f375002dac8a40f9f08ae0497e93",
         "start_ms": 306205,
@@ -537,7 +537,7 @@
       "action": {
         "shot": "dub-check-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "0a88697a4e773e9843f823fa7654388d632325fc859588af0422845e78baed90",
         "capture_key": "0ba94c9dd2b4d46d9d9410c5d1cd4d7de0885f5ebf42027b38c1f65f83d52a25",
         "start_ms": 318805,
@@ -557,7 +557,7 @@
       "action": {
         "shot": "dub-check-a#1",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "22f73a7b07e11a4b7a1d848207613dff8492e3e7dd79f7a6a327de83bd44192f",
         "capture_key": "084df89309d54d38f79b65177d8125c4a9bab12a04bb0d2c26c758f5aafa7152",
         "start_ms": 336605,
@@ -577,7 +577,7 @@
       "action": {
         "shot": "pause-21",
         "scene": "pause",
-        "adapter": "pause",
+        "plugin": "pause",
         "shot_hash": "76a7936849405a972db0416bbe56ca0b117ddeea82e1dfe0ea78afc46c02e5e4",
         "capture_key": "76a7936849405a972db0416bbe56ca0b117ddeea82e1dfe0ea78afc46c02e5e4",
         "start_ms": 338345,
@@ -605,7 +605,7 @@
       "action": {
         "shot": "what-is-here-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "13c1efb691dd1ad3dcb04938947f9f82300e881281bccc57980d1e5ccb84f186",
         "capture_key": "70bf435f1efedf3efb635e0fa29e4d468e316d03e581f33e23bfe5430ec1d8da",
         "start_ms": 356095,
@@ -633,7 +633,7 @@
       "action": {
         "shot": "offline-by-default-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "21dfae6ad82f5a23985c1ccd0379eff577494ec38e662880a6eef45078321369",
         "capture_key": "10a08777e5086aedee502436baa9b82b15f3065bc07dd925aaca208db099c966",
         "start_ms": 359090,
@@ -661,7 +661,7 @@
       "action": {
         "shot": "self-hosting-a#0",
         "scene": "vhs",
-        "adapter": "vhs",
+        "plugin": "vhs",
         "shot_hash": "9256d09541691eea6c26cc5cdcc8b8ce044b176a8c67bb4287383cbd5630d322",
         "capture_key": "9cea4d110aeaa96feb09b9e60e64a01680d826aa259aebd8ac4362dd6fbe6597",
         "start_ms": 383940,

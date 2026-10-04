@@ -41,7 +41,7 @@ impl NarrationInput {
 pub struct ActionInput {
     pub shot_id: ShotId,
     pub scene: String,
-    pub adapter: String,
+    pub plugin: String,
     pub shot_hash: Hash,
     pub duration_ms: u64,
     pub duration_source: DurationSource,

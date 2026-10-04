@@ -38,7 +38,7 @@ const MANIFEST: &str = r#"{
       "shot": "plan#0",
       "line": "welcome",
       "scene": "terminal",
-      "adapter": "vhs",
+      "plugin": "vhs",
       "start_ms": 150,
       "duration_ms": 2000,
       "duration_source": "exact",
@@ -51,7 +51,7 @@ const MANIFEST: &str = r#"{
       "shot": "plan#1",
       "line": null,
       "scene": "terminal",
-      "adapter": "vhs",
+      "plugin": "vhs",
       "start_ms": 2150,
       "duration_ms": 2000,
       "duration_source": "exact",
@@ -144,10 +144,10 @@ fn a_captured_clip_is_used_where_one_exists_for_the_shot() {
 fn a_pause_holds_the_picture_rather_than_asking_for_a_clip() {
     let with_pause = MANIFEST.replace(
         r#"      "scene": "terminal",
-      "adapter": "vhs",
+      "plugin": "vhs",
       "start_ms": 2150,"#,
         r#"      "scene": "pause",
-      "adapter": "pause",
+      "plugin": "pause",
       "start_ms": 2150,"#,
     );
     let manifest: NarrationManifest = serde_json::from_str(&with_pause).unwrap();

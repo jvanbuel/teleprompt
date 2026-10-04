@@ -97,11 +97,11 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
 /// `recording`'s extension.
 pub fn recorder_for(with: Option<&str>, recording: &Path) -> Result<NamedRecorder, String> {
     let all = crate::scene::recorders();
-    let names: Vec<&str> = all.iter().map(|r| r.adapter).collect();
+    let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
     let ext = recording.extension().and_then(|e| e.to_str()).unwrap_or("");
     let found = all.into_iter().find(|r| match with {
-        Some(name) => r.adapter == name,
+        Some(name) => r.plugin == name,
         None => r.extension() == ext,
     });
     found.ok_or_else(|| match with {
@@ -167,7 +167,7 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
     }
     let options = Options {
         title: title_of(session.script),
-        scene: session.recorder.adapter.to_string(),
+        scene: session.recorder.plugin.to_string(),
         include,
         ..Options::default()
     };

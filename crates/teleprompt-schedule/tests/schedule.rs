@@ -23,7 +23,7 @@ fn action(id: &str, ms: u64) -> ActionInput {
     ActionInput {
         shot_id: id.into(),
         scene: "mock".into(),
-        adapter: "mock".into(),
+        plugin: "mock".into(),
         shot_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,

@@ -35,7 +35,7 @@ fn request(id: u64, method: &str, params: Value) -> Value {
 }
 
 #[test]
-fn an_adapter_describes_itself_and_what_it_needs() {
+fn an_plugin_describes_itself_and_what_it_needs() {
     let answers = exchange(
         &[request(1, "describe", json!({ "protocol": 1 }))],
         |i, o| serve::scene_on(&mock(), i, o).unwrap(),

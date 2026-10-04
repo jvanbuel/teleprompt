@@ -32,7 +32,7 @@ pub trait Recorder: Send + Sync {
 /// A recorder under the name of the plugin it records for, which is the
 /// scene its drafts run in.
 pub struct NamedRecorder {
-    pub adapter: &'static str,
+    pub plugin: &'static str,
     pub recorder: Box<dyn Recorder>,
 }
 

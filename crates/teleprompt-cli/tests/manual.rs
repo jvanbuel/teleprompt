@@ -79,7 +79,7 @@ fn every_terminal_action_is_timed_exactly() {
     let mut tapes = 0;
     for e in &out.timeline.entries {
         let Some(a) = &e.action else { continue };
-        if a.adapter != "vhs" {
+        if a.plugin != "vhs" {
             continue;
         }
         tapes += 1;
@@ -91,7 +91,7 @@ fn every_terminal_action_is_timed_exactly() {
             a.duration_source
         );
     }
-    assert!(tapes > 0, "the manual must exercise the tape adapter");
+    assert!(tapes > 0, "the manual must exercise the tape plugin");
 }
 
 #[test]

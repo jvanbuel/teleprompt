@@ -13,7 +13,7 @@ use teleprompt_core::SpanMs;
 use teleprompt_plugin::scene::SceneCompiler;
 
 #[test]
-fn the_registry_serves_every_adapter_this_build_ships() {
+fn the_registry_serves_every_plugin_this_build_ships() {
     let r = scenes();
 
     assert_eq!(r.get("mock").map(SceneCompiler::kind), Some("mock"));
@@ -45,7 +45,7 @@ fn the_registry_serves_every_adapter_this_build_ships() {
 }
 
 #[test]
-fn an_unknown_adapter_is_not_served() {
+fn an_unknown_plugin_is_not_served() {
     assert!(scenes().get("selenium").is_none());
 }
 
@@ -64,7 +64,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     let script = dir.join("scripts/stretch.md");
     std::fs::write(
         &script,
-        "---\nteleprompt: 1\nscene:\n  terminal:\n    adapter: vhs\n---\n\n\
+        "---\nteleprompt: 1\nscene:\n  terminal:\n    plugin: vhs\n---\n\n\
          # Stretching\n\n\
          This paragraph runs far longer than the two seconds of tape beneath it, \
          which is the whole point of asking the action to stretch: it should fill \
@@ -101,9 +101,9 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
         index: 0,
     };
     let registry = scenes();
-    let adapter = registry.get("vhs").expect("this build ships vhs");
+    let plugin = registry.get("vhs").expect("this build ships vhs");
     assert_eq!(
-        adapter.estimate(&shot),
+        plugin.estimate(&shot),
         Measured::Exact(entry.duration_ms.ms()),
         "the published tape should last exactly its slot:\n{}",
         published.source

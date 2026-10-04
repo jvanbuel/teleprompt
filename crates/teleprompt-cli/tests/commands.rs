@@ -6,7 +6,7 @@ use teleprompt_cli::cmd::{check::run_check, plan::run_plan, plan::run_plan_check
 use teleprompt_cli::project::Project;
 
 const GOOD: &str = r#"---
-scene: { mock: { adapter: mock } }
+scene: { mock: { plugin: mock } }
 ---
 
 # Intro
@@ -44,7 +44,7 @@ fn check_reports_an_unknown_attribute_key() {
 }
 
 #[test]
-fn check_reports_adapter_validation_errors() {
+fn check_reports_plugin_validation_errors() {
     let (_dir, p, s) = project_with(BAD_SCENE);
     let errs = run_check(&p, &s, "en").unwrap_err();
     assert!(errs[0].contains("unknown mock directive"));
@@ -445,26 +445,6 @@ fn plan_check_exits_3_on_drift_and_0_once_committed() {
         "{}",
         String::from_utf8_lossy(&check.stdout)
     );
-}
-
-/// The commands `plan --check` and the prompter replaced say so,
-/// whatever they are given, rather than being unknown.
-#[test]
-fn a_removed_command_names_its_replacement() {
-    for (args, instead) in [
-        (&["diff", "demo.md", "--exit-code"][..], "plan --check"),
-        (&["doctor"][..], "setup"),
-        (&["from", "README.md"][..], "import"),
-        (&["prompt", "demo.md", "--voice"][..], "serve"),
-    ] {
-        let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
-            .args(args)
-            .output()
-            .unwrap();
-        assert_eq!(out.status.code(), Some(2), "{args:?}");
-        let said = String::from_utf8_lossy(&out.stderr);
-        assert!(said.contains(instead), "{args:?}: {said}");
-    }
 }
 
 /// Every JSON report says `ok`, true exactly when the command exits 0, so a

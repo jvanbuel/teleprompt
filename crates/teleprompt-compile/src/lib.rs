@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path};
 
 use teleprompt_cache::{CacheKey, VoiceCache};
-use teleprompt_core::config::{default_plugin, Config, OutputConfig, SceneConfig};
+use teleprompt_core::config::{Config, OutputConfig, SceneConfig};
 use teleprompt_core::policy::Align;
 use teleprompt_core::program::{ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
@@ -98,7 +98,7 @@ impl VoiceContext<'_> {
 pub struct ShotSource {
     pub id: ShotId,
     pub scene: String,
-    pub adapter: String,
+    pub plugin: String,
     pub source: String,
 }
 
@@ -229,7 +229,7 @@ fn retime_stretched_shots(
         let Some(published) = shots.iter_mut().find(|s| s.id == action.shot) else {
             continue;
         };
-        let Some(adapter) = registry.get(&action.adapter) else {
+        let Some(plugin) = registry.get(&action.plugin) else {
             continue;
         };
 
@@ -240,11 +240,11 @@ fn retime_stretched_shots(
             hash: action.shot_hash,
             index: 0,
         };
-        if adapter.estimate(&shot).duration_ms() == Some(action.duration_ms.ms()) {
+        if plugin.estimate(&shot).duration_ms() == Some(action.duration_ms.ms()) {
             continue;
         }
 
-        if let Some(source) = adapter.retime(&shot, action.duration_ms.ms()) {
+        if let Some(source) = plugin.retime(&shot, action.duration_ms.ms()) {
             action.shot_hash = Hash::of(source.as_bytes());
             action.duration_source = DurationSource::Exact;
             published.source = source;
@@ -293,7 +293,7 @@ fn chain_capture_keys(
 
         // name(n): recipe, scene plugin, scene settings, inputs, shot source.
         let implicit = SceneConfig {
-            plugin: action.adapter.clone(),
+            plugin: action.plugin.clone(),
             settings: BTreeMap::new(),
             root: config.root.clone(),
         };
@@ -304,21 +304,21 @@ fn chain_capture_keys(
         // Scene-wide inputs are read once per scene.
         let inputs = inputs
             .entry(action.scene.clone())
-            .or_insert_with(|| match (scene, registry.get(&action.adapter)) {
-                (Some(scene), Some(adapter)) => fingerprint(&adapter.inputs(scene), &scene.root),
+            .or_insert_with(|| match (scene, registry.get(&action.plugin)) {
+                (Some(scene), Some(plugin)) => fingerprint(&plugin.inputs(scene), &scene.root),
                 _ => String::new(),
             })
             .clone();
-        let own = match (scene, registry.get(&action.adapter)) {
-            (Some(scene), Some(adapter)) => shots
+        let own = match (scene, registry.get(&action.plugin)) {
+            (Some(scene), Some(plugin)) => shots
                 .iter()
                 .find(|s| s.id == action.shot)
-                .map(|s| fingerprint(&adapter.shot_inputs(scene, &s.source), &scene.root))
+                .map(|s| fingerprint(&plugin.shot_inputs(scene, &s.source), &scene.root))
                 .unwrap_or_default(),
             _ => String::new(),
         };
         let shot_hash = action.shot_hash.to_string();
-        let mut fields = vec![CAPTURE_RECIPE, &action.adapter, &settings];
+        let mut fields = vec![CAPTURE_RECIPE, &action.plugin, &settings];
         // Empty inputs are left out, so they do not change the key.
         if !inputs.is_empty() {
             fields.push(&inputs);
@@ -331,8 +331,8 @@ fn chain_capture_keys(
 
         // A scene plugin whose shots do not continue is keyed by name(n) alone.
         if registry
-            .get(&action.adapter)
-            .is_some_and(|adapter| !adapter.continues())
+            .get(&action.plugin)
+            .is_some_and(|plugin| !plugin.continues())
         {
             action.capture_key = Hash::of_fields(&[&name.to_string()]);
             continue;
@@ -497,7 +497,7 @@ fn scenes_shown(timeline: &Timeline, config: &Config) -> BTreeMap<String, SceneC
             scenes
                 .entry(action.scene.clone())
                 .or_insert_with(|| SceneConfig {
-                    plugin: action.adapter.clone(),
+                    plugin: action.plugin.clone(),
                     settings: BTreeMap::new(),
                     root: config.root.clone(),
                 });
@@ -534,8 +534,8 @@ struct Block<'e> {
 
 /// How a block's shots become items, once the block has checked out.
 struct Placing<'a> {
-    adapter_name: String,
-    adapter: &'a dyn SceneCompiler,
+    plugin_name: String,
+    plugin: &'a dyn SceneCompiler,
     policy: Policy,
     cue_ms: Option<u64>,
     origin: BodyOrigin,
@@ -723,10 +723,10 @@ Read it, then remove the attribute.",
             },
         };
         let policy = Policy::new(b.policy, b.align);
-        let Some((adapter_name, adapter)) = self.adapter_for(b.scene, b.config) else {
+        let Some((plugin_name, plugin)) = self.plugin_for(b.scene, b.config) else {
             return;
         };
-        let Some(shots) = self.split(adapter, b, body, &origin, fragment.as_deref()) else {
+        let Some(shots) = self.split(plugin, b, body, &origin, fragment.as_deref()) else {
             return;
         };
         if shots.is_empty() {
@@ -736,8 +736,8 @@ Read it, then remove the attribute.",
             return;
         }
         let placing = Placing {
-            adapter_name,
-            adapter,
+            plugin_name,
+            plugin,
             policy,
             cue_ms,
             origin,
@@ -817,18 +817,17 @@ Read it, then remove the attribute.",
     }
 
     /// The plugin configured for `scene`, or its default.
-    fn adapter_for(
+    fn plugin_for(
         &mut self,
         scene: &str,
         config: &Config,
     ) -> Option<(String, &'a dyn SceneCompiler)> {
         let declared = config.scenes.get(scene);
-        let adapter_name =
-            declared.map_or_else(|| default_plugin(scene).to_string(), |s| s.plugin.clone());
+        let plugin_name = declared.map_or_else(|| scene.to_string(), |s| s.plugin.clone());
         let registry = self.registry;
-        let Some(adapter) = registry.get(&adapter_name) else {
+        let Some(plugin) = registry.get(&plugin_name) else {
             let available = registry.available().join(", ");
-            if declared.is_none() && adapter_name == scene {
+            if declared.is_none() && plugin_name == scene {
                 self.diags.push(
                     Diagnostic::error(format!("unknown scene `{scene}`")).with_help(format!(
                         "use a scene plugin's name as the scene ({available}), or declare \
@@ -839,20 +838,20 @@ Read it, then remove the attribute.",
             }
             self.diags.push(
                 Diagnostic::error(format!(
-                    "scene `{scene}` needs the scene plugin `{adapter_name}`, which is not available"
+                    "scene `{scene}` needs the scene plugin `{plugin_name}`, which is not available"
                 ))
                 .with_help(format!("available scene plugins: {available}")),
             );
             return None;
         };
-        Some((adapter_name, adapter))
+        Some((plugin_name, plugin))
     }
 
     /// Has the plugin validate the body, select its fragment, and split it
     /// into shots.
     fn split(
         &mut self,
-        adapter: &dyn SceneCompiler,
+        plugin: &dyn SceneCompiler,
         b: &Block,
         body: String,
         origin: &BodyOrigin,
@@ -863,7 +862,7 @@ Read it, then remove the attribute.",
             body,
             origin: origin.clone(),
         };
-        let mut validated = match adapter.validate(&src) {
+        let mut validated = match plugin.validate(&src) {
             Ok(v) => v,
             Err(mut e) => {
                 self.diags.append(&mut e);
@@ -871,7 +870,7 @@ Read it, then remove the attribute.",
             }
         };
         if let Some(fragment) = fragment {
-            match adapter.select(&validated.body, fragment) {
+            match plugin.select(&validated.body, fragment) {
                 Ok(part) => validated.body = part,
                 Err(why) => {
                     self.diags.push(Diagnostic::error(why).at(*b.span));
@@ -879,7 +878,7 @@ Read it, then remove the attribute.",
                 }
             }
         }
-        match adapter.shots(&validated, b.block_id) {
+        match plugin.shots(&validated, b.block_id) {
             Ok(s) => Some(s),
             Err(mut e) => {
                 self.diags.append(&mut e);
@@ -894,11 +893,11 @@ Read it, then remove the attribute.",
             self.shots.push(ShotSource {
                 id: shot.id.clone(),
                 scene: b.scene.clone(),
-                adapter: how.adapter_name.clone(),
+                plugin: how.plugin_name.clone(),
                 source: shot.source.clone(),
             });
             let Some(measured) = self
-                .stretched(b, how, how.adapter.estimate(shot))
+                .stretched(b, how, how.plugin.estimate(shot))
                 .and_then(|m| self.budgeted(b, how, m))
             else {
                 continue;
@@ -918,7 +917,7 @@ Read it, then remove the attribute.",
                             "a `{}` shot lasts as long as the paragraph \
                          it follows: give it a paragraph and a block of its own \
                          rather than a mark",
-                            how.adapter_name
+                            how.plugin_name
                         )),
                         0,
                         0,
@@ -929,7 +928,7 @@ Read it, then remove the attribute.",
             let action = ActionInput {
                 shot_id: shot.id.clone(),
                 scene: b.scene.clone(),
-                adapter: how.adapter_name.clone(),
+                plugin: how.plugin_name.clone(),
                 shot_hash: shot.hash,
                 // Zero for `Unknown`: the scheduler substitutes the line's
                 // length.
@@ -985,7 +984,7 @@ Read it, then remove the attribute.",
                 self.diags.push(
                     Diagnostic::error(format!(
                         "a `{}` shot states no length of its own, so it cannot be stretched",
-                        how.adapter_name
+                        how.plugin_name
                     ))
                     .at(*b.span)
                     .with_help("it takes its line's length: lengthen the line instead"),
@@ -1009,7 +1008,7 @@ Read it, then remove the attribute.",
                     Diagnostic::error(format!(
                         "`fit-line` fits the line to its picture, and a `{}` shot \
                          states no length",
-                        how.adapter_name
+                        how.plugin_name
                     ))
                     .at(*b.span)
                     .with_help("give the block the picture's length, e.g. `budget=6.5s`"),
@@ -1020,7 +1019,7 @@ Read it, then remove the attribute.",
                 self.diags.push(
                     Diagnostic::error(format!(
                         "`budget` on a `{}` shot that states its own length ({} ms)",
-                        how.adapter_name,
+                        how.plugin_name,
                         known.duration_ms().unwrap_or(0)
                     ))
                     .at(*b.span)
@@ -1044,7 +1043,7 @@ Read it, then remove the attribute.",
             action: Some(ActionInput {
                 shot_id: ShotId::new(id),
                 scene: PAUSE_SCENE.into(),
-                adapter: PAUSE_SCENE.into(),
+                plugin: PAUSE_SCENE.into(),
                 shot_hash: Hash::of(ms.to_string().as_bytes()),
                 duration_ms: ms,
                 duration_source: DurationSource::Exact,

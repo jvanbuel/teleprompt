@@ -30,9 +30,7 @@ Blocks of one scene run in one session (see [below](#a-scene-is-a-session)),
 so `server` and `client` are two terminals, each carrying on where it left
 off. A declared scene named after a plugin, like `[scene.vhs]`, just
 gives that plugin settings. A name that is neither declared nor a
-plugin is an error. `terminal` and `browser` still work, as older names
-for `vhs` and `playwright`. In a declared scene, `adapter` is still
-accepted as an older name for `plugin`.
+plugin is an error.
 
 A path in a scene's settings is relative to the project: the directory
 `teleprompt.toml` is in.

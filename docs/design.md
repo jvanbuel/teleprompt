@@ -551,12 +551,8 @@ source (see `retime` under [the scene contract](#scene-contract)). Where
 the plugin cannot, the renderer holds the last frame for the rest of the slot.
 
 `align` on any policy but `concurrent` is an error naming the combination,
-since it would change nothing. Renamed spellings are errors that name
-their replacement, never aliases, so scripts converge on one name:
-`stretch` and `stretch-action` (it compresses too) became `fit-action`,
-`trim` became `trim-action`, and `max_speedup` (it only ever set when a
-trim is reported) became `trim_warn_above`, as a block attribute and as a
-`timing` key.
+since it would change nothing. There are no aliases: one name for each
+thing, so scripts converge on it.
 
 ### Led by the picture
 
@@ -628,7 +624,7 @@ written, with a warning when it exceeds the quiet window.
 `timelines/<script>.<locale>.json` is committed, and it is the review
 surface. A reviewer reads it, not the video, to see what a prose change did
 to the pacing. For each item it records start and duration, the policy,
-the line's hashes, the shot's scene, its plugin (`adapter`), `shot_hash`,
+the line's hashes, the shot's scene, its `plugin`, `shot_hash`,
 `capture_key` and duration source, and the transition. There are no
 timestamps and no floats, so the file is byte-stable. In code, a start is
 a `TimeMs` and a duration a `SpanMs`, so one is never added to or passed
@@ -652,8 +648,7 @@ gives it settings, or a second instance of a plugin under another name.
 The block body is in the plugin's own language, so a scene's name does not
 abstract over tools: moving a block to another plugin means rewriting it.
 A name that is neither declared nor a plugin is an error, not a
-placeholder. `terminal` and `browser` are kept as older names for `vhs`
-and `playwright`, and `adapter` as an older name for `plugin`.
+placeholder.
 
 ### Scene contract
 
@@ -783,7 +778,7 @@ It carries `manifest_version` (3), provenance, `duration_ms`, the audio
 format, `chapters`, `lines` (id, text, chapter, start, duration, duration
 source, audio path, `source_hash`, `audio_hash`,
 and `words` when timed), and `shots` (the action schedule with scene,
-`adapter` (the scene's plugin), policy, transition, `shot_hash`,
+`plugin` (the scene's plugin), policy, transition, `shot_hash`,
 `capture_key` and session). A consumer must refuse a version it does not know.
 
 `audio_hash` hashes the WAV bytes on disk, not the voice cache key, so it

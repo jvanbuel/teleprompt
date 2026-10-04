@@ -465,15 +465,15 @@ impl Window {
         let Ok(listed) = listed else { return };
         let chosen = {
             let model = self.model.borrow();
-            tools::pick(&listed, model.config.record_with.as_deref()).map(|t| t.adapter.clone())
+            tools::pick(&listed, model.config.record_with.as_deref()).map(|t| t.plugin.clone())
         };
         let weak = Rc::downgrade(self);
         self.w
             .session
-            .set_tools(&listed, chosen.as_deref(), move |adapter| {
+            .set_tools(&listed, chosen.as_deref(), move |plugin| {
                 if let Some(this) = weak.upgrade() {
                     let mut config = this.config();
-                    config.record_with = Some(adapter.to_string());
+                    config.record_with = Some(plugin.to_string());
                     this.set_config(config);
                 }
             });
@@ -556,7 +556,7 @@ impl Window {
             let in_terminal = session
                 .tools
                 .iter()
-                .find(|t| Some(&t.adapter) == chosen.as_ref())
+                .find(|t| Some(&t.plugin) == chosen.as_ref())
                 .is_none_or(|t| t.in_terminal);
             model.status = Status::info("Recording: talk as you work");
             in_terminal

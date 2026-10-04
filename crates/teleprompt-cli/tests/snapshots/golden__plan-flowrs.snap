@@ -12,10 +12,10 @@ expression: transcript(&out)
     "entries": [
       {
         "action": {
-          "adapter": "playwright",
           "capture_key": "d784c2d484bba67ba726eb85cf4004f23c8b835bea739156e4c342d34f71897d",
           "duration_ms": 5350,
           "duration_source": "unknown",
+          "plugin": "playwright",
           "scene": "playwright",
           "shot": "signin-a#0",
           "shot_hash": "7302179c469b1b899d66a5b399440729d26245e004e227040ff7275862f56c5e",
@@ -40,10 +40,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "playwright",
           "capture_key": "3a062880cb249219c12b40a5f763df64278793da8b9ee94ce4650c882bacfc06",
           "duration_ms": 21600,
           "duration_source": "unknown",
+          "plugin": "playwright",
           "scene": "playwright",
           "shot": "clicking-a#0",
           "shot_hash": "46cd59d1c7a703274e7f2c8c5779d75159d7a9d5f984be9b6529b85fb5881849",
@@ -68,10 +68,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "vhs",
           "capture_key": "405e33a3450f9d68dd50af1ad15e5780a0d8a80259c9a32acebb075077e56fc5",
           "duration_ms": 5440,
           "duration_source": "exact",
+          "plugin": "vhs",
           "scene": "vhs",
           "shot": "flowrs-a#0",
           "shot_hash": "8d7b4eb062b042d69aa07f9d66aad3f95fc68c4ceb3b8ce39aba191b3318f0b0",
@@ -96,10 +96,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "vhs",
           "capture_key": "2a5933fe7d3590ff853757b337142e18a368b2cd9b5a479c1f8ec435536cc947",
           "duration_ms": 4650,
           "duration_source": "exact",
+          "plugin": "vhs",
           "scene": "vhs",
           "shot": "filter-a#0",
           "shot_hash": "ed32f7fd319cebef58149fdaa98ec1b4341cf78333a06e3a60d8757c608532a2",
@@ -124,10 +124,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "vhs",
           "capture_key": "c83574761b28fa122a401988311bdbd38c34a4c16326a108fb96fb5ac6380376",
           "duration_ms": 10300,
           "duration_source": "exact",
+          "plugin": "vhs",
           "scene": "vhs",
           "shot": "drill-a#0",
           "shot_hash": "0adec7078b12279fbd93ca520313fe0493a3dde273263ea379623851cceaf246",

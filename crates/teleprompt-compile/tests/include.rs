@@ -187,7 +187,7 @@ fn an_inline_body_still_reports_the_scripts_own_path_and_offset_line() {
 /// scene plugin. One that does not take fragments says so, naming itself,
 /// rather than reading the whole file as if the fragment were not there.
 #[test]
-fn a_fragment_is_the_adapters_to_take_or_refuse() {
+fn a_fragment_is_the_plugins_to_take_or_refuse() {
     let dir = workspace();
     std::fs::write(dir.join("steps.mock"), "wait 700ms\n").unwrap();
     let e = run(

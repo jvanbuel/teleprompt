@@ -8,8 +8,8 @@ use serde::Deserialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Tool {
-    /// The adapter it records for: `--with`'s value.
-    pub adapter: String,
+    /// The plugin it records for: `--with`'s value.
+    pub plugin: String,
     /// Whether the author works in the terminal, or a window of its own.
     pub in_terminal: bool,
     /// Why it cannot record here, if it cannot.
@@ -24,7 +24,7 @@ impl Tool {
         } else {
             "Browser"
         };
-        format!("{what} · {}", self.adapter)
+        format!("{what} · {}", self.plugin)
     }
 }
 
@@ -52,6 +52,6 @@ pub fn pick<'a>(tools: &'a [Tool], chosen: Option<&str>) -> Option<&'a Tool> {
     tools
         .iter()
         .filter(ready)
-        .find(|t| Some(t.adapter.as_str()) == chosen)
+        .find(|t| Some(t.plugin.as_str()) == chosen)
         .or_else(|| tools.iter().find(ready))
 }

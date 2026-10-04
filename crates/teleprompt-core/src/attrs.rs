@@ -197,15 +197,6 @@ pub fn parse_duration_ms(v: &str) -> Result<u64, String> {
     DurationMs::parse(v).map(DurationMs::ms)
 }
 
-/// Keys that were renamed, and what to write instead. An old key is an
-/// error naming its replacement, never an alias, so scripts converge on one
-/// spelling (`docs/design.md#policies`).
-const RENAMED_KEYS: &[(&str, &str, &str)] = &[(
-    "max_speedup",
-    "trim_warn_above",
-    "it sets when trimming is reported, and never sped anything up",
-)];
-
 /// Whether `name` can name a speaker: a letter, then letters, digits, `-`
 /// and `_`, as a TOML table key would be written bare.
 pub fn is_speaker_name(name: &str) -> bool {
@@ -274,17 +265,6 @@ pub fn parse_attrs(raw: &str, allowed: &[&str], span: SourceSpan) -> (Attributes
             continue;
         };
         let key = key.trim();
-        if let Some((_, new, why)) = RENAMED_KEYS
-            .iter()
-            .find(|(old, new, _)| *old == key && allowed.contains(new))
-        {
-            diags.push(
-                Diagnostic::error(format!("`{key}` was renamed to `{new}`"))
-                    .at(span)
-                    .with_help(format!("write `{new}=`; {why}")),
-            );
-            continue;
-        }
         if key == "speaker" && allowed == SEGMENT_KEYS {
             diags.push(at_name(
                 &format!("@{}", value.trim().trim_matches('"')),

@@ -5,7 +5,7 @@ use super::mock::MockScene;
 
 #[derive(Default)]
 pub struct SceneRegistry {
-    adapters: BTreeMap<&'static str, Box<dyn SceneCompiler>>,
+    plugins: BTreeMap<&'static str, Box<dyn SceneCompiler>>,
 }
 
 impl SceneRegistry {
@@ -17,15 +17,15 @@ impl SceneRegistry {
         r
     }
 
-    pub fn register(&mut self, adapter: Box<dyn SceneCompiler>) {
-        self.adapters.insert(adapter.kind(), adapter);
+    pub fn register(&mut self, plugin: Box<dyn SceneCompiler>) {
+        self.plugins.insert(plugin.kind(), plugin);
     }
 
-    pub fn get(&self, adapter: &str) -> Option<&dyn SceneCompiler> {
-        self.adapters.get(adapter).map(AsRef::as_ref)
+    pub fn get(&self, plugin: &str) -> Option<&dyn SceneCompiler> {
+        self.plugins.get(plugin).map(AsRef::as_ref)
     }
 
     pub fn available(&self) -> Vec<&'static str> {
-        self.adapters.keys().copied().collect()
+        self.plugins.keys().copied().collect()
     }
 }

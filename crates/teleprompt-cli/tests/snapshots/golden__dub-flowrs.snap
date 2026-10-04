@@ -85,11 +85,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
     "script": "demo.md",
     "shots": [
       {
-        "adapter": "playwright",
         "capture_key": "d784c2d484bba67ba726eb85cf4004f23c8b835bea739156e4c342d34f71897d",
         "duration_ms": 5350,
         "duration_source": "unknown",
         "line": "signin",
+        "plugin": "playwright",
         "policy": "concurrent",
         "scene": "playwright",
         "shot": "signin-a#0",
@@ -101,11 +101,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "adapter": "playwright",
         "capture_key": "3a062880cb249219c12b40a5f763df64278793da8b9ee94ce4650c882bacfc06",
         "duration_ms": 21600,
         "duration_source": "unknown",
         "line": "clicking",
+        "plugin": "playwright",
         "policy": "concurrent",
         "scene": "playwright",
         "shot": "clicking-a#0",
@@ -117,11 +117,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "adapter": "vhs",
         "capture_key": "405e33a3450f9d68dd50af1ad15e5780a0d8a80259c9a32acebb075077e56fc5",
         "duration_ms": 5440,
         "duration_source": "exact",
         "line": "flowrs",
+        "plugin": "vhs",
         "policy": "concurrent",
         "scene": "vhs",
         "shot": "flowrs-a#0",
@@ -133,11 +133,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "adapter": "vhs",
         "capture_key": "2a5933fe7d3590ff853757b337142e18a368b2cd9b5a479c1f8ec435536cc947",
         "duration_ms": 4650,
         "duration_source": "exact",
         "line": "filter",
+        "plugin": "vhs",
         "policy": "concurrent",
         "scene": "vhs",
         "shot": "filter-a#0",
@@ -149,11 +149,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "adapter": "vhs",
         "capture_key": "c83574761b28fa122a401988311bdbd38c34a4c16326a108fb96fb5ac6380376",
         "duration_ms": 10300,
         "duration_source": "exact",
         "line": "drill",
+        "plugin": "vhs",
         "policy": "concurrent",
         "scene": "vhs",
         "shot": "drill-a#0",
@@ -257,11 +257,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       "script": "demo.md",
       "shots": [
         {
-          "adapter": "playwright",
           "capture_key": "d784c2d484bba67ba726eb85cf4004f23c8b835bea739156e4c342d34f71897d",
           "duration_ms": 5350,
           "duration_source": "unknown",
           "line": "signin",
+          "plugin": "playwright",
           "policy": "concurrent",
           "scene": "playwright",
           "shot": "signin-a#0",
@@ -273,11 +273,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "adapter": "playwright",
           "capture_key": "3a062880cb249219c12b40a5f763df64278793da8b9ee94ce4650c882bacfc06",
           "duration_ms": 21600,
           "duration_source": "unknown",
           "line": "clicking",
+          "plugin": "playwright",
           "policy": "concurrent",
           "scene": "playwright",
           "shot": "clicking-a#0",
@@ -289,11 +289,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "adapter": "vhs",
           "capture_key": "405e33a3450f9d68dd50af1ad15e5780a0d8a80259c9a32acebb075077e56fc5",
           "duration_ms": 5440,
           "duration_source": "exact",
           "line": "flowrs",
+          "plugin": "vhs",
           "policy": "concurrent",
           "scene": "vhs",
           "shot": "flowrs-a#0",
@@ -305,11 +305,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "adapter": "vhs",
           "capture_key": "2a5933fe7d3590ff853757b337142e18a368b2cd9b5a479c1f8ec435536cc947",
           "duration_ms": 4650,
           "duration_source": "exact",
           "line": "filter",
+          "plugin": "vhs",
           "policy": "concurrent",
           "scene": "vhs",
           "shot": "filter-a#0",
@@ -321,11 +321,11 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "adapter": "vhs",
           "capture_key": "c83574761b28fa122a401988311bdbd38c34a4c16326a108fb96fb5ac6380376",
           "duration_ms": 10300,
           "duration_source": "exact",
           "line": "drill",
+          "plugin": "vhs",
           "policy": "concurrent",
           "scene": "vhs",
           "shot": "drill-a#0",

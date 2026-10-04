@@ -12,10 +12,10 @@ expression: transcript(&out)
     "entries": [
       {
         "action": {
-          "adapter": "asciinema",
           "capture_key": "26241bfd94e78022584f5b63bdd5d3b6b4bba4a8864d02ea9a10ad73c6d09152",
           "duration_ms": 11600,
           "duration_source": "exact",
+          "plugin": "asciinema",
           "scene": "asciinema",
           "shot": "check-a#0",
           "shot_hash": "527123862782999a55e379d0566d8b7a0eefe7d9b47b3e3a8a3dfe02b62f84b7",
@@ -40,10 +40,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "asciinema",
           "capture_key": "bbaab44be584d5497f72a1e03829aaabdb50ac4a67e915018b1c18cda2c4bf06",
           "duration_ms": 13950,
           "duration_source": "exact",
+          "plugin": "asciinema",
           "scene": "asciinema",
           "shot": "plan-a#0",
           "shot_hash": "972d9e83fa0807fda1a7882f1391f87f1185910575e0f50a1c16f8f9c25edf73",
@@ -68,10 +68,10 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "adapter": "asciinema",
           "capture_key": "1ac8b8a7af1803626b40cebcf4baecf497699019800bcadeb4004833447b058d",
           "duration_ms": 13450,
           "duration_source": "exact",
+          "plugin": "asciinema",
           "scene": "asciinema",
           "shot": "setup-a#0",
           "shot_hash": "b23038cd30cac4220d51f01d536887adcc057bedc89e8c72f69fc1d23b819e0c",

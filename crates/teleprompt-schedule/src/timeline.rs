@@ -48,7 +48,7 @@ pub struct NarrationEntry {
 pub struct ActionEntry {
     pub shot: ShotId,
     pub scene: String,
-    pub adapter: String,
+    pub plugin: String,
     /// Hash of this shot's own source alone.
     pub shot_hash: Hash,
     /// Identity of the picture, chained over every earlier shot in the

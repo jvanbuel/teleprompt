@@ -96,7 +96,7 @@ fn shots_needing_recapture_are_those_whose_action_hash_or_slot_changed() {
     let action = |id: &str, ms: u64| ActionInput {
         shot_id: id.into(),
         scene: "mock".into(),
-        adapter: "mock".into(),
+        plugin: "mock".into(),
         shot_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
@@ -147,7 +147,7 @@ fn mock_action(id: &str, ms: u64) -> ActionInput {
     ActionInput {
         shot_id: id.into(),
         scene: "mock".into(),
-        adapter: "mock".into(),
+        plugin: "mock".into(),
         shot_hash: Hash::of(id.as_bytes()),
         duration_ms: ms,
         duration_source: DurationSource::Exact,
@@ -271,7 +271,7 @@ fn two_identical_timelines_still_render_exactly_no_timeline_changes() {
         b1.action = Some(ActionInput {
             shot_id: "s1".into(),
             scene: "mock".into(),
-            adapter: "mock".into(),
+            plugin: "mock".into(),
             shot_hash: Hash::of(b"s1"),
             duration_ms: 500,
             duration_source: DurationSource::Exact,
@@ -302,7 +302,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
         b1.action = Some(ActionInput {
             shot_id: "s1".into(),
             scene: "mock".into(),
-            adapter: "mock".into(),
+            plugin: "mock".into(),
             shot_hash: Hash::of(b"s1"),
             duration_ms: 500,
             duration_source: DurationSource::Exact,

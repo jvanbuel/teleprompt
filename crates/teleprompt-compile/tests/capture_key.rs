@@ -67,9 +67,9 @@ const HEAD: &str = "\
 teleprompt: 1
 scene:
   terminal:
-    adapter: mock
+    plugin: mock
   other:
-    adapter: mock
+    plugin: mock
 ---
 
 # A tour
@@ -271,7 +271,7 @@ fn a_capture_key_names_the_recipe_that_recorded_it() {
         .unwrap_or_default();
     let name = Hash::of_fields(&[
         CAPTURE_RECIPE,
-        &action.adapter,
+        &action.plugin,
         &settings,
         &action.shot_hash.to_string(),
     ]);
@@ -330,7 +330,7 @@ impl teleprompt_plugin::scene::contract::SceneCompiler for Still {
 fn stills(first: &str, second: &str) -> Vec<Hash> {
     let mut registry = SceneRegistry::with_builtins();
     registry.register(Box::new(Still));
-    let src = twice(first, second).replace("adapter: mock\n  other", "adapter: still\n  other");
+    let src = twice(first, second).replace("plugin: mock\n  other", "plugin: still\n  other");
     keys(&run_with(&src, &registry))
 }
 
@@ -359,11 +359,8 @@ fn drawn_from(project: &std::path::Path) -> Vec<Hash> {
     let mut registry = SceneRegistry::with_builtins();
     registry.register(Box::new(Still));
     let src = twice(J, J).replace(
-        "adapter: mock\n  other",
-        &format!(
-            "adapter: still\n    project: {}\n  other",
-            project.display()
-        ),
+        "plugin: mock\n  other",
+        &format!("plugin: still\n    project: {}\n  other", project.display()),
     );
     keys(&run_with(&src, &registry))
 }
@@ -439,9 +436,9 @@ fn pictured(project: &std::path::Path) -> Vec<Hash> {
     let mut registry = SceneRegistry::with_builtins();
     registry.register(Box::new(Pictured));
     let src = twice(J, "wait 2000ms\n").replace(
-        "adapter: mock\n  other",
+        "plugin: mock\n  other",
         &format!(
-            "adapter: pictured\n    project: {}\n  other",
+            "plugin: pictured\n    project: {}\n  other",
             project.display()
         ),
     );

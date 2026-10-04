@@ -52,7 +52,7 @@ fn source(body: &str) -> BlockSource {
 }
 
 #[test]
-fn an_outside_adapter_is_described_and_says_what_it_needs() {
+fn an_outside_plugin_is_described_and_says_what_it_needs() {
     let Some(found) = card() else { return };
     let plugin = Plugin::new(found);
     let d = plugin.describe().unwrap();
@@ -67,8 +67,8 @@ fn an_outside_adapter_is_described_and_says_what_it_needs() {
 #[test]
 fn its_errors_point_at_the_script_line() {
     let Some(found) = card() else { return };
-    let adapter = host::scene(found);
-    let errors = adapter
+    let plugin = host::scene(found);
+    let errors = plugin
         .scene()
         .validate(&source("color red\ncolour blue\n"))
         .unwrap_err();
@@ -79,10 +79,10 @@ fn its_errors_point_at_the_script_line() {
 }
 
 #[test]
-fn its_shots_are_numbered_and_timed_as_a_built_in_adapters_are() {
+fn its_shots_are_numbered_and_timed_as_a_built_in_plugins_are() {
     let Some(found) = card() else { return };
-    let adapter = host::scene(found);
-    let scene = adapter.scene();
+    let plugin = host::scene(found);
+    let scene = plugin.scene();
     let v = Validated {
         scene: "card".into(),
         body: "color red\nhold 2s\nmark\ncolor blue\n".into(),
@@ -104,7 +104,7 @@ fn it_captures_a_clip_for_each_wanted_shot() {
         eprintln!("skipped: no ffmpeg");
         return;
     }
-    let adapter = host::scene(found);
+    let plugin = host::scene(found);
     let out = teleprompt_testkit::test_dir("protocol-capture");
     let key = Hash::of(b"blue");
     let session = Session {
@@ -127,7 +127,7 @@ fn it_captures_a_clip_for_each_wanted_shot() {
         fps: 10,
     };
     let mut progress = Vec::new();
-    let clips = adapter
+    let clips = plugin
         .capture()
         .capture(&session, &frame, &out, &mut |p| progress.push(p))
         .unwrap();

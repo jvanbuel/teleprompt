@@ -133,10 +133,3 @@ pub fn print_errors(errors: &[String]) {
         eprintln!("error: {}", e.strip_prefix("error: ").unwrap_or(e));
     }
 }
-
-/// A command that was folded into another: what to type now.
-pub fn replaced(old: &str, new: &str) -> Outcome {
-    Outcome::ValidationError(vec![format!(
-        "`teleprompt {old}` is now `teleprompt {new}`"
-    )])
-}

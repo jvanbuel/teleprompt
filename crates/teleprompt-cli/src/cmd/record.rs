@@ -68,11 +68,11 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
 /// The recorder `with` names, asciinema's by default.
 fn recorder(with: Option<&str>) -> Result<NamedRecorder, String> {
     let all = crate::scene::recorders();
-    let names: Vec<&str> = all.iter().map(|r| r.adapter).collect();
+    let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
     let wanted = with.unwrap_or("asciinema");
     all.into_iter()
-        .find(|r| r.adapter == wanted)
+        .find(|r| r.plugin == wanted)
         .ok_or_else(|| format!("`{wanted}` cannot record a session; these can: {names}"))
 }
 
@@ -94,7 +94,7 @@ fn check(r: &Record, recorder: &NamedRecorder) -> Result<(), String> {
         return Err(format!("no punctuation model at {}", dir.display()));
     }
     if let Some(why) = recorder.unavailable() {
-        return Err(format!("cannot record with {}: {why}", recorder.adapter));
+        return Err(format!("cannot record with {}: {why}", recorder.plugin));
     }
     Ok(())
 }
@@ -137,7 +137,7 @@ fn record(
         };
         eprintln!(
             "recording with {} and the microphone: {how}\r",
-            recorder.adapter
+            recorder.plugin
         );
     }
     let file = dir.join(format!("session.{}", recorder.extension()));
@@ -185,7 +185,7 @@ fn signed_ms(a: Instant, b: Instant) -> i64 {
 /// A recorder, as `record --tools` lists it for an app to offer.
 #[derive(Debug, Serialize)]
 pub struct Tool {
-    pub adapter: &'static str,
+    pub plugin: &'static str,
     /// Whether the author works in the terminal, or a window of its own.
     pub in_terminal: bool,
     /// Why it cannot record here, if it cannot.
@@ -197,7 +197,7 @@ pub fn tools() -> Vec<Tool> {
     crate::scene::recorders()
         .iter()
         .map(|r| Tool {
-            adapter: r.adapter,
+            plugin: r.plugin,
             in_terminal: r.in_terminal(),
             unavailable: r.unavailable(),
         })
@@ -352,7 +352,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
             .map(|t| {
                 format!(
                     "{:<12}{}\n",
-                    t.adapter,
+                    t.plugin,
                     t.unavailable.as_deref().unwrap_or("ready")
                 )
             })

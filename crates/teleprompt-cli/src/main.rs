@@ -5,7 +5,7 @@
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use teleprompt_cli::cli::{fail, replaced, Run, ScriptArgs};
+use teleprompt_cli::cli::{fail, Run, ScriptArgs};
 use teleprompt_cli::cmd::{
     build, cache, capture, check, dub, edit, import, new, plan, plugins, record, serve, setup,
     translate, voice,
@@ -154,30 +154,6 @@ enum Command {
     /// — the timing is the scheduled timing either way, and the count of
     /// them is reported.
     Build(build::Args),
-    /// Now `setup`; says so rather than being unknown.
-    #[command(hide = true)]
-    Doctor {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
-    },
-    /// Now `import`; says so rather than being unknown.
-    #[command(hide = true)]
-    From {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
-    },
-    /// Now `plan --check`; says so rather than being unknown.
-    #[command(hide = true)]
-    Diff {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
-    },
-    /// Now `serve`; says so rather than being unknown.
-    #[command(hide = true)]
-    Prompt {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        rest: Vec<String>,
-    },
 }
 
 /// Synchronous on purpose: only the commands that need async build a
@@ -211,9 +187,5 @@ fn run(command: Command, format: Format) -> Run {
         Command::Dub(args) => dub::run(args, format),
         Command::Capture(args) => capture::run(args, format),
         Command::Build(args) => build::run(args, format),
-        Command::Doctor { .. } => Err(replaced("doctor", "setup")),
-        Command::From { .. } => Err(replaced("from", "import")),
-        Command::Diff { .. } => Err(replaced("diff", "plan --check")),
-        Command::Prompt { .. } => Err(replaced("prompt", "serve")),
     }
 }

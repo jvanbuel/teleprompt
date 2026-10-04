@@ -377,17 +377,6 @@ fn a_lowercase_command_is_diagnosed_as_a_lowercase_command() {
     );
 }
 
-/// The name `scene: terminal` resolves to, from the other side. A rename on
-/// either side of that lookup is meant to fail here.
-#[test]
-fn the_adapter_answers_to_the_name_the_terminal_scene_resolves_to() {
-    assert_eq!(VhsScene.kind(), "vhs");
-    assert_eq!(
-        teleprompt_core::config::default_plugin("terminal"),
-        VhsScene.kind()
-    );
-}
-
 /// `fit-action` says the action fills the narration above it. Until
 /// something re-times the tape, that is a number on a timeline and nothing
 /// else: a capture still runs the tape at its authored pace, and the

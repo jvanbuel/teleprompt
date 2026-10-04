@@ -120,22 +120,22 @@ impl SessionPage {
         for tool in tools {
             let button = gtk::ToggleButton::builder()
                 .label(tool.label())
-                .active(Some(tool.adapter.as_str()) == chosen)
+                .active(Some(tool.plugin.as_str()) == chosen)
                 .sensitive(tool.unavailable.is_none())
                 .build();
             if let Some(why) = &tool.unavailable {
                 button.set_tooltip_text(Some(why));
             }
             button.set_group(group.as_ref());
-            let (adapter, chosen, on_choose) = (
-                tool.adapter.clone(),
+            let (plugin, chosen, on_choose) = (
+                tool.plugin.clone(),
                 Rc::clone(&self.chosen),
                 Rc::clone(&on_choose),
             );
             button.connect_toggled(move |b| {
                 if b.is_active() {
-                    *chosen.borrow_mut() = Some(adapter.clone());
-                    on_choose(&adapter);
+                    *chosen.borrow_mut() = Some(plugin.clone());
+                    on_choose(&plugin);
                 }
             });
             self.tools.append(&button);
