@@ -260,7 +260,7 @@ pub fn select(cast: &Cast, fragment: &str) -> Result<Cast, String> {
 /// alike: the whole session is shown, never cut off. `None` only for a
 /// target that is not a length.
 pub fn retimed(cast: &Cast, target: f64) -> Option<Cast> {
-    if !(target > 0.0) {
+    if target.is_nan() || target <= 0.0 {
         return None;
     }
     let mut times: Vec<f64> = vec![0.0];
