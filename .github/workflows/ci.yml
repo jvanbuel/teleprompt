@@ -77,6 +77,15 @@ jobs:
       # The crate layering in docs/design.md#crates, checked rather than
       # trusted: a new edge between workspace crates must be argued for there.
       - run: python3 tools/check_deps.py
+      # The Python examples are written to be read and copied: linted,
+      # formatted, and the stdlib-only plugins typed strictly.
+      - name: Python examples
+        working-directory: examples
+        run: |
+          files="plugins/teleprompt-scene-card plugins/teleprompt-voice-espeak moo/deck/snippets/moo_server.py"
+          pipx run ruff check --config ruff.toml $files
+          pipx run ruff format --check --config ruff.toml $files
+          for f in plugins/teleprompt-*; do pipx run mypy --strict "$f"; done
 
   # What the binaries link is permissively licensed (deny.toml), so
   # teleprompt stays MIT to ship, and has no known vulnerability: the CLI

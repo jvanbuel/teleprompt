@@ -10,7 +10,10 @@ on:
       - apps/fixtures/**
       - docs/api/**
       - crates/teleprompt-cli/src/cmd/prompt*
+      - crates/teleprompt-cli/src/cmd/serve.rs
       - crates/teleprompt-cli/src/cmd/voicing.rs
+      - crates/teleprompt-cli/src/cmd/dub.rs
+      - crates/teleprompt-cli/src/cmd/setup/**
       - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
       - crates/teleprompt-schedule/**
@@ -24,7 +27,10 @@ on:
       - apps/fixtures/**
       - docs/api/**
       - crates/teleprompt-cli/src/cmd/prompt*
+      - crates/teleprompt-cli/src/cmd/serve.rs
       - crates/teleprompt-cli/src/cmd/voicing.rs
+      - crates/teleprompt-cli/src/cmd/dub.rs
+      - crates/teleprompt-cli/src/cmd/setup/**
       - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
       - crates/teleprompt-schedule/**

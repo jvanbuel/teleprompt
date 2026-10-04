@@ -6,13 +6,11 @@ on:
     branches: [main]
     paths:
       - apps/macos/**
-      - apps/fixtures/**
       - docs/api/**
       - .github/workflows/macos.yml
   pull_request:
     paths:
       - apps/macos/**
-      - apps/fixtures/**
       - docs/api/**
       - .github/workflows/macos.yml
 
