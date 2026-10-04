@@ -1,6 +1,6 @@
 //! The second seam `from` was agreed at: a drafted script is a script.
 //!
-//! The unit tests in `teleprompt-core` check what the draft *says*. This
+//! The unit tests in `teleprompt-derive` check what the draft *says*. This
 //! checks that what it says survives the command an author runs next — with
 //! the adapters this build actually ships, which is why it lives here and
 //! not beside the drafting code.
@@ -8,8 +8,8 @@
 use std::path::PathBuf;
 
 use teleprompt_cli::cmd::check::run_check;
-use teleprompt_cli::draft::draft;
 use teleprompt_cli::project::Project;
+use teleprompt_derive::document::draft;
 
 const README: &str = "\
 # Acme
@@ -87,7 +87,7 @@ fn a_document_that_opens_with_prose_still_compiles() {
 /// cast and on their lines, the labels not said, and nothing to fix.
 #[test]
 fn a_drafted_transcript_passes_check_and_casts_its_speakers() {
-    use teleprompt_cli::transcript::{draft_transcript, turns, Format};
+    use teleprompt_derive::transcript::{draft_transcript, turns, Format};
     let vtt = "WEBVTT\n\n\
         00:00:00.000 --> 00:00:02.000\n<v Ada Lovelace>The engine weaves algebraic patterns.\n\n\
         00:00:02.000 --> 00:00:04.000\n<v Charles Babbage>Just as the loom weaves flowers.\n\n\

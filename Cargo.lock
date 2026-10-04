@@ -1995,6 +1995,7 @@ name = "teleprompt-derive"
 version = "0.1.0"
 dependencies = [
  "teleprompt-core",
+ "teleprompt-listen",
 ]
 
 [[package]]

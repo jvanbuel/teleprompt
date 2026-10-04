@@ -1,4 +1,5 @@
-//! Drafting a teleprompt script from an existing Markdown document.
+//! Drafting a teleprompt script from an existing Markdown document or
+//! Slidev deck.
 
 use std::collections::BTreeMap;
 

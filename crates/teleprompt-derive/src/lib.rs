@@ -5,10 +5,16 @@
 //! Pure: the caller reads the recording, as the adapter that made it
 //! does, and transcribes the voice. A block names a run of steps; the
 //! script includes that part of the recording.
+//!
+//! A script is also drafted from what already exists: a Markdown document
+//! or a Slidev deck's speaker notes ([`document`]), or the transcript of a
+//! conversation ([`transcript`]).
 
 mod beats;
+pub mod document;
 mod markdown;
 mod punctuate;
+pub mod transcript;
 
 pub use beats::{derive, Beat, Block, Line, Mode};
 pub use punctuate::punctuate;

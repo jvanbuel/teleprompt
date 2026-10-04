@@ -1,5 +1,5 @@
 //! `teleprompt from <doc>`: the file handling around
-//! [`crate::draft`], which does the drafting and holds its tests.
+//! `teleprompt_derive::document` and `::transcript`, which do the drafting.
 
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -10,10 +10,10 @@ use teleprompt_voice::Pcm;
 
 use crate::cmd::check::{compile_script, source_locale};
 use crate::cmd::import::{cut_takes, read_voice};
-use crate::draft::{draft, draft_slidev};
 use crate::project::Project;
-use crate::transcript::{conversation, draft_transcript, turns, Format, Turn};
 use serde::Serialize;
+use teleprompt_derive::document::{draft, draft_slidev};
+use teleprompt_derive::transcript::{conversation, draft_transcript, turns, Format, Turn};
 
 /// The stable, typed shape of `from`'s output in both formats.
 #[derive(Debug, Serialize)]

@@ -45,7 +45,9 @@ ALLOWED = {
     "macos": ADAPTER | {"desktop"},
     "translate": {"core"},
     "listen": set(),
-    "derive": set(),
+    # Ids and speaker names are the script's; who speaks when is what a
+    # recognizer hears.
+    "derive": {"core", "listen"},
     "listen-sherpa": {"listen"},
     "prompter": {"core", "compile", "listen", "voice"},
     # The protocol and the text; the compile reaches it through a trait

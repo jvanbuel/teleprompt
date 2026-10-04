@@ -9,7 +9,7 @@ use teleprompt_core::ast::slugify;
 use teleprompt_core::attrs::is_speaker_name;
 use teleprompt_listen::SpeakerSpan;
 
-use crate::draft::{id_for, unique};
+use crate::document::{id_for, unique};
 
 /// Words past which a turn read from captions goes on in another line,
 /// from the next cue that ends a sentence.

@@ -6,10 +6,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-
-[dev-dependencies]
-# What this crate writes must be a script the compiler reads.
 teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-listen = { path = "../teleprompt-listen" }
 
 [lints]
 workspace = true

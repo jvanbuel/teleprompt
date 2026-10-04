@@ -179,7 +179,7 @@ reading the manifest it just published.
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
 | `teleprompt-listen-sherpa` | the recognizer, a streaming sherpa-onnx model; empty without its opt-in `sherpa` feature, so the default build stays offline |
-| `teleprompt-derive` | deriving a script from a recorded session: when each step began and timed words in, lines and the blocks between them out. Pure, no dependencies |
+| `teleprompt-derive` | drafting a script: from a recorded session (when each step began and timed words in, lines and the blocks between them out), a Markdown document, a Slidev deck's notes, or a conversation's transcript. Pure: no IO |
 | `teleprompt-translate` | translation providers for `translate`, chosen by name: a local model through Ollama (the default), any OpenAI-compatible server, Claude, and a command of the author's; the request each is sent and the prompt the model-backed ones share |
 | `teleprompt-lsp` | the language server: the protocol, positions and completion; what a script compiles to comes from an `Analyzer` the CLI implements, so it depends on core alone |
 | `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
