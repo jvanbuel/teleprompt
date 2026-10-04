@@ -9,12 +9,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 use teleprompt_cache::VoiceCache;
-use teleprompt_compile::publish::{self, LineAudio, Published};
+use teleprompt_compile::publish::Published;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_manifest::NarrationManifest;
 use teleprompt_plugin::voice::VoiceBackend;
-use teleprompt_voice::takes::Takes;
 
+use crate::cmd::dub::{self, DubError};
 use crate::project::Project;
 
 /// A script's voice, compiled afresh each time it is described, since a
@@ -106,30 +106,24 @@ impl Voicing {
     /// the one last made, and why only if there is none.
     pub fn manifest(&self) -> Result<NarrationManifest, Vec<String>> {
         let backends = self.project.backends();
-        let compile = || {
-            self.project
-                .compile_with(&backends, &self.script, &self.locale)
+        let voiced = self.runtime().map_err(|e| vec![e])?.block_on(dub::voice(
+            &backends,
+            &self.project,
+            &self.script,
+            &self.locale,
+        ));
+        let published = match voiced {
+            Ok(voiced) => voiced.published,
+            Err(e) => {
+                let last = lock(&self.published).as_ref().map(|p| p.manifest.clone());
+                return match (e, last) {
+                    // A script that no longer compiles keeps playing as it last did.
+                    (DubError::Validation(_), Some(last)) => Ok(last),
+                    (DubError::Validation(errors), None) => Err(errors),
+                    (DubError::Runtime(e), _) => Err(vec![e]),
+                };
+            }
         };
-        let last = || lock(&self.published).as_ref().map(|p| p.manifest.clone());
-        let (compiled, backend) = match compile() {
-            Ok(compiled) => compiled,
-            Err(errors) => return last().ok_or(errors),
-        };
-        let voices = backends
-            .voices(&backend, &compiled.narration)
-            .map_err(|e| vec![e])?;
-        let synthesized = self
-            .runtime()
-            .map_err(|e| vec![e])?
-            .block_on(voiced(&voices, &self.cache(), &compiled.narration))
-            .map_err(|e| vec![e])?;
-        let takes = Takes::load(&self.project.takes_dir()).map_err(|e| vec![e.to_string()])?;
-        let audio =
-            publish::with_takes(&compiled.narration, synthesized, &takes).map_err(|e| vec![e])?;
-        // Compiled again, as `dub` does: the first pass read durations from
-        // a cache not yet filled.
-        let (compiled, _) = compile()?;
-        let published = publish::publish(&compiled, audio).map_err(|e| vec![e])?;
         let manifest = published.manifest.clone();
         *lock(&self.published) = Some(published);
         Ok(manifest)
@@ -221,8 +215,7 @@ impl Voicing {
             .voices
             .get(&line.backend)
             .ok_or_else(|| format!("line `{id}`: no voice backend `{}`", line.backend))?;
-        let stored =
-            runtime.block_on(crate::cmd::dub::synthesize_and_store(backend, &cache, line))?;
+        let stored = runtime.block_on(dub::synthesize_and_store(backend, &cache, line))?;
         Ok(Some(stored.wav))
     }
 }
@@ -239,40 +232,6 @@ pub struct Description {
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// The audio of every line without a take, in document order: from the
-/// voice cache, or synthesized into it now, one after another.
-async fn voiced(
-    voices: &crate::voice::Voices,
-    cache: &VoiceCache,
-    narration: &[NarrationDetail],
-) -> Result<Vec<LineAudio>, String> {
-    let mut audio = Vec::new();
-    for detail in narration.iter().filter(|d| d.take.is_none()) {
-        let failed = |e: &dyn std::fmt::Display| format!("line `{}`: {e}", detail.line_id);
-        let cached = match cache
-            .lookup(&detail.cache_key)
-            .map_err(|e| failed(&e))?
-            .hit()
-        {
-            Some(hit) => hit,
-            None => {
-                let backend = voices
-                    .get(&detail.backend)
-                    .ok_or_else(|| failed(&format!("no voice backend `{}`", detail.backend)))?;
-                crate::cmd::dub::synthesize_and_store(backend, cache, detail).await?
-            }
-        };
-        audio.push(LineAudio {
-            line_id: detail.line_id.clone(),
-            wav: cached.wav,
-            duration_ms: cached.duration_ms,
-            sample_rate: cached.sample_rate,
-            channels: cached.channels,
-        });
-    }
-    Ok(audio)
 }
 
 /// The scheduler's plan as a prompter draws it on the glass: each line

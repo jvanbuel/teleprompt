@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use teleprompt_cache::{CachedAudio, VoiceCache};
-use teleprompt_compile::publish::{self, LineAudio};
+use teleprompt_compile::publish::{self, LineAudio, Published};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
 use teleprompt_core::{LineId, SpanMs};
@@ -188,6 +188,47 @@ pub async fn run_dub_with(
     out_root: &Path,
     check_only: bool,
 ) -> Result<DubOutput, DubError> {
+    let Voiced {
+        compiled,
+        published,
+        warnings,
+    } = voice(backends, project, script, locale).await?;
+    let built = published.manifest.clone();
+    let (written, drift) = if check_only {
+        (
+            Vec::new(),
+            Some(drift_from_committed(out_root, locale, &built)?),
+        )
+    } else {
+        (write_output(out_root, locale, &published)?, None)
+    };
+    Ok(DubOutput {
+        manifest: built,
+        shots: compiled.shots,
+        scenes: compiled.scenes,
+        output: compiled.output,
+        written,
+        warnings,
+        drift,
+    })
+}
+
+/// A script voiced: every line's audio made or read from its take, and
+/// the manifest that publishes it.
+pub(crate) struct Voiced {
+    pub compiled: teleprompt_compile::CompileOutput,
+    pub published: Published,
+    pub warnings: Vec<String>,
+}
+
+/// Voices the script, what `dub` does short of writing it out, and what
+/// the prompter plays.
+pub(crate) async fn voice(
+    backends: &Backends,
+    project: &Project,
+    script: &Path,
+    locale: &str,
+) -> Result<Voiced, DubError> {
     // Synthesize only with the backend the keys were computed from; see
     // `Project::compile_with`.
     let (compiled, backend) = project
@@ -210,7 +251,9 @@ pub async fn run_dub_with(
         .cloned()
         .collect();
     let rendered = render_all(&voices, &cache, &synthesized, limit).await?;
-    let cache_warnings: Vec<String> = rendered
+    // The re-render notices come first: they explain why anything below them
+    // is being recomputed at all.
+    let mut warnings: Vec<String> = rendered
         .iter()
         .filter_map(|r| {
             Some(format!(
@@ -231,29 +274,11 @@ pub async fn run_dub_with(
         .compile_with(backends, script, locale)
         .map_err(DubError::Validation)?;
     let published = publish::publish(&compiled, audio).map_err(DubError::Runtime)?;
-    let built = published.manifest.clone();
-
-    // The re-render notices come first: they explain why anything below them
-    // is being recomputed at all.
-    let mut warnings = cache_warnings;
     warnings.extend(compiled.warnings.iter().cloned());
-
-    let (written, drift) = if check_only {
-        (
-            Vec::new(),
-            Some(drift_from_committed(out_root, locale, &built)?),
-        )
-    } else {
-        (write_output(out_root, locale, &published)?, None)
-    };
-    Ok(DubOutput {
-        manifest: built,
-        shots: compiled.shots.clone(),
-        scenes: compiled.scenes.clone(),
-        output: compiled.output.clone(),
-        written,
+    Ok(Voiced {
+        compiled,
+        published,
         warnings,
-        drift,
     })
 }
 
