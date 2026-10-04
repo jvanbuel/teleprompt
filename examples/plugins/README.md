@@ -18,4 +18,4 @@ directory, and check that teleprompt finds them:
 Then a block can say `scene=card`, and `teleprompt.toml` can say
 `[voice] backend = "espeak"`. The tests in `crates/teleprompt-plugin`
 and `crates/teleprompt-cli` run them, so they stay in step with the
-protocol.
+protocol, and `examples/plugin-authors` is a video made with both.

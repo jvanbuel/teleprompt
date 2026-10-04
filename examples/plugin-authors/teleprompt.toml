@@ -1,0 +1,42 @@
+# A narrated video for plugin authors, made with the plugins it explains:
+# its cards are drawn by the card adapter in examples/plugins, and one of
+# its lines is spoken by the eSpeak voice there. The terminal session was
+# recorded once, with asciinema.
+#
+# Run from the repository root, with the example plugins on PATH, agg
+# (https://github.com/asciinema/agg) and espeak-ng installed, and
+# Kokoro-FastAPI listening on base_url:
+#
+#   PATH="$PWD/examples/plugins:$PATH" \
+#     cargo run -- build examples/plugin-authors/scripts/plugins.md
+#
+# `check` and `plan` need the plugins on PATH, and nothing else.
+[locales]
+source = "en"
+targets = []
+
+[voice]
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[voice.pronounce]
+JSON = "jason"
+eSpeak = "ee speak"
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 60000
+concurrency = 2
+
+[backends.espeak]
+wpm = 165
+
+# The one line the eSpeak plugin says.
+[voices.espeak]
+backend = "espeak"
+voice = "en-us"
+
+[scene.asciinema]
+theme = "dracula"
+font_size = 32

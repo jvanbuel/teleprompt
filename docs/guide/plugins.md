@@ -23,6 +23,10 @@ A plugin ships in one of two ways:
 `teleprompt plugins` lists the plugins installed as programs, asks each
 what it is, and says why one cannot be used.
 
+`examples/plugin-authors` is a short video about all of this, made with
+the two example plugins: its cards are drawn by the card adapter, and one
+of its lines is spoken by the eSpeak voice.
+
 ## The contracts
 
 `teleprompt-plugin` has one module per contract:
