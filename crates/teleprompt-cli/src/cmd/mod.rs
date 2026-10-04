@@ -9,7 +9,6 @@ pub mod import;
 pub mod lsp;
 pub mod new;
 pub mod plan;
-#[cfg(unix)]
 pub mod record;
 pub mod serve;
 pub mod setup;

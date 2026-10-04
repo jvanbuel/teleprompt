@@ -1,4 +1,5 @@
 pub mod ask;
+pub mod cli;
 pub mod cmd;
 pub mod listening;
 pub mod loopback;

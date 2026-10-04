@@ -250,6 +250,37 @@ pub async fn capture_script(
     ))
 }
 
+/// `capture`'s arguments.
+#[derive(clap::Args)]
+pub struct Args {
+    #[command(flatten)]
+    pub script: crate::cli::ScriptArgs,
+    #[command(flatten)]
+    pub frame: crate::cli::FrameArgs,
+}
+
+pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
+    let project = args.script.project()?;
+    let mut progress = |p: teleprompt_capture::Progress| {
+        crate::output::progress(
+            "capture",
+            || format!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot),
+            serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
+        );
+    };
+    let report = crate::cli::runtime()?.block_on(capture_script(
+        &project,
+        &args.script.script,
+        &args.script.locale(&project),
+        args.frame.resolution,
+        args.frame.fps,
+        &mut progress,
+    ))?;
+    crate::cli::warn(&report.warnings);
+    crate::cli::emit(format, &report, &report.render());
+    Ok(crate::output::Outcome::Ok)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

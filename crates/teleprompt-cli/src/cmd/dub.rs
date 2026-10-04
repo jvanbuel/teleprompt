@@ -511,3 +511,42 @@ impl From<DubError> for crate::output::Outcome {
         }
     }
 }
+
+/// `dub`'s arguments.
+#[derive(clap::Args)]
+pub struct Args {
+    #[command(flatten)]
+    pub script: crate::cli::ScriptArgs,
+    /// Output root; one self-contained directory is written per locale
+    #[arg(long)]
+    pub out: PathBuf,
+    /// Compare against the manifest on disk; exit 3 on drift. Leaves
+    /// `--out` untouched, but still synthesizes whatever is not already
+    /// cached and writes it to the content-addressed cache — that is
+    /// what the comparison measures against
+    #[arg(long)]
+    pub check: bool,
+}
+
+pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
+    use crate::output::Outcome;
+    let project = args.script.project()?;
+    let locale = args.script.locale(&project);
+    let result = crate::cli::runtime()?.block_on(run_dub(
+        &project,
+        &args.script.script,
+        &locale,
+        &args.out,
+        args.check,
+    ))?;
+    crate::cli::warn(&result.warnings);
+    match &result.drift {
+        Some(d) => crate::cli::emit_ok(format, d, &d.render(), d.is_empty()),
+        None => crate::cli::emit_data(format, &result.manifest, &render_dub(&result)),
+    }
+    Ok(if result.drift.as_ref().is_some_and(|d| !d.is_empty()) {
+        Outcome::Drift
+    } else {
+        Outcome::Ok
+    })
+}

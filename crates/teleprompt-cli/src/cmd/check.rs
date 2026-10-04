@@ -31,6 +31,38 @@ pub struct CheckReport {
     pub errors: Vec<String>,
 }
 
+/// `check` reports its own failure: its JSON report has room for the errors.
+pub fn run(args: crate::cli::ScriptArgs, format: crate::output::Format) -> crate::cli::Run {
+    use crate::output::{Format, Outcome};
+    let project = args.project()?;
+    match run_check(&project, &args.script, &args.locale(&project)) {
+        Ok(warnings) => {
+            crate::cli::warn(&warnings);
+            let report = CheckReport {
+                ok: true,
+                warnings,
+                errors: Vec::new(),
+            };
+            crate::cli::emit(format, &report, "ok\n");
+            Ok(Outcome::Ok)
+        }
+        Err(errors) => {
+            match format {
+                Format::Json => {
+                    let report = CheckReport {
+                        ok: false,
+                        warnings: Vec::new(),
+                        errors: errors.clone(),
+                    };
+                    println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                }
+                Format::Human => crate::cli::print_errors(&errors),
+            }
+            Ok(Outcome::ValidationError(errors))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

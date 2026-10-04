@@ -846,3 +846,43 @@ fn samples(body: &[u8]) -> Vec<f32> {
         .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
         .collect()
 }
+
+/// `serve`'s arguments.
+#[derive(clap::Args)]
+pub struct Args {
+    #[command(flatten)]
+    pub script: crate::cli::ScriptArgs,
+    /// Port to listen on; 0 picks a free one
+    #[arg(long, default_value_t = 7879)]
+    pub port: u16,
+    /// Directory of an unpacked sherpa-onnx streaming zipformer model;
+    /// defaults to the one `teleprompt setup speech-model` installed
+    #[arg(long)]
+    pub model: Option<PathBuf>,
+    /// Read the script with its voice instead of following yours:
+    /// needs no speech model, in any build
+    #[arg(long, conflicts_with = "model")]
+    pub voice: bool,
+}
+
+/// `serve`, following the reader by ear with the speech model named or
+/// installed, or with `--voice`, reading the script with its voice.
+pub fn run(args: Args, format: Format) -> crate::cli::Run {
+    let project = args.script.project()?;
+    let model = (!args.voice).then(|| {
+        args.model
+            .or_else(|| crate::cmd::setup::speech_model(None).ok())
+    });
+    run_serve(
+        &project,
+        &args.script.script,
+        &args.script.locale(&project),
+        args.port,
+        match &model {
+            Some(model) => Ear::Model(model.as_deref()),
+            None => Ear::Voice,
+        },
+        format,
+    )?;
+    Ok(Outcome::Ok)
+}

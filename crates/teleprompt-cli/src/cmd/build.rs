@@ -358,6 +358,93 @@ impl From<BuildError> for crate::output::Outcome {
     }
 }
 
+/// `build`'s arguments.
+#[derive(clap::Args)]
+pub struct Args {
+    #[command(flatten)]
+    pub script: crate::cli::ScriptArgs,
+    /// Where to write the video; defaults to build/<script>.<locale>.mp4 in the project
+    #[arg(long)]
+    pub out: Option<PathBuf>,
+    #[command(flatten)]
+    pub frame: crate::cli::FrameArgs,
+    /// Re-encode every frame instead of reusing cached ones
+    #[arg(long)]
+    pub no_cache: bool,
+    /// Megabytes of encoded video to keep afterwards; 0 keeps nothing
+    #[arg(long)]
+    pub cache_max_mb: Option<u64>,
+}
+
+pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
+    let project = args.script.project()?;
+    let locale = args.script.locale(&project);
+    let mut options = BuildOptions::defaults(&project, &args.script.script, &locale);
+    if let Some(path) = args.out {
+        options.out = path;
+    }
+    if args.frame.resolution.is_some() {
+        options.resolution = args.frame.resolution;
+    }
+    options.fps = args.frame.fps.or(options.fps);
+    if args.no_cache {
+        options.compose_dir = None;
+    }
+    options.cache_max_mb = args.cache_max_mb.unwrap_or(options.cache_max_mb);
+
+    let mut show = progress_reporter(format);
+    let renderer = renderer(&options);
+    let report = crate::cli::runtime()?.block_on(run_build_with(
+        &renderer,
+        &project,
+        &args.script.script,
+        &locale,
+        &options,
+        &mut show,
+    ))?;
+    crate::cli::warn(&report.warnings);
+    crate::cli::emit(format, &report, &report.render());
+    Ok(crate::output::Outcome::Ok)
+}
+
+/// A render's progress, each percent of it: to a human at a terminal as a
+/// line that rewrites itself with a carriage return, which a log cannot
+/// take; with `--format json`, as progress events.
+fn progress_reporter(format: crate::output::Format) -> impl FnMut(teleprompt_render::Progress) {
+    use crate::output::Format;
+    use std::io::{IsTerminal, Write};
+
+    let show = format == Format::Human && std::io::stderr().is_terminal();
+    let mut last = u64::MAX;
+    move |p: teleprompt_render::Progress| {
+        if p.of_ms == 0 {
+            return;
+        }
+        let percent = (p.rendered_ms.min(p.of_ms) * 100) / p.of_ms;
+        if percent == last {
+            return;
+        }
+        last = percent;
+        if format == Format::Json {
+            crate::output::progress(
+                "render",
+                String::new,
+                serde_json::json!({ "done_ms": p.rendered_ms.min(p.of_ms), "of_ms": p.of_ms }),
+            );
+            return;
+        }
+        if !show {
+            return;
+        }
+        let mut err = std::io::stderr();
+        let _ = write!(err, "\r  rendering  {percent:>3}%");
+        if percent == 100 {
+            let _ = writeln!(err);
+        }
+        let _ = err.flush();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
