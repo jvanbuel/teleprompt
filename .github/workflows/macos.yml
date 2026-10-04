@@ -22,6 +22,9 @@ concurrency:
 jobs:
   app:
     runs-on: macos-15
+    # A macOS minute counts as ten against the account's allowance; the
+    # build and tests take about three.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Build and test the app
