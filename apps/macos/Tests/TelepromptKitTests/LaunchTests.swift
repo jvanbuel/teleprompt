@@ -9,7 +9,7 @@ final class LaunchTests: XCTestCase {
             model: URL(fileURLWithPath: "/models/zipformer")
         )
         XCTAssertEqual(request.arguments, [
-            "--format", "json", "prompt", "/p/scripts/tour.md", "--locale", "en",
+            "--format", "json", "serve", "/p/scripts/tour.md", "--locale", "en",
             "--port", "0", "--model", "/models/zipformer",
         ])
     }

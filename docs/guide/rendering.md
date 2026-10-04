@@ -138,7 +138,7 @@ writable checkout.
 ## Watching an edit
 
 ```bash
-teleprompt prompt --voice scripts/tour.md
+teleprompt serve --voice scripts/tour.md
 ```
 
 Press V on the prompter to play the video as it will play: every line at

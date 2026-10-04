@@ -57,14 +57,14 @@ And now the file.
 An asciinema part is played back exactly as it was recorded; a VHS or
 Playwright part runs again when the video is built. Editing a line leaves
 its take behind, and the line is synthesized until you record it again
-with [`prompt`](prompter.md). Editing the recording, or where a block's
+with [`serve`](prompter.md). Editing the recording, or where a block's
 `include=` points, changes nothing about the voice. The raw recordings and
 `voice.wav` are kept under `.teleprompt/traces/`, which is not committed.
 
 ## What it needs
 
 - A build with the recognizer and a speech model, set up as for
-  [`prompt`](prompter.md#setting-it-up).
+  [`serve`](prompter.md#setting-it-up).
 - The tool you record with: [asciinema](https://asciinema.org) 2 or 3,
   [VHS](https://github.com/charmbracelet/vhs), or Playwright (found with
   `npx`). `teleprompt setup asciinema` (or `vhs`, `playwright`) says what is

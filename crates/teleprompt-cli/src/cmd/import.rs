@@ -57,7 +57,7 @@ impl ImportReport {
         format!(
             "drafted {} from the session: {} line(s), {} block(s) of {}, {} take(s) recorded\n  \
              the prose is what was said, verbatim: edit it, then record the lines you \
-             change again with `teleprompt prompt`\n",
+             change again with `teleprompt serve`\n",
             self.created.display(),
             self.lines,
             self.blocks,

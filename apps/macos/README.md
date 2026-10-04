@@ -4,7 +4,7 @@ Teleprompt's prompter in a window of its own. Open a script and read: the
 text follows your voice, each shot plays as you reach it, and every line
 you read in full is kept as that line's take.
 
-The prompter is the page `teleprompt prompt` serves, the same page a
+The prompter is the page `teleprompt serve` serves, the same page a
 browser shows. The app launches the server itself, shows its page in
 WebKit, gives it the microphone (macOS asks you first), and opens its
 screen in a second window when it asks. Around it the app has a welcome

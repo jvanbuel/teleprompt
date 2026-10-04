@@ -19,7 +19,7 @@ path = "src/main.rs"
 gtk = { version = "0.9", package = "gtk4", features = ["v4_14"] }
 adw = { version = "0.7", package = "libadwaita", features = ["v1_5"] }
 resvg = { version = "0.48", default-features = false }
-# The prompter is the page `teleprompt prompt` serves, shown in WebKit.
+# The prompter is the page `teleprompt serve` serves, shown in WebKit.
 webkit = { version = "0.4", package = "webkit6", features = ["v2_42"] }
 async-channel = "2"
 # Session mode's terminal: `teleprompt record` runs in it.

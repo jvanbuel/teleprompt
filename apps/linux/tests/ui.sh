@@ -1,6 +1,6 @@
 #!/bin/bash
 # The app itself, driven like a person would under a virtual X display. The
-# prompter is the page `teleprompt prompt` serves, tested on its own in a
+# prompter is the page `teleprompt serve` serves, tested on its own in a
 # browser (crates/teleprompt-cli/tests/page); this tests what the app adds
 # around it: it launches the server and shows its page, gives the page the
 # microphone (WebKit's own, which hears a tone), passes the record key to

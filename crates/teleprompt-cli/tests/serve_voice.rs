@@ -1,4 +1,4 @@
-//! `teleprompt prompt --voice`: a script read by its voice rather than
+//! `teleprompt serve --voice`: a script read by its voice rather than
 //! followed by ear. Runs in any build, without a speech model; the script
 //! says how each line sounds, a line's audio is made when asked for, and
 //! a line can be reworded or told how to sound over the session socket.
@@ -41,7 +41,7 @@ fn voiced_script(tag: &str, name: &str, source: Option<&str>) -> Served {
         .args([
             "--format",
             "json",
-            "prompt",
+            "serve",
             script.as_str(),
             "--voice",
             "--port",

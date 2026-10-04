@@ -380,7 +380,7 @@ static TOOLS: &[Tool] = &[
     },
     Tool {
         name: "speech-model",
-        what: "what `prompt`, `record` and `import` listen with",
+        what: "what `serve`, `record` and `import` listen with",
         license: "Apache-2.0",
         home: "https://github.com/k2-fsa/sherpa-onnx",
         guide: None,

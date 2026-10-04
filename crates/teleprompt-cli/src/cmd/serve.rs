@@ -1,4 +1,4 @@
-//! `teleprompt prompt <script>`: a prompter that follows the reader's voice.
+//! `teleprompt serve <script>`: a prompter that follows the reader's voice.
 //!
 //! The prompter itself is `teleprompt-prompter`; this is its API, version
 //! 1, and the page that drives it: HTTP for the script and clips, and a
@@ -22,7 +22,7 @@ use crate::output::{Format, Outcome};
 use crate::project::Project;
 use teleprompt_core::edit::Edit;
 
-/// The speech model `prompt` is tested with: sherpa-onnx's streaming
+/// The speech model `serve` is tested with: sherpa-onnx's streaming
 /// English zipformer. The smaller 20M model misses the first words of a
 /// stream. teleprompt downloads nothing, so the error naming it says where
 /// to get it.
@@ -52,7 +52,7 @@ pub enum Ear<'a> {
 
 /// Serves a prompter for `script`'s narration on loopback, following the
 /// reader with the speech model in `ear`, or reading it with its voice.
-pub fn run_prompt(
+pub fn run_serve(
     project: &Project,
     script: &std::path::Path,
     locale: &str,
@@ -83,7 +83,7 @@ fn recognizer(
 ) -> Result<teleprompt_listen_sherpa::SherpaRecognizer, PromptError> {
     let dir = model.ok_or_else(|| {
         PromptError::Runtime(format!(
-            "`prompt` needs a speech model: `teleprompt setup speech-model` installs \
+            "`serve` needs a speech model: `teleprompt setup speech-model` installs \
              one, or download and unpack {MODEL} and pass its directory with --model"
         ))
     })?;
@@ -349,7 +349,7 @@ pub(crate) const ICON_PATH: &str = "/icon.svg";
 
 const PAGE: &str = include_str!("prompt.html");
 
-/// Serves `prompt` on `listener` until the process ends: the page, and
+/// Serves `serve` on `listener` until the process ends: the page, and
 /// the [`Session`] as API version 1 (`docs/design.md#prompter-api-version-1`):
 /// `GET /api/v1/script`, `GET /api/v1/clips/<key>.mp4`, and the session as
 /// a WebSocket at `GET /api/v1/session`.

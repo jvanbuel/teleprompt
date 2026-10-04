@@ -1,7 +1,7 @@
 //! A script edited while it is read: the prompter reloads it, shots moved
 //! and lines reworded alike.
 
-use teleprompt_cli::cmd::prompt::{edits_of, reload_on_edit};
+use teleprompt_cli::cmd::serve::{edits_of, reload_on_edit};
 use teleprompt_cli::project::Project;
 
 #[test]

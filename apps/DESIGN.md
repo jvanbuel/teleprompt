@@ -1,6 +1,6 @@
 # The prompter's design
 
-The prompter is one page, the one `teleprompt prompt` serves, in a browser
+The prompter is one page, the one `teleprompt serve` serves, in a browser
 or in the apps (`apps/linux`, `apps/macos`), which show it in a window of
 their own. What the apps draw around it, a welcome page, settings and
 setup, takes the same tokens and typeface.

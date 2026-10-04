@@ -53,7 +53,7 @@ pub async fn run_clone(
     if usable.is_empty() {
         return Err(format!(
             "no takes of {} s or longer to clone a voice from: record some lines first, \
-             with `teleprompt prompt` or the app",
+             with `teleprompt serve` or the app",
             SHORTEST_MS / 1000
         ));
     }

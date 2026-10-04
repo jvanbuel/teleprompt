@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import WebKit
 
-/// The prompter: the page `teleprompt prompt` serves, in WebKit. The page
+/// The prompter: the page `teleprompt serve` serves, in WebKit. The page
 /// does the prompting; this gives it the microphone, and nothing else, and
 /// opens its screen in a window of its own when it asks.
 struct PrompterPage: NSViewRepresentable {

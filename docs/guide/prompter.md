@@ -2,14 +2,14 @@
 
 ![The prompter mid-take: the next word in amber on the reading line, the shot playing in the monitor, the rundown, and the tally bar.](../images/prompter.png)
 
-`teleprompt prompt <script>` shows the script's narration as a prompter that
+`teleprompt serve <script>` shows the script's narration as a prompter that
 follows your voice. It listens through the microphone, works out where you
 are by matching what a local speech model hears against the script, and
 keeps the next word highlighted a third of the way down the screen. Nothing
 you say leaves the machine.
 
 It is one page, in a browser or in an app: `apps/linux` and `apps/macos`
-launch `teleprompt prompt` themselves and show the same page in a window of
+launch `teleprompt serve` themselves and show the same page in a window of
 their own, with a welcome page, settings and setup around it. Their READMEs
 say how to build them. To follow your voice, all of them need the
 recognizer and the model below.
@@ -42,7 +42,7 @@ each use with what it still needs and how much it downloads, as
 
 That is sherpa-onnx's streaming English model (Apache-2.0), unpacked into
 `~/.local/share/teleprompt/models` (or `$TELEPROMPT_MODELS`), where
-`prompt`, `record` and `import` find it. Without `--run`, `setup` prints the
+`serve`, `record` and `import` find it. Without `--run`, `setup` prints the
 command instead. To keep a model elsewhere, download and unpack it yourself
 and pass its directory with `--model`. The smaller 20M model is cheaper but
 misses the first words of a take.
@@ -50,7 +50,7 @@ misses the first words of a take.
 ## Reading
 
 ```bash
-teleprompt prompt scripts/tour.md
+teleprompt serve scripts/tour.md
 ```
 
 Open the address it prints, press Ctrl+Shift+Space (⌘⇧Space on a Mac) to
@@ -132,12 +132,12 @@ the script back as it was before it.
 
 ## Letting a voice read it
 
-You don't have to narrate. `teleprompt prompt --voice` reads the script
+You don't have to narrate. `teleprompt serve --voice` reads the script
 with its voice (the `[voice]` in `teleprompt.toml`) instead of following
 yours, and needs no recognizer or speech model, in any build:
 
 ```bash
-teleprompt prompt --voice scripts/tour.md
+teleprompt serve --voice scripts/tour.md
 ```
 
 Open the address it prints. In the apps, choose **A voice reads** under

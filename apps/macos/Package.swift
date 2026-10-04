@@ -9,7 +9,7 @@ let package = Package(
         .library(name: "TelepromptKit", targets: ["TelepromptKit"]),
     ],
     targets: [
-        // Launching `teleprompt prompt`, and setting teleprompt up through
+        // Launching `teleprompt serve`, and setting teleprompt up through
         // it. Foundation only, so it builds and is tested on Linux too.
         .target(name: "TelepromptKit"),
         // The macOS app: SwiftUI around the prompter page, in WebKit.

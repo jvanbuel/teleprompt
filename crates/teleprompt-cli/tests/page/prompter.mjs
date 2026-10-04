@@ -1,5 +1,5 @@
 // The prompter page, driven as a person would in Chromium, against a real
-// `teleprompt prompt` following a recorded reading of apps/fixtures/tour,
+// `teleprompt serve` following a recorded reading of apps/fixtures/tour,
 // which Chromium plays as its microphone. It records a take, plays the
 // video as it will play, drags the shots on the glass and undoes a drag,
 // builds the video, and re-records a line reworded in the file, keeping
@@ -52,9 +52,9 @@ const check = (ok, said, why = "") => {
   if (!ok) failed = 1;
 };
 
-/** `teleprompt prompt` on a port the OS picks, and where it listens. */
+/** `teleprompt serve` on a port the OS picks, and where it listens. */
 async function serve() {
-  const server = spawn(bin, ["--format", "json", "prompt", "scripts/tour.md", "--model", model, "--port", "0"],
+  const server = spawn(bin, ["--format", "json", "serve", "scripts/tour.md", "--model", model, "--port", "0"],
     { cwd: project, stdio: ["ignore", "pipe", "inherit"] });
   const [line] = await createInterface({ input: server.stdout })[Symbol.asyncIterator]().next()
     .then(({ value }) => [value]);

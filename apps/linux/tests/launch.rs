@@ -24,7 +24,7 @@ fn the_command_asks_for_json_and_a_free_port() {
         [
             "--format",
             "json",
-            "prompt",
+            "serve",
             "/p/scripts/tour.md",
             "--locale",
             "en",

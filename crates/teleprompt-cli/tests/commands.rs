@@ -453,10 +453,9 @@ fn plan_check_exits_3_on_drift_and_0_once_committed() {
 fn a_removed_command_names_its_replacement() {
     for (args, instead) in [
         (&["diff", "demo.md", "--exit-code"][..], "plan --check"),
-        (&["serve", "demo.md", "--port", "0"][..], "prompt --voice"),
         (&["doctor"][..], "setup"),
         (&["from", "README.md"][..], "import"),
-        (&["prompt", "demo.md", "--preview"][..], "prompt --voice"),
+        (&["prompt", "demo.md", "--voice"][..], "serve"),
     ] {
         let out = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
             .args(args)

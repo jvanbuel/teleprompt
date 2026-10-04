@@ -426,4 +426,4 @@ which is how the video names them, then read the draft through: the
 transcription will have misheard some words, and `edit keep` keeps the
 takes of the lines you correct. Without the speaker models every line is
 the narrator's, and `import` says so. This needs the build with speech
-models (`--features listen`), as `prompt` and `import` do.
+models (`--features listen`), as `serve` and `import` do.

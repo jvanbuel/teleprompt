@@ -13,7 +13,7 @@ path = "src/lib.rs"
 name = "teleprompt"
 path = "src/main.rs"
 
-# `teleprompt prompt`'s speech recognizer. Opt-in: it downloads a native
+# `teleprompt serve`'s speech recognizer. Opt-in: it downloads a native
 # library when it builds, and the default build stays offline.
 [features]
 listen = ["dep:teleprompt-listen-sherpa", "teleprompt-listen-sherpa/sherpa"]
@@ -59,7 +59,7 @@ serde_yaml.workspace = true
 # is the command reached for when something is broken, so it must not
 # itself wait out a hanging server's full synthesis `timeout_ms`.
 tokio = { workspace = true, features = ["sync", "time"] }
-# `prompt`'s session socket. Blocking, like the rest of its server; only
+# `serve`'s session socket. Blocking, like the rest of its server; only
 # the handshake, no TLS or URL client.
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 
@@ -74,7 +74,7 @@ portable-pty = "0.9"
 [dev-dependencies]
 # The Gemini stub answers audio as base64, as the API does.
 base64.workspace = true
-# A client for `prompt`'s session socket.
+# A client for `serve`'s session socket.
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 teleprompt-testkit = { path = "../teleprompt-testkit" }
 insta.workspace = true

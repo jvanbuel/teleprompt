@@ -1,4 +1,4 @@
-//! `teleprompt prompt`'s API, v1, driven over real sockets with a
+//! `teleprompt serve`'s API, v1, driven over real sockets with a
 //! recognizer that hears what the test says. What the prompter does is
 //! tested in `teleprompt-prompter`; these pin the routes, the socket's
 //! messages and their JSON.
@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use teleprompt_cli::cmd::prompt::prompt_on;
+use teleprompt_cli::cmd::serve::prompt_on;
 use teleprompt_core::{Hash, LineId};
 use teleprompt_listen::{Heard, Position, Recognizer};
 use teleprompt_prompter::{Prompt, ShotCue};
@@ -428,7 +428,7 @@ fn tp_prompt(tag: &str, extra: &[&str]) -> std::process::Output {
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(&dir)
-        .args(["prompt", "scripts/demo.md"])
+        .args(["serve", "scripts/demo.md"])
         .args(extra)
         .output()
         .unwrap()
@@ -638,7 +638,7 @@ fn a_take_discarded_over_the_socket_keeps_nothing() {
 fn the_listening_event_is_the_example() {
     let addr: SocketAddr = "127.0.0.1:7879".parse().unwrap();
     assert_eq!(
-        teleprompt_cli::cmd::prompt::listening_event(addr),
+        teleprompt_cli::cmd::serve::listening_event(addr),
         example("listening.json")
     );
 }
@@ -677,14 +677,14 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
         moved.shots[1].at = Position { line: 0, word: 5 };
         moved
     }));
-    let reload: teleprompt_cli::cmd::prompt::Reload =
+    let reload: teleprompt_cli::cmd::serve::Reload =
         Box::new(move || edited.lock().unwrap().take());
     std::thread::spawn(move || {
-        teleprompt_cli::cmd::prompt::prompt_watching(
+        teleprompt_cli::cmd::serve::prompt_watching(
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
-            Some(teleprompt_cli::cmd::prompt::Edits {
+            Some(teleprompt_cli::cmd::serve::Edits {
                 reload,
                 keep_said: Box::new(|_| Ok(())),
                 edit: Box::new(|_| Ok(())),
@@ -702,9 +702,9 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
     assert_eq!(again["shots"][1]["at"]["word"], 5, "{again}");
 }
 
-/// Serves `prompt` with `keep_said` for the edits, and no reload.
+/// Serves `serve` with `keep_said` for the edits, and no reload.
 fn prompting_with_keep(
-    keep_said: teleprompt_cli::cmd::prompt::KeepSaid,
+    keep_said: teleprompt_cli::cmd::serve::KeepSaid,
 ) -> (SocketAddr, teleprompt_testkit::TestDir) {
     let clips = teleprompt_testkit::test_dir("prompt-keep");
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
@@ -717,7 +717,7 @@ fn prompting_with_keep(
         clips: clips.to_path_buf(),
         takes: clips.join("takes"),
     };
-    let edits = teleprompt_cli::cmd::prompt::Edits {
+    let edits = teleprompt_cli::cmd::serve::Edits {
         reload: Box::new(|| None),
         keep_said,
         edit: Box::new(|_| Ok(())),
@@ -727,7 +727,7 @@ fn prompting_with_keep(
         listens: true,
     };
     std::thread::spawn(move || {
-        teleprompt_cli::cmd::prompt::prompt_watching(
+        teleprompt_cli::cmd::serve::prompt_watching(
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),

@@ -246,7 +246,7 @@ timeline committed from a cold cache drifts on the next dub.
 settings. None of these can reach a backend, so no expression on the
 `check` or `plan` path can call `synthesize`. The boundary is
 structural. `main` is synchronous, and only `dub`, `build`, `capture`,
-`prompt` (for its voice) and `setup` (to ask the voice's server) build a
+`serve` (for its voice) and `setup` (to ask the voice's server) build a
 runtime.
 
 ### Voice cache
@@ -305,9 +305,9 @@ model mishears, so a word a letter off in three, or heard split in two
 said <line>` writes it into the script and gives the take the new words,
 so it stays current: keeping what you said instead of reading it again.
 
-`prompt` records takes. The prompter is `teleprompt-prompter`, a
+`serve` records takes. The prompter is `teleprompt-prompter`, a
 `Session` with typed calls (`start`, `listen`, `stop`, `script`, `clip`);
-`teleprompt prompt` serves it as an API and the page that drives it.
+`teleprompt serve` serves it as an API and the page that drives it.
 **The page is the only prompter.** The apps (`apps/linux`, `apps/macos`)
 show it in WebKit and add what a page cannot have: a window per screen,
 the microphone's permission, a welcome page, settings, setup, and on
@@ -865,7 +865,7 @@ Documents are printed as they are written and carry no `ok`: the timeline
 - `crates/teleprompt-cli/tests/golden.rs` pins `plan` for every example
   project, and every command's failure output and exit code.
 - `crates/teleprompt-cli/tests/page` drives the prompter page in Chromium
-  against a real `teleprompt prompt`, with a recorded reading as the
+  against a real `teleprompt serve`, with a recorded reading as the
   microphone: a take followed and kept, shots dragged and a drag undone, a
   build, a reworded line re-recorded. `apps/linux/tests/ui.sh` drives the
   Linux app around it under a virtual display.
@@ -902,7 +902,7 @@ a video needs comes in three tiers.
    `teleprompt setup <adapter or tool>` says how to install each with the author's own package manager, and its license, and runs
    that command when asked (`--run`). Models go in
    `$TELEPROMPT_MODELS`, by default `teleprompt/models` in the user's data
-   directory, where `prompt`, `record` and `import` look when no
+   directory, where `serve`, `record` and `import` look when no
    `--model` is given. What the author's own project holds, a Remotion
    project or a Kokoro server, `setup` explains rather than installs.
    `setup` is organised by use (render, terminal, browser, prompt,

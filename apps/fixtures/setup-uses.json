@@ -84,7 +84,7 @@
           "license": "Apache-2.0",
           "name": "speech-model",
           "password": false,
-          "what": "what `prompt`, `record` and `import` listen with"
+          "what": "what `serve`, `record` and `import` listen with"
         },
         {
           "command": "mkdir -p /root/.local/share/teleprompt/models && curl -fL -o",

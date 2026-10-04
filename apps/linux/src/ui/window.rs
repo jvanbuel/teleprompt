@@ -1,5 +1,5 @@
 //! The window: the welcome page; the prompter, which is the page
-//! `teleprompt prompt` serves, shown in WebKit; and session mode, a
+//! `teleprompt serve` serves, shown in WebKit; and session mode, a
 //! terminal that `teleprompt record` runs in.
 
 use std::cell::RefCell;
@@ -512,7 +512,7 @@ impl Window {
         }
     }
 
-    /// Launches `teleprompt prompt` for `script`, replacing any server
+    /// Launches `teleprompt serve` for `script`, replacing any server
     /// already running, and shows its page once it listens.
     pub fn open(self: &Rc<Self>, script: PathBuf) {
         self.shutdown();

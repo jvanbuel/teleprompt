@@ -425,7 +425,7 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
-    /// Show the script as a prompter that follows your voice, and play it as the video will
+    /// Serve the script's prompter: it follows your voice, and plays the video as it will be
     ///
     /// Serves a page on loopback that listens through the microphone and
     /// scrolls to where you are reading, by matching what a local speech
@@ -436,7 +436,7 @@ enum Command {
     /// publishes, the artifact an outside consumer reads, so it cannot
     /// drift from what `build` renders. A save while it plays opens on what
     /// moved. With --voice the script's voice reads it, in any build.
-    Prompt {
+    Serve {
         #[command(flatten)]
         args: ScriptArgs,
         /// Port to listen on; 0 picks a free one
@@ -446,9 +446,6 @@ enum Command {
         /// defaults to the one `teleprompt setup speech-model` installed
         #[arg(long)]
         model: Option<std::path::PathBuf>,
-        /// Now the prompter's own: says so rather than being unknown
-        #[arg(long, hide = true)]
-        preview: bool,
         /// Read the script with its voice instead of following yours:
         /// needs no speech model, in any build
         #[arg(long, conflicts_with = "model")]
@@ -516,9 +513,9 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         rest: Vec<String>,
     },
-    /// Now `prompt --voice`; says so rather than being unknown.
+    /// Now `serve`; says so rather than being unknown.
     #[command(hide = true)]
-    Serve {
+    Prompt {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         rest: Vec<String>,
     },
@@ -851,19 +848,19 @@ fn replaced(old: &str, new: &str) -> Outcome {
     )])
 }
 
-/// `prompt`, following the reader by ear with the speech model named or
+/// `serve`, following the reader by ear with the speech model named or
 /// installed, or with `voice`, reading the script with its voice.
-fn run_prompt_cmd(
+fn run_serve_cmd(
     format: Format,
     args: &ScriptArgs,
     port: u16,
     model: Option<std::path::PathBuf>,
     voice: bool,
 ) -> Run {
-    use teleprompt_cli::cmd::prompt::Ear;
+    use teleprompt_cli::cmd::serve::Ear;
     let project = project_for(&args.script)?;
     let model = (!voice).then(|| model.or_else(|| setup::speech_model(None).ok()));
-    teleprompt_cli::cmd::prompt::run_prompt(
+    teleprompt_cli::cmd::serve::run_serve(
         &project,
         &args.script,
         &args.locale(&project),
@@ -897,7 +894,7 @@ fn run_document_import(format: Format, args: ImportArgs) -> Run {
 fn run(command: Command, format: Format) -> Run {
     match command {
         Command::Diff { .. } => Err(replaced("diff", "plan --check")),
-        Command::Serve { .. } => Err(replaced("serve", "prompt --voice")),
+        Command::Prompt { .. } => Err(replaced("prompt", "serve")),
         Command::New { path } => {
             let report = NewReport {
                 created: new::scaffold(&path).map_err(runtime_failure)?,
@@ -956,16 +953,12 @@ fn run(command: Command, format: Format) -> Run {
         }
         Command::Plan { args, check: false } => run_plan(format, &args),
         Command::Plan { args, check: true } => run_plan_check(format, &args),
-        Command::Prompt { preview: true, .. } => {
-            Err(replaced("prompt --preview", "prompt --voice"))
-        }
-        Command::Prompt {
+        Command::Serve {
             args,
             port,
             model,
             voice,
-            ..
-        } => run_prompt_cmd(format, &args, port, model, voice),
+        } => run_serve_cmd(format, &args, port, model, voice),
         Command::Build {
             args,
             out,

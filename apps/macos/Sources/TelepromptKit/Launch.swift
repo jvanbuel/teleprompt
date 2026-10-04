@@ -6,7 +6,7 @@ public enum API {
     public static let version = "/api/v1"
 }
 
-/// How to run `teleprompt prompt` for the app.
+/// How to run `teleprompt serve` for the app.
 public struct LaunchRequest: Equatable, Sendable {
     /// The `teleprompt` binary, built with `--features listen` to follow a
     /// reader by ear.
@@ -27,7 +27,7 @@ public struct LaunchRequest: Equatable, Sendable {
     /// JSON output, so the app can read where it listens; port 0, so the
     /// OS picks a free one.
     public var arguments: [String] {
-        ["--format", "json", "prompt", script.path, "--locale", locale, "--port", "0"]
+        ["--format", "json", "serve", script.path, "--locale", locale, "--port", "0"]
             + (model.map { ["--model", $0.path] } ?? ["--voice"])
     }
 }
@@ -62,7 +62,7 @@ public func exitReasons(stdout: Data, stderr: Data, status: Int32) -> [String] {
     return tail.isEmpty ? ["teleprompt exited with status \(status)"] : tail
 }
 
-/// A running `teleprompt prompt`: started, watched and stopped by the app.
+/// A running `teleprompt serve`: started, watched and stopped by the app.
 public final class ServerProcess: @unchecked Sendable {
     private let process = Process()
     private let lock = NSLock()

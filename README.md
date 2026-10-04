@@ -66,7 +66,7 @@ cargo run -- plan --check demo/scripts/demo.md
 ```
 
 `plan` and `plan --check` are instant and offline, whatever voice you configure.
-When you want to hear the result, `prompt --voice` reads it to you and plays
+When you want to hear the result, `serve --voice` reads it to you and plays
 the video as it will be, from the line you just changed, and `build` renders it.
 
 teleprompt ships no tools or models of its own. `teleprompt setup` asks what
@@ -86,7 +86,7 @@ of a job offers to install it there.
 | `translate <script> --to <locale>` | translate the narration, for a video in another language |
 | `check <script>` | parse and validate; no side effects, no cost |
 | `plan <script>` | compile the timeline and print it; `--check` compares it with the committed one and exits 3 on drift |
-| `prompt <script>` | a prompter that follows your voice, plays its shots as you reach them and records your takes (opt-in build); `--voice` has the script's voice read it, and plays the video as it will play |
+| `serve <script>` | a prompter that follows your voice, plays its shots as you reach them and records your takes (opt-in build); `--voice` has the script's voice read it, and plays the video as it will play |
 | `dub <script> --out <dir>` | synthesize narration and write audio plus a manifest |
 | `capture <script>` | record the scenes a build will show |
 | `build <script>` | render the video |
@@ -105,7 +105,7 @@ every JSON report says `ok`, true exactly when the exit code is 0.
   cues, transitions, configuration, and drafting from a document
 - [Scenes](docs/guide/scenes.md): capture, sessions, and each adapter
 - [Voices](docs/guide/voices.md): backends, the voice cache, and Kokoro
-- [Reading from a prompter](docs/guide/prompter.md): `prompt`, which
+- [Reading from a prompter](docs/guide/prompter.md): `serve`, which
   follows your voice
 - [Translating a video](docs/guide/translating.md): `translate` and
   `--locale`, for the same video in another language

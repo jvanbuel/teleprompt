@@ -21,7 +21,7 @@ fn tp(models: &std::path::Path, args: &[&str]) -> Output {
 fn without_a_model_prompt_and_record_say_how_to_install_one() {
     let models = teleprompt_testkit::test_dir("setup-models-none");
     for args in [
-        &["prompt", "scripts/demo.md", "--port", "0"][..],
+        &["serve", "scripts/demo.md", "--port", "0"][..],
         &["record", "scripts/new.md"][..],
     ] {
         let out = tp(&models, args);
@@ -40,7 +40,7 @@ fn without_a_model_prompt_and_record_say_how_to_install_one() {
 fn an_installed_model_is_used_without_naming_it() {
     let models = teleprompt_testkit::test_dir("setup-models-some");
     std::fs::create_dir(models.join(SPEECH)).unwrap();
-    let out = tp(&models, &["prompt", "scripts/demo.md", "--port", "0"]);
+    let out = tp(&models, &["serve", "scripts/demo.md", "--port", "0"]);
     let err = String::from_utf8_lossy(&out.stderr);
     assert_eq!(out.status.code(), Some(1), "{err}");
     let installed = models.join(SPEECH).display().to_string();

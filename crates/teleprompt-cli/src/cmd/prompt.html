@@ -483,7 +483,7 @@ let takeTime = 0, takeSince = null;
 let declined = new Set();    // "id\nsaid" of rewordings turned down this visit
 let offered = new Set();     // and of those a toast has told of
 
-// Read by a voice (`teleprompt prompt --voice`) rather than following one.
+// Read by a voice (`teleprompt serve --voice`) rather than following one.
 let voiced = false;
 let reading = null;           // { origin, until, since, nodes, shot, raf } while the video plays
 let editing = null;           // { line, editor, body } while a line's words are edited

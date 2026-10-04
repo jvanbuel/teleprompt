@@ -1,6 +1,6 @@
 //! The prompter: follows a reader through a script by their voice, says
 //! which shots to play as they reach them, and records what they read as
-//! takes. It knows nothing of how it is shown; `teleprompt prompt` serves
+//! takes. It knows nothing of how it is shown; `teleprompt serve` serves
 //! it over HTTP, and any other front end drives the same [`Session`].
 
 use std::path::PathBuf;

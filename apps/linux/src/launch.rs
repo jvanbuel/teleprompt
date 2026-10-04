@@ -1,4 +1,4 @@
-//! Running `teleprompt prompt` for the app, and hearing where it listens.
+//! Running `teleprompt serve` for the app, and hearing where it listens.
 
 use std::io::Read;
 use std::path::PathBuf;
@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 /// The prompter API's version: `docs/design.md#prompter-api-version-1`.
 pub const VERSION: &str = "/api/v1";
 
-/// How to run `teleprompt prompt`.
+/// How to run `teleprompt serve`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaunchRequest {
     /// The `teleprompt` binary, built with `--features listen`.
@@ -27,7 +27,7 @@ impl LaunchRequest {
         let mut args: Vec<String> = vec![
             "--format".into(),
             "json".into(),
-            "prompt".into(),
+            "serve".into(),
             self.script.display().to_string(),
             "--locale".into(),
             self.locale.clone(),
@@ -91,7 +91,7 @@ pub fn exit_reasons(stdout: &[u8], stderr: &[u8], status: Option<i32>) -> Vec<St
     }
 }
 
-/// A running `teleprompt prompt`, stopped when dropped.
+/// A running `teleprompt serve`, stopped when dropped.
 pub struct ServerProcess {
     child: Arc<Mutex<Child>>,
 }

@@ -1,5 +1,5 @@
 //! `teleprompt-gtk [SCRIPT]`: the prompter as a GTK app. It launches
-//! `teleprompt prompt` itself and shows the page it serves: the prompter
+//! `teleprompt serve` itself and shows the page it serves: the prompter
 //! is that page, here as in a browser. Around it: the welcome page,
 //! settings, setting teleprompt up, and session mode's terminal.
 

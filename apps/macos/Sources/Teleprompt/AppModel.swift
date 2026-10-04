@@ -66,7 +66,7 @@ final class AppModel: ObservableObject {
         setup = SetupRequest(wanted: wanted, why: why, then: then)
     }
 
-    /// Launches `teleprompt prompt` for `script`, replacing any server
+    /// Launches `teleprompt serve` for `script`, replacing any server
     /// already running, and shows its page once it listens.
     func open(_ script: URL) {
         shutdown()
