@@ -211,9 +211,10 @@ pub trait CaptureBackend {
         None
     }
 
-    /// What it runs, as `teleprompt setup` names it: programs and packages.
-    fn needs(&self) -> &'static [&'static str] {
-        &[]
+    /// What it runs, which `teleprompt setup` lists and installs.
+    fn needs(&self) -> &'static [&'static crate::tool::Tool] {
+        static NEEDS: &[&crate::tool::Tool] = &[];
+        NEEDS
     }
 
     /// Run `session`, writing a clip into `out_dir` for each wanted shot.

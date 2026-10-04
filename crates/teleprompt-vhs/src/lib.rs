@@ -6,6 +6,7 @@
 pub mod capture;
 pub mod record;
 pub mod scene;
+pub mod tools;
 
 pub use capture::VhsRender;
 pub use record::VhsRecorder;

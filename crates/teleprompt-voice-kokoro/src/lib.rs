@@ -9,6 +9,7 @@
 mod backend;
 mod client;
 mod config;
+pub mod tools;
 
 pub use backend::{plugin, KokoroVoice};
 pub use config::{KokoroConfig, KOKORO_SAMPLE_RATE};

@@ -25,6 +25,8 @@ use std::sync::Arc;
 pub struct VoicePlugin {
     pub id: &'static str,
     pub build: Build,
+    /// What it needs that teleprompt does not ship: its server, say.
+    pub needs: &'static [&'static crate::tool::Tool],
 }
 
 /// How a voice plugin is built from its settings: the backend, or why its

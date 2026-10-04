@@ -28,13 +28,19 @@ pub fn adapter_names() -> Vec<String> {
     adapters().iter().map(|a| a.name().to_string()).collect()
 }
 
-/// What adapter `name` runs, capturing and then recording, each once; `None`
-/// when there is no such adapter. What `teleprompt setup <adapter>` installs.
+/// What adapter `name` runs, capturing and then recording, each once, by
+/// name; `None` when there is no such adapter. What `teleprompt setup
+/// <adapter>` installs.
 pub fn needs(name: &str) -> Option<Vec<&'static str>> {
     adapters()
         .into_iter()
         .find(|a| a.name() == name)
-        .map(|a| a.needs())
+        .map(|a| a.needs().iter().map(|t| t.name).collect())
+}
+
+/// What every adapter runs, in the order they are registered.
+pub fn adapter_needs() -> Vec<&'static teleprompt_plugin::tool::Tool> {
+    adapters().iter().flat_map(Adapter::needs).collect()
 }
 
 /// The adapters that can record a session, asciinema first: it records

@@ -29,10 +29,14 @@ impl VoiceboxVoice {
     }
 }
 
+/// What it needs that teleprompt does not ship.
+static NEEDS: [&teleprompt_plugin::tool::Tool; 1] = [&crate::tools::VOICEBOX];
+
 /// Voicebox as teleprompt registers it: built from `[backends.voicebox]`.
 pub fn plugin() -> VoicePlugin {
     VoicePlugin {
         id: "voicebox",
+        needs: &NEEDS,
         build: |settings| {
             let cfg = match settings {
                 Some(v) => VoiceboxConfig::from_value(v)?,

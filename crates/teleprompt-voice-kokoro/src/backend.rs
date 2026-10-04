@@ -30,10 +30,14 @@ impl KokoroVoice {
     }
 }
 
+/// What it needs that teleprompt does not ship.
+static NEEDS: [&teleprompt_plugin::tool::Tool; 1] = [&crate::tools::KOKORO];
+
 /// Kokoro as teleprompt registers it: built from `[backends.kokoro]`.
 pub fn plugin() -> VoicePlugin {
     VoicePlugin {
         id: "kokoro",
+        needs: &NEEDS,
         build: |settings| {
             let cfg = match settings {
                 Some(v) => KokoroConfig::from_value(v)?,

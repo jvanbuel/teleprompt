@@ -26,8 +26,9 @@ impl Recorder for VhsRecorder {
         missing(&["vhs"])
     }
 
-    fn needs(&self) -> &'static [&'static str] {
-        &["vhs"]
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[&crate::tools::VHS];
+        NEEDS
     }
 
     fn in_terminal(&self) -> bool {

@@ -21,8 +21,9 @@ impl Recorder for AsciinemaRecorder {
         missing(&["asciinema"])
     }
 
-    fn needs(&self) -> &'static [&'static str] {
-        &["asciinema"]
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[&crate::tools::ASCIINEMA];
+        NEEDS
     }
 
     fn in_terminal(&self) -> bool {

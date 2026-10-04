@@ -37,10 +37,14 @@ impl GeminiVoice {
     }
 }
 
+/// What it needs that teleprompt does not ship.
+static NEEDS: [&teleprompt_plugin::tool::Tool; 1] = [&crate::tools::GEMINI];
+
 /// Gemini as teleprompt registers it: built from `[backends.gemini]`.
 pub fn plugin() -> VoicePlugin {
     VoicePlugin {
         id: "gemini",
+        needs: &NEEDS,
         build: |settings| {
             let cfg = match settings {
                 Some(v) => GeminiConfig::from_value(v)?,

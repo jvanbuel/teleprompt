@@ -53,8 +53,13 @@ impl CaptureBackend for X11Render {
         teleprompt_plugin::tool::missing(&[&self.xvfb, &self.xdotool, &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static str] {
-        &["Xvfb", "xdotool", "ffmpeg"]
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[
+            &crate::tools::XVFB,
+            &crate::tools::XDOTOOL,
+            &teleprompt_plugin::tool::FFMPEG,
+        ];
+        NEEDS
     }
 
     fn capture(

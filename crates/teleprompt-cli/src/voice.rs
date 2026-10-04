@@ -16,6 +16,14 @@ fn plugins() -> Vec<VoicePlugin> {
     ]
 }
 
+/// What every voice plugin needs that teleprompt does not ship.
+pub fn plugin_needs() -> Vec<&'static teleprompt_plugin::tool::Tool> {
+    plugins()
+        .iter()
+        .flat_map(|p| p.needs.iter().copied())
+        .collect()
+}
+
 /// The backends this build ships, together with everything the project's
 /// `backends:` settings said that could not be turned into one.
 ///

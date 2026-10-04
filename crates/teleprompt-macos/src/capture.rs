@@ -64,8 +64,9 @@ impl CaptureBackend for MacosRender {
         teleprompt_plugin::tool::missing(&[&self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static str] {
-        &["ffmpeg"]
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[&teleprompt_plugin::tool::FFMPEG];
+        NEEDS
     }
 
     fn capture(

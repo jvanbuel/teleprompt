@@ -5,6 +5,7 @@
 
 pub mod capture;
 pub mod scene;
+pub mod tools;
 
 pub use capture::SlidevRender;
 pub use scene::SlidevScene;

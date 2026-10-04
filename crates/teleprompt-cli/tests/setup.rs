@@ -16,7 +16,7 @@ fn ubuntu() -> Platform {
 }
 
 fn command(name: &str, platform: &Platform) -> Option<String> {
-    resolve(&[name.to_string()]).unwrap()[0].command(platform)
+    platform.command(resolve(&[name.to_string()]).unwrap()[0])
 }
 
 fn names(given: &[&str]) -> Vec<&'static str> {
@@ -103,7 +103,7 @@ fn every_tool_says_its_license_and_where_it_is_from() {
 fn a_tool_of_the_authors_own_is_explained_not_installed() {
     let remotion = &resolve(&["remotion".to_string()]).unwrap()[1];
     assert_eq!(remotion.name, "remotion");
-    assert_eq!(remotion.command(&mac()), None);
+    assert_eq!(mac().command(remotion), None);
     assert!(remotion.guide.unwrap().contains("npm install"));
     assert!(remotion.license.contains("company license"));
 }
@@ -223,7 +223,7 @@ fn setup_with_no_way_to_install_says_where_the_tool_is_from() {
 #[test]
 fn voicebox_is_explained_with_its_models_licenses() {
     let voicebox = &resolve(&["voicebox".to_string()]).unwrap()[0];
-    assert_eq!(voicebox.command(&mac()), None);
+    assert_eq!(mac().command(voicebox), None);
     assert!(voicebox.guide.unwrap().contains("teleprompt voice clone"));
     assert!(
         voicebox.license.contains("MIT") && voicebox.license.contains("Llama"),
@@ -237,7 +237,7 @@ fn voicebox_is_explained_with_its_models_licenses() {
 #[test]
 fn gemini_is_explained_as_a_service() {
     let gemini = &resolve(&["gemini".to_string()]).unwrap()[0];
-    assert_eq!(gemini.command(&mac()), None);
+    assert_eq!(mac().command(gemini), None);
     let guide = gemini.guide.unwrap();
     assert!(
         guide.contains("GEMINI_API_KEY") && guide.contains("Google"),

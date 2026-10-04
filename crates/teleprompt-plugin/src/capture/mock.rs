@@ -43,8 +43,9 @@ impl CaptureBackend for MockCapture {
         crate::tool::missing(&[&self.program])
     }
 
-    fn needs(&self) -> &'static [&'static str] {
-        &["ffmpeg"]
+    fn needs(&self) -> &'static [&'static crate::tool::Tool] {
+        static NEEDS: &[&crate::tool::Tool] = &[&crate::tool::FFMPEG];
+        NEEDS
     }
 
     fn capture(

@@ -115,6 +115,8 @@ every JSON report says `ok`, true exactly when the exit code is 0.
   and watching an edit
 - [Editors](docs/guide/editors.md): `teleprompt lsp`, for problems,
   completion and navigation as you write
+- [Writing a plugin](docs/guide/plugins.md): an adapter for another tool,
+  or another voice, against `teleprompt-plugin`
 - [Rendering with Remotion](docs/integrations/remotion.md): consuming the
   manifest from a Remotion project
 - [Design](docs/design.md): how it works and why, for contributors

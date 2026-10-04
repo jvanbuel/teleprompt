@@ -6,6 +6,7 @@ use crate::scene::SceneCompiler;
 
 use crate::capture::CaptureBackend;
 use crate::record::{NamedRecorder, Recorder};
+use crate::tool::Tool;
 
 /// What an adapter crate hands the CLI to register. Its name is its scene
 /// compiler's kind, so its halves cannot be registered under two.
@@ -51,12 +52,12 @@ impl Adapter {
 
     /// What it runs, capturing and then recording, each once: what
     /// `teleprompt setup <adapter>` installs.
-    pub fn needs(&self) -> Vec<&'static str> {
+    pub fn needs(&self) -> Vec<&'static Tool> {
         let recording = self.recorder.as_ref().map_or(&[][..], |r| r.needs());
-        let mut out: Vec<&'static str> = Vec::new();
-        for n in self.capture.needs().iter().chain(recording) {
-            if !out.contains(n) {
-                out.push(n);
+        let mut out: Vec<&'static Tool> = Vec::new();
+        for &tool in self.capture.needs().iter().chain(recording) {
+            if !out.iter().any(|t| t.name == tool.name) {
+                out.push(tool);
             }
         }
         out

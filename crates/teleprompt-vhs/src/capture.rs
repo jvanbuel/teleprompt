@@ -102,8 +102,13 @@ impl CaptureBackend for VhsRender {
         teleprompt_plugin::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static str] {
-        &["vhs", "ttyd", "ffmpeg"]
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[
+            &crate::tools::VHS,
+            &crate::tools::TTYD,
+            &teleprompt_plugin::tool::FFMPEG,
+        ];
+        NEEDS
     }
 
     fn capture(

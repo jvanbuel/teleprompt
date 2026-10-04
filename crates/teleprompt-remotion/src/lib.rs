@@ -7,6 +7,7 @@
 
 pub mod capture;
 pub mod scene;
+pub mod tools;
 
 pub use capture::RemotionRender;
 pub use scene::RemotionScene;

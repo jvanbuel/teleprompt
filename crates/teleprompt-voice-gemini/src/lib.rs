@@ -6,6 +6,7 @@
 mod backend;
 mod client;
 mod config;
+pub mod tools;
 
 pub use backend::{plugin, GeminiVoice};
 pub use config::GeminiConfig;

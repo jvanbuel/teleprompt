@@ -135,8 +135,13 @@ impl CaptureBackend for PlaywrightRender {
         teleprompt_plugin::tool::missing(&[&self.node, &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static str] {
-        &["node", "ffmpeg", "playwright"]
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[
+            &teleprompt_plugin::tool::NODE,
+            &teleprompt_plugin::tool::FFMPEG,
+            &crate::tools::PLAYWRIGHT,
+        ];
+        NEEDS
     }
 
     fn capture(

@@ -7,6 +7,7 @@ pub mod capture;
 pub mod record;
 pub mod scene;
 pub mod spec;
+pub mod tools;
 
 pub use capture::PlaywrightRender;
 pub use record::PlaywrightRecorder;

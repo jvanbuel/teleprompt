@@ -11,53 +11,9 @@ use serde::Serialize;
 
 mod catalogue;
 
-pub use catalogue::{download_mb, tools, Goal, Tool, GOALS};
-use catalogue::{Found, TOOLS};
-
-/// A way to install software that may be on this machine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Manager {
-    Brew,
-    Apt,
-    Dnf,
-    Pacman,
-    Go,
-    Cargo,
-    Pipx,
-    /// npm, in the project: for tools a project depends on.
-    Npm,
-    /// `curl` and `tar`, for a download unpacked into the models directory.
-    Download,
-}
-
-impl Manager {
-    const ALL: [Manager; 9] = [
-        Manager::Brew,
-        Manager::Apt,
-        Manager::Dnf,
-        Manager::Pacman,
-        Manager::Go,
-        Manager::Cargo,
-        Manager::Pipx,
-        Manager::Npm,
-        Manager::Download,
-    ];
-
-    /// The programs it needs on PATH.
-    fn programs(self) -> &'static [&'static str] {
-        match self {
-            Manager::Brew => &["brew"],
-            Manager::Apt => &["apt-get"],
-            Manager::Dnf => &["dnf"],
-            Manager::Pacman => &["pacman"],
-            Manager::Go => &["go"],
-            Manager::Cargo => &["cargo"],
-            Manager::Pipx => &["pipx"],
-            Manager::Npm => &["npm"],
-            Manager::Download => &["curl", "tar"],
-        }
-    }
-}
+pub use catalogue::{download_mb, tools, Goal, GOALS};
+use teleprompt_plugin::tool::Found;
+pub use teleprompt_plugin::tool::{Manager, Tool};
 
 /// The machine: its OS, the managers on it, and where models go.
 #[derive(Debug, Clone)]
@@ -83,6 +39,12 @@ impl Platform {
             .filter(|m| m.programs().iter().all(|p| on_path(p)))
             .collect();
         Self::new(std::env::consts::OS, &managers)
+    }
+
+    /// The command that installs `tool` here, or `None` when nothing on
+    /// this machine can.
+    pub fn command(&self, tool: &Tool) -> Option<String> {
+        tool.command(self.preferred(), &self.models)
     }
 
     /// The system's own manager first, then Homebrew, then a language's.
@@ -127,7 +89,7 @@ fn on_path(program: &str) -> bool {
 
 /// Where `setup` put tool `name`'s model, if it is there.
 fn installed_model(name: &str) -> Option<PathBuf> {
-    let Found::Model(dir) = TOOLS.iter().find(|t| t.name == name)?.found else {
+    let Found::Model(dir) = tools().into_iter().find(|t| t.name == name)?.found else {
         return None;
     };
     Some(models_dir().join(dir)).filter(|p| p.is_dir())
@@ -168,7 +130,7 @@ pub fn punctuation_model(given: Option<&Path>) -> Option<PathBuf> {
 /// each once, in order. Every tool when `names` is empty.
 pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
     if names.is_empty() {
-        return Ok(TOOLS.iter().collect());
+        return Ok(tools());
     }
     let mut out: Vec<&'static Tool> = Vec::new();
     for name in names {
@@ -181,9 +143,9 @@ pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
             None => crate::scene::needs(name).unwrap_or_else(|| vec![name.as_str()]),
         };
         for w in wanted {
-            let Some(tool) = TOOLS.iter().find(|t| t.name == w) else {
+            let Some(tool) = tools().into_iter().find(|t| t.name == w) else {
                 let adapters = crate::scene::adapter_names();
-                let tools: Vec<&str> = TOOLS.iter().map(|t| t.name).collect();
+                let tools: Vec<&str> = tools().iter().map(|t| t.name).collect();
                 return Err(format!(
                     "`{name}` is neither an adapter ({}) nor a tool ({})",
                     adapters.join(", "),
@@ -317,7 +279,7 @@ impl Setup {
     }
 
     fn status(&self, t: &'static Tool) -> ToolStatus {
-        let command = t.command(&self.platform);
+        let command = self.platform.command(t);
         ToolStatus {
             name: t.name,
             what: t.what,
@@ -365,7 +327,7 @@ impl Setup {
 
     /// The command that would install `tool` here, if any.
     pub fn command(&self, tool: &Tool) -> Option<String> {
-        tool.command(&self.platform)
+        self.platform.command(tool)
     }
 
     /// Runs the command for each tool that is missing, in order, stopping
@@ -376,7 +338,7 @@ impl Setup {
         let mut ran = Vec::new();
         for tool in tools {
             let missing = tool.installed(&self.project, &self.platform.models) == Some(false);
-            let Some(command) = tool.command(&self.platform).filter(|_| missing) else {
+            let Some(command) = self.command(tool).filter(|_| missing) else {
                 continue;
             };
             let command = without_a_terminal(&command)?;

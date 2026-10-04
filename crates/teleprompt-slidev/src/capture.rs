@@ -78,8 +78,13 @@ impl CaptureBackend for SlidevRender {
         teleprompt_plugin::tool::missing(&["node", &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static str] {
-        &["node", "ffmpeg", "slidev"]
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[
+            &teleprompt_plugin::tool::NODE,
+            &teleprompt_plugin::tool::FFMPEG,
+            &crate::tools::SLIDEV,
+        ];
+        NEEDS
     }
 
     fn capture(

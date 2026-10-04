@@ -8,6 +8,7 @@
 //! timing are `teleprompt-desktop`'s.
 
 mod capture;
+pub mod tools;
 mod xdo;
 
 pub use capture::X11Render;
