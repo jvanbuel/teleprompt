@@ -8,17 +8,17 @@ expression: transcript(&out)
     "warning: 3 of 3 narration durations are estimated; run `teleprompt dub` to measure them before committing this timeline"
   ],
   "stdout": {
-    "duration_ms": 38200,
+    "duration_ms": 39000,
     "entries": [
       {
         "action": {
           "adapter": "asciinema",
-          "capture_key": "d70a6aa9c45ab359382dbc5e55ed085266e1b234604f3467c24010b728995be2",
+          "capture_key": "26241bfd94e78022584f5b63bdd5d3b6b4bba4a8864d02ea9a10ad73c6d09152",
           "duration_ms": 11600,
           "duration_source": "exact",
           "scene": "asciinema",
           "shot": "check-a#0",
-          "shot_hash": "e906e3fd76c3105ac3ac634f0a6809036ea0d383dd841ad8123ffa98d6ab377b",
+          "shot_hash": "527123862782999a55e379d0566d8b7a0eefe7d9b47b3e3a8a3dfe02b62f84b7",
           "start_ms": 0
         },
         "duration_ms": 11600,
@@ -41,12 +41,12 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "asciinema",
-          "capture_key": "8bd9818f0d70d5c5012a77b19c80875cbcea9ec75ae148271cdda151e9290096",
+          "capture_key": "bbaab44be584d5497f72a1e03829aaabdb50ac4a67e915018b1c18cda2c4bf06",
           "duration_ms": 13950,
           "duration_source": "exact",
           "scene": "asciinema",
           "shot": "plan-a#0",
-          "shot_hash": "9a4543d602d1094f5941f2f680474f20efa576e1c474c5776beac3cd7ba56367",
+          "shot_hash": "972d9e83fa0807fda1a7882f1391f87f1185910575e0f50a1c16f8f9c25edf73",
           "start_ms": 11600
         },
         "duration_ms": 13950,
@@ -69,22 +69,22 @@ expression: transcript(&out)
       {
         "action": {
           "adapter": "asciinema",
-          "capture_key": "a1ba18099551fe173365b0f3d7b82d724ac620e59524c1643f8f5303aa0acbb1",
-          "duration_ms": 12402,
+          "capture_key": "1ac8b8a7af1803626b40cebcf4baecf497699019800bcadeb4004833447b058d",
+          "duration_ms": 13450,
           "duration_source": "exact",
           "scene": "asciinema",
-          "shot": "doctor-a#0",
-          "shot_hash": "aa443a38f71ec512af38593f3c1cb858e7b9eb5e1544e7ab9e83db0910d0d6a7",
+          "shot": "setup-a#0",
+          "shot_hash": "b23038cd30cac4220d51f01d536887adcc057bedc89e8c72f69fc1d23b819e0c",
           "start_ms": 25550
         },
-        "duration_ms": 12650,
-        "item": "doctor",
+        "duration_ms": 13450,
+        "item": "setup",
         "narration": {
-          "audio_hash": "ae1b2cc44b5bf2b583f4866a2e46112c32c5f553285c506b0322088159212d49",
-          "duration_ms": 12350,
+          "audio_hash": "98a7826a0ff39edfb265bd71c612003cf4eda30555c673580a61c47339e259b8",
+          "duration_ms": 13150,
           "duration_source": "estimated",
-          "line": "doctor",
-          "source_hash": "2a332b9427bfd3338ab357b517934826d15382ac78b3a8c723286146707dfbda",
+          "line": "setup",
+          "source_hash": "3e35d146404d7269297b265cd3c153b45818a1e2e811e90a8856966a510aadce",
           "start_ms": 25700
         },
         "policy": "fit-action",

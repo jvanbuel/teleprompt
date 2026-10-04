@@ -24,9 +24,9 @@ the part it shows. {#plan}
 ```teleprompt scene=asciinema policy=fit-action include=casts/tour.cast#plan
 ```
 
-Last, the doctor lists what this build can capture, asciinema included. The
-pauses in the recording stretch to fit each sentence, and the typing keeps
-its pace. {#doctor}
+Last, setup says what asciinema scenes need, and that this machine has it.
+The pauses in the recording stretch to fit each sentence, and the typing
+keeps its pace. {#setup}
 
-```teleprompt scene=asciinema policy=fit-action include=casts/tour.cast#doctor
+```teleprompt scene=asciinema policy=fit-action include=casts/tour.cast#setup
 ```
