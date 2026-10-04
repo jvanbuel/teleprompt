@@ -1,0 +1,54 @@
+# A narrated guide to writing a voice for teleprompt: a speech server that
+# says every word as a moo. The server is deck/snippets/moo_server.py, and
+# the slides show its code by importing it, so they never drift from it.
+#
+# It speaks OpenAI's speech API, so teleprompt needs no plugin for it:
+# `[backends.moo]` below names it. The narrator is Kokoro-FastAPI; the
+# cow, the calf and the bull are the moo server.
+#
+# Run from the repository root:
+#
+#   python3 examples/moo/deck/snippets/moo_server.py &     # port 8890
+#   (cd examples/moo/deck && npm ci)
+#   cargo run -- build examples/moo/scripts/moo.md
+#
+# `check` and `plan` need neither server nor Node.
+[locales]
+source = "en"
+targets = []
+
+[voice]
+backend = "kokoro"
+voice = "af_heart"
+speed = 1.0
+
+[voice.pronounce]
+JSON = "jason"
+PCM = "P C M"
+
+[backends.kokoro]
+base_url = "http://localhost:8880"
+timeout_ms = 60000
+concurrency = 2
+
+# The moo server, under the name the cast uses.
+[backends.moo]
+api = "openai"
+base_url = "http://localhost:8890/v1"
+model = "moo-1"
+
+[voices.cow]
+backend = "moo"
+voice = "cow"
+
+[voices.calf]
+backend = "moo"
+voice = "calf"
+
+[voices.bull]
+backend = "moo"
+voice = "bull"
+
+[scene.slidev]
+adapter = "slidev"
+deck = "examples/moo/deck/slides.md"   # from where teleprompt runs: the repository root

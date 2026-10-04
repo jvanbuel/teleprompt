@@ -1,0 +1,15 @@
+{
+  "name": "teleprompt-moo-deck",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "slidev",
+    "export": "slidev export"
+  },
+  "dependencies": {
+    "@slidev/cli": "53.0.0",
+    "@slidev/theme-default": "0.25.0",
+    "playwright-chromium": "1.63.0"
+  },
+  "description": "The slides of the moo example: the code of a speech server, shown a region at a time."
+}

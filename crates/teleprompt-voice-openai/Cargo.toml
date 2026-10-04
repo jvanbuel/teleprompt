@@ -14,7 +14,7 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt", "net", "io-util"] }
+tokio = { workspace = true, features = ["macros", "rt", "net", "io-util", "time"] }
 
 [lints]
 workspace = true

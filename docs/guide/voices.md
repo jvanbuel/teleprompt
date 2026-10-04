@@ -244,7 +244,13 @@ watermark, and its use falls under the
 
 A voice that is a speech server is best written as one that speaks
 OpenAI's API ([above](#any-openai-compatible-server)): then it needs
-nothing of teleprompt's, and works with other tools too. Otherwise, a
+nothing of teleprompt's, and works with other tools too. It needs to answer
+`POST /v1/audio/speech` with `response_format: "pcm"`; listing its voices
+at `GET /v1/audio/voices` and its models at `GET /v1/models` is
+optional, and lets `dub` check a script's voices and `setup` see that it
+is up. `examples/moo` is a whole one, in about a hundred lines of
+Python's standard library: a server that says every word as a moo, with a
+narrated video that walks through its code on Slidev slides. Otherwise, a
 voice is a plugin ([extending teleprompt](plugins.md) has how one ships
 and is found).
 
