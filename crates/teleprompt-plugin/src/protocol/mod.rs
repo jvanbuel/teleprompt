@@ -1,7 +1,8 @@
-//! Plugins as programs of their own (`docs/guide/plugins.md#the-protocol`).
+//! Scene plugins as programs of their own
+//! (`docs/guide/scene-plugins.md#the-protocol`).
 //!
-//! A plugin is an executable named `teleprompt-scene-<name>` or
-//! `teleprompt-voice-<name>`, on PATH or in the plugins directory. Teleprompt
+//! A plugin is an executable named `teleprompt-scene-<name>`, on PATH or in
+//! the plugins directory. Teleprompt
 //! starts it the first time a command needs it and talks to it for the rest
 //! of that command: one JSON object a line, a request on its stdin and the
 //! answer on its stdout. Its stderr is the author's to read.
@@ -20,64 +21,27 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::voice::WordTiming;
-
 pub mod host;
 pub mod serve;
 
 /// The protocol's version, which `describe` is asked for and answers with.
 pub const VERSION: u32 = 1;
 
-/// What a plugin is.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Kind {
-    Scene,
-    Voice,
-}
+/// What a plugin's executable is named: this, then its name.
+pub const PREFIX: &str = "teleprompt-scene-";
 
-impl Kind {
-    /// The prefix its executable's name starts with.
-    pub fn prefix(self) -> &'static str {
-        match self {
-            Kind::Scene => "teleprompt-scene-",
-            Kind::Voice => "teleprompt-voice-",
-        }
-    }
-}
-
-/// `describe`: what the plugin is and needs, asked once, first.
-///
-/// The two kinds share only this: a name, the protocol, and the tools they
-/// need. The rest is the kind's own, beside them on the wire, tagged by
-/// `kind`: `{"kind": "scene", "continues": false, …}`.
+/// `describe`: what the plugin is and needs, asked once, first:
+/// `{"protocol": 1, "name": "card", "needs": […], "continues": false, …}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Description {
     pub protocol: u32,
-    /// The name a block's `scene=` or a project's `voice.backend` gives,
-    /// which its executable's name ends with.
+    /// The name a scene's `plugin` gives, which its executable's name ends
+    /// with.
     pub name: String,
     #[serde(default)]
     pub needs: Vec<WireTool>,
     #[serde(flatten)]
-    pub traits: Traits,
-}
-
-/// What one kind of plugin says of itself.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "lowercase")]
-pub enum Traits {
-    Scene(SceneTraits),
-    Voice(VoiceTraits),
-}
-
-impl Description {
-    pub fn kind(&self) -> Kind {
-        match self.traits {
-            Traits::Scene(_) => Kind::Scene,
-            Traits::Voice(_) => Kind::Voice,
-        }
-    }
+    pub traits: SceneTraits,
 }
 
 fn yes() -> bool {
@@ -104,32 +68,9 @@ impl Default for SceneTraits {
     }
 }
 
-/// What a voice can do, beyond speaking a line. Which of `voices` and
-/// `probe` it answers is not said here: it is asked, and a method it does
-/// not have answers [`unknown_method`].
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct VoiceTraits {
-    #[serde(default)]
-    pub word_timings: bool,
-    #[serde(default)]
-    pub speed_control: bool,
-    /// Where its server is, for errors and `setup`.
-    #[serde(default)]
-    pub address: Option<String>,
-    /// What its audio depends on beyond the request and its settings, such
-    /// as its program's version. With the settings, the voice cache's key.
-    #[serde(default)]
-    pub version: String,
-}
-
 /// The error a plugin answers for a method it does not have.
 pub fn unknown_method(method: &str) -> String {
     format!("unknown method `{method}`")
-}
-
-/// Whether `error` is a plugin's answer for a method it does not have.
-pub fn is_unknown_method(error: &str) -> bool {
-    error.starts_with("unknown method")
 }
 
 /// A tool a plugin needs, as [`crate::tool::Tool`] has it.
@@ -275,46 +216,4 @@ pub struct Captured {
 pub struct WireClip {
     pub key: String,
     pub path: PathBuf,
-}
-
-/// `voices` and `probe`: the voice's own `[backends.<name>]` settings,
-/// which every voice request carries.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Settings {
-    #[serde(default)]
-    pub settings: Option<serde_json::Value>,
-}
-
-/// `synthesize`: a line, and the settings to speak it with.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Synthesize {
-    pub text: String,
-    pub locale: String,
-    #[serde(default)]
-    pub voice: Option<String>,
-    pub speed: f64,
-    #[serde(default)]
-    pub instruct: Option<String>,
-    #[serde(default)]
-    pub settings: Option<serde_json::Value>,
-}
-
-/// `synthesize`'s answer: the line as a WAV file, base64-encoded.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Spoken {
-    pub audio: String,
-    #[serde(default)]
-    pub word_timings: Option<Vec<WordTiming>>,
-}
-
-/// `voices`' answer.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Voices {
-    pub voices: Vec<String>,
-}
-
-/// `probe`'s answer.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Probed {
-    pub line: String,
 }

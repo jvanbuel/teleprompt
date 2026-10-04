@@ -1,7 +1,7 @@
 //! `cue=` on timed words: when the phrase's first word is said.
 
 use teleprompt_compile::word_offset_ms;
-use teleprompt_plugin::voice::WordTiming;
+use teleprompt_voice::WordTiming;
 
 fn timed(words: &[(&str, u64)]) -> Vec<WordTiming> {
     words

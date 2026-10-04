@@ -89,7 +89,6 @@ class Card:
         # A card's picture is its source alone, and a hold can be rewritten.
         return {
             "protocol": 1,
-            "kind": "scene",
             "name": "card",
             "needs": [FFMPEG],
             "continues": False,

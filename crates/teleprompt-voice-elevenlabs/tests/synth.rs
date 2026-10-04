@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use base64::Engine;
 use stub::{spawn, Reply};
-use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
+use teleprompt_voice::{SynthRequest, VoiceBackend};
 use teleprompt_voice_elevenlabs::{ElevenLabsConfig, ElevenLabsVoice, DEFAULT_VOICE};
 
 const VOICES: &str = "GET /v1/voices";

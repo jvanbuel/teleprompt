@@ -6,11 +6,11 @@ mod stub;
 use std::collections::BTreeMap;
 
 use stub::{spawn, Reply};
-use teleprompt_plugin::voice::{Pcm, SynthRequest, VoiceBackend};
+use teleprompt_voice::{Pcm, SynthRequest, VoiceBackend};
 use teleprompt_voice_voicebox::{VoiceboxConfig, VoiceboxVoice};
 
 fn wav() -> Vec<u8> {
-    teleprompt_plugin::voice::wav::encode(&Pcm {
+    teleprompt_voice::wav::encode(&Pcm {
         sample_rate: 24_000,
         channels: 1,
         samples: vec![100; 2400],
@@ -148,7 +148,7 @@ async fn a_failing_server_says_so() {
 /// What changes the voice is in the cache key: the engine and the seed.
 #[test]
 fn the_engine_and_seed_are_the_backends_version() {
-    let version = |cfg: VoiceboxConfig| VoiceboxVoice::new(cfg).unwrap().capabilities().version;
+    let version = |cfg: VoiceboxConfig| VoiceboxVoice::new(cfg).unwrap().version();
     let plain = version(VoiceboxConfig::default());
     let chatterbox = version(VoiceboxConfig {
         engine: "chatterbox".into(),
@@ -160,10 +160,4 @@ fn the_engine_and_seed_are_the_backends_version() {
     });
     assert_ne!(plain, chatterbox);
     assert_ne!(plain, seeded);
-    assert!(
-        !VoiceboxVoice::new(VoiceboxConfig::default())
-            .unwrap()
-            .capabilities()
-            .speed_control
-    );
 }

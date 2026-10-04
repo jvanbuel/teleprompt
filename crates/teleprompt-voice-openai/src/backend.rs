@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use teleprompt_plugin::tool::Tool;
-use teleprompt_plugin::voice::{
-    async_trait, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
-    VoiceError, VoicePlugin,
+use teleprompt_voice::{
+    async_trait, Provider, SynthRequest, Synthesized, VoiceBackend, VoiceError,
 };
 
 use crate::client::Client;
@@ -42,28 +40,24 @@ fn build(
     Ok(Arc::new(OpenAiVoice::new(cfg)?))
 }
 
-static KOKORO_NEEDS: [&Tool; 1] = [&crate::tools::KOKORO];
-static OPENAI_NEEDS: [&Tool; 1] = [&crate::tools::OPENAI];
-
 /// Kokoro-FastAPI, built from `[backends.kokoro]`.
-pub fn kokoro() -> VoicePlugin {
-    VoicePlugin {
+pub fn kokoro() -> Provider {
+    Provider {
         id: "kokoro",
-        needs: &KOKORO_NEEDS,
         build: |settings| build(OpenAiConfig::kokoro(), settings),
     }
 }
 
 /// OpenAI's service, built from `[backends.openai]`.
-pub fn openai() -> VoicePlugin {
-    VoicePlugin {
+pub fn openai() -> Provider {
+    Provider {
         id: "openai",
-        needs: &OPENAI_NEEDS,
         build: |settings| build(OpenAiConfig::openai(), settings),
     }
 }
 
-/// A server of the author's, `[backends.<name>]` with `api = "openai"`.
+/// A server of the author's: any `[backends.<name>]` that names no voice
+/// teleprompt ships.
 pub fn endpoint(name: &str, settings: &serde_yaml::Value) -> Result<Arc<dyn VoiceBackend>, String> {
     build(OpenAiConfig::endpoint(name), Some(settings))
 }
@@ -74,21 +68,8 @@ impl VoiceBackend for OpenAiVoice {
         &self.config().id
     }
 
-    fn capabilities(&self) -> VoiceCapabilities {
-        VoiceCapabilities {
-            // The server is the authority on which voices speak what;
-            // enumerating a fixed list here would go stale against servers
-            // teleprompt does not ship.
-            languages: LanguageSupport::Any,
-            cloning: false,
-            cross_lingual: false,
-            // Only on Kokoro's POST /dev/captioned_speech, which is a `/dev/`
-            // path and so not a stable interface: opt-in, per project.
-            word_timings: self.config().word_timings,
-            ssml: false,
-            speed_control: true,
-            version: self.version.clone(),
-        }
+    fn version(&self) -> String {
+        self.version.clone()
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {

@@ -38,7 +38,7 @@ jobs:
       # themselves where there is none, so CI installs one and sets
       # TELEPROMPT_REQUIRE_FFMPEG — which turns a skip into a failure, so a
       # workflow that stops installing it cannot go quietly green. eSpeak NG
-      # is what the example voice plugin speaks with.
+      # is what the example speech server speaks with.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng
       # Pinned to v0.11.0. v0.12.0 is the latest release and cannot record
       # here at all: it runs every tape command, prints "Creating …",
@@ -78,15 +78,15 @@ jobs:
       # trusted: a new edge between workspace crates must be argued for there.
       - run: python3 tools/check_deps.py
       # The Python examples are written to be read and copied: linted,
-      # formatted, and the stdlib-only plugins typed strictly.
+      # formatted, and the stdlib-only ones typed strictly.
       - name: Python examples
         working-directory: examples
         run: |
-          files="plugins/teleprompt-scene-card plugins/teleprompt-voice-espeak moo/deck/snippets/moo_server.py"
+          files="plugins/teleprompt-scene-card voices/espeak_server.py moo/deck/snippets/moo_server.py"
           ruff="pipx run --spec ruff==0.15.8 ruff"
           $ruff check --config ruff.toml $files
           $ruff format --check --config ruff.toml $files
-          for f in plugins/teleprompt-*; do pipx run --spec mypy==1.19.1 mypy --strict "$f"; done
+          for f in plugins/teleprompt-scene-card voices/espeak_server.py; do pipx run --spec mypy==1.19.1 mypy --strict "$f"; done
 
   # What the binaries link is permissively licensed (deny.toml), so
   # teleprompt stays MIT to ship, and has no known vulnerability: the CLI

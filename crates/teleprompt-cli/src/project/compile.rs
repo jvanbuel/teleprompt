@@ -15,7 +15,7 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element};
 use teleprompt_core::translation::Translation;
 use teleprompt_core::{Diagnostic, Diagnostics};
-use teleprompt_plugin::voice::VoiceBackend;
+use teleprompt_voice::VoiceBackend;
 use teleprompt_voice::WpmEstimator;
 
 use super::Project;
@@ -183,7 +183,7 @@ fn other_backends(
     for (id, lines) in wanted {
         match backends.resolve(&id) {
             Ok(backend) => {
-                versions.insert(id, backend.capabilities().version);
+                versions.insert(id, backend.version());
             }
             Err(d) => {
                 let names: Vec<String> = lines.iter().map(|(l, _)| format!("`{l}`")).collect();
@@ -250,13 +250,13 @@ fn compile_with_voice(
 ) -> Result<CompileOutput, Diagnostics> {
     let cache = VoiceCache::new(project.caches().root);
     let estimator = WpmEstimator::default();
-    let capabilities = backend.capabilities();
+    let version = backend.version();
     let takes = Takes::load(&project.takes_dir())
         .map_err(|e| Diagnostics(vec![Diagnostic::error(e.to_string())]))?;
     let ctx = VoiceContext {
         other_backends,
         backend_id: backend.id(),
-        backend_version: &capabilities.version,
+        backend_version: &version,
         cache: &cache,
         estimator: &estimator,
         takes: &takes,

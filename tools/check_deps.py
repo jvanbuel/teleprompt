@@ -6,8 +6,9 @@
 The layering is docs/design.md#crates: core at the bottom; the plugin
 contracts, schedule and manifest on core alone and not on one another;
 compile where they meet; render reading the manifest, not the compiler;
-every plugin, scene or voice, on the plugin contracts alone; and only
-the CLI knowing every plugin by name. A new dependency between workspace
+every scene plugin on the plugin contracts alone, every voice on the
+voice contract alone; and only the CLI knowing every plugin and voice by
+name. A new dependency between workspace
 crates has to be added here, which is where the argument for it belongs.
 Dev-dependencies are not checked.
 
@@ -25,18 +26,20 @@ import sys
 # A plugin depends on the contracts it implements, and nothing else of
 # teleprompt's: what an outside plugin can do, the built-in ones do.
 PLUGIN = {"core", "plugin"}
+# A voice teleprompt ships depends on the voice contract, and nothing else.
+VOICE = {"core", "voice"}
 
 ALLOWED = {
     "core": set(),
     "schedule": {"core"},
     "plugin": {"core"},
-    "voice": {"core", "plugin"},
+    "voice": {"core"},
     "manifest": {"core"},
-    "cache": {"core", "plugin"},
-    "voice-openai": PLUGIN,
-    "voice-voicebox": PLUGIN,
-    "voice-gemini": PLUGIN,
-    "voice-elevenlabs": PLUGIN,
+    "cache": {"core", "voice"},
+    "voice-openai": VOICE,
+    "voice-voicebox": VOICE,
+    "voice-gemini": VOICE,
+    "voice-elevenlabs": VOICE,
     "compile": {"core", "plugin", "schedule", "voice", "cache", "manifest"},
     "render": {"core", "manifest"},
     "vhs": PLUGIN,
@@ -56,7 +59,7 @@ ALLOWED = {
     # recognizer hears.
     "derive": {"core", "listen"},
     "listen-sherpa": {"listen"},
-    "prompter": {"core", "compile", "listen", "plugin", "voice"},
+    "prompter": {"core", "compile", "listen", "voice"},
     # The protocol and the text; the compile reaches it through a trait
     # the CLI implements.
     "lsp": {"core"},

@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 
 use teleprompt_cli::cmd::import::{run_import, Import, Words};
-use teleprompt_plugin::voice::{wav, Pcm};
+use teleprompt_voice::{wav, Pcm};
 
 fn model() -> Option<PathBuf> {
     let dir = std::env::var_os("TELEPROMPT_LISTEN_MODEL").map(PathBuf::from);

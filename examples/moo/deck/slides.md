@@ -71,9 +71,8 @@ One recording of a real cow, CC0: `moo.wav`, beside the server.
 
 # Naming it
 
-```toml {1-4|6-8}
+```toml {1-3|5-7}
 [backends.moo]
-api = "openai"
 base_url = "http://localhost:8890/v1"
 model = "moo-2"
 

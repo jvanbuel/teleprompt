@@ -6,7 +6,7 @@
 """A speech server that says every word as a moo.
 
 It speaks OpenAI's speech API, so teleprompt needs no plugin for it:
-`[backends.moo] api = "openai"` and its address are enough. The moo is a
+`[backends.moo]` and its address are enough. The moo is a
 real cow (moo.wav beside this file, CC0: see moo.wav.txt). Run it with
 `uv run moo_server.py [port]`, which installs what it needs.
 """

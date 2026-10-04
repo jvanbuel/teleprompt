@@ -136,7 +136,7 @@ pub fn tools() -> Vec<&'static Tool> {
     let mut out: Vec<&'static Tool> = vec![&teleprompt_plugin::tool::FFMPEG];
     let plugins = crate::scene::plugin_needs()
         .into_iter()
-        .chain(crate::voice::plugin_needs());
+        .chain(crate::voice::needs());
     for tool in plugins.chain(MODELS.iter()) {
         if !out.iter().any(|t| t.name == tool.name) {
             out.push(tool);

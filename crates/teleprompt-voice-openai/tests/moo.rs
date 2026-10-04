@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
-use teleprompt_plugin::voice::SynthRequest;
+use teleprompt_voice::SynthRequest;
 
 struct Server(Child);
 
@@ -60,7 +60,7 @@ async fn the_moo_server_is_a_voice_with_nothing_but_settings() {
         return;
     };
     let settings: serde_yaml::Value = serde_yaml::from_str(&format!(
-        "api: openai\nbase_url: http://127.0.0.1:{port}/v1\nmodel: moo-2"
+        "base_url: http://127.0.0.1:{port}/v1\nmodel: moo-2"
     ))
     .unwrap();
     let voice = teleprompt_voice_openai::endpoint("moo", &settings).unwrap();

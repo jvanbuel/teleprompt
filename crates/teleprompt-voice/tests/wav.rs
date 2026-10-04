@@ -1,4 +1,4 @@
-use teleprompt_plugin::voice::{wav, Pcm};
+use teleprompt_voice::{wav, Pcm};
 
 /// Three mono samples at 48 kHz. Every header field is hand-computed here
 /// rather than read back through our own decoder, because a decoder that
@@ -94,14 +94,14 @@ fn encoding_is_byte_stable() {
 /// A take is read back from the WAV it was saved as.
 #[test]
 fn decoding_what_was_encoded_gives_it_back() {
-    let pcm = teleprompt_plugin::voice::Pcm {
+    let pcm = teleprompt_voice::Pcm {
         sample_rate: 24_000,
         channels: 1,
         samples: vec![0, 1, -1, i16::MAX, i16::MIN, 1234],
     };
-    let wav = teleprompt_plugin::voice::wav::encode(&pcm);
-    assert_eq!(teleprompt_plugin::voice::wav::decode(&wav).unwrap(), pcm);
-    assert!(teleprompt_plugin::voice::wav::decode(b"RIFF....WAVEnot a wav").is_err());
+    let wav = teleprompt_voice::wav::encode(&pcm);
+    assert_eq!(teleprompt_voice::wav::decode(&wav).unwrap(), pcm);
+    assert!(teleprompt_voice::wav::decode(b"RIFF....WAVEnot a wav").is_err());
 }
 
 /// A stereo recording with a `LIST` chunk before its data, as recorders

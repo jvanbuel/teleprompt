@@ -4,7 +4,7 @@
 
 use teleprompt_plugin::capture::mock::MockCapture;
 use teleprompt_plugin::capture::CaptureRegistry;
-use teleprompt_plugin::protocol::{host, Kind};
+use teleprompt_plugin::protocol::host;
 use teleprompt_plugin::record::NamedRecorder;
 use teleprompt_plugin::scene::{MockScene, SceneRegistry};
 use teleprompt_plugin::ScenePlugin;
@@ -31,7 +31,7 @@ fn built_in() -> Vec<ScenePlugin> {
 fn plugins() -> Vec<ScenePlugin> {
     let mut all = built_in();
     for found in host::discover() {
-        if found.kind == Kind::Scene && !all.iter().any(|a| a.name() == found.name) {
+        if !all.iter().any(|a| a.name() == found.name) {
             all.push(host::scene(found));
         }
     }

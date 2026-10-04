@@ -1,6 +1,6 @@
 use base64::Engine;
 use serde_json::{json, Value};
-use teleprompt_plugin::voice::{with_causes, Pcm, VoiceError};
+use teleprompt_voice::{with_causes, Pcm, VoiceError};
 
 use crate::config::GeminiConfig;
 
@@ -171,7 +171,7 @@ impl Client {
 /// Gemini's raw PCM is little-endian, whatever `audio/l16` says elsewhere.
 fn decode(bytes: &[u8], audio: &Value) -> Result<Pcm, String> {
     if bytes.starts_with(b"RIFF") {
-        return teleprompt_plugin::voice::wav::decode(bytes).map_err(|e| format!("its audio: {e}"));
+        return teleprompt_voice::wav::decode(bytes).map_err(|e| format!("its audio: {e}"));
     }
     let kind = audio["mime_type"]
         .as_str()

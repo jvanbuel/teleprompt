@@ -7,14 +7,14 @@ use std::collections::BTreeMap;
 
 use base64::Engine;
 use stub::{spawn, Reply};
-use teleprompt_plugin::voice::{Pcm, SynthRequest, VoiceBackend};
+use teleprompt_voice::{Pcm, SynthRequest, VoiceBackend};
 use teleprompt_voice_gemini::{GeminiConfig, GeminiVoice};
 
 const ROUTE: &str = "POST /v1beta/interactions";
 
 /// A tenth of a second at 24 kHz, as a WAV: what a unary request returns.
 fn wav() -> Vec<u8> {
-    teleprompt_plugin::voice::wav::encode(&Pcm {
+    teleprompt_voice::wav::encode(&Pcm {
         sample_rate: 24_000,
         channels: 1,
         samples: vec![100; 2400],
@@ -173,7 +173,7 @@ async fn the_model_and_seed_are_the_projects() {
     assert_eq!(body["model"], "gemini-3.8-flash-lite-tts");
     assert_eq!(body["generation_config"]["seed"], 7);
     // Each changes the audio, so each is in the cache key.
-    let version = voice.capabilities().version;
+    let version = voice.version();
     assert!(
         version.contains("gemini-3.8-flash-lite-tts") && version.contains("seed7"),
         "{version}"

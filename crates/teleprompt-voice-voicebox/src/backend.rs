@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use teleprompt_plugin::voice::{
-    async_trait, ClonedVoice, LanguageSupport, SynthRequest, Synthesized, VoiceBackend,
-    VoiceCapabilities, VoiceError, VoicePlugin, VoiceSample,
+use teleprompt_voice::{
+    async_trait, ClonedVoice, Provider, SynthRequest, Synthesized, VoiceBackend, VoiceError,
+    VoiceSample,
 };
 
 use crate::client::{Client, Profile};
@@ -29,14 +29,10 @@ impl VoiceboxVoice {
     }
 }
 
-/// What it needs that teleprompt does not ship.
-static NEEDS: [&teleprompt_plugin::tool::Tool; 1] = [&crate::tools::VOICEBOX];
-
 /// Voicebox as teleprompt registers it: built from `[backends.voicebox]`.
-pub fn plugin() -> VoicePlugin {
-    VoicePlugin {
+pub fn provider() -> Provider {
+    Provider {
         id: "voicebox",
-        needs: &NEEDS,
         build: |settings| {
             let cfg = match settings {
                 Some(v) => VoiceboxConfig::from_value(v)?,
@@ -53,16 +49,8 @@ impl VoiceBackend for VoiceboxVoice {
         "voicebox"
     }
 
-    fn capabilities(&self) -> VoiceCapabilities {
-        VoiceCapabilities {
-            languages: LanguageSupport::Any,
-            cloning: true,
-            cross_lingual: true,
-            word_timings: false,
-            ssml: false,
-            speed_control: false,
-            version: self.version.clone(),
-        }
+    fn version(&self) -> String {
+        self.version.clone()
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {

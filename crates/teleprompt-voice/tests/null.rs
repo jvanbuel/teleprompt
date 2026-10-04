@@ -1,7 +1,7 @@
-use teleprompt_plugin::voice::{Pcm, SynthRequest, VoiceBackend};
 use teleprompt_voice::estimator::DurationEstimator;
 use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{NullVoice, NULL_SAMPLE_RATE};
+use teleprompt_voice::{Pcm, SynthRequest, VoiceBackend};
 
 fn req(text: &str) -> SynthRequest {
     SynthRequest {
@@ -85,14 +85,6 @@ async fn synthesis_is_deterministic() {
     let a = v.synthesize(&req("Welcome to Acme.")).await.unwrap();
     let b = v.synthesize(&req("Welcome to Acme.")).await.unwrap();
     assert_eq!(a.pcm, b.pcm);
-}
-
-#[tokio::test]
-async fn null_backend_declares_honest_capabilities() {
-    let c = NullVoice::default().capabilities();
-    assert!(!c.cloning);
-    assert!(!c.word_timings);
-    assert!(c.speed_control);
 }
 
 #[tokio::test]

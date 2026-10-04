@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-teleprompt-plugin = { path = "../teleprompt-plugin" }
+teleprompt-voice = { path = "../teleprompt-voice" }
 base64.workspace = true
 reqwest = { workspace = true }
 serde = { workspace = true }

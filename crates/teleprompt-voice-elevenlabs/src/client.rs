@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use base64::Engine;
 use serde_json::{json, Value};
-use teleprompt_plugin::voice::{with_causes, Pcm, VoiceError, WordTiming};
+use teleprompt_voice::{with_causes, Pcm, VoiceError, WordTiming};
 
 use crate::config::ElevenLabsConfig;
 

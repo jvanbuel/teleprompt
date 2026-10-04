@@ -1,22 +1,21 @@
-# Example plugins
+# An example scene plugin
 
-Two plugins as programs of their own, in Python with nothing beyond its
-standard library, to show what any language can do
-([extending teleprompt](../../docs/guide/plugins.md)). Both type-check
-with `mypy --strict` and are formatted with ruff (`../ruff.toml`):
+`teleprompt-scene-card` is a scene plugin as a program of its own, in
+Python with nothing beyond its standard library, to show what any language
+can do ([writing a scene plugin](../../docs/guide/scene-plugins.md)). It
+draws a scene of plain colour cards (`color`, `hold`, `mark`), captured
+with ffmpeg: the smallest complete scene plugin. It type-checks with
+`mypy --strict` and is formatted with ruff (`../ruff.toml`).
 
-- `teleprompt-scene-card`: a scene of plain colour cards (`color`,
-  `hold`, `mark`), captured with ffmpeg. The smallest complete scene plugin.
-- `teleprompt-voice-espeak`: narration spoken by eSpeak NG, offline, in
-  over a hundred languages.
-
-To use them, put this directory on PATH, or copy them into the plugins
-directory, and check that teleprompt finds them:
+To use it, put this directory on PATH, or copy it into the plugins
+directory, and check that teleprompt finds it:
 
     export PATH="$PWD/examples/plugins:$PATH"
     teleprompt plugins
 
-Then a block can say `scene=card`, and `teleprompt.toml` can say
-`[voice] backend = "espeak"`. The tests in `crates/teleprompt-plugin`
-and `crates/teleprompt-cli` run them, so they stay in step with the
-protocol, and `examples/plugin-authors` is a video made with both.
+Then a block can say `scene=card`. The tests in `crates/teleprompt-plugin`
+and `crates/teleprompt-cli` run it, so it stays in step with the protocol,
+and `examples/plugin-authors` is a video made with it.
+
+A voice is not a plugin but a speech server: `../voices/espeak_server.py`
+is one ([writing a voice](../../docs/guide/voices.md#writing-a-voice)).

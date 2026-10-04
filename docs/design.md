@@ -167,9 +167,9 @@ reading the manifest it just published.
 |---|---|
 | `teleprompt-core` | AST, parser, ids, config, `Hash`, diagnostics, shared vocabulary such as `VoiceSource` |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
-| `teleprompt-plugin` | what a plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend`, `Recorder` and `VoiceBackend` contracts, `ScenePlugin` (a scene plugin's three under one name), PCM and WAV, the mock scene plugin, and helpers for running a plugin's tools. Every scene and voice plugin depends on it and core alone |
-| `teleprompt-voice` | the voice engine: the `DurationEstimator`, the registry, stretching a line to fit, the author's takes, and the `null` backend: silence at the estimated length |
-| `teleprompt-voice-openai` | HTTP against any server that speaks OpenAI's speech API: `kokoro` (Kokoro-FastAPI) and `openai` are its presets, and `[backends.<name>] api = "openai"` names any other |
+| `teleprompt-plugin` | what a scene plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it and core alone |
+| `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the `DurationEstimator`, the registry, stretching a line to fit, the author's takes, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
+| `teleprompt-voice-openai` | HTTP against any server that speaks OpenAI's speech API: `kokoro` (Kokoro-FastAPI) and `openai` are its presets, and any other `[backends.<name>]` is a server under that name |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
 | `teleprompt-voice-elevenlabs` | HTTP against ElevenLabs: premade or the account's own voices, found by name, with each word's timing |
 | `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |
@@ -186,36 +186,41 @@ reading the manifest it just published.
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per scene plugin, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `plugin()` |
 | `teleprompt-desktop` | what the desktop scene plugins share: their action language and scene compiler, and the runner that plays a session's shots against a window and cuts them where they began |
 | `teleprompt-x11`, `-macos` | one crate per platform: the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation. Each records with ffmpeg |
-| `teleprompt-cli` | the `teleprompt` binary, and the registries every scene plugin and backend is composed into |
+| `teleprompt-cli` | the `teleprompt` binary, and the registries every scene plugin and voice is composed into |
 
 `schedule`, `plugin` and `manifest` depend on `core` alone, and not on
 one another. Anything that needs two of them belongs in `compile`.
-`render` reads the manifest and never the compiler. A plugin, built in or
-not, depends on `plugin` and `core` and nothing else of teleprompt's, so
-what an outside plugin can do, the built-in ones do
-([writing a plugin](guide/plugins.md)). Each scene plugin crate's `plugin()`
+`render` reads the manifest and never the compiler. A scene plugin, built
+in or not, depends on `plugin` and `core` and nothing else of
+teleprompt's, so what an outside plugin can do, the built-in ones do
+([writing a scene plugin](guide/scene-plugins.md)). A voice teleprompt
+ships depends on `voice` and `core`. Each scene plugin crate's `plugin()`
 hands over its compiler, capture backend and recorder as one `ScenePlugin`,
 named by its compiler's kind, so its halves cannot be registered under two
 names. `compile`, and so `plan`, `check` and the prompter, reads a
-scene's shots and never runs its tool: it uses `plugin::scene` and
-`plugin::voice` only, which `tools/check_deps.py` checks by name, along
+scene's shots and never runs its tool: it uses `plugin::scene` only,
+which `tools/check_deps.py` checks by name, along
 with the allowed edges between workspace crates. CI fails on any other.
-Scene plugins and backends are registered only in the CLI, so adding one means
+Scene plugins and voices are registered only in the CLI, so adding one means
 one crate and one registry line, and no other crate learns its name.
 
 ## Voice
 
 ### Voice contract
 
-A backend does one thing: it turns text into audio. Three methods are
-required; the rest have defaults, for what teleprompt asks of a backend
-that has a server or more to offer.
+A voice does one thing: it turns text into audio. Every voice takes the
+same request, OpenAI's speech request (`POST /v1/audio/speech`): the line,
+a voice, a speed and delivery instructions, and the model from its
+settings. A voice of the author's is a server that speaks that API, never
+a plugin; the ones teleprompt ships for providers that do not (Voicebox,
+Gemini, ElevenLabs) translate the same request. Three methods are
+required; the rest have defaults, for what a voice has more to offer.
 
 ```rust
 #[async_trait]
 pub trait VoiceBackend: Send + Sync {
     fn id(&self) -> &str;
-    fn capabilities(&self) -> VoiceCapabilities;
+    fn version(&self) -> String;                     // part of the cache key
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError>;
 
     fn concurrency(&self) -> usize { 1 }            // lines dub sends at once
@@ -227,21 +232,21 @@ pub trait VoiceBackend: Send + Sync {
 }
 ```
 
-There is no downcast: the CLI holds every backend as `Arc<dyn
-VoiceBackend>`, built by its plugin's `VoicePlugin` from its own
-`[backends.<id>]` settings. A `backends` table with `api = "openai"` and
-a name nothing ships is a voice of its own, built by the OpenAI-compatible
-backend: a speech server is configured, not written. `dub` checks a script's voices against
-`voices()` before synthesizing, where a backend lists them; `setup`
-prints `probe()`, within five seconds, for a backend with an `address()`;
-`voice clone` asks the first backend whose `capabilities().cloning` does
-not answer `Unsupported`.
+There is no downcast: the CLI holds every voice as `Arc<dyn
+VoiceBackend>`, built by its `Provider` from its own `[backends.<id>]`
+settings. A `backends` table naming no voice teleprompt ships is a server
+of the author's, built by the OpenAI-compatible backend: a speech server is
+configured, not written; one whose settings make no server is an error.
+`dub` checks a script's voices against `voices()` before synthesizing,
+where a voice lists them; `setup` prints `probe()`, within five seconds,
+for a voice with an `address()`; `voice clone` asks each voice in turn
+until one does not answer `Unsupported`.
 
 The trait does not return a duration separately. The audio's length is the
 duration, so a backend cannot report a length its samples do not have.
 `Pcm` carries its own sample rate and channel count, and nothing
-downstream assumes one. `capabilities().version` is the backend's own
-version, such as the model it runs, and it is part of the cache key.
+downstream assumes one. `version()` is the voice's own version, such as
+the model it runs, and it is part of the cache key.
 
 Predicting a duration without synthesizing is a separate trait,
 `DurationEstimator`, which is synchronous and deterministic.
@@ -944,23 +949,22 @@ a video needs comes in three tiers.
    stay the CLI's. **No release artifact, whether binary, app bundle, installer
    or container image, includes a tool.** One that did would take on the
    tool's license: a deliberate choice, made in this document first.
-3. **Community plugins.** Scene and voice plugins of other people's. A voice
-   that is a server speaking OpenAI's API needs no plugin: the author
-   names it in `teleprompt.toml`. The rest are programs of their own: `teleprompt-scene-<name>` or
-   `teleprompt-voice-<name>`, on PATH or in the plugins directory,
+3. **Community plugins and voices.** A voice of other people's is a
+   server speaking OpenAI's API, which the author names in
+   `teleprompt.toml`. A scene plugin of other people's is a program of
+   its own, `teleprompt-scene-<name>`, on PATH or in the plugins directory,
    speaking JSON a line at a time on stdin and stdout
-   ([the protocol](guide/plugins.md#the-protocol)). The author installs
+   ([the protocol](guide/scene-plugins.md#the-protocol)). The author installs
    one with their own tools (pipx, npm, cargo, a copied file) and finds
    them by the GitHub topic `teleprompt-plugin`; `teleprompt plugins` lists
    what is installed. Teleprompt hosts nothing and passes no license on. A
    plugin starts when a command first needs it and stops when the command
    ends; teleprompt sends it one request at a time. A built-in plugin's
-   name wins. The two kinds share only this plumbing, and `describe`'s
-   shared fields; each kind's own are tagged by `kind`, so a scene plugin
-   cannot claim a voice's. `teleprompt_plugin::protocol` is both sides: the host, which
+   name wins. `teleprompt_plugin::protocol` is both sides: the host, which
    holds an outside plugin as the contract it implements, so nothing else
    in teleprompt can tell it from a built-in one; and `serve`, which makes
-   a Rust plugin a program. `examples/plugins` has two in Python.
+   a Rust plugin a program. `examples/plugins` has one in Python, and
+   `examples/voices` a speech server.
 
 ## Not built
 
@@ -970,7 +974,7 @@ Named here so the rest of this document is not read as covering them:
   author's takes. Google's Voices API replicates a voice too, but only with
   a recording of its owner reading a consent statement, which teleprompt
   does not collect; a voice made there is named by its id.
-- **Recording, scene inputs and cloning over the protocol.** A plugin
-  program can be a scene plugin's scene and capture, or a voice; recording a
-  session, the files a scene reads outside its block, `include=…#fragment`
-  and cloning a voice are for compiled-in plugins only, until one asks.
+- **Recording and scene inputs over the protocol.** A plugin program can
+  be a scene plugin's scene and capture; recording a session, the files a
+  scene reads outside its block and `include=…#fragment` are for
+  compiled-in plugins only, until one asks.

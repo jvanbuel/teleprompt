@@ -6,8 +6,8 @@
 //! it asks for.
 
 use serde::Serialize;
-use teleprompt_plugin::voice::VoiceSample;
 use teleprompt_voice::takes::Takes;
+use teleprompt_voice::VoiceSample;
 
 use crate::project::Project;
 

@@ -6,9 +6,9 @@
 
 use teleprompt_core::{Hash, LineId};
 use teleprompt_manifest::{AudioInfo, NarrationManifest};
-use teleprompt_plugin::voice::{wav, Pcm};
 use teleprompt_schedule::Timeline;
 use teleprompt_voice::takes::Takes;
+use teleprompt_voice::{wav, Pcm};
 
 use crate::{CompileOutput, NarrationDetail};
 

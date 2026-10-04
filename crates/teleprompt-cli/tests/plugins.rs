@@ -58,10 +58,8 @@ fn installed_plugins_are_listed_with_what_they_need() {
     let plugins = report["plugins"].as_array().unwrap();
     let named = |name: &str| plugins.iter().find(|p| p["name"] == name).unwrap().clone();
     let card = named("card");
-    assert_eq!(card["kind"], "scene");
     assert_eq!(card["needs"], serde_json::json!(["ffmpeg"]));
     assert!(card["problem"].is_null(), "{card}");
-    assert_eq!(named("espeak")["kind"], "voice");
     let hidden = named("mock");
     assert!(
         hidden["problem"].as_str().unwrap().contains("built-in"),

@@ -1981,8 +1981,8 @@ dependencies = [
  "serde",
  "serde_json",
  "teleprompt-core",
- "teleprompt-plugin",
  "teleprompt-testkit",
+ "teleprompt-voice",
  "thiserror 1.0.69",
 ]
 
@@ -2141,10 +2141,8 @@ name = "teleprompt-plugin"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "base64",
  "serde",
  "serde_json",
- "serde_yaml",
  "teleprompt-core",
  "teleprompt-testkit",
  "tempfile",
@@ -2159,7 +2157,6 @@ dependencies = [
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-listen",
- "teleprompt-plugin",
  "teleprompt-testkit",
  "teleprompt-voice",
 ]
@@ -2238,8 +2235,8 @@ dependencies = [
  "async-trait",
  "serde",
  "serde_json",
+ "serde_yaml",
  "teleprompt-core",
- "teleprompt-plugin",
  "teleprompt-testkit",
  "thiserror 1.0.69",
  "tokio",
@@ -2254,7 +2251,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "teleprompt-plugin",
+ "teleprompt-voice",
  "tokio",
 ]
 
@@ -2267,7 +2264,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "teleprompt-plugin",
+ "teleprompt-voice",
  "tokio",
 ]
 
@@ -2280,7 +2277,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "teleprompt-plugin",
+ "teleprompt-voice",
  "tokio",
 ]
 
@@ -2292,7 +2289,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "teleprompt-plugin",
+ "teleprompt-voice",
  "tokio",
 ]
 

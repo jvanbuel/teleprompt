@@ -242,8 +242,8 @@ async fn a_bad_setting_for_an_unselected_backend_is_listed() {
     );
 }
 
-/// A `backends:` key naming nothing this build ships is reported by `setup`
-/// too, and reported even when the project resolves to
+/// A `backends:` key naming nothing this build ships, and making no server,
+/// is reported by `setup` too, and reported even when the project resolves to
 /// a different backend entirely — the key belongs to no backend, so
 /// "validate only the selected one" must not be a way for it to disappear.
 #[tokio::test]
@@ -251,7 +251,7 @@ async fn an_unknown_backends_key_is_a_reported_problem() {
     let mut backends = BTreeMap::new();
     backends.insert(
         "kokoro-local".to_string(),
-        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881\"").unwrap(),
+        serde_yaml::from_str("voice: af_heart").unwrap(),
     );
     let project = project_with_backend("null", backends);
     let report = project_voice(&project).await;

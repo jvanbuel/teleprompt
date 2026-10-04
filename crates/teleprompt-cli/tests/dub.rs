@@ -1245,7 +1245,7 @@ Deployment is one command. {#deploy}
 fn recorded(tag: &str) -> teleprompt_testkit::TestDir {
     let root = project_with(tag, TOUR);
     let mut takes = teleprompt_voice::takes::Takes::load(&root.join("takes")).unwrap();
-    let pcm = teleprompt_plugin::voice::Pcm {
+    let pcm = teleprompt_voice::Pcm {
         sample_rate: 24_000,
         channels: 1,
         samples: (0..36_000).map(|i| ((i % 60) * 300) as i16).collect(),
@@ -1272,7 +1272,7 @@ fn dub_publishes_a_take_and_names_the_lines_it_synthesized() {
     let welcome = lines.iter().find(|l| l["id"] == "welcome").unwrap();
     assert_eq!(welcome["duration_ms"], 1500);
     assert_eq!(wav_ms(&root, &m, welcome), 1500);
-    let wav = teleprompt_plugin::voice::wav::decode(&wav_bytes(&root, welcome)).unwrap();
+    let wav = teleprompt_voice::wav::decode(&wav_bytes(&root, welcome)).unwrap();
     assert_eq!(
         u64::from(wav.sample_rate),
         m["audio"]["sample_rate"].as_u64().unwrap()
@@ -1324,6 +1324,6 @@ fn dub_writes_a_fit_line_line_at_its_tempo() {
             .join(line["audio"].as_str().unwrap()),
     )
     .unwrap();
-    let pcm = teleprompt_plugin::voice::wav::decode(&wav).unwrap();
+    let pcm = teleprompt_voice::wav::decode(&wav).unwrap();
     assert_eq!(pcm.duration_ms(), line["duration_ms"].as_u64().unwrap());
 }

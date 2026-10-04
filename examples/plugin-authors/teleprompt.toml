@@ -1,17 +1,20 @@
-# A narrated video for plugin authors, made with the plugins it explains:
-# its cards are drawn by the card scene plugin in examples/plugins, and one of
-# its lines is spoken by the eSpeak voice there. The narrator is no plugin
-# at all: `studio` is a speech server that speaks OpenAI's API, named here.
-# The terminal session was recorded once, with asciinema.
+# A narrated video for plugin authors, made with what it explains: its
+# cards are drawn by the card scene plugin in examples/plugins, and one of
+# its lines is spoken by the eSpeak speech server in examples/voices. The
+# narrator, `studio`, is another speech server: voices are servers that
+# speak OpenAI's API, named here, never plugins. The terminal session was
+# recorded once, with asciinema.
 #
-# Run from the repository root, with the example plugins on PATH, agg
-# (https://github.com/asciinema/agg) and espeak-ng installed, and
-# Kokoro-FastAPI (or any server of the API) listening on base_url:
+# Run from the repository root, with the example plugin on PATH, agg
+# (https://github.com/asciinema/agg) and espeak-ng installed, the eSpeak
+# server running, and Kokoro-FastAPI (or any server of the API) listening
+# on studio's base_url:
 #
+#   python3 examples/voices/espeak_server.py 8891 --wpm 165 &
 #   PATH="$PWD/examples/plugins:$PATH" \
 #     cargo run -- build examples/plugin-authors/scripts/plugins.md
 #
-# `check` and `plan` need the plugins on PATH, and nothing else.
+# `check` and `plan` need the plugin on PATH, and nothing else.
 [locales]
 source = "en"
 targets = []
@@ -26,14 +29,14 @@ JSON = "jason"
 eSpeak = "ee speak"
 
 [backends.studio]
-api = "openai"
 base_url = "http://localhost:8880/v1"
 model = "kokoro"
 
 [backends.espeak]
-wpm = 165
+base_url = "http://localhost:8891/v1"
+model = "espeak"
 
-# The one line the eSpeak plugin says.
+# The one line the eSpeak server says.
 [voices.espeak]
 backend = "espeak"
 voice = "en-us"

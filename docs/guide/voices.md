@@ -2,8 +2,9 @@
 
 `voice.backend` chooses what speaks the narration. It defaults to `null`,
 which produces silence of the estimated length and needs nothing
-installed. Everything else is a speech server, and most of those speak
-OpenAI's speech API, so one backend speaks to all of them:
+installed. Every other voice takes the same request, OpenAI's speech
+request: a line, a voice, a speed and how to say it. Most speech servers
+speak that API themselves:
 
 - `kokoro`: a [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI)
   server you run yourself, in Docker or with pip. Local, free, and the
@@ -16,10 +17,10 @@ Three speak APIs of their own: `voicebox`, a
 [Voicebox](https://voicebox.sh) app, which can speak in [your own
 voice](#your-own-voice-voicebox); `gemini`, [Google's Gemini
 TTS](#gemini-tts); and [`elevenlabs`](#elevenlabs). The last two run at
-their makers, with your own API key. And a voice that is not a server
-at all, such as a program on your machine, is a
-[plugin](#writing-a-voice): `examples/plugins` has one spoken by eSpeak
-NG. teleprompt bundles no model and runs no Python.
+their makers, with your own API key. teleprompt carries their translation
+of the request, so to the rest of it they are voices like any other. A
+voice of your own is a [speech server](#writing-a-voice), never a
+plugin. teleprompt bundles no model and runs no Python.
 
 ```toml
 # teleprompt.toml
@@ -124,7 +125,8 @@ voices, so `dub` does not check a script's against them.
 ## Any OpenAI-compatible server
 
 A speech server that answers OpenAI's `POST /v1/audio/speech` is a voice
-under any name you give it, with `api = "openai"` and its address:
+under any name you give it: a `[backends.<name>]` table that names no
+voice teleprompt ships is such a server, at its `base_url`.
 
 ```toml
 [voice]
@@ -132,7 +134,6 @@ backend = "studio"
 voice = "amy"
 
 [backends.studio]
-api = "openai"
 base_url = "http://gpu-box:8000/v1"
 model = "piper-amy"
 ```
@@ -279,72 +280,45 @@ watermark, and its use falls under the
 
 ## Writing a voice
 
-A voice that is a speech server is best written as one that speaks
-OpenAI's API ([above](#any-openai-compatible-server)): then it needs
-nothing of teleprompt's, and works with other tools too. It needs to answer
-`POST /v1/audio/speech` with `response_format: "pcm"`; listing its voices
-at `GET /v1/audio/voices` is optional, and lets `dub` check a script's
-voices and `setup` see that it is up. `examples/moo` is a whole one: a
-hundred lines of typed Python with FastAPI, run with `uv run`, that says
-every word as a recording of a real cow, and a narrated video that walks
-through its code on Slidev slides. Otherwise, a
-voice is a plugin ([extending teleprompt](plugins.md) has how one ships
-and is found).
+A voice is a speech server that speaks OpenAI's API
+([above](#any-openai-compatible-server)), in any language: it needs
+nothing of teleprompt's, and works with other tools too.
 
-### As a program
+- **`POST /v1/audio/speech`** takes `model`, `input` (the line), `voice`,
+  `speed`, `instructions` (`voice.instruct`, for a server that takes them)
+  and `response_format: "pcm"`, and answers with 16-bit little-endian mono
+  PCM at 24 kHz, or at the rate the voice's `sample_rate` names.
+- **`GET /v1/audio/voices`**, optional, answers `{"voices": [...]}`: then
+  `dub` checks a script's voices against them before speaking anything,
+  and `setup` sees that the server is up.
 
-`teleprompt-voice-<name>` describes itself with `"kind": "voice"`, its
-`version` (what its audio depends on beyond the request and its settings,
-such as its program's version) and what it can do beyond speaking a line:
-`word_timings`, `speed_control` and `address` (where its server is, if it
-has one). Every request after that carries `settings`, its
-`[backends.<name>]` table or null, so a plugin keeps no state. It answers:
+Two examples, both typed Python:
 
-| method | params | result |
-|---|---|---|
-| `synthesize` | `text`, `locale`, `voice`, `speed`, `instruct`, `settings` | `audio`: the line as a WAV file, base64; `word_timings` if it has them |
-| `voices`, optional | `settings` | `voices`: the names its `voice.voice` may give |
-| `probe`, optional | `settings` | `line`: one line on its server, for `setup` |
+- `examples/voices/espeak_server.py` speaks with eSpeak NG, offline, in
+  over a hundred languages, with Python's standard library alone.
+- `examples/moo` says every word as a recording of a real cow, with
+  FastAPI, run with `uv run`; and is a narrated video that walks through
+  its code on Slidev slides.
 
-The voice cache's key is the plugin's name, its `version` and a hash of
-its settings, so a cache made with other settings is never reused. A WAV
-streamed as it is made, whose header cannot know its length, is fine.
+The voice cache's key is the table's name, its `model` and the request,
+so name the `model` after what the server has loaded.
 
-A method a plugin does not have answers the error ``unknown method `name` ``,
-so teleprompt knows it is missing rather than failing: a voice without
-`voices` is one whose voices are not checked.
+### In teleprompt itself
 
-`examples/plugins/teleprompt-voice-espeak` is one, in typed Python with
-nothing beyond its standard library. Cloning a
-voice is not in version 1 of the protocol; it is compiled-in only for now.
+A provider that does not speak OpenAI's API, a hosted service you cannot
+change, is a crate in this repository that takes the same request and
+translates it: it implements `teleprompt_voice::VoiceBackend`, with `id`,
+`version` and `synthesize`, which returns PCM. The other methods have
+defaults: override them for what the provider can do, such as
+`concurrency`, `voices`, `probe` (the line `setup` prints) and
+`clone_voice`. `version` is part of the cache key: put in it anything that
+changes the audio but is not in the request, such as the model.
 
-### As a Rust crate
-
-A voice implements `VoiceBackend`: `id`, `capabilities`, and `synthesize`,
-which returns PCM. The other methods have defaults. Override them for what
-your server can do: `concurrency` (lines sent at once), `address` (where
-the server is), `voices` (checked before a dub), `probe` (the line `setup`
-prints) and `clone_voice`.
-
-It is registered as a `VoicePlugin`: its id, which `voice.backend` names,
-and how it is built from its own `[backends.<id>]` settings.
-
-```rust
-pub fn plugin() -> VoicePlugin {
-    VoicePlugin {
-        id: "mine",
-        build: |settings| Ok(Arc::new(MyVoice::new(MyConfig::from(settings)?)?)),
-        needs: &NEEDS,
-    }
-}
-```
-
-A build that fails is kept and reported only where that voice is chosen,
-so a broken block does not stop a project that uses another voice.
-`capabilities().version` is part of the voice cache's key: put in it
-anything that changes the audio but is not in the request, such as the
-model. `crates/teleprompt-voice-openai` is the example, and the backend
-behind `kokoro`, `openai` and every named server.
+It is registered in `providers()` in `teleprompt-cli`'s `src/voice/mod.rs`,
+as a `teleprompt_voice::Provider` (its id, which `voice.backend` names, and
+how it is built from its own `[backends.<id>]` settings), with what it
+needs for `setup`. A build that fails is kept and reported only where that
+voice is chosen. `crates/teleprompt-voice-elevenlabs` is the example.
 
 ## Testing against a real server
 

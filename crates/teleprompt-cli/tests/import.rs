@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use teleprompt_cli::cmd::import::{run_import, Import, Words};
 use teleprompt_cli::cmd::{check::run_check, plan::run_plan};
 use teleprompt_cli::project::Project;
-use teleprompt_plugin::voice::{wav, Pcm};
 use teleprompt_voice::takes::Takes;
+use teleprompt_voice::{wav, Pcm};
 
 const RATE: u32 = 24_000;
 

@@ -2,46 +2,34 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use teleprompt_core::Diagnostic;
-use teleprompt_plugin::protocol::{host, Kind};
-use teleprompt_plugin::voice::{ClonedVoice, VoiceBackend, VoicePlugin, VoiceSample};
+use teleprompt_plugin::tool::Tool;
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::VoiceRegistry;
+use teleprompt_voice::{ClonedVoice, Provider, VoiceBackend, VoiceSample};
 
-/// Every voice plugin this build ships, `null` aside, in the order errors
-/// and `setup` list them.
-fn plugins() -> Vec<VoicePlugin> {
+mod needs;
+
+/// Every voice this build ships, `null` aside, in the order errors and
+/// `setup` list them, with what each needs that teleprompt does not ship.
+fn providers() -> Vec<(Provider, &'static Tool)> {
     vec![
-        teleprompt_voice_openai::kokoro(),
-        teleprompt_voice_openai::openai(),
-        teleprompt_voice_voicebox::plugin(),
-        teleprompt_voice_gemini::plugin(),
-        teleprompt_voice_elevenlabs::plugin(),
+        (teleprompt_voice_openai::kokoro(), &needs::KOKORO),
+        (teleprompt_voice_openai::openai(), &needs::OPENAI),
+        (teleprompt_voice_voicebox::provider(), &needs::VOICEBOX),
+        (teleprompt_voice_gemini::provider(), &needs::GEMINI),
+        (teleprompt_voice_elevenlabs::provider(), &needs::ELEVENLABS),
     ]
 }
 
-/// What every voice plugin needs that teleprompt does not ship, the
-/// installed ones' as they describe it.
-pub fn plugin_needs() -> Vec<&'static teleprompt_plugin::tool::Tool> {
-    let built_in = plugins().into_iter().flat_map(|p| p.needs.iter().copied());
-    let installed = installed()
-        .into_iter()
-        .flat_map(|found| host::Plugin::new(found).needs().iter().copied());
-    built_in.chain(installed).collect()
-}
-
-/// The voices installed as programs of their own whose names no built-in
-/// voice has.
-fn installed() -> Vec<host::Found> {
-    let shipped: Vec<&str> = plugins().iter().map(|p| p.id).chain(["null"]).collect();
-    host::discover()
-        .into_iter()
-        .filter(|f| f.kind == Kind::Voice && !shipped.contains(&f.name.as_str()))
-        .collect()
+/// What the voices teleprompt ships need that it does not: their servers,
+/// or keys.
+pub fn needs() -> Vec<&'static Tool> {
+    providers().into_iter().map(|(_, needs)| needs).collect()
 }
 
 /// Whether `name` is a voice this build ships.
 pub fn is_built_in(name: &str) -> bool {
-    name == "null" || plugins().iter().any(|p| p.id == name)
+    name == "null" || providers().iter().any(|(p, _)| p.id == name)
 }
 
 /// The backends this build ships, together with everything the project's
@@ -50,13 +38,15 @@ pub fn is_built_in(name: &str) -> bool {
 /// * A shipped backend whose settings do not validate. Its error is kept and
 ///   surfaces only when that backend is selected, so a bad
 ///   `[backends.kokoro]` does not fail `check` on a `null` project.
-/// * A `backends:` key naming nothing this build ships, which is an error
-///   (see [`Backends::diagnostics`]).
+/// * A `backends:` key naming no voice this build ships, which is a server
+///   of the author's, and whose settings do not make one: an error whether
+///   or not it is chosen (see [`Backends::diagnostics`]).
 pub struct Backends {
     registry: VoiceRegistry,
     /// Shipped backends whose settings did not validate, by id.
     unusable: BTreeMap<String, String>,
-    /// `backends:` keys matching no shipped id, in the map's own order.
+    /// `backends:` keys naming no shipped voice whose settings do not make
+    /// a server, in the map's own order.
     unknown: Vec<String>,
     /// The file the settings came from, which diagnostics about them name.
     config_file: String,
@@ -69,55 +59,29 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
     let mut registry = VoiceRegistry::default();
     let mut unusable = BTreeMap::new();
     registry.register(Arc::new(NullVoice::default()));
-    for plugin in plugins() {
-        match (plugin.build)(settings.get(plugin.id)) {
+    for (provider, _) in providers() {
+        match (provider.build)(settings.get(provider.id)) {
             Ok(backend) => registry.register(backend),
             Err(e) => {
-                unusable.insert(plugin.id.to_string(), e);
+                unusable.insert(provider.id.to_string(), e);
             }
         }
     }
-    // A server of the author's that speaks OpenAI's API, under the name
-    // they gave it.
+    // Any other is a server of the author's that speaks OpenAI's API,
+    // under the name they gave it.
+    let mut unknown = Vec::new();
     for (name, given) in settings {
-        if is_built_in(name) || given.get("api").is_none() {
+        if is_built_in(name) {
             continue;
         }
         match teleprompt_voice_openai::endpoint(name, given) {
             Ok(backend) => registry.register(backend),
             Err(e) => {
                 unusable.insert(name.clone(), e);
+                unknown.push(name.clone());
             }
         }
     }
-    // An installed voice is given its settings when it is first asked
-    // something; one whose settings it refuses says so then. A block that
-    // names an API is a server, not the program.
-    for found in installed() {
-        if settings
-            .get(&found.name)
-            .is_some_and(|v| v.get("api").is_some())
-        {
-            continue;
-        }
-        let given = settings
-            .get(&found.name)
-            .and_then(|v| serde_json::to_value(v).ok());
-        registry.register(Arc::new(host::voice(found, given)));
-    }
-
-    // Includes the unusable ones, so a bad block is not also called unknown.
-    let shipped: Vec<String> = registry
-        .available()
-        .iter()
-        .map(|s| (*s).to_string())
-        .chain(unusable.keys().cloned())
-        .collect();
-    let unknown = settings
-        .keys()
-        .filter(|k| !shipped.contains(k))
-        .cloned()
-        .collect();
 
     Backends {
         registry,
@@ -183,11 +147,8 @@ impl Backends {
             let Some(backend) = self.registry.get(id) else {
                 continue;
             };
-            if !backend.capabilities().cloning {
-                continue;
-            }
             match backend.clone_voice(name, language, samples).await {
-                Err(teleprompt_plugin::voice::VoiceError::Unsupported { .. }) => continue,
+                Err(teleprompt_voice::VoiceError::Unsupported { .. }) => continue,
                 cloned => {
                     return cloned
                         .map(|c| (id.to_string(), c))
@@ -227,29 +188,36 @@ impl Backends {
         )))
     }
 
-    /// One error per `backends:` key naming nothing this build ships.
+    /// One error per `backends:` key naming no voice this build ships whose
+    /// settings do not make a server.
     ///
-    /// An error, not a warning: the settings reach nothing, so a misspelt
-    /// `[backends.kokoro-local]` sends `dub` to the default server, whose
-    /// audio is then cached and reported as `measured` by every later
-    /// `plan`.
+    /// An error whether or not it is chosen: the only reason to write one
+    /// is a server of your own, and a misspelt `[backends.kokoro]` would
+    /// otherwise send `dub` to the default server, whose audio is then
+    /// cached and reported as `measured` by every later `plan`.
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
         self.unknown
             .iter()
             .map(|id| {
+                let why = self.unusable.get(id).cloned().unwrap_or_default();
                 Diagnostic::error(format!(
-                    "`backends.{id}` sets options for a voice backend this build does \
-                     not ship, so nothing reads them (this build ships: {})",
-                    self.ids().join(", ")
+                    "`backends.{id}` names no voice this build ships ({}), so it is a \
+                     speech server of your own, and {why}",
+                    self.ids_shipped().join(", ")
                 ))
                 .in_file(self.config_file.clone())
                 .with_help(
-                    "for a speech server of your own, add `api = \"openai\"` and its \
-                     `base_url`; otherwise remove the block, or rename it to the backend \
-                     id you meant — a backend whose settings never arrive falls back to \
-                     its defaults rather than failing",
+                    "for a server that speaks OpenAI's speech API, give its `base_url`; \
+                     otherwise rename the block to the voice you meant",
                 )
             })
+            .collect()
+    }
+
+    /// The voices this build ships, whatever the project configures.
+    fn ids_shipped(&self) -> Vec<&'static str> {
+        std::iter::once("null")
+            .chain(providers().into_iter().map(|(p, _)| p.id))
             .collect()
     }
 

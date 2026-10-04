@@ -1,7 +1,7 @@
 mod stub;
 
 use stub::{spawn, Reply};
-use teleprompt_plugin::voice::VoiceBackend;
+use teleprompt_voice::VoiceBackend;
 use teleprompt_voice_openai::{OpenAiConfig, OpenAiVoice};
 
 fn backend(base_url: &str) -> OpenAiVoice {

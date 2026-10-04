@@ -20,10 +20,10 @@ use teleprompt_core::{
 use teleprompt_plugin::scene::{
     BlockSource, BodyOrigin, Measured, SceneCompiler, SceneRegistry, Shot,
 };
-use teleprompt_plugin::voice::{SynthRequest, WordTiming};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
 use teleprompt_voice::takes::{TakeMeta, Takes};
 use teleprompt_voice::DurationEstimator;
+use teleprompt_voice::{SynthRequest, WordTiming};
 
 pub mod length;
 pub mod manifest;

@@ -10,9 +10,9 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_core::{DurationSource, SpanMs};
 use teleprompt_plugin::scene::SceneRegistry;
-use teleprompt_plugin::voice::Pcm;
 use teleprompt_schedule::NarrationEntry;
 use teleprompt_voice::takes::Takes;
+use teleprompt_voice::Pcm;
 use teleprompt_voice::WpmEstimator;
 
 const SRC: &str = "# Tour\n\nWelcome to Acme. {#welcome}\n\nDeployment is one command. {#deploy}\n";

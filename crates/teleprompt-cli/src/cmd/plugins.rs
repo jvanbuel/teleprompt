@@ -1,9 +1,8 @@
-//! `teleprompt plugins`: the plugins installed as programs of their own,
-//! each asked what it is (docs/guide/plugins.md).
+//! `teleprompt plugins`: the scene plugins installed as programs of their
+//! own, each asked what it is (docs/guide/scene-plugins.md).
 
 use serde::Serialize;
 use teleprompt_plugin::protocol::host::{self, Plugin};
-use teleprompt_plugin::protocol::Kind;
 
 use crate::cli::Run;
 use crate::output::{Format, Outcome};
@@ -22,7 +21,6 @@ pub struct PluginsReport {
 #[derive(Debug, Serialize)]
 pub struct Installed {
     pub name: String,
-    pub kind: Kind,
     pub path: String,
     /// Why it cannot be used: it does not answer as a plugin, or a built-in
     /// one has its name.
@@ -36,20 +34,14 @@ pub fn installed() -> Vec<Installed> {
     host::discover()
         .into_iter()
         .map(|found| {
-            let shadowed = match found.kind {
-                Kind::Scene => crate::scene::is_built_in(&found.name),
-                Kind::Voice => crate::voice::is_built_in(&found.name),
-            };
-            let (name, kind) = (found.name.clone(), found.kind);
+            let shadowed = crate::scene::is_built_in(&found.name);
+            let name = found.name.clone();
             let path = found.path.display().to_string();
             let plugin = Plugin::new(found);
             let problem = if shadowed {
-                Some(
-                    format!(
-                        "teleprompt has a built-in {kind:?} named `{name}`, which is used instead"
-                    )
-                    .to_lowercase(),
-                )
+                Some(format!(
+                    "teleprompt has a built-in scene plugin named `{name}`, which is used instead"
+                ))
             } else {
                 plugin.describe().err()
             };
@@ -60,7 +52,6 @@ pub fn installed() -> Vec<Installed> {
             };
             Installed {
                 name,
-                kind,
                 path,
                 problem,
                 needs,
@@ -81,18 +72,14 @@ pub fn run(_: Args, format: Format) -> Run {
 fn render(report: &PluginsReport) -> String {
     if report.plugins.is_empty() {
         return format!(
-            "No plugins installed. A plugin is a program named teleprompt-scene-<name> \
-             or teleprompt-voice-<name>, on PATH or in {}: docs/guide/plugins.md\n",
+            "No plugins installed. A scene plugin is a program named \
+             teleprompt-scene-<name>, on PATH or in {}: docs/guide/scene-plugins.md\n",
             report.dir
         );
     }
     let mut out = String::new();
     for p in &report.plugins {
-        let kind = match p.kind {
-            Kind::Scene => "scene",
-            Kind::Voice => "voice",
-        };
-        out.push_str(&format!("{:<18} {kind:<8} {}\n", p.name, p.path));
+        out.push_str(&format!("{:<18} {}\n", p.name, p.path));
         match &p.problem {
             Some(why) => out.push_str(&format!("{:<18} unusable: {why}\n", "")),
             None if !p.needs.is_empty() => {

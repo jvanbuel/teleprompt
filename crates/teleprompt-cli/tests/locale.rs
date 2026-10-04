@@ -151,7 +151,7 @@ fn an_english_take_is_not_spoken_in_a_translation() {
     std::fs::write(dir.join("scripts/tour.nl.yaml"), dutch(false)).unwrap();
     let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
     let mut takes = teleprompt_voice::takes::Takes::load(&project.takes_dir()).unwrap();
-    let pcm = teleprompt_plugin::voice::Pcm {
+    let pcm = teleprompt_voice::Pcm {
         sample_rate: 24_000,
         channels: 1,
         samples: vec![0; 24_000],

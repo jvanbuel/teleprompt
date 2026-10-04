@@ -43,14 +43,14 @@ enum Command {
     /// it prints the commands unless --run. Without names outside a
     /// terminal, it reports on all of them.
     Setup(setup::Args),
-    /// List the plugins installed as programs of their own
+    /// List the scene plugins installed as programs of their own
     ///
-    /// A plugin is a program named teleprompt-scene-<name> or
-    /// teleprompt-voice-<name>, on PATH or in the plugins directory
+    /// A scene plugin is a program named teleprompt-scene-<name>, on PATH or
+    /// in the plugins directory
     /// ($TELEPROMPT_PLUGINS, or teleprompt/plugins in your data directory).
     /// Each is asked what it is and needs; one that does not answer, or
     /// whose name a built-in one has, says why it is not used. Writing
-    /// one: docs/guide/plugins.md.
+    /// one: docs/guide/scene-plugins.md.
     Plugins(plugins::Args),
     /// Report what the project's caches hold, or shrink them
     ///

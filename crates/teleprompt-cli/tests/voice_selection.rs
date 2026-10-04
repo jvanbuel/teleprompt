@@ -86,15 +86,15 @@ fn a_bad_setting_for_one_backend_leaves_the_others_usable() {
     );
 }
 
-/// A `backends:` key matching no shipped id used to be dropped without a word,
-/// so `[backends.kokoro-local]` left `dub` talking to the default
-/// `localhost:8880`.
+/// A `backends:` key naming no shipped voice is a server of the author's;
+/// one that does not make a server, such as a misspelt `[backends.kokoro]`,
+/// is an error rather than settings nothing reads.
 #[test]
 fn settings_for_a_backend_this_build_lacks_are_named_not_dropped() {
     let mut m = BTreeMap::new();
     m.insert(
         "kokoro-local".to_string(),
-        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881\"").unwrap(),
+        serde_yaml::from_str("voice: af_heart").unwrap(),
     );
     let b = backends_for(&m, "/p/teleprompt.toml");
 
@@ -114,15 +114,14 @@ fn settings_for_a_backend_this_build_lacks_are_named_not_dropped() {
     assert_eq!(diags[0].file.as_deref(), Some("/p/teleprompt.toml"));
 }
 
-/// The same block with `api = "openai"` is a server of the author's, under
-/// the name they gave it, and the unknown key's help says so.
+/// A block with an address is a server of the author's, under the name
+/// they gave it.
 #[test]
-fn a_block_that_names_the_api_is_a_backend_of_its_own() {
+fn a_block_naming_no_shipped_voice_is_a_server() {
     let mut m = BTreeMap::new();
     m.insert(
         "studio".to_string(),
-        serde_yaml::from_str("api: openai\nbase_url: \"http://127.0.0.1:8881/v1\"\nmodel: piper")
-            .unwrap(),
+        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881/v1\"\nmodel: piper").unwrap(),
     );
     let b = backends_for(&m, "teleprompt.toml");
     assert!(
@@ -134,18 +133,8 @@ fn a_block_that_names_the_api_is_a_backend_of_its_own() {
         .resolve("studio")
         .unwrap_or_else(|d| panic!("{}", d.message));
     assert_eq!(studio.id(), "studio");
-    assert_eq!(studio.capabilities().version, "piper");
+    assert_eq!(studio.version(), "piper");
     assert!(b.ids().contains(&"studio".to_string()));
-
-    m.insert(
-        "studio".to_string(),
-        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881/v1\"").unwrap(),
-    );
-    let help = backends_for(&m, "teleprompt.toml").diagnostics()[0]
-        .help
-        .clone()
-        .unwrap_or_default();
-    assert!(help.contains("api = \"openai\""), "{help}");
 }
 
 /// An endpoint without an address is not usable, and says what it lacks.
@@ -154,7 +143,7 @@ fn an_endpoint_without_an_address_says_so() {
     let mut m = BTreeMap::new();
     m.insert(
         "studio".to_string(),
-        serde_yaml::from_str("api: openai").unwrap(),
+        serde_yaml::from_str("model: piper").unwrap(),
     );
     let b = backends_for(&m, "teleprompt.toml");
     let why = b.resolve("studio").err().unwrap().message;
@@ -169,7 +158,7 @@ fn an_unknown_key_is_reported_even_when_the_project_resolves_elsewhere() {
     let mut m = BTreeMap::new();
     m.insert(
         "kokoro-local".to_string(),
-        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881\"").unwrap(),
+        serde_yaml::from_str("voice: af_heart").unwrap(),
     );
     m.insert(
         "kokoro".to_string(),
@@ -387,13 +376,14 @@ fn a_bad_setting_for_the_selected_backend_fails_check_and_names_the_config_file(
     );
 }
 
-/// I1, end to end. A near-miss spelling of a shipped backend id reached
-/// nothing and said nothing, and `dub` then connected to the default server.
+/// I1, end to end. A near-miss spelling of a shipped backend id with no
+/// address reached nothing and said nothing, and `dub` then connected to
+/// the default server.
 #[test]
 fn an_unknown_backends_key_fails_check_and_names_the_key() {
     let (_dir, project, script) = project_with_toml(
         "unknown-backends-key",
-        &format!("{NULL_PROJECT}\n[backends.kokoro-local]\nbase_url = \"http://127.0.0.1:8881\"\n"),
+        &format!("{NULL_PROJECT}\n[backends.kokoro-local]\nvoice = \"af_heart\"\n"),
     );
     let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
         .expect_err("settings that reach nothing must be named");
@@ -411,7 +401,7 @@ fn an_unknown_key_and_an_unused_bad_setting_report_exactly_one_problem() {
         "compose",
         &format!(
             "{NULL_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n\
-             \n[backends.kokoro-local]\nbase_url = \"http://127.0.0.1:8881\"\n"
+             \n[backends.kokoro-local]\nvoice = \"af_heart\"\n"
         ),
     );
     let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")

@@ -101,7 +101,7 @@ fn said_rewords_a_line_to_what_its_take_says() {
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let text = "Welcome to teleprompt. This paragraph is a narration line, and its spoken \
                 length decides how long the visuals below stay on screen.";
-    let pcm = teleprompt_plugin::voice::Pcm {
+    let pcm = teleprompt_voice::Pcm {
         sample_rate: 16_000,
         channels: 1,
         samples: vec![0; 16_000],

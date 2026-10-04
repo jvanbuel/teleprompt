@@ -8,9 +8,7 @@ use std::process::{Command, Stdio};
 use teleprompt_core::{BlockId, Hash, ShotId, SourceSpan};
 use teleprompt_plugin::capture::{Frame, Session, SessionShot};
 use teleprompt_plugin::protocol::host::{self, Found, Plugin};
-use teleprompt_plugin::protocol::{Kind, Traits};
 use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, Validated};
-use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
 
 fn examples() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/plugins")
@@ -32,7 +30,6 @@ fn card() -> Option<Found> {
     }
     Some(Found {
         name: "card".into(),
-        kind: Kind::Scene,
         path: examples().join("teleprompt-scene-card"),
     })
 }
@@ -57,7 +54,7 @@ fn an_outside_plugin_is_described_and_says_what_it_needs() {
     let plugin = Plugin::new(found);
     let d = plugin.describe().unwrap();
     assert_eq!(d.name, "card");
-    assert!(matches!(d.traits, Traits::Scene(ref t) if !t.continues && t.retimes));
+    assert!(!d.traits.continues && d.traits.retimes);
     let needs = plugin.needs();
     assert_eq!(needs[0].name, "ffmpeg");
     // Asked once: the same tools again, not new ones.
@@ -146,53 +143,9 @@ fn a_program_that_is_not_a_plugin_says_so() {
     std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
     let plugin = Plugin::new(Found {
         name: "broken".into(),
-        kind: Kind::Scene,
         path,
     });
     let why = plugin.describe().unwrap_err();
     assert!(why.contains("broken") && why.contains("not JSON"), "{why}");
     assert!(plugin.needs().is_empty());
-}
-
-#[test]
-fn an_outside_voice_speaks_with_its_settings() {
-    if !runs("python3") || !runs("espeak-ng") {
-        eprintln!("skipped: no python3 or espeak-ng");
-        return;
-    }
-    let voice = host::voice(
-        Found {
-            name: "espeak".into(),
-            kind: Kind::Voice,
-            path: examples().join("teleprompt-voice-espeak"),
-        },
-        Some(serde_json::json!({ "wpm": 200 })),
-    );
-    // Its settings are in the cache's key, hashed.
-    let version = voice.capabilities().version;
-    assert!(version.starts_with("espeak:eSpeak NG"), "{version}");
-    let other = host::voice(
-        Found {
-            name: "espeak".into(),
-            kind: Kind::Voice,
-            path: examples().join("teleprompt-voice-espeak"),
-        },
-        Some(serde_json::json!({ "wpm": 160 })),
-    );
-    assert_ne!(version, other.capabilities().version);
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .build()
-        .unwrap();
-    let said = runtime
-        .block_on(voice.synthesize(&SynthRequest {
-            text: "Hello there.".into(),
-            locale: "en".into(),
-            voice: None,
-            speed: 1.0,
-            instruct: None,
-        }))
-        .unwrap();
-    assert!(said.pcm.duration_ms() > 300, "{}", said.pcm.duration_ms());
-    let listed = runtime.block_on(voice.voices()).unwrap().unwrap();
-    assert!(listed.iter().any(|v| v.starts_with("en")), "{listed:?}");
 }

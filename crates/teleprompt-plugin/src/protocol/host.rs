@@ -8,30 +8,23 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use base64::Engine;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
 use super::{
-    is_unknown_method, Body, Capture, Captured, Description, Kind, Probed, Retime, Retimed,
-    SceneTraits, Settings, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits,
-    Voices, WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
+    Body, Capture, Captured, Description, Retime, Retimed, SceneTraits, Shots, Unavailable,
+    Validation, WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, PREFIX, VERSION,
 };
 use crate::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 use crate::scene::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use crate::tool::Tool;
-use crate::voice::{
-    async_trait, wav, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
-    VoiceError,
-};
 use crate::ScenePlugin;
 
 /// A plugin found on disk, not yet started.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
     pub name: String,
-    pub kind: Kind,
     pub path: PathBuf,
 }
 
@@ -65,7 +58,7 @@ pub fn discover() -> Vec<Found> {
             .collect();
         found.sort_by(|a, b| a.name.cmp(&b.name));
         for f in found {
-            if !out.iter().any(|o| o.kind == f.kind && o.name == f.name) {
+            if !out.iter().any(|o| o.name == f.name) {
                 out.push(f);
             }
         }
@@ -76,16 +69,13 @@ pub fn discover() -> Vec<Found> {
 /// The plugin `path` is, if its name says it is one and it can be run.
 fn plugin_at(path: &Path) -> Option<Found> {
     let file = path.file_name()?.to_str()?;
-    let (kind, name) = [Kind::Scene, Kind::Voice]
-        .into_iter()
-        .find_map(|k| Some((k, file.strip_prefix(k.prefix())?)))?;
+    let name = file.strip_prefix(PREFIX)?;
     let valid = !name.is_empty()
         && name
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
     (valid && executable(path)).then(|| Found {
         name: name.to_string(),
-        kind,
         path: path.to_path_buf(),
     })
 }
@@ -132,7 +122,7 @@ impl Plugin {
     }
 
     /// What the plugin says it is, asked once; why it cannot be used, when
-    /// it does not answer as one of its kind and name.
+    /// it does not answer to its name.
     pub fn describe(&self) -> Result<&Description, String> {
         self.description
             .get_or_init(|| {
@@ -147,11 +137,10 @@ impl Plugin {
                         self.found.name, d.protocol
                     ));
                 }
-                if d.kind() != self.found.kind || d.name != self.found.name {
+                if d.name != self.found.name {
                     return Err(format!(
-                        "{} describes itself as the {:?} `{}`",
+                        "{} describes itself as `{}`",
                         self.found.path.display(),
-                        d.kind(),
                         d.name
                     ));
                 }
@@ -319,11 +308,7 @@ impl ExternalScene {
     fn traits(&self) -> SceneTraits {
         self.plugin
             .describe()
-            .ok()
-            .and_then(|d| match &d.traits {
-                Traits::Scene(t) => Some(t.clone()),
-                Traits::Voice(_) => None,
-            })
+            .map(|d| d.traits.clone())
             .unwrap_or_default()
     }
 }
@@ -514,128 +499,5 @@ impl CaptureBackend for ExternalCapture {
                 Ok(Clip { key, path: c.path })
             })
             .collect()
-    }
-}
-
-/// An outside voice, as teleprompt registers its built-in ones. It starts
-/// only when first asked for something, and is given `settings` with every
-/// request.
-pub fn voice(found: Found, settings: Option<serde_json::Value>) -> ExternalVoice {
-    ExternalVoice {
-        plugin: Arc::new(Plugin::new(found)),
-        settings,
-    }
-}
-
-pub struct ExternalVoice {
-    plugin: Arc<Plugin>,
-    settings: Option<serde_json::Value>,
-}
-
-impl ExternalVoice {
-    pub fn plugin(&self) -> &Plugin {
-        &self.plugin
-    }
-
-    fn traits(&self) -> Result<VoiceTraits, VoiceError> {
-        match &self.plugin.describe().map_err(VoiceError::Other)?.traits {
-            Traits::Voice(t) => Ok(t.clone()),
-            Traits::Scene(_) => Err(VoiceError::Other(format!(
-                "`{}` is a scene plugin, not a voice",
-                self.plugin.name()
-            ))),
-        }
-    }
-
-    fn settings(&self) -> Settings {
-        Settings {
-            settings: self.settings.clone(),
-        }
-    }
-}
-
-#[async_trait]
-impl VoiceBackend for ExternalVoice {
-    fn id(&self) -> &str {
-        self.plugin.name()
-    }
-
-    fn capabilities(&self) -> VoiceCapabilities {
-        let traits = self.traits();
-        // The settings are hashed, so a key never spells out a host or a path.
-        let settings = serde_json::to_string(&self.settings).unwrap_or_default();
-        let version = match &traits {
-            Ok(t) => format!(
-                "{}:{}:{}",
-                self.plugin.name(),
-                t.version,
-                Hash::of(settings.as_bytes())
-            ),
-            Err(e) => format!("unusable: {e}"),
-        };
-        let traits = traits.unwrap_or_default();
-        VoiceCapabilities {
-            languages: LanguageSupport::Any,
-            cloning: false,
-            cross_lingual: false,
-            word_timings: traits.word_timings,
-            ssml: false,
-            speed_control: traits.speed_control,
-            version,
-        }
-    }
-
-    async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
-        let traits = self.traits()?;
-        let asked = Synthesize {
-            text: req.text.clone(),
-            locale: req.locale.clone(),
-            voice: req.voice.clone(),
-            speed: req.speed,
-            instruct: req.instruct.clone(),
-            settings: self.settings.clone(),
-        };
-        let spoken = self
-            .plugin
-            .call::<Spoken>("synthesize", asked, &mut |_| {})
-            .map_err(VoiceError::Other)?;
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(spoken.audio.trim())
-            .map_err(|e| {
-                VoiceError::Other(format!(
-                    "plugin `{}` answered audio that is not base64: {e}",
-                    self.plugin.name()
-                ))
-            })?;
-        let pcm = wav::decode(&bytes).map_err(VoiceError::Other)?;
-        Ok(Synthesized {
-            pcm,
-            word_timings: spoken.word_timings.filter(|_| traits.word_timings),
-        })
-    }
-
-    fn address(&self) -> Option<String> {
-        self.traits().ok()?.address
-    }
-
-    /// `None` for a voice that has no `voices`.
-    async fn voices(&self) -> Option<Result<Vec<String>, VoiceError>> {
-        match self
-            .plugin
-            .call::<Voices>("voices", self.settings(), &mut |_| {})
-        {
-            Err(e) if is_unknown_method(&e) => None,
-            listed => Some(listed.map(|v| v.voices).map_err(VoiceError::Other)),
-        }
-    }
-
-    async fn probe(&self) -> Result<String, VoiceError> {
-        match self
-            .plugin
-            .call::<Probed>("probe", self.settings(), &mut |_| {})
-        {
-            Err(e) if is_unknown_method(&e) => Err(self.unsupported("a probe")),
-            probed => probed.map(|p| p.line).map_err(VoiceError::Other),
-        }
     }
 }

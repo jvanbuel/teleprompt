@@ -10,10 +10,9 @@ output:
 
 # Writing a plugin
 
-Teleprompt has two kinds of plugin. A scene plugin brings a tool your
-script can show, and a voice plugin speaks the lines. This blue card was
-drawn by a scene plugin: about a hundred lines of Python, in the examples
-folder. {#card}
+A scene plugin brings a tool your script can show. It wraps the tool, and
+records what your script asks of it. This blue card was drawn by one:
+about a hundred lines of Python, in the examples folder. {#card}
 
 ```teleprompt scene=card policy=concurrent
 color #1d4ed8
@@ -21,9 +20,9 @@ color #1d4ed8
 
 # A program with a name
 
-A plugin is a program whose name says what it is. Teleprompt scene,
-then a name, or teleprompt voice, then a name. Put it on your
-path, and teleprompt plugins lists it, with the tools it needs. {#name}
+A plugin is a program whose name says what it is: teleprompt scene, then
+a name. Put it on your path, and teleprompt plugins lists it, with the
+tools it needs. {#name}
 
 ```teleprompt scene=asciinema policy=fit-action include=casts/session.cast#find
 ```
@@ -55,26 +54,27 @@ color #10b981
 hold 1s
 ```
 
-# Voices, and yours
+# Voices are servers
 
-A voice is a different thing. If your speech server speaks OpenAI's API,
-it needs no plugin at all: give it a name and an address. I am one,
-called studio. {#studio}
+A voice is not a plugin. It is a speech server that speaks OpenAI's API,
+written in any language: give it a name and an address. I am one, called
+studio. {#studio}
 
 ```teleprompt scene=asciinema policy=fit-action include=casts/session.cast#studio
 ```
 
-A voice that is not a server is a voice plugin. It is given its settings, then
-each line, and writes the line as a wave file. {#voice}
+The examples folder has a small one that speaks with eSpeak, in Python's
+standard library. It is given each line, and answers with its sound.
+{#voice}
 
 ```teleprompt scene=card policy=concurrent
 color #7c3aed
 ```
 
-**eSpeak:** Like this. I am the eSpeak plugin, and I run offline. {#espeak}
+**eSpeak:** Like this. I am the eSpeak server, and I run offline. {#espeak}
 
 Write yours in any language you like. The guides are in the docs, one
-for each kind, and both examples are ready to copy. {#yours}
+for each, and both examples are ready to copy. {#yours}
 
 ```teleprompt scene=card policy=concurrent
 color #111827

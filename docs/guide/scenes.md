@@ -10,7 +10,7 @@ Enter
 ```
 ````
 
-A scene plugin installed as a [program of its own](plugins.md) is named
+A scene plugin installed as a [program of its own](scene-plugins.md) is named
 the same way: `scene=card` for `teleprompt-scene-card`. `teleprompt
 plugins` lists what is installed.
 

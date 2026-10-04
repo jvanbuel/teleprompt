@@ -2,10 +2,8 @@
 //! in `teleprompt_voice::null`. The registry only ever looks at `id()`, so
 //! everything else here is the smallest thing that satisfies the trait.
 
-use teleprompt_plugin::voice::async_trait;
-use teleprompt_plugin::voice::{
-    LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
-};
+use teleprompt_voice::async_trait;
+use teleprompt_voice::{SynthRequest, Synthesized, VoiceBackend, VoiceError};
 
 pub struct StubVoice {
     id: &'static str,
@@ -23,16 +21,8 @@ impl VoiceBackend for StubVoice {
         self.id
     }
 
-    fn capabilities(&self) -> VoiceCapabilities {
-        VoiceCapabilities {
-            languages: LanguageSupport::Any,
-            cloning: false,
-            cross_lingual: false,
-            word_timings: false,
-            ssml: false,
-            speed_control: false,
-            version: "0.0.0-stub".to_string(),
-        }
+    fn version(&self) -> String {
+        "0.0.0-stub".to_string()
     }
 
     async fn synthesize(&self, _req: &SynthRequest) -> Result<Synthesized, VoiceError> {

@@ -3,8 +3,8 @@
 
 use teleprompt_cli::cmd::document::{run_document, Audio, Reading};
 use teleprompt_cli::project::Project;
-use teleprompt_plugin::voice::{wav, Pcm};
 use teleprompt_voice::takes::Takes;
+use teleprompt_voice::{wav, Pcm};
 
 const RATE: u32 = 16_000;
 

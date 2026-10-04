@@ -10,9 +10,9 @@ use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Program};
 use teleprompt_core::Diagnostics;
 use teleprompt_plugin::scene::SceneRegistry;
-use teleprompt_plugin::voice::{Pcm, VoiceBackend};
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::WpmEstimator;
+use teleprompt_voice::{Pcm, VoiceBackend};
 
 fn program(src: &str) -> Program {
     let s = parse_script(src).unwrap();

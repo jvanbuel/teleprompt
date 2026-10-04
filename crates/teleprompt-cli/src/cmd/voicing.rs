@@ -13,7 +13,7 @@ use teleprompt_cache::VoiceCache;
 use teleprompt_compile::publish::Published;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_manifest::NarrationManifest;
-use teleprompt_plugin::voice::VoiceBackend;
+use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::dub::{self, DubError};
 use crate::project::{fingerprint, translation_path, Project};

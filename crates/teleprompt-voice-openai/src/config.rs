@@ -16,7 +16,7 @@ pub enum Preset {
     /// OpenAI's own service, with the author's key.
     OpenAi,
     /// Any other server that speaks the API, under a name of the author's
-    /// (`[backends.<name>] api = "openai"`).
+    /// (`[backends.<name>]` with its `base_url`).
     #[default]
     Endpoint,
 }
@@ -29,8 +29,6 @@ pub struct OpenAiConfig {
     pub id: String,
     #[serde(skip)]
     pub preset: Preset,
-    /// Says a named backend speaks this API: `"openai"`, the only value.
-    pub api: Option<String>,
     /// The API's root, as OpenAI's own SDKs take it (`…/v1`). A bare
     /// server address, with no path, gets `/v1`.
     pub base_url: String,
@@ -67,7 +65,6 @@ impl OpenAiConfig {
         Self {
             id: "kokoro".to_string(),
             preset: Preset::Kokoro,
-            api: None,
             base_url: "http://localhost:8880".to_string(),
             api_key_env: None,
             timeout_ms: 30_000,
@@ -130,12 +127,6 @@ impl OpenAiConfig {
         while self.base_url.ends_with('/') {
             self.base_url.pop();
         }
-        if let Some(api) = self.api.as_deref().filter(|a| *a != "openai") {
-            return Err(format!(
-                "`backends.{id}.api` is \"{api}\"; the API teleprompt speaks to a server \
-                 of your own is \"openai\""
-            ));
-        }
         if self.base_url.is_empty() {
             return Err(match self.preset {
                 Preset::Endpoint => format!(
@@ -174,7 +165,7 @@ impl OpenAiConfig {
         root.strip_suffix("/v1").unwrap_or(&root).to_string()
     }
 
-    /// What `VoiceCapabilities::version` returns, and so the cache key for
+    /// What [`teleprompt_voice::VoiceBackend::version`] returns, and so the cache key for
     /// this backend's audio: the model, and not the server's address, so a
     /// cache travels between machines (docs/design.md#voice-cache). Two
     /// servers with different weights under one model name collide; name
@@ -198,7 +189,6 @@ impl OpenAiConfig {
 /// The settings alone, for merging the author's over a preset's.
 #[derive(serde::Serialize)]
 struct Shadow<'a> {
-    api: &'a Option<String>,
     base_url: &'a str,
     api_key_env: &'a Option<String>,
     timeout_ms: u64,
@@ -212,7 +202,6 @@ struct Shadow<'a> {
 impl<'a> From<&'a OpenAiConfig> for Shadow<'a> {
     fn from(c: &'a OpenAiConfig) -> Self {
         Shadow {
-            api: &c.api,
             base_url: &c.base_url,
             api_key_env: &c.api_key_env,
             timeout_ms: c.timeout_ms,

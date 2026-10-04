@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use teleprompt_plugin::voice::{
-    async_trait, LanguageSupport, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities,
-    VoiceError, VoicePlugin,
+use teleprompt_voice::{
+    async_trait, Provider, SynthRequest, Synthesized, VoiceBackend, VoiceError,
 };
 
 use crate::client::Client;
@@ -37,14 +36,10 @@ impl GeminiVoice {
     }
 }
 
-/// What it needs that teleprompt does not ship.
-static NEEDS: [&teleprompt_plugin::tool::Tool; 1] = [&crate::tools::GEMINI];
-
 /// Gemini as teleprompt registers it: built from `[backends.gemini]`.
-pub fn plugin() -> VoicePlugin {
-    VoicePlugin {
+pub fn provider() -> Provider {
+    Provider {
         id: "gemini",
-        needs: &NEEDS,
         build: |settings| {
             let cfg = match settings {
                 Some(v) => GeminiConfig::from_value(v)?,
@@ -61,16 +56,8 @@ impl VoiceBackend for GeminiVoice {
         "gemini"
     }
 
-    fn capabilities(&self) -> VoiceCapabilities {
-        VoiceCapabilities {
-            languages: LanguageSupport::Any,
-            cloning: true,
-            cross_lingual: true,
-            word_timings: false,
-            ssml: false,
-            speed_control: false,
-            version: self.version.clone(),
-        }
+    fn version(&self) -> String {
+        self.version.clone()
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {

@@ -8,7 +8,7 @@
 //! warbles, and taking windows faster or slower than it writes them
 //! changes the length and not the pitch.
 
-use teleprompt_plugin::voice::Pcm;
+use crate::Pcm;
 
 /// Each window's length: a few pitch periods of a low voice.
 const WINDOW_MS: u32 = 30;
@@ -133,10 +133,6 @@ pub fn stretch_to(pcm: &Pcm, tempo_permille: u32, ms: u64) -> Pcm {
 /// [`stretch_to`] on a WAV file's bytes, as `dub` writes a `fit-line` line
 /// and the prompter serves it.
 pub fn fit_wav(bytes: &[u8], tempo_permille: u32, ms: u64) -> Result<Vec<u8>, String> {
-    let pcm = teleprompt_plugin::voice::wav::decode(bytes)?;
-    Ok(teleprompt_plugin::voice::wav::encode(&stretch_to(
-        &pcm,
-        tempo_permille,
-        ms,
-    )))
+    let pcm = crate::wav::decode(bytes)?;
+    Ok(crate::wav::encode(&stretch_to(&pcm, tempo_permille, ms)))
 }

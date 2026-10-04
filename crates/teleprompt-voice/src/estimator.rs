@@ -1,4 +1,4 @@
-use teleprompt_plugin::voice::SynthRequest;
+use crate::SynthRequest;
 
 /// Predicts how long text takes to speak *without synthesizing it*, which
 /// keeps the inner loop synchronous (`docs/design.md#async-boundary`).

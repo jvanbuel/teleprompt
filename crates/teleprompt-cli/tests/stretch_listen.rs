@@ -16,7 +16,7 @@ fn model() -> Option<PathBuf> {
     dir
 }
 
-fn heard(dir: &std::path::Path, pcm: &teleprompt_plugin::voice::Pcm) -> String {
+fn heard(dir: &std::path::Path, pcm: &teleprompt_voice::Pcm) -> String {
     let samples: Vec<f32> = pcm
         .samples
         .iter()
@@ -36,7 +36,7 @@ fn a_stretched_reading_says_the_same_words() {
         return;
     };
     let wav = std::fs::read("../teleprompt-listen-sherpa/tests/fixtures/two-lines.wav").unwrap();
-    let reading = teleprompt_plugin::voice::wav::decode(&wav).unwrap();
+    let reading = teleprompt_voice::wav::decode(&wav).unwrap();
     let original = heard(&dir, &reading);
     assert!(original.starts_with("WELCOME TO ACME"), "{original}");
     // As `keep what you said` hears a take: a word a letter off is the same

@@ -3,7 +3,7 @@
 mod stub;
 
 use stub::{spawn, Reply};
-use teleprompt_plugin::voice::SynthRequest;
+use teleprompt_voice::SynthRequest;
 use teleprompt_voice_openai::{endpoint, OpenAiConfig};
 
 fn settings(toml: &str) -> serde_yaml::Value {
@@ -22,19 +22,11 @@ fn line() -> SynthRequest {
 
 #[test]
 fn an_endpoint_needs_an_address() {
-    let err = endpoint("studio", &settings("api: openai")).err().unwrap();
+    let err = endpoint("studio", &settings("model: piper")).err().unwrap();
     assert!(
         err.contains("backends.studio") && err.contains("base_url"),
         "{err}"
     );
-}
-
-#[test]
-fn an_endpoint_speaks_only_the_openai_api() {
-    let err = endpoint("studio", &settings("api: elevenlabs\nbase_url: http://x"))
-        .err()
-        .unwrap();
-    assert!(err.contains("\"openai\""), "{err}");
 }
 
 #[test]
@@ -67,7 +59,7 @@ async fn an_endpoint_is_named_by_the_author_and_says_lines_at_its_rate() {
     let voice = endpoint(
         "studio",
         &settings(&format!(
-            "api: openai\nbase_url: {}/v1\nvoice: amy\nsample_rate: 22050",
+            "base_url: {}/v1\nvoice: amy\nsample_rate: 22050",
             s.base_url
         )),
     )
@@ -115,5 +107,5 @@ async fn openai_lists_no_voices_and_asks_for_none() {
     let voice = (teleprompt_voice_openai::openai().build)(None).unwrap();
     assert_eq!(voice.id(), "openai");
     assert!(voice.voices().await.is_none());
-    assert!(voice.capabilities().version.starts_with("gpt-4o-mini-tts"));
+    assert!(voice.version().starts_with("gpt-4o-mini-tts"));
 }

@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use teleprompt_compile::CompileOutput;
 use teleprompt_core::{Hash, LineId, ShotId};
 use teleprompt_listen::{Cues, Follower, Recognizer, TakeLog};
-use teleprompt_plugin::voice::{Pcm, Resampler};
 use teleprompt_voice::takes::Takes;
+use teleprompt_voice::{Pcm, Resampler};
 
 pub use teleprompt_listen::Position;
 

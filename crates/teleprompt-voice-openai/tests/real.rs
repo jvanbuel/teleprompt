@@ -2,7 +2,7 @@
 //!
 //! Start one, then: `cargo test -p teleprompt-voice-openai --test real -- --ignored`
 
-use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
+use teleprompt_voice::{SynthRequest, VoiceBackend};
 use teleprompt_voice_openai::{OpenAiConfig, OpenAiVoice};
 
 #[tokio::test]

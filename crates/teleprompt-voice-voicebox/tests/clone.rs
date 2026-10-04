@@ -6,7 +6,7 @@ mod stub;
 use std::collections::BTreeMap;
 
 use stub::{spawn, Reply};
-use teleprompt_plugin::voice::{VoiceBackend, VoiceSample as Sample};
+use teleprompt_voice::{VoiceBackend, VoiceSample as Sample};
 use teleprompt_voice_voicebox::{VoiceboxConfig, VoiceboxVoice};
 
 fn backend(base_url: &str) -> VoiceboxVoice {

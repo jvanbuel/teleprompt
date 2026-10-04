@@ -4,7 +4,7 @@ mod stub;
 
 use base64::Engine;
 use stub::{spawn, Reply};
-use teleprompt_plugin::voice::{SynthRequest, VoiceBackend};
+use teleprompt_voice::{SynthRequest, VoiceBackend};
 use teleprompt_voice_openai::{OpenAiConfig, OpenAiVoice};
 
 fn req() -> SynthRequest {
@@ -47,7 +47,6 @@ fn captioned() -> Vec<u8> {
 async fn opted_in_the_words_come_with_the_audio_without_punctuation() {
     let s = spawn(Reply::Ok(captioned())).await;
     let b = backend(&s.base_url, true);
-    assert!(b.capabilities().word_timings);
     let out = b.synthesize(&req()).await.unwrap();
     assert_eq!(out.pcm.duration_ms(), 100);
     let words = out.word_timings.expect("timed");
@@ -65,7 +64,6 @@ async fn by_default_the_stable_endpoint_is_used() {
     let pcm: Vec<u8> = (0..2400i16).flat_map(i16::to_le_bytes).collect();
     let s = spawn(Reply::Ok(pcm)).await;
     let b = backend(&s.base_url, false);
-    assert!(!b.capabilities().word_timings);
     assert!(b.synthesize(&req()).await.unwrap().word_timings.is_none());
     assert!(s.requests.lock().unwrap()[0].starts_with("POST /v1/audio/speech"));
 }

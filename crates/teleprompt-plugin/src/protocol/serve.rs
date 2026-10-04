@@ -1,4 +1,4 @@
-//! A Rust plugin's side: an [`ScenePlugin`] or [`VoicePlugin`] answering
+//! A Rust plugin's side: a [`ScenePlugin`] answering
 //! teleprompt over stdin and stdout, so one crate can be compiled into
 //! teleprompt or built as an executable of its own:
 //!
@@ -12,33 +12,23 @@
 //! }
 //! ```
 
-use std::collections::HashMap;
 use std::io::{BufRead, Write};
-use std::sync::Arc;
 
-use base64::Engine;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use teleprompt_core::{BlockId, Hash, ShotId};
 
 use super::{
-    Body, Capture, Captured, Description, LineError, Probed, Retime, Retimed, SceneTraits,
-    Settings, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits, Voices,
-    WireClip, WireProgress, WireShot, VERSION,
+    Body, Capture, Captured, Description, LineError, Retime, Retimed, SceneTraits, Shots,
+    Unavailable, Validation, WireClip, WireProgress, WireShot, VERSION,
 };
 use crate::capture::{Frame, Session, SessionShot};
 use crate::scene::{BlockSource, BodyOrigin, Measured, Shot, Validated};
-use crate::voice::{wav, SynthRequest, VoiceBackend, VoicePlugin};
 use crate::ScenePlugin;
 
 /// Serves `plugin` on stdin and stdout until teleprompt closes stdin.
 pub fn scene(plugin: ScenePlugin) -> std::io::Result<()> {
     scene_on(&plugin, std::io::stdin().lock(), std::io::stdout().lock())
-}
-
-/// Serves `voice` on stdin and stdout until teleprompt closes stdin.
-pub fn voice(voice: VoicePlugin) -> std::io::Result<()> {
-    voice_on(&voice, std::io::stdin().lock(), std::io::stdout().lock())
 }
 
 /// One request: its method and parameters, and where to answer it.
@@ -113,10 +103,10 @@ pub fn scene_on(plugin: &ScenePlugin, input: impl BufRead, out: impl Write) -> s
                 protocol: VERSION,
                 name: plugin.name().to_string(),
                 needs: plugin.needs().iter().map(|t| t.to_wire()).collect(),
-                traits: Traits::Scene(SceneTraits {
+                traits: SceneTraits {
                     continues: scene.continues(),
                     retimes: true,
-                }),
+                },
             };
             r.answer(Ok(d))
         }
@@ -272,91 +262,4 @@ fn capture<W: Write>(plugin: &ScenePlugin, r: &mut Request<'_, W>) -> std::io::R
         })
         .map_err(|e| e.to_string());
     r.answer(clips)
-}
-
-/// Serves `voice` on `input` and `out`, as [`scene_on`] does a scene plugin.
-pub fn voice_on(voice: &VoicePlugin, input: impl BufRead, out: impl Write) -> std::io::Result<()> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-    // Each request carries its settings: built once for each it is given.
-    let mut built: HashMap<String, Arc<dyn VoiceBackend>> = HashMap::new();
-    let mut backend =
-        |settings: Option<serde_json::Value>| -> Result<Arc<dyn VoiceBackend>, String> {
-            let key = serde_json::to_string(&settings).unwrap_or_default();
-            if let Some(b) = built.get(&key) {
-                return Ok(b.clone());
-            }
-            let settings: Option<serde_yaml::Value> = settings
-                .map(|s| serde_yaml::to_value(s).map_err(|e| e.to_string()))
-                .transpose()?;
-            let b = (voice.build)(settings.as_ref())?;
-            built.insert(key, b.clone());
-            Ok(b)
-        };
-    serve(input, out, |r| match r.method.as_str() {
-        "describe" => {
-            // What it can do, as its defaults show.
-            let default = (voice.build)(None).ok();
-            let caps = default.as_ref().map(|b| b.capabilities());
-            let d = Description {
-                protocol: VERSION,
-                name: voice.id.to_string(),
-                needs: voice.needs.iter().map(|t| t.to_wire()).collect(),
-                traits: Traits::Voice(VoiceTraits {
-                    word_timings: caps.as_ref().is_some_and(|c| c.word_timings),
-                    speed_control: caps.as_ref().is_some_and(|c| c.speed_control),
-                    address: default.as_ref().and_then(|b| b.address()),
-                    version: caps.map(|c| c.version).unwrap_or_default(),
-                }),
-            };
-            r.answer(Ok(d))
-        }
-        "synthesize" => {
-            let answer = r.params::<Synthesize>().and_then(|s| {
-                let b = backend(s.settings)?;
-                let req = SynthRequest {
-                    text: s.text,
-                    locale: s.locale,
-                    voice: s.voice,
-                    speed: s.speed,
-                    instruct: s.instruct,
-                };
-                let spoken = runtime
-                    .block_on(b.synthesize(&req))
-                    .map_err(|e| e.to_string())?;
-                Ok(Spoken {
-                    audio: base64::engine::general_purpose::STANDARD
-                        .encode(wav::encode(&spoken.pcm)),
-                    word_timings: spoken.word_timings,
-                })
-            });
-            r.answer(answer)
-        }
-        "voices" => {
-            let answer = r
-                .params::<Settings>()
-                .and_then(|s| backend(s.settings))
-                .and_then(|b| match runtime.block_on(b.voices()) {
-                    Some(listed) => listed
-                        .map(|voices| Voices { voices })
-                        .map_err(|e| e.to_string()),
-                    None => Err(super::unknown_method("voices")),
-                });
-            r.answer(answer)
-        }
-        "probe" => {
-            let answer = r
-                .params::<Settings>()
-                .and_then(|s| backend(s.settings))
-                .and_then(|b| {
-                    runtime
-                        .block_on(b.probe())
-                        .map(|line| Probed { line })
-                        .map_err(|e| e.to_string())
-                });
-            r.answer(answer)
-        }
-        other => r.answer(unknown(other)),
-    })
 }

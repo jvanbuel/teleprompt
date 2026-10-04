@@ -755,7 +755,7 @@ fn prompting_with_keep(
 #[test]
 fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
     let dir = teleprompt_testkit::test_dir("prompt-said-diff");
-    let pcm = teleprompt_plugin::voice::Pcm {
+    let pcm = teleprompt_voice::Pcm {
         sample_rate: 16_000,
         channels: 1,
         samples: vec![0; 16_000],

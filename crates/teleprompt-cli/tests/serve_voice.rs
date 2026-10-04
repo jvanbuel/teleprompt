@@ -506,11 +506,11 @@ fn a_fit_line_lines_audio_is_at_its_tempo_as_the_video_plays_it() {
     let line = &manifest["lines"][0];
     assert_eq!(line["tempo_permille"], 1150, "{manifest}");
     let (_, body) = get(served.addr, "/api/v1/voice/deploy.wav?fit=1");
-    let pcm = teleprompt_plugin::voice::wav::decode(&body).unwrap();
+    let pcm = teleprompt_voice::wav::decode(&body).unwrap();
     assert_eq!(pcm.duration_ms(), line["duration_ms"].as_u64().unwrap());
     // As the voice made it, otherwise.
     let (_, raw) = get(served.addr, "/api/v1/voice/deploy.wav");
-    let raw = teleprompt_plugin::voice::wav::decode(&raw).unwrap();
+    let raw = teleprompt_voice::wav::decode(&raw).unwrap();
     assert_ne!(raw.duration_ms(), pcm.duration_ms());
 }
 

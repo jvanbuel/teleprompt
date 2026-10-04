@@ -1,10 +1,8 @@
 //! The reference backend: silence of exactly the estimated length, for
 //! `check`, `plan` and tests, and every project until it picks a voice.
 
-use teleprompt_plugin::voice::async_trait;
-use teleprompt_plugin::voice::{
-    LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
-};
+use crate::async_trait;
+use crate::{Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceError};
 
 use crate::estimator::estimate_ms;
 use crate::DEFAULT_WPM;
@@ -30,16 +28,8 @@ impl VoiceBackend for NullVoice {
         "null"
     }
 
-    fn capabilities(&self) -> VoiceCapabilities {
-        VoiceCapabilities {
-            languages: LanguageSupport::Any,
-            cloning: false,
-            cross_lingual: false,
-            word_timings: false,
-            ssml: false,
-            speed_control: true,
-            version: env!("CARGO_PKG_VERSION").to_string(),
-        }
+    fn version(&self) -> String {
+        env!("CARGO_PKG_VERSION").to_string()
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {

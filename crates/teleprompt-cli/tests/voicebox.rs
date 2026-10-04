@@ -37,7 +37,7 @@ async fn stub(wav: Vec<u8>) -> (String, Seen) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_project_speaks_in_its_voicebox_voice() {
-    let wav = teleprompt_plugin::voice::wav::encode(&teleprompt_plugin::voice::Pcm {
+    let wav = teleprompt_voice::wav::encode(&teleprompt_voice::Pcm {
         sample_rate: 24_000,
         channels: 1,
         samples: vec![300; 24_000],
@@ -123,7 +123,7 @@ async fn voice_clone_makes_a_voice_from_your_takes() {
     );
 
     let mut takes = teleprompt_voice::takes::Takes::load(&dir.join("takes")).unwrap();
-    let pcm = |s: usize| teleprompt_plugin::voice::Pcm {
+    let pcm = |s: usize| teleprompt_voice::Pcm {
         sample_rate: 16_000,
         channels: 1,
         samples: vec![200; s],

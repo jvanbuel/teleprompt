@@ -1,32 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LanguageSupport {
-    Any,
-    Enumerated(Vec<String>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VoiceCapabilities {
-    pub languages: LanguageSupport,
-    pub cloning: bool,
-    pub cross_lingual: bool,
-    pub word_timings: bool,
-    pub ssml: bool,
-    pub speed_control: bool,
-    /// The backend's own version, such as its model; part of the cache key
-    /// (`docs/design.md#voice-cache`).
-    ///
-    /// **The only handle a backend has on its cache key**, which otherwise
-    /// covers just the id and the [`SynthRequest`]. Configuration that
-    /// changes the audio but is not in the request (a model checkpoint, a
-    /// sample rate, a vocoder setting) **must** be folded in here, or two
-    /// differently configured instances silently serve each other's audio
-    /// as `measured`. Where the server is does not change the audio, so the
-    /// address stays out.
-    pub version: String,
-}
-
+/// What teleprompt asks a voice for: OpenAI's speech request
+/// (`POST /v1/audio/speech`), as much of it as a line needs. `text` is its
+/// `input`, `instruct` its `instructions`; the model is the voice's own
+/// setting. `locale` is teleprompt's, for a provider that wants a language.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SynthRequest {
     pub text: String,
@@ -50,7 +27,7 @@ pub struct WordTiming {
 #[derive(Debug, Clone)]
 pub struct Synthesized {
     pub pcm: Pcm,
-    /// Present only when `capabilities().word_timings` is true.
+    /// Where the voice times its words; spread over the line otherwise.
     pub word_timings: Option<Vec<WordTiming>>,
 }
 
@@ -135,14 +112,20 @@ pub struct ClonedVoice {
     pub id: String,
 }
 
-/// See `docs/design.md#voice-contract`. There is deliberately no downcast:
-/// what teleprompt asks of a backend beyond speaking a line is a method
-/// here, with a default for a backend that has nothing to say, so the CLI
-/// holds every backend the same way.
+/// A voice: a server that speaks OpenAI's speech API, or a provider
+/// teleprompt translates that request for (`docs/design.md#voice-contract`).
+/// What it can do beyond speaking a line is a method here, with a default
+/// for a voice that cannot, so every voice is held the same way.
 #[async_trait::async_trait]
 pub trait VoiceBackend: Send + Sync {
     fn id(&self) -> &str;
-    fn capabilities(&self) -> VoiceCapabilities;
+
+    /// What its audio depends on beyond the request, such as its model:
+    /// part of the cache key (`docs/design.md#voice-cache`). Configuration
+    /// that changes the audio but is not in the request **must** be in it,
+    /// or two differently configured voices serve each other's audio.
+    /// Where the server is does not change the audio, so stays out.
+    fn version(&self) -> String;
 
     /// Caching and duration prediction are not the backend's concern.
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError>;
@@ -172,7 +155,7 @@ pub trait VoiceBackend: Send + Sync {
     }
 
     /// A voice named `name`, cloned from `samples` of the author's takes,
-    /// where `capabilities().cloning`.
+    /// for a provider that clones voices.
     async fn clone_voice(
         &self,
         _name: &str,

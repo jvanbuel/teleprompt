@@ -33,7 +33,6 @@ concurrency = 2
 
 # The moo server, under the name the cast uses.
 [backends.moo]
-api = "openai"
 base_url = "http://localhost:8890/v1"
 model = "moo-2"
 

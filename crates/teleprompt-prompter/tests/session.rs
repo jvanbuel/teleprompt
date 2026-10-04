@@ -241,7 +241,7 @@ fn a_script_is_reloaded_only_between_takes() {
 fn a_reworded_line_is_stale_and_followed_as_it_now_reads() {
     let mut f = session("prompter-reworded", &["deployment is just"]);
     let takes = f.dir.join("takes");
-    let pcm = teleprompt_plugin::voice::Pcm {
+    let pcm = teleprompt_voice::Pcm {
         sample_rate: 16_000,
         channels: 1,
         samples: vec![0; 16_000],

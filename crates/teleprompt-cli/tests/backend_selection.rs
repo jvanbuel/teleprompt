@@ -12,13 +12,11 @@ use std::sync::Arc;
 use teleprompt_core::{DurationSource, SpanMs};
 
 use teleprompt_cli::project::Project;
-use teleprompt_plugin::voice::async_trait;
-use teleprompt_plugin::voice::{
-    LanguageSupport, Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceCapabilities, VoiceError,
-};
+use teleprompt_voice::async_trait;
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{DurationEstimator, VoiceRegistry};
+use teleprompt_voice::{Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceError};
 
 /// A backend that is not `null`: a different id, a different version, a
 /// different sample rate, and audible samples rather than silence.
@@ -36,16 +34,8 @@ impl VoiceBackend for ToneVoice {
         "tone"
     }
 
-    fn capabilities(&self) -> VoiceCapabilities {
-        VoiceCapabilities {
-            languages: LanguageSupport::Any,
-            cloning: false,
-            cross_lingual: false,
-            word_timings: false,
-            ssml: false,
-            speed_control: true,
-            version: "tone-9.9.9".to_string(),
-        }
+    fn version(&self) -> String {
+        "tone-9.9.9".to_string()
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
@@ -77,16 +67,8 @@ impl VoiceBackend for DrawlVoice {
         "drawl"
     }
 
-    fn capabilities(&self) -> VoiceCapabilities {
-        VoiceCapabilities {
-            languages: LanguageSupport::Any,
-            cloning: false,
-            cross_lingual: false,
-            word_timings: false,
-            ssml: false,
-            speed_control: true,
-            version: "drawl-1".to_string(),
-        }
+    fn version(&self) -> String {
+        "drawl-1".to_string()
     }
 
     async fn synthesize(&self, req: &SynthRequest) -> Result<Synthesized, VoiceError> {
@@ -146,7 +128,7 @@ fn samples(wav: &[u8]) -> Vec<i16> {
 }
 
 /// `run_dub` built a `NullVoice` unconditionally while `cache_key` came from
-/// the *resolved* backend's `id()` and `capabilities().version`. With only
+/// the *resolved* backend's `id()` and `version()`. With only
 /// `null` registered the two coincided; with a second backend the script asks
 /// for kokoro and gets silence — written into the content-addressed cache under
 /// kokoro's key, permanent, and reported as `measured` by every later `plan`.
