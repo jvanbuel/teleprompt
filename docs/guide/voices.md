@@ -246,29 +246,33 @@ A voice that is a speech server is best written as one that speaks
 OpenAI's API ([above](#any-openai-compatible-server)): then it needs
 nothing of teleprompt's, and works with other tools too. It needs to answer
 `POST /v1/audio/speech` with `response_format: "pcm"`; listing its voices
-at `GET /v1/audio/voices` and its models at `GET /v1/models` is
-optional, and lets `dub` check a script's voices and `setup` see that it
-is up. `examples/moo` is a whole one, in about a hundred lines of
-Python's standard library: a server that says every word as a moo, with a
-narrated video that walks through its code on Slidev slides. Otherwise, a
+at `GET /v1/audio/voices` is optional, and lets `dub` check a script's
+voices and `setup` see that it is up. `examples/moo` is a whole one: a
+hundred lines of typed Python with FastAPI, run with `uv run`, that says
+every word as a recording of a real cow, and a narrated video that walks
+through its code on Slidev slides. Otherwise, a
 voice is a plugin ([extending teleprompt](plugins.md) has how one ships
 and is found).
 
 ### As a program
 
 `teleprompt-voice-<name>` describes itself with `"kind": "voice"` and what
-it can do beyond speaking a line: `word_timings`, `speed_control`,
-`lists_voices` (it answers `voices`), `probes` (it answers `probe`) and
+it can do beyond speaking a line: `word_timings`, `speed_control` and
 `address` (where its server is, if it has one). It answers:
 
 | method | params | result |
 |---|---|---|
 | `configure` | `settings`, its `[backends.<name>]` table, or null | `version`: what the audio depends on beyond the request, such as a model. Part of the voice cache's key, so never a path or a host |
 | `synthesize` | `text`, `locale`, `voice`, `speed`, `instruct`, `out` | the line written to `out` as a WAV file; `word_timings` if it has them |
-| `voices` | | `voices`: the names its `voice.voice` may give |
-| `probe` | | `line`: one line on its server, for `setup` |
+| `voices`, optional | | `voices`: the names its `voice.voice` may give |
+| `probe`, optional | | `line`: one line on its server, for `setup` |
 
-`examples/plugins/teleprompt-voice-espeak` is one, in Python. Cloning a
+A method a plugin does not have answers the error ``unknown method `name` ``,
+so teleprompt knows it is missing rather than failing: a voice without
+`voices` is one whose voices are not checked.
+
+`examples/plugins/teleprompt-voice-espeak` is one, in typed Python with
+nothing beyond its standard library. Cloning a
 voice is not in version 1 of the protocol; it is compiled-in only for now.
 
 ### As a Rust crate

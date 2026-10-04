@@ -98,7 +98,7 @@ fn serve<W: Write>(
 }
 
 fn unknown(method: &str) -> Result<(), String> {
-    Err(format!("unknown method `{method}`"))
+    Err(super::unknown_method(method))
 }
 
 /// Serves `plugin` on `input` and `out`; for tests, and for a plugin that
@@ -291,8 +291,6 @@ pub fn voice_on(voice: &VoicePlugin, input: impl BufRead, out: impl Write) -> st
                     word_timings: caps.as_ref().is_some_and(|c| c.word_timings),
                     speed_control: caps.as_ref().is_some_and(|c| c.speed_control),
                     address: probe.as_ref().and_then(|b| b.address()),
-                    lists_voices: true,
-                    probes: probe.as_ref().is_some_and(|b| b.address().is_some()),
                 }),
             };
             r.answer(Ok(d))
@@ -336,7 +334,7 @@ pub fn voice_on(voice: &VoicePlugin, input: impl BufRead, out: impl Write) -> st
                 Some(listed) => listed
                     .map(|voices| Voices { voices })
                     .map_err(|e| e.to_string()),
-                None => Err(format!("`{}` does not list its voices", voice.id)),
+                None => Err(super::unknown_method("voices")),
             });
             r.answer(answer)
         }

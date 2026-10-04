@@ -1,104 +1,120 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["fastapi>=0.110", "uvicorn>=0.29", "numpy>=1.26"]
+# ///
 """A speech server that says every word as a moo.
 
 It speaks OpenAI's speech API, so teleprompt needs no plugin for it:
-`[backends.moo] api = "openai"` and its address are enough. Python's
-standard library alone; run it with `python3 moo_server.py [port]`.
+`[backends.moo] api = "openai"` and its address are enough. The moo is a
+real cow (moo.wav beside this file, CC0: see moo.wav.txt). Run it with
+`uv run moo_server.py [port]`, which installs what it needs.
 """
-import json
-import math
+
 import re
 import sys
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import wave
+from pathlib import Path
+from typing import Literal
+
+import numpy as np
+import uvicorn
+from fastapi import FastAPI, HTTPException, Response
+from numpy.typing import NDArray
+from pydantic import BaseModel
 
 RATE = 24_000  # what "pcm" means in the API: 16-bit mono at 24 kHz
+Audio = NDArray[np.float64]  # mono samples at RATE, from -1 to 1
+
+
+def load(path: Path) -> Audio:
+    with wave.open(str(path)) as f:
+        assert f.getframerate() == RATE and f.getnchannels() == 1
+        samples = np.frombuffer(f.readframes(f.getnframes()), dtype="<i2")
+    return samples / 32768
+
+
+MOO = load(Path(__file__).with_name("moo.wav"))
+
 
 # region voices
-# Each voice is a pitch that falls as the moo goes on, in hertz.
-VOICES = {
-    "cow": (150, 105),
-    "calf": (300, 230),
-    "bull": (95, 70),
-}
+# Each voice is the same cow, played faster or slower: higher or lower.
+VOICES: dict[str, float] = {"cow": 1.0, "calf": 1.5, "bull": 0.75}
 # endregion
 
 
 # region moo
-def moo(seconds, start_hz, end_hz):
-    """One moo: a hum that opens into "oo" and sinks as it fades."""
-    n = int(seconds * RATE)
-    out, phase = [], 0.0
-    for i in range(n):
-        t = i / n
-        hz = start_hz + (end_hz - start_hz) * t
-        hz *= 1 + 0.012 * math.sin(2 * math.pi * 5 * i / RATE)  # a wobble
-        phase += 2 * math.pi * hz / RATE
-        # "oo" is strong low harmonics; the closed "mm" is just the first.
-        opened = min(1.0, t * 6)
-        wave = (math.sin(phase)
-                + opened * (0.6 * math.sin(2 * phase)
-                            + 0.25 * math.sin(3 * phase)))
-        envelope = min(1.0, t * 12) * min(1.0, (1 - t) * 5)
-        out.append(wave * envelope * 0.35)
-    return out
+def pitched(audio: Audio, factor: float) -> Audio:
+    """`audio` played `factor` times as fast, so that much higher."""
+    at = np.arange(0, len(audio) - 1, factor)
+    faster: Audio = np.interp(at, np.arange(len(audio)), audio)
+    return faster
+
+
+def moo(seconds: float, voice: float) -> Audio:
+    """The cow's moo, cut to `seconds` and faded out where it is cut."""
+    cut = pitched(MOO, voice)[: int(seconds * RATE)]
+    fade = min(len(cut), int(0.08 * RATE))
+    cut[len(cut) - fade :] *= np.linspace(1, 0, fade)
+    return cut
+
+
+def silence(seconds: float) -> Audio:
+    return np.zeros(int(seconds * RATE))
+
+
 # endregion
 
 
 # region speak
-def speak(text, voice, speed):
+def speak(text: str, voice: float, speed: float) -> Audio:
     """Every word a moo as long as the word; punctuation, a pause."""
-    start_hz, end_hz = VOICES[voice]
-    samples = []
+    said: list[Audio] = []
     for word, mark in re.findall(r"([\w']+)([.,!?;:]*)", text):
-        seconds = (0.22 + 0.045 * len(word)) / speed
-        samples += moo(seconds, start_hz, end_hz)
-        pause = 0.4 if mark[:1] in ".!?" else 0.2 if mark else 0.07
-        samples += [0.0] * int(pause / speed * RATE)
-    return b"".join(
-        int(max(-1, min(1, s)) * 32767).to_bytes(2, "little", signed=True)
-        for s in samples
-    )
+        said.append(moo((0.25 + 0.05 * len(word)) / speed, voice))
+        pause = 0.4 if mark[:1] in ".!?" else 0.2 if mark else 0.06
+        said.append(silence(pause / speed))
+    return np.concatenate(said or [silence(0.2)])
+
+
 # endregion
 
 
-class Handler(BaseHTTPRequestHandler):
-    # region request
-    def do_POST(self):
-        if self.path != "/v1/audio/speech":
-            return self.answer(404, {"error": "no such path"})
-        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        voice = body.get("voice", "cow")
-        if voice not in VOICES:
-            return self.answer(400, {"error": f"no voice {voice!r}"})
-        if body.get("response_format", "pcm") != "pcm":
-            return self.answer(400, {"error": "this server speaks pcm only"})
-        audio = speak(body["input"], voice, float(body.get("speed", 1.0)))
-        self.send_response(200)
-        self.send_header("Content-Type", "audio/pcm")
-        self.send_header("Content-Length", str(len(audio)))
-        self.end_headers()
-        self.wfile.write(audio)
-    # endregion
+# region request
+class SpeechRequest(BaseModel):
+    """OpenAI's speech request, as much of it as a cow needs."""
 
-    # region list
-    def do_GET(self):
-        if self.path == "/v1/audio/voices":
-            return self.answer(200, {"voices": list(VOICES)})
-        if self.path == "/v1/models":
-            return self.answer(200, {"data": [{"id": "moo-1"}]})
-        self.answer(404, {"error": "no such path"})
-    # endregion
+    model: str
+    input: str
+    voice: str = "cow"
+    speed: float = 1.0
+    response_format: Literal["pcm"] = "pcm"
 
-    def answer(self, status, value):
-        data = json.dumps(value).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+
+# endregion
+
+
+app = FastAPI(title="moo")
+
+
+# region answer
+@app.post("/v1/audio/speech")
+def speech(request: SpeechRequest) -> Response:
+    if request.voice not in VOICES:
+        raise HTTPException(400, f"no voice {request.voice!r}; try {', '.join(VOICES)}")
+    audio = speak(request.input, VOICES[request.voice], request.speed)
+    pcm = (np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes()
+    return Response(pcm, media_type="audio/pcm")
+
+
+@app.get("/v1/audio/voices")
+def voices() -> dict[str, list[str]]:
+    return {"voices": list(VOICES)}
+
+
+# endregion
 
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8890
-    print(f"mooing on http://localhost:{port}/v1", file=sys.stderr)
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")

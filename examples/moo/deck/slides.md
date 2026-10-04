@@ -8,7 +8,7 @@ canvasWidth: 860
 
 # A voice that moos
 
-A speech server for teleprompt, in about a hundred lines of Python
+A speech server for teleprompt: a hundred lines of Python, and a real cow
 
 ---
 
@@ -18,7 +18,7 @@ teleprompt sends each line as OpenAI's speech request:
 
 ```http
 POST /v1/audio/speech
-{"model": "moo-1", "input": "Hello.", "voice": "cow",
+{"model": "moo-2", "input": "Hello.", "voice": "cow",
  "speed": 1.0, "response_format": "pcm"}
 ```
 
@@ -35,21 +35,29 @@ Content-Type: audio/pcm
 
 ---
 
-# Answering the request
+# The request, typed
 
-<<< @/snippets/moo_server.py#request {1-3|4-9|10-15}
+<<< @/snippets/moo_server.py#request
+
+FastAPI reads each request into this, and refuses one that does not fit.
+
+---
+
+# Answering it
+
+<<< @/snippets/moo_server.py#answer {1-2|3-4|5-7|10-12}
 
 ---
 
 # A moo for every word
 
-<<< @/snippets/moo_server.py#speak {5-9|6,9}
+<<< @/snippets/moo_server.py#speak {4-7|5,7}
 
 ---
 
 # Making a moo
 
-<<< @/snippets/moo_server.py#moo
+<<< @/snippets/moo_server.py#moo {8-13|1-5}
 
 ---
 
@@ -57,13 +65,7 @@ Content-Type: audio/pcm
 
 <<< @/snippets/moo_server.py#voices
 
----
-
-# Being a good citizen
-
-<<< @/snippets/moo_server.py#list
-
-`dub` checks a script's voices against the list. `setup` asks for the models.
+One recording of a real cow, CC0: `moo.wav`, beside the server.
 
 ---
 
@@ -73,7 +75,7 @@ Content-Type: audio/pcm
 [backends.moo]
 api = "openai"
 base_url = "http://localhost:8890/v1"
-model = "moo-1"
+model = "moo-2"
 
 [voices.cow]
 backend = "moo"

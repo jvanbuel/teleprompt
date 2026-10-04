@@ -8,8 +8,9 @@ output:
 
 # A voice that moos
 
-This is a speech server that says every word as a moo. It is about a
-hundred lines of Python, and teleprompt needs no plugin to use it. {#intro}
+This is a speech server that says every word as a moo. It is a hundred
+lines of typed Python and one real cow, and teleprompt needs no plugin to
+use it. {#intro}
 
 ```teleprompt scene=slidev policy=concurrent
 1
@@ -33,25 +34,43 @@ answers this request is a voice. {#pcm}
 2?clicks=1
 ```
 
-# Answering the request
+# The request, typed
 
-The server answers one path, the speech request. {#path}
+The server is FastAPI. It reads each request into a typed model: the
+text, a voice, a speed, and the format. A request for anything but raw
+samples is refused before your code runs. {#typed}
 
 ```teleprompt scene=slidev policy=concurrent
 3
 ```
 
-It reads the JSON body, and refuses a voice it does not have by name, so
-the error reaches you in words. {#refuse}
+# Answering it
+
+The speech path takes that model. {#path}
 
 ```teleprompt scene=slidev policy=concurrent
-3?clicks=1
+4
+```
+
+A voice it does not have is refused by name, so the error reaches you in
+words. {#refuse}
+
+```teleprompt scene=slidev policy=concurrent
+4?clicks=1
 ```
 
 Then it speaks the input, and sends the samples back. {#send}
 
 ```teleprompt scene=slidev policy=concurrent
-3?clicks=2
+4?clicks=2
+```
+
+A second path lists the voices. Teleprompt checks a script's against it
+before it speaks a word, and setup asks it to see that the server is up.
+{#list}
+
+```teleprompt scene=slidev policy=concurrent
+4?clicks=3
 ```
 
 # A moo for every word
@@ -60,43 +79,39 @@ Every word becomes a moo, as long as the word. Punctuation becomes a
 pause, so a sentence still sounds like a sentence. {#words}
 
 ```teleprompt scene=slidev policy=concurrent
-4
+5
 ```
 
-The speed teleprompt sends stretches both. {#speed}
+The speed teleprompt sends shortens both. {#speed}
 
 ```teleprompt scene=slidev policy=concurrent
-4?clicks=1
+5?clicks=1
 ```
 
 # Making a moo
 
-A moo is a hum that opens into an oo, and sinks in pitch as it fades. A
-little wobble keeps it alive. {#hum}
-
-```teleprompt scene=slidev policy=concurrent
-5
-```
-
-Each voice is just a pitch to start from, and one to sink to. {#pitches}
+The moo is a real cow, recorded and given away free. Each word plays it,
+cut to length and faded out where it is cut. {#hum}
 
 ```teleprompt scene=slidev policy=concurrent
 6
 ```
 
-**Calf:** Like this, up high. {#calf}
+Playing it faster makes it higher, and slower, lower. {#faster}
 
-**Bull:** Or down here. {#bull}
+```teleprompt scene=slidev policy=concurrent
+6?clicks=1
+```
 
-# Being a good citizen
-
-Two more paths make it easy to work with. Teleprompt checks a script's
-voices against the list before it speaks a word, and setup asks for the
-models, to see that the server is up. {#list}
+So each voice is the same cow at a different speed. {#pitches}
 
 ```teleprompt scene=slidev policy=concurrent
 7
 ```
+
+**Calf:** Like this, up high. {#calf}
+
+**Bull:** Or down here. {#bull}
 
 # Naming it
 

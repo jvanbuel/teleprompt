@@ -1,0 +1,5 @@
+moo.wav is "cow-moo.ogg" from https://github.com/DJWoodZ/Animal-Sounds
+(CC0 1.0 by DJ WoodZ), itself a derivative of "Cow moos" by josephsardin,
+https://freesound.org/people/josephsardin/sounds/177253/ (CC0 1.0):
+trimmed of silence, normalised, and resampled to 24 kHz mono.
+CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/

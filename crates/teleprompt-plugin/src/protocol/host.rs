@@ -14,9 +14,9 @@ use serde::Serialize;
 use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
 use super::{
-    Body, Capture, Captured, Configure, Configured, Description, Kind, Probed, Retime, Retimed,
-    SceneTraits, Shots, Spoken, Synthesize, Traits, Unavailable, Validation, VoiceTraits, Voices,
-    WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
+    is_unknown_method, Body, Capture, Captured, Configure, Configured, Description, Kind, Probed,
+    Retime, Retimed, SceneTraits, Shots, Spoken, Synthesize, Traits, Unavailable, Validation,
+    VoiceTraits, Voices, WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, VERSION,
 };
 use crate::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 use crate::scene::{BlockSource, Measured, SceneCompiler, Shot, Validated};
@@ -628,29 +628,22 @@ impl VoiceBackend for ExternalVoice {
         self.traits().address
     }
 
+    /// `None` for a voice that has no `voices`.
     async fn voices(&self) -> Option<Result<Vec<String>, VoiceError>> {
-        if !self.traits().lists_voices {
-            return None;
+        if let Err(e) = self.configure() {
+            return Some(Err(e));
         }
-        Some(
-            self.configure()
-                .and_then(|_| {
-                    self.plugin
-                        .call::<Voices>("voices", (), &mut |_| {})
-                        .map_err(VoiceError::Other)
-                })
-                .map(|v| v.voices),
-        )
+        match self.plugin.call::<Voices>("voices", (), &mut |_| {}) {
+            Err(e) if is_unknown_method(&e) => None,
+            listed => Some(listed.map(|v| v.voices).map_err(VoiceError::Other)),
+        }
     }
 
     async fn probe(&self) -> Result<String, VoiceError> {
-        if !self.traits().probes {
-            return Err(self.unsupported("a probe"));
-        }
         self.configure()?;
-        self.plugin
-            .call::<Probed>("probe", (), &mut |_| {})
-            .map(|p| p.line)
-            .map_err(VoiceError::Other)
+        match self.plugin.call::<Probed>("probe", (), &mut |_| {}) {
+            Err(e) if is_unknown_method(&e) => Err(self.unsupported("a probe")),
+            probed => probed.map(|p| p.line).map_err(VoiceError::Other),
+        }
     }
 }

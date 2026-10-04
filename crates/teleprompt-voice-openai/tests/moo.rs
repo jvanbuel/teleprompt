@@ -1,5 +1,6 @@
 //! The moo server in `examples/moo`, a speech server written without
-//! teleprompt, spoken to as any server of the API is.
+//! teleprompt, spoken to as any server of the API is. It is run with `uv`,
+//! which installs what it needs on the first run.
 
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -11,12 +12,15 @@ use teleprompt_plugin::voice::SynthRequest;
 struct Server(Child);
 
 impl Drop for Server {
+    /// SIGTERM, which `uv` passes on to the server: a SIGKILL would stop
+    /// `uv` and leave the server running.
     fn drop(&mut self) {
-        let _ = self.0.kill();
+        let _ = Command::new("kill").arg(self.0.id().to_string()).status();
+        let _ = self.0.wait();
     }
 }
 
-/// The server on a free port, once it answers; `None` without Python.
+/// The server on a free port, once it answers; `None` without `uv`.
 async fn moo_server() -> Option<(Server, u16)> {
     let port = TcpListener::bind("127.0.0.1:0")
         .unwrap()
@@ -25,17 +29,20 @@ async fn moo_server() -> Option<(Server, u16)> {
         .port();
     let script = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/moo/deck/snippets/moo_server.py");
-    let Ok(child) = Command::new("python3")
+    let Ok(child) = Command::new("uv")
+        .args(["run", "--quiet", "--script"])
         .arg(script)
         .arg(port.to_string())
+        .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
     else {
-        eprintln!("skipped: no python3 to run the moo server");
+        eprintln!("skipped: no uv to run the moo server");
         return None;
     };
     let server = Server(child);
-    for _ in 0..50 {
+    // The first run installs FastAPI and numpy.
+    for _ in 0..1200 {
         if tokio::net::TcpStream::connect(("127.0.0.1", port))
             .await
             .is_ok()
@@ -53,7 +60,7 @@ async fn the_moo_server_is_a_voice_with_nothing_but_settings() {
         return;
     };
     let settings: serde_yaml::Value = serde_yaml::from_str(&format!(
-        "api: openai\nbase_url: http://127.0.0.1:{port}/v1\nmodel: moo-1"
+        "api: openai\nbase_url: http://127.0.0.1:{port}/v1\nmodel: moo-2"
     ))
     .unwrap();
     let voice = teleprompt_voice_openai::endpoint("moo", &settings).unwrap();

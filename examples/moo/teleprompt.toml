@@ -8,7 +8,7 @@
 #
 # Run from the repository root:
 #
-#   python3 examples/moo/deck/snippets/moo_server.py &     # port 8890
+#   uv run examples/moo/deck/snippets/moo_server.py &      # port 8890
 #   (cd examples/moo/deck && npm ci)
 #   cargo run -- build examples/moo/scripts/moo.md
 #
@@ -35,7 +35,7 @@ concurrency = 2
 [backends.moo]
 api = "openai"
 base_url = "http://localhost:8890/v1"
-model = "moo-1"
+model = "moo-2"
 
 [voices.cow]
 backend = "moo"

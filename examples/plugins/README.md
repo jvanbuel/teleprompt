@@ -2,7 +2,8 @@
 
 Two plugins as programs of their own, in Python with nothing beyond its
 standard library, to show what any language can do
-([extending teleprompt](../../docs/guide/plugins.md)):
+([extending teleprompt](../../docs/guide/plugins.md)). Both type-check
+with `mypy --strict` and are formatted with ruff (`../ruff.toml`):
 
 - `teleprompt-scene-card`: a scene of plain colour cards (`color`,
   `hold`, `mark`), captured with ffmpeg. The smallest complete scene plugin.

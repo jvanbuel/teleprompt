@@ -104,7 +104,9 @@ impl Default for SceneTraits {
     }
 }
 
-/// What a voice can do, beyond speaking a line.
+/// What a voice can do, beyond speaking a line. Which of `voices` and
+/// `probe` it answers is not said here: it is asked, and a method it does
+/// not have answers [`unknown_method`].
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct VoiceTraits {
     #[serde(default)]
@@ -114,12 +116,16 @@ pub struct VoiceTraits {
     /// Where its server is, for errors and `setup`.
     #[serde(default)]
     pub address: Option<String>,
-    /// Whether it answers `voices`, which `dub` checks a script's against.
-    #[serde(default)]
-    pub lists_voices: bool,
-    /// Whether it answers `probe`, the line `setup` prints.
-    #[serde(default)]
-    pub probes: bool,
+}
+
+/// The error a plugin answers for a method it does not have.
+pub fn unknown_method(method: &str) -> String {
+    format!("unknown method `{method}`")
+}
+
+/// Whether `error` is a plugin's answer for a method it does not have.
+pub fn is_unknown_method(error: &str) -> bool {
+    error.starts_with("unknown method")
 }
 
 /// A tool a plugin needs, as [`crate::tool::Tool`] has it.
