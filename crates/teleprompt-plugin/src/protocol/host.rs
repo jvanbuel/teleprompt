@@ -255,9 +255,9 @@ impl Conn {
         self.next += 1;
         let id = self.next;
         let request = serde_json::json!({ "id": id, "method": method, "params": params });
-        writeln!(self.stdin, "{request}")
-            .and_then(|()| self.stdin.flush())
-            .map_err(|e| format!("cannot send `{method}`: {e}"))?;
+        // A program that has already exited cannot be sent anything, but
+        // what it printed first says more than the broken pipe does.
+        let sent = writeln!(self.stdin, "{request}").and_then(|()| self.stdin.flush());
         let mut line = String::new();
         loop {
             line.clear();
@@ -266,7 +266,10 @@ impl Conn {
                 .read_line(&mut line)
                 .map_err(|e| format!("cannot read its answer to `{method}`: {e}"))?;
             if read == 0 {
-                return Err(format!("it stopped before answering `{method}`"));
+                return Err(match &sent {
+                    Err(e) => format!("cannot send `{method}`: {e}"),
+                    Ok(()) => format!("it stopped before answering `{method}`"),
+                });
             }
             let Ok(mut message) = serde_json::from_str::<serde_json::Value>(&line) else {
                 return Err(format!(
