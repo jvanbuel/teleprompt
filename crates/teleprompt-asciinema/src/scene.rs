@@ -11,8 +11,8 @@
 //! stating its size and `duration`, then its events from zero — which is
 //! what makes `estimate` and `retime` arithmetic rather than guesses.
 
+use teleprompt_capture::scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_core::{BlockId, Diagnostic, Hash};
-use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 
 /// One event, at an absolute time in seconds.
 #[derive(Debug, Clone, PartialEq)]

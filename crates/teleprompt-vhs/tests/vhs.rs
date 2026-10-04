@@ -1,5 +1,5 @@
+use teleprompt_capture::scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Validated};
 use teleprompt_core::{BlockId, SourceSpan};
-use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Validated};
 use teleprompt_vhs::VhsScene;
 
 /// A fence opening on line 1. Body line `i` is therefore at absolute line `1 + i + 1`.
@@ -32,7 +32,7 @@ fn validated(body: &str) -> Validated {
 }
 
 /// The single shot of a body that has no marks in it.
-fn only_shot(body: &str) -> teleprompt_scene::Shot {
+fn only_shot(body: &str) -> teleprompt_capture::scene::Shot {
     let v = validated(body);
     let mut shots = VhsScene
         .shots(&v, &BlockId::from("b"))

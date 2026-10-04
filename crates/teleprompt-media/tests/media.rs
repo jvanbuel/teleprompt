@@ -2,12 +2,12 @@
 
 use std::path::Path;
 
+use teleprompt_capture::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_capture::{Frame, Session, SessionShot};
 use teleprompt_core::{BlockId, Hash, SourceSpan};
 use teleprompt_media::capture::args;
 use teleprompt_media::scene::{parse_line, parse_time, Directive};
 use teleprompt_media::MediaScene;
-use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 
 fn src(body: &str) -> BlockSource {
     BlockSource {

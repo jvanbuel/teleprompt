@@ -73,10 +73,6 @@ impl Default for AsciinemaRender {
 }
 
 impl CaptureBackend for AsciinemaRender {
-    fn adapter(&self) -> &'static str {
-        "asciinema"
-    }
-
     fn unavailable(&self) -> Option<String> {
         teleprompt_capture::tool::missing(&[&self.agg, &self.ffmpeg])
     }

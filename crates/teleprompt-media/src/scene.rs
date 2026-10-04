@@ -12,12 +12,12 @@
 
 use std::path::PathBuf;
 
+use teleprompt_capture::scene::contract::{
+    is_content, BlockSource, Measured, SceneCompiler, Shot, Validated,
+};
 use teleprompt_core::attrs::parse_attrs;
 use teleprompt_core::config::SceneConfig;
 use teleprompt_core::{BlockId, Diagnostic, Hash, SourceSpan};
-use teleprompt_scene::contract::{
-    is_content, BlockSource, Measured, SceneCompiler, Shot, Validated,
-};
 
 /// The mark, and `#` comments generally.
 pub const MARK: &str = "# mark";

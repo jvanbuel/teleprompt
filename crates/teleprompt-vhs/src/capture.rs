@@ -92,10 +92,6 @@ impl Default for VhsRender {
 }
 
 impl CaptureBackend for VhsRender {
-    fn adapter(&self) -> &'static str {
-        "vhs"
-    }
-
     fn unavailable(&self) -> Option<String> {
         // Only a PATH check: this runs on every capture and every `doctor`,
         // and a probe recording would take a minute. A `vhs` that is

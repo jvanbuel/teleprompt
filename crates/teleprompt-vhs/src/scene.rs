@@ -7,7 +7,7 @@
 use teleprompt_core::attrs::parse_duration_ms;
 use teleprompt_core::{BlockId, Diagnostic, Hash};
 
-use teleprompt_scene::{
+use teleprompt_capture::scene::{
     validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
 };
 
@@ -460,7 +460,7 @@ impl SceneCompiler for VhsScene {
 
     /// `#2` is the part of a tape after its first `# mark`, `#2-3` a range.
     fn select(&self, body: &str, fragment: &str) -> Result<String, String> {
-        teleprompt_scene::select_marked(body, MARK, fragment)
+        teleprompt_capture::scene::select_marked(body, MARK, fragment)
     }
 
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {

@@ -564,8 +564,7 @@ pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
         };
         for w in wanted {
             let Some(tool) = TOOLS.iter().find(|t| t.name == w) else {
-                let captures = crate::scene::captures();
-                let adapters: Vec<&str> = captures.backends().map(|b| b.adapter()).collect();
+                let adapters = crate::scene::adapter_names();
                 let tools: Vec<&str> = TOOLS.iter().map(|t| t.name).collect();
                 return Err(format!(
                     "`{name}` is neither an adapter ({}) nor a tool ({})",

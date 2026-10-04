@@ -322,17 +322,17 @@ fn capture_backends() -> Vec<CaptureBackendStatus> {
     let registry = crate::scene::captures();
     registry
         .backends()
-        .map(|b| {
+        .map(|(adapter, b)| {
             let unavailable = b.unavailable();
             CaptureBackendStatus {
-                id: b.adapter().to_string(),
-                adapter: b.adapter().to_string(),
+                id: adapter.to_string(),
+                adapter: adapter.to_string(),
                 // `setup` installs tools; a backend held back by something
                 // else (the wrong platform) has nothing for it to install.
                 fix: unavailable
                     .as_ref()
                     .filter(|why| why.ends_with(teleprompt_capture::tool::NOT_ON_PATH))
-                    .map(|_| format!("teleprompt setup {}", b.adapter())),
+                    .map(|_| format!("teleprompt setup {adapter}")),
                 unavailable,
             }
         })

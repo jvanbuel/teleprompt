@@ -1,103 +1,49 @@
-//! Every adapter this build ships, assembled in one place.
-//!
-//! Adapter crates depend on `teleprompt-scene` and `teleprompt-capture`, so
-//! they are registered here rather than in either (docs/design.md#crates).
+//! Every adapter this build ships, registered in one place: each adapter
+//! crate hands over one `Adapter`, and no other crate learns its name
+//! (docs/design.md#crates).
 
-use teleprompt_asciinema::{AsciinemaRecorder, AsciinemaRender, AsciinemaScene};
 use teleprompt_capture::mock::MockCapture;
-use teleprompt_capture::record::Recorder;
-use teleprompt_capture::{CaptureBackend, CaptureRegistry};
-use teleprompt_macos::MacosRender;
-use teleprompt_media::{MediaRender, MediaScene};
-use teleprompt_playwright::{PlaywrightRecorder, PlaywrightRender, PlaywrightScene};
-use teleprompt_remotion::{RemotionRender, RemotionScene};
-use teleprompt_scene::{MockScene, SceneCompiler, SceneRegistry};
-use teleprompt_slidev::{SlidevRender, SlidevScene};
-use teleprompt_vhs::{VhsRecorder, VhsRender, VhsScene};
-use teleprompt_x11::X11Render;
-
-/// One adapter: how its blocks compile, how its scenes are captured, and,
-/// where its tool can, how an author's session is recorded; registered
-/// together so they cannot be named apart.
-struct Adapter {
-    compiler: Box<dyn SceneCompiler>,
-    capture: Box<dyn CaptureBackend>,
-    recorder: Option<Box<dyn Recorder>>,
-}
-
-fn adapter(
-    compiler: impl SceneCompiler + 'static,
-    capture: impl CaptureBackend + 'static,
-) -> Adapter {
-    assert_eq!(
-        compiler.kind(),
-        capture.adapter(),
-        "an adapter's compiler and capture backend must share its name"
-    );
-    Adapter {
-        compiler: Box::new(compiler),
-        capture: Box::new(capture),
-        recorder: None,
-    }
-}
-
-impl Adapter {
-    fn recorded_with(mut self, recorder: impl Recorder + 'static) -> Self {
-        assert_eq!(
-            self.compiler.kind(),
-            recorder.adapter(),
-            "an adapter's recorder must share its name"
-        );
-        self.recorder = Some(Box::new(recorder));
-        self
-    }
-}
-
-/// Every adapter's name, which a block may use as its scene.
-pub fn adapter_names() -> Vec<String> {
-    adapters()
-        .iter()
-        .map(|a| a.capture.adapter().to_string())
-        .collect()
-}
+use teleprompt_capture::record::NamedRecorder;
+use teleprompt_capture::{Adapter, CaptureRegistry};
+use teleprompt_scene::{MockScene, SceneRegistry};
 
 /// Every adapter, in the order `doctor` lists their capture backends.
 fn adapters() -> Vec<Adapter> {
     vec![
-        adapter(VhsScene, VhsRender::default()).recorded_with(VhsRecorder),
-        adapter(PlaywrightScene, PlaywrightRender::default()).recorded_with(PlaywrightRecorder),
-        adapter(RemotionScene, RemotionRender::default()),
-        adapter(SlidevScene, SlidevRender::default()),
-        adapter(AsciinemaScene, AsciinemaRender::default()).recorded_with(AsciinemaRecorder),
-        adapter(MediaScene, MediaRender::default()),
-        adapter(teleprompt_x11::SCENE, X11Render::default()),
-        adapter(teleprompt_macos::SCENE, MacosRender::default()),
-        adapter(MockScene, MockCapture::default()),
+        teleprompt_vhs::adapter(),
+        teleprompt_playwright::adapter(),
+        teleprompt_remotion::adapter(),
+        teleprompt_slidev::adapter(),
+        teleprompt_asciinema::adapter(),
+        teleprompt_media::adapter(),
+        teleprompt_x11::adapter(),
+        teleprompt_macos::adapter(),
+        Adapter::new(MockScene, MockCapture::default()),
     ]
+}
+
+/// Every adapter's name, which a block may use as its scene.
+pub fn adapter_names() -> Vec<String> {
+    adapters().iter().map(|a| a.name().to_string()).collect()
 }
 
 /// What adapter `name` runs, capturing and then recording, each once; `None`
 /// when there is no such adapter. What `teleprompt setup <adapter>` installs.
 pub fn needs(name: &str) -> Option<Vec<&'static str>> {
-    let a = adapters()
+    adapters()
         .into_iter()
-        .find(|a| a.capture.adapter() == name)?;
-    let recording = a.recorder.as_ref().map_or(&[][..], |r| r.needs());
-    let mut out: Vec<&'static str> = Vec::new();
-    for n in a.capture.needs().iter().chain(recording) {
-        if !out.contains(n) {
-            out.push(n);
-        }
-    }
-    Some(out)
+        .find(|a| a.name() == name)
+        .map(|a| a.needs())
 }
 
 /// The adapters that can record a session, asciinema first: it records
 /// exactly, and what it shows is what was recorded.
-pub fn recorders() -> Vec<Box<dyn Recorder>> {
-    let mut out: Vec<Box<dyn Recorder>> =
-        adapters().into_iter().filter_map(|a| a.recorder).collect();
-    out.sort_by_key(|r| r.adapter() != "asciinema");
+pub fn recorders() -> Vec<NamedRecorder> {
+    let mut out: Vec<NamedRecorder> = adapters()
+        .into_iter()
+        .filter_map(Adapter::into_recorder)
+        .collect();
+    out.sort_by_key(|r| r.adapter != "asciinema");
     out
 }
 
@@ -105,23 +51,26 @@ pub fn recorders() -> Vec<Box<dyn Recorder>> {
 pub fn scenes() -> SceneRegistry {
     let mut registry = SceneRegistry::default();
     for a in adapters() {
-        registry.register(a.compiler);
+        registry.register(a.into_scene());
     }
     registry
 }
 
 /// The capture backends a build records with.
 pub fn captures() -> CaptureRegistry {
-    adapters()
-        .into_iter()
-        .fold(CaptureRegistry::new(), |r, a| r.with(a.capture))
+    adapters().into_iter().fold(CaptureRegistry::new(), |r, a| {
+        let name = a.name();
+        r.with(name, a.into_capture())
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    /// Building the list checks every pair's names.
     #[test]
-    fn every_adapter_compiles_and_records_under_one_name() {
-        assert_eq!(super::adapters().len(), 9);
+    fn every_adapter_has_its_own_name() {
+        let mut names = super::adapter_names();
+        names.sort();
+        names.dedup();
+        assert_eq!(names.len(), 9);
     }
 }

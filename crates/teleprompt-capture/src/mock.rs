@@ -39,10 +39,6 @@ fn colour_of(key: &Hash) -> String {
 }
 
 impl CaptureBackend for MockCapture {
-    fn adapter(&self) -> &'static str {
-        "mock"
-    }
-
     fn unavailable(&self) -> Option<String> {
         crate::tool::missing(&[&self.program])
     }
@@ -88,12 +84,12 @@ impl CaptureBackend for MockCapture {
                 .stdin(Stdio::null())
                 .status()
                 .map_err(|e| CaptureError::Unavailable {
-                    backend: self.adapter().to_string(),
+                    backend: "mock".to_string(),
                     reason: format!("{} could not be run: {e}", self.program),
                 })?;
             if !status.success() {
                 return Err(CaptureError::Failed {
-                    backend: self.adapter().to_string(),
+                    backend: "mock".to_string(),
                     shot: shot.id.clone(),
                     reason: format!("{} exited {status}", self.program),
                 });

@@ -1,8 +1,8 @@
 //! A script `playwright codegen` wrote, as the steps a draft includes.
 
+use teleprompt_capture::scene::contract::SceneCompiler;
 use teleprompt_playwright::record::{statements, timed};
 use teleprompt_playwright::PlaywrightScene;
-use teleprompt_scene::contract::SceneCompiler;
 
 /// As `playwright codegen --target javascript` writes it.
 const CODEGEN: &str = "const { chromium } = require('playwright');

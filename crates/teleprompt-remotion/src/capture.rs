@@ -71,10 +71,6 @@ impl Default for RemotionRender {
 }
 
 impl CaptureBackend for RemotionRender {
-    fn adapter(&self) -> &'static str {
-        "remotion"
-    }
-
     fn unavailable(&self) -> Option<String> {
         teleprompt_capture::tool::missing(&[&self.node])
     }

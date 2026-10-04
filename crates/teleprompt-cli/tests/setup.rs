@@ -65,10 +65,10 @@ fn an_adapter_names_the_tools_it_runs() {
 /// tools `setup` knows.
 #[test]
 fn every_adapter_needs_only_tools_setup_knows() {
-    for adapter in teleprompt_cli::scene::captures().backends() {
-        let needs = teleprompt_cli::scene::needs(adapter.adapter()).unwrap();
-        assert!(!needs.is_empty(), "{}", adapter.adapter());
-        resolve(&[adapter.adapter().to_string()]).unwrap();
+    for adapter in teleprompt_cli::scene::adapter_names() {
+        let needs = teleprompt_cli::scene::needs(&adapter).unwrap();
+        assert!(!needs.is_empty(), "{adapter}");
+        resolve(&[adapter]).unwrap();
     }
 }
 

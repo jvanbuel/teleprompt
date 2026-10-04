@@ -16,14 +16,15 @@ import json
 import subprocess
 import sys
 
-ADAPTER = {"core", "scene", "capture"}
+# An adapter depends on capture, which re-exports the scene contract.
+ADAPTER = {"core", "capture"}
 
 ALLOWED = {
     "core": set(),
     "schedule": {"core"},
     "scene": {"core"},
     "voice": {"core"},
-    "capture": {"core"},
+    "capture": {"core", "scene"},
     "manifest": {"core"},
     "cache": {"core", "voice"},
     "voice-null": {"core", "voice"},

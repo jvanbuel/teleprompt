@@ -185,7 +185,7 @@ fn record(
         return Err(format!(
             "`{}` cannot record `{}` scenes here: {reason}; its {} shot(s) \
              will render as slates",
-            backend.adapter(),
+            session.adapter,
             session.scene,
             session.wanted()
         ));
@@ -262,9 +262,6 @@ mod tests {
     }
 
     impl CaptureBackend for Writes {
-        fn adapter(&self) -> &'static str {
-            "writes"
-        }
         fn capture(
             &self,
             session: &Session,
@@ -327,7 +324,7 @@ mod tests {
     #[test]
     fn a_failed_session_leaves_no_clip_in_the_cache() {
         let dir = clips_dir("fail");
-        let registry = CaptureRegistry::new().with(Box::new(Writes { then_fail: true }));
+        let registry = CaptureRegistry::new().with("writes", Box::new(Writes { then_fail: true }));
         let s = session();
         assert!(record(&registry, &s, &frame(), &dir, &mut |_| {}).is_err());
         let clip = dir.join(format!("{}.mp4", s.shots[0].key));
@@ -338,7 +335,7 @@ mod tests {
     #[test]
     fn a_finished_session_files_its_clips_under_their_keys() {
         let dir = clips_dir("ok");
-        let registry = CaptureRegistry::new().with(Box::new(Writes { then_fail: false }));
+        let registry = CaptureRegistry::new().with("writes", Box::new(Writes { then_fail: false }));
         let s = session();
         assert_eq!(record(&registry, &s, &frame(), &dir, &mut |_| {}), Ok(1));
         assert!(dir.join(format!("{}.mp4", s.shots[0].key)).is_file());

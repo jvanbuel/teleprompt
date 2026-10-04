@@ -12,9 +12,9 @@ use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
 use teleprompt_capture::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_capture::scene::{Measured, SceneCompiler, Shot};
 use teleprompt_capture::tool::missing;
 use teleprompt_core::{BlockId, Hash};
-use teleprompt_scene::{Measured, SceneCompiler, Shot};
 
 use crate::VhsScene;
 
@@ -22,10 +22,6 @@ use crate::VhsScene;
 pub struct VhsRecorder;
 
 impl Recorder for VhsRecorder {
-    fn adapter(&self) -> &'static str {
-        "vhs"
-    }
-
     fn unavailable(&self) -> Option<String> {
         missing(&["vhs"])
     }

@@ -2,7 +2,13 @@
 //!
 //! A backend runs a session, not a shot: a walkthrough's shots continue one
 //! another, so even a cached shot runs, for the screen the next opens on.
+//!
+//! An adapter crate depends on this one alone: the scene contract it
+//! compiles blocks against is re-exported as [`scene`], and it hands the
+//! CLI one [`Adapter`]. `compile` depends on the scene contract and not on
+//! this crate, so nothing that plans a video can run a tool.
 
+mod adapter;
 pub mod mock;
 pub mod record;
 pub mod reel;
@@ -12,6 +18,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use teleprompt_core::{Hash, ShotId};
+pub use teleprompt_scene as scene;
+
+pub use adapter::Adapter;
 
 /// One action shot, as the planner needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -208,9 +217,6 @@ pub enum CaptureError {
 
 /// What can run a scene.
 pub trait CaptureBackend {
-    /// The scene adapter whose shots this backend speaks.
-    fn adapter(&self) -> &'static str;
-
     /// Why it cannot run here, if it cannot: asked before a session starts.
     fn unavailable(&self) -> Option<String> {
         None
@@ -234,7 +240,8 @@ pub trait CaptureBackend {
 /// The backends a build can choose between.
 #[derive(Default)]
 pub struct CaptureRegistry {
-    backends: Vec<Box<dyn CaptureBackend>>,
+    /// Each backend under its adapter's name.
+    backends: Vec<(&'static str, Box<dyn CaptureBackend>)>,
 }
 
 impl CaptureRegistry {
@@ -242,8 +249,8 @@ impl CaptureRegistry {
         Self::default()
     }
 
-    pub fn with(mut self, backend: Box<dyn CaptureBackend>) -> Self {
-        self.backends.push(backend);
+    pub fn with(mut self, adapter: &'static str, backend: Box<dyn CaptureBackend>) -> Self {
+        self.backends.push((adapter, backend));
         self
     }
 
@@ -252,11 +259,12 @@ impl CaptureRegistry {
     pub fn for_adapter(&self, adapter: &str) -> Option<&dyn CaptureBackend> {
         self.backends
             .iter()
-            .map(|b| b.as_ref())
-            .find(|b| b.adapter() == adapter)
+            .find(|(name, _)| *name == adapter)
+            .map(|(_, b)| b.as_ref())
     }
 
-    pub fn backends(&self) -> impl Iterator<Item = &dyn CaptureBackend> {
-        self.backends.iter().map(|b| b.as_ref())
+    /// Each backend, under its adapter's name.
+    pub fn backends(&self) -> impl Iterator<Item = (&'static str, &dyn CaptureBackend)> {
+        self.backends.iter().map(|(name, b)| (*name, b.as_ref()))
     }
 }

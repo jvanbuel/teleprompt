@@ -174,7 +174,7 @@ reading the manifest it just published.
 | `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |
 | `teleprompt-cache` | the content-addressed voice cache |
 | `teleprompt-scene` | the `SceneCompiler` contract and the `mock` adapter |
-| `teleprompt-capture` | the `CaptureBackend` contract and the mock backend, and the `Recorder` contract for recording a session |
+| `teleprompt-capture` | the `CaptureBackend` contract and the mock backend, the `Recorder` contract for recording a session, and `Adapter`, the three under one name; re-exports `scene`, so an adapter depends on this crate alone |
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest; and what `dub` publishes from each line's audio, which the prompter plays too |
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
@@ -184,19 +184,23 @@ reading the manifest it just published.
 | `teleprompt-lsp` | the language server: the protocol, positions and completion; what a script compiles to comes from an `Analyzer` the CLI implements, so it depends on core alone |
 | `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
-| `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder |
+| `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per adapter, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `adapter()` |
 | `teleprompt-desktop` | what the desktop adapters share: their action language and scene compiler, and the runner that plays a session's shots against a window and cuts them where they began |
 | `teleprompt-x11`, `-macos` | one crate per platform: the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation. Each records with ffmpeg |
 | `teleprompt-cli` | the `teleprompt` binary, and the registries every adapter and backend is composed into |
 
 `core`, `schedule`, `voice` and `scene` do not depend on one another.
 Anything that needs two of them belongs in `compile`. `render` reads the
-manifest and never the compiler. `scene` and `capture` stay two crates
-though every adapter uses both: `compile`, and so `plan`, `check` and the
-prompter, reads a scene's shots and cannot run its tool. `tools/check_deps.py` holds the allowed
-edges between workspace crates, and CI fails on any other. Adapters and backends
-are registered only in the CLI, so adding one means one crate and one
-registry line, and no other crate learns its name.
+manifest and never the compiler. `scene` and `capture` stay two crates:
+`compile`, and so `plan`, `check` and the prompter, depends on `scene`
+alone, so it reads a scene's shots and cannot run its tool. An adapter
+sees one crate all the same: `capture` re-exports `scene`, and each
+adapter crate's `adapter()` hands over its compiler, capture backend and
+recorder as one `Adapter`, named by its compiler's kind, so its halves
+cannot be registered under two names. `tools/check_deps.py` holds the
+allowed edges between workspace crates, and CI fails on any other.
+Adapters and backends are registered only in the CLI, so adding one means
+one crate and one registry line, and no other crate learns its name.
 
 ## Voice
 

@@ -47,10 +47,6 @@ impl Drop for Owned {
 }
 
 impl CaptureBackend for X11Render {
-    fn adapter(&self) -> &'static str {
-        ADAPTER
-    }
-
     fn unavailable(&self) -> Option<String> {
         teleprompt_capture::tool::missing(&[&self.xvfb, &self.xdotool, &self.ffmpeg])
     }

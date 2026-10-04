@@ -17,10 +17,6 @@ use teleprompt_capture::tool::missing;
 pub struct AsciinemaRecorder;
 
 impl Recorder for AsciinemaRecorder {
-    fn adapter(&self) -> &'static str {
-        "asciinema"
-    }
-
     fn unavailable(&self) -> Option<String> {
         missing(&["asciinema"])
     }

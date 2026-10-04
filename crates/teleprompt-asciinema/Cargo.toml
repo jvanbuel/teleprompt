@@ -9,7 +9,6 @@ license.workspace = true
 serde_json.workspace = true
 teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-core = { path = "../teleprompt-core" }
-teleprompt-scene = { path = "../teleprompt-scene" }
 
 [lints]
 workspace = true

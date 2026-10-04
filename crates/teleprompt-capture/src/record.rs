@@ -14,8 +14,6 @@ use std::time::{Duration, Instant};
 
 /// An adapter's recording tool.
 pub trait Recorder: Send + Sync {
-    /// The adapter it records for, and the scene its drafts run in.
-    fn adapter(&self) -> &'static str;
     /// Why it cannot record here, such as its tool not being installed.
     fn unavailable(&self) -> Option<String>;
     /// What it runs, as [`CaptureBackend::needs`](crate::CaptureBackend::needs).
@@ -29,6 +27,21 @@ pub trait Recorder: Send + Sync {
     fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, String>;
     /// A recording made with this tool earlier, as steps, for `import`.
     fn read(&self, text: &str) -> Result<Recorded, String>;
+}
+
+/// A recorder under the name of the adapter it records for, which is the
+/// scene its drafts run in.
+pub struct NamedRecorder {
+    pub adapter: &'static str,
+    pub recorder: Box<dyn Recorder>,
+}
+
+impl std::ops::Deref for NamedRecorder {
+    type Target = dyn Recorder;
+
+    fn deref(&self) -> &Self::Target {
+        self.recorder.as_ref()
+    }
 }
 
 /// What a recording starts from.

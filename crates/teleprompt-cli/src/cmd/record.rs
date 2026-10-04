@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use teleprompt_capture::record::{Recorder, Start};
+use teleprompt_capture::record::{NamedRecorder, Start};
 
 use crate::cmd::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
 use crate::project::Project;
@@ -50,8 +50,8 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
         }
     };
     let result = recorder(r.with).and_then(|recorder| {
-        check(r, &*recorder)?;
-        record(r, &*recorder, &say)
+        check(r, &recorder)?;
+        record(r, &recorder, &say)
     });
     say(match &result {
         Ok(report) => serde_json::json!({
@@ -66,19 +66,19 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
 }
 
 /// The recorder `with` names, asciinema's by default.
-fn recorder(with: Option<&str>) -> Result<Box<dyn Recorder>, String> {
+fn recorder(with: Option<&str>) -> Result<NamedRecorder, String> {
     let all = crate::scene::recorders();
-    let names: Vec<&str> = all.iter().map(|r| r.adapter()).collect();
+    let names: Vec<&str> = all.iter().map(|r| r.adapter).collect();
     let names = names.join(", ");
     let wanted = with.unwrap_or("asciinema");
     all.into_iter()
-        .find(|r| r.adapter() == wanted)
+        .find(|r| r.adapter == wanted)
         .ok_or_else(|| format!("`{wanted}` cannot record a session; these can: {names}"))
 }
 
 /// Everything that could stop the draft, checked before anything is
 /// recorded rather than after the author has talked for ten minutes.
-fn check(r: &Record, recorder: &dyn Recorder) -> Result<(), String> {
+fn check(r: &Record, recorder: &NamedRecorder) -> Result<(), String> {
     refuse_to_replace(r.script, r.force)?;
     if !cfg!(feature = "listen") {
         return Err(
@@ -94,14 +94,14 @@ fn check(r: &Record, recorder: &dyn Recorder) -> Result<(), String> {
         return Err(format!("no punctuation model at {}", dir.display()));
     }
     if let Some(why) = recorder.unavailable() {
-        return Err(format!("cannot record with {}: {why}", recorder.adapter()));
+        return Err(format!("cannot record with {}: {why}", recorder.adapter));
     }
     Ok(())
 }
 
 fn record(
     r: &Record,
-    recorder: &dyn Recorder,
+    recorder: &NamedRecorder,
     say: &dyn Fn(serde_json::Value),
 ) -> Result<ImportReport, String> {
     let project = Project::for_script(r.script).map_err(|e| e.to_string())?;
@@ -136,7 +136,7 @@ fn record(
         };
         eprintln!(
             "recording with {} and the microphone: {how}\r",
-            recorder.adapter()
+            recorder.adapter
         );
     }
     let file = dir.join(format!("session.{}", recorder.extension()));
@@ -196,7 +196,7 @@ pub fn tools() -> Vec<Tool> {
     crate::scene::recorders()
         .iter()
         .map(|r| Tool {
-            adapter: r.adapter(),
+            adapter: r.adapter,
             in_terminal: r.in_terminal(),
             unavailable: r.unavailable(),
         })

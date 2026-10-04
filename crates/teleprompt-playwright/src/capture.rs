@@ -129,10 +129,6 @@ impl Default for PlaywrightRender {
 }
 
 impl CaptureBackend for PlaywrightRender {
-    fn adapter(&self) -> &'static str {
-        "playwright"
-    }
-
     fn unavailable(&self) -> Option<String> {
         teleprompt_capture::tool::missing(&[&self.node, &self.ffmpeg])
     }

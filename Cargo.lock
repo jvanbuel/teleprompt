@@ -1889,7 +1889,6 @@ dependencies = [
  "serde_json",
  "teleprompt-capture",
  "teleprompt-core",
- "teleprompt-scene",
 ]
 
 [[package]]
@@ -1909,6 +1908,7 @@ name = "teleprompt-capture"
 version = "0.1.0"
 dependencies = [
  "teleprompt-core",
+ "teleprompt-scene",
  "teleprompt-testkit",
  "tempfile",
  "thiserror 1.0.69",
@@ -2004,7 +2004,6 @@ version = "0.1.0"
 dependencies = [
  "teleprompt-capture",
  "teleprompt-core",
- "teleprompt-scene",
 ]
 
 [[package]]
@@ -2054,7 +2053,6 @@ version = "0.1.0"
 dependencies = [
  "teleprompt-capture",
  "teleprompt-core",
- "teleprompt-scene",
 ]
 
 [[package]]
@@ -2063,7 +2061,6 @@ version = "0.1.0"
 dependencies = [
  "teleprompt-capture",
  "teleprompt-core",
- "teleprompt-scene",
  "tempfile",
 ]
 
@@ -2085,7 +2082,6 @@ dependencies = [
  "serde_json",
  "teleprompt-capture",
  "teleprompt-core",
- "teleprompt-scene",
 ]
 
 [[package]]
@@ -2122,7 +2118,6 @@ version = "0.1.0"
 dependencies = [
  "teleprompt-capture",
  "teleprompt-core",
- "teleprompt-scene",
 ]
 
 [[package]]
@@ -2150,7 +2145,6 @@ version = "0.1.0"
 dependencies = [
  "teleprompt-capture",
  "teleprompt-core",
- "teleprompt-scene",
  "teleprompt-testkit",
  "tempfile",
 ]

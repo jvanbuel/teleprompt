@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use teleprompt_core::LineId;
 
 use serde::{Deserialize, Serialize};
-use teleprompt_capture::record::{Recorded, Recorder};
+use teleprompt_capture::record::{NamedRecorder, Recorded};
 use teleprompt_derive::{derive, Draft, Line, Options, Word};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
@@ -81,7 +81,7 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
         .map_err(|e| format!("{}: {e}", imp.recording.display()))?;
     draft_session(&Session {
         script: imp.script,
-        recorder: &*recorder,
+        recorder: &recorder,
         recorded: &recorded,
         voice: imp.voice,
         words: &imp.words,
@@ -93,13 +93,13 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
 
 /// The recorder `with` names, or the one whose recordings have
 /// `recording`'s extension.
-pub fn recorder_for(with: Option<&str>, recording: &Path) -> Result<Box<dyn Recorder>, String> {
+pub fn recorder_for(with: Option<&str>, recording: &Path) -> Result<NamedRecorder, String> {
     let all = crate::scene::recorders();
-    let names: Vec<&str> = all.iter().map(|r| r.adapter()).collect();
+    let names: Vec<&str> = all.iter().map(|r| r.adapter).collect();
     let names = names.join(", ");
     let ext = recording.extension().and_then(|e| e.to_str()).unwrap_or("");
     let found = all.into_iter().find(|r| match with {
-        Some(name) => r.adapter() == name,
+        Some(name) => r.adapter == name,
         None => r.extension() == ext,
     });
     found.ok_or_else(|| match with {
@@ -125,7 +125,7 @@ pub fn refuse_to_replace(script: &Path, force: bool) -> Result<(), String> {
 /// A recorded session, and the voice recorded beside it.
 pub struct Session<'a> {
     pub script: &'a Path,
-    pub recorder: &'a dyn Recorder,
+    pub recorder: &'a NamedRecorder,
     pub recorded: &'a Recorded,
     pub voice: &'a Path,
     pub words: &'a Words<'a>,
@@ -165,7 +165,7 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
     }
     let options = Options {
         title: title_of(session.script),
-        scene: session.recorder.adapter().to_string(),
+        scene: session.recorder.adapter.to_string(),
         include,
         ..Options::default()
     };

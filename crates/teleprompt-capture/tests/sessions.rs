@@ -158,9 +158,6 @@ fn a_scene_kind_with_no_backend_has_none_rather_than_a_broken_one() {
 
     struct Fake;
     impl CaptureBackend for Fake {
-        fn adapter(&self) -> &'static str {
-            "vhs"
-        }
         fn capture(
             &self,
             _: &Session,
@@ -172,10 +169,7 @@ fn a_scene_kind_with_no_backend_has_none_rather_than_a_broken_one() {
         }
     }
 
-    let registry = CaptureRegistry::new().with(Box::new(Fake));
-    assert_eq!(
-        registry.for_adapter("vhs").map(|b| b.adapter()),
-        Some("vhs")
-    );
+    let registry = CaptureRegistry::new().with("vhs", Box::new(Fake));
+    assert!(registry.for_adapter("vhs").is_some());
     assert!(registry.for_adapter("playwright").is_none());
 }

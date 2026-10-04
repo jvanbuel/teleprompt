@@ -19,10 +19,6 @@ use teleprompt_capture::record::{wait_for, Recorded, Recorder, Recording, Start,
 pub struct PlaywrightRecorder;
 
 impl Recorder for PlaywrightRecorder {
-    fn adapter(&self) -> &'static str {
-        "playwright"
-    }
-
     fn unavailable(&self) -> Option<String> {
         let ok = playwright()
             .arg("--version")

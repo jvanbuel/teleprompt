@@ -55,10 +55,6 @@ impl Drop for Owned {
 }
 
 impl CaptureBackend for MacosRender {
-    fn adapter(&self) -> &'static str {
-        ADAPTER
-    }
-
     fn unavailable(&self) -> Option<String> {
         if !cfg!(target_os = "macos") {
             return Some("it records a Mac's own screen, and this is not a Mac".into());

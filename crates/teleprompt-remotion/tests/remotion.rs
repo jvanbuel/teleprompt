@@ -1,10 +1,10 @@
 //! The motion scene: a composition from an existing Remotion project,
 //! rendered at the length the narration gives it.
 
+use teleprompt_capture::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_core::{BlockId, SourceSpan};
 use teleprompt_remotion::scene::parse;
 use teleprompt_remotion::RemotionScene;
-use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 
 fn src(body: &str) -> BlockSource {
     BlockSource {

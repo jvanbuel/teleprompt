@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 teleprompt-capture = { path = "../teleprompt-capture" }
 teleprompt-core = { path = "../teleprompt-core" }
-teleprompt-scene = { path = "../teleprompt-scene" }
 
 [dev-dependencies]
 teleprompt-testkit = { path = "../teleprompt-testkit" }

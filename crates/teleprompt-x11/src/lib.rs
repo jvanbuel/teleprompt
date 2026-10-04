@@ -18,3 +18,8 @@ pub const ADAPTER: &str = "x11";
 /// The x11 adapter's compiler.
 pub const SCENE: teleprompt_desktop::DesktopScene =
     teleprompt_desktop::DesktopScene { kind: ADAPTER };
+
+/// The adapter, to register.
+pub fn adapter() -> teleprompt_capture::Adapter {
+    teleprompt_capture::Adapter::new(SCENE, X11Render::default())
+}
