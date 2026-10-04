@@ -2,20 +2,29 @@
 //!
 //! The prompter itself is `teleprompt-prompter`; this is its API, version
 //! 1, and the page that drives it: HTTP for the script and clips, and a
-//! WebSocket for the session. Hand-rolled over `TcpListener`:
-//! one reader, on localhost.
+//! WebSocket for the session, served with axum on loopback, for one reader.
+//! The session, compiling and voicing are blocking work, done in place on
+//! the runtime's worker.
 
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use axum::body::Body;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{Path, Query, Request, State};
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, HOST, ORIGIN, UPGRADE};
+use axum::http::{HeaderValue, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::{Html, IntoResponse, Response};
+use axum::routing::{get, post};
+use axum::Router;
 use teleprompt_listen::Recognizer;
 use teleprompt_prompter::{Position, Prompt, Reached, Script, Session, LISTEN_RATE};
-use tungstenite::handshake::derive_accept_key;
-use tungstenite::protocol::Role;
-use tungstenite::{Message, WebSocket};
+use tokio::task::block_in_place;
 
 use crate::cmd::voicing::Voicing;
 use crate::output::{Format, Outcome};
@@ -376,22 +385,210 @@ pub fn prompt_watching<R: Recognizer + Send + 'static>(
         making: AtomicBool::new(false),
         edits,
     });
-    for stream in listener.incoming() {
-        // One connection that fails to arrive ends no one's session.
-        let stream = match stream {
-            Ok(stream) => stream,
-            Err(e) => {
-                eprintln!("warning: dropped connection: {e}");
-                continue;
-            }
-        };
-        let server = server.clone();
-        // A session socket stays open, so each connection has a thread.
-        std::thread::spawn(move || {
-            let _ = server.handle(stream);
-        });
+    listener.set_nonblocking(true)?;
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(async move {
+            let listener = tokio::net::TcpListener::from_std(listener)?;
+            axum::serve(listener, router(server)).await
+        })
+}
+
+/// The page and API version 1, behind the loopback guard.
+fn router<R: Recognizer + Send + 'static>(server: Arc<Server<R>>) -> Router {
+    Router::new()
+        .route("/", get(|| async { Html(PAGE) }))
+        .route("/favicon.ico", get(|| async { StatusCode::NO_CONTENT }))
+        .route(
+            FONT_PATH,
+            get(|| async { ([(CONTENT_TYPE, "font/woff2")], FONT) }),
+        )
+        .route(
+            ICON_PATH,
+            get(|| async { ([(CONTENT_TYPE, "image/svg+xml")], ICON) }),
+        )
+        .route("/api/v1/script", get(script_route::<R>))
+        .route("/api/v1/manifest", get(manifest_route::<R>))
+        .route("/api/v1/voice/{file}", get(voice_route::<R>))
+        .route("/api/v1/clips/{file}", get(clip_route::<R>))
+        .route("/api/v1/make", post(make_route::<R>))
+        .route("/api/v1/session", get(session_route::<R>))
+        .fallback(|| async { not_found() })
+        .layer(middleware::from_fn(guard))
+        .with_state(server)
+}
+
+/// Refuses a request that names another host or comes from another
+/// site's page (`crate::loopback`), and lets no answer be cached.
+async fn guard(request: Request, next: Next) -> Response {
+    let refused = {
+        let header = |name| request.headers().get(name).and_then(|v| v.to_str().ok());
+        crate::loopback::refused(header(HOST), header(ORIGIN))
+    };
+    if let Some(why) = refused {
+        return (StatusCode::FORBIDDEN, why).into_response();
     }
-    Ok(())
+    let mut response = next.run(request).await;
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+type Shared<R> = State<Arc<Server<R>>>;
+
+/// `GET /api/v1/script`: reloaded first if its file has changed.
+async fn script_route<R: Recognizer + Send + 'static>(State(server): Shared<R>) -> Response {
+    block_in_place(|| json(server.script()))
+}
+
+/// `GET /api/v1/manifest`: the manifest `dub` would publish.
+async fn manifest_route<R: Recognizer + Send + 'static>(State(server): Shared<R>) -> Response {
+    let Some(voice) = server.voice() else {
+        return not_found();
+    };
+    match block_in_place(|| voice.manifest()) {
+        Ok(manifest) => json(serde_json::to_value(manifest).unwrap_or_default()),
+        Err(errors) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            [(CONTENT_TYPE, "application/json")],
+            serde_json::json!({ "ok": false, "errors": errors }).to_string(),
+        )
+            .into_response(),
+    }
+}
+
+/// `GET /api/v1/voice/<line>.wav`, `?fresh=1` made anew, `?fit=1` as the
+/// manifest publishes it.
+async fn voice_route<R: Recognizer + Send + 'static>(
+    State(server): Shared<R>,
+    Path(file): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let (Some(id), Some(voice)) = (file.strip_suffix(".wav"), server.voice()) else {
+        return not_found();
+    };
+    let asked = |flag: &str| query.get(flag).is_some_and(|v| v == "1");
+    match block_in_place(|| voice.audio(id, asked("fresh"), asked("fit"))) {
+        Ok(Some(wav)) => ([(CONTENT_TYPE, "audio/wav")], wav).into_response(),
+        Ok(None) => not_found(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+/// `GET /api/v1/clips/<key>.mp4`: a shot's captured clip.
+async fn clip_route<R: Recognizer + Send + 'static>(
+    State(server): Shared<R>,
+    Path(file): Path<String>,
+) -> Response {
+    let clip = file
+        .strip_suffix(".mp4")
+        .and_then(|key| server.session().clip(key));
+    let Some(clip) = clip else {
+        return not_found();
+    };
+    match block_in_place(|| std::fs::read(clip)) {
+        Ok(bytes) => ([(CONTENT_TYPE, "video/mp4")], bytes).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+/// `POST /api/v1/make?job=capture|build`: the job's progress events, one
+/// JSON object a line as they come, then `made` or `failed`.
+async fn make_route<R: Recognizer + Send + 'static>(
+    State(server): Shared<R>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Response {
+    let Some(job) = query.get("job").and_then(|j| Job::parse(j)) else {
+        return (StatusCode::BAD_REQUEST, "job= is capture or build").into_response();
+    };
+    if server
+        .edits
+        .as_ref()
+        .and_then(|e| e.make.as_ref())
+        .is_none()
+    {
+        return not_found();
+    }
+    if server.making.swap(true, Ordering::SeqCst) {
+        return (
+            StatusCode::CONFLICT,
+            "a capture or build is already running",
+        )
+            .into_response();
+    }
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    tokio::task::spawn_blocking(move || {
+        let _making = Flag(&server.making);
+        let make = server.edits.as_ref().and_then(|e| e.make.as_ref());
+        // A page gone mid-job leaves the job to finish.
+        let mut say = |event: serde_json::Value| {
+            let _ = tx.send(format!("{event}\n"));
+        };
+        let last = match make.map(|make| make(job, &mut say)) {
+            Some(Ok(video)) => {
+                serde_json::json!({ "event": "made", "job": job.name(), "video": video })
+            }
+            Some(Err(why)) => {
+                serde_json::json!({ "event": "failed", "job": job.name(), "errors": [why] })
+            }
+            None => return,
+        };
+        say(last);
+    });
+    let lines = futures_util::stream::unfold(rx, |mut rx| async move {
+        let line = rx.recv().await?;
+        Some((Ok::<_, std::convert::Infallible>(line), rx))
+    });
+    (
+        [(CONTENT_TYPE, "application/x-ndjson")],
+        Body::from_stream(lines),
+    )
+        .into_response()
+}
+
+/// `GET /api/v1/session`: the session socket, one at a time.
+async fn session_route<R: Recognizer + Send + 'static>(
+    State(server): Shared<R>,
+    upgrade: Result<WebSocketUpgrade, axum::extract::ws::rejection::WebSocketUpgradeRejection>,
+) -> Response {
+    let Ok(upgrade) = upgrade else {
+        return (
+            StatusCode::UPGRADE_REQUIRED,
+            [(UPGRADE, "websocket")],
+            "the session is a WebSocket",
+        )
+            .into_response();
+    };
+    if server.open.swap(true, Ordering::SeqCst) {
+        return (StatusCode::CONFLICT, "a session is already open").into_response();
+    }
+    // Let go when the session ends, a panic in it or an upgrade that
+    // never completes included.
+    let open = OpenSession(server.clone());
+    upgrade.on_upgrade(move |socket| async move {
+        let _open = open;
+        server.run_session(socket).await;
+    })
+}
+
+/// Clears a flag when dropped.
+struct Flag<'a>(&'a AtomicBool);
+
+impl Drop for Flag<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+/// Marks the session closed when dropped.
+struct OpenSession<R>(Arc<Server<R>>);
+
+impl<R> Drop for OpenSession<R> {
+    fn drop(&mut self) {
+        self.0.open.store(false, Ordering::SeqCst);
+    }
 }
 
 struct Server<R> {
@@ -403,205 +600,56 @@ struct Server<R> {
     edits: Option<Edits>,
 }
 
-type Response = (&'static str, &'static str, Vec<u8>);
-
 impl<R: Recognizer> Server<R> {
     fn session(&self) -> MutexGuard<'_, Session<R>> {
         self.session.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn handle(&self, mut stream: TcpStream) -> std::io::Result<()> {
-        let request = read_request(&mut stream)?;
-        let from = (request.header("host"), request.header("origin"));
-        if let Some(why) = crate::loopback::refused(from.0, from.1) {
-            return respond(
-                &mut stream,
-                "403 Forbidden",
-                "text/plain",
-                &[],
-                why.as_bytes(),
-            );
-        }
-        if request.method == "GET" && request.path == "/api/v1/session" {
-            return self.open_session(stream, &request);
-        }
-        if request.method == "POST" {
-            if let Some(query) = request.path.strip_prefix("/api/v1/make?") {
-                return self.make(stream, query);
-            }
-        }
-        let (status, kind, body) = self.route(&request);
-        respond(&mut stream, status, kind, &[], &body)
+    fn voice(&self) -> Option<&Voicing> {
+        self.edits.as_ref().and_then(|e| e.voice.as_ref())
     }
 
-    fn route(&self, request: &Request) -> Response {
-        if request.method != "GET" {
-            return not_found();
+    /// The script as the page draws it, reloaded first if its file has
+    /// changed; compiled outside the lock, which the session needs.
+    fn script(&self) -> serde_json::Value {
+        let edited = self.edits.as_ref().and_then(|e| (e.reload)());
+        let mut session = self.session();
+        if let Some(prompt) = edited {
+            session.replace(prompt);
         }
-        let (path, query) = request
-            .path
-            .split_once('?')
-            .unwrap_or((request.path.as_str(), ""));
-        if let Some(id) = path
-            .strip_prefix("/api/v1/voice/")
-            .and_then(|name| name.strip_suffix(".wav"))
-        {
-            let asked = |flag: &str| query.split('&').any(|q| q == flag);
-            let voice = self.edits.as_ref().and_then(|e| e.voice.as_ref());
-            return match voice.map(|v| v.audio(id, asked("fresh=1"), asked("fit=1"))) {
-                Some(Ok(Some(wav))) => ("200 OK", "audio/wav", wav),
-                Some(Err(e)) => failed(std::io::Error::other(e)),
-                Some(Ok(None)) | None => not_found(),
-            };
+        let mut script = script(session.script());
+        drop(session);
+        if let Some(edits) = &self.edits {
+            voiced(&mut script, edits);
         }
-        match path {
-            "/" => ("200 OK", "text/html; charset=utf-8", PAGE.into()),
-            "/favicon.ico" => ("204 No Content", "text/plain", Vec::new()),
-            FONT_PATH => ("200 OK", "font/woff2", FONT.to_vec()),
-            ICON_PATH => ("200 OK", "image/svg+xml", ICON.to_vec()),
-            "/api/v1/manifest" => match self.edits.as_ref().and_then(|e| e.voice.as_ref()) {
-                Some(voice) => match voice.manifest() {
-                    Ok(manifest) => json(serde_json::to_value(manifest).unwrap_or_default()),
-                    Err(errors) => (
-                        "422 Unprocessable Entity",
-                        "application/json",
-                        serde_json::json!({ "ok": false, "errors": errors })
-                            .to_string()
-                            .into_bytes(),
-                    ),
-                },
-                None => not_found(),
-            },
-            "/api/v1/script" => {
-                // Compiled outside the lock, which the session needs.
-                let edited = self.edits.as_ref().and_then(|e| (e.reload)());
-                let mut session = self.session();
-                if let Some(prompt) = edited {
-                    session.replace(prompt);
-                }
-                let mut script = script(session.script());
-                drop(session);
-                if let Some(edits) = &self.edits {
-                    voiced(&mut script, edits);
-                }
-                json(script)
-            }
-            path => match path
-                .strip_prefix("/api/v1/clips/")
-                .and_then(|name| name.strip_suffix(".mp4"))
-                .and_then(|key| self.session().clip(key))
-            {
-                Some(clip) => match std::fs::read(clip) {
-                    Ok(bytes) => ("200 OK", "video/mp4", bytes),
-                    Err(e) => failed(e),
-                },
-                None => not_found(),
-            },
-        }
+        script
     }
 
-    /// `POST /api/v1/make?job=capture|build`: the job's progress events,
-    /// one JSON object a line as they come, then `made` or `failed`.
-    fn make(&self, mut stream: TcpStream, query: &str) -> std::io::Result<()> {
-        let job = query
-            .split('&')
-            .find_map(|q| q.strip_prefix("job="))
-            .and_then(Job::parse);
-        let Some(job) = job else {
-            let body = b"job= is capture or build";
-            return respond(&mut stream, "400 Bad Request", "text/plain", &[], body);
-        };
-        let Some(make) = self.edits.as_ref().and_then(|e| e.make.as_ref()) else {
-            let (status, kind, body) = not_found();
-            return respond(&mut stream, status, kind, &[], &body);
-        };
-        if self.making.swap(true, Ordering::SeqCst) {
-            let body = b"a capture or build is already running";
-            return respond(&mut stream, "409 Conflict", "text/plain", &[], body);
-        }
-        struct Making<'a>(&'a AtomicBool);
-        impl Drop for Making<'_> {
-            fn drop(&mut self) {
-                self.0.store(false, Ordering::SeqCst);
-            }
-        }
-        let _making = Making(&self.making);
-        stream.write_all(
-            b"HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\n\
-              Cache-Control: no-store\r\nConnection: close\r\n\r\n",
-        )?;
-        stream.flush()?;
-        let mut say = |event: serde_json::Value| {
-            // A page gone mid-job leaves the job to finish.
-            let _ = writeln!(stream, "{event}").and_then(|()| stream.flush());
-        };
-        let last = match make(job, &mut say) {
-            Ok(video) => serde_json::json!({ "event": "made", "job": job.name(), "video": video }),
-            Err(why) => {
-                serde_json::json!({ "event": "failed", "job": job.name(), "errors": [why] })
-            }
-        };
-        say(last);
-        Ok(())
-    }
-
-    /// Upgrades `stream` to the session socket, unless one is open.
-    fn open_session(&self, mut stream: TcpStream, request: &Request) -> std::io::Result<()> {
-        let Some(key) = request.header("sec-websocket-key") else {
-            let body = b"the session is a WebSocket";
-            let upgrade = [("Upgrade", "websocket")];
-            return respond(
-                &mut stream,
-                "426 Upgrade Required",
-                "text/plain",
-                &upgrade,
-                body,
-            );
-        };
-        if self.open.swap(true, Ordering::SeqCst) {
-            let body = b"a session is already open";
-            return respond(&mut stream, "409 Conflict", "text/plain", &[], body);
-        }
-        // Let go when the session ends, a panic in it included.
-        struct Open<'a>(&'a AtomicBool);
-        impl Drop for Open<'_> {
-            fn drop(&mut self) {
-                self.0.store(false, Ordering::SeqCst);
-            }
-        }
-        let _open = Open(&self.open);
-        self.run_session(stream, key)
-    }
-
-    fn run_session(&self, mut stream: TcpStream, key: &str) -> std::io::Result<()> {
-        write!(
-            stream,
-            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\
-             Connection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n",
-            derive_accept_key(key.as_bytes())
-        )?;
-        let mut ws = WebSocket::from_raw_socket(stream, Role::Server, None);
+    async fn run_session(&self, mut socket: WebSocket) {
         let mut rate = LISTEN_RATE;
         let mut at = None;
-        loop {
-            let answer = match ws.read() {
-                Ok(Message::Text(text)) => self.command(text.as_str(), &mut rate, &mut at),
-                Ok(Message::Binary(audio)) => {
-                    let reached = self.session().listen(&samples(&audio), rate);
+        while let Some(Ok(message)) = socket.recv().await {
+            let answer = match message {
+                Message::Text(text) => {
+                    block_in_place(|| self.command(text.as_str(), &mut rate, &mut at))
+                }
+                Message::Binary(audio) => {
+                    let reached = block_in_place(|| self.session().listen(&samples(&audio), rate));
                     let news = at != Some(reached.at) || !reached.play.is_empty();
                     at = Some(reached.at);
                     news.then(|| reached_json(&reached))
                 }
-                Ok(Message::Close(_))
-                | Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
-                    return Ok(())
-                }
-                Ok(_) => None,
-                Err(e) => return Err(std::io::Error::other(e)),
+                Message::Close(_) => return,
+                _ => None,
             };
             if let Some(answer) = answer {
-                ws.send(Message::text(answer.to_string()))
-                    .map_err(std::io::Error::other)?;
+                if socket
+                    .send(Message::Text(answer.to_string().into()))
+                    .await
+                    .is_err()
+                {
+                    return;
+                }
             }
         }
     }
@@ -785,62 +833,11 @@ fn voiced(script: &mut serde_json::Value, edits: &Edits) {
 }
 
 fn json(value: serde_json::Value) -> Response {
-    ("200 OK", "application/json", value.to_string().into_bytes())
-}
-
-fn failed(e: std::io::Error) -> Response {
-    (
-        "500 Internal Server Error",
-        "text/plain",
-        e.to_string().into(),
-    )
+    ([(CONTENT_TYPE, "application/json")], value.to_string()).into_response()
 }
 
 fn not_found() -> Response {
-    ("404 Not Found", "text/plain", b"not found".to_vec())
-}
-
-struct Request {
-    method: String,
-    path: String,
-    /// Names lowercased.
-    headers: Vec<(String, String)>,
-}
-
-impl Request {
-    fn header(&self, name: &str) -> Option<&str> {
-        self.headers
-            .iter()
-            .find(|(n, _)| n == name)
-            .map(|(_, v)| v.as_str())
-    }
-}
-
-/// The request line and headers. No route takes a body.
-fn read_request(stream: &mut TcpStream) -> std::io::Result<Request> {
-    let mut reader = BufReader::new(&*stream);
-    let mut first = String::new();
-    reader.read_line(&mut first)?;
-    let mut parts = first.split_whitespace();
-    let method = parts.next().unwrap_or_default().to_string();
-    let path = parts.next().unwrap_or_default().to_string();
-    let mut headers = Vec::new();
-    loop {
-        let mut header = String::new();
-        reader.read_line(&mut header)?;
-        let header = header.trim_end();
-        if header.is_empty() {
-            break;
-        }
-        if let Some((name, value)) = header.split_once(':') {
-            headers.push((name.trim().to_ascii_lowercase(), value.trim().to_string()));
-        }
-    }
-    Ok(Request {
-        method,
-        path,
-        headers,
-    })
+    (StatusCode::NOT_FOUND, "not found").into_response()
 }
 
 /// Little-endian f32 samples, as the page sends them.
@@ -848,25 +845,4 @@ fn samples(body: &[u8]) -> Vec<f32> {
     body.chunks_exact(4)
         .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
         .collect()
-}
-
-fn respond(
-    stream: &mut TcpStream,
-    status: &str,
-    kind: &str,
-    headers: &[(&str, &str)],
-    body: &[u8],
-) -> std::io::Result<()> {
-    let mut head = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n\
-         Cache-Control: no-store\r\nConnection: close\r\n",
-        body.len()
-    );
-    for (name, value) in headers {
-        head.push_str(&format!("{name}: {value}\r\n"));
-    }
-    head.push_str("\r\n");
-    stream.write_all(head.as_bytes())?;
-    stream.write_all(body)?;
-    stream.flush()
 }

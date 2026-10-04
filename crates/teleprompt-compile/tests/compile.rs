@@ -478,7 +478,7 @@ The second paragraph.
     assert_eq!(
         slugs,
         vec!["quick-start", "provenance"],
-        "the CLI reaches compilation only through `compile_script`, which \
+        "the CLI reaches compilation only through `Project::compile`, which \
          returns this struct — chapters unreachable here are unreachable to `dub`"
     );
 }
@@ -679,7 +679,7 @@ fn the_cache_key_covers_the_resolved_voice_config() {
     );
 }
 
-/// Pins the reasoning behind `compile_script` reading `backend_id` off the
+/// Pins the reasoning behind `Project::compile` reading `backend_id` off the
 /// *resolved* config (`program.config.voice.backend`) rather than the
 /// project's unresolved default: the cache key has to cover whichever
 /// backend actually produces a line's audio, or two backends could

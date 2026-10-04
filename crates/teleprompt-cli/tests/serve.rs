@@ -90,7 +90,7 @@ fn request(addr: SocketAddr, method: &str, path: &str, body: &[u8]) -> String {
     let mut s = TcpStream::connect(addr).unwrap();
     write!(
         s,
-        "{method} {path} HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n",
+        "{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: {}\r\n\r\n",
         body.len()
     )
     .unwrap();
@@ -103,7 +103,11 @@ fn request(addr: SocketAddr, method: &str, path: &str, body: &[u8]) -> String {
 /// A GET, and the whole response: status line, headers and body.
 fn get(addr: SocketAddr, path: &str) -> Vec<u8> {
     let mut s = TcpStream::connect(addr).unwrap();
-    write!(s, "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
+    write!(
+        s,
+        "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
     let mut response = Vec::new();
     s.read_to_end(&mut response).unwrap();
     response
@@ -358,7 +362,11 @@ fn a_cued_clip_is_served_and_nothing_else() {
     let response = get(addr, &format!("/api/v1/clips/{captured}.mp4"));
     let text = String::from_utf8_lossy(&response);
     assert!(text.starts_with("HTTP/1.1 200"), "{text}");
-    assert!(text.contains("Content-Type: video/mp4"), "{text}");
+    assert!(
+        text.to_ascii_lowercase()
+            .contains("content-type: video/mp4"),
+        "{text}"
+    );
     assert!(response.ends_with(CLIP), "{text}");
 
     let stray = Hash::of(b"not a cued shot");
@@ -652,7 +660,11 @@ fn the_page_s_typeface_is_served() {
     let response = get(addr, "/fonts/atkinson-hyperlegible-next.woff2");
     let head = String::from_utf8_lossy(&response[..response.len().min(300)]).to_string();
     assert!(head.starts_with("HTTP/1.1 200"), "{head}");
-    assert!(head.contains("Content-Type: font/woff2"), "{head}");
+    assert!(
+        head.to_ascii_lowercase()
+            .contains("content-type: font/woff2"),
+        "{head}"
+    );
     let page = request(addr, "GET", "/", &[]);
     assert!(page.contains("/fonts/atkinson-hyperlegible-next.woff2"));
 }
@@ -859,7 +871,7 @@ fn a_request_for_another_host_is_refused() {
     let mut s = TcpStream::connect(addr).unwrap();
     write!(
         s,
-        "GET /api/v1/script HTTP/1.1\r\nHost: rebound.example:{}\r\n\r\n",
+        "GET /api/v1/script HTTP/1.1\r\nHost: rebound.example:{}\r\nConnection: close\r\n\r\n",
         addr.port()
     )
     .unwrap();

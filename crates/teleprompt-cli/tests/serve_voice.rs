@@ -69,7 +69,11 @@ fn voiced_script(tag: &str, name: &str, source: Option<&str>) -> Served {
 /// A GET: the status code and the body.
 fn get(addr: SocketAddr, path: &str) -> (u16, Vec<u8>) {
     let mut s = TcpStream::connect(addr).unwrap();
-    write!(s, "GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
+    write!(
+        s,
+        "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
     let mut response = Vec::new();
     s.read_to_end(&mut response).unwrap();
     let at = response.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
@@ -361,7 +365,7 @@ fn post_lines(addr: SocketAddr, path: &str) -> (u16, Vec<serde_json::Value>) {
     s.set_read_timeout(Some(Duration::from_secs(120))).unwrap();
     write!(
         s,
-        "POST {path} HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n"
+        "POST {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
     )
     .unwrap();
     let mut response = String::new();
@@ -371,12 +375,34 @@ fn post_lines(addr: SocketAddr, path: &str) -> (u16, Vec<serde_json::Value>) {
     if status != 200 {
         return (status, Vec::new());
     }
+    let body = if head
+        .to_ascii_lowercase()
+        .contains("transfer-encoding: chunked")
+    {
+        dechunked(body)
+    } else {
+        body.to_string()
+    };
     let lines = body
         .lines()
         .filter(|l| !l.trim().is_empty())
         .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("{e}: {l:?}")))
         .collect();
     (status, lines)
+}
+
+/// A chunked body, as a streamed response is sent, put back together.
+fn dechunked(mut body: &str) -> String {
+    let mut out = String::new();
+    while let Some((size, rest)) = body.split_once("\r\n") {
+        let size = usize::from_str_radix(size.trim(), 16).unwrap_or(0);
+        if size == 0 {
+            break;
+        }
+        out.push_str(&rest[..size]);
+        body = rest[size..].trim_start_matches("\r\n");
+    }
+    out
 }
 
 /// Capturing from the prompter: `teleprompt capture`, its progress events
@@ -400,7 +426,7 @@ fn the_prompter_captures_the_scripts_shots_and_says_how_it_goes() {
     let s = script(served.addr);
     assert!(s["shots"][0]["clip"].is_string(), "{s}");
     // Only a POST makes anything, and only a job it knows.
-    assert_eq!(get(served.addr, "/api/v1/make?job=capture").0, 404);
+    assert_eq!(get(served.addr, "/api/v1/make?job=capture").0, 405);
     assert_eq!(post_lines(served.addr, "/api/v1/make?job=nope").0, 400);
 }
 

@@ -57,10 +57,13 @@ serde_yaml.workspace = true
 # `time` is for `tokio::time::timeout` around `setup`'s voice probe: `setup`
 # is the command reached for when something is broken, so it must not
 # itself wait out a hanging server's full synthesis `timeout_ms`.
-tokio = { workspace = true, features = ["sync", "time"] }
-# `serve`'s session socket. Blocking, like the rest of its server; only
-# the handshake, no TLS or URL client.
-tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
+# `net` is for `serve`'s listener.
+tokio = { workspace = true, features = ["sync", "time", "net"] }
+# `serve`: the prompter's page, its API and the session's WebSocket, on
+# loopback, over HTTP/1.1 only.
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "query"] }
+# The stream a capture or build's progress is written to the page from.
+futures-util = { version = "0.3", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
 # SIGTERM stops a recording and still drafts it, for the app's Stop.
