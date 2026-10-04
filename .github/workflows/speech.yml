@@ -39,6 +39,9 @@ jobs:
       matrix:
         os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
+    # A recording that never ends fails the job, rather than holding a
+    # runner for hours.
+    timeout-minutes: 45
     env:
       CARGO_INCREMENTAL: "0"
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
