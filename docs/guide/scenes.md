@@ -10,6 +10,10 @@ Enter
 ```
 ````
 
+An adapter installed as a [plugin](plugins.md) is named the same way:
+`scene=card` for `teleprompt-adapter-card`. `teleprompt plugins` lists
+what is installed.
+
 Declare a scene when you want settings for it, or more than one of an
 adapter. The name is yours; the adapter does the work:
 

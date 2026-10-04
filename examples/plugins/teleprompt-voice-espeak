@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""teleprompt-voice-espeak: narration spoken by eSpeak NG, as a plugin.
+
+eSpeak NG is a small, offline speech synthesizer: robotic, but free,
+local and in over a hundred languages. In teleprompt.toml:
+
+    [voice]
+    backend = "espeak"
+    voice = "en-us"        # optional: `espeak-ng --voices` lists them
+
+    [backends.espeak]
+    wpm = 160              # optional: words per minute at speed 1.0
+
+Put it on PATH, or in teleprompt's plugins directory, and `teleprompt
+plugins` lists it. The protocol is docs/guide/plugins.md#the-protocol.
+"""
+
+import json
+import shutil
+import subprocess
+import sys
+
+NAME = "espeak"
+settings = {"wpm": 160}
+
+
+def espeak():
+    program = shutil.which("espeak-ng") or shutil.which("espeak")
+    if not program:
+        raise RuntimeError("espeak-ng is not on PATH: `teleprompt setup espeak` says how to install it")
+    return program
+
+
+def describe(params, progress):
+    return {
+        "protocol": 1,
+        "kind": "voice",
+        "name": NAME,
+        "needs": [
+            {
+                "name": "espeak-ng",
+                "what": "speaks the narration, when `voice.backend` is \"espeak\"",
+                "license": "GPL-3.0-or-later",
+                "home": "https://github.com/espeak-ng/espeak-ng",
+                "program": "espeak-ng",
+                "install": {
+                    "brew": "brew install espeak-ng",
+                    "apt": "sudo apt-get install -y espeak-ng",
+                    "dnf": "sudo dnf install -y espeak-ng",
+                    "pacman": "sudo pacman -S --needed --noconfirm espeak-ng",
+                },
+            }
+        ],
+        "voice": {"speed_control": True, "lists_voices": True},
+    }
+
+
+def configure(params, progress):
+    given = params.get("settings") or {}
+    unknown = set(given) - {"wpm"}
+    if unknown:
+        raise ValueError(f"[backends.espeak] has no setting {', '.join(sorted(unknown))}")
+    wpm = given.get("wpm", 160)
+    if not isinstance(wpm, int) or not 80 <= wpm <= 450:
+        raise ValueError("[backends.espeak] wpm is a whole number from 80 to 450")
+    settings["wpm"] = wpm
+    # What the audio depends on beyond the request: the program's version
+    # and the rate. Not where its data is: a key naming a machine is a
+    # cache that never leaves it.
+    said = subprocess.run([espeak(), "--version"], capture_output=True, text=True).stdout
+    version = said.split("Data at")[0].strip()
+    return {"version": f"{version}; wpm {wpm}"}
+
+
+def synthesize(params, progress):
+    voice = params.get("voice") or params["locale"].lower()
+    rate = round(settings["wpm"] * params.get("speed", 1.0))
+    subprocess.run(
+        [espeak(), "-v", voice, "-s", str(rate), "-w", params["out"], params["text"]],
+        check=True, capture_output=True,
+    )
+    return {}
+
+
+def voices(params, progress):
+    listed = subprocess.run([espeak(), "--voices"], capture_output=True, text=True).stdout
+    # Pty Language Age/Gender VoiceName File Other: the language column.
+    return {"voices": sorted({row.split()[1] for row in listed.splitlines()[1:] if row.split()})}
+
+
+METHODS = {f.__name__: f for f in [describe, configure, synthesize, voices]}
+
+
+def main():
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        request = json.loads(line)
+        rid = request.get("id")
+        method = METHODS.get(request.get("method"))
+        try:
+            if method is None:
+                raise ValueError(f"unknown method `{request.get('method')}`")
+            reply = {"id": rid, "result": method(request.get("params") or {}, None)}
+        except Exception as e:  # the answer says why; teleprompt reports it
+            reply = {"id": rid, "error": str(e)}
+        print(json.dumps(reply), flush=True)
+
+
+if __name__ == "__main__":
+    main()

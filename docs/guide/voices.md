@@ -8,7 +8,9 @@ yourself, in Docker or with pip, and `voicebox` to a
 [Voicebox](https://voicebox.sh) app, which can speak in [your own
 voice](#your-own-voice-voicebox). `gemini` is the one that isn't local:
 [Google's Gemini TTS](#gemini-tts), with your own API key. teleprompt
-bundles no model and runs no Python.
+bundles no model and runs no Python. A voice installed as a
+[plugin](plugins.md) is chosen by its name too, with its settings under
+`[backends.<name>]`: `examples/plugins` has one spoken by eSpeak NG.
 
 ```toml
 # teleprompt.toml

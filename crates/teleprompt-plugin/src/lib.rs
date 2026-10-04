@@ -9,12 +9,15 @@
 //!   adapter whose tool can.
 //! - [`voice`]: how a line is spoken.
 //! - [`tool`]: running and finding the programs a plugin needs.
+//! - [`protocol`]: a plugin as a program of its own, which teleprompt
+//!   finds and talks to; and serving a Rust plugin as one.
 //!
 //! An adapter hands teleprompt one [`Adapter`]; a voice, one
 //! [`voice::VoiceBackend`]. Nothing here knows any plugin by name.
 
 mod adapter;
 pub mod capture;
+pub mod protocol;
 pub mod record;
 pub mod scene;
 pub mod tool;

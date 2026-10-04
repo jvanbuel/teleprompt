@@ -12,6 +12,9 @@ serde_json.workspace = true
 serde_yaml.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
 thiserror.workspace = true
+# Serving a voice plugin runs its futures: a backend over HTTP needs a
+# reactor.
+tokio = { workspace = true, features = ["rt", "net", "time"] }
 
 [dev-dependencies]
 teleprompt-testkit = { path = "../teleprompt-testkit" }

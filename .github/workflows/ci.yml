@@ -30,8 +30,9 @@ jobs:
       # `build` renders with ffmpeg as a subprocess. The render tests skip
       # themselves where there is none, so CI installs one and sets
       # TELEPROMPT_REQUIRE_FFMPEG — which turns a skip into a failure, so a
-      # workflow that stops installing it cannot go quietly green.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # workflow that stops installing it cannot go quietly green. eSpeak NG
+      # is what the example voice plugin speaks with.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng
       # Pinned to v0.11.0. v0.12.0 is the latest release and cannot record
       # here at all: it runs every tape command, prints "Creating …",
       # prints the publish hint, exits 0 and writes no file — including

@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""teleprompt-adapter-card: a scene of plain colour cards, as a plugin.
+
+A block of `scene=card` holds lines like these, split into shots at `mark`:
+
+    color #1d4ed8
+    hold 2s
+    mark
+    color black
+
+It is the smallest complete adapter: it validates a body, splits it into
+shots and says how long each takes (offline, for `check` and `plan`), and
+captures each shot with ffmpeg. Put it on PATH, or in teleprompt's plugins
+directory, and `teleprompt plugins` lists it. The protocol is
+docs/guide/plugins.md#the-protocol.
+"""
+
+import json
+import re
+import shutil
+import subprocess
+import sys
+
+NAME = "card"
+DURATION = re.compile(r"^(\d+(?:\.\d+)?)(ms|s)$")
+COLOR = re.compile(r"^(#[0-9a-fA-F]{6}|[a-zA-Z]+)$")
+HELP = "a card understands `color <name or #rrggbb>`, `hold <duration>` and `mark`"
+
+
+def milliseconds(text):
+    m = DURATION.match(text)
+    if not m:
+        return None
+    value = float(m.group(1))
+    return round(value * 1000 if m.group(2) == "s" else value)
+
+
+def directives(body):
+    """Each content line as (line number, directive, argument)."""
+    for i, line in enumerate(body.splitlines()):
+        text = line.strip()
+        if not text or text.startswith("#"):
+            continue
+        head, _, arg = text.partition(" ")
+        yield i, head, arg.strip()
+
+
+def describe(params, progress):
+    return {
+        "protocol": 1,
+        "kind": "adapter",
+        "name": NAME,
+        "needs": [
+            {
+                "name": "ffmpeg",
+                "what": "renders the video, and captures media, slide and terminal scenes",
+                "license": "LGPL-2.1-or-later, or GPL-2.0-or-later as many builds are",
+                "home": "https://ffmpeg.org",
+                "program": "ffmpeg",
+                "install": {
+                    "brew": "brew install ffmpeg",
+                    "apt": "sudo apt-get install -y ffmpeg",
+                },
+            }
+        ],
+        # A card's picture is its source alone, and a hold can be rewritten.
+        "adapter": {"continues": False, "retimes": True},
+    }
+
+
+def validate(params, progress):
+    errors = []
+    for i, head, arg in directives(params["body"]):
+        if head == "mark":
+            if arg:
+                errors.append({"line": i, "message": "`mark` takes no arguments"})
+        elif head == "color":
+            if not COLOR.match(arg):
+                errors.append({"line": i, "message": f"`color` needs a name or #rrggbb, not `{arg}`"})
+        elif head == "hold":
+            if milliseconds(arg) is None:
+                errors.append({"line": i, "message": f"`hold` needs a duration, such as 2s, not `{arg}`"})
+        else:
+            errors.append({"line": i, "message": f"unknown card directive `{head}`", "help": HELP})
+    return {"errors": errors}
+
+
+def timing(source):
+    holds = [milliseconds(arg) for _, head, arg in directives(source) if head == "hold"]
+    if not holds:
+        return {"source": source}  # as long as its line
+    return {"source": source, "ms": sum(holds), "exact": True}
+
+
+def shots(params, progress):
+    chunks, current = [], []
+    for line in params["body"].splitlines():
+        if line.strip() == "mark":
+            chunks.append(current)
+            current = []
+        else:
+            current.append(line)
+    chunks.append(current)
+    sources = ["\n".join(c).strip() for c in chunks]
+    return {"shots": [timing(s) for s in sources if any(True for _ in directives(s))]}
+
+
+def estimate(params, progress):
+    return timing(params["source"])
+
+
+def retime(params, progress):
+    kept = [l for l in params["source"].splitlines() if not l.strip().startswith("hold")]
+    return {"source": "\n".join(kept + [f"hold {params['target_ms']}ms"])}
+
+
+def unavailable(params, progress):
+    return {"reason": None if shutil.which("ffmpeg") else "ffmpeg is not on PATH"}
+
+
+def capture(params, progress):
+    session, frame, out = params["session"], params["frame"], params["out_dir"]
+    wanted = [s for s in session["shots"] if s["wanted"]]
+    clips = []
+    for shot in wanted:
+        colors = [arg for _, head, arg in directives(shot["source"]) if head == "color"]
+        color = colors[-1] if colors else "black"
+        path = f"{out}/{shot['key']}.mp4"
+        subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi",
+             "-t", f"{shot['duration_ms'] / 1000:.3f}",
+             "-i", f"color=c={color}:s={frame['width']}x{frame['height']}:r={frame['fps']}",
+             "-pix_fmt", "yuv420p", path],
+            check=True, stdin=subprocess.DEVNULL,
+        )
+        clips.append({"key": shot["key"], "path": path})
+        progress({"shot": shot["id"], "done": len(clips), "of": len(wanted)})
+    return {"clips": clips}
+
+
+METHODS = {f.__name__: f for f in
+           [describe, validate, shots, estimate, retime, unavailable, capture]}
+
+
+def main():
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        request = json.loads(line)
+        rid = request.get("id")
+
+        def progress(event):
+            print(json.dumps({"id": rid, "progress": event}), flush=True)
+
+        method = METHODS.get(request.get("method"))
+        try:
+            if method is None:
+                raise ValueError(f"unknown method `{request.get('method')}`")
+            reply = {"id": rid, "result": method(request.get("params") or {}, progress)}
+        except Exception as e:  # the answer says why; teleprompt reports it
+            reply = {"id": rid, "error": str(e)}
+        print(json.dumps(reply), flush=True)
+
+
+if __name__ == "__main__":
+    main()

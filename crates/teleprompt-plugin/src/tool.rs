@@ -67,6 +67,25 @@ impl Manager {
         Manager::Download,
     ];
 
+    /// Its name in a plugin's description.
+    pub fn name(self) -> &'static str {
+        match self {
+            Manager::Brew => "brew",
+            Manager::Apt => "apt",
+            Manager::Dnf => "dnf",
+            Manager::Pacman => "pacman",
+            Manager::Go => "go",
+            Manager::Cargo => "cargo",
+            Manager::Pipx => "pipx",
+            Manager::Npm => "npm",
+            Manager::Download => "download",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Manager> {
+        Manager::ALL.into_iter().find(|m| m.name() == name)
+    }
+
     /// The programs it needs on PATH.
     pub fn programs(self) -> &'static [&'static str] {
         match self {
@@ -108,6 +127,61 @@ impl Tool {
             Found::Unknowable => None,
         }
     }
+}
+
+impl Tool {
+    /// As a plugin's description has it.
+    pub fn to_wire(&self) -> crate::protocol::WireTool {
+        let (program, package) = match self.found {
+            Found::Program(p) => (Some(p.to_string()), None),
+            Found::Package(p) => (None, Some(p.to_string())),
+            Found::Model(_) | Found::Unknowable => (None, None),
+        };
+        crate::protocol::WireTool {
+            name: self.name.into(),
+            what: self.what.into(),
+            license: self.license.into(),
+            home: self.home.into(),
+            guide: self.guide.map(Into::into),
+            program,
+            package,
+            install: self
+                .install
+                .iter()
+                .map(|(m, c)| (m.name().to_string(), (*c).to_string()))
+                .collect(),
+        }
+    }
+
+    /// A tool an outside plugin described. Kept for the rest of the run, as
+    /// a built-in plugin's are: teleprompt asks once, and a plugin needs a
+    /// handful.
+    pub fn from_wire(wire: &crate::protocol::WireTool) -> &'static Tool {
+        let found = match (&wire.program, &wire.package) {
+            (Some(p), _) => Found::Program(leak(p)),
+            (None, Some(p)) => Found::Package(leak(p)),
+            (None, None) => Found::Unknowable,
+        };
+        let install: Vec<(Manager, &'static str)> = wire
+            .install
+            .iter()
+            .filter_map(|(m, c)| Some((Manager::from_name(m)?, leak(c))))
+            .collect();
+        Box::leak(Box::new(Tool {
+            name: leak(&wire.name),
+            what: leak(&wire.what),
+            license: leak(&wire.license),
+            home: leak(&wire.home),
+            guide: wire.guide.as_deref().map(leak),
+            found,
+            install: Box::leak(install.into_boxed_slice()),
+            download_mb: None,
+        }))
+    }
+}
+
+fn leak(s: &str) -> &'static str {
+    Box::leak(s.to_string().into_boxed_str())
 }
 
 fn shell_quote(s: &str) -> String {

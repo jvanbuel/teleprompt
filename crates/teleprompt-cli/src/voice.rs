@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use teleprompt_core::Diagnostic;
+use teleprompt_plugin::protocol::{host, Kind};
 use teleprompt_plugin::voice::{ClonedVoice, VoiceBackend, VoicePlugin, VoiceSample};
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::VoiceRegistry;
@@ -16,12 +17,29 @@ fn plugins() -> Vec<VoicePlugin> {
     ]
 }
 
-/// What every voice plugin needs that teleprompt does not ship.
+/// What every voice plugin needs that teleprompt does not ship, the
+/// installed ones' as they describe it.
 pub fn plugin_needs() -> Vec<&'static teleprompt_plugin::tool::Tool> {
-    plugins()
-        .iter()
-        .flat_map(|p| p.needs.iter().copied())
+    let built_in = plugins().into_iter().flat_map(|p| p.needs.iter().copied());
+    let installed = installed()
+        .into_iter()
+        .flat_map(|found| host::Plugin::new(found).needs().iter().copied());
+    built_in.chain(installed).collect()
+}
+
+/// The voices installed as programs of their own whose names no built-in
+/// voice has.
+fn installed() -> Vec<host::Found> {
+    let shipped: Vec<&str> = plugins().iter().map(|p| p.id).chain(["null"]).collect();
+    host::discover()
+        .into_iter()
+        .filter(|f| f.kind == Kind::Voice && !shipped.contains(&f.name.as_str()))
         .collect()
+}
+
+/// Whether `name` is a voice this build ships.
+pub fn is_built_in(name: &str) -> bool {
+    name == "null" || plugins().iter().any(|p| p.id == name)
 }
 
 /// The backends this build ships, together with everything the project's
@@ -56,6 +74,14 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
                 unusable.insert(plugin.id.to_string(), e);
             }
         }
+    }
+    // An installed voice is given its settings when it is first asked
+    // something; one whose settings it refuses says so then.
+    for found in installed() {
+        let given = settings
+            .get(&found.name)
+            .and_then(|v| serde_json::to_value(v).ok());
+        registry.register(Arc::new(host::voice(found, given)));
     }
 
     // Includes the unusable ones, so a bad block is not also called unknown.

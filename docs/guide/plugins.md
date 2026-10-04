@@ -8,11 +8,22 @@ an outside plugin would use, `teleprompt-plugin`, and nothing else of
 teleprompt's but `teleprompt-core`. `tools/check_deps.py` holds them to
 that.
 
-Today a plugin is a Rust crate compiled into `teleprompt`. Plugins as
-separate programs, which an author installs without rebuilding, are next
-(see [What comes next](#what-comes-next)).
+A plugin ships in one of two ways:
 
-## The crate
+- **A program of its own**, in any language: `teleprompt-adapter-<name>`
+  or `teleprompt-voice-<name>`, on PATH or in the plugins directory.
+  Teleprompt finds it, starts it when a command needs it, and talks to it
+  in JSON ([the protocol](#the-protocol)). Installing one needs no rebuild.
+  `examples/plugins` has two, in Python: a scene of colour cards, and a
+  voice spoken by eSpeak NG.
+- **A Rust crate compiled into teleprompt**, as the ones in this
+  repository are. The same crate can also be built as a program of its
+  own ([a Rust plugin as a program](#a-rust-plugin-as-a-program)).
+
+`teleprompt plugins` lists the plugins installed as programs, asks each
+what it is, and says why one cannot be used.
+
+## The contracts
 
 `teleprompt-plugin` has one module per contract:
 
@@ -113,10 +124,17 @@ declaring your own.
 
 ## Registering it
 
-Add your crate to the workspace, and one line to `teleprompt-cli`:
-`adapters()` in `src/scene.rs` for an adapter, `plugins()` in
-`src/voice.rs` for a voice. Then add your crate to `tools/check_deps.py`,
-with `PLUGIN` as what it may depend on.
+**As a program:** put it on PATH, or in the plugins directory
+(`$TELEPROMPT_PLUGINS`, or `teleprompt/plugins` in your data directory,
+such as `~/.local/share/teleprompt/plugins`). Install it however suits its
+language: `pipx`, `npm install -g`, `cargo install`, or a copied file. A
+built-in plugin's name wins over an installed one's, which `teleprompt
+plugins` says. Publish it with the GitHub topic `teleprompt-plugin`.
+
+**Compiled in:** add your crate to the workspace, and one line to
+`teleprompt-cli`: `built_in()` in `src/scene.rs` for an adapter,
+`plugins()` in `src/voice.rs` for a voice. Then add your crate to
+`tools/check_deps.py`, with `PLUGIN` as what it may depend on.
 
 ## Testing it
 
@@ -126,10 +144,65 @@ A scene compiler is tested without its tool. A capture backend is tested
 against the real tool where it is installed, and skips, saying so, where
 it is not.
 
-## What comes next
+## The protocol
 
-Plugins as programs of their own, fetched by the author: an executable and
-a manifest, speaking JSON on stdin and stdout, installed with a command and
-listed by a GitHub topic. Then a plugin can be written in any language, and
-installing one needs no rebuild. The built-in plugins will be its first
-examples (`docs/design.md#what-teleprompt-ships`).
+A plugin program reads requests from stdin and writes answers to stdout,
+one JSON object a line. Its stderr is shown to the author, so it is where
+a plugin logs. Teleprompt starts it the first time a command needs it,
+keeps it for the rest of that command, sends one request at a time, and
+stops it at the end.
+
+```text
+→ {"id":3,"method":"shots","params":{"scene":"card","body":"color red\nhold 2s"}}
+← {"id":3,"result":{"shots":[{"source":"color red\nhold 2s","ms":2000,"exact":true}]}}
+← {"id":4,"error":"why it could not"}
+← {"id":5,"progress":{"shot":"intro-a#0","done":1,"of":2}}   (capture, before its result)
+```
+
+Every plugin answers **`describe`** first: `{"protocol":1, "kind":
+"adapter" or "voice", "name", "needs":[tools]}`, its name matching its
+program's. A tool is `{"name", "what", "license", "home", "program" or
+"package", "install":{"brew": "...", "apt": "...", ...}}`, which
+`teleprompt setup` lists and installs.
+
+An **adapter** describes `"adapter":{"continues", "retimes"}` and answers:
+
+| method | params | result |
+|---|---|---|
+| `validate` | `scene`, `body` | `errors`: `[{line (from 0), message, help}]`, none for a good block |
+| `shots` | `scene`, `body` | `shots`: `[{source, ms, exact}]`, split at `mark`; `ms` with `exact` when the source states its length, `ms` alone for an estimate, neither to last as long as its line |
+| `estimate` | `source` | `{ms, exact}`, as for a shot |
+| `retime` | `source`, `target_ms` | `source` rewritten to last exactly that long, or null |
+| `unavailable` | | `reason` it cannot capture here, or null |
+| `capture` | `session` (`scene`, `name`, `settings`, `shots`: `[{id, key, source, duration_ms, wanted}]`), `frame` (`width`, `height`, `fps`), `out_dir` | `clips`: `[{key, path}]`, one per wanted shot, with a progress event after each |
+
+`validate`, `shots` and `estimate` must not start your tool: `check` and
+`plan` ask them, offline. Teleprompt numbers the shots, hashes their
+sources and places the errors in the script.
+
+A **voice** describes `"voice":{"word_timings", "speed_control", "address",
+"lists_voices", "probes"}` and answers:
+
+| method | params | result |
+|---|---|---|
+| `configure` | `settings`, its `[backends.<name>]` table, or null | `version`: what the audio depends on beyond the request, such as a model. Part of the voice cache's key, so never a path or a host |
+| `synthesize` | `text`, `locale`, `voice`, `speed`, `instruct`, `out` | the line written to `out` as a WAV file; `word_timings` if it has them |
+| `voices` | | `voices`: the names its `voice.voice` may give |
+| `probe` | | `line`: one line on its server, for `setup` |
+
+Not in version 1: recording a session, files outside a block that a scene
+reads, `include=…#fragment`, and cloning a voice. They are compiled-in
+only for now.
+
+## A Rust plugin as a program
+
+`teleprompt_plugin::protocol::serve` serves an `Adapter` or `VoicePlugin`
+over stdin and stdout, so a crate written against the contracts can be
+built as a program too:
+
+```rust
+// src/bin/teleprompt-adapter-mine.rs
+fn main() -> std::io::Result<()> {
+    teleprompt_plugin::protocol::serve::adapter(my_adapter::adapter())
+}
+```

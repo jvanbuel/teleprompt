@@ -39,6 +39,10 @@ impl Adapter {
         self.scene.kind()
     }
 
+    pub fn scene(&self) -> &dyn SceneCompiler {
+        self.scene.as_ref()
+    }
+
     pub fn capture(&self) -> &dyn CaptureBackend {
         self.capture.as_ref()
     }

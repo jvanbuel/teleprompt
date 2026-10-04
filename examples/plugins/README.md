@@ -1,0 +1,21 @@
+# Example plugins
+
+Two plugins as programs of their own, in Python with nothing beyond its
+standard library, to show what any language can do
+([writing a plugin](../../docs/guide/plugins.md)):
+
+- `teleprompt-adapter-card`: a scene of plain colour cards (`color`,
+  `hold`, `mark`), captured with ffmpeg. The smallest complete adapter.
+- `teleprompt-voice-espeak`: narration spoken by eSpeak NG, offline, in
+  over a hundred languages.
+
+To use them, put this directory on PATH, or copy them into the plugins
+directory, and check that teleprompt finds them:
+
+    export PATH="$PWD/examples/plugins:$PATH"
+    teleprompt plugins
+
+Then a block can say `scene=card`, and `teleprompt.toml` can say
+`[voice] backend = "espeak"`. The tests in `crates/teleprompt-plugin`
+and `crates/teleprompt-cli` run them, so they stay in step with the
+protocol.

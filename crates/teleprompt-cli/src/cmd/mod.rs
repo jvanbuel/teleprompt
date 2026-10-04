@@ -9,6 +9,7 @@ pub mod import;
 pub mod lsp;
 pub mod new;
 pub mod plan;
+pub mod plugins;
 pub mod record;
 pub mod serve;
 pub mod setup;

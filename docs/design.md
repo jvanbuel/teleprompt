@@ -944,11 +944,20 @@ a video needs comes in three tiers.
    stay the CLI's. **No release artifact, whether binary, app bundle, installer
    or container image, includes a tool.** One that did would take on the
    tool's license: a deliberate choice, made in this document first.
-3. **Community plugins, not yet built.** Adapters and voices of other
-   people's, fetched by the author from their own repositories, as Herdr
-   and Obsidian do: an executable and a manifest, speaking JSON on stdin
-   and stdout, installed with a command and listed by a GitHub topic.
-   Teleprompt would host nothing and pass no license on.
+3. **Community plugins.** Adapters and voices of other people's, as
+   programs of their own: `teleprompt-adapter-<name>` or
+   `teleprompt-voice-<name>`, on PATH or in the plugins directory,
+   speaking JSON a line at a time on stdin and stdout
+   ([the protocol](guide/plugins.md#the-protocol)). The author installs
+   one with their own tools (pipx, npm, cargo, a copied file) and finds
+   them by the GitHub topic `teleprompt-plugin`; `teleprompt plugins` lists
+   what is installed. Teleprompt hosts nothing and passes no license on. A
+   plugin starts when a command first needs it and stops when the command
+   ends; teleprompt sends it one request at a time. A built-in plugin's
+   name wins. `teleprompt_plugin::protocol` is both sides: the host, which
+   holds an outside plugin as the contract it implements, so nothing else
+   in teleprompt can tell it from a built-in one; and `serve`, which makes
+   a Rust plugin a program. `examples/plugins` has two in Python.
 
 ## Not built
 
@@ -958,5 +967,7 @@ Named here so the rest of this document is not read as covering them:
   author's takes. Google's Voices API replicates a voice too, but only with
   a recording of its owner reading a consent statement, which teleprompt
   does not collect; a voice made there is named by its id.
-- **Runtime-loaded plugins.** Backends and adapters are compiled in; see
-  [What teleprompt ships](#what-teleprompt-ships) for the plan.
+- **Recording, scene inputs and cloning over the protocol.** A plugin
+  program can be an adapter's scene and capture, or a voice; recording a
+  session, the files a scene reads outside its block, `include=…#fragment`
+  and cloning a voice are for compiled-in plugins only, until one asks.

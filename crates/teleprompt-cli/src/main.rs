@@ -7,8 +7,8 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 use teleprompt_cli::cli::{fail, replaced, Run, ScriptArgs};
 use teleprompt_cli::cmd::{
-    build, cache, capture, check, dub, edit, import, new, plan, record, serve, setup, translate,
-    voice,
+    build, cache, capture, check, dub, edit, import, new, plan, plugins, record, serve, setup,
+    translate, voice,
 };
 use teleprompt_cli::output::{exit_code_for, Format, Outcome};
 
@@ -43,6 +43,15 @@ enum Command {
     /// it prints the commands unless --run. Without names outside a
     /// terminal, it reports on all of them.
     Setup(setup::Args),
+    /// List the plugins installed as programs of their own
+    ///
+    /// A plugin is a program named teleprompt-adapter-<name> or
+    /// teleprompt-voice-<name>, on PATH or in the plugins directory
+    /// ($TELEPROMPT_PLUGINS, or teleprompt/plugins in your data directory).
+    /// Each is asked what it is and needs; one that does not answer, or
+    /// whose name a built-in one has, says why it is not used. Writing
+    /// one: docs/guide/plugins.md.
+    Plugins(plugins::Args),
     /// Report what the project's caches hold, or shrink them
     ///
     /// Narration and encoded video are both entirely derived: every entry
@@ -186,6 +195,7 @@ fn run(command: Command, format: Format) -> Run {
         Command::New(args) => new::run(args, format),
         Command::Voice(args) => voice::run(args, format),
         Command::Setup(args) => setup::run(args, format),
+        Command::Plugins(args) => plugins::run(args, format),
         Command::Cache(args) => cache::run(args, format),
         Command::Import(args) => import::run(args, format),
         Command::Edit(args) => edit::run(args, format),

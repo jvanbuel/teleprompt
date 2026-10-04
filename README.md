@@ -93,6 +93,7 @@ of a job offers to install it there.
 | `voice clone <name>` | make a voice from your takes on a [Voicebox](docs/guide/voices.md#your-own-voice-voicebox) server, so unrecorded lines sound like you |
 | `setup [use, adapter or tool…]` | ask what you want to do and install what it needs; with names (`conversations`, `vhs`, `speech-model`…), say what is installed, the licenses, and how to install the rest, and `--run` installs them; in a project, also whether its voice's server answers |
 | `cache` | report what the project's caches hold, or shrink them |
+| `plugins` | list the [plugins](docs/guide/plugins.md) installed as programs of their own: adapters and voices of other people's, in any language |
 | `lsp` | a [language server](docs/guide/editors.md) for your editor: problems as you type, completion, hover and go to definition |
 
 Every command accepts `--format json`. Exit codes are `0` for success, `1`

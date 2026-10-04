@@ -12,8 +12,8 @@ crates has to be added here, which is where the argument for it belongs.
 Dev-dependencies are not checked.
 
 The plugin crate holds every contract, capturing included, so the crates
-that plan a video are also kept from its capture, record and tool modules
-by name: nothing that plans a video can run a tool.
+that plan a video are also kept from its capture, protocol, record and
+tool modules by name: nothing that plans a video can run a tool.
 """
 
 import json
@@ -68,7 +68,7 @@ PREFIX = "teleprompt-"
 
 # What plans a video, and so reads a scene's shots without running its tool.
 PLANS = {"schedule", "manifest", "voice", "cache", "compile", "prompter"}
-RUNS_TOOLS = re.compile(r"teleprompt_plugin::(capture|record|tool)\b")
+RUNS_TOOLS = re.compile(r"teleprompt_plugin::(capture|protocol|record|tool)\b")
 
 
 def runs_tools(crate):
@@ -106,7 +106,7 @@ def main():
                 problems.append(f"{crate} depends on {short(dep['name'])}, which it may not")
     for crate in sorted(PLANS):
         for path in runs_tools(crate):
-            problems.append(f"{path} uses the plugin crate's capture, record or tool module")
+            problems.append(f"{path} uses the plugin crate's capture, protocol, record or tool module")
     for p in problems:
         print(f"error: {p}", file=sys.stderr)
     if problems:
