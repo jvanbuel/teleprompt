@@ -7,6 +7,7 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::time::UNIX_EPOCH;
 
 use teleprompt_cache::VoiceCache;
 use teleprompt_compile::publish::Published;
@@ -15,16 +16,23 @@ use teleprompt_manifest::NarrationManifest;
 use teleprompt_plugin::voice::VoiceBackend;
 
 use crate::cmd::dub::{self, DubError};
-use crate::project::Project;
+use crate::project::{fingerprint, translation_path, Project};
+use crate::voice::Backends;
+use teleprompt_core::Hash;
 
-/// A script's voice, compiled afresh each time it is described, since a
-/// line synthesized or edited since changes what it says.
+/// A script's voice, compiled afresh when what it is compiled from has
+/// changed: the script, its translation, its takes, or which of its lines
+/// the voice cache holds.
 pub struct Voicing {
     project: Project,
     script: PathBuf,
     locale: String,
+    /// The project's voices, found once: finding a plugin searches PATH.
+    backends: OnceLock<Backends>,
     /// The last compile: each line's request and take, and who reads.
     voiced: Mutex<Option<Voiced>>,
+    /// What the last compile was made from, as [`Voicing::inputs`] says it.
+    inputs: Mutex<Option<Hash>>,
     /// Why the script, as its file now reads, does not compile; `None` once
     /// it does again.
     error: Mutex<Option<Vec<String>>>,
@@ -51,7 +59,9 @@ impl Voicing {
             project: project.clone(),
             script: script.to_path_buf(),
             locale: locale.to_string(),
+            backends: OnceLock::new(),
             voiced: Mutex::new(None),
+            inputs: Mutex::new(None),
             error: Mutex::new(None),
             published: Mutex::new(None),
             runtime: OnceLock::new(),
@@ -62,14 +72,60 @@ impl Voicing {
         VoiceCache::new(self.project.caches().root)
     }
 
-    /// The script compiled as it now reads, or as it last compiled.
+    fn backends(&self) -> &Backends {
+        self.backends.get_or_init(|| self.project.backends())
+    }
+
+    /// What a compile reads beyond the project's config, which is read
+    /// once: the script, its translation, the takes, and which of the
+    /// lines last compiled the voice cache now holds.
+    fn inputs(&self, last: Option<&Voiced>) -> Hash {
+        let mut fields = vec![
+            fingerprint(&self.script),
+            fingerprint(&translation_path(&self.script, &self.locale)),
+        ]
+        .into_iter()
+        .map(|h| h.map_or_else(String::new, |h| h.to_string()))
+        .collect::<Vec<_>>();
+        let takes = std::fs::read_dir(self.project.takes_dir())
+            .into_iter()
+            .flatten();
+        let mut takes: Vec<String> = takes
+            .flatten()
+            .filter_map(|e| {
+                let meta = e.metadata().ok()?;
+                let modified = meta.modified().ok()?.duration_since(UNIX_EPOCH).ok()?;
+                let name = e.file_name().to_string_lossy().into_owned();
+                Some(format!("{name}:{}:{}", meta.len(), modified.as_nanos()))
+            })
+            .collect();
+        takes.sort();
+        fields.extend(takes);
+        let cache = self.cache();
+        let held = last.map_or(&[][..], |v| &v.lines[..]);
+        fields.push(
+            held.iter()
+                .map(|l| if cache.has(&l.cache_key) { '1' } else { '0' })
+                .collect(),
+        );
+        Hash::of_fields(&fields.iter().map(String::as_str).collect::<Vec<_>>())
+    }
+
+    /// The script compiled as it now reads, or as it last compiled; only
+    /// compiled again when what it is compiled from has changed.
     fn refresh(&self) -> Option<Voiced> {
         let mut voiced = self.voiced.lock().unwrap_or_else(PoisonError::into_inner);
-        let backends = self.project.backends();
-        let compiled = self
+        let inputs = self.inputs(voiced.as_ref());
+        let mut seen = lock(&self.inputs);
+        if seen.as_ref() == Some(&inputs) {
+            return voiced.clone();
+        }
+        *seen = Some(inputs);
+        let backends = self.backends();
+        match self
             .project
-            .compile_with(&backends, &self.script, &self.locale);
-        match compiled {
+            .compile_with(backends, &self.script, &self.locale)
+        {
             Ok((compiled, backend)) => {
                 let voices = backends
                     .voices(&backend, &compiled.narration)
@@ -105,9 +161,8 @@ impl Voicing {
     /// reads, every line's audio made first; or, if it no longer compiles,
     /// the one last made, and why only if there is none.
     pub fn manifest(&self) -> Result<NarrationManifest, Vec<String>> {
-        let backends = self.project.backends();
         let voiced = self.runtime().map_err(|e| vec![e])?.block_on(dub::voice(
-            &backends,
+            self.backends(),
             &self.project,
             &self.script,
             &self.locale,

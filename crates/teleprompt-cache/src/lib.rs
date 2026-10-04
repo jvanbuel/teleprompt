@@ -153,6 +153,11 @@ impl VoiceCache {
         self.dir().join(format!("{key}.json"))
     }
 
+    /// Whether `key` has an entry, sound or not, without reading it.
+    pub fn has(&self, key: &CacheKey) -> bool {
+        self.json_path(key).exists()
+    }
+
     pub fn lookup(&self, key: &CacheKey) -> Result<CacheRead<CachedAudio>, CacheError> {
         let json = self.json_path(key);
         let raw = match std::fs::read_to_string(&json) {
