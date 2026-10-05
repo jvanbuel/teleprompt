@@ -27,11 +27,11 @@ pub fn run_check(
     Ok(warnings)
 }
 
-/// `check`'s `--format json` output. Both lists are always present, so a
-/// consumer never branches on a missing key.
+/// `check`'s `--format json` output, with `ok` as every report has it.
+/// Both lists are always present, so a consumer never branches on a
+/// missing key.
 #[derive(Debug, Serialize)]
 pub struct CheckReport {
-    pub ok: bool,
     pub warnings: Vec<String>,
     pub errors: Vec<String>,
 }
@@ -44,7 +44,6 @@ pub fn run(args: crate::cli::ScriptArgs, format: crate::output::Format) -> crate
         Ok(warnings) => {
             crate::cli::warn(&warnings);
             let report = CheckReport {
-                ok: true,
                 warnings,
                 errors: Vec::new(),
             };
@@ -55,11 +54,10 @@ pub fn run(args: crate::cli::ScriptArgs, format: crate::output::Format) -> crate
             match format {
                 Format::Json => {
                     let report = CheckReport {
-                        ok: false,
                         warnings: Vec::new(),
                         errors: errors.clone(),
                     };
-                    println!("{}", serde_json::to_string_pretty(&report).unwrap())
+                    crate::cli::emit_ok(format, &report, "", false);
                 }
                 Format::Human => crate::cli::print_errors(&errors),
             }
@@ -73,16 +71,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn check_report_serializes_ok_and_both_lists() {
+    fn check_report_serializes_both_lists() {
         let report = CheckReport {
-            ok: true,
             warnings: vec!["bare wait".to_string()],
             errors: vec![],
         };
         let json = serde_json::to_value(&report).unwrap();
         assert_eq!(
             json,
-            serde_json::json!({"ok": true, "warnings": ["bare wait"], "errors": []})
+            serde_json::json!({"warnings": ["bare wait"], "errors": []})
         );
     }
 }

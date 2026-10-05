@@ -137,7 +137,6 @@ pub fn prune(dir: &Path, max_bytes: u64) -> std::io::Result<Pruned> {
 
 #[derive(Debug, Serialize)]
 pub struct CacheReport {
-    pub ok: bool,
     pub root: PathBuf,
     pub voice: Stats,
     pub compose: Stats,
@@ -187,7 +186,6 @@ pub fn run_cache(project: &Project, max_mb: Option<u64>) -> std::io::Result<Cach
         None => None,
     };
     Ok(CacheReport {
-        ok: true,
         root: project.caches().root,
         voice: stats(&project.caches().voice()),
         compose: stats(&project.caches().compose()),

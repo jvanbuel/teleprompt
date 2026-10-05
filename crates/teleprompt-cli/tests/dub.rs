@@ -6,7 +6,8 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use teleprompt_cli::cmd::dub::{manifest_path, run_dub, DubError};
+use teleprompt_cli::cmd::dub::{manifest_path, run_dub};
+use teleprompt_cli::output::Failure;
 use teleprompt_cli::project::Project;
 use teleprompt_manifest::MANIFEST_VERSION;
 
@@ -706,10 +707,7 @@ async fn dub_with_the_null_backend_makes_no_network_call() {
     let p = project_with_script("# Intro\n\nHello there.\n");
     run_dub(&p.project, &p.script, "en", &p.out, false)
         .await
-        .unwrap_or_else(|e| match e {
-            DubError::Validation(v) => panic!("validation: {v:?}"),
-            DubError::Runtime(r) => panic!("runtime: {r}"),
-        });
+        .unwrap_or_else(|e| panic!("{e}"));
 }
 
 /// An unknown voice fails on line zero, not after the twentieth. The stub's
@@ -730,8 +728,8 @@ async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
     let result = run_dub(&p.project, &p.script, "en", &p.out, false).await;
     let msgs = match result {
         Ok(_) => panic!("an unknown voice must fail validation, not synthesize"),
-        Err(DubError::Validation(msgs)) => msgs,
-        Err(DubError::Runtime(r)) => {
+        Err(Failure::Validation(msgs)) => msgs,
+        Err(Failure::Runtime(r)) => {
             panic!("must be a validation error, not a runtime failure: {r}")
         }
     };
@@ -756,7 +754,7 @@ async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
 /// side of the split the test above pins: that one asserts `Validation` when
 /// the server answers and simply does not list the configured voice; this one
 /// asserts `Runtime` when the server never answers at all. A version that
-/// collapsed both `kokoro.voices()` failure modes into one `DubError` variant
+/// collapsed both `kokoro.voices()` failure modes into one `Failure` variant
 /// would pass only one of the two tests, depending on which way it collapsed —
 /// checking just one arm would not catch that.
 #[tokio::test]
@@ -773,11 +771,11 @@ async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() 
 
     match run_dub(&p.project, &p.script, "en", &p.out, false).await {
         Ok(_) => panic!("an unreachable server must fail, not synthesize"),
-        Err(DubError::Validation(v)) => panic!(
+        Err(Failure::Validation(v)) => panic!(
             "an unreachable server is a runtime failure (exit 1), not a script \
              problem (exit 2): {v:?}"
         ),
-        Err(DubError::Runtime(r)) => {
+        Err(Failure::Runtime(r)) => {
             assert!(r.contains("127.0.0.1:1"), "must name the url: {r}");
         }
     }
@@ -924,10 +922,7 @@ async fn lines_are_synthesized_concurrently_but_collected_in_document_order() {
 
     run_dub(&p.project, &p.script, "en", &p.out, false)
         .await
-        .unwrap_or_else(|e| match e {
-            DubError::Validation(v) => panic!("validation: {v:?}"),
-            DubError::Runtime(r) => panic!("runtime: {r}"),
-        });
+        .unwrap_or_else(|e| panic!("{e}"));
 
     assert!(
         stub.peak_inflight.load(Ordering::SeqCst) > 1,
@@ -977,7 +972,7 @@ async fn a_failure_in_one_line_fails_the_run() {
     let elapsed = start.elapsed();
     match result {
         Ok(_) => panic!("a line failure must fail the run"),
-        Err(DubError::Runtime(r)) => {
+        Err(Failure::Runtime(r)) => {
             assert!(
                 // Not a bare "500": the message also embeds the stub's
                 // ephemeral port, and a small fraction of ports contain the
@@ -989,7 +984,7 @@ async fn a_failure_in_one_line_fails_the_run() {
                 siblings: {r}"
             );
         }
-        Err(DubError::Validation(v)) => panic!(
+        Err(Failure::Validation(v)) => panic!(
             "a synthesis failure is a runtime error, not a validation one: {}",
             v.join("; ")
         ),
@@ -1094,10 +1089,7 @@ async fn identical_narration_text_synthesizes_once_not_once_per_line() {
 
     run_dub(&p.project, &p.script, "en", &p.out, false)
         .await
-        .unwrap_or_else(|e| match e {
-            DubError::Validation(v) => panic!("validation: {v:?}"),
-            DubError::Runtime(r) => panic!("runtime: {r}"),
-        });
+        .unwrap_or_else(|e| panic!("{e}"));
 
     assert_eq!(
         stub.speech_requests.load(Ordering::SeqCst),
@@ -1123,10 +1115,7 @@ async fn identical_narration_text_with_a_non_deterministic_backend_still_succeed
 
     run_dub(&p.project, &p.script, "en", &p.out, false)
         .await
-        .unwrap_or_else(|e| match e {
-            DubError::Validation(v) => panic!("validation: {v:?}"),
-            DubError::Runtime(r) => panic!("runtime: {r}"),
-        });
+        .unwrap_or_else(|e| panic!("{e}"));
 
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(manifest_path(&p.out, "en")).unwrap())
@@ -1155,10 +1144,7 @@ async fn identical_narration_text_still_lands_in_document_order_with_matching_au
 
     run_dub(&p.project, &p.script, "en", &p.out, false)
         .await
-        .unwrap_or_else(|e| match e {
-            DubError::Validation(v) => panic!("validation: {v:?}"),
-            DubError::Runtime(r) => panic!("runtime: {r}"),
-        });
+        .unwrap_or_else(|e| panic!("{e}"));
 
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(manifest_path(&p.out, "en")).unwrap())
@@ -1209,10 +1195,7 @@ async fn a_fully_cached_script_dubs_with_the_server_gone() {
     // Fill the cache while the server is up.
     run_dub(&p.project, &p.script, "en", &p.out, false)
         .await
-        .unwrap_or_else(|e| match e {
-            DubError::Validation(v) => panic!("validation: {v:?}"),
-            DubError::Runtime(r) => panic!("runtime: {r}"),
-        });
+        .unwrap_or_else(|e| panic!("{e}"));
 
     // The same project on the same machine the next morning: the cache is
     // where it was, the server is not. Nothing is missing, so nothing
@@ -1228,8 +1211,8 @@ async fn a_fully_cached_script_dubs_with_the_server_gone() {
     run_dub(&gone, &p.script, "en", &p.out, false)
         .await
         .unwrap_or_else(|e| match e {
-            DubError::Validation(v) => panic!("validation: {v:?}"),
-            DubError::Runtime(r) => panic!("a warm cache must not need the server: {r}"),
+            Failure::Validation(v) => panic!("validation: {v:?}"),
+            Failure::Runtime(r) => panic!("a warm cache must not need the server: {r}"),
         });
 }
 

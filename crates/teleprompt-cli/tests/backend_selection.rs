@@ -147,8 +147,8 @@ async fn dub_synthesizes_with_the_backend_the_script_resolved_to() {
     )
     .await
     .unwrap_or_else(|e| match e {
-        teleprompt_cli::cmd::dub::DubError::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt_cli::cmd::dub::DubError::Runtime(r) => panic!("runtime: {r}"),
+        teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
+        teleprompt_cli::output::Failure::Runtime(r) => panic!("runtime: {r}"),
     });
 
     assert_eq!(result.manifest.lines.len(), 1);
@@ -180,7 +180,6 @@ async fn the_manifest_reports_the_rate_the_backend_actually_produced() {
         false,
     )
     .await
-    .ok()
     .expect("dub must succeed");
 
     assert_eq!(
@@ -210,8 +209,8 @@ async fn each_speaker_is_spoken_by_their_own_backend() {
     )
     .await
     .unwrap_or_else(|e| match e {
-        teleprompt_cli::cmd::dub::DubError::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt_cli::cmd::dub::DubError::Runtime(r) => panic!("runtime: {r}"),
+        teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
+        teleprompt_cli::output::Failure::Runtime(r) => panic!("runtime: {r}"),
     });
     let lines = &result.manifest.lines;
     assert_eq!(lines.len(), 2);
@@ -283,8 +282,8 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
     )
     .await
     .unwrap_or_else(|e| match e {
-        teleprompt_cli::cmd::dub::DubError::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt_cli::cmd::dub::DubError::Runtime(r) => {
+        teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
+        teleprompt_cli::output::Failure::Runtime(r) => {
             panic!("the first dub of a cold line must not fail: {r}")
         }
     });

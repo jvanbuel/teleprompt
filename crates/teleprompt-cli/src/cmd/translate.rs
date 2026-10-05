@@ -8,14 +8,9 @@ use serde::Serialize;
 use teleprompt_core::translation::{items, merged, pending, Translation};
 use teleprompt_translate::{Known, Request, Translator, Wanted};
 
+use crate::output::Failure;
 use crate::project::translation_path;
 use crate::project::Project;
-
-pub enum TranslateError {
-    /// The script, or the locale asked for, is wrong.
-    Validation(Vec<String>),
-    Runtime(String),
-}
 
 #[derive(Debug, Serialize)]
 pub struct TranslateReport {
@@ -62,10 +57,10 @@ pub fn translator(
     script: &Path,
     target: &str,
     choice: &Choice,
-) -> Result<Translator, TranslateError> {
+) -> Result<Translator, Failure> {
     let config = project
         .resolved(script, target)
-        .map_err(TranslateError::Validation)?
+        .map_err(Failure::Validation)?
         .config;
     let timeout_ms = config.translate.timeout_ms;
     if let Some(cmd) = choice.command {
@@ -81,7 +76,7 @@ pub fn translator(
     });
     Translator::new(provider, model, config.translate.settings.get(provider))
         .map(|t| t.timeout(timeout_ms))
-        .map_err(TranslateError::Runtime)
+        .map_err(Failure::Runtime)
 }
 
 pub async fn run_translate(
@@ -89,13 +84,13 @@ pub async fn run_translate(
     script: &Path,
     target: &str,
     translator: &Translator,
-) -> Result<TranslateReport, TranslateError> {
+) -> Result<TranslateReport, Failure> {
     let program = project
         .source_program(script)
-        .map_err(TranslateError::Validation)?;
+        .map_err(Failure::Validation)?;
     let source = program.locale.clone();
     if target == source {
-        return Err(TranslateError::Validation(vec![format!(
+        return Err(Failure::Validation(vec![format!(
             "{} is written in `{source}`; translate it --to another locale",
             script.display()
         )]));
@@ -103,10 +98,10 @@ pub async fn run_translate(
     let file = translation_path(script, target);
     let existing = match std::fs::read_to_string(&file) {
         Ok(yaml) => Translation::from_yaml(&yaml)
-            .map_err(|e| TranslateError::Validation(vec![format!("{}: {e}", file.display())]))?,
+            .map_err(|e| Failure::Validation(vec![format!("{}: {e}", file.display())]))?,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Translation::default(),
         Err(e) => {
-            return Err(TranslateError::Runtime(format!(
+            return Err(Failure::Runtime(format!(
                 "cannot read {}: {e}",
                 file.display()
             )))
@@ -141,7 +136,7 @@ pub async fn run_translate(
     let done: Vec<(String, String)> = translator
         .translate(&request)
         .await
-        .map_err(TranslateError::Runtime)?
+        .map_err(Failure::Runtime)?
         .into_iter()
         .filter(|(id, _)| asked.contains(id))
         .collect();
@@ -151,7 +146,7 @@ pub async fn run_translate(
     let partial = file.with_extension("yaml.partial");
     std::fs::write(&partial, yaml)
         .and_then(|()| std::fs::rename(&partial, &file))
-        .map_err(|e| TranslateError::Runtime(format!("cannot write {}: {e}", file.display())))?;
+        .map_err(|e| Failure::Runtime(format!("cannot write {}: {e}", file.display())))?;
 
     let answered = |id: &String| done.iter().any(|(d, _)| d == id) && !rejected.contains(id);
     Ok(TranslateReport {
@@ -188,14 +183,13 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         command: args.command.as_deref(),
     };
     let project = crate::cli::project_for(&args.script)?;
-    let failed = |e| match e {
-        TranslateError::Validation(v) => Outcome::ValidationError(v),
-        TranslateError::Runtime(r) => Outcome::RuntimeFailure(r),
-    };
-    let translator = translator(&project, &args.script, &args.to, &choice).map_err(failed)?;
-    let report = crate::cli::runtime()?
-        .block_on(run_translate(&project, &args.script, &args.to, &translator))
-        .map_err(failed)?;
+    let translator = translator(&project, &args.script, &args.to, &choice)?;
+    let report = crate::cli::runtime()?.block_on(run_translate(
+        &project,
+        &args.script,
+        &args.to,
+        &translator,
+    ))?;
     crate::cli::emit(format, &report, &report.render());
     Ok(Outcome::Ok)
 }

@@ -27,7 +27,7 @@ use teleprompt_prompter::{Position, Prompt, Reached, Script, Session, LISTEN_RAT
 use tokio::task::block_in_place;
 
 use crate::cmd::voicing::Voicing;
-use crate::output::{Format, Outcome};
+use crate::output::{Failure, Format, Outcome};
 use crate::project::Project;
 use teleprompt_core::edit::Edit;
 
@@ -36,21 +36,6 @@ use teleprompt_core::edit::Edit;
 /// stream. teleprompt downloads nothing, so the error naming it says where
 /// to get it.
 pub const MODEL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-26.tar.bz2";
-
-#[derive(Debug)]
-pub enum PromptError {
-    Validation(Vec<String>),
-    Runtime(String),
-}
-
-impl From<PromptError> for Outcome {
-    fn from(e: PromptError) -> Self {
-        match e {
-            PromptError::Validation(errors) => Self::ValidationError(errors),
-            PromptError::Runtime(message) => Self::RuntimeFailure(message),
-        }
-    }
-}
 
 /// How a prompter follows its script: by ear, with a speech model (the
 /// one named, or none found), or read by the script's voice.
@@ -80,7 +65,7 @@ pub fn run_serve(
     port: u16,
     ear: Ear<'_>,
     format: Format,
-) -> Result<(), PromptError> {
+) -> Result<(), Failure> {
     let opener = Opener {
         model: match &ear {
             Ear::Model(model) => model.map(std::path::Path::to_path_buf),
@@ -91,17 +76,17 @@ pub fn run_serve(
     let opened = match script {
         Some(script) => Some(opener.open(script, matches!(ear, Ear::Voice)).map_err(
             |e| match e {
-                OpenError::Invalid(errors) => PromptError::Validation(errors),
-                OpenError::Unheard(why) | OpenError::Busy(why) => PromptError::Runtime(why),
+                OpenError::Invalid(errors) => Failure::Validation(errors),
+                OpenError::Unheard(why) | OpenError::Busy(why) => Failure::Runtime(why),
             },
         )?),
         None => None,
     };
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
-        .map_err(|e| PromptError::Runtime(format!("cannot listen on port {port}: {e}")))?;
+        .map_err(|e| Failure::Runtime(format!("cannot listen on port {port}: {e}")))?;
     let addr = listener
         .local_addr()
-        .map_err(|e| PromptError::Runtime(e.to_string()))?;
+        .map_err(|e| Failure::Runtime(e.to_string()))?;
     let says = if opened.is_some() {
         "open it, click, and read"
     } else {
@@ -113,10 +98,10 @@ pub fn run_serve(
         println!("{}", listening_event(addr));
         std::io::stdout()
             .flush()
-            .map_err(|e| PromptError::Runtime(e.to_string()))?;
+            .map_err(|e| Failure::Runtime(e.to_string()))?;
     }
     let server = Server::new(opened, Some(opener));
-    serve_on(listener, server).map_err(|e| PromptError::Runtime(e.to_string()))
+    serve_on(listener, server).map_err(|e| Failure::Runtime(e.to_string()))
 }
 
 /// Why a script could not be opened.
@@ -155,8 +140,8 @@ impl Opener {
                 .clone()
                 .or_else(|| crate::cmd::setup::speech_model(None).ok());
             recognizer(model.as_deref()).map_err(|e| match e {
-                PromptError::Runtime(why) => OpenError::Unheard(why),
-                PromptError::Validation(why) => OpenError::Unheard(why.join("\n")),
+                Failure::Runtime(why) => OpenError::Unheard(why),
+                Failure::Validation(why) => OpenError::Unheard(why.join("\n")),
             })?
         };
         let session =
@@ -207,23 +192,23 @@ impl Opener {
 }
 
 #[cfg(feature = "listen")]
-fn recognizer(model: Option<&std::path::Path>) -> Result<Hearing, PromptError> {
+fn recognizer(model: Option<&std::path::Path>) -> Result<Hearing, Failure> {
     let dir = model.ok_or_else(|| {
-        PromptError::Runtime(format!(
+        Failure::Runtime(format!(
             "`serve` needs a speech model: `teleprompt setup speech-model` installs \
              one, or download and unpack {MODEL} and pass its directory with --model"
         ))
     })?;
     teleprompt_listen_sherpa::SherpaRecognizer::new(dir)
         .map(|r| Box::new(r) as Hearing)
-        .map_err(PromptError::Runtime)
+        .map_err(Failure::Runtime)
 }
 
 /// A build without the recognizer cannot follow anyone; it says how to get
 /// one, or to let the voice read.
 #[cfg(not(feature = "listen"))]
-fn recognizer(_model: Option<&std::path::Path>) -> Result<Hearing, PromptError> {
-    Err(PromptError::Runtime(
+fn recognizer(_model: Option<&std::path::Path>) -> Result<Hearing, Failure> {
+    Err(Failure::Runtime(
         "this teleprompt was built without a speech recognizer; \
          rebuild it with `--features listen`, or pass --voice to have the \
          script's voice read it"

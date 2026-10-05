@@ -91,7 +91,6 @@ fn scalar(value: &serde_yaml::Value) -> Option<String> {
 
 #[derive(Debug, Serialize)]
 pub struct CaptureReport {
-    pub ok: bool,
     pub clips_dir: PathBuf,
     /// Sessions that had something to record. A warm project has none.
     pub sessions: usize,
@@ -161,7 +160,6 @@ pub fn run_capture(
 
     let total = shots.iter().filter(|b| b.scene != "pause").count();
     CaptureReport {
-        ok: true,
         clips_dir: clips_dir.to_path_buf(),
         sessions: ran,
         captured,
@@ -225,11 +223,8 @@ fn record(
 }
 
 /// `teleprompt capture`: dubs the script, then records whatever its shots
-/// are missing into the build's clip directory.
-///
-/// It dubs first rather than read a manifest on disk that may be stale
-/// (docs/design.md#rendering). `size` and `fps` override the script's own
-/// `output:` frame.
+/// are missing into the build's clip directory. `size` and `fps` override
+/// the script's own `output:` frame.
 pub async fn capture_script(
     project: &crate::project::Project,
     script: &Path,
@@ -237,25 +232,54 @@ pub async fn capture_script(
     size: Option<(u32, u32)>,
     fps: Option<u32>,
     on_progress: &mut dyn FnMut(Progress),
-) -> Result<CaptureReport, crate::cmd::dub::DubError> {
-    let options = crate::cmd::build::BuildOptions::defaults(project, script, locale);
+) -> Result<CaptureReport, crate::output::Failure> {
+    let options = crate::cmd::build::BuildOptions {
+        resolution: size,
+        fps,
+        ..crate::cmd::build::BuildOptions::defaults(project, script, locale)
+    };
+    let (_, _, report) = dub_and_capture(
+        project,
+        script,
+        locale,
+        &options,
+        crate::scene::plugins(),
+        on_progress,
+    )
+    .await?;
+    Ok(report)
+}
+
+/// Dubs the script, then records what its shots are missing into
+/// `options.clips_dir`: where `capture` stops and `build` goes on to
+/// render. It dubs first rather than read a manifest on disk that may be
+/// stale (docs/design.md#rendering).
+pub(crate) async fn dub_and_capture(
+    project: &crate::project::Project,
+    script: &Path,
+    locale: &str,
+    options: &crate::cmd::build::BuildOptions,
+    plugins: &ScenePlugins,
+    on_progress: &mut dyn FnMut(Progress),
+) -> Result<(crate::cmd::dub::DubOutput, Frame, CaptureReport), crate::output::Failure> {
     let dubbed =
         crate::cmd::dub::run_dub(project, script, locale, &options.narration_root, false).await?;
-    let (width, height) = size.unwrap_or(dubbed.output.resolution);
+    let (width, height) = options.resolution.unwrap_or(dubbed.output.resolution);
     let frame = Frame {
         width,
         height,
-        fps: fps.unwrap_or(dubbed.output.fps),
+        fps: options.fps.unwrap_or(dubbed.output.fps),
     };
-    Ok(run_capture(
+    let report = run_capture(
         &dubbed.manifest,
         &dubbed.shots,
         &dubbed.scenes,
-        crate::scene::plugins(),
+        plugins,
         &options.clips_dir,
         frame,
         on_progress,
-    ))
+    );
+    Ok((dubbed, frame, report))
 }
 
 /// `capture`'s arguments.

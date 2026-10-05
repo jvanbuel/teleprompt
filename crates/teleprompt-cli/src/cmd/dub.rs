@@ -12,6 +12,7 @@ use teleprompt_manifest::{captions, chapters};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
 
+use crate::output::Failure;
 use crate::project::Project;
 use crate::voice::Backends;
 
@@ -29,13 +30,6 @@ pub struct DubOutput {
     pub warnings: Vec<String>,
     /// `Some` only under `--check`. `None` means nothing was compared.
     pub drift: Option<ManifestDiff>,
-}
-
-/// A script that fails validation (exit 2) or a runtime failure such as an
-/// unreadable committed manifest or a write error (exit 1).
-pub enum DubError {
-    Validation(Vec<String>),
-    Runtime(String),
 }
 
 fn locale_dir(out_root: &Path, locale: &str) -> PathBuf {
@@ -130,10 +124,10 @@ async fn render_one(
     backend: &Arc<dyn VoiceBackend>,
     cache: &VoiceCache,
     detail: &NarrationDetail,
-) -> Result<RenderedAudio, DubError> {
+) -> Result<RenderedAudio, Failure> {
     let read = cache
         .lookup(&detail.cache_key)
-        .map_err(|e| DubError::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
+        .map_err(|e| Failure::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
     let cache_warning = read.warning();
 
     let (wav_bytes, rendered_ms, sample_rate, channels) = match read.hit() {
@@ -146,7 +140,7 @@ async fn render_one(
         None => {
             let stored = synthesize_and_store(backend, cache, detail)
                 .await
-                .map_err(DubError::Runtime)?;
+                .map_err(Failure::Runtime)?;
             (
                 stored.wav,
                 stored.duration_ms,
@@ -171,7 +165,7 @@ pub async fn run_dub(
     locale: &str,
     out_root: &Path,
     check_only: bool,
-) -> Result<DubOutput, DubError> {
+) -> Result<DubOutput, Failure> {
     // The project's `backends:` settings; a script's front-matter override
     // does not reach construction, as in `Project::compile`.
     let backends = project.backends();
@@ -187,7 +181,7 @@ pub async fn run_dub_with(
     locale: &str,
     out_root: &Path,
     check_only: bool,
-) -> Result<DubOutput, DubError> {
+) -> Result<DubOutput, Failure> {
     let Voiced {
         compiled,
         published,
@@ -228,22 +222,22 @@ pub(crate) async fn voice(
     project: &Project,
     script: &Path,
     locale: &str,
-) -> Result<Voiced, DubError> {
+) -> Result<Voiced, Failure> {
     // Synthesize only with the backend the keys were computed from; see
     // `Project::compile_with`.
     let (compiled, backend) = project
         .compile_with(backends, script, locale)
-        .map_err(DubError::Validation)?;
+        .map_err(Failure::Validation)?;
     let cache = Arc::new(VoiceCache::new(project.caches().root));
     let voices = backends
         .voices(&backend, &compiled.narration)
-        .map_err(DubError::Runtime)?;
+        .map_err(Failure::Runtime)?;
 
     for id in voices.keys() {
         check_voices(backends, id, &compiled, &cache).await?;
     }
     let limit = backends.concurrency(backend.id());
-    let takes = Takes::load(&project.takes_dir()).map_err(|e| DubError::Runtime(e.to_string()))?;
+    let takes = Takes::load(&project.takes_dir()).map_err(|e| Failure::Runtime(e.to_string()))?;
     let synthesized: Vec<NarrationDetail> = compiled
         .narration
         .iter()
@@ -265,15 +259,15 @@ pub(crate) async fn voice(
         .collect();
     let synthesized = rendered.into_iter().map(|r| r.audio).collect();
     let audio =
-        publish::with_takes(&compiled.narration, synthesized, &takes).map_err(DubError::Runtime)?;
+        publish::with_takes(&compiled.narration, synthesized, &takes).map_err(Failure::Runtime)?;
 
     // Recompile against the now-warm cache: the first compile ran before
     // anything was rendered, so on a cold project it holds estimates. This
     // makes `dub` idempotent, and costs no synthesis.
     let (compiled, _) = project
         .compile_with(backends, script, locale)
-        .map_err(DubError::Validation)?;
-    let published = publish::publish(&compiled, audio).map_err(DubError::Runtime)?;
+        .map_err(Failure::Validation)?;
+    let published = publish::publish(&compiled, audio).map_err(Failure::Runtime)?;
     warnings.extend(compiled.warnings.iter().cloned());
     Ok(Voiced {
         compiled,
@@ -295,7 +289,7 @@ async fn check_voices(
     backend_id: &str,
     compiled: &teleprompt_compile::CompileOutput,
     cache: &VoiceCache,
-) -> Result<(), DubError> {
+) -> Result<(), Failure> {
     // A corrupt entry counts as missing: it will be re-rendered.
     let anything_to_synthesize = compiled.narration.iter().any(|detail| {
         detail.backend == backend_id
@@ -327,7 +321,7 @@ async fn check_voices(
     let Some(available) = backend.voices().await else {
         return Ok(());
     };
-    let available = available.map_err(|e| DubError::Runtime(e.to_string()))?;
+    let available = available.map_err(|e| Failure::Runtime(e.to_string()))?;
     let address = backend.address().unwrap_or_default();
     let problems: Vec<String> = wanted
         .iter()
@@ -343,7 +337,7 @@ async fn check_voices(
     if problems.is_empty() {
         Ok(())
     } else {
-        Err(DubError::Validation(problems))
+        Err(Failure::Validation(problems))
     }
 }
 
@@ -361,7 +355,7 @@ async fn render_all(
     cache: &Arc<VoiceCache>,
     narration: &[NarrationDetail],
     limit: usize,
-) -> Result<Vec<Rendered>, DubError> {
+) -> Result<Vec<Rendered>, Failure> {
     let permits = Arc::new(tokio::sync::Semaphore::new(limit));
     // Progress is per line, in completion order with a running count: under
     // concurrency, which line finishes next is a fact about the server, and
@@ -369,7 +363,7 @@ async fn render_all(
     let total = narration.len();
     let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
-    let mut tasks: tokio::task::JoinSet<(Vec<usize>, Result<RenderedAudio, DubError>)> =
+    let mut tasks: tokio::task::JoinSet<(Vec<usize>, Result<RenderedAudio, Failure>)> =
         tokio::task::JoinSet::new();
     for indices in groups_by_key(narration) {
         let detail = narration[indices[0]].clone();
@@ -454,8 +448,8 @@ fn drift_from_committed(
     out_root: &Path,
     locale: &str,
     built: &NarrationManifest,
-) -> Result<ManifestDiff, DubError> {
-    let committed = read_committed(&manifest_path(out_root, locale)).map_err(DubError::Runtime)?;
+) -> Result<ManifestDiff, Failure> {
+    let committed = read_committed(&manifest_path(out_root, locale)).map_err(Failure::Runtime)?;
     Ok(match committed {
         Some(before) => manifest_diff::diff(&before, built),
         None => manifest_diff::diff(
@@ -476,18 +470,18 @@ fn write_output(
     out_root: &Path,
     locale: &str,
     published: &publish::Published,
-) -> Result<Vec<PathBuf>, DubError> {
+) -> Result<Vec<PathBuf>, Failure> {
     let built = &published.manifest;
     let dir = locale_dir(out_root, locale);
     let audio_dir = dir.join("audio");
     std::fs::create_dir_all(&audio_dir)
-        .map_err(|e| DubError::Runtime(format!("cannot create {}: {e}", audio_dir.display())))?;
+        .map_err(|e| Failure::Runtime(format!("cannot create {}: {e}", audio_dir.display())))?;
 
     let mut written = Vec::new();
     for (line_id, bytes) in &published.lines {
         let path = dir.join(audio_path(line_id, "wav"));
         std::fs::write(&path, bytes)
-            .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
+            .map_err(|e| Failure::Runtime(format!("cannot write {}: {e}", path.display())))?;
         written.push(path);
     }
 
@@ -501,15 +495,15 @@ fn write_output(
     ] {
         let path = dir.join(name);
         std::fs::write(&path, text)
-            .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
+            .map_err(|e| Failure::Runtime(format!("cannot write {}: {e}", path.display())))?;
         written.push(path);
     }
 
     let path = manifest_path(out_root, locale);
     let json = serde_json::to_string_pretty(built)
-        .map_err(|e| DubError::Runtime(format!("cannot serialize manifest: {e}")))?;
+        .map_err(|e| Failure::Runtime(format!("cannot serialize manifest: {e}")))?;
     std::fs::write(&path, format!("{json}\n"))
-        .map_err(|e| DubError::Runtime(format!("cannot write {}: {e}", path.display())))?;
+        .map_err(|e| Failure::Runtime(format!("cannot write {}: {e}", path.display())))?;
     written.push(path);
     Ok(written)
 }
@@ -526,15 +520,6 @@ pub fn render_dub(out: &DubOutput) -> String {
         s.push_str(&format!("  wrote {}\n", path.display()));
     }
     s
-}
-
-impl From<DubError> for crate::output::Outcome {
-    fn from(e: DubError) -> Self {
-        match e {
-            DubError::Validation(errors) => Self::ValidationError(errors),
-            DubError::Runtime(message) => Self::RuntimeFailure(message),
-        }
-    }
 }
 
 /// `dub`'s arguments.

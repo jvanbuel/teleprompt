@@ -78,7 +78,7 @@ async fn a_build_records_its_scenes_and_renders_no_slates() {
 
     let report = build::run_build(&p, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     assert_eq!(report.items, 2);
     assert_eq!(report.captured, 2, "both items were recorded");
@@ -105,10 +105,10 @@ async fn a_second_build_records_nothing_and_still_has_no_slates() {
 
     build::run_build(&p, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
     let warm = build::run_build(&p, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     assert_eq!(warm.captured, 0, "a warm project re-recorded a scene");
     assert_eq!(warm.slates, 0);
@@ -129,12 +129,12 @@ async fn editing_the_first_shot_re_records_the_second() {
 
     build::run_build(&p, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     std::fs::write(&script, SCRIPT.replacen("wait 800ms", "wait 900ms", 1)).unwrap();
     let after = build::run_build(&p, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     assert_eq!(
         after.captured, 2,
@@ -169,7 +169,7 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
         &mut |_| {},
     )
     .await
-    .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     assert_eq!(report.captured, 0);
     assert_eq!(report.slates, 2);

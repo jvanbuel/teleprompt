@@ -136,7 +136,7 @@ async fn the_manual_renders() {
 
     let report = build::run_build(&project, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("the manual must render: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("the manual must render: {}", e));
 
     assert_eq!(report.lines, 21);
     assert_eq!(report.items, 25);

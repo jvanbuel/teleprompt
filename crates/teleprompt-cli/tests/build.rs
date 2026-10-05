@@ -106,7 +106,7 @@ async fn a_script_renders_to_a_video_as_long_as_its_timeline() {
 
     let report = build::run_build(&project, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     assert!(
         report.output.exists(),
@@ -157,7 +157,7 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
         &mut |_| {},
     )
     .await
-    .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     // A video of correctly-timed slates is a useful artifact and a
     // misleading one to hand over unannounced, so the count is part of the
@@ -247,7 +247,7 @@ async fn front_matter_decides_the_frame_when_no_flag_does() {
         &BuildOptions::defaults(&project, &script, "en"),
     )
     .await
-    .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     // The rate is compared with a tolerance, not for equality. A
     // container reports `avg_frame_rate` as a rational computed from the
@@ -319,7 +319,7 @@ async fn a_render_reports_how_far_along_it_is() {
         &mut |p| seen.push(p.rendered_ms),
     )
     .await
-    .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+    .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     assert!(
         seen.len() > 1,
@@ -371,12 +371,12 @@ async fn a_second_build_of_an_unchanged_script_reuses_the_picture() {
 
     let cold = build::run_build(&project, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(cold.renderer, "ffmpeg-incremental");
 
     let warm = build::run_build(&project, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(
         warm.reused_ms,
         Some(warm.duration_ms),
@@ -406,7 +406,7 @@ async fn no_cache_re_encodes_everything_and_says_so() {
 
     let report = build::run_build(&project, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(
         report.renderer, "ffmpeg-incremental",
         "there is one renderer; --no-cache switches off reuse rather than \
@@ -442,7 +442,7 @@ async fn a_build_leaves_the_cache_under_its_cap() {
 
     let report = build::run_build(&project, &script, "en", &options)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert!(report.output.exists(), "the video is still produced");
 
     let compose = project.caches().compose();
@@ -459,7 +459,7 @@ async fn a_build_leaves_the_cache_under_its_cap() {
     };
     build::run_build(&project, &script, "en", &kept)
         .await
-        .unwrap_or_else(|e| panic!("build failed: {}", build::render_error(&e)));
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert!(
         teleprompt_cli::cmd::cache::stats(&compose).bytes > 0,
         "a build under a cap it fits inside threw its own work away"

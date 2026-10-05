@@ -5,14 +5,14 @@
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_manifest::{captions, chapters, NarrationManifest};
+use teleprompt_manifest::chapters;
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::{Picture, Progress, RenderError};
 
 use crate::cmd::cache;
 use crate::cmd::capture;
-use crate::cmd::dub::{self, DubError};
+use crate::output::Failure;
 use crate::project::Project;
 
 /// Everything `build` needs beyond the script itself.
@@ -64,10 +64,6 @@ impl BuildOptions {
 
 #[derive(Debug, Serialize)]
 pub struct BuildReport {
-    /// Always true. A failed build returns `BuildError` and prints the
-    /// shared `ErrorReport`, so a consumer can branch on one key across
-    /// every command rather than on this command's shape.
-    pub ok: bool,
     pub output: PathBuf,
     /// Subtitles beside the video, as SubRip and WebVTT.
     pub captions: Vec<PathBuf>,
@@ -120,29 +116,13 @@ fn clock(ms: u64) -> String {
     format!("{}:{:02}.{:03}", ms / 60_000, (ms / 1000) % 60, ms % 1000)
 }
 
-pub enum BuildError {
-    /// The script does not compile. Exit 2, as everywhere else.
-    Validation(Vec<String>),
-    /// Not the script's fault: a missing ffmpeg, a failed render, an
-    /// unwritable output.
-    Runtime(String),
-}
-
-/// One printable string for a failure, whichever kind it is.
-pub fn render_error(error: &BuildError) -> String {
-    match error {
-        BuildError::Validation(diagnostics) => diagnostics.join("\n"),
-        BuildError::Runtime(message) => message.clone(),
-    }
-}
-
 /// Dub, then render what was dubbed.
 pub async fn run_build(
     project: &Project,
     script: &Path,
     locale: &str,
     options: &BuildOptions,
-) -> Result<BuildReport, BuildError> {
+) -> Result<BuildReport, Failure> {
     run_build_with_capture(
         &renderer(options),
         crate::scene::plugins(),
@@ -176,7 +156,7 @@ pub async fn run_build_with(
     locale: &str,
     options: &BuildOptions,
     on_progress: &mut dyn FnMut(Progress),
-) -> Result<BuildReport, BuildError> {
+) -> Result<BuildReport, Failure> {
     run_build_with_capture(
         renderer,
         crate::scene::plugins(),
@@ -201,29 +181,12 @@ pub async fn run_build_with_capture(
     locale: &str,
     options: &BuildOptions,
     on_progress: &mut dyn FnMut(Progress),
-) -> Result<BuildReport, BuildError> {
-    let dubbed = dub::run_dub(project, script, locale, &options.narration_root, false)
-        .await
-        .map_err(|e| match e {
-            DubError::Validation(diagnostics) => BuildError::Validation(diagnostics),
-            DubError::Runtime(message) => BuildError::Runtime(message),
-        })?;
-
-    let (width, height) = options.resolution.unwrap_or(dubbed.output.resolution);
-    let fps = options.fps.unwrap_or(dubbed.output.fps);
-
+) -> Result<BuildReport, Failure> {
     // Stage 5 (docs/design.md#pipeline). What cannot be recorded becomes a
     // warning and a slate, not a failure; see [`capture::run_capture`].
+    let (dubbed, frame, recorded) =
+        capture::dub_and_capture(project, script, locale, options, captures, &mut |_| {}).await?;
     let mut warnings = dubbed.warnings;
-    let recorded = capture::run_capture(
-        &dubbed.manifest,
-        &dubbed.shots,
-        &dubbed.scenes,
-        captures,
-        &options.clips_dir,
-        teleprompt_plugin::capture::Frame { width, height, fps },
-        &mut |_| {},
-    );
     warnings.extend(recorded.warnings);
     let captured = recorded.captured;
 
@@ -233,9 +196,9 @@ pub async fn run_build_with_capture(
             narration_dir: options.narration_root.join(locale),
             clips_dir: options.clips_dir.clone(),
             output: options.out.clone(),
-            width,
-            height,
-            fps,
+            width: frame.width,
+            height: frame.height,
+            fps: frame.fps,
             names: dubbed.output.names,
         },
     );
@@ -247,7 +210,7 @@ pub async fn run_build_with_capture(
 
     let rendered = renderer
         .render(&render_plan, on_progress)
-        .map_err(|e| BuildError::Runtime(explain(&e)))?;
+        .map_err(|e| Failure::Runtime(explain(&e)))?;
 
     // Pruned after the render, never before: pruning first could evict
     // pieces this render was about to copy.
@@ -255,13 +218,14 @@ pub async fn run_build_with_capture(
     let mut all = warnings;
     all.extend(prune_compose_cache(options));
 
-    let captions = write_captions(&rendered.path, &dubbed.manifest)?;
-    let chapters = write_chapters(&rendered.path, &dubbed.manifest, &mut all)?;
+    let [srt, vtt, chapters] = copy_beside(&rendered.path, &options.narration_root.join(locale))?;
+    if dubbed.manifest.chapters.len() > 1 {
+        all.extend(chapters::youtube(&dubbed.manifest).1);
+    }
 
     Ok(BuildReport {
-        ok: true,
         output: rendered.path,
-        captions,
+        captions: vec![srt, vtt],
         chapters,
         duration_ms: rendered.duration_ms,
         renderer: renderer.id(),
@@ -288,36 +252,27 @@ fn prune_compose_cache(options: &BuildOptions) -> Option<String> {
     })
 }
 
-/// YouTube chapter timestamps beside the video; what keeps them from
-/// counting as chapters goes into `warnings`, when there are any to show.
-fn write_chapters(
-    video: &Path,
-    manifest: &NarrationManifest,
-    warnings: &mut Vec<String>,
-) -> Result<PathBuf, BuildError> {
-    let (list, problems) = chapters::youtube(manifest);
-    let path = video.with_extension("chapters.txt");
-    std::fs::write(&path, list)
-        .map_err(|e| BuildError::Runtime(format!("cannot write {}: {e}", path.display())))?;
-    if manifest.chapters.len() > 1 {
-        warnings.extend(problems);
-    }
-    Ok(path)
-}
-
-/// The video's subtitles, named after it (`tour.en.srt` beside
-/// `tour.en.mp4`), where players look for them.
-fn write_captions(video: &Path, manifest: &NarrationManifest) -> Result<Vec<PathBuf>, BuildError> {
-    let cues = captions::cues(manifest);
-    [("srt", captions::srt(&cues)), ("vtt", captions::vtt(&cues))]
-        .into_iter()
-        .map(|(ext, text)| {
-            let path = video.with_extension(ext);
-            std::fs::write(&path, text)
-                .map(|()| path.clone())
-                .map_err(|e| BuildError::Runtime(format!("cannot write {}: {e}", path.display())))
-        })
-        .collect()
+/// The subtitles and chapters `dub` wrote, copied beside the video and
+/// named after it (`tour.en.srt` beside `tour.en.mp4`), where players look
+/// for them.
+fn copy_beside(video: &Path, narration: &Path) -> Result<[PathBuf; 3], Failure> {
+    let copy = |name: &str, ext: &str| {
+        let (from, path) = (narration.join(name), video.with_extension(ext));
+        std::fs::copy(&from, &path)
+            .map(|_| path.clone())
+            .map_err(|e| {
+                Failure::Runtime(format!(
+                    "cannot copy {} to {}: {e}",
+                    from.display(),
+                    path.display()
+                ))
+            })
+    };
+    Ok([
+        copy("captions.srt", "srt")?,
+        copy("captions.vtt", "vtt")?,
+        copy("chapters.txt", "chapters.txt")?,
+    ])
 }
 
 /// A render failure, with the one thing the author can act on in front.
@@ -347,15 +302,6 @@ pub fn parse_resolution(text: &str) -> Result<(u32, u32), String> {
             .ok_or_else(|| format!("`{text}` has no usable {which} (expected e.g. `1920x1080`)"))
     };
     Ok((parse(w, "width")?, parse(h, "height")?))
-}
-
-impl From<BuildError> for crate::output::Outcome {
-    fn from(e: BuildError) -> Self {
-        match e {
-            BuildError::Validation(errors) => Self::ValidationError(errors),
-            BuildError::Runtime(message) => Self::RuntimeFailure(message),
-        }
-    }
 }
 
 /// `build`'s arguments.

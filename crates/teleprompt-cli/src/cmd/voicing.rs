@@ -15,7 +15,8 @@ use teleprompt_compile::NarrationDetail;
 use teleprompt_manifest::NarrationManifest;
 use teleprompt_voice::VoiceBackend;
 
-use crate::cmd::dub::{self, DubError};
+use crate::cmd::dub;
+use crate::output::Failure;
 use crate::project::{fingerprint, translation_path, Project};
 use crate::voice::Backends;
 use teleprompt_core::Hash;
@@ -173,9 +174,9 @@ impl Voicing {
                 let last = lock(&self.published).as_ref().map(|p| p.manifest.clone());
                 return match (e, last) {
                     // A script that no longer compiles keeps playing as it last did.
-                    (DubError::Validation(_), Some(last)) => Ok(last),
-                    (DubError::Validation(errors), None) => Err(errors),
-                    (DubError::Runtime(e), _) => Err(vec![e]),
+                    (Failure::Validation(_), Some(last)) => Ok(last),
+                    (Failure::Validation(errors), None) => Err(errors),
+                    (Failure::Runtime(e), _) => Err(vec![e]),
                 };
             }
         };
