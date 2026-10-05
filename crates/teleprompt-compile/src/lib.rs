@@ -1,7 +1,7 @@
 //! Where core, scene, voice and schedule meet (docs/design.md#crates):
 //! walks a resolved [`Program`], has the scene plugins validate and split action
 //! blocks, takes each line's duration from the voice cache or a
-//! [`DurationEstimator`], pairs lines with the shots that follow them, and
+//! [`WpmEstimator`], pairs lines with the shots that follow them, and
 //! schedules the items into a [`Timeline`]. It never reaches a voice
 //! backend; see [`VoiceContext`].
 
@@ -21,7 +21,7 @@ use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, SceneCompiler,
 use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
 use teleprompt_voice::takes::{TakeMeta, Takes};
-use teleprompt_voice::DurationEstimator;
+use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{SynthRequest, WordTiming};
 
 pub mod length;
@@ -37,7 +37,7 @@ pub struct VoiceContext<'a> {
     /// cast whose speakers use several.
     pub other_backends: BTreeMap<String, String>,
     pub cache: &'a VoiceCache,
-    pub estimator: &'a dyn DurationEstimator,
+    pub estimator: &'a WpmEstimator,
     /// Recorded takes; a current one stands in for synthesis.
     pub takes: &'a Takes,
 }

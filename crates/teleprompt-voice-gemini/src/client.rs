@@ -190,12 +190,9 @@ fn decode(bytes: &[u8], audio: &Value) -> Result<Pcm, String> {
             .and_then(|n| u32::try_from(n).ok())
             .unwrap_or(default)
     };
-    Ok(Pcm {
-        sample_rate: number("sample_rate", stated.unwrap_or(RATE)),
-        channels: u16::try_from(number("channels", 1)).unwrap_or(1),
-        samples: bytes
-            .chunks_exact(2)
-            .map(|b| i16::from_le_bytes([b[0], b[1]]))
-            .collect(),
-    })
+    Pcm::from_le_bytes(
+        bytes,
+        number("sample_rate", stated.unwrap_or(RATE)),
+        u16::try_from(number("channels", 1)).unwrap_or(1),
+    )
 }

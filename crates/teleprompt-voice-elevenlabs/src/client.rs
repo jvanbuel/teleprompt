@@ -90,17 +90,7 @@ impl Client {
         let audio = base64::engine::general_purpose::STANDARD
             .decode(answer["audio_base64"].as_str().unwrap_or_default())
             .map_err(|e| self.fail(&format!("its audio was not base64: {e}")))?;
-        if audio.is_empty() {
-            return Err(self.fail("answered with no audio"));
-        }
-        let pcm = Pcm {
-            sample_rate: RATE,
-            channels: 1,
-            samples: audio
-                .chunks_exact(2)
-                .map(|b| i16::from_le_bytes([b[0], b[1]]))
-                .collect(),
-        };
+        let pcm = Pcm::from_le_bytes(&audio, RATE, 1).map_err(|e| self.fail(&e))?;
         Ok((pcm, words(&answer["alignment"])))
     }
 

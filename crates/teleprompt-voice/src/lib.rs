@@ -23,7 +23,7 @@ pub mod registry;
 pub mod stretch;
 pub mod takes;
 
-pub use estimator::{DurationEstimator, WpmEstimator, DEFAULT_WPM};
+pub use estimator::{WpmEstimator, DEFAULT_WPM};
 pub use null::{NullVoice, NULL_SAMPLE_RATE};
 pub use registry::VoiceRegistry;
 

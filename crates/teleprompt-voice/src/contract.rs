@@ -41,6 +41,30 @@ pub struct Pcm {
 }
 
 impl Pcm {
+    /// Raw little-endian 16-bit samples, as a speech API sends them. An
+    /// empty body, or an odd byte count, is not audio: guessing would
+    /// publish a silent or garbled line as a real one.
+    pub fn from_le_bytes(bytes: &[u8], sample_rate: u32, channels: u16) -> Result<Pcm, String> {
+        if bytes.is_empty() {
+            return Err("returned an empty audio body".to_string());
+        }
+        if bytes.len() % 2 != 0 {
+            return Err(format!(
+                "returned {} bytes, an odd count for 16-bit samples",
+                bytes.len()
+            ));
+        }
+        let samples = bytes
+            .chunks_exact(2)
+            .map(|p| i16::from_le_bytes([p[0], p[1]]))
+            .collect();
+        Ok(Pcm {
+            sample_rate,
+            channels,
+            samples,
+        })
+    }
+
     /// Computed per *frame*: with two channels, two samples are one instant.
     pub fn duration_ms(&self) -> u64 {
         let channels = self.channels.max(1) as u64;

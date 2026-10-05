@@ -1,4 +1,3 @@
-use teleprompt_voice::estimator::DurationEstimator;
 use teleprompt_voice::SynthRequest;
 use teleprompt_voice::WpmEstimator;
 
@@ -48,13 +47,4 @@ fn estimation_is_deterministic() {
     let e = WpmEstimator::default();
     let r = req("Every video here is built from a script.", 1.0);
     assert_eq!(e.estimate_ms(&r), e.estimate_ms(&r));
-}
-
-/// The structural claim of the whole design: the reference implementation is
-/// written from outside the contract crate, touching only its public API. If
-/// this file ever needs a `pub(crate)` item, the contract is wrong.
-#[test]
-fn the_estimator_is_reachable_through_the_trait_object() {
-    let e: Box<dyn DurationEstimator> = Box::new(WpmEstimator::default());
-    assert!(e.estimate_ms(&req("hello there", 1.0)) > 0);
 }

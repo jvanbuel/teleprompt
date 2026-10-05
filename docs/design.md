@@ -168,7 +168,7 @@ reading the manifest it just published.
 | `teleprompt-core` | AST, parser, ids, config, `Hash`, diagnostics, shared vocabulary such as `VoiceSource` |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
 | `teleprompt-plugin` | what a scene plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it and core alone |
-| `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the `DurationEstimator`, the registry, stretching a line to fit, the author's takes, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
+| `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the duration estimator, the registry, stretching a line to fit, the author's takes, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
 | `teleprompt-voice-openai` | HTTP against any server that speaks OpenAI's speech API: `kokoro` (Kokoro-FastAPI) and `openai` are its presets, and any other `[backends.<name>]` is a server under that name |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
 | `teleprompt-voice-elevenlabs` | HTTP against ElevenLabs: premade or the account's own voices, found by name, with each word's timing |
@@ -248,10 +248,9 @@ duration, so a backend cannot report a length its samples do not have.
 downstream assumes one. `version()` is the voice's own version, such as
 the model it runs, and it is part of the cache key.
 
-Predicting a duration without synthesizing is a separate trait,
-`DurationEstimator`, which is synchronous and deterministic.
-`WpmEstimator` (words per minute, punctuation-aware) is the only
-implementation. Backend authors never implement it.
+Predicting a duration without synthesizing is `WpmEstimator`'s, apart
+from any voice: words per minute, punctuation-aware, synchronous and
+deterministic.
 
 ### Estimated and measured
 

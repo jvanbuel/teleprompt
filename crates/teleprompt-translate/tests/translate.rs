@@ -1,6 +1,5 @@
 use serde_json::{json, Value};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use teleprompt_testkit::http::{self, Reply, Stub};
 
 use teleprompt_translate::{Claude, Program, Request, Translator, Wanted};
 
@@ -18,43 +17,16 @@ fn request() -> Request {
     }
 }
 
-/// Serves one request with `reply`, returning what was asked.
-async fn serve_once(reply: Value) -> (String, tokio::task::JoinHandle<(String, Value)>) {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}", listener.local_addr().unwrap());
-    let handle = tokio::spawn(async move {
-        let (mut socket, _) = listener.accept().await.unwrap();
-        let mut raw = Vec::new();
-        let mut buf = [0u8; 8192];
-        loop {
-            let n = socket.read(&mut buf).await.unwrap();
-            raw.extend_from_slice(&buf[..n]);
-            let text = String::from_utf8_lossy(&raw).to_string();
-            if let Some(end) = text.find("\r\n\r\n") {
-                let length: usize = text[..end]
-                    .lines()
-                    .find_map(|l| {
-                        l.to_lowercase()
-                            .strip_prefix("content-length:")
-                            .map(|v| v.trim().parse().unwrap())
-                    })
-                    .unwrap_or(0);
-                if raw.len() >= end + 4 + length {
-                    let head = text[..end].to_string();
-                    let body: Value =
-                        serde_json::from_slice(&raw[end + 4..end + 4 + length]).unwrap();
-                    let out = reply.to_string();
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{out}",
-                        out.len()
-                    );
-                    socket.write_all(response.as_bytes()).await.unwrap();
-                    return (head, body);
-                }
-            }
-        }
-    });
-    (url, handle)
+/// A server answering `reply`, and where it is.
+async fn serve_once(reply: Value) -> (String, Stub) {
+    let stub = http::spawn(Reply::json(reply)).await;
+    (stub.base_url.clone(), stub)
+}
+
+/// The head and JSON body of the request `server` was sent.
+fn asked(server: &Stub) -> (String, Value) {
+    let request = server.first();
+    (request.head.clone(), request.json())
 }
 
 fn claude(url: String) -> Translator {
@@ -80,7 +52,7 @@ async fn claude_is_asked_for_json_and_its_answer_read() {
         [("line:welcome".to_string(), "Welkom bij Acme.".to_string())]
     );
 
-    let (head, body) = server.await.unwrap();
+    let (head, body) = asked(&server);
     let head = head.to_lowercase();
     assert!(head.starts_with("post /v1/messages "), "{head}");
     assert!(head.contains("x-api-key: test-key") && head.contains("anthropic-version: 2023-06-01"));
@@ -157,7 +129,7 @@ async fn ollama_is_the_default_and_asked_for_json() {
         [("line:welcome".to_string(), "Welkom bij Acme.".to_string())]
     );
 
-    let (head, body) = server.await.unwrap();
+    let (head, body) = asked(&server);
     assert!(head.to_lowercase().starts_with("post /api/chat "), "{head}");
     assert_eq!(body["model"], teleprompt_translate::ollama::DEFAULT_MODEL);
     assert_eq!(body["stream"], false);
@@ -206,7 +178,7 @@ async fn an_openai_compatible_server_is_asked_the_same() {
     .unwrap();
     let out = t.translate(&request()).await.unwrap();
     assert_eq!(out.len(), 1);
-    let (head, body) = server.await.unwrap();
+    let (head, body) = asked(&server);
     let head = head.to_lowercase();
     assert!(head.starts_with("post /v1/chat/completions "), "{head}");
     assert!(
@@ -232,14 +204,9 @@ fn providers_say_what_they_are_missing() {
 
 /// A server that takes the request and never answers, as a wedged model
 /// or a black-holing proxy does.
-async fn silent() -> (String, tokio::task::JoinHandle<()>) {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}", listener.local_addr().unwrap());
-    let held = tokio::spawn(async move {
-        let (_stream, _) = listener.accept().await.unwrap();
-        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-    });
-    (url, held)
+async fn silent() -> (String, Stub) {
+    let stub = http::spawn(Reply::Hang).await;
+    (stub.base_url.clone(), stub)
 }
 
 /// A provider that never answers is given up on after `[translate]`'s

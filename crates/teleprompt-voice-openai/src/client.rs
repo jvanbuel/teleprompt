@@ -241,29 +241,8 @@ impl Client {
     /// `response_format: "pcm"` is raw little-endian 16-bit mono, at 24 kHz
     /// unless `sample_rate` says otherwise. No mp3 or wav decoder enters the
     /// workspace.
-    ///
-    /// Both rejections below matter: an odd byte count means the body is
-    /// not what it claims, and an empty body would become a zero-length WAV
-    /// published as a real line. Neither is recoverable by guessing.
     fn decode_pcm(&self, bytes: &[u8]) -> Result<Pcm, String> {
-        if bytes.is_empty() {
-            return Err("returned an empty audio body".to_string());
-        }
-        if bytes.len() % 2 != 0 {
-            return Err(format!(
-                "returned {} bytes, an odd count for 16-bit samples",
-                bytes.len()
-            ));
-        }
-        let samples = bytes
-            .chunks_exact(2)
-            .map(|p| i16::from_le_bytes([p[0], p[1]]))
-            .collect();
-        Ok(Pcm {
-            sample_rate: self.cfg.sample_rate,
-            channels: 1,
-            samples,
-        })
+        Pcm::from_le_bytes(bytes, self.cfg.sample_rate, 1)
     }
 }
 

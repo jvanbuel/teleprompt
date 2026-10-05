@@ -14,8 +14,8 @@ use teleprompt_core::{DurationSource, SpanMs};
 use teleprompt_cli::project::Project;
 use teleprompt_voice::async_trait;
 use teleprompt_voice::NullVoice;
+use teleprompt_voice::VoiceRegistry;
 use teleprompt_voice::WpmEstimator;
-use teleprompt_voice::{DurationEstimator, VoiceRegistry};
 use teleprompt_voice::{Pcm, SynthRequest, Synthesized, VoiceBackend, VoiceError};
 
 /// A backend that is not `null`: a different id, a different version, a

@@ -1,4 +1,3 @@
-use teleprompt_voice::estimator::DurationEstimator;
 use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{NullVoice, NULL_SAMPLE_RATE};
 use teleprompt_voice::{Pcm, SynthRequest, VoiceBackend};

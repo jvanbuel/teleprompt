@@ -1,13 +1,5 @@
 use crate::SynthRequest;
 
-/// Predicts how long text takes to speak *without synthesizing it*, which
-/// keeps the inner loop synchronous (`docs/design.md#async-boundary`).
-///
-/// Must be deterministic, or committed timelines churn.
-pub trait DurationEstimator: Send + Sync {
-    fn estimate_ms(&self, req: &SynthRequest) -> u64;
-}
-
 /// The rate both `WpmEstimator` and `NullVoice` default to.
 ///
 /// One constant, not two literals, because the whole reason `null` is useful
@@ -20,8 +12,10 @@ const COMMA_MS: u64 = 150;
 const CLAUSE_MS: u64 = 250;
 const SENTENCE_MS: u64 = 350;
 
-/// Words per minute plus punctuation pauses. Crude, deterministic, and free
-/// — which is what the inner loop needs.
+/// How long text takes to speak, predicted *without synthesizing it*, which
+/// keeps the inner loop synchronous (`docs/design.md#async-boundary`):
+/// words per minute plus punctuation pauses. Crude, deterministic (or
+/// committed timelines churn), and free.
 pub struct WpmEstimator {
     pub wpm: f64,
 }
@@ -54,8 +48,8 @@ pub fn estimate_ms(text: &str, wpm: f64, speed: f64) -> u64 {
     ((speech + pauses as f64) / speed).round() as u64
 }
 
-impl DurationEstimator for WpmEstimator {
-    fn estimate_ms(&self, req: &SynthRequest) -> u64 {
+impl WpmEstimator {
+    pub fn estimate_ms(&self, req: &SynthRequest) -> u64 {
         estimate_ms(&req.text, self.wpm, req.speed)
     }
 }
