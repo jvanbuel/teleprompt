@@ -131,13 +131,13 @@ impl Tool {
 
 impl Tool {
     /// As a plugin's description has it.
-    pub fn to_wire(&self) -> crate::protocol::WireTool {
+    pub fn to_wire(&self) -> crate::protocol::Need {
         let (program, package) = match self.found {
             Found::Program(p) => (Some(p.to_string()), None),
             Found::Package(p) => (None, Some(p.to_string())),
             Found::Model(_) | Found::Unknowable => (None, None),
         };
-        crate::protocol::WireTool {
+        crate::protocol::Need {
             name: self.name.into(),
             what: self.what.into(),
             license: self.license.into(),
@@ -156,7 +156,7 @@ impl Tool {
     /// A tool an outside plugin described. Kept for the rest of the run, as
     /// a built-in plugin's are: teleprompt asks once, and a plugin needs a
     /// handful.
-    pub fn from_wire(wire: &crate::protocol::WireTool) -> &'static Tool {
+    pub fn from_wire(wire: &crate::protocol::Need) -> &'static Tool {
         let found = match (&wire.program, &wire.package) {
             (Some(p), _) => Found::Program(leak(p)),
             (None, Some(p)) => Found::Package(leak(p)),
@@ -254,6 +254,19 @@ pub const NOT_ON_PATH: &str = " is not on PATH";
 pub fn missing(programs: &[&str]) -> Option<String> {
     let absent: Vec<&str> = programs.iter().copied().filter(|p| !installed(p)).collect();
     (!absent.is_empty()).then(|| format!("{}{NOT_ON_PATH}", absent.join(" and ")))
+}
+
+/// [`missing`] for the programs among `tools`: what a backend that runs
+/// exactly what it needs cannot run.
+pub fn missing_of(tools: &[&Tool]) -> Option<String> {
+    let programs: Vec<&str> = tools
+        .iter()
+        .filter_map(|t| match t.found {
+            Found::Program(p) => Some(p),
+            _ => None,
+        })
+        .collect();
+    missing(&programs)
 }
 
 /// The last `keep` non-blank lines of `text`, joined with " / ": the part

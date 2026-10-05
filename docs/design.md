@@ -664,10 +664,10 @@ IO, which is why `check` and `plan` stay offline however heavy the tool is.
 
 - `validate` checks a block and reports every bad line, with positions in
   the script or in the included file.
-- `shots` splits a validated block at its marks.
-- `estimate` returns `Exact` for a source that states its own timing,
-  `Estimated` for a bound, and `Unknown` for a source that cannot say. A
-  shot of unknown length takes its line's length.
+- `shots` splits a validated block at its marks, each shot with its
+  length: `Exact` for a source that states its own timing, `Estimated` for
+  a bound, and `Unknown` for a source that cannot say. A shot of unknown
+  length takes its line's length.
 - `retime` rewrites a shot so it lasts a target length, or returns `None`
   where the source does not state its timing. This is how `fit-action`
   reaches inside a tape.
@@ -682,8 +682,9 @@ IO, which is why `check` and `plan` stay offline however heavy the tool is.
   The default refuses the fragment and names the plugin.
 
 `CaptureBackend` is the runtime half. It runs one session, writes a clip
-for each shot it is asked for, and reports through `unavailable()` when
-this machine cannot run it.
+for each shot it is asked for. It lists what it runs in `needs`, and
+`unavailable()` says when this machine cannot run it: by default, when a
+program it needs is not on PATH.
 
 ### Marks
 

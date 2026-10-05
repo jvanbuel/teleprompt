@@ -9,7 +9,7 @@
 //! the recording's `idle_time_limit` is applied, as `asciinema play`
 //! applies it. Each shot is published as a cast of its own — a v2 header
 //! stating its size and `duration`, then its events from zero — which is
-//! what makes `estimate` and `retime` arithmetic rather than guesses.
+//! what makes a shot's length and `retime` arithmetic rather than guesses.
 
 use teleprompt_core::{BlockId, Diagnostic, Hash};
 use teleprompt_plugin::scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
@@ -337,6 +337,12 @@ fn with_gaps(cast: &Cast, gaps: &[f64], target: f64) -> Cast {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AsciinemaScene;
 
+pub fn length(source: &str) -> Measured {
+    parse(source).map_or(Measured::Unknown, |c| {
+        Measured::Exact(teleprompt_core::time::ms_from_seconds(c.duration))
+    })
+}
+
 impl SceneCompiler for AsciinemaScene {
     fn kind(&self) -> &'static str {
         "asciinema"
@@ -359,16 +365,10 @@ impl SceneCompiler for AsciinemaScene {
             .enumerate()
             .map(|(index, part)| {
                 let source = write(part);
-                let hash = Hash::of(source.as_bytes());
-                Shot::numbered(block_id, index, source, hash)
+                let (hash, length) = (Hash::of(source.as_bytes()), length(&source));
+                Shot::numbered(block_id, index, source, hash).lasting(length)
             })
             .collect())
-    }
-
-    fn estimate(&self, shot: &Shot) -> Measured {
-        parse(&shot.source).map_or(Measured::Unknown, |c| {
-            Measured::Exact(teleprompt_core::time::ms_from_seconds(c.duration))
-        })
     }
 
     fn select(&self, body: &str, fragment: &str) -> Result<String, String> {

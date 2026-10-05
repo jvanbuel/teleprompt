@@ -49,7 +49,7 @@ fn total_ms(body: &str) -> u64 {
         .shots(&v, &BlockId::from("b"))
         .expect("shots should split a validated body")
         .iter()
-        .filter_map(|s| VhsScene.estimate(s).duration_ms())
+        .filter_map(|s| s.length.duration_ms())
         .sum()
 }
 
@@ -236,7 +236,7 @@ fn a_tape_that_states_its_timing_estimates_exactly() {
     let v = validated("Set TypingSpeed 10ms\nType \"abc\"\nEnter\nSleep 1s\n");
     let shots = VhsScene.shots(&v, &BlockId::from("b")).expect("shots");
 
-    assert_eq!(VhsScene.estimate(&shots[0]), Measured::Exact(1040));
+    assert_eq!(shots[0].length, Measured::Exact(1040));
 }
 
 /// `Wait` is the exception, and it is an exception per shot rather than per
@@ -248,9 +248,9 @@ fn a_shot_containing_wait_is_estimated_and_bounded_by_its_timeout() {
     let shots = VhsScene.shots(&v, &BlockId::from("b")).expect("shots");
 
     // 11 chars at the 50ms default, plus the 15s default timeout.
-    assert_eq!(VhsScene.estimate(&shots[0]), Measured::Estimated(15_550));
+    assert_eq!(shots[0].length, Measured::Estimated(15_550));
     assert_eq!(
-        VhsScene.estimate(&shots[1]),
+        shots[1].length,
         Measured::Exact(1000),
         "a `Wait` in one shot says nothing about the shot beside it"
     );
@@ -389,7 +389,7 @@ fn a_stretched_shot_is_re_timed_to_last_exactly_as_long_as_asked() {
          Enter\n\
          Sleep 1s\n",
     );
-    let before = match VhsScene.estimate(&shot) {
+    let before = match shot.length {
         Measured::Exact(ms) => ms,
         other => panic!("a tape without Wait is exact: {other:?}"),
     };
@@ -398,7 +398,7 @@ fn a_stretched_shot_is_re_timed_to_last_exactly_as_long_as_asked() {
         .retime(&shot, before * 3)
         .expect("a tape stating its own timing can be re-timed");
 
-    let after = VhsScene.estimate(&only_shot(&retimed));
+    let after = only_shot(&retimed).length;
     assert_eq!(
         after,
         Measured::Exact(before * 3),
@@ -447,13 +447,13 @@ fn a_shot_that_waits_cannot_be_re_timed() {
 #[test]
 fn a_shot_can_be_re_timed_shorter_as_well_as_longer() {
     let shot = only_shot("Set TypingSpeed 100ms\nType \"slow\"\nSleep 4s\n");
-    let before = match VhsScene.estimate(&shot) {
+    let before = match shot.length {
         Measured::Exact(ms) => ms,
         other => panic!("{other:?}"),
     };
     let retimed = VhsScene.retime(&shot, before / 2).expect("re-timable");
     assert_eq!(
-        VhsScene.estimate(&only_shot(&retimed)),
+        only_shot(&retimed).length,
         Measured::Exact(before / 2),
         "{retimed}"
     );

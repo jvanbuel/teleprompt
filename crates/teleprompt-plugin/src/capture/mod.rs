@@ -9,6 +9,7 @@ pub mod reel;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
 use teleprompt_core::{Hash, ShotId};
 
 /// One action shot, as the planner needs it.
@@ -34,20 +35,24 @@ pub struct PlannedShot {
 }
 
 /// One run of a scene: the shots that share a screen, in order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Session {
     pub scene: String,
+    #[serde(default)]
     pub plugin: String,
+    #[serde(default)]
     pub name: Option<String>,
     /// The scene's settings, as every shot in it shares them.
+    #[serde(default)]
     pub settings: BTreeMap<String, String>,
     /// What a relative path in `settings` is relative to: the project's
     /// directory. Empty, they are relative to where teleprompt runs.
+    #[serde(default)]
     pub root: PathBuf,
     pub shots: Vec<SessionShot>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionShot {
     pub id: ShotId,
     pub key: Hash,
@@ -137,14 +142,14 @@ pub fn sessions(shots: &[PlannedShot], have: &dyn Fn(&Hash) -> bool) -> Vec<Sess
 }
 
 /// A clip a backend produced.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Clip {
     pub key: Hash,
     pub path: PathBuf,
 }
 
 /// The shape a capture has to fit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Frame {
     pub width: u32,
     pub height: u32,
@@ -186,8 +191,9 @@ impl Drop for WorkDir {
 }
 
 /// How far a capture has got, per shot: the unit an author recognises.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Progress {
+    #[serde(default)]
     pub scene: String,
     pub shot: ShotId,
     pub done: usize,
@@ -217,8 +223,9 @@ pub enum CaptureError {
 /// What can run a scene.
 pub trait CaptureBackend: Send + Sync {
     /// Why it cannot run here, if it cannot: asked before a session starts.
+    /// By default, the programs in [`Self::needs`] that are not on PATH.
     fn unavailable(&self) -> Option<String> {
-        None
+        crate::tool::missing_of(self.needs())
     }
 
     /// What it runs, which `teleprompt setup` lists and installs.

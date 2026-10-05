@@ -92,15 +92,17 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
         .find(|s| s.id == entry.shot)
         .expect("its source is published");
 
-    let shot = teleprompt_plugin::scene::Shot {
-        id: published.id.clone(),
-        source: published.source.clone(),
-        hash: entry.shot_hash,
-        index: 0,
-    };
+    // Split again, as a fresh block: what the tape says it lasts.
     let plugin = plugins().get("vhs").expect("this build ships vhs").scene();
+    let again = teleprompt_plugin::scene::Validated {
+        scene: published.scene.clone(),
+        body: published.source.clone(),
+    };
+    let shots = plugin
+        .shots(&again, &teleprompt_core::BlockId::new("again"))
+        .expect("the published tape splits");
     assert_eq!(
-        plugin.estimate(&shot),
+        shots[0].length,
         Measured::Exact(entry.duration_ms.ms()),
         "the published tape should last exactly its slot:\n{}",
         published.source

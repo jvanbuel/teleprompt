@@ -7,8 +7,8 @@
 //! Title {"title": "Hello"}
 //! ```
 //!
-//! A composition takes as long as it is told to, so `estimate` is
-//! [`Measured::Unknown`] and the scheduler gives each shot its sentence.
+//! A composition takes as long as it is told to, so a shot's length is
+//! `Unknown` and the scheduler gives each shot its sentence.
 //! `retime` always succeeds, because the length is a render parameter.
 
 use std::path::{Path, PathBuf};
@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use teleprompt_core::config::SceneConfig;
 use teleprompt_core::{BlockId, Diagnostic, Hash};
 use teleprompt_plugin::scene::contract::{
-    split_at_mark, validate_parts, BlockSource, Measured, SceneCompiler, Shot, Validated,
+    split_at_mark, validate_parts, BlockSource, SceneCompiler, Shot, Validated,
 };
 
 /// The mark, and `#` comments generally — the shell's spelling, since a
@@ -101,10 +101,6 @@ impl SceneCompiler for RemotionScene {
             out.push(Shot::numbered(block_id, index, source, hash));
         }
         Ok(out)
-    }
-
-    fn estimate(&self, _shot: &Shot) -> Measured {
-        Measured::Unknown
     }
 
     /// The same shot, stating the length it will be rendered at. The

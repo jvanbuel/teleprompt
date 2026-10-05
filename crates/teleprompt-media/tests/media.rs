@@ -97,9 +97,9 @@ fn one_directive_per_shot() {
 fn a_ranged_clip_is_exact_and_a_still_is_not() {
     let s =
         shots("clip src=a.mp4 from=2s to=5.5s\n# mark\nimage src=a.png\n# mark\nclip src=a.mp4\n");
-    assert_eq!(MediaScene.estimate(&s[0]), Measured::Exact(3_500));
-    assert_eq!(MediaScene.estimate(&s[1]), Measured::Unknown);
-    assert_eq!(MediaScene.estimate(&s[2]), Measured::Unknown);
+    assert_eq!(s[0].length, Measured::Exact(3_500));
+    assert_eq!(s[1].length, Measured::Unknown);
+    assert_eq!(s[2].length, Measured::Unknown);
     assert_eq!(
         MediaScene.retime(&s[0], 9_000),
         None,

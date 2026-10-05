@@ -308,12 +308,6 @@ impl teleprompt_plugin::scene::contract::SceneCompiler for Still {
     {
         teleprompt_plugin::scene::mock::MockScene.shots(v, block_id)
     }
-    fn estimate(
-        &self,
-        shot: &teleprompt_plugin::scene::contract::Shot,
-    ) -> teleprompt_plugin::scene::contract::Measured {
-        teleprompt_plugin::scene::mock::MockScene.estimate(shot)
-    }
     fn continues(&self) -> bool {
         false
     }
@@ -406,12 +400,6 @@ impl teleprompt_plugin::scene::contract::SceneCompiler for Pictured {
     ) -> Result<Vec<teleprompt_plugin::scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>>
     {
         teleprompt_plugin::scene::mock::MockScene.shots(v, block_id)
-    }
-    fn estimate(
-        &self,
-        shot: &teleprompt_plugin::scene::contract::Shot,
-    ) -> teleprompt_plugin::scene::contract::Measured {
-        teleprompt_plugin::scene::mock::MockScene.estimate(shot)
     }
     fn continues(&self) -> bool {
         false

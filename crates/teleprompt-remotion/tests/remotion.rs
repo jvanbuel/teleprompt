@@ -81,10 +81,7 @@ fn props_must_be_an_object_and_ids_must_be_ids() {
 /// The block states no length; the scheduler gives the shot its sentence.
 #[test]
 fn a_composition_does_not_claim_a_length_of_its_own() {
-    assert_eq!(
-        RemotionScene.estimate(&shots("Title\n")[0]),
-        Measured::Unknown
-    );
+    assert_eq!(shots("Title\n")[0].length, Measured::Unknown);
 }
 
 /// Re-timing always succeeds and puts the length into the source, which

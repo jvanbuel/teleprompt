@@ -11,7 +11,7 @@ use super::contract::{
 #[derive(Debug)]
 pub struct MockScene;
 
-/// What one mock body line says. `validate`, `shots` and `estimate` all read
+/// What one mock body line says. `validate`, `shots` and `length` all read
 /// lines through [`classify`], so a line that passes `check` counts towards
 /// the duration.
 #[derive(Debug)]
@@ -81,6 +81,26 @@ fn has_content(chunk: &str) -> bool {
         .any(|l| !matches!(classify(l), Ok(Command::Nothing)))
 }
 
+/// What the waits add up to, exactly; `Unknown` once a shot opens
+/// something, which takes as long as it takes.
+pub fn length(source: &str) -> Measured {
+    if source
+        .lines()
+        .any(|l| matches!(classify(l), Ok(Command::Open)))
+    {
+        return Measured::Unknown;
+    }
+    let total: u64 = source
+        .lines()
+        .filter_map(|l| match classify(l) {
+            Ok(Command::Wait(ms)) => Some(ms),
+            // No catch-all, so a new directive must be handled here.
+            Ok(Command::Nothing | Command::Mark | Command::Open) | Err(_) => None,
+        })
+        .sum();
+    Measured::Exact(total)
+}
+
 impl SceneCompiler for MockScene {
     fn kind(&self) -> &'static str {
         "mock"
@@ -106,29 +126,10 @@ impl SceneCompiler for MockScene {
             .map(|(index, source)| Shot {
                 id: ShotId::of(block_id, index),
                 hash: Hash::of(source.trim().as_bytes()),
+                length: length(&source),
                 source,
                 index,
             })
             .collect())
-    }
-
-    fn estimate(&self, shot: &Shot) -> Measured {
-        if shot
-            .source
-            .lines()
-            .any(|l| matches!(classify(l), Ok(Command::Open)))
-        {
-            return Measured::Unknown;
-        }
-        let total: u64 = shot
-            .source
-            .lines()
-            .filter_map(|l| match classify(l) {
-                Ok(Command::Wait(ms)) => Some(ms),
-                // No catch-all, so a new directive must be handled here.
-                Ok(Command::Nothing | Command::Mark | Command::Open) | Err(_) => None,
-            })
-            .sum();
-        Measured::Exact(total)
     }
 }

@@ -11,12 +11,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
-use teleprompt_core::{BlockId, Hash};
 use teleprompt_plugin::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
-use teleprompt_plugin::scene::{Measured, SceneCompiler, Shot};
+use teleprompt_plugin::scene::Measured;
 use teleprompt_plugin::tool::missing;
-
-use crate::VhsScene;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct VhsRecorder;
@@ -161,13 +158,7 @@ fn ends_command(line: &str) -> bool {
 
 /// How long `vhs` takes over one line, at its default typing speed.
 fn line_ms(line: &str) -> u64 {
-    let shot = Shot::numbered(
-        &BlockId::new("record"),
-        0,
-        format!("{line}\n"),
-        Hash::of(line.as_bytes()),
-    );
-    match VhsScene.estimate(&shot) {
+    match crate::scene::length(&format!("{line}\n")) {
         Measured::Exact(ms) | Measured::Estimated(ms) => ms,
         Measured::Unknown => 0,
     }

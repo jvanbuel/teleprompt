@@ -21,6 +21,9 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::capture::{Clip, Frame, Session};
+use crate::scene::Measured;
+
 pub mod host;
 pub mod serve;
 
@@ -31,41 +34,24 @@ pub const VERSION: u32 = 1;
 pub const PREFIX: &str = "teleprompt-scene-";
 
 /// `describe`: what the plugin is and needs, asked once, first:
-/// `{"protocol": 1, "name": "card", "needs": […], "continues": false, …}`.
+/// `{"protocol": 1, "name": "card", "needs": […], "continues": false}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Description {
     pub protocol: u32,
     /// The name a scene's `plugin` gives, which its executable's name ends
     /// with.
     pub name: String,
+    /// What it runs. Teleprompt lists them in `setup`, and a program among
+    /// them that is not on PATH is why the plugin cannot capture here.
     #[serde(default)]
-    pub needs: Vec<WireTool>,
-    #[serde(flatten)]
-    pub traits: SceneTraits,
+    pub needs: Vec<Need>,
+    /// Whether a shot opens on the screen the previous one left.
+    #[serde(default = "yes")]
+    pub continues: bool,
 }
 
 fn yes() -> bool {
     true
-}
-
-/// How a scene plugin's scenes behave, beyond its methods.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SceneTraits {
-    /// Whether a shot opens on the screen the previous one left.
-    #[serde(default = "yes")]
-    pub continues: bool,
-    /// Whether it answers `retime`.
-    #[serde(default)]
-    pub retimes: bool,
-}
-
-impl Default for SceneTraits {
-    fn default() -> Self {
-        Self {
-            continues: true,
-            retimes: false,
-        }
-    }
 }
 
 /// The error a plugin answers for a method it does not have.
@@ -73,9 +59,10 @@ pub fn unknown_method(method: &str) -> String {
     format!("unknown method `{method}`")
 }
 
-/// A tool a plugin needs, as [`crate::tool::Tool`] has it.
+/// A tool a plugin needs: [`crate::tool::Tool`], owned, as a description
+/// carries it.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct WireTool {
+pub struct Need {
     pub name: String,
     pub what: String,
     pub license: String,
@@ -121,23 +108,19 @@ pub struct LineError {
 /// `shots`' answer: the block split at its marks, in order.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Shots {
-    pub shots: Vec<WireShot>,
+    pub shots: Vec<Part>,
 }
 
-/// A shot's source and how long it takes: `ms` with `exact` when the source
-/// states it, `ms` alone for an estimate, neither when it should last as
-/// long as its line. `estimate` answers with the same, for one source.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct WireShot {
-    #[serde(default)]
+/// One shot as `shots` answers it: `{"source": …, "ms": …, "exact": …}`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Part {
     pub source: String,
-    #[serde(default)]
-    pub ms: Option<u64>,
-    #[serde(default)]
-    pub exact: bool,
+    #[serde(flatten)]
+    pub length: Measured,
 }
 
-/// `retime`: a shot's source, to last exactly `target_ms`.
+/// `retime`: a shot's source, to last exactly `target_ms`. A plugin that
+/// cannot re-time answers it with an error, or null.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Retime {
     pub source: String,
@@ -151,69 +134,17 @@ pub struct Retimed {
     pub source: Option<String>,
 }
 
-/// `unavailable`'s answer: why it cannot capture here, or none.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Unavailable {
-    #[serde(default)]
-    pub reason: Option<String>,
-}
-
 /// `capture`: one session, the size to make it, and where its clips go.
+/// Progress events are [`crate::capture::Progress`]es; the answer is [`Captured`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Capture {
-    pub session: WireSession,
-    pub frame: WireFrame,
+    pub session: Session,
+    pub frame: Frame,
     pub out_dir: PathBuf,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireSession {
-    pub scene: String,
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub settings: BTreeMap<String, String>,
-    /// What a relative path in `settings` is relative to: the project's
-    /// directory.
-    #[serde(default)]
-    pub root: PathBuf,
-    pub shots: Vec<WireSessionShot>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireSessionShot {
-    pub id: String,
-    /// What its clip is filed under: 64 hex characters.
-    pub key: String,
-    pub source: String,
-    pub duration_ms: u64,
-    /// Whether a clip is wanted; a shot whose clip is cached runs anyway.
-    pub wanted: bool,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct WireFrame {
-    pub width: u32,
-    pub height: u32,
-    pub fps: u32,
-}
-
-/// A `capture` progress event: a shot done.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireProgress {
-    pub shot: String,
-    pub done: usize,
-    pub of: usize,
 }
 
 /// `capture`'s answer: a clip for each wanted shot.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Captured {
-    pub clips: Vec<WireClip>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WireClip {
-    pub key: String,
-    pub path: PathBuf,
+    pub clips: Vec<Clip>,
 }

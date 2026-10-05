@@ -62,14 +62,57 @@ pub struct Shot {
     pub source: String,
     pub hash: Hash,
     pub index: usize,
+    /// How long it lasts: `Exact` when the source states its timing,
+    /// `Estimated` for a bound, `Unknown` to take its line's length.
+    pub length: Measured,
 }
 
 /// A shot's duration in milliseconds; see `docs/design.md#scene-contract`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Written `{"ms": …, "exact": …}`: `ms` with `exact` when the source
+/// states it, `ms` alone for an estimate, neither when it is unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(from = "Length", into = "Length")]
 pub enum Measured {
     Exact(u64),
     Estimated(u64),
     Unknown,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Length {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ms: Option<u64>,
+    #[serde(default)]
+    exact: bool,
+}
+
+impl From<Length> for Measured {
+    fn from(l: Length) -> Self {
+        match (l.ms, l.exact) {
+            (Some(ms), true) => Measured::Exact(ms),
+            (Some(ms), false) => Measured::Estimated(ms),
+            (None, _) => Measured::Unknown,
+        }
+    }
+}
+
+impl From<Measured> for Length {
+    fn from(m: Measured) -> Self {
+        match m {
+            Measured::Exact(ms) => Length {
+                ms: Some(ms),
+                exact: true,
+            },
+            Measured::Estimated(ms) => Length {
+                ms: Some(ms),
+                exact: false,
+            },
+            Measured::Unknown => Length {
+                ms: None,
+                exact: false,
+            },
+        }
+    }
 }
 
 impl Measured {
@@ -111,7 +154,8 @@ impl From<&BlockSource> for Validated {
 }
 
 impl Shot {
-    /// The `index`th shot of `block_id`, named `<block>#<index>`. `hash` is
+    /// The `index`th shot of `block_id`, named `<block>#<index>`, lasting
+    /// as long as its line until [`Self::lasting`] says otherwise. `hash` is
     /// the plugin's to choose: whatever identifies the shot's picture.
     pub fn numbered(block_id: &BlockId, index: usize, source: String, hash: Hash) -> Self {
         Shot {
@@ -119,7 +163,13 @@ impl Shot {
             source,
             hash,
             index,
+            length: Measured::Unknown,
         }
+    }
+
+    /// The same shot, lasting `length`.
+    pub fn lasting(self, length: Measured) -> Self {
+        Shot { length, ..self }
     }
 }
 
@@ -225,11 +275,9 @@ pub trait SceneCompiler: Send + Sync {
     fn kind(&self) -> &'static str;
     /// Report every bad line, positioned through [`BodyOrigin::locate`].
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>>;
-    /// Split at marks; a block without marks is one shot.
+    /// Split at marks, each shot with its [`Shot::length`]; a block
+    /// without marks is one shot.
     fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>>;
-    /// `Exact` when the source states its timing, `Estimated` for a bound,
-    /// `Unknown` otherwise (the shot then takes its line's length).
-    fn estimate(&self, shot: &Shot) -> Measured;
 
     /// The shot's source rewritten to last exactly `target_ms`, or `None`
     /// when the source does not state its own timing (a tape waiting on a

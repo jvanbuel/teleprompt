@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use teleprompt_core::config::SceneConfig;
 use teleprompt_core::{BlockId, Diagnostic, Hash};
 use teleprompt_plugin::scene::contract::{
-    split_at_mark, validate_parts, BlockSource, Measured, SceneCompiler, Shot, Validated,
+    split_at_mark, validate_parts, BlockSource, SceneCompiler, Shot, Validated,
 };
 
 /// The mark, and `#` comments generally. A shot after a mark has no
@@ -96,10 +96,6 @@ impl SceneCompiler for SlidevScene {
             ));
         }
         Ok(out)
-    }
-
-    fn estimate(&self, _shot: &Shot) -> Measured {
-        Measured::Unknown
     }
 
     /// The deck and what Slidev reads beside it, by Slidev's own layout.

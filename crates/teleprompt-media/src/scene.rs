@@ -163,6 +163,17 @@ fn chunks(body: &str) -> Vec<(usize, Vec<(usize, &str)>)> {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MediaScene;
 
+pub fn length(source: &str) -> Measured {
+    match directive(source) {
+        Some(Directive::Clip {
+            from_ms,
+            to_ms: Some(to),
+            ..
+        }) => Measured::Exact(to - from_ms),
+        _ => Measured::Unknown,
+    }
+}
+
 impl SceneCompiler for MediaScene {
     fn kind(&self) -> &'static str {
         "media"
@@ -200,21 +211,10 @@ impl SceneCompiler for MediaScene {
             };
             let source = line.trim().to_string();
             let index = out.len();
-            let hash = Hash::of(source.as_bytes());
-            out.push(Shot::numbered(block_id, index, source, hash));
+            let (hash, length) = (Hash::of(source.as_bytes()), length(&source));
+            out.push(Shot::numbered(block_id, index, source, hash).lasting(length));
         }
         Ok(out)
-    }
-
-    fn estimate(&self, shot: &Shot) -> Measured {
-        match directive(&shot.source) {
-            Some(Directive::Clip {
-                from_ms,
-                to_ms: Some(to),
-                ..
-            }) => Measured::Exact(to - from_ms),
-            _ => Measured::Unknown,
-        }
     }
 
     /// The one file a shot shows, by content: replacing it re-renders

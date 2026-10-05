@@ -17,7 +17,6 @@ docs/guide/scene-plugins.md#the-protocol. Python's standard library alone.
 
 import json
 import re
-import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
@@ -86,14 +85,9 @@ class Card:
     """The scene plugin, a method for each of teleprompt's requests."""
 
     def describe(self, params: Json, progress: Progress) -> Json:
-        # A card's picture is its source alone, and a hold can be rewritten.
-        return {
-            "protocol": 1,
-            "name": "card",
-            "needs": [FFMPEG],
-            "continues": False,
-            "retimes": True,
-        }
+        # A card's picture is its source alone. Without ffmpeg on PATH,
+        # teleprompt knows from `needs` that it cannot capture.
+        return {"protocol": 1, "name": "card", "needs": [FFMPEG], "continues": False}
 
     def validate(self, params: Json, progress: Progress) -> Json:
         errors = []
@@ -109,15 +103,9 @@ class Card:
         sources = re.split(r"^\s*mark\s*$", params["body"], flags=re.MULTILINE)
         return {"shots": [timing(s.strip()) for s in sources if any(directives(s))]}
 
-    def estimate(self, params: Json, progress: Progress) -> Json:
-        return timing(params["source"])
-
     def retime(self, params: Json, progress: Progress) -> Json:
         kept = [line for line in params["source"].splitlines() if not line.strip().startswith("hold")]
         return {"source": "\n".join([*kept, f"hold {params['target_ms']}ms"])}
-
-    def unavailable(self, params: Json, progress: Progress) -> Json:
-        return {"reason": None if shutil.which("ffmpeg") else "ffmpeg is not on PATH"}
 
     def capture(self, params: Json, progress: Progress) -> Json:
         frame, out = params["frame"], params["out_dir"]

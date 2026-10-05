@@ -37,7 +37,6 @@ fn a_plugin_describes_itself_and_what_it_needs() {
     );
     let d = &answers[0]["result"];
     assert_eq!(d["protocol"], 1);
-    assert_eq!(d["retimes"], true);
     assert_eq!(d["name"], "mock");
     assert_eq!(d["needs"][0]["name"], "ffmpeg");
     assert_eq!(d["needs"][0]["program"], "ffmpeg");
@@ -75,10 +74,20 @@ fn an_unknown_method_is_an_error_not_a_hang() {
     let answers = exchange(
         &[
             request(1, "dance", json!({})),
-            request(2, "unavailable", json!(null)),
+            request(
+                2,
+                "retime",
+                json!({ "source": "wait 1s", "target_ms": 2000 }),
+            ),
         ],
         |i, o| serve::scene_on(&mock(), i, o).unwrap(),
     );
     assert!(answers[0]["error"].as_str().unwrap().contains("dance"));
-    assert!(answers[1].get("result").is_some(), "{:?}", answers[1]);
+    // Mock shots cannot be re-timed: an answer, with no source.
+    assert_eq!(
+        answers[1]["result"]["source"],
+        Value::Null,
+        "{:?}",
+        answers[1]
+    );
 }

@@ -30,16 +30,17 @@ pub fn plugin() -> teleprompt_plugin::ScenePlugin {
 
 **The scene compiler runs offline.** `check`, `plan` and the prompter call
 it, and none of them may start your tool. It validates a block's body,
-reporting every bad line where it is (`validate`), splits it into shots at
-`mark` lines (`shots`), and says how long each takes: `Exact` when the
+reporting every bad line where it is (`validate`), and splits it into shots
+at `mark` lines (`shots`), each with how long it takes: `Exact` when the
 source states it, `Estimated` for a bound, `Unknown` when the shot should
-last as long as its line (`estimate`). The defaults cover the rest:
+last as long as its line (`Shot::lasting`). The defaults cover the rest:
 `retime`, `continues`, `inputs`, `select`.
 
 **The capture backend runs your tool.** It is given a whole session, the
 shots that share a screen, because a walkthrough's shots continue one
-another. It writes a clip for each wanted shot and returns them. It says
-why it cannot run here (`unavailable`), usually with `tool::missing`.
+another. It writes a clip for each wanted shot and returns them. What it
+runs is its `needs`; by default it cannot run here when a program among
+them is not on PATH, and `unavailable` can say more.
 
 **`crates/teleprompt-media` is the smallest example**: images and videos,
 captured with ffmpeg. `teleprompt-vhs` and `teleprompt-asciinema` record
@@ -130,25 +131,24 @@ stops it at the end.
 A plugin answers **`describe`** first:
 
 ```json
-{"protocol": 1, "name": "card", "needs": [], "continues": false, "retimes": true}
+{"protocol": 1, "name": "card", "needs": [], "continues": false}
 ```
 
 Its `name` matches its program's. A tool in `needs` is `{"name", "what",
 "license", "home", "program" or "package", "install":{"brew": "...", "apt":
-"...", ...}}`, which `teleprompt setup` lists and installs. `continues`
-says whether a shot opens on the screen the previous one left (true unless
-said), and `retimes` whether it answers `retime`. Then it answers:
+"...", ...}}`, which `teleprompt setup` lists and installs; a `program`
+not on PATH is why the plugin cannot capture here. `continues` says
+whether a shot opens on the screen the previous one left (true unless
+said). Then it answers:
 
 | method | params | result |
 |---|---|---|
 | `validate` | `scene`, `body` | `errors`: `[{line (from 0), message, help}]`, none for a good block |
 | `shots` | `scene`, `body` | `shots`: `[{source, ms, exact}]`, split at `mark`; `ms` with `exact` when the source states its length, `ms` alone for an estimate, neither to last as long as its line |
-| `estimate` | `source` | `{ms, exact}`, as for a shot |
-| `retime` | `source`, `target_ms` | `source` rewritten to last exactly that long, or null |
-| `unavailable` | | `reason` it cannot capture here, or null |
+| `retime` | `source`, `target_ms` | `source` rewritten to last exactly that long, or null; optional, and a plugin without it answers an error |
 | `capture` | `session` (`scene`, `name`, `settings`, `shots`: `[{id, key, source, duration_ms, wanted}]`), `frame` (`width`, `height`, `fps`), `out_dir` | `clips`: `[{key, path}]`, one per wanted shot, with a progress event after each |
 
-`validate`, `shots` and `estimate` must not start your tool: `check` and
+`validate` and `shots` must not start your tool: `check` and
 `plan` ask them, offline. Teleprompt numbers the shots, hashes their
 sources and places the errors in the script.
 

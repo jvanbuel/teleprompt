@@ -70,8 +70,8 @@ fn the_idle_time_limit_is_applied() {
 fn markers_split_a_cast_into_exact_shots() {
     let s = shots(V2);
     assert_eq!(s.len(), 2);
-    assert_eq!(AsciinemaScene.estimate(&s[0]), Measured::Exact(2000));
-    assert_eq!(AsciinemaScene.estimate(&s[1]), Measured::Exact(2000));
+    assert_eq!(s[0].length, Measured::Exact(2000));
+    assert_eq!(s[1].length, Measured::Exact(2000));
     let second = parse(&s[1].source).unwrap();
     assert_eq!(second.events[0].time, 0.5, "rebased: {}", s[1].source);
     assert!(

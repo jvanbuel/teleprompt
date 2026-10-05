@@ -16,6 +16,15 @@ pub struct DesktopScene {
     pub kind: &'static str,
 }
 
+/// Exact where every line states its time; `Estimated` at the timeout
+/// where a `Wait` depends on the app.
+pub fn length(source: &str) -> Measured {
+    match timing(source.lines()) {
+        (ms, false) => Measured::Exact(ms),
+        (ms, true) => Measured::Estimated(ms),
+    }
+}
+
 impl SceneCompiler for DesktopScene {
     fn kind(&self) -> &'static str {
         self.kind
@@ -42,25 +51,16 @@ impl SceneCompiler for DesktopScene {
             if !chunk.iter().any(|l| does_something(l)) {
                 continue;
             }
-            let hash = Hash::of(source.trim().as_bytes());
-            shots.push(Shot::numbered(block_id, shots.len(), source, hash));
+            let (hash, length) = (Hash::of(source.trim().as_bytes()), length(&source));
+            shots.push(Shot::numbered(block_id, shots.len(), source, hash).lasting(length));
         }
         Ok(shots)
-    }
-
-    /// Exact where every line states its time; `Estimated` at the timeout
-    /// where a `Wait` depends on the app.
-    fn estimate(&self, shot: &Shot) -> Measured {
-        match timing(shot.source.lines()) {
-            (ms, false) => Measured::Exact(ms),
-            (ms, true) => Measured::Estimated(ms),
-        }
     }
 
     /// Plays the same actions slower or faster: every pause, key and glide
     /// scaled by one factor, the rounding settled in a last `Sleep`.
     fn retime(&self, shot: &Shot, target_ms: u64) -> Option<String> {
-        let Measured::Exact(current) = self.estimate(shot) else {
+        let Measured::Exact(current) = length(&shot.source) else {
             return None;
         };
         if current == 0 || target_ms == 0 {
@@ -164,13 +164,13 @@ mod tests {
             "{}",
             s[1].source
         );
-        assert_eq!(SCENE.estimate(&s[1]), Measured::Exact(80));
+        assert_eq!(s[1].length, Measured::Exact(80));
     }
 
     #[test]
     fn a_wait_makes_a_shot_a_bound() {
         let s = shots("Wait@3s \"Teleprompt\"\nSleep 1s\n");
-        assert_eq!(SCENE.estimate(&s[0]), Measured::Estimated(4000));
+        assert_eq!(s[0].length, Measured::Estimated(4000));
         assert_eq!(
             SCENE.retime(&s[0], 8000),
             None,
@@ -181,17 +181,9 @@ mod tests {
     #[test]
     fn retiming_plays_the_same_actions_at_another_pace() {
         let s = shots("Type \"abcd\"\nClick@300ms 10 20\nSleep 1s\n");
-        let before = SCENE.estimate(&s[0]).duration_ms().unwrap();
+        let before = s[0].length.duration_ms().unwrap();
         let source = SCENE.retime(&s[0], before * 2).unwrap();
-        let again = Shot {
-            source: source.clone(),
-            ..s[0].clone()
-        };
-        assert_eq!(
-            SCENE.estimate(&again),
-            Measured::Exact(before * 2),
-            "{source}"
-        );
+        assert_eq!(length(&source), Measured::Exact(before * 2), "{source}");
         assert!(source.contains("Click@600ms 10 20"), "{source}");
         assert!(source.contains("Sleep 2000ms"), "{source}");
     }

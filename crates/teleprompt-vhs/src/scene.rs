@@ -453,6 +453,65 @@ fn has_content(chunk: &[&str]) -> bool {
         .any(|l| !matches!(classify(l), Ok(Command::Nothing | Command::Setting(_))))
 }
 
+/// Exact for a shot whose timing the tape states in full; `Estimated`,
+/// at the timeout, for one containing a `Wait`, whose real length is
+/// however long the command underneath takes.
+pub fn length(source: &str) -> Measured {
+    let mut speed = DEFAULT_TYPING_SPEED_MS;
+    let mut timeout = DEFAULT_WAIT_TIMEOUT_MS;
+    let mut total: u64 = 0;
+    let mut waited = false;
+    // A shot's duration is how long something is on screen, so hidden
+    // commands cost nothing; every duration goes through `visible`.
+    let mut hidden = false;
+
+    for line in source.lines() {
+        let mut visible = |ms: u64| {
+            if !hidden {
+                total = total.saturating_add(ms);
+            }
+        };
+        match classify(line) {
+            Ok(Command::Hide) => hidden = true,
+            Ok(Command::Show) => hidden = false,
+            Ok(Command::Sleep(ms)) => visible(ms),
+            Ok(Command::Setting(Setting::TypingSpeed(ms))) => speed = ms,
+            Ok(Command::Setting(Setting::WaitTimeout(ms))) => timeout = ms,
+            Ok(Command::Type { text, speed: at }) => {
+                // A tape long enough to overflow this could not fit in
+                // memory, but `as` would wrap silently if one ever did.
+                let chars = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
+                visible(chars.saturating_mul(at.unwrap_or(speed)));
+            }
+            Ok(Command::Keys {
+                count, speed: at, ..
+            }) => visible(count.saturating_mul(at.unwrap_or(speed))),
+            // A paste arrives at once: one keystroke.
+            Ok(Command::Paste) => visible(speed),
+            Ok(Command::Wait { timeout: at }) => {
+                waited = true;
+                visible(at.unwrap_or(timeout));
+            }
+            // Not a catch-all: a tape command added later must fail to
+            // compile here rather than silently estimate as zero.
+            Ok(
+                Command::Nothing
+                | Command::Mark
+                | Command::Require(_)
+                | Command::Copy(_)
+                | Command::Setting(Setting::Cosmetic),
+            )
+            | Err(_) => {}
+        }
+    }
+
+    if waited {
+        Measured::Estimated(total)
+    } else {
+        Measured::Exact(total)
+    }
+}
+
 impl SceneCompiler for VhsScene {
     fn kind(&self) -> &'static str {
         "vhs"
@@ -495,70 +554,11 @@ impl SceneCompiler for VhsScene {
             }
 
             let index = shots.len();
-            let hash = Hash::of(source.trim().as_bytes());
-            shots.push(Shot::numbered(block_id, index, source, hash));
+            let (hash, length) = (Hash::of(source.trim().as_bytes()), length(&source));
+            shots.push(Shot::numbered(block_id, index, source, hash).lasting(length));
         }
 
         Ok(shots)
-    }
-
-    /// Exact for a shot whose timing the tape states in full; `Estimated`,
-    /// at the timeout, for one containing a `Wait`, whose real length is
-    /// however long the command underneath takes.
-    fn estimate(&self, shot: &Shot) -> Measured {
-        let mut speed = DEFAULT_TYPING_SPEED_MS;
-        let mut timeout = DEFAULT_WAIT_TIMEOUT_MS;
-        let mut total: u64 = 0;
-        let mut waited = false;
-        // A shot's duration is how long something is on screen, so hidden
-        // commands cost nothing; every duration goes through `visible`.
-        let mut hidden = false;
-
-        for line in shot.source.lines() {
-            let mut visible = |ms: u64| {
-                if !hidden {
-                    total = total.saturating_add(ms);
-                }
-            };
-            match classify(line) {
-                Ok(Command::Hide) => hidden = true,
-                Ok(Command::Show) => hidden = false,
-                Ok(Command::Sleep(ms)) => visible(ms),
-                Ok(Command::Setting(Setting::TypingSpeed(ms))) => speed = ms,
-                Ok(Command::Setting(Setting::WaitTimeout(ms))) => timeout = ms,
-                Ok(Command::Type { text, speed: at }) => {
-                    // A tape long enough to overflow this could not fit in
-                    // memory, but `as` would wrap silently if one ever did.
-                    let chars = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
-                    visible(chars.saturating_mul(at.unwrap_or(speed)));
-                }
-                Ok(Command::Keys {
-                    count, speed: at, ..
-                }) => visible(count.saturating_mul(at.unwrap_or(speed))),
-                // A paste arrives at once: one keystroke.
-                Ok(Command::Paste) => visible(speed),
-                Ok(Command::Wait { timeout: at }) => {
-                    waited = true;
-                    visible(at.unwrap_or(timeout));
-                }
-                // Not a catch-all: a tape command added later must fail to
-                // compile here rather than silently estimate as zero.
-                Ok(
-                    Command::Nothing
-                    | Command::Mark
-                    | Command::Require(_)
-                    | Command::Copy(_)
-                    | Command::Setting(Setting::Cosmetic),
-                )
-                | Err(_) => {}
-            }
-        }
-
-        if waited {
-            Measured::Estimated(total)
-        } else {
-            Measured::Exact(total)
-        }
     }
 
     /// Re-times a tape by scaling every `Sleep` and keystroke speed by one
@@ -568,7 +568,7 @@ impl SceneCompiler for VhsScene {
     /// Rounding is settled once at the end: the few milliseconds the scaled
     /// lines miss by become one trailing `Sleep`, or come off the last one.
     fn retime(&self, shot: &Shot, target_ms: u64) -> Option<String> {
-        let current = match self.estimate(shot) {
+        let current = match length(&shot.source) {
             Measured::Exact(ms) => ms,
             _ => return None,
         };
@@ -616,13 +616,7 @@ impl SceneCompiler for VhsScene {
         let mut source = out.join("\n");
         source.push('\n');
 
-        let scaled = Shot {
-            id: shot.id.clone(),
-            source: source.clone(),
-            hash: shot.hash,
-            index: shot.index,
-        };
-        if let Measured::Exact(reached) = self.estimate(&scaled) {
+        if let Measured::Exact(reached) = length(&source) {
             if let Some(remainder) = target_ms.checked_sub(reached) {
                 if remainder > 0 {
                     source.push_str(&format!("Sleep {remainder}ms\n"));

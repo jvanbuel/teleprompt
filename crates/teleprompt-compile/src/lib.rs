@@ -99,6 +99,8 @@ pub struct ShotSource {
     pub scene: String,
     pub plugin: String,
     pub source: String,
+    /// How long its plugin says it lasts.
+    pub length: Measured,
 }
 
 #[derive(Debug)]
@@ -211,7 +213,7 @@ pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<
 }
 
 /// Has each scene plugin rewrite a shot whose scheduled length differs from its
-/// own estimate, so the source captured is the one that fits its slot.
+/// own length, so the source captured is the one that fits its slot.
 ///
 /// The shot's hash moves with the source, which is how slot length reaches
 /// the capture key (docs/design.md#capture-key). Where a scene plugin cannot
@@ -243,8 +245,9 @@ fn retime_stretched_shots(
             source: published.source.clone(),
             hash: action.shot_hash,
             index: 0,
+            length: published.length,
         };
-        let natural = plugin.estimate(&shot).duration_ms();
+        let natural = published.length.duration_ms();
         let slot = action.duration_ms.ms();
         if natural == Some(slot) {
             continue;
@@ -254,6 +257,7 @@ fn retime_stretched_shots(
             action.shot_hash = Hash::of(source.as_bytes());
             action.duration_source = DurationSource::Exact;
             published.source = source;
+            published.length = Measured::Exact(slot);
         } else if let Some(natural) = natural.filter(|n| *n > slot) {
             if entry.policy == PolicyKind::FitAction {
                 warnings.push(format!(
@@ -555,9 +559,8 @@ struct Block<'e> {
 }
 
 /// How a block's shots become items, once the block has checked out.
-struct Placing<'a> {
+struct Placing {
     plugin_name: String,
-    plugin: &'a dyn SceneCompiler,
     policy: Policy,
     cue_ms: Option<u64>,
     origin: BodyOrigin,
@@ -759,7 +762,6 @@ Read it, then remove the attribute.",
         }
         let placing = Placing {
             plugin_name,
-            plugin,
             policy,
             cue_ms,
             origin,
@@ -917,9 +919,10 @@ Read it, then remove the attribute.",
                 scene: b.scene.clone(),
                 plugin: how.plugin_name.clone(),
                 source: shot.source.clone(),
+                length: shot.length,
             });
             let Some(measured) = self
-                .stretched(b, how, how.plugin.estimate(shot))
+                .stretched(b, how, shot.length)
                 .and_then(|m| self.budgeted(b, how, m))
             else {
                 continue;

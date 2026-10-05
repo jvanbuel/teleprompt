@@ -54,7 +54,7 @@ fn an_outside_plugin_is_described_and_says_what_it_needs() {
     let plugin = Plugin::new(found);
     let d = plugin.describe().unwrap();
     assert_eq!(d.name, "card");
-    assert!(!d.traits.continues && d.traits.retimes);
+    assert!(!d.continues);
     let needs = plugin.needs();
     assert_eq!(needs[0].name, "ffmpeg");
     // Asked once: the same tools again, not new ones.
@@ -87,8 +87,8 @@ fn its_shots_are_numbered_and_timed_as_a_built_in_plugins_are() {
     let shots = scene.shots(&v, &BlockId::new("intro-a")).unwrap();
     assert_eq!(shots.len(), 2);
     assert_eq!(shots[1].id, ShotId::new("intro-a#1"));
-    assert_eq!(scene.estimate(&shots[0]), Measured::Exact(2000));
-    assert_eq!(scene.estimate(&shots[1]), Measured::Unknown);
+    assert_eq!(shots[0].length, Measured::Exact(2000));
+    assert_eq!(shots[1].length, Measured::Unknown);
     assert!(!scene.continues());
     let retimed = scene.retime(&shots[1], 1500).unwrap();
     assert!(retimed.ends_with("hold 1500ms"), "{retimed}");
@@ -102,6 +102,8 @@ fn it_captures_a_clip_for_each_wanted_shot() {
         return;
     }
     let plugin = host::scene(found);
+    // Worked out from what it needs, which is here: it was not asked.
+    assert_eq!(plugin.capture().unavailable(), None);
     let out = teleprompt_testkit::test_dir("protocol-capture");
     let key = Hash::of(b"blue");
     let session = Session {

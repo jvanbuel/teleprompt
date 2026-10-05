@@ -39,7 +39,7 @@ fn shots(body: &str) -> Vec<teleprompt_plugin::scene::contract::Shot> {
 fn a_script_does_not_claim_to_know_its_own_duration() {
     let s = shots("await page.goto('http://localhost:8080');\n");
     assert_eq!(s.len(), 1);
-    assert_eq!(PlaywrightScene.estimate(&s[0]), Measured::Unknown);
+    assert_eq!(s[0].length, Measured::Unknown);
 }
 
 /// The other half of the same fact: a scene plugin that cannot say how long a

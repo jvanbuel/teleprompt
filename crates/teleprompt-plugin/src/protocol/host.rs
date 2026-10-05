@@ -2,7 +2,6 @@
 //! the contract it implements, so the rest of teleprompt cannot tell an
 //! outside plugin from a built-in one.
 
-use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -13,11 +12,10 @@ use serde::Serialize;
 use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
 use super::{
-    Body, Capture, Captured, Description, Retime, Retimed, SceneTraits, Shots, Unavailable,
-    Validation, WireFrame, WireProgress, WireSession, WireSessionShot, WireShot, PREFIX, VERSION,
+    Body, Capture, Captured, Description, Retime, Retimed, Shots, Validation, PREFIX, VERSION,
 };
 use crate::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
-use crate::scene::{BlockSource, Measured, SceneCompiler, Shot, Validated};
+use crate::scene::{BlockSource, SceneCompiler, Shot, Validated};
 use crate::tool::Tool;
 use crate::ScenePlugin;
 
@@ -290,7 +288,6 @@ pub fn scene(found: Found) -> ScenePlugin {
         ExternalScene {
             plugin: plugin.clone(),
             kind: name,
-            timings: Mutex::new(HashMap::new()),
         },
         ExternalCapture { plugin },
     )
@@ -300,25 +297,6 @@ pub fn scene(found: Found) -> ScenePlugin {
 struct ExternalScene {
     plugin: Arc<Plugin>,
     kind: &'static str,
-    /// What `shots` said each source takes, so `estimate` need not ask.
-    timings: Mutex<HashMap<String, Measured>>,
-}
-
-impl ExternalScene {
-    fn traits(&self) -> SceneTraits {
-        self.plugin
-            .describe()
-            .map(|d| d.traits.clone())
-            .unwrap_or_default()
-    }
-}
-
-fn measured(shot: &WireShot) -> Measured {
-    match (shot.ms, shot.exact) {
-        (Some(ms), true) => Measured::Exact(ms),
-        (Some(ms), false) => Measured::Estimated(ms),
-        (None, _) => Measured::Unknown,
-    }
 }
 
 impl SceneCompiler for ExternalScene {
@@ -366,36 +344,20 @@ impl SceneCompiler for ExternalScene {
             .plugin
             .call("shots", body, &mut |_| {})
             .map_err(|e| vec![Diagnostic::error(e)])?;
-        let mut timings = self.timings.lock().expect("not poisoned");
         Ok(split
             .shots
             .into_iter()
             .enumerate()
-            .map(|(i, w)| {
-                timings.insert(w.source.clone(), measured(&w));
-                let hash = Hash::of_fields(&[self.kind, &w.source]);
-                Shot::numbered(block_id, i, w.source, hash)
+            .map(|(i, part)| {
+                let hash = Hash::of_fields(&[self.kind, &part.source]);
+                Shot::numbered(block_id, i, part.source, hash).lasting(part.length)
             })
             .collect())
     }
 
-    fn estimate(&self, shot: &Shot) -> Measured {
-        if let Some(m) = self.timings.lock().expect("not poisoned").get(&shot.source) {
-            return *m;
-        }
-        let asked = WireShot {
-            source: shot.source.clone(),
-            ..WireShot::default()
-        };
-        self.plugin
-            .call::<WireShot>("estimate", asked, &mut |_| {})
-            .map_or(Measured::Unknown, |w| measured(&w))
-    }
-
+    /// What the plugin answers; a plugin without `retime` answers an
+    /// error, which is a shot that cannot be re-timed.
     fn retime(&self, shot: &Shot, target_ms: u64) -> Option<String> {
-        if !self.traits().retimes {
-            return None;
-        }
         let asked = Retime {
             source: shot.source.clone(),
             target_ms,
@@ -407,7 +369,7 @@ impl SceneCompiler for ExternalScene {
     }
 
     fn continues(&self) -> bool {
-        self.traits().continues
+        self.plugin.describe().map_or(true, |d| d.continues)
     }
 }
 
@@ -418,15 +380,9 @@ struct ExternalCapture {
 
 impl CaptureBackend for ExternalCapture {
     fn unavailable(&self) -> Option<String> {
-        if let Err(e) = self.plugin.describe() {
-            return Some(e);
-        }
-        match self
-            .plugin
-            .call::<Unavailable>("unavailable", (), &mut |_| {})
-        {
-            Ok(u) => u.reason,
+        match self.plugin.describe() {
             Err(e) => Some(e),
+            Ok(_) => crate::tool::missing_of(self.needs()),
         }
     }
 
@@ -452,37 +408,15 @@ impl CaptureBackend for ExternalCapture {
             reason,
         };
         let asked = Capture {
-            session: WireSession {
-                scene: session.scene.clone(),
-                name: session.name.clone(),
-                settings: session.settings.clone(),
-                root: session.root.clone(),
-                shots: session
-                    .shots
-                    .iter()
-                    .map(|s| WireSessionShot {
-                        id: s.id.to_string(),
-                        key: s.key.to_string(),
-                        source: s.source.clone(),
-                        duration_ms: s.duration_ms,
-                        wanted: s.wanted,
-                    })
-                    .collect(),
-            },
-            frame: WireFrame {
-                width: frame.width,
-                height: frame.height,
-                fps: frame.fps,
-            },
+            session: session.clone(),
+            frame: *frame,
             out_dir: out_dir.to_path_buf(),
         };
         let mut progress = |event: serde_json::Value| {
-            if let Ok(p) = serde_json::from_value::<WireProgress>(event) {
+            if let Ok(p) = serde_json::from_value::<Progress>(event) {
                 on_progress(Progress {
                     scene: session.scene.clone(),
-                    shot: ShotId::new(p.shot),
-                    done: p.done,
-                    of: p.of,
+                    ..p
                 });
             }
         };
@@ -490,14 +424,6 @@ impl CaptureBackend for ExternalCapture {
             .plugin
             .call("capture", asked, &mut progress)
             .map_err(failed)?;
-        captured
-            .clips
-            .into_iter()
-            .map(|c| {
-                let key = serde_json::from_value(serde_json::Value::String(c.key.clone()))
-                    .map_err(|_| failed(format!("a clip's key is not a hash: {}", c.key)))?;
-                Ok(Clip { key, path: c.path })
-            })
-            .collect()
+        Ok(captured.clips)
     }
 }

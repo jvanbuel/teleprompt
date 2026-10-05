@@ -72,7 +72,7 @@ fn estimate_sums_the_waits_exactly() {
     let m = MockScene;
     let v = m.validate(&src("wait 500ms\nwait 1s\n")).unwrap();
     let shots = m.shots(&v, &BlockId::from("b")).unwrap();
-    assert_eq!(m.estimate(&shots[0]), Measured::Exact(1500));
+    assert_eq!(shots[0].length, Measured::Exact(1500));
 }
 
 #[test]
@@ -185,9 +185,8 @@ fn only_shot(body: &str) -> teleprompt_plugin::scene::Shot {
 /// `wait<TAB>5000ms` passed `check` and then contributed 0 ms.
 #[test]
 fn a_tab_between_wait_and_its_duration_is_counted() {
-    let m = MockScene;
     assert_eq!(
-        m.estimate(&only_shot("wait\t5000ms\n")),
+        only_shot("wait\t5000ms\n").length,
         Measured::Exact(5000),
         "check accepts a tab, so the estimate has to as well"
     );
@@ -237,8 +236,8 @@ fn a_comment_only_chunk_between_marks_produces_no_shot() {
     );
     assert_eq!(shots[0].index, 0);
     assert_eq!(shots[1].index, 1, "indices stay contiguous");
-    assert_eq!(m.estimate(&shots[0]), Measured::Exact(100));
-    assert_eq!(m.estimate(&shots[1]), Measured::Exact(200));
+    assert_eq!(shots[0].length, Measured::Exact(100));
+    assert_eq!(shots[1].length, Measured::Exact(200));
 }
 
 /// The property the three fixes above are really about: anything `validate`
@@ -253,7 +252,7 @@ fn everything_validate_accepts_as_a_wait_is_counted_by_estimate() {
         ("# comment\nwait 250ms\n\nwait 250ms\n", 500),
     ] {
         assert_eq!(
-            MockScene.estimate(&only_shot(body)),
+            only_shot(body).length,
             Measured::Exact(expected),
             "body {body:?}"
         );

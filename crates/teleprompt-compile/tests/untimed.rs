@@ -27,10 +27,11 @@ impl SceneCompiler for Untimed {
         MockScene.validate(src)
     }
     fn shots(&self, v: &Validated, block_id: &BlockId) -> Result<Vec<Shot>, Vec<Diagnostic>> {
-        MockScene.shots(v, block_id)
-    }
-    fn estimate(&self, _shot: &Shot) -> Measured {
-        Measured::Unknown
+        let shots = MockScene.shots(v, block_id)?;
+        Ok(shots
+            .into_iter()
+            .map(|s| s.lasting(Measured::Unknown))
+            .collect())
     }
 }
 

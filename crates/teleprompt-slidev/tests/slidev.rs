@@ -77,7 +77,7 @@ fn a_shot_is_keyed_on_the_slide_not_its_spelling() {
 #[test]
 fn a_still_states_no_length_and_is_not_re_timed() {
     let s = &shots("2\n")[0];
-    assert_eq!(SlidevScene.estimate(s), Measured::Unknown);
+    assert_eq!(s.length, Measured::Unknown);
     assert_eq!(SlidevScene.retime(s, 5_000), None);
     assert!(!SlidevScene.continues());
 }

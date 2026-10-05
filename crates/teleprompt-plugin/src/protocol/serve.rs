@@ -19,10 +19,10 @@ use serde::Serialize;
 use teleprompt_core::{BlockId, Hash, ShotId};
 
 use super::{
-    Body, Capture, Captured, Description, LineError, Retime, Retimed, SceneTraits, Shots,
-    Unavailable, Validation, WireClip, WireProgress, WireShot, VERSION,
+    Body, Capture, Captured, Description, LineError, Part, Retime, Retimed, Shots, Validation,
+    VERSION,
 };
-use crate::capture::{Frame, Session, SessionShot};
+use crate::capture::Session;
 use crate::scene::{BlockSource, BodyOrigin, Measured, Shot, Validated};
 use crate::ScenePlugin;
 
@@ -103,10 +103,7 @@ pub fn scene_on(plugin: &ScenePlugin, input: impl BufRead, out: impl Write) -> s
                 protocol: VERSION,
                 name: plugin.name().to_string(),
                 needs: plugin.needs().iter().map(|t| t.to_wire()).collect(),
-                traits: SceneTraits {
-                    continues: scene.continues(),
-                    retimes: true,
-                },
+                continues: scene.continues(),
             };
             r.answer(Ok(d))
         }
@@ -147,17 +144,14 @@ pub fn scene_on(plugin: &ScenePlugin, input: impl BufRead, out: impl Write) -> s
                         .join("; ")
                 })?;
                 let shots = shots
-                    .iter()
-                    .map(|s| timed(s.source.clone(), scene.estimate(s)))
+                    .into_iter()
+                    .map(|s| Part {
+                        source: s.source,
+                        length: s.length,
+                    })
                     .collect();
                 Ok(Shots { shots })
             });
-            r.answer(answer)
-        }
-        "estimate" => {
-            let answer = r
-                .params::<WireShot>()
-                .map(|w| timed(String::new(), scene.estimate(&shot(w.source))));
             r.answer(answer)
         }
         "retime" => {
@@ -166,15 +160,12 @@ pub fn scene_on(plugin: &ScenePlugin, input: impl BufRead, out: impl Write) -> s
             });
             r.answer(answer)
         }
-        "unavailable" => r.answer(Ok(Unavailable {
-            reason: plugin.capture().unavailable(),
-        })),
         "capture" => capture(plugin, r),
         other => r.answer(unknown(other)),
     })
 }
 
-/// A shot of `source` alone, for the methods that are given a source.
+/// A shot of `source` alone, for `retime`, which is given a source.
 fn shot(source: String) -> Shot {
     let hash = Hash::of(source.as_bytes());
     Shot {
@@ -182,16 +173,8 @@ fn shot(source: String) -> Shot {
         source,
         hash,
         index: 0,
+        length: Measured::Unknown,
     }
-}
-
-fn timed(source: String, m: Measured) -> WireShot {
-    let (ms, exact) = match m {
-        Measured::Exact(ms) => (Some(ms), true),
-        Measured::Estimated(ms) => (Some(ms), false),
-        Measured::Unknown => (None, false),
-    };
-    WireShot { source, ms, exact }
 }
 
 fn capture<W: Write>(plugin: &ScenePlugin, r: &mut Request<'_, W>) -> std::io::Result<()> {
@@ -199,67 +182,25 @@ fn capture<W: Write>(plugin: &ScenePlugin, r: &mut Request<'_, W>) -> std::io::R
         Ok(c) => c,
         Err(e) => return r.answer(Err::<(), _>(e)),
     };
-    let shots: Result<Vec<SessionShot>, String> = asked
-        .session
-        .shots
-        .into_iter()
-        .map(|s| {
-            let key: Hash = serde_json::from_value(serde_json::Value::String(s.key))
-                .map_err(|e| format!("shot `{}`: {e}", s.id))?;
-            Ok(SessionShot {
-                id: ShotId::new(s.id),
-                key,
-                source: s.source,
-                duration_ms: s.duration_ms,
-                wanted: s.wanted,
-            })
-        })
-        .collect();
-    let shots = match shots {
-        Ok(s) => s,
-        Err(e) => return r.answer(Err::<(), _>(e)),
-    };
     let session = Session {
-        scene: asked.session.scene,
         plugin: plugin.name().to_string(),
-        name: asked.session.name,
-        settings: asked.session.settings,
-        root: asked.session.root,
-        shots,
-    };
-    let frame = Frame {
-        width: asked.frame.width,
-        height: asked.frame.height,
-        fps: asked.frame.fps,
+        ..asked.session
     };
     let id = r.id.clone();
     let mut sent: std::io::Result<()> = Ok(());
     let clips = {
         let mut progress = |p: crate::capture::Progress| {
-            let event = WireProgress {
-                shot: p.shot.to_string(),
-                done: p.done,
-                of: p.of,
-            };
             if sent.is_ok() {
-                sent = r.send(serde_json::json!({ "id": id, "progress": event }));
+                sent = r.send(serde_json::json!({ "id": id, "progress": p }));
             }
         };
         plugin
             .capture()
-            .capture(&session, &frame, &asked.out_dir, &mut progress)
+            .capture(&session, &asked.frame, &asked.out_dir, &mut progress)
     };
     sent?;
     let clips = clips
-        .map(|clips| Captured {
-            clips: clips
-                .into_iter()
-                .map(|c| WireClip {
-                    key: c.key.to_string(),
-                    path: c.path,
-                })
-                .collect(),
-        })
+        .map(|clips| Captured { clips })
         .map_err(|e| e.to_string());
     r.answer(clips)
 }
