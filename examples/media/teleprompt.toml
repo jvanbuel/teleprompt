@@ -4,7 +4,6 @@
 #   cargo run -- build examples/media/scripts/tour.md
 [locales]
 source = "en"
-targets = []
 
 [voice]
 backend = "kokoro"

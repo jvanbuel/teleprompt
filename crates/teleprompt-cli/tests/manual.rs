@@ -249,10 +249,10 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
     let dir = teleprompt_testkit::test_dir("manual-tapes");
 
     let mut bad = Vec::new();
-    for shot in &out.shots {
+    for (id, shot) in &out.shots {
         // An `Output` line is the one thing a shot never carries and a
         // tape may not omit; everything after it is the manual's own.
-        let path = dir.join(format!("{}.tape", shot.id.replace(['/', '#'], "_")));
+        let path = dir.join(format!("{}.tape", id.replace(['/', '#'], "_")));
         let mut f = std::fs::File::create(&path).unwrap();
         writeln!(f, "Output \"{}.mp4\"", path.display()).unwrap();
         f.write_all(shot.source.as_bytes()).unwrap();
@@ -266,7 +266,7 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
         if !said.status.success() {
             bad.push(format!(
                 "  {}: {}",
-                shot.id,
+                id,
                 String::from_utf8_lossy(&said.stdout)
                     .lines()
                     .chain(String::from_utf8_lossy(&said.stderr).lines())

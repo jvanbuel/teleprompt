@@ -1,6 +1,6 @@
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Element, Program};
+use teleprompt_core::program::{resolve, ActionElement, Element, Program};
 use teleprompt_core::translation::{apply, source_of, Entry, Translation};
 use teleprompt_core::{Hash, Severity};
 
@@ -79,7 +79,7 @@ fn cues(p: &Program) -> Vec<Option<&str>> {
     p.elements
         .iter()
         .filter_map(|e| match e {
-            Element::Action { cue, .. } => Some(cue.as_deref()),
+            Element::Action(ActionElement { cue, .. }) => Some(cue.as_deref()),
             _ => None,
         })
         .collect()
@@ -190,7 +190,7 @@ fn cues_follow_the_translation() {
     let mut p = program("nl");
     let mut t = dutch();
     let block = match &p.elements[4] {
-        Element::Action { block_id, .. } => block_id.clone(),
+        Element::Action(ActionElement { block_id, .. }) => block_id.clone(),
         other => panic!("{other:?}"),
     };
     t.cues.push((block.to_string(), entry("streams", "toont")));

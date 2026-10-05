@@ -10,7 +10,6 @@ pub const SEGMENT_KEYS: &[&str] = &[
     "voice.instruct",
     "lead_in",
     "tail",
-    "lang",
 ];
 
 pub const BLOCK_KEYS: &[&str] = &[
@@ -65,7 +64,6 @@ pub struct LineAttrs {
     pub voice_instruct: Option<String>,
     pub lead_in: Option<DurationMs>,
     pub tail: Option<DurationMs>,
-    pub lang: Option<String>,
 }
 
 impl LineAttrs {
@@ -83,7 +81,6 @@ impl LineAttrs {
             voice_instruct: v.text("voice.instruct"),
             lead_in: v.parsed("lead_in", DurationMs::parse),
             tail: v.parsed("tail", DurationMs::parse),
-            lang: v.text("lang"),
         };
         (attrs, diags)
     }

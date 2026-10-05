@@ -8,7 +8,7 @@ mod placement;
 pub mod plan;
 
 use std::path::PathBuf;
-use teleprompt_core::config::TransitionKind;
+pub use teleprompt_core::config::Transition;
 use teleprompt_core::{LineId, ShotId, SpanMs, TimeMs};
 
 /// Every offset is already decided: a renderer does no scheduling, so a
@@ -45,23 +45,6 @@ pub struct Shot {
     /// is how far the next shot's `start_ms` overlaps this one, so the
     /// offsets stay the single source of truth.
     pub transition: Transition,
-}
-
-/// How one shot gives way to the next.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Transition {
-    pub kind: TransitionKind,
-    pub duration_ms: SpanMs,
-}
-
-impl Transition {
-    /// A hard cut, which is what a shot that nothing follows also gets.
-    pub fn cut() -> Self {
-        Self {
-            kind: TransitionKind::Cut,
-            duration_ms: SpanMs::ZERO,
-        }
-    }
 }
 
 /// What fills a shot's frame.

@@ -11,15 +11,14 @@ use std::path::{Component, Path};
 use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::{Config, OutputConfig, SceneConfig};
 use teleprompt_core::policy::Align;
-use teleprompt_core::program::{ChapterInfo, Element, Program};
+use teleprompt_core::program::{ActionElement, ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
 use teleprompt_core::{
-    BlockId, Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind,
-    ShotId, SourceSpan,
+    Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId,
 };
 use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_plugin::{ScenePlugin, ScenePlugins};
-use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy, Timeline};
+use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Timeline};
 use teleprompt_voice::takes::{TakeMeta, Takes};
 use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{SynthRequest, WordTiming};
@@ -95,7 +94,6 @@ impl VoiceContext<'_> {
 /// whatever draws the scene. Not in the manifest: it is scene plugin-native code.
 #[derive(Debug, Clone)]
 pub struct ShotSource {
-    pub id: ShotId,
     pub scene: String,
     pub plugin: String,
     pub source: String,
@@ -109,8 +107,8 @@ pub struct CompileOutput {
     pub warnings: Vec<String>,
     /// One entry per narration line, in document order.
     pub narration: Vec<NarrationDetail>,
-    /// Every action shot's source, in document order.
-    pub shots: Vec<ShotSource>,
+    /// Every action shot's source, by its id.
+    pub shots: BTreeMap<ShotId, ShotSource>,
     // `chapters`, `output` and `scenes` are carried because `compile` drops
     // the `Program` and callers have no other route to them. `output` and
     // `scenes` stay out of the manifest: they are not timing facts.
@@ -224,7 +222,7 @@ pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<
 /// that is too short only holds its last frame.
 fn retime_stretched_shots(
     timeline: &mut Timeline,
-    shots: &mut [ShotSource],
+    shots: &mut BTreeMap<ShotId, ShotSource>,
     registry: &ScenePlugins,
 ) -> Vec<String> {
     let mut warnings = Vec::new();
@@ -232,7 +230,7 @@ fn retime_stretched_shots(
         let Some(action) = entry.action.as_mut() else {
             continue;
         };
-        let Some(published) = shots.iter_mut().find(|s| s.id == action.shot) else {
+        let Some(published) = shots.get_mut(&action.shot) else {
             continue;
         };
         let Some(plugin) = registry.get(&action.plugin).map(ScenePlugin::scene) else {
@@ -241,7 +239,7 @@ fn retime_stretched_shots(
 
         // Only `fit-action` and `trim-action` change the number.
         let shot = Shot {
-            id: published.id.clone(),
+            id: action.shot.clone(),
             source: published.source.clone(),
             hash: action.shot_hash,
             index: 0,
@@ -298,7 +296,7 @@ fn chain_capture_keys(
     timeline: &mut Timeline,
     config: &Config,
     registry: &ScenePlugins,
-    shots: &[ShotSource],
+    shots: &BTreeMap<ShotId, ShotSource>,
 ) {
     let mut chains: BTreeMap<(String, String), Hash> = BTreeMap::new();
     let mut inputs: BTreeMap<String, String> = BTreeMap::new();
@@ -336,8 +334,7 @@ fn chain_capture_keys(
             .clone();
         let own = match (scene, registry.get(&action.plugin).map(ScenePlugin::scene)) {
             (Some(scene), Some(plugin)) => shots
-                .iter()
-                .find(|s| s.id == action.shot)
+                .get(&action.shot)
                 .map(|s| fingerprint(&plugin.shot_inputs(scene, &s.source), &scene.root))
                 .unwrap_or_default(),
             _ => String::new(),
@@ -435,42 +432,14 @@ pub fn compile(
         diags: Vec::new(),
         items: Vec::new(),
         narration: Vec::new(),
-        shots: Vec::new(),
+        shots: BTreeMap::new(),
         warnings: Vec::new(),
         pending: None,
     };
     for element in &program.elements {
         match element {
             Element::Narration { .. } => walker.narration(element),
-            Element::Action {
-                block_id,
-                scene,
-                body,
-                include,
-                config,
-                policy,
-                align,
-                cue,
-                session,
-                stretch,
-                budget,
-                review,
-                span,
-            } => walker.action(&Block {
-                block_id,
-                scene,
-                body,
-                include: include.as_deref(),
-                config,
-                policy: *policy,
-                align: *align,
-                cue: cue.as_deref(),
-                session,
-                stretch: *stretch,
-                budget: *budget,
-                review: review.as_deref(),
-                span,
-            }),
+            Element::Action(a) => walker.action(a),
             Element::Pause { ms } => walker.pause(*ms),
         }
     }
@@ -541,27 +510,11 @@ struct Pending {
     config: Config,
 }
 
-/// An action block's fields, borrowed from its [`Element::Action`].
-struct Block<'e> {
-    block_id: &'e BlockId,
-    scene: &'e String,
-    body: &'e str,
-    include: Option<&'e str>,
-    config: &'e Config,
-    policy: PolicyKind,
-    align: Align,
-    cue: Option<&'e str>,
-    session: &'e Option<String>,
-    stretch: Option<f64>,
-    budget: Option<DurationMs>,
-    review: Option<&'e str>,
-    span: &'e SourceSpan,
-}
-
 /// How a block's shots become items, once the block has checked out.
 struct Placing {
     plugin_name: String,
-    policy: Policy,
+    policy: PolicyKind,
+    align: Align,
     cue_ms: Option<u64>,
     origin: BodyOrigin,
 }
@@ -580,7 +533,7 @@ struct Walker<'a, 'v> {
     diags: Vec<Diagnostic>,
     items: Vec<Item>,
     narration: Vec<NarrationDetail>,
-    shots: Vec<ShotSource>,
+    shots: BTreeMap<ShotId, ShotSource>,
     warnings: Vec<String>,
     pending: Option<Pending>,
 }
@@ -593,7 +546,8 @@ impl<'a> Walker<'a, '_> {
                 id: p.id.into(),
                 narration: Some(p.input),
                 action: None,
-                policy: Policy::Hold,
+                policy: PolicyKind::Hold,
+                align: Align::Start,
                 pacing: Pacing::from(&p.config),
             });
         }
@@ -723,10 +677,10 @@ impl<'a> Walker<'a, '_> {
         })
     }
 
-    fn action(&mut self, b: &Block) {
+    fn action(&mut self, b: &ActionElement) {
         // A block `from` drafted runs commands lifted from another document;
         // warn until a human removes the attribute.
-        if b.review == Some("pending") {
+        if b.review.as_deref() == Some("pending") {
             self.warnings.push(format!(
                 "action block `{}` is marked `review=pending`: \
 it was drafted from another document and has not been reviewed. \
@@ -737,18 +691,17 @@ Read it, then remove the attribute.",
         let Some((body, origin, fragment)) = self.load_body(b) else {
             return;
         };
-        let cue_ms = match b.cue {
+        let cue_ms = match b.cue.as_deref() {
             None => None,
             Some(phrase) => match self.cue_offset(phrase, b.policy) {
                 Ok(ms) => ms,
                 Err(d) => {
-                    self.diags.push(d.at(*b.span));
+                    self.diags.push(d.at(b.span));
                     return;
                 }
             },
         };
-        let policy = Policy::new(b.policy, b.align);
-        let Some((plugin_name, plugin)) = self.plugin_for(b.scene, b.config) else {
+        let Some((plugin_name, plugin)) = self.plugin_for(&b.scene, &b.config) else {
             return;
         };
         let Some(shots) = self.split(plugin, b, body, &origin, fragment.as_deref()) else {
@@ -762,7 +715,8 @@ Read it, then remove the attribute.",
         }
         let placing = Placing {
             plugin_name,
-            policy,
+            policy: b.policy,
+            align: b.align,
             cue_ms,
             origin,
         };
@@ -771,16 +725,16 @@ Read it, then remove the attribute.",
 
     /// The block's body, where its lines are numbered from, and the fragment
     /// an `include=file#fragment` names. `None` once the reason is reported.
-    fn load_body(&mut self, b: &Block) -> Option<(String, BodyOrigin, Option<String>)> {
+    fn load_body(&mut self, b: &ActionElement) -> Option<(String, BodyOrigin, Option<String>)> {
         // The fragment is the plugin's to interpret (see `split`).
-        let (include, fragment) = match b.include.map(|i| i.split_once('#')) {
+        let (include, fragment) = match b.include.as_deref().map(|i| i.split_once('#')) {
             Some(Some((path, frag))) => (Some(path), Some(frag.to_string())),
-            _ => (b.include, None),
+            _ => (b.include.as_deref(), None),
         };
         let Some(rel) = include else {
             return Some((
                 b.body.to_string(),
-                BodyOrigin::Inline { fence: *b.span },
+                BodyOrigin::Inline { fence: b.span },
                 fragment,
             ));
         };
@@ -876,7 +830,7 @@ Read it, then remove the attribute.",
     fn split(
         &mut self,
         plugin: &dyn SceneCompiler,
-        b: &Block,
+        b: &ActionElement,
         body: String,
         origin: &BodyOrigin,
         fragment: Option<&str>,
@@ -897,12 +851,12 @@ Read it, then remove the attribute.",
             match plugin.select(&validated.body, fragment) {
                 Ok(part) => validated.body = part,
                 Err(why) => {
-                    self.diags.push(Diagnostic::error(why).at(*b.span));
+                    self.diags.push(Diagnostic::error(why).at(b.span));
                     return None;
                 }
             }
         }
-        match plugin.shots(&validated, b.block_id) {
+        match plugin.shots(&validated, &b.block_id) {
             Ok(s) => Some(s),
             Err(mut e) => {
                 self.diags.append(&mut e);
@@ -912,15 +866,17 @@ Read it, then remove the attribute.",
     }
 
     /// One item per shot; the first takes the pending line, if there is one.
-    fn push_shots(&mut self, b: &Block, shots: &[Shot], how: &Placing) {
+    fn push_shots(&mut self, b: &ActionElement, shots: &[Shot], how: &Placing) {
         for (i, shot) in shots.iter().enumerate() {
-            self.shots.push(ShotSource {
-                id: shot.id.clone(),
-                scene: b.scene.clone(),
-                plugin: how.plugin_name.clone(),
-                source: shot.source.clone(),
-                length: shot.length,
-            });
+            self.shots.insert(
+                shot.id.clone(),
+                ShotSource {
+                    scene: b.scene.clone(),
+                    plugin: how.plugin_name.clone(),
+                    source: shot.source.clone(),
+                    length: shot.length,
+                },
+            );
             let Some(measured) = self
                 .stretched(b, how, shot.length)
                 .and_then(|m| self.budgeted(b, how, m))
@@ -977,7 +933,8 @@ Read it, then remove the attribute.",
                 narration,
                 action: Some(action),
                 policy: how.policy,
-                pacing: Pacing::from(b.config),
+                align: how.align,
+                pacing: Pacing::from(&b.config),
             });
         }
     }
@@ -985,7 +942,12 @@ Read it, then remove the attribute.",
     /// A shot's length with the block's `stretch=` applied. Only a shot that
     /// states its own length can be stretched: the plugin re-times it to
     /// the new length ([`retime_stretched_shots`]). `None` once reported.
-    fn stretched(&mut self, b: &Block, how: &Placing, measured: Measured) -> Option<Measured> {
+    fn stretched(
+        &mut self,
+        b: &ActionElement,
+        how: &Placing,
+        measured: Measured,
+    ) -> Option<Measured> {
         let Some(factor) = b.stretch else {
             return Some(measured);
         };
@@ -996,7 +958,7 @@ Read it, then remove the attribute.",
                     "`stretch={factor}` is outside {} to {}",
                     timing.min_stretch, timing.max_stretch
                 ))
-                .at(*b.span)
+                .at(b.span)
                 .with_help("widen `min_stretch` or `max_stretch` to go further"),
             );
             return None;
@@ -1011,7 +973,7 @@ Read it, then remove the attribute.",
                         "a `{}` shot states no length of its own, so it cannot be stretched",
                         how.plugin_name
                     ))
-                    .at(*b.span)
+                    .at(b.span)
                     .with_help("it takes its line's length: lengthen the line instead"),
                 );
                 None
@@ -1022,7 +984,12 @@ Read it, then remove the attribute.",
     /// A `fit-line` shot's length: its own, or the block's `budget=` for
     /// one that states none. The picture leads, so it must have a length
     /// (docs/design.md#led-by-the-picture). `None` once reported.
-    fn budgeted(&mut self, b: &Block, how: &Placing, measured: Measured) -> Option<Measured> {
+    fn budgeted(
+        &mut self,
+        b: &ActionElement,
+        how: &Placing,
+        measured: Measured,
+    ) -> Option<Measured> {
         if b.policy != PolicyKind::FitLine {
             return Some(measured);
         }
@@ -1035,7 +1002,7 @@ Read it, then remove the attribute.",
                          states no length",
                         how.plugin_name
                     ))
-                    .at(*b.span)
+                    .at(b.span)
                     .with_help("give the block the picture's length, e.g. `budget=6.5s`"),
                 );
                 None
@@ -1047,7 +1014,7 @@ Read it, then remove the attribute.",
                         how.plugin_name,
                         known.duration_ms().unwrap_or(0)
                     ))
-                    .at(*b.span)
+                    .at(b.span)
                     .with_help("the two could disagree: drop `budget`, it is for shots that state no length"),
                 );
                 None
@@ -1075,7 +1042,8 @@ Read it, then remove the attribute.",
                 cue_ms: None,
                 session: None,
             }),
-            policy: Policy::Hold,
+            policy: PolicyKind::Hold,
+            align: Align::Start,
             pacing: Pacing::from(&self.program.config),
         });
     }

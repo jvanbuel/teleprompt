@@ -322,7 +322,6 @@ fn project_with_toml(
 const NULL_PROJECT: &str = "\
 [locales]
 source = \"en\"
-targets = []
 
 [voice]
 backend = \"null\"
@@ -334,7 +333,6 @@ plugin = \"mock\"
 const KOKORO_PROJECT: &str = "\
 [locales]
 source = \"en\"
-targets = []
 
 [voice]
 backend = \"kokoro\"

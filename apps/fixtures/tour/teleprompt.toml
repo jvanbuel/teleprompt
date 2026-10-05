@@ -1,7 +1,6 @@
 # teleprompt project configuration
 [locales]
 source = "en"
-targets = []
 
 [voice]
 backend = "null"

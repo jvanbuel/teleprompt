@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use teleprompt_core::config::TransitionKind;
+use teleprompt_core::config::Transition;
 use teleprompt_core::{
     DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId, SpanMs, Tempo, TimeMs,
 };
@@ -24,7 +24,7 @@ pub struct Entry {
     pub narration: Option<NarrationEntry>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<ActionEntry>,
-    pub transition: TransitionEntry,
+    pub transition: Transition,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -60,12 +60,6 @@ pub struct ActionEntry {
     pub start_ms: TimeMs,
     pub duration_ms: SpanMs,
     pub duration_source: DurationSource,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TransitionEntry {
-    pub kind: TransitionKind,
-    pub duration_ms: SpanMs,
 }
 
 impl Timeline {

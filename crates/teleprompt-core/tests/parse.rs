@@ -332,3 +332,12 @@ fn a_pause_longer_than_a_day_is_rejected() {
         err.0[0].message
     );
 }
+
+/// Front matter with nothing in it is still front matter, closed on the
+/// next line; the lines after it keep their numbers.
+#[test]
+fn an_empty_front_matter_closes() {
+    let s = parse_script("---\n---\n\n# A\n\nOne. {#one}\n").unwrap();
+    assert_eq!(s.front_matter, "");
+    assert_eq!(s.chapters[0].span.line, 4);
+}

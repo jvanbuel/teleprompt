@@ -1,9 +1,11 @@
 use teleprompt_core::config::{Config, TransitionDuration};
+use teleprompt_core::policy::Align;
 use teleprompt_core::DurationMs;
 use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
+use teleprompt_core::PolicyKind;
 use teleprompt_schedule::{
-    diff, schedule, ActionInput, ChangeReason, Item, NarrationInput, Pacing, Policy, TimelineDiff,
+    diff, schedule, ActionInput, ChangeReason, Item, NarrationInput, Pacing, TimelineDiff,
 };
 
 fn cfg() -> Config {
@@ -27,7 +29,8 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
             words: 0,
         }),
         action: None,
-        policy: Policy::Hold,
+        policy: PolicyKind::Hold,
+        align: Align::Start,
         pacing: Pacing::from(&cfg()),
     }
 }
@@ -309,7 +312,7 @@ fn retuning_the_transition_budget_is_reported_and_is_not_empty() {
             cue_ms: None,
             session: None,
         });
-        b1.policy = Policy::Concurrent(teleprompt_core::policy::Align::Start);
+        b1.policy = PolicyKind::Concurrent;
         let mut b2 = item("b2", 2000, "two");
         b2.pacing = Pacing::from(&c);
         timeline(vec![b1, b2])

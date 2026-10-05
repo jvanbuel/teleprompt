@@ -15,7 +15,6 @@
 # `check` and `plan` need neither server nor Node.
 [locales]
 source = "en"
-targets = []
 
 [voice]
 backend = "kokoro"

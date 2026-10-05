@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use teleprompt_core::config::{Config, PartialConfig};
-use teleprompt_core::program::Element;
+use teleprompt_core::program::{ActionElement, Element};
 use teleprompt_core::{Diagnostic, SourceSpan};
 use teleprompt_lsp::{Analysis, Analyzer, Definition, Project as Outline};
 
@@ -190,13 +190,13 @@ fn hovers(compiled: &Compiled) -> std::collections::BTreeMap<usize, String> {
                     ),
                 );
             }
-            Element::Action {
+            Element::Action(ActionElement {
                 block_id,
                 scene,
                 policy,
                 span,
                 ..
-            } => {
+            }) => {
                 let shots: Vec<_> = timeline
                     .entries
                     .iter()

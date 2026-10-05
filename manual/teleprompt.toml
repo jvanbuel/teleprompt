@@ -7,7 +7,6 @@
 # away from the tool.
 [locales]
 source = "en"
-targets = []
 
 [voice]
 # The manual has to compile on any machine, in CI included, with nothing

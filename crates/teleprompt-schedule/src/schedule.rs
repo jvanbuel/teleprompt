@@ -1,10 +1,10 @@
-use teleprompt_core::config::TransitionDuration;
+use teleprompt_core::config::{Transition, TransitionDuration};
 
-use teleprompt_core::{DurationSource, SpanMs, Tempo, TimeMs};
+use teleprompt_core::{DurationSource, PolicyKind, SpanMs, Tempo, TimeMs};
 
 use crate::item::{ActionInput, Item, NarrationInput};
-use crate::policy::{fit_line, layout_at, Layout, Policy};
-use crate::timeline::{ActionEntry, Entry, NarrationEntry, Timeline, TransitionEntry};
+use crate::policy::{fit_line, layout_at, Layout};
+use crate::timeline::{ActionEntry, Entry, NarrationEntry, Timeline};
 
 pub const TIMELINE_VERSION: u32 = 1;
 
@@ -82,7 +82,8 @@ pub fn schedule(
 /// A `fit-line` item with its line at the tempo that fits its picture, and
 /// that tempo; `None` for any other item, or a line at its own pace.
 fn fitted(item: &Item, warnings: &mut Vec<String>) -> (Option<Item>, Option<u32>) {
-    let (Policy::FitLine, Some(n), Some(a)) = (item.policy, &item.narration, &item.action) else {
+    let (PolicyKind::FitLine, Some(n), Some(a)) = (item.policy, &item.narration, &item.action)
+    else {
         return (None, None);
     };
     let pads = n.lead_in_ms.ms().saturating_add(n.tail_ms.ms());
@@ -136,6 +137,7 @@ fn lay_out_item(item: &Item) -> (u64, Layout) {
         .map(|c| c.saturating_add(lead_in_ms));
     let l = layout_at(
         item.policy,
+        item.align,
         narration_ms,
         action_ms,
         cue_ms,
@@ -205,13 +207,13 @@ fn build_entry(
         item: item.id.clone(),
         start_ms: TimeMs::at(start_ms),
         duration_ms: SpanMs::of(l.item_duration_ms),
-        policy: item.policy.kind(),
+        policy: item.policy,
         narration: item
             .narration
             .as_ref()
             .map(|n| narration_entry(n, start_ms.saturating_add(l.narration_start_ms), tempo)),
         action: item.action.as_ref().map(|a| action_entry(a, start_ms, l)),
-        transition: TransitionEntry {
+        transition: Transition {
             kind: item.pacing.transition.kind.clone(),
             duration_ms: SpanMs::of(transition_ms),
         },

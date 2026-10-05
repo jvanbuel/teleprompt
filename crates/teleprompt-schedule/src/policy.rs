@@ -2,45 +2,6 @@ use teleprompt_core::config::TimingConfig;
 use teleprompt_core::policy::Align;
 use teleprompt_core::PolicyKind;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Policy {
-    Hold,
-    Concurrent(Align),
-    Fit,
-    Trim,
-    /// The picture leads: laid out as `concurrent` from the start, once
-    /// [`fit_line`] has set the line's tempo.
-    FitLine,
-}
-
-impl Policy {
-    /// The policy an author named, aligned as they asked; `align` matters
-    /// only to `concurrent`.
-    pub fn new(kind: PolicyKind, align: Align) -> Self {
-        match kind {
-            PolicyKind::Hold => Policy::Hold,
-            PolicyKind::Concurrent => Policy::Concurrent(align),
-            PolicyKind::FitAction => Policy::Fit,
-            PolicyKind::TrimAction => Policy::Trim,
-            PolicyKind::FitLine => Policy::FitLine,
-        }
-    }
-
-    pub fn kind(&self) -> PolicyKind {
-        match self {
-            Policy::Hold => PolicyKind::Hold,
-            Policy::Concurrent(_) => PolicyKind::Concurrent,
-            Policy::Fit => PolicyKind::FitAction,
-            Policy::Trim => PolicyKind::TrimAction,
-            Policy::FitLine => PolicyKind::FitLine,
-        }
-    }
-
-    pub fn label(&self) -> &'static str {
-        self.kind().label()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Layout {
     pub narration_start_ms: u64,
@@ -50,21 +11,30 @@ pub struct Layout {
     pub warnings: Vec<String>,
 }
 
-pub fn layout(policy: Policy, narration_ms: u64, action_ms: u64, timing: &TimingConfig) -> Layout {
-    layout_at(policy, narration_ms, action_ms, None, timing)
+/// How an item under `policy` lays out its narration and action; `align`
+/// places a `concurrent` one, and nothing else.
+pub fn layout(
+    policy: PolicyKind,
+    align: Align,
+    narration_ms: u64,
+    action_ms: u64,
+    timing: &TimingConfig,
+) -> Layout {
+    layout_at(policy, align, narration_ms, action_ms, None, timing)
 }
 
 /// [`layout`] with a cue: the offset into the item at which the action
 /// starts. Only `concurrent` honours it; the compiler rejects a cue on any
 /// other policy (`docs/design.md#cues`).
 pub fn layout_at(
-    policy: Policy,
+    policy: PolicyKind,
+    align: Align,
     narration_ms: u64,
     action_ms: u64,
     cue_ms: Option<u64>,
     timing: &TimingConfig,
 ) -> Layout {
-    if let (Policy::Concurrent(_), Some(shot)) = (policy, cue_ms) {
+    if let (PolicyKind::Concurrent, Some(shot)) = (policy, cue_ms) {
         return Layout {
             narration_start_ms: 0,
             action_start_ms: shot,
@@ -74,12 +44,14 @@ pub fn layout_at(
             warnings: Vec::new(),
         };
     }
-    let policy = match policy {
-        Policy::FitLine => Policy::Concurrent(Align::Start),
-        other => other,
+    // `fit-line` has set the line's tempo already: the rest is `concurrent`
+    // from the start.
+    let (policy, align) = match policy {
+        PolicyKind::FitLine => (PolicyKind::Concurrent, Align::Start),
+        other => (other, align),
     };
     match policy {
-        Policy::Hold => Layout {
+        PolicyKind::Hold => Layout {
             narration_start_ms: 0,
             action_start_ms: narration_ms,
             action_duration_ms: action_ms,
@@ -87,7 +59,7 @@ pub fn layout_at(
             warnings: Vec::new(),
         },
 
-        Policy::Concurrent(align) => {
+        PolicyKind::Concurrent => {
             let item = narration_ms.max(action_ms);
             let (n_start, a_start) = match align {
                 Align::Start => (0, 0),
@@ -103,7 +75,7 @@ pub fn layout_at(
             }
         }
 
-        Policy::Fit => {
+        PolicyKind::FitAction => {
             let mut warnings = Vec::new();
             let adjusted = if action_ms == 0 {
                 0
@@ -140,9 +112,9 @@ pub fn layout_at(
             }
         }
 
-        Policy::FitLine => unreachable!("laid out as concurrent"),
+        PolicyKind::FitLine => unreachable!("laid out as concurrent"),
 
-        Policy::Trim => {
+        PolicyKind::TrimAction => {
             let mut warnings = Vec::new();
             let adjusted = if narration_ms == 0 {
                 // Nothing to trim against; trimming to zero would delete

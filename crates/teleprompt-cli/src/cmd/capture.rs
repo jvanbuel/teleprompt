@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use teleprompt_compile::ShotSource;
 use teleprompt_core::config::SceneConfig;
+use teleprompt_core::ShotId;
 use teleprompt_manifest::NarrationManifest;
 use teleprompt_plugin::capture::{
     sessions, CaptureBackend, Frame, PlannedShot, Progress, Session, WorkDir,
@@ -22,7 +23,7 @@ use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 /// `build` is (docs/design.md#rendering).
 pub(crate) fn cues_of(
     manifest: &NarrationManifest,
-    shots: &[ShotSource],
+    shots: &BTreeMap<ShotId, ShotSource>,
     scenes: &BTreeMap<String, SceneConfig>,
 ) -> Vec<PlannedShot> {
     manifest
@@ -35,8 +36,7 @@ pub(crate) fn cues_of(
             session: item.session.clone(),
             key: item.capture_key,
             source: shots
-                .iter()
-                .find(|s| s.id == item.shot)
+                .get(&item.shot)
                 .map(|s| s.source.clone())
                 .unwrap_or_default(),
             duration_ms: item.duration_ms.ms(),
@@ -123,7 +123,7 @@ impl CaptureReport {
 /// video with a hole in it is more use than no video.
 pub fn run_capture(
     manifest: &NarrationManifest,
-    shots: &[ShotSource],
+    shots: &BTreeMap<ShotId, ShotSource>,
     scenes: &BTreeMap<String, SceneConfig>,
     plugins: &ScenePlugins,
     clips_dir: &Path,

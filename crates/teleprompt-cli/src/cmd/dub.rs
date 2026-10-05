@@ -20,7 +20,7 @@ pub struct DubOutput {
     pub manifest: NarrationManifest,
     /// Every shot's source, which a capture backend runs. The manifest
     /// names the shots; only this says what they do.
-    pub shots: Vec<teleprompt_compile::ShotSource>,
+    pub shots: std::collections::BTreeMap<teleprompt_core::ShotId, teleprompt_compile::ShotSource>,
     /// The scenes as configured, which a capture backend opens.
     pub scenes: std::collections::BTreeMap<String, teleprompt_core::config::SceneConfig>,
     /// The script's `output:` block, which `build` needs and the manifest

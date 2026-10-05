@@ -57,44 +57,49 @@ pub enum Element {
         /// fabricated one.
         span: SourceSpan,
     },
-    Action {
-        block_id: BlockId,
-        scene: String,
-        body: String,
-        /// The `include=` attribute's raw value, if present. Resolved
-        /// against the script's directory by `teleprompt-compile`, which is
-        /// where filesystem access is allowed (core stays pure).
-        include: Option<String>,
-        config: Config,
-        policy: PolicyKind,
-        align: Align,
-        /// `cue="…"`: the phrase in the narration this shot starts on.
-        ///
-        /// A cue in the plain sense — the words that trigger what happens
-        /// next. The thing triggered is the shot; this is what triggers it.
-        cue: Option<String>,
-        /// `session="…"`: which run of the scene this block belongs to.
-        ///
-        /// `None` is the scene's own session, which is the ordinary case:
-        /// blocks naming a scene continue the screen the previous one left
-        /// behind. A name here starts — or rejoins — a different run.
-        session: Option<String>,
-        /// `stretch=`: its shots run this many times their own length.
-        stretch: Option<f64>,
-        /// `budget=`: a `fit-line` item's length, for a shot of unknown length.
-        budget: Option<DurationMs>,
-        /// `review=pending` on a block `from` generated: the command in
-        /// it came out of someone else's document and has been read by
-        /// nobody. Carried to `compile`, which is where `check`'s warnings
-        /// are collected.
-        review: Option<String>,
-        /// Source location of the fence this action block came from, so a
-        /// scene plugin's diagnostics point at the real line.
-        span: SourceSpan,
-    },
+    Action(ActionElement),
     Pause {
         ms: crate::DurationMs,
     },
+}
+
+/// An action block, resolved: what its scene runs, and how it is paced
+/// against the line before it.
+#[derive(Debug, Clone)]
+pub struct ActionElement {
+    pub block_id: BlockId,
+    pub scene: String,
+    pub body: String,
+    /// The `include=` attribute's raw value, if present. Resolved
+    /// against the script's directory by `teleprompt-compile`, which is
+    /// where filesystem access is allowed (core stays pure).
+    pub include: Option<String>,
+    pub config: Config,
+    pub policy: PolicyKind,
+    pub align: Align,
+    /// `cue="…"`: the phrase in the narration this shot starts on.
+    ///
+    /// A cue in the plain sense — the words that trigger what happens
+    /// next. The thing triggered is the shot; this is what triggers it.
+    pub cue: Option<String>,
+    /// `session="…"`: which run of the scene this block belongs to.
+    ///
+    /// `None` is the scene's own session, which is the ordinary case:
+    /// blocks naming a scene continue the screen the previous one left
+    /// behind. A name here starts — or rejoins — a different run.
+    pub session: Option<String>,
+    /// `stretch=`: its shots run this many times their own length.
+    pub stretch: Option<f64>,
+    /// `budget=`: a `fit-line` item's length, for a shot of unknown length.
+    pub budget: Option<DurationMs>,
+    /// `review=pending` on a block `from` generated: the command in
+    /// it came out of someone else's document and has been read by
+    /// nobody. Carried to `compile`, which is where `check`'s warnings
+    /// are collected.
+    pub review: Option<String>,
+    /// Source location of the fence this action block came from, so a
+    /// scene plugin's diagnostics point at the real line.
+    pub span: SourceSpan,
 }
 
 /// Flattens `script`'s chapters into one ordered [`Element`] list, applying the
@@ -411,7 +416,7 @@ impl Resolver<'_> {
             );
         }
         let config = self.merged(chapter_cfg, PartialConfig::from_block(&attrs));
-        self.elements.push(Element::Action {
+        self.elements.push(Element::Action(ActionElement {
             block_id: block.id.clone(),
             scene,
             body: block.body.clone(),
@@ -425,7 +430,7 @@ impl Resolver<'_> {
             budget: attrs.budget,
             config,
             span: block.span,
-        });
+        }));
     }
 }
 

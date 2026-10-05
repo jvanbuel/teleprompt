@@ -10,7 +10,6 @@
 # `check` and `plan` need neither it nor agg.
 [locales]
 source = "en"
-targets = []
 
 [voice]
 backend = "kokoro"

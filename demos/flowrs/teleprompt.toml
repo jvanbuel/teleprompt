@@ -1,6 +1,5 @@
 [locales]
 source = "en"
-targets = []
 
 [voice]
 # `null` renders silence of the estimated length: timing is real, there is

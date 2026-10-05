@@ -9,7 +9,6 @@
 # A scene's command runs in this directory.
 [locales]
 source = "en"
-targets = []
 
 [voice]
 backend = "kokoro"

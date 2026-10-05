@@ -6,7 +6,6 @@ use serde::Serialize;
 const PROJECT_TOML: &str = r#"# teleprompt project configuration
 [locales]
 source = "en"
-targets = []
 
 [voice]
 backend = "null"

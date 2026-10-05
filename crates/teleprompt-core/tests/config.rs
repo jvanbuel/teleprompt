@@ -176,12 +176,10 @@ fn transition_duration_auto_is_case_insensitive() {
 const SPEC_3_1_FRONT_MATTER: &str = r#"teleprompt: 1
 locales:
   source: en
-  targets: [nl, fr]
 voice:
   backend: kokoro
   speed: 1.0
 scene:
-  default: browser
   browser:
     base_url: "http://localhost:3000"
     viewport: [1920, 1080]
@@ -199,12 +197,10 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
     let c = Config::merged(&[partial]);
 
     assert_eq!(c.locales.source, "en");
-    assert_eq!(c.locales.targets, ["nl", "fr"]);
     assert_eq!(c.transition.kind.as_str(), "crossfade");
     assert_eq!(c.transition.duration, TransitionDuration::Auto);
     assert_eq!(c.transition.max_ms, DurationMs::millis(600));
 
-    assert_eq!(c.default_scene.as_deref(), Some("browser"));
     let browser = c.scenes.get("browser").expect("browser scene configured");
     assert_eq!(
         browser.plugin, "browser",
@@ -424,10 +420,7 @@ fn a_locale_is_a_language_tag() {
     for bad in ["", "../zz", "nl/x", "a b", "-en", "en.yaml"] {
         assert!(locale_problem(bad).is_some(), "{bad:?}");
     }
-    let bad = Config::merged(&[PartialConfig::from_yaml(
-        "locales:\n  source: en\n  targets: [nl, ../fr]\n",
-    )
-    .unwrap()]);
+    let bad = Config::merged(&[PartialConfig::from_yaml("locales:\n  source: ../fr\n").unwrap()]);
     assert!(
         bad.problems().iter().any(|p| p.contains("../fr")),
         "{:?}",
@@ -453,4 +446,16 @@ fn a_speed_range_that_is_not_one_is_reported() {
         );
     }
     assert!(Config::merged(&[]).problems().is_empty());
+}
+
+/// Settings nothing reads are refused, not kept: a key that does nothing
+/// should say so where it is written.
+#[test]
+fn settings_nothing_reads_are_errors() {
+    for yaml in [
+        "locales: { targets: [nl] }\n",
+        "scene: { default: browser }\n",
+    ] {
+        assert!(PartialConfig::from_yaml(yaml).is_err(), "{yaml}");
+    }
 }

@@ -5,8 +5,8 @@
 
 use teleprompt_core::program::ChapterInfo;
 use teleprompt_manifest::{
-    audio_path, AudioInfo, ChapterEntry, LineEntry, NarrationManifest, ShotEntry, TransitionOut,
-    WordEntry, MANIFEST_VERSION,
+    audio_path, AudioInfo, ChapterEntry, LineEntry, NarrationManifest, ShotEntry, WordEntry,
+    MANIFEST_VERSION,
 };
 use teleprompt_schedule::Timeline;
 
@@ -79,7 +79,7 @@ pub fn build(
                 duration_ms: a.duration_ms,
                 duration_source: a.duration_source,
                 policy: entry.policy,
-                transition: TransitionOut {
+                transition: teleprompt_core::config::Transition {
                     kind: entry.transition.kind.clone(),
                     duration_ms: entry.transition.duration_ms,
                 },

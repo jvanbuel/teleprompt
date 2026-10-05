@@ -1,7 +1,7 @@
 use teleprompt_core::config::TimingConfig;
 use teleprompt_core::policy::{Align, PolicyKind};
 use teleprompt_core::DurationMs;
-use teleprompt_schedule::{layout, layout_at, Policy};
+use teleprompt_schedule::{layout, layout_at};
 
 fn timing() -> TimingConfig {
     TimingConfig {
@@ -16,7 +16,7 @@ fn timing() -> TimingConfig {
 
 #[test]
 fn hold_runs_the_action_after_the_narration() {
-    let l = layout(Policy::Hold, 5000, 800, &timing());
+    let l = layout(PolicyKind::Hold, Align::Start, 5000, 800, &timing());
     assert_eq!(l.narration_start_ms, 0);
     assert_eq!(l.action_start_ms, 5000);
     assert_eq!(l.action_duration_ms, 800);
@@ -25,13 +25,13 @@ fn hold_runs_the_action_after_the_narration() {
 
 #[test]
 fn hold_with_no_action_is_just_the_narration() {
-    let l = layout(Policy::Hold, 5000, 0, &timing());
+    let l = layout(PolicyKind::Hold, Align::Start, 5000, 0, &timing());
     assert_eq!(l.item_duration_ms, 5000);
 }
 
 #[test]
 fn concurrent_start_begins_both_together() {
-    let l = layout(Policy::Concurrent(Align::Start), 5000, 800, &timing());
+    let l = layout(PolicyKind::Concurrent, Align::Start, 5000, 800, &timing());
     assert_eq!(l.narration_start_ms, 0);
     assert_eq!(l.action_start_ms, 0);
     assert_eq!(l.item_duration_ms, 5000, "the longer of the two");
@@ -39,13 +39,13 @@ fn concurrent_start_begins_both_together() {
 
 #[test]
 fn concurrent_start_uses_the_action_when_it_is_longer() {
-    let l = layout(Policy::Concurrent(Align::Start), 800, 5000, &timing());
+    let l = layout(PolicyKind::Concurrent, Align::Start, 800, 5000, &timing());
     assert_eq!(l.item_duration_ms, 5000);
 }
 
 #[test]
 fn concurrent_end_finishes_both_together() {
-    let l = layout(Policy::Concurrent(Align::End), 5000, 800, &timing());
+    let l = layout(PolicyKind::Concurrent, Align::End, 5000, 800, &timing());
     assert_eq!(l.narration_start_ms, 0);
     assert_eq!(l.action_start_ms, 4200);
     assert_eq!(l.action_start_ms + l.action_duration_ms, l.item_duration_ms);
@@ -53,14 +53,14 @@ fn concurrent_end_finishes_both_together() {
 
 #[test]
 fn concurrent_center_centres_the_shorter_one() {
-    let l = layout(Policy::Concurrent(Align::Center), 5000, 800, &timing());
+    let l = layout(PolicyKind::Concurrent, Align::Center, 5000, 800, &timing());
     assert_eq!(l.action_start_ms, 2100, "(5000 - 800) / 2");
     assert_eq!(l.narration_start_ms, 0);
 }
 
 #[test]
 fn stretch_makes_the_action_exactly_fill_the_narration() {
-    let l = layout(Policy::Fit, 5000, 2500, &timing());
+    let l = layout(PolicyKind::FitAction, Align::Start, 5000, 2500, &timing());
     assert_eq!(l.action_duration_ms, 5000);
     assert_eq!(l.item_duration_ms, 5000);
     assert!(l.warnings.is_empty());
@@ -68,14 +68,14 @@ fn stretch_makes_the_action_exactly_fill_the_narration() {
 
 #[test]
 fn stretch_compresses_a_long_action_too() {
-    let l = layout(Policy::Fit, 2000, 4000, &timing());
+    let l = layout(PolicyKind::FitAction, Align::Start, 2000, 4000, &timing());
     assert_eq!(l.action_duration_ms, 2000);
 }
 
 #[test]
 fn stretch_beyond_the_maximum_is_clamped_and_warns() {
     // 500ms action asked to fill 5000ms is a factor of 10, above max_stretch 3.0
-    let l = layout(Policy::Fit, 5000, 500, &timing());
+    let l = layout(PolicyKind::FitAction, Align::Start, 5000, 500, &timing());
     assert_eq!(l.action_duration_ms, 1500, "500 * 3.0");
     assert_eq!(l.item_duration_ms, 5000, "narration still governs");
     assert!(l.warnings[0].contains("max_stretch"));
@@ -90,7 +90,7 @@ fn stretch_beyond_the_maximum_is_clamped_and_warns() {
 #[test]
 fn stretch_below_the_minimum_is_clamped_and_warns() {
     // 10000ms action asked to fit 1000ms is a factor of 0.1, below min_stretch 0.33
-    let l = layout(Policy::Fit, 1000, 10_000, &timing());
+    let l = layout(PolicyKind::FitAction, Align::Start, 1000, 10_000, &timing());
     assert_eq!(l.action_duration_ms, 3300, "10000 * 0.33");
     assert_eq!(l.item_duration_ms, 3300, "the clamped action now governs");
     assert!(l.warnings[0].contains("min_stretch"));
@@ -104,21 +104,21 @@ fn stretch_below_the_minimum_is_clamped_and_warns() {
 
 #[test]
 fn stretch_with_a_zero_length_action_does_not_divide_by_zero() {
-    let l = layout(Policy::Fit, 5000, 0, &timing());
+    let l = layout(PolicyKind::FitAction, Align::Start, 5000, 0, &timing());
     assert_eq!(l.action_duration_ms, 0);
     assert_eq!(l.item_duration_ms, 5000);
 }
 
 #[test]
 fn trim_leaves_a_short_action_alone() {
-    let l = layout(Policy::Trim, 5000, 800, &timing());
+    let l = layout(PolicyKind::TrimAction, Align::Start, 5000, 800, &timing());
     assert_eq!(l.action_duration_ms, 800);
     assert_eq!(l.item_duration_ms, 5000, "narration is authoritative");
 }
 
 #[test]
 fn trim_speeds_up_an_over_long_action_within_the_bound() {
-    let l = layout(Policy::Trim, 5000, 8000, &timing());
+    let l = layout(PolicyKind::TrimAction, Align::Start, 5000, 8000, &timing());
     assert_eq!(l.action_duration_ms, 5000, "8000 / 1.6 fits exactly");
     assert!(l.warnings.is_empty());
 }
@@ -126,7 +126,13 @@ fn trim_speeds_up_an_over_long_action_within_the_bound() {
 #[test]
 fn trim_beyond_trim_warn_above_cuts_and_warns() {
     // 20000ms into 5000ms needs 4x, above trim_warn_above 2.0
-    let l = layout(Policy::Trim, 5000, 20_000, &timing());
+    let l = layout(
+        PolicyKind::TrimAction,
+        Align::Start,
+        5000,
+        20_000,
+        &timing(),
+    );
     assert_eq!(l.action_duration_ms, 5000, "cut to the narration length");
     assert_eq!(l.item_duration_ms, 5000);
     assert!(l.warnings[0].contains("trim_warn_above"));
@@ -137,26 +143,9 @@ fn trim_beyond_trim_warn_above_cuts_and_warns() {
 /// own length, which is what the tape says and the only number available.
 #[test]
 fn trim_with_zero_narration_does_not_divide_by_zero() {
-    let l = layout(Policy::Trim, 0, 5000, &timing());
+    let l = layout(PolicyKind::TrimAction, Align::Start, 0, 5000, &timing());
     assert_eq!(l.item_duration_ms, 5000);
     assert_eq!(l.action_duration_ms, 5000);
-}
-
-#[test]
-fn a_named_policy_becomes_its_layout_policy() {
-    assert_eq!(Policy::new(PolicyKind::Hold, Align::End), Policy::Hold);
-    assert_eq!(
-        Policy::new(PolicyKind::Concurrent, Align::End),
-        Policy::Concurrent(Align::End)
-    );
-    assert_eq!(
-        Policy::new(PolicyKind::FitAction, Align::Start),
-        Policy::Fit
-    );
-    assert_eq!(
-        Policy::new(PolicyKind::TrimAction, Align::Start),
-        Policy::Trim
-    );
 }
 
 /// The property the policy names fight: no policy modifies the narration.
@@ -169,12 +158,13 @@ fn a_named_policy_becomes_its_layout_policy() {
 #[test]
 fn no_policy_ever_denies_the_narration_its_full_length() {
     let policies = [
-        Policy::Hold,
-        Policy::Concurrent(Align::Start),
-        Policy::Concurrent(Align::End),
-        Policy::Concurrent(Align::Center),
-        Policy::Fit,
-        Policy::Trim,
+        (PolicyKind::Hold, Align::Start),
+        (PolicyKind::Concurrent, Align::Start),
+        (PolicyKind::Concurrent, Align::End),
+        (PolicyKind::Concurrent, Align::Center),
+        (PolicyKind::FitAction, Align::Start),
+        (PolicyKind::TrimAction, Align::Start),
+        (PolicyKind::FitLine, Align::Start),
     ];
     // Ratios spanning both clamp directions: action far shorter than
     // narration, comparable, and far longer.
@@ -186,9 +176,9 @@ fn no_policy_ever_denies_the_narration_its_full_length() {
         (1000, 10_000),
     ];
 
-    for policy in policies {
+    for (policy, align) in policies {
         for (narration_ms, action_ms) in cases {
-            let l = layout(policy, narration_ms, action_ms, &timing());
+            let l = layout(policy, align, narration_ms, action_ms, &timing());
             assert!(
                 l.narration_start_ms + narration_ms <= l.item_duration_ms,
                 "{} with narration {}ms / action {}ms starts narration at {}ms \
@@ -204,14 +194,6 @@ fn no_policy_ever_denies_the_narration_its_full_length() {
     }
 }
 
-#[test]
-fn labels_name_what_the_policy_adjusts() {
-    assert_eq!(Policy::Fit.label(), "fit-action");
-    assert_eq!(Policy::Trim.label(), "trim-action");
-    assert_eq!(Policy::Hold.label(), "hold");
-    assert_eq!(Policy::Concurrent(Align::Start).label(), "concurrent");
-}
-
 /// A shot after a mark has no narration of its own: the paragraph belongs
 /// to the block's first shot and the rest run under what the policy left of
 /// it. There is nothing for such an action to fill, so it keeps its own
@@ -219,7 +201,7 @@ fn labels_name_what_the_policy_adjusts() {
 /// says, which is the scheduler rewriting a tape it was never asked about.
 #[test]
 fn stretching_against_no_narration_leaves_the_action_alone() {
-    let l = layout(Policy::Fit, 0, 4000, &timing());
+    let l = layout(PolicyKind::FitAction, Align::Start, 0, 4000, &timing());
     assert_eq!(l.action_duration_ms, 4000);
     assert_eq!(l.item_duration_ms, 4000);
     assert!(l.warnings.is_empty(), "{:?}", l.warnings);
@@ -229,7 +211,7 @@ fn stretching_against_no_narration_leaves_the_action_alone() {
 /// against cut the action to zero, which deletes it from the video.
 #[test]
 fn trimming_against_no_narration_leaves_the_action_alone() {
-    let l = layout(Policy::Trim, 0, 4000, &timing());
+    let l = layout(PolicyKind::TrimAction, Align::Start, 0, 4000, &timing());
     assert_eq!(l.action_duration_ms, 4000);
     assert_eq!(l.item_duration_ms, 4000);
     assert!(l.warnings.is_empty(), "{:?}", l.warnings);
@@ -241,7 +223,8 @@ fn trimming_against_no_narration_leaves_the_action_alone() {
 #[test]
 fn a_cue_starts_the_action_where_the_words_are() {
     let l = layout_at(
-        Policy::Concurrent(Align::Start),
+        PolicyKind::Concurrent,
+        Align::Start,
         10_000,
         3_000,
         Some(4_000),
@@ -261,7 +244,8 @@ fn a_cue_starts_the_action_where_the_words_are() {
 #[test]
 fn a_cue_near_the_end_lengthens_the_shot_rather_than_clipping_the_action() {
     let l = layout_at(
-        Policy::Concurrent(Align::Start),
+        PolicyKind::Concurrent,
+        Align::Start,
         10_000,
         4_000,
         Some(8_000),

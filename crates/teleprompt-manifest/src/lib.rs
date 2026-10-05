@@ -3,7 +3,7 @@
 //! the prompter and outside consumers read it.
 
 use serde::{Deserialize, Serialize};
-use teleprompt_core::config::TransitionKind;
+use teleprompt_core::config::Transition;
 use teleprompt_core::{DurationSource, Hash, LineId, PolicyKind, ShotId, SpanMs, Tempo, TimeMs};
 
 /// Incremented on any change a consumer must not silently miss, including
@@ -62,7 +62,7 @@ pub struct ShotEntry {
     pub policy: PolicyKind,
     /// The outgoing transition, as scheduled. Deriving it from neighbouring
     /// offsets goes wrong where items overlap.
-    pub transition: TransitionOut,
+    pub transition: Transition,
     /// Identity of the shot's source.
     pub shot_hash: Hash,
     /// Identity of the picture, chained over the session
@@ -73,12 +73,6 @@ pub struct ShotEntry {
     /// which shots share a screen.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TransitionOut {
-    pub kind: TransitionKind,
-    pub duration_ms: SpanMs,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

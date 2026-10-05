@@ -28,6 +28,10 @@ fn split_front_matter(src: &str) -> Result<(String, &str, usize), Diagnostic> {
     let Some(rest) = src.strip_prefix("---\n") else {
         return Ok((String::new(), src, 0));
     };
+    // An empty block closes on the very next line, with no newline before it.
+    if let Some(after) = rest.strip_prefix("---\n") {
+        return Ok((String::new(), after, 2));
+    }
     match rest.find("\n---\n") {
         Some(end) => {
             let fm = rest[..end].to_string();

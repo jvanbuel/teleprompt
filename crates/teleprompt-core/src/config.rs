@@ -13,11 +13,6 @@ pub struct Config {
     pub output: OutputConfig,
     pub transition: TransitionConfig,
     pub scenes: BTreeMap<String, SceneConfig>,
-    /// `scene.default:` from front matter. Resolved through the layer merge
-    /// like everything else, but not yet consulted: every action block names
-    /// its own `scene=`. Kept here rather than discarded so the value an author
-    /// wrote survives the merge instead of being silently lost.
-    pub default_scene: Option<String>,
     /// Backend-native settings, keyed by backend id, exactly as written
     /// under `backends:` in config or front matter.
     ///
@@ -59,7 +54,6 @@ pub const TRANSLATE_TIMEOUT_MS: u64 = 600_000;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Locales {
     pub source: String,
-    pub targets: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -205,6 +199,24 @@ impl<'de> Deserialize<'de> for TransitionKind {
     }
 }
 
+/// How one shot gives way to the next, as scheduled: what the timeline,
+/// the manifest and the renderer all carry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Transition {
+    pub kind: TransitionKind,
+    pub duration_ms: crate::SpanMs,
+}
+
+impl Transition {
+    /// A hard cut, which is what a shot that nothing follows also gets.
+    pub fn cut() -> Self {
+        Self {
+            kind: TransitionKind::Cut,
+            duration_ms: crate::SpanMs::ZERO,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransitionConfig {
     pub kind: TransitionKind,
@@ -256,7 +268,6 @@ impl Default for Config {
         Self {
             locales: Locales {
                 source: "en".into(),
-                targets: Vec::new(),
             },
             voice: VoiceConfig {
                 name: None,
@@ -291,7 +302,6 @@ impl Default for Config {
                 max_ms: DurationMs::millis(600),
             },
             scenes: BTreeMap::new(),
-            default_scene: None,
             backends: BTreeMap::new(),
             // Local, so a script is translated on the machine by default.
             translate: TranslateConfig {
@@ -309,14 +319,13 @@ impl Default for Config {
 
 /// All-optional mirror of `Config`, deserialized from one configuration layer
 /// (`teleprompt.toml`, script/chapter front matter, or line/block attributes).
-///
-/// Carries `teleprompt` (schema version) and `output`
-/// (resolution/fps/transition) so real front matter — which nests `transition`
-/// under `output:` and stamps a top-level `teleprompt: 1` — deserializes.
-/// `teleprompt` is parsed and otherwise unused.
+/// An unknown key is an error, so a setting nothing reads is not written.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PartialConfig {
+    /// `teleprompt: 1` in a script's front matter: the format's version, and
+    /// what tells an editor (`teleprompt lsp`) the file is a script when it
+    /// has no `teleprompt` block yet. Not configuration.
     pub teleprompt: Option<u32>,
     pub locales: Option<PartialLocales>,
     pub voice: Option<PartialVoice>,
@@ -355,7 +364,6 @@ pub struct PartialTranslate {
 #[serde(deny_unknown_fields)]
 pub struct PartialLocales {
     pub source: Option<String>,
-    pub targets: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
@@ -435,56 +443,11 @@ pub struct PartialTransition {
     pub max_ms: Option<DurationMs>,
 }
 
-/// The `scene:` block, which takes two shapes at once:
-///
-/// ```yaml
-/// scene:
-///   default: browser            # names a scene
-///   browser:                    # configures one
-///     base_url: "http://localhost:3000"
-/// ```
-///
-/// `default` is read first as a name. An untagged "name or settings" enum
-/// would also accept `scene: { browser: playwright }`, turning a typo into a
-/// silent no-op.
-#[derive(Debug, Clone, Default)]
+/// The `scene:` block: each scene by name, with its plugin and settings.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(transparent)]
 pub struct PartialScenes {
-    pub default: Option<String>,
     pub scenes: BTreeMap<String, PartialScene>,
-}
-
-impl<'de> Deserialize<'de> for PartialScenes {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct MapVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for MapVisitor {
-            type Value = PartialScenes;
-
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a `scene` block: `default: <name>` and/or per-scene settings")
-            }
-
-            fn visit_map<A>(self, mut map: A) -> Result<PartialScenes, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                let mut out = PartialScenes::default();
-                while let Some(key) = map.next_key::<String>()? {
-                    if key == "default" {
-                        out.default = Some(map.next_value::<String>()?);
-                    } else {
-                        out.scenes.insert(key, map.next_value::<PartialScene>()?);
-                    }
-                }
-                Ok(out)
-            }
-        }
-
-        deserializer.deserialize_map(MapVisitor)
-    }
 }
 
 /// Settings are `serde_yaml::Value`, not `String`, so structured values such
@@ -591,24 +554,28 @@ impl PartialConfig {
     }
 }
 
+/// Each named field of `$src` that is set, over the same field of
+/// `$target`: `set!(a, b, x, y)`. A field that is an `Option` in both is
+/// listed after `opt`.
+macro_rules! set {
+    ($target:expr, $src:expr $(, $field:ident)* $(; opt $($opt:ident),*)?) => {
+        $(
+            if let Some(v) = &$src.$field {
+                $target.$field = v.clone();
+            }
+        )*
+        $($(
+            if $src.$opt.is_some() {
+                $target.$opt = $src.$opt.clone();
+            }
+        )*)?
+    };
+}
+
 impl PartialVoice {
     /// `over`'s settings over these, a pronunciation at a time.
     pub fn merge(&mut self, over: &PartialVoice) {
-        if over.name.is_some() {
-            self.name = over.name.clone();
-        }
-        if over.backend.is_some() {
-            self.backend = over.backend.clone();
-        }
-        if over.voice.is_some() {
-            self.voice = over.voice.clone();
-        }
-        if over.speed.is_some() {
-            self.speed = over.speed;
-        }
-        if over.instruct.is_some() {
-            self.instruct = over.instruct.clone();
-        }
+        set!(self, over; opt name, backend, voice, speed, instruct);
         if let Some(words) = &over.pronounce {
             self.pronounce
                 .get_or_insert_with(BTreeMap::new)
@@ -617,28 +584,10 @@ impl PartialVoice {
     }
 }
 
-macro_rules! set {
-    ($target:expr, $src:expr) => {
-        if let Some(v) = $src {
-            $target = v;
-        }
-    };
-}
-
 impl VoiceConfig {
     /// `v` over this voice, field by field; `pronounce` word by word.
     fn apply(&mut self, v: &PartialVoice) {
-        if v.name.is_some() {
-            self.name = v.name.clone();
-        }
-        set!(self.backend, v.backend.clone());
-        if v.voice.is_some() {
-            self.voice = v.voice.clone();
-        }
-        set!(self.speed, v.speed);
-        if v.instruct.is_some() {
-            self.instruct = v.instruct.clone();
-        }
+        set!(self, v, backend, speed; opt name, voice, instruct);
         if let Some(pronounce) = &v.pronounce {
             self.pronounce
                 .extend(pronounce.iter().map(|(k, said)| (k.clone(), said.clone())));
@@ -706,38 +655,24 @@ impl Config {
                 ));
             }
         }
-        let locales = std::iter::once(&self.locales.source).chain(&self.locales.targets);
-        out.extend(locales.filter_map(|l| locale_problem(l)));
+        out.extend(locale_problem(&self.locales.source));
         out
     }
 
     pub fn merged(layers: &[PartialConfig]) -> Self {
         let mut c = Config::default();
         for layer in layers {
-            if let Some(root) = &layer.root {
-                c.root = root.clone();
-            }
+            set!(c, layer, root; opt speaker);
             if let Some(l) = &layer.locales {
-                set!(c.locales.source, l.source.clone());
-                set!(c.locales.targets, l.targets.clone());
+                set!(c.locales, l, source);
             }
             if let Some(v) = &layer.voice {
                 c.voice.apply(v);
             }
             if let Some(t) = &layer.timing {
-                set!(c.timing.lead_in_ms, t.lead_in_ms);
-                set!(c.timing.tail_ms, t.tail_ms);
-                set!(c.timing.turn_gap_ms, t.turn_gap_ms);
-                set!(c.timing.max_stretch, t.max_stretch);
-                set!(c.timing.min_stretch, t.min_stretch);
-                set!(c.timing.trim_warn_above, t.trim_warn_above);
-                set!(c.timing.min_line_speed, t.min_line_speed);
-                set!(c.timing.max_line_speed, t.max_line_speed);
-                set!(c.timing.min_take_speed, t.min_take_speed);
-                set!(c.timing.max_take_speed, t.max_take_speed);
-                if t.length_ms.is_some() {
-                    c.timing.length_ms = t.length_ms;
-                }
+                set!(c.timing, t, lead_in_ms, tail_ms, turn_gap_ms, max_stretch, min_stretch,
+                    trim_warn_above, min_line_speed, max_line_speed, min_take_speed,
+                    max_take_speed; opt length_ms);
             }
             if let Some(o) = &layer.output {
                 // A resolution is a pair or it is nothing: half of one is
@@ -745,17 +680,12 @@ impl Config {
                 if let Some(Resolution(w, h)) = o.resolution {
                     c.output.resolution = (w, h);
                 }
-                set!(c.output.fps, o.fps);
-                set!(c.output.names, o.names);
-            }
-            if let Some(t) = layer.output.as_ref().and_then(|o| o.transition.as_ref()) {
-                set!(c.transition.kind, t.kind.clone());
-                set!(c.transition.min_ms, t.min_ms);
-                set!(c.transition.max_ms, t.max_ms);
-                set!(c.transition.duration, t.duration.clone());
+                set!(c.output, o, fps, names);
+                if let Some(t) = &o.transition {
+                    set!(c.transition, t, kind, duration, min_ms, max_ms);
+                }
             }
             if let Some(scenes) = &layer.scene {
-                set!(c.default_scene, scenes.default.clone().map(Some));
                 for (name, ps) in &scenes.scenes {
                     let entry = c.scenes.entry(name.clone()).or_insert_with(|| SceneConfig {
                         // Undeclared, a scene is the plugin of its own name.
@@ -763,7 +693,7 @@ impl Config {
                         settings: BTreeMap::new(),
                         root: Default::default(),
                     });
-                    set!(entry.plugin, ps.plugin.clone());
+                    set!(entry, ps, plugin);
                     for (k, v) in &ps.settings {
                         entry.settings.insert(k.clone(), v.clone());
                     }
@@ -775,15 +705,8 @@ impl Config {
                     entry.merge(voice);
                 }
             }
-            if layer.speaker.is_some() {
-                c.speaker = layer.speaker.clone();
-            }
             if let Some(t) = &layer.translate {
-                set!(c.translate.provider, t.provider.clone());
-                set!(c.translate.timeout_ms, t.timeout_ms);
-                if t.model.is_some() {
-                    c.translate.model = t.model.clone();
-                }
+                set!(c.translate, t, provider, timeout_ms; opt model);
                 let providers = [
                     ("ollama", &t.ollama),
                     ("openai", &t.openai),

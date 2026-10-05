@@ -1,8 +1,10 @@
 use teleprompt_core::config::{Config, TransitionDuration};
+use teleprompt_core::policy::Align;
 use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
+use teleprompt_core::PolicyKind;
 use teleprompt_core::{DurationMs, SpanMs, TimeMs};
-use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Policy};
+use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
     let defaults = Config::default().timing;
@@ -32,12 +34,13 @@ fn action(id: &str, ms: u64) -> ActionInput {
     }
 }
 
-fn item(id: &str, n: Option<u64>, a: Option<u64>, policy: Policy, cfg: Config) -> Item {
+fn item(id: &str, n: Option<u64>, a: Option<u64>, policy: PolicyKind, cfg: Config) -> Item {
     Item {
         id: id.into(),
         narration: n.map(|ms| narration(id, ms)),
         action: a.map(|ms| action(id, ms)),
         policy,
+        align: Align::Start,
         pacing: Pacing::from(&cfg),
     }
 }
@@ -45,7 +48,7 @@ fn item(id: &str, n: Option<u64>, a: Option<u64>, policy: Policy, cfg: Config) -
 /// A hold item carrying only narration, with the default transition config —
 /// the shape a script of plain paragraphs produces.
 fn narration_item(id: &str, ms: u64) -> Item {
-    item(id, Some(ms), None, Policy::Hold, Config::default())
+    item(id, Some(ms), None, PolicyKind::Hold, Config::default())
 }
 
 fn no_transition() -> Config {
@@ -57,7 +60,13 @@ fn no_transition() -> Config {
 #[test]
 fn narration_is_padded_with_lead_in_and_tail() {
     let t = schedule(
-        &[item("b1", Some(1000), None, Policy::Hold, no_transition())],
+        &[item(
+            "b1",
+            Some(1000),
+            None,
+            PolicyKind::Hold,
+            no_transition(),
+        )],
         "s.md",
         "en",
         "0.1.0",
@@ -75,8 +84,8 @@ fn narration_is_padded_with_lead_in_and_tail() {
 fn shots_lay_out_sequentially_when_transitions_are_zero() {
     let cfg = no_transition();
     let items = vec![
-        item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
-        item("b2", Some(2000), None, Policy::Hold, cfg),
+        item("b1", Some(1000), None, PolicyKind::Hold, cfg.clone()),
+        item("b2", Some(2000), None, PolicyKind::Hold, cfg),
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
     assert_eq!(t.entries[0].start_ms, TimeMs::at(0));
@@ -89,8 +98,8 @@ fn transitions_overlap_adjacent_shots() {
     let mut cfg = Config::default();
     cfg.transition.duration = TransitionDuration::Fixed(DurationMs::millis(300));
     let items = vec![
-        item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
-        item("b2", Some(1000), None, Policy::Hold, cfg),
+        item("b1", Some(1000), None, PolicyKind::Hold, cfg.clone()),
+        item("b2", Some(1000), None, PolicyKind::Hold, cfg),
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
     assert_eq!(t.entries[0].duration_ms, SpanMs::of(1300));
@@ -107,7 +116,7 @@ fn the_last_shot_has_no_outgoing_transition() {
     let mut cfg = Config::default();
     cfg.transition.duration = TransitionDuration::Fixed(DurationMs::millis(300));
     let t = schedule(
-        &[item("b1", Some(1000), None, Policy::Hold, cfg)],
+        &[item("b1", Some(1000), None, PolicyKind::Hold, cfg)],
         "s.md",
         "en",
         "0.1.0",
@@ -124,10 +133,10 @@ fn auto_transition_is_half_the_slack_clamped_to_the_maximum() {
             "b1",
             Some(5000),
             Some(200),
-            Policy::Concurrent(teleprompt_core::policy::Align::Start),
+            PolicyKind::Concurrent,
             cfg.clone(),
         ),
-        item("b2", Some(1000), None, Policy::Hold, cfg),
+        item("b2", Some(1000), None, PolicyKind::Hold, cfg),
     ];
     let mut items = items;
     // A generous tail so the quiet window is wider than `max_ms` and the
@@ -151,10 +160,10 @@ fn auto_transition_is_zero_when_there_is_no_slack() {
             "b1",
             Some(1000),
             Some(5000),
-            Policy::Concurrent(teleprompt_core::policy::Align::Start),
+            PolicyKind::Concurrent,
             cfg.clone(),
         ),
-        item("b2", Some(1000), None, Policy::Hold, cfg),
+        item("b2", Some(1000), None, PolicyKind::Hold, cfg),
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
     assert_eq!(
@@ -168,8 +177,8 @@ fn auto_transition_is_zero_when_there_is_no_slack() {
 fn action_offsets_are_absolute_not_shot_relative() {
     let cfg = no_transition();
     let items = vec![
-        item("b1", Some(1000), None, Policy::Hold, cfg.clone()),
-        item("b2", Some(1000), Some(500), Policy::Hold, cfg),
+        item("b1", Some(1000), None, PolicyKind::Hold, cfg.clone()),
+        item("b2", Some(1000), Some(500), PolicyKind::Hold, cfg),
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
     let a = t.entries[1].action.as_ref().unwrap();
@@ -185,7 +194,13 @@ fn policy_warnings_are_collected_with_the_shot_id() {
     let mut cfg = no_transition();
     cfg.timing.max_stretch = 2.0;
     let t = schedule(
-        &[item("b1", Some(10_000), Some(500), Policy::Fit, cfg)],
+        &[item(
+            "b1",
+            Some(10_000),
+            Some(500),
+            PolicyKind::FitAction,
+            cfg,
+        )],
         "s.md",
         "en",
         "0.1.0",
@@ -197,7 +212,13 @@ fn policy_warnings_are_collected_with_the_shot_id() {
 #[test]
 fn an_action_only_shot_schedules_with_no_narration() {
     let t = schedule(
-        &[item("b1", None, Some(800), Policy::Hold, no_transition())],
+        &[item(
+            "b1",
+            None,
+            Some(800),
+            PolicyKind::Hold,
+            no_transition(),
+        )],
         "s.md",
         "en",
         "0.1.0",
@@ -217,7 +238,13 @@ fn an_empty_program_produces_an_empty_timeline() {
 #[test]
 fn the_timeline_json_shape_is_stable() {
     let cfg = no_transition();
-    let items = vec![item("welcome", Some(1000), Some(500), Policy::Hold, cfg)];
+    let items = vec![item(
+        "welcome",
+        Some(1000),
+        Some(500),
+        PolicyKind::Hold,
+        cfg,
+    )];
     let t = schedule(&items, "script.md", "nl", "0.1.0").0;
     insta::assert_json_snapshot!(t);
 }
@@ -345,9 +372,9 @@ fn a_transition_leaves_room_for_the_one_that_arrived_before_it() {
 
     // A short item between two long ones: 400ms in, 400ms out, 500ms of item.
     let items = vec![
-        item("a", Some(4000), None, Policy::Hold, cfg.clone()),
-        item("b", Some(200), None, Policy::Hold, cfg.clone()),
-        item("c", Some(4000), None, Policy::Hold, cfg.clone()),
+        item("a", Some(4000), None, PolicyKind::Hold, cfg.clone()),
+        item("b", Some(200), None, PolicyKind::Hold, cfg.clone()),
+        item("c", Some(4000), None, PolicyKind::Hold, cfg.clone()),
     ];
     let t = schedule(&items, "s.md", "en", "0.1.0").0;
 
@@ -380,7 +407,7 @@ fn a_transition_leaves_room_for_the_one_that_arrived_before_it() {
 /// sentence decides when the shot is over.
 #[test]
 fn an_action_of_unknown_length_fills_the_sentence_over_it() {
-    let mut item = item("a", Some(6_000), Some(0), Policy::Hold, no_transition());
+    let mut item = item("a", Some(6_000), Some(0), PolicyKind::Hold, no_transition());
     if let Some(action) = item.action.as_mut() {
         action.duration_source = DurationSource::Unknown;
     }
@@ -408,7 +435,7 @@ fn a_cue_lands_on_the_word_not_a_lead_in_before_it() {
         "b1",
         Some(3000),
         Some(500),
-        Policy::Concurrent(teleprompt_core::policy::Align::Start),
+        PolicyKind::Concurrent,
         no_transition(),
     );
     it.action.as_mut().unwrap().cue_ms = Some(1000);
@@ -429,7 +456,7 @@ fn absurd_durations_saturate_rather_than_overflow() {
         "held",
         Some(1000),
         Some(u64::MAX),
-        Policy::Hold,
+        PolicyKind::Hold,
         Config::default(),
     );
     held.narration.as_mut().unwrap().lead_in_ms = DurationMs::MAX;
@@ -437,12 +464,18 @@ fn absurd_durations_saturate_rather_than_overflow() {
         "cued",
         Some(1000),
         Some(1000),
-        Policy::Concurrent(teleprompt_core::policy::Align::Start),
+        PolicyKind::Concurrent,
         Config::default(),
     );
     cued.narration.as_mut().unwrap().lead_in_ms = DurationMs::MAX;
     cued.action.as_mut().unwrap().cue_ms = Some(u64::MAX);
-    let after = item("after", Some(1000), None, Policy::Hold, Config::default());
+    let after = item(
+        "after",
+        Some(1000),
+        None,
+        PolicyKind::Hold,
+        Config::default(),
+    );
 
     for items in [vec![held, after.clone()], vec![cued, after]] {
         let (t, _) = schedule(&items, "s.md", "en", "0.1.0");

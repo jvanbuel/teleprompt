@@ -6,7 +6,7 @@
 //! of that text's hash, so an entry whose English has since changed is
 //! reported as out of date rather than silently spoken.
 
-use crate::program::{Element, Program};
+use crate::program::{ActionElement, Element, Program};
 use crate::{Diagnostic, Hash};
 
 /// A translated chapter title, line or cue, keyed by chapter slug, line id
@@ -80,11 +80,11 @@ pub fn items(program: &Program) -> Vec<Item> {
                     english: text.clone(),
                 });
             }
-            Element::Action {
+            Element::Action(ActionElement {
                 block_id,
                 cue: Some(cue),
                 ..
-            } => {
+            }) => {
                 if let Some(line) = &line {
                     items.push(Item {
                         key: block_id.to_string(),
@@ -231,12 +231,12 @@ pub fn apply(program: &mut Program, translation: &Translation) -> Vec<Diagnostic
                 above = Some((std::mem::replace(text, e.text.clone()), e.text.clone()));
                 *source_hash = Hash::of(text.as_bytes());
             }
-            Element::Action {
+            Element::Action(ActionElement {
                 block_id,
                 cue: Some(cue),
                 span,
                 ..
-            } => {
+            }) => {
                 if let Some(e) = find(&translation.cues, block_id) {
                     if e.from != source_of(cue) {
                         diags.push(stale("cue", block_id, &locale).at(*span));

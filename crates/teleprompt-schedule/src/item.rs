@@ -1,7 +1,6 @@
 use teleprompt_core::config::{Config, TimingConfig, TransitionConfig};
-use teleprompt_core::{DurationMs, DurationSource, Hash, ItemId, LineId, ShotId};
-
-use crate::policy::Policy;
+use teleprompt_core::policy::Align;
+use teleprompt_core::{DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId};
 
 #[derive(Debug, Clone)]
 pub struct NarrationInput {
@@ -57,7 +56,9 @@ pub struct Item {
     pub id: ItemId,
     pub narration: Option<NarrationInput>,
     pub action: Option<ActionInput>,
-    pub policy: Policy,
+    pub policy: PolicyKind,
+    /// Where a `concurrent` action sits against its narration.
+    pub align: Align,
     pub pacing: Pacing,
 }
 

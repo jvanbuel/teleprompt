@@ -2,7 +2,7 @@ use teleprompt_core::config::PartialConfig;
 use teleprompt_core::ident::check_ids;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::policy::{Align, PolicyKind};
-use teleprompt_core::program::{resolve, Element, Program};
+use teleprompt_core::program::{resolve, ActionElement, Element, Program};
 use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
 
@@ -64,7 +64,7 @@ fn chapters_flatten_into_one_ordered_item_list() {
         .iter()
         .map(|i| match i {
             Element::Narration { .. } => "narration",
-            Element::Action { .. } => "action",
+            Element::Action(ActionElement { .. }) => "action",
             Element::Pause { .. } => "pause",
         })
         .collect();
@@ -133,7 +133,7 @@ fn block_policy_and_align_default_when_unset() {
         &PartialConfig::default(),
     )
     .unwrap();
-    let Element::Action { policy, align, .. } = &p.elements[1] else {
+    let Element::Action(ActionElement { policy, align, .. }) = &p.elements[1] else {
         panic!()
     };
     assert_eq!(*policy, PolicyKind::Hold);
@@ -196,9 +196,9 @@ fn item_shots_match_their_source_node_not_a_fabricated_line() {
     else {
         panic!("expected narration item")
     };
-    let Element::Action {
+    let Element::Action(ActionElement {
         span: action_span, ..
-    } = &p.elements[1]
+    }) = &p.elements[1]
     else {
         panic!("expected action item")
     };

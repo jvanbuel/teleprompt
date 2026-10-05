@@ -1,7 +1,7 @@
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::policy::PolicyKind;
-use teleprompt_core::program::{resolve, Element};
+use teleprompt_core::program::{resolve, ActionElement, Element};
 use teleprompt_derive::{derive, Options, Word};
 
 fn say(at: u64, text: &str) -> Vec<Word> {
@@ -59,14 +59,14 @@ fn a_derived_script_is_a_script() {
     for element in &program.elements {
         match element {
             Element::Narration { text, .. } => narration.push(text.clone()),
-            Element::Action {
+            Element::Action(ActionElement {
                 body,
                 policy,
                 cue,
                 include,
                 scene,
                 ..
-            } => {
+            }) => {
                 assert!(body.trim().is_empty(), "{body}");
                 assert_eq!(scene, "asciinema");
                 actions.push((include.clone().unwrap(), *policy, cue.clone()));

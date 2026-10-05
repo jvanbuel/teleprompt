@@ -88,8 +88,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
         .expect("the item has an action");
     let published = compiled
         .shots
-        .iter()
-        .find(|s| s.id == entry.shot)
+        .get(&entry.shot)
         .expect("its source is published");
 
     // Split again, as a fresh block: what the tape says it lasts.
@@ -123,7 +122,7 @@ fn a_scene_reads_its_files_from_the_project() {
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
-        "[locales]\nsource = \"en\"\ntargets = []\n\n[scene.media]\ndir = \"pictures\"\n",
+        "[locales]\nsource = \"en\"\n\n[scene.media]\ndir = \"pictures\"\n",
     )
     .unwrap();
     std::fs::create_dir_all(dir.join("pictures")).unwrap();
