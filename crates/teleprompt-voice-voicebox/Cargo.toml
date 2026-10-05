@@ -13,6 +13,7 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 
 [dev-dependencies]
+teleprompt-testkit = { path = "../teleprompt-testkit" }
 tokio = { workspace = true, features = ["macros", "rt", "net", "io-util"] }
 
 [lints]

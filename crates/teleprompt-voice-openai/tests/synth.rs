@@ -1,4 +1,4 @@
-mod stub;
+use teleprompt_testkit::http as stub;
 
 use stub::{spawn, Reply};
 use teleprompt_voice::{SynthRequest, VoiceBackend, VoiceError};
@@ -32,7 +32,7 @@ fn pcm_bytes(samples: usize) -> Vec<u8> {
 
 #[tokio::test]
 async fn a_successful_synthesis_decodes_to_24khz_mono() {
-    let s = spawn(Reply::Ok(pcm_bytes(2400))).await;
+    let s = spawn(Reply::ok(pcm_bytes(2400))).await;
     let out = backend(&s.base_url, 30_000)
         .synthesize(&req("hello"))
         .await
@@ -49,7 +49,7 @@ async fn a_successful_synthesis_decodes_to_24khz_mono() {
 
 #[tokio::test]
 async fn the_request_body_is_what_the_spec_says() {
-    let s = spawn(Reply::Ok(pcm_bytes(2))).await;
+    let s = spawn(Reply::ok(pcm_bytes(2))).await;
     let r = SynthRequest {
         text: "hello".to_string(),
         locale: "en".to_string(),
@@ -59,8 +59,11 @@ async fn the_request_body_is_what_the_spec_says() {
     };
     backend(&s.base_url, 30_000).synthesize(&r).await.unwrap();
 
-    assert_eq!(s.first_request_line(), "POST /v1/audio/speech HTTP/1.1");
-    let body = s.first_body();
+    assert_eq!(
+        s.first().head.lines().next().unwrap().to_string(),
+        "POST /v1/audio/speech HTTP/1.1"
+    );
+    let body = s.first().json();
     assert_eq!(body["model"], "kokoro");
     assert_eq!(body["input"], "hello");
     assert_eq!(body["voice"], "af_bella");
@@ -75,7 +78,7 @@ async fn an_odd_byte_count_is_an_error_not_a_dropped_sample() {
     // i16 samples are byte pairs. A trailing odd byte means the body is not
     // what it claims; silently dropping it would publish a duration one
     // sample short of the audio and hide a real protocol problem.
-    let s = spawn(Reply::Ok(vec![1, 2, 3])).await;
+    let s = spawn(Reply::ok(vec![1, 2, 3])).await;
     let err = backend(&s.base_url, 30_000)
         .synthesize(&req("x"))
         .await
@@ -87,7 +90,7 @@ async fn an_odd_byte_count_is_an_error_not_a_dropped_sample() {
 #[tokio::test]
 async fn an_empty_body_is_an_error() {
     // Zero samples would be a zero-length WAV published as a real line.
-    let s = spawn(Reply::Ok(Vec::new())).await;
+    let s = spawn(Reply::ok(Vec::new())).await;
     let err = backend(&s.base_url, 30_000)
         .synthesize(&req("x"))
         .await
@@ -97,7 +100,7 @@ async fn an_empty_body_is_an_error() {
 
 #[tokio::test]
 async fn a_non_200_names_the_url_and_the_status() {
-    let s = spawn(Reply::Status(500, "boom".to_string())).await;
+    let s = spawn(Reply::error(500, "boom")).await;
     let err = backend(&s.base_url, 30_000)
         .synthesize(&req("x"))
         .await

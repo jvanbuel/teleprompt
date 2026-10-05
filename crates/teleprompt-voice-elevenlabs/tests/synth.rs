@@ -1,7 +1,7 @@
 //! Speaking a line with ElevenLabs: the request its API gets, and the
 //! audio and timings read back out of its answer.
 
-mod stub;
+use teleprompt_testkit::http as stub;
 
 use std::collections::BTreeMap;
 
@@ -76,12 +76,12 @@ async fn a_line_is_spoken_with_its_words_timed() {
         .collect();
     assert_eq!(got, [("Hi", 0, 100), ("all.", 120, 250)]);
 
-    let seen = stub.requests.lock().unwrap();
-    let (_, head, body) = &seen[0];
-    assert!(head
+    let sent = stub.first();
+    assert!(sent
+        .head
         .to_ascii_lowercase()
         .contains("xi-api-key: teleprompt-voice-elevenlabs"));
-    let body: serde_json::Value = serde_json::from_slice(body).unwrap();
+    let body = sent.json();
     assert_eq!(body["text"], "Hi all.");
     assert_eq!(body["model_id"], "eleven_multilingual_v2");
     assert_eq!(body["voice_settings"]["speed"], 1.1);
@@ -130,7 +130,7 @@ async fn a_speed_or_instruction_it_cannot_take_is_refused() {
 async fn a_refusal_says_why() {
     let stub = spawn(BTreeMap::from([(
         speech_route(DEFAULT_VOICE),
-        Reply::status(
+        Reply::error(
             401,
             serde_json::json!({ "detail": { "status": "invalid_api_key", "message": "Invalid API key" } }),
         ),

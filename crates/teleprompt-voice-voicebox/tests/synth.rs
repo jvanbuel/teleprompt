@@ -1,7 +1,7 @@
 //! Speaking a line through a Voicebox server: the profile named, the
 //! request it gets, and what comes back.
 
-mod stub;
+use teleprompt_testkit::http as stub;
 
 use std::collections::BTreeMap;
 
@@ -130,7 +130,7 @@ async fn a_failing_server_says_so() {
         ("GET /profiles", profiles()),
         (
             "POST /generate/stream",
-            Reply(500, "text/plain", b"model not loaded".to_vec()),
+            Reply::Send(500, "text/plain", b"model not loaded".to_vec()),
         ),
     ]))
     .await;

@@ -2203,7 +2203,9 @@ dependencies = [
 name = "teleprompt-testkit"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -2251,6 +2253,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",
 ]
@@ -2264,6 +2267,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",
 ]
@@ -2277,6 +2281,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",
 ]
@@ -2289,6 +2294,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",
 ]

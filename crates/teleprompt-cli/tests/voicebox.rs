@@ -1,35 +1,27 @@
 //! `dub` through a Voicebox server: a project that names it speaks in a
 //! Voicebox voice, with its delivery instructions. The server is a stub.
 
-mod http_stub;
-
 use std::collections::BTreeMap;
 use std::process::Command;
 
-use http_stub::Seen;
+use serde_json::json;
+use teleprompt_testkit::http::{self, Reply, Stub};
 
-/// Answers the profile list and speech routes; records each request's route
-/// and body.
-async fn stub(wav: Vec<u8>) -> (String, Seen) {
-    http_stub::serve(BTreeMap::from([
+/// Answers the profile list and speech routes; records each request.
+async fn stub(wav: Vec<u8>) -> Stub {
+    http::spawn(BTreeMap::from([
         (
-            "GET /profiles".to_string(),
-            (
-                r#"[{"id":"p-1","name":"Jan"}]"#.as_bytes().to_vec(),
-                "application/json",
-            ),
+            "GET /profiles",
+            Reply::json(json!([{"id": "p-1", "name": "Jan"}])),
         ),
-        ("POST /generate/stream".to_string(), (wav, "audio/wav")),
+        ("POST /generate/stream", Reply::wav(wav)),
         (
-            "POST /profiles".to_string(),
-            (
-                r#"{"id":"p-2","name":"Narrator"}"#.as_bytes().to_vec(),
-                "application/json",
-            ),
+            "POST /profiles",
+            Reply::json(json!({"id": "p-2", "name": "Narrator"})),
         ),
         (
-            "POST /profiles/p-2/samples".to_string(),
-            (r#"{"id":"s-1"}"#.as_bytes().to_vec(), "application/json"),
+            "POST /profiles/p-2/samples",
+            Reply::json(json!({"id": "s-1"})),
         ),
     ]))
     .await
@@ -42,7 +34,8 @@ async fn a_project_speaks_in_its_voicebox_voice() {
         channels: 1,
         samples: vec![300; 24_000],
     });
-    let (url, seen) = stub(wav).await;
+    let stub = stub(wav).await;
+    let url = &stub.base_url;
     let dir = teleprompt_testkit::test_dir("voicebox-dub");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     std::fs::write(
@@ -76,12 +69,7 @@ async fn a_project_speaks_in_its_voicebox_voice() {
         serde_json::from_str(&std::fs::read_to_string(dir.join("out/en/narration.json")).unwrap())
             .unwrap();
     assert_eq!(manifest["lines"][0]["duration_ms"], 1000);
-    let requests = seen.lock().unwrap().clone();
-    let (_, body) = requests
-        .iter()
-        .find(|(r, _)| r == "POST /generate/stream")
-        .expect("spoke");
-    let body: serde_json::Value = serde_json::from_str(body).unwrap();
+    let body = stub.json_to("POST /generate/stream");
     assert_eq!(body["profile_id"], "p-1");
     assert_eq!(body["instruct"], "calmly");
     assert_eq!(body["personality"], false);
@@ -105,7 +93,8 @@ fn tp(
 /// settings that speak in it printed.
 #[tokio::test(flavor = "multi_thread")]
 async fn voice_clone_makes_a_voice_from_your_takes() {
-    let (url, seen) = stub(Vec::new()).await;
+    let stub = stub(Vec::new()).await;
+    let url = &stub.base_url;
     let dir = teleprompt_testkit::test_dir("voicebox-clone");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     std::fs::write(
@@ -148,13 +137,12 @@ async fn voice_clone_makes_a_voice_from_your_takes() {
         stdout.contains("voice = \"Narrator\"") && stdout.contains("backend = \"voicebox\""),
         "{stdout}"
     );
-    let requests = seen.lock().unwrap().clone();
-    let samples: Vec<&String> = requests
+    let samples: Vec<String> = stub
+        .requests_to("POST /profiles/p-2/samples")
         .iter()
-        .filter(|(r, _)| r == "POST /profiles/p-2/samples")
-        .map(|(_, b)| b)
+        .map(http::Request::text)
         .collect();
-    assert_eq!(samples.len(), 2, "{requests:?}");
+    assert_eq!(samples.len(), 2, "{:?}", stub.requests());
     // The longest first.
     assert!(samples[0].contains("Deployment is one command."));
     assert!(samples[1].contains("Welcome to Acme."));

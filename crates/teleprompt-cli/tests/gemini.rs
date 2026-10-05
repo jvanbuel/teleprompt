@@ -1,12 +1,11 @@
 //! `dub` through Gemini TTS: a project that names it speaks in a Gemini
 //! voice, directed by its delivery instructions. The API is a stub.
 
-mod http_stub;
-
 use std::collections::BTreeMap;
 use std::process::Command;
 
 use base64::Engine;
+use teleprompt_testkit::http::{self, Reply};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_project_speaks_in_its_gemini_voice() {
@@ -21,11 +20,12 @@ async fn a_project_speaks_in_its_gemini_voice() {
             "data": base64::engine::general_purpose::STANDARD.encode(wav),
         }]}],
     });
-    let (url, seen) = http_stub::serve(BTreeMap::from([(
-        "POST /v1beta/interactions".to_string(),
-        (answer.to_string().into_bytes(), "application/json"),
+    let stub = http::spawn(BTreeMap::from([(
+        "POST /v1beta/interactions",
+        Reply::json(answer),
     )]))
     .await;
+    let url = &stub.base_url;
     let dir = teleprompt_testkit::test_dir("gemini-dub");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     std::fs::write(
@@ -62,12 +62,7 @@ async fn a_project_speaks_in_its_gemini_voice() {
         serde_json::from_str(&std::fs::read_to_string(dir.join("out/en/narration.json")).unwrap())
             .unwrap();
     assert_eq!(manifest["lines"][0]["duration_ms"], 1000);
-    let requests = seen.lock().unwrap().clone();
-    let (_, body) = requests
-        .iter()
-        .find(|(r, _)| r == "POST /v1beta/interactions")
-        .expect("spoke");
-    let body: serde_json::Value = serde_json::from_str(body).unwrap();
+    let body = stub.json_to("POST /v1beta/interactions");
     assert_eq!(body["input"][0]["text"], "Welcome to Acme.");
     assert_eq!(body["input"][0]["annotations"][0]["style"], "calmly");
     assert_eq!(

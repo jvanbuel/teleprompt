@@ -1,7 +1,7 @@
 //! `setup`'s question: does the key open the model, without paying for
 //! a line of speech.
 
-mod stub;
+use teleprompt_testkit::http as stub;
 
 use std::collections::BTreeMap;
 
@@ -34,10 +34,10 @@ async fn a_key_that_opens_the_model_says_so() {
         .await
         .unwrap();
     assert!(said.contains("Gemini 3.8 Flash TTS"), "{said}");
-    let seen = stub.requests.lock().unwrap();
+    let seen = stub.requests();
     assert_eq!(seen.len(), 1);
     assert!(seen[0]
-        .1
+        .head
         .to_lowercase()
         .contains("x-goog-api-key: teleprompt-voice-gemini"));
 }
@@ -46,7 +46,7 @@ async fn a_key_that_opens_the_model_says_so() {
 async fn a_refused_key_is_said_in_the_apis_words() {
     let stub = spawn(BTreeMap::from([(
         ROUTE,
-        Reply::status(
+        Reply::error(
             400,
             serde_json::json!({ "error": { "message": "API key not valid." } }),
         ),
@@ -67,5 +67,5 @@ async fn no_key_is_said_before_anything_is_sent() {
         .await
         .unwrap_err();
     assert!(e.to_string().contains("TELEPROMPT_NO_SUCH_KEY_VAR"), "{e}");
-    assert!(stub.requests.lock().unwrap().is_empty());
+    assert!(stub.requests().is_empty());
 }

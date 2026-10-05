@@ -1,6 +1,6 @@
 //! A server of the author's own, under a name of theirs, and OpenAI's.
 
-mod stub;
+use teleprompt_testkit::http as stub;
 
 use stub::{spawn, Reply};
 use teleprompt_voice::SynthRequest;
@@ -55,7 +55,7 @@ fn the_cache_key_names_the_model_and_an_unusual_rate() {
 
 #[tokio::test]
 async fn an_endpoint_is_named_by_the_author_and_says_lines_at_its_rate() {
-    let s = spawn(Reply::Ok(vec![0; 2 * 22050])).await;
+    let s = spawn(Reply::ok(vec![0; 2 * 22050])).await;
     let voice = endpoint(
         "studio",
         &settings(&format!(
@@ -67,22 +67,25 @@ async fn an_endpoint_is_named_by_the_author_and_says_lines_at_its_rate() {
     assert_eq!(voice.id(), "studio");
     let out = voice.synthesize(&line()).await.unwrap();
     assert_eq!(out.pcm.duration_ms(), 1000);
-    assert_eq!(s.first_request_line(), "POST /v1/audio/speech HTTP/1.1");
-    let body = s.first_body();
+    assert_eq!(
+        s.first().head.lines().next().unwrap().to_string(),
+        "POST /v1/audio/speech HTTP/1.1"
+    );
+    let body = s.first().json();
     assert_eq!(body["voice"], "amy");
     assert_eq!(body["instructions"], "warmly");
 }
 
 #[tokio::test]
 async fn an_endpoint_that_lists_no_voices_is_not_an_error() {
-    let s = spawn(Reply::Status(404, "Not Found".into())).await;
+    let s = spawn(Reply::error(404, "Not Found")).await;
     let voice = endpoint("studio", &settings(&format!("base_url: {}", s.base_url))).unwrap();
     assert!(voice.voices().await.is_none());
 }
 
 #[tokio::test]
 async fn the_key_comes_from_the_variable_the_settings_name() {
-    let s = spawn(Reply::Ok(vec![0; 480])).await;
+    let s = spawn(Reply::ok(vec![0; 480])).await;
     let var = "TELEPROMPT_TEST_SPEECH_KEY";
     let voice = endpoint(
         "studio",
@@ -94,11 +97,11 @@ async fn the_key_comes_from_the_variable_the_settings_name() {
     std::env::remove_var(var);
     let err = voice.synthesize(&line()).await.unwrap_err().to_string();
     assert!(err.contains(var), "{err}");
-    assert!(s.requests.lock().unwrap().is_empty());
+    assert!(s.requests().is_empty());
 
     std::env::set_var(var, "sk-test");
     voice.synthesize(&line()).await.unwrap();
-    let raw = s.requests.lock().unwrap()[0].to_lowercase();
+    let raw = s.first().head.to_lowercase();
     assert!(raw.contains("authorization: bearer sk-test"), "{raw}");
 }
 

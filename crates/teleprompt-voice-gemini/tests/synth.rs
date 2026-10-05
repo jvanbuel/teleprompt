@@ -1,7 +1,7 @@
 //! Speaking a line with a Gemini TTS model: the request the Interactions
 //! API gets, and the audio read back out of its answer.
 
-mod stub;
+use teleprompt_testkit::http as stub;
 
 use std::collections::BTreeMap;
 
@@ -203,7 +203,7 @@ async fn no_key_says_where_to_get_one() {
 async fn a_refusal_says_why() {
     let s = spawn(BTreeMap::from([(
         ROUTE,
-        Reply::status(
+        Reply::error(
             429,
             serde_json::json!({ "error": { "code": 429, "message": "Resource has been exhausted (e.g. check quota).", "status": "RESOURCE_EXHAUSTED" } }),
         ),

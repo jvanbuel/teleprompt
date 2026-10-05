@@ -1,7 +1,7 @@
 //! Making a Voicebox voice from recordings and what they say: a profile,
 //! then each recording as a sample with its text.
 
-mod stub;
+use teleprompt_testkit::http as stub;
 
 use std::collections::BTreeMap;
 
@@ -56,9 +56,9 @@ async fn a_voice_is_a_profile_and_its_samples_with_their_text() {
     assert_eq!(created["language"], "en");
     assert_eq!(created["voice_type"], "cloned");
     assert_eq!(created["default_engine"], "qwen");
-    let samples = s.bodies_to("POST /profiles/p-9/samples");
+    let samples = s.requests_to("POST /profiles/p-9/samples");
     assert_eq!(samples.len(), 2);
-    let first = String::from_utf8_lossy(&samples[0]);
+    let first = samples[0].text();
     assert!(
         first.contains("name=\"reference_text\"") && first.contains("Welcome to Acme."),
         "{first}"
@@ -82,5 +82,5 @@ async fn a_name_already_taken_is_refused_before_anything_is_made() {
         .unwrap_err()
         .to_string();
     assert!(err.contains("Jan") && err.contains("already"), "{err}");
-    assert!(s.bodies_to("POST /profiles").is_empty());
+    assert!(s.requests_to("POST /profiles").is_empty());
 }

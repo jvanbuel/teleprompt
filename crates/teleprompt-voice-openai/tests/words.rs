@@ -1,6 +1,6 @@
 //! Word timings, opt-in, from Kokoro-FastAPI's `/dev/captioned_speech`.
 
-mod stub;
+use teleprompt_testkit::http as stub;
 
 use base64::Engine;
 use stub::{spawn, Reply};
@@ -45,7 +45,7 @@ fn captioned() -> Vec<u8> {
 
 #[tokio::test]
 async fn opted_in_the_words_come_with_the_audio_without_punctuation() {
-    let s = spawn(Reply::Ok(captioned())).await;
+    let s = spawn(Reply::ok(captioned())).await;
     let b = backend(&s.base_url, true);
     let out = b.synthesize(&req()).await.unwrap();
     assert_eq!(out.pcm.duration_ms(), 100);
@@ -55,24 +55,24 @@ async fn opted_in_the_words_come_with_the_audio_without_punctuation() {
         .map(|w| (w.word.as_str(), w.start_ms))
         .collect();
     assert_eq!(said, [("Hello", 23), ("from", 348), ("teleprompt", 498)]);
-    assert!(s.requests.lock().unwrap()[0].starts_with("POST /dev/captioned_speech"));
+    assert!(s.first().head.starts_with("POST /dev/captioned_speech"));
 }
 
 /// Off by default: the stable endpoint, and no words.
 #[tokio::test]
 async fn by_default_the_stable_endpoint_is_used() {
     let pcm: Vec<u8> = (0..2400i16).flat_map(i16::to_le_bytes).collect();
-    let s = spawn(Reply::Ok(pcm)).await;
+    let s = spawn(Reply::ok(pcm)).await;
     let b = backend(&s.base_url, false);
     assert!(b.synthesize(&req()).await.unwrap().word_timings.is_none());
-    assert!(s.requests.lock().unwrap()[0].starts_with("POST /v1/audio/speech"));
+    assert!(s.first().head.starts_with("POST /v1/audio/speech"));
 }
 
 /// A server without the endpoint fails the dub and names the setting,
 /// rather than quietly losing the timings asked for.
 #[tokio::test]
 async fn a_server_without_captions_says_which_setting_to_change() {
-    let s = spawn(Reply::Status(404, "Not Found".into())).await;
+    let s = spawn(Reply::error(404, "Not Found")).await;
     let err = backend(&s.base_url, true)
         .synthesize(&req())
         .await
@@ -106,7 +106,7 @@ async fn a_word_without_times_is_left_out_rather_than_put_at_the_start() {
             {"word": "teleprompt", "start_time": "soon", "end_time": 1.3228}
         ]
     });
-    let s = spawn(Reply::Ok(body.to_string().into_bytes())).await;
+    let s = spawn(Reply::ok(body.to_string().into_bytes())).await;
     let out = backend(&s.base_url, true).synthesize(&req()).await.unwrap();
     let words = out.word_timings.expect("timed");
     let said: Vec<&str> = words.iter().map(|w| w.word.as_str()).collect();

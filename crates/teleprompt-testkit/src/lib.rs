@@ -1,5 +1,7 @@
 //! Helpers for the workspace's tests. A dev-dependency only.
 
+pub mod http;
+
 use std::ops::Deref;
 use std::path::Path;
 
