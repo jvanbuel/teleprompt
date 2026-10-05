@@ -15,12 +15,10 @@ use serde_json::{json, Value};
 const PROJECTS: &[&str] = &[
     "manual/scripts/cli.md",
     "demos/flowrs/scripts/demo.md",
-    "examples/asciinema/scripts/recording.md",
     "examples/desktop/scripts/tutorial.md",
     "examples/media/scripts/tour.md",
     "examples/moo/scripts/moo.md",
     "examples/remotion/scripts/remotion.md",
-    "examples/slidev/scripts/slides.md",
 ];
 
 /// Projects whose configured voice needs nothing installed, so `dub` runs.

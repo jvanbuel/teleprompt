@@ -11,7 +11,6 @@ driven by VHS — in one script, with narration timed over both.
 ```
 scripts/demo.md   the script: five paragraphs, five shots, two scenes
 teleprompt.toml   project settings
-tools/            an espeak-ng voice server, so the demo can be heard offline
 ```
 
 ## What it needs
@@ -83,26 +82,28 @@ and the count is the thing to watch.
 `teleprompt.toml` ships with `backend = "null"`, which renders silence of
 the estimated length — the timing is real and there is nothing to hear.
 
-For a voice with no model server, no weights and no network:
+For a voice with no model server, no weights and no network, run the
+repository's eSpeak NG server (it needs `espeak-ng`):
 
 ```sh
-python3 tools/espeak-speech-server.py &     # needs espeak-ng and ffmpeg
+python3 ../../examples/voices/espeak_server.py &
 ```
 
 then in `teleprompt.toml`:
 
 ```toml
 [voice]
-backend = "kokoro"
+backend = "espeak"
+voice = "en-us"
 
-[backends.kokoro]
-model = "espeak-ng-1.51-150wpm"
+[backends.espeak]
+base_url = "http://localhost:8891/v1"
+model = "espeak"
 ```
 
 It sounds like formant synthesis, because it is. For a real voice, run
-[Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) on `:8880`
-instead and set `model` back to `kokoro` — same endpoint, same config,
-better voice.
+[Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) on `:8880` and
+set `backend = "kokoro"`: same contract, better voice.
 
 Rename `model` whenever the voice behind it changes. It is the whole cache
 key for synthesized audio, so leaving it alone gets you the old take.

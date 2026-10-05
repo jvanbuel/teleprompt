@@ -106,15 +106,16 @@ every JSON report says `ok`, true exactly when the exit code is 0.
 ## Documentation
 
 - [Writing scripts](docs/guide/scripts.md): lines and blocks, policies,
-  cues, transitions, configuration, and drafting from a document
+  cues, transitions and configuration
 - [Scenes](docs/guide/scenes.md): capture, sessions, and each scene plugin
 - [Voices](docs/guide/voices.md): backends, the voice cache, and Kokoro
 - [Reading from a prompter](docs/guide/prompter.md): `serve`, which
   follows your voice
 - [Translating a video](docs/guide/translating.md): `translate` and
   `--locale`, for the same video in another language
-- [Recording a session](docs/guide/recording.md): `record` and `import`,
-  which draft a script from a terminal session you narrated
+- [Drafting a script](docs/guide/drafting.md): `record` and `import`,
+  which draft one from a session you narrated, a document, a deck or a
+  conversation
 - [Rendering](docs/guide/rendering.md): `build`, `dub` and the manifest,
   and watching an edit
 - [Editors](docs/guide/editors.md): `teleprompt lsp`, for problems,

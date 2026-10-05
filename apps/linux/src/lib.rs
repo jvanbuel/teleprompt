@@ -3,5 +3,4 @@
 //! Free of GTK; the window is in the binary.
 
 pub mod launch;
-pub mod models;
 pub mod tools;

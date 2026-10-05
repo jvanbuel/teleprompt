@@ -55,3 +55,28 @@ pub fn pick<'a>(tools: &'a [Tool], chosen: Option<&str>) -> Option<&'a Tool> {
         .find(|t| Some(t.plugin.as_str()) == chosen)
         .or_else(|| tools.iter().find(ready))
 }
+
+/// Whether `teleprompt setup` says what drafting needs is installed (the
+/// speech model), from its `--uses` report. `true` when that cannot be
+/// read: `record` then says itself what it is missing.
+pub fn drafts_ready(report: &str) -> bool {
+    let Ok(report) = serde_json::from_str::<serde_json::Value>(report) else {
+        return true;
+    };
+    report["uses"]
+        .as_array()
+        .and_then(|uses| uses.iter().find(|u| u["name"] == "drafts"))
+        .and_then(|u| u["installed"].as_bool())
+        .unwrap_or(true)
+}
+
+/// Asks `binary` whether drafting is set up, as [`drafts_ready`] reads it.
+/// Blocks, so call it off the main thread.
+pub fn ask_drafts_ready(binary: &Path) -> bool {
+    Command::new(binary)
+        .args(["--format", "json", "setup", "--uses"])
+        .output()
+        .map_or(true, |out| {
+            drafts_ready(&String::from_utf8_lossy(&out.stdout))
+        })
+}

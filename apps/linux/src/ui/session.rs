@@ -242,16 +242,17 @@ pub fn record_argv(
     binary: &Path,
     script: &Path,
     with: Option<&str>,
-    model: &Path,
+    model: Option<&Path>,
     punctuation: Option<&Path>,
 ) -> Vec<String> {
     let mut argv = vec![
         binary.display().to_string(),
         "record".into(),
         script.display().to_string(),
-        "--model".into(),
-        model.display().to_string(),
     ];
+    if let Some(m) = model {
+        argv.extend(["--model".into(), m.display().to_string()]);
+    }
     if let Some(tool) = with {
         argv.extend(["--with".into(), tool.to_string()]);
     }

@@ -33,3 +33,20 @@ fn the_chosen_tool_is_used_if_it_can_record() {
     assert_eq!(pick(&tools, Some("vhs")).unwrap().plugin, "asciinema");
     assert_eq!(pick(&tools, None).unwrap().plugin, "asciinema");
 }
+
+/// Whether drafting is set up is `teleprompt setup`'s to say, not the
+/// app's to look for.
+#[test]
+fn drafting_is_ready_when_setup_says_so() {
+    use teleprompt_gtk::tools::drafts_ready;
+    let report = |installed: bool| {
+        format!(
+            r#"{{"uses":[{{"name":"render","installed":false}},{{"name":"drafts","installed":{installed}}}]}}"#
+        )
+    };
+    assert!(drafts_ready(&report(true)));
+    assert!(!drafts_ready(&report(false)));
+    // Unreadable, or an older teleprompt: `record` says what it lacks.
+    assert!(drafts_ready("not json"));
+    assert!(drafts_ready(r#"{"uses":[]}"#));
+}

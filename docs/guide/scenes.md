@@ -226,7 +226,7 @@ font_size = 32
 
 Capture lays the session's shots end to end in one cast, renders it with
 [`agg`](https://github.com/asciinema/agg), and cuts it into a clip per
-shot. See `examples/asciinema`.
+shot. `examples/plugin-authors` records its terminal this way.
 
 ## Browsers
 
@@ -352,8 +352,8 @@ animations aren't in the picture, and the cut between blocks is
 teleprompt's transition. A slide the deck doesn't have fails at capture,
 naming the slide and how many clicks it does have. Slidev's Playwright
 drives the export unless `browser` or `TELEPROMPT_SLIDEV_BROWSER` names a
-browser. See `examples/slidev`, whose script was
-[drafted from its speaker notes](scripts.md#from-a-slidev-deck).
+browser. See `examples/moo`, a deck of its own with a script; a script
+can also be [drafted from a deck's speaker notes](drafting.md#from-a-slidev-deck).
 
 ## Desktop apps
 

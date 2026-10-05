@@ -27,7 +27,7 @@ const RECORD_KEY: &str = "Ctrl ⇧ Space";
 enum Event {
     Launch(u64, LaunchEvent),
     /// The tools a session can record with, for the session it was asked for.
-    Tools(u64, Result<Vec<Tool>, String>),
+    Tools(u64, Result<Vec<Tool>, String>, bool),
 }
 
 /// What the prompter needs that it does not have, and how to get it.
@@ -95,6 +95,8 @@ struct Session {
     since: Option<Instant>,
     /// What it can record with, once `teleprompt record --tools` has said.
     tools: Vec<Tool>,
+    /// Whether `teleprompt setup` has what drafting needs, once it has said.
+    ready: bool,
 }
 
 impl Window {
@@ -425,6 +427,7 @@ impl Window {
                 recording: None,
                 since: None,
                 tools: Vec::new(),
+                ready: true,
             });
             model.status = Status::info(format!("New script: {}", file_name(&script)));
         }
@@ -455,13 +458,18 @@ impl Window {
         };
         let (events, generation) = (self.events.clone(), model.generation);
         std::thread::spawn(move || {
-            let _ = events.send_blocking(Event::Tools(generation, tools::list(&binary)));
+            let listed = tools::list(&binary);
+            let ready = tools::ask_drafts_ready(&binary);
+            let _ = events.send_blocking(Event::Tools(generation, listed, ready));
         });
     }
 
     /// Offers the tools, the last one used picked. A `teleprompt` too old
     /// to list them records with its own default, and no choice is shown.
-    fn tools_listed(self: &Rc<Self>, listed: Result<Vec<Tool>, String>) {
+    fn tools_listed(self: &Rc<Self>, listed: Result<Vec<Tool>, String>, ready: bool) {
+        if let Some(session) = self.model.borrow_mut().session.as_mut() {
+            session.ready = ready;
+        }
         let Ok(listed) = listed else { return };
         let chosen = {
             let model = self.model.borrow();
@@ -500,7 +508,8 @@ impl Window {
                 drop(model);
                 return self.show_failed(&[NO_BINARY.into()]);
             };
-            let Some(speech) = model.config.model() else {
+            let speech = model.config.model();
+            if speech.is_none() && !session.ready {
                 drop(model);
                 return self.offer_setup_then(
                     &["drafts"],
@@ -509,15 +518,21 @@ impl Window {
                      speech model; the punctuation model gives the draft capitals and \
                      full stops. Recording starts once they are installed.",
                     ),
-                    |this| this.start_session(),
+                    |this| {
+                        // Set up now; were it not, `record` says so itself.
+                        if let Some(s) = this.model.borrow_mut().session.as_mut() {
+                            s.ready = true;
+                        }
+                        this.start_session()
+                    },
                 );
-            };
+            }
             (
                 super::session::record_argv(
                     &binary,
                     &session.script,
                     self.w.session.chosen().as_deref(),
-                    &speech,
+                    speech.as_deref(),
                     model.config.punctuation().as_deref(),
                 ),
                 super::session::project_dir(&session.script),
@@ -615,7 +630,7 @@ impl Window {
         let generation = self.model.borrow().generation;
         match event {
             Event::Launch(g, e) if g == generation => self.launched(e),
-            Event::Tools(g, tools) if g == generation => self.tools_listed(tools),
+            Event::Tools(g, tools, ready) if g == generation => self.tools_listed(tools, ready),
             _ => {}
         }
     }

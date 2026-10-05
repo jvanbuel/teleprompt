@@ -542,13 +542,10 @@ The scheduler is a pure function from items, with their durations, to a
 
 ### Policies
 
-| policy | effect |
-|---|---|
-| `hold` (default) | The line plays over the picture left by the item before it, and the action runs after the line ends. |
-| `concurrent` | The action and the line overlap. `align=start` (the default), `end` or `center` places the shorter within the longer. A [cue](#cues) moves the action to a phrase. |
-| `fit-action` | The action is re-timed, slower or faster, to last exactly as long as the line, within `min_stretch` and `max_stretch`. The bound is applied with a warning. |
-| `trim-action` | An action longer than its line is cut to the line's length, with a warning when it is more than `trim_warn_above` times the line's length. A shorter action is left alone. |
-| `fit-line` | The line is sped up or slowed down to fit the action, which keeps its length: see [led by the picture](#led-by-the-picture). |
+A block's `policy=` decides how its line and action share an item:
+`hold`, `concurrent`, `fit-action`, `trim-action` or `fit-line`. What each
+does is in [the scripts guide](guide/scripts.md#pairing-and-policies); the
+layout is `teleprompt_schedule::layout`.
 
 A policy only changes a picture if the scene's plugin can re-time its
 source (see `retime` under [the scene contract](#scene-contract)). Where

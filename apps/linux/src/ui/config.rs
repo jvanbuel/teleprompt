@@ -59,21 +59,18 @@ impl Config {
             .or_else(|| self.binary.clone())
     }
 
-    /// `TELEPROMPT_MODEL`, the one chosen in Settings, or the one
-    /// `teleprompt setup speech-model` installed.
+    /// `TELEPROMPT_MODEL`, or the one chosen in Settings. Neither, and
+    /// `teleprompt` uses the one its setup installed.
     pub fn model(&self) -> Option<PathBuf> {
         std::env::var_os("TELEPROMPT_MODEL")
             .map(PathBuf::from)
             .or_else(|| self.model.clone())
-            .or_else(teleprompt_gtk::models::installed_speech)
     }
 
-    /// The one chosen in Settings, or the one `teleprompt setup
-    /// punctuation-model` installed, if any.
+    /// The one chosen in Settings; none, and `teleprompt` uses the one its
+    /// setup installed, if any.
     pub fn punctuation(&self) -> Option<PathBuf> {
-        self.punctuation
-            .clone()
-            .or_else(teleprompt_gtk::models::installed_punctuation)
+        self.punctuation.clone()
     }
 
     /// Notes `script` as the one opened last.

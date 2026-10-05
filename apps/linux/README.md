@@ -89,7 +89,7 @@ into the terminal, and it isn't a desktop shortcut the way Ctrl+Space
 
 A punctuation model gives the draft sentences: `teleprompt setup
 punctuation-model --run` installs one the app uses, or choose one in
-Settings (see `docs/guide/recording.md`). The microphone is the system's default
+Settings (see `docs/guide/drafting.md`). The microphone is the system's default
 input, or ffmpeg's input in `TELEPROMPT_RECORD_MIC`. The server
 stops with the app, even if the app is killed. The look is described in
 `apps/DESIGN.md`.
