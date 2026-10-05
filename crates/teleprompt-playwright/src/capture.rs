@@ -8,9 +8,9 @@
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_plugin::capture::reel::{cut, starved, windows};
+use teleprompt_plugin::capture::reel::windows;
 use teleprompt_plugin::capture::{
-    CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir,
+    CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
 };
 
 /// How long an action annotation (pointer, click ripple, title) stays on
@@ -32,7 +32,7 @@ const DEFAULT_ANNOTATION_SIZE: u32 = 32;
 ///
 /// Each shot is padded to its scheduled length by holding the page still
 /// afterwards; the author's code is not re-timed. A shot that overruns is
-/// not padded, and [`starved`] catches a reel that falls too far behind.
+/// not padded, and [`teleprompt_plugin::capture::reel::starved`] catches a reel that falls too far behind.
 pub fn script_for(session: &Session, frame: &Frame, video_dir: &str) -> String {
     let mut out = String::new();
     out.push_str("import { chromium } from 'playwright';\n\n");
@@ -151,33 +151,22 @@ impl CaptureBackend for PlaywrightRender {
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
-        let first = session
-            .shots
-            .first()
-            .map(|s| s.id.to_string())
-            .unwrap_or_default();
-        let failed = |shot: &str, why: String| CaptureError::Failed {
-            backend: "playwright".into(),
-            shot: shot.into(),
-            reason: why,
-        };
-
-        let work = WorkDir::create(out_dir, "pw")
-            .map_err(|e| failed(&first, format!("{}: {e}", out_dir.display())))?;
+        let mut job = Job::new("playwright", session, frame, out_dir, on_progress);
+        let work = job.work_dir()?;
         let video_dir = work.join("video");
         let script = work.join("session.mjs");
         std::fs::write(
             &script,
             script_for(session, frame, &video_dir.display().to_string()),
         )
-        .map_err(|e| failed(&first, format!("{}: {e}", script.display())))?;
+        .map_err(|e| job.failed_all(format!("{}: {e}", script.display())))?;
 
         teleprompt_plugin::tool::run(
             Command::new(&self.node).arg(&script).current_dir(&work),
             "the script",
             4,
         )
-        .map_err(|why| failed(&first, why))?;
+        .map_err(|why| job.failed_all(why))?;
 
         // Playwright names the file itself, after the page that made it.
         let video = std::fs::read_dir(&video_dir)
@@ -189,40 +178,12 @@ impl CaptureBackend for PlaywrightRender {
                     .find(|p| p.extension().is_some_and(|e| e == "webm"))
             })
             .ok_or_else(|| {
-                failed(
-                    &first,
-                    format!(
-                        "the script exited 0 and left no recording in {}",
-                        video_dir.display()
-                    ),
-                )
+                job.failed_all(format!(
+                    "the script exited 0 and left no recording in {}",
+                    video_dir.display()
+                ))
             })?;
-
-        if let Some(why) = starved(&video, session) {
-            return Err(failed(&first, why));
-        }
-
-        let wanted = session.wanted();
-        let mut clips = Vec::new();
-        for (shot, (from_ms, duration_ms)) in session.shots.iter().zip(windows(session)) {
-            if !shot.wanted {
-                continue;
-            }
-            let clip = out_dir.join(format!("{}.mp4", shot.key));
-            cut(&self.ffmpeg, &video, &clip, from_ms, duration_ms)
-                .map_err(|reason| failed(&shot.id, reason))?;
-            clips.push(Clip {
-                key: shot.key,
-                path: clip,
-            });
-            on_progress(Progress {
-                scene: session.scene.clone(),
-                shot: shot.id.clone(),
-                done: clips.len(),
-                of: wanted,
-            });
-        }
-
-        Ok(clips)
+        job.cut_reel(&self.ffmpeg, &video)?;
+        Ok(job.clips())
     }
 }

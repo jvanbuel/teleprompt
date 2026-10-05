@@ -2006,10 +2006,10 @@ dependencies = [
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-derive",
+ "teleprompt-desktop",
  "teleprompt-listen",
  "teleprompt-listen-sherpa",
  "teleprompt-lsp",
- "teleprompt-macos",
  "teleprompt-manifest",
  "teleprompt-media",
  "teleprompt-playwright",
@@ -2027,7 +2027,6 @@ dependencies = [
  "teleprompt-voice-gemini",
  "teleprompt-voice-openai",
  "teleprompt-voice-voicebox",
- "teleprompt-x11",
  "tempfile",
  "tokio",
  "tungstenite 0.27.0",
@@ -2076,6 +2075,7 @@ version = "0.1.0"
 dependencies = [
  "teleprompt-core",
  "teleprompt-plugin",
+ "tempfile",
 ]
 
 [[package]]
@@ -2099,15 +2099,6 @@ dependencies = [
  "serde",
  "serde_json",
  "teleprompt-core",
-]
-
-[[package]]
-name = "teleprompt-macos"
-version = "0.1.0"
-dependencies = [
- "teleprompt-core",
- "teleprompt-desktop",
- "teleprompt-plugin",
 ]
 
 [[package]]
@@ -2298,16 +2289,6 @@ dependencies = [
  "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",
-]
-
-[[package]]
-name = "teleprompt-x11"
-version = "0.1.0"
-dependencies = [
- "teleprompt-core",
- "teleprompt-desktop",
- "teleprompt-plugin",
- "tempfile",
 ]
 
 [[package]]

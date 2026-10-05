@@ -3,8 +3,11 @@
 //! A backend runs a session, not a shot: a walkthrough's shots continue one
 //! another, so even a cached shot runs, for the screen the next opens on.
 
+mod job;
 pub mod mock;
 pub mod reel;
+
+pub use job::{absolute, Job};
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

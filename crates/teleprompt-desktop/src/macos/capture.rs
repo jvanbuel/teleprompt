@@ -9,13 +9,13 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use teleprompt_desktop::run::{cut_clips, failed, get_ready, play, uses_pointer, Failure, Reel};
+use crate::run::{cut_clips, get_ready, play, uses_pointer, Reel};
 use teleprompt_plugin::capture::{
-    CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir,
+    CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
 };
 
-use crate::jxa::{self, Process, Window};
-use crate::PLUGIN_NAME;
+use super::jxa::{self, Process, Window};
+use super::PLUGIN_NAME;
 
 const LAUNCH_TIMEOUT_MS: u32 = 30_000;
 const LEAD_IN: Duration = Duration::from_millis(800);
@@ -76,18 +76,9 @@ impl CaptureBackend for MacosRender {
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
-        let first = session
-            .shots
-            .first()
-            .map(|s| s.id.clone())
-            .unwrap_or_else(|| "?".into());
-        let fail = |why: String| failed(PLUGIN_NAME, (first.clone(), why));
-        let io = |path: &Path| {
-            let path = path.display().to_string();
-            move |source| CaptureError::Io { path, source }
-        };
-        std::fs::create_dir_all(out_dir).map_err(io(out_dir))?;
-        let work = WorkDir::create(out_dir, "macos").map_err(io(out_dir))?;
+        let mut job = Job::new(PLUGIN_NAME, session, frame, out_dir, on_progress);
+        let work = job.work_dir()?;
+        let fail = |why: String| job.failed_all(why);
         let command = session.settings.get("command").ok_or_else(|| {
             fail(format!(
                 "scene `{}` names no app: set `command` under [scene.{}], \
@@ -141,18 +132,11 @@ impl CaptureBackend for MacosRender {
         )
         .map_err(fail)?;
         std::thread::sleep(LEAD_IN);
-        let began = play(session, &mut window).map_err(|f: Failure| failed(PLUGIN_NAME, f))?;
+        let began = play(session, &mut window).map_err(|(shot, why)| job.failed(&shot, why))?;
         std::thread::sleep(Duration::from_millis(200));
         reel.stop().map_err(fail)?;
-        cut_clips(
-            &self.ffmpeg,
-            &reel_path,
-            session,
-            &began,
-            out_dir,
-            on_progress,
-        )
-        .map_err(|f| failed(PLUGIN_NAME, f))
+        cut_clips(&mut job, &self.ffmpeg, &reel_path, &began)?;
+        Ok(job.clips())
     }
 }
 

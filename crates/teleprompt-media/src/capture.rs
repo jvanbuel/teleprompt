@@ -9,7 +9,7 @@ use std::path::Path;
 use std::process::Command;
 
 use teleprompt_plugin::capture::{
-    CaptureBackend, CaptureError, Clip, Frame, Progress, Session, SessionShot,
+    CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session, SessionShot,
 };
 
 use crate::scene::{directive, Directive};
@@ -150,42 +150,17 @@ impl CaptureBackend for MediaRender {
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
-        let failed = |shot: &str, reason: String| CaptureError::Failed {
-            backend: "media".into(),
-            shot: shot.into(),
-            reason,
-        };
+        let mut job = Job::new("media", session, frame, out_dir, on_progress);
         let dir = session.path("dir", "media");
-        let work = out_dir.join(format!(".media-{}", std::process::id()));
-        std::fs::create_dir_all(&work)
-            .map_err(|e| failed("", format!("{}: {e}", work.display())))?;
-
-        let mut clips = Vec::new();
-        let mut result = Ok(());
-        for shot in session.shots.iter().filter(|s| s.wanted) {
-            let clip = out_dir.join(format!("{}.mp4", shot.key));
-            let Some(a) = args(shot, session, frame, &dir, &work, &clip) else {
-                result = Err(failed(&shot.id, "the shot is not a media directive".into()));
-                break;
-            };
-            if let Err(why) =
-                teleprompt_plugin::tool::run(Command::new(&self.ffmpeg).args(&a), &self.ffmpeg, 1)
-            {
-                result = Err(failed(&shot.id, why));
-                break;
-            }
-            clips.push(Clip {
-                key: shot.key,
-                path: clip,
-            });
-            on_progress(Progress {
-                scene: session.scene.clone(),
-                shot: shot.id.clone(),
-                done: clips.len(),
-                of: session.wanted(),
-            });
+        let work = job.work_dir()?;
+        for shot in job.wanted() {
+            let clip = job.clip_path(shot);
+            let a = args(shot, session, frame, &dir, &work, &clip)
+                .ok_or_else(|| job.failed(&shot.id, "the shot is not a media directive"))?;
+            teleprompt_plugin::tool::run(Command::new(&self.ffmpeg).args(&a), &self.ffmpeg, 1)
+                .map_err(|why| job.failed(&shot.id, why))?;
+            job.keep(shot);
         }
-        let _ = std::fs::remove_dir_all(&work);
-        result.map(|()| clips)
+        Ok(job.clips())
     }
 }

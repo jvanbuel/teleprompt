@@ -12,7 +12,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use teleprompt_core::ShotId;
-use teleprompt_plugin::capture::{reel, CaptureError, Clip, Progress, Session};
+use teleprompt_plugin::capture::{CaptureError, Job, Session};
 
 use crate::script::{classify, Action, Button, Chord, Pace};
 
@@ -242,61 +242,27 @@ pub fn reel_start(reel: &Path) -> Option<SystemTime> {
 
 /// Cuts each wanted shot from the reel where it began.
 pub fn cut_clips(
+    job: &mut Job<'_>,
     ffmpeg: &str,
     reel: &Path,
-    session: &Session,
     began: &[SystemTime],
-    out_dir: &Path,
-    on_progress: &mut dyn FnMut(Progress),
-) -> Result<Vec<Clip>, Failure> {
-    let first = || {
-        session
-            .shots
-            .first()
-            .map(|s| s.id.clone())
-            .unwrap_or_else(|| ShotId::from("?"))
-    };
+) -> Result<(), CaptureError> {
     let start = reel_start(reel).ok_or_else(|| {
-        (
-            first(),
-            format!("{} has no start time: nothing was recorded", reel.display()),
-        )
+        job.failed_all(format!(
+            "{} has no start time: nothing was recorded",
+            reel.display()
+        ))
     })?;
-    let wanted = session.wanted();
-    let mut clips = Vec::new();
-    for (shot, at) in session.shots.iter().zip(began) {
-        if !shot.wanted {
-            continue;
-        }
-        // A shot can only begin before the reel if recording started late;
-        // its first moments are then lost, not invented.
-        let from_ms = at
-            .duration_since(start)
-            .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
-        let clip = out_dir.join(format!("{}.mp4", shot.key));
-        reel::cut(ffmpeg, reel, &clip, from_ms, shot.duration_ms)
-            .map_err(|why| (shot.id.clone(), why))?;
-        clips.push(Clip {
-            key: shot.key,
-            path: clip,
-        });
-        on_progress(Progress {
-            scene: session.scene.clone(),
-            shot: shot.id.clone(),
-            done: clips.len(),
-            of: wanted,
-        });
-    }
-    Ok(clips)
-}
-
-/// A [`Failure`] as the capture error the build reports.
-pub fn failed(backend: &str, (shot, reason): Failure) -> CaptureError {
-    CaptureError::Failed {
-        backend: backend.to_string(),
-        shot,
-        reason,
-    }
+    // A shot can only begin before the reel if recording started late; its
+    // first moments are then lost, not invented.
+    let starts: Vec<u64> = began
+        .iter()
+        .map(|at| {
+            at.duration_since(start)
+                .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+        })
+        .collect();
+    job.cut_at(ffmpeg, reel, &starts)
 }
 
 #[cfg(test)]

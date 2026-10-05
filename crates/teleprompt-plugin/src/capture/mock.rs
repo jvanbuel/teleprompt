@@ -55,19 +55,12 @@ impl CaptureBackend for MockCapture {
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
+        let mut job = super::Job::new("mock", session, frame, out_dir, on_progress);
         std::fs::create_dir_all(out_dir).map_err(|source| CaptureError::Io {
             path: out_dir.display().to_string(),
             source,
         })?;
-
-        let wanted = session.wanted();
-        let mut clips = Vec::new();
-        for shot in &session.shots {
-            // Nothing to keep. A real backend still replays this shot.
-            if !shot.wanted {
-                continue;
-            }
-            let path = out_dir.join(format!("{}.mp4", shot.key));
+        for shot in job.wanted() {
             let status = Command::new(&self.program)
                 .args(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi"])
                 .arg("-t")
@@ -81,32 +74,15 @@ impl CaptureBackend for MockCapture {
                     frame.fps
                 ))
                 .args(["-pix_fmt", "yuv420p"])
-                .arg(&path)
+                .arg(job.clip_path(shot))
                 .stdin(Stdio::null())
                 .status()
-                .map_err(|e| CaptureError::Unavailable {
-                    backend: "mock".to_string(),
-                    reason: format!("{} could not be run: {e}", self.program),
-                })?;
+                .map_err(|e| job.unavailable(format!("{} could not be run: {e}", self.program)))?;
             if !status.success() {
-                return Err(CaptureError::Failed {
-                    backend: "mock".to_string(),
-                    shot: shot.id.clone(),
-                    reason: format!("{} exited {status}", self.program),
-                });
+                return Err(job.failed(&shot.id, format!("{} exited {status}", self.program)));
             }
-
-            clips.push(Clip {
-                key: shot.key,
-                path,
-            });
-            on_progress(Progress {
-                scene: session.scene.clone(),
-                shot: shot.id.clone(),
-                done: clips.len(),
-                of: wanted,
-            });
+            job.keep(shot);
         }
-        Ok(clips)
+        Ok(job.clips())
     }
 }

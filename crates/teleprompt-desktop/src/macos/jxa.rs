@@ -9,8 +9,8 @@
 use std::process::Command;
 use std::time::Duration;
 
-use teleprompt_desktop::run::Screen;
-use teleprompt_desktop::script::{Button, Chord, Key, Modifier};
+use crate::run::Screen;
+use crate::script::{Button, Chord, Key, Modifier};
 
 /// Runs a script, returning what it printed.
 pub fn run(osascript: &str, script: &str) -> Result<String, String> {
@@ -168,7 +168,7 @@ pub fn key_code(name: &str) -> u32 {
         "F10" => 109,
         "F11" => 103,
         "F12" => 111,
-        other => unreachable!("`{other}` is not in teleprompt_desktop::script::KEYS"),
+        other => unreachable!("`{other}` is not in crate::script::KEYS"),
     }
 }
 
@@ -258,7 +258,7 @@ impl Screen for Window {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_desktop::script::{classify, Action, KEYS};
+    use crate::script::{classify, Action, KEYS};
 
     fn chord(line: &str) -> Chord {
         match classify(line) {

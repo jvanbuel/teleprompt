@@ -48,11 +48,8 @@ ALLOWED = {
     "remotion": PLUGIN,
     "slidev": PLUGIN,
     "media": PLUGIN,
-    # What the desktop scene plugins share: their language and runner. A
-    # scene plugin in all but name, registered by the platforms' plugins.
+    # The desktop scene plugins, x11 and macos: one language and runner.
     "desktop": PLUGIN,
-    "x11": PLUGIN | {"desktop"},
-    "macos": PLUGIN | {"desktop"},
     "translate": {"core"},
     "listen": set(),
     # Ids and speaker names are the script's; who speaks when is what a

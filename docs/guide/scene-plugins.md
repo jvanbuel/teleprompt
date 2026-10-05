@@ -40,7 +40,12 @@ last as long as its line (`Shot::lasting`). The defaults cover the rest:
 shots that share a screen, because a walkthrough's shots continue one
 another. It writes a clip for each wanted shot and returns them. What it
 runs is its `needs`; by default it cannot run here when a program among
-them is not on PATH, and `unavailable` can say more.
+them is not on PATH, and `unavailable` can say more. `capture::Job` does
+the rest of what every backend does: a scratch directory
+(`work_dir`), where each clip goes and saying it is done (`clip_path`,
+`keep`), a failure that names its shot (`failed`), and, for a tool that
+records the whole session as one video, cutting it into clips
+(`cut_reel`).
 
 **`crates/teleprompt-media` is the smallest example**: images and videos,
 captured with ffmpeg. `teleprompt-vhs` and `teleprompt-asciinema` record

@@ -9,8 +9,10 @@
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_plugin::capture::reel::{cut, starved, windows};
-use teleprompt_plugin::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
+use teleprompt_plugin::capture::reel::windows;
+use teleprompt_plugin::capture::{
+    CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
+};
 
 use crate::scene::{parse, write, Cast, Event};
 
@@ -90,60 +92,16 @@ impl CaptureBackend for AsciinemaRender {
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
-        let first = session
-            .shots
-            .first()
-            .map(|s| s.id.to_string())
-            .unwrap_or_default();
-        let failed = |shot: &str, reason: String| CaptureError::Failed {
-            backend: "asciinema".into(),
-            shot: shot.into(),
-            reason,
-        };
-        let cast = session_cast(session).map_err(|(s, why)| failed(&s, why))?;
-
-        let work = out_dir.join(format!(".asciinema-{}", std::process::id()));
-        let request = Request {
-            session,
-            frame,
-            out_dir,
-        };
-        let result = self.render(&request, &cast, &work, on_progress, &failed, &first);
-        let _ = std::fs::remove_dir_all(&work);
-        result
-    }
-}
-
-/// What [`CaptureBackend::capture`] was asked to record, and where.
-struct Request<'a> {
-    session: &'a Session,
-    frame: &'a Frame,
-    out_dir: &'a Path,
-}
-
-impl AsciinemaRender {
-    fn render(
-        &self,
-        request: &Request<'_>,
-        cast: &Cast,
-        work: &Path,
-        on_progress: &mut dyn FnMut(Progress),
-        failed: &dyn Fn(&str, String) -> CaptureError,
-        first: &str,
-    ) -> Result<Vec<Clip>, CaptureError> {
-        let Request {
-            session,
-            frame,
-            out_dir,
-        } = *request;
-        let io = |e: std::io::Error| failed(first, format!("{}: {e}", work.display()));
-        std::fs::create_dir_all(work).map_err(io)?;
+        let mut job = Job::new("asciinema", session, frame, out_dir, on_progress);
+        let cast = session_cast(session).map_err(|(shot, why)| job.failed(&shot, why))?;
+        let work = job.work_dir()?;
         let (input, gif, reel) = (
             work.join("session.cast"),
             work.join("session.gif"),
             work.join("session.mp4"),
         );
-        std::fs::write(&input, write(cast)).map_err(io)?;
+        std::fs::write(&input, write(&cast))
+            .map_err(|e| job.failed_all(format!("{}: {e}", input.display())))?;
 
         // The cast is already paced by the schedule: no idle limit, no
         // loop, no extra hold at the end.
@@ -160,10 +118,11 @@ impl AsciinemaRender {
         if let Some(theme) = session.settings.get("theme") {
             agg.arg("--theme").arg(theme);
         }
-        self.run(agg.arg(&input).arg(&gif), first, failed)?;
+        run(&job, agg.arg(&input).arg(&gif))?;
         // One conversion to a codec the cuts can seek in, at even sizes
         // for yuv420p; scaling to the frame is the renderer's job.
-        self.run(
+        run(
+            &job,
             Command::new(&self.ffmpeg)
                 .args(["-hide_banner", "-loglevel", "error", "-y", "-i"])
                 .arg(&gif)
@@ -174,44 +133,16 @@ impl AsciinemaRender {
                     "yuv420p",
                 ])
                 .arg(&reel),
-            first,
-            failed,
         )?;
-        if let Some(why) = starved(&reel, session) {
-            return Err(failed(first, why));
-        }
-
-        let mut clips = Vec::new();
-        for (shot, (from_ms, duration_ms)) in session.shots.iter().zip(windows(session)) {
-            if !shot.wanted {
-                continue;
-            }
-            let clip = out_dir.join(format!("{}.mp4", shot.key));
-            cut(&self.ffmpeg, &reel, &clip, from_ms, duration_ms)
-                .map_err(|why| failed(&shot.id, why))?;
-            clips.push(Clip {
-                key: shot.key,
-                path: clip,
-            });
-            on_progress(Progress {
-                scene: session.scene.clone(),
-                shot: shot.id.clone(),
-                done: clips.len(),
-                of: session.wanted(),
-            });
-        }
-        Ok(clips)
+        job.cut_reel(&self.ffmpeg, &reel)?;
+        Ok(job.clips())
     }
+}
 
-    fn run(
-        &self,
-        command: &mut Command,
-        first: &str,
-        failed: &dyn Fn(&str, String) -> CaptureError,
-    ) -> Result<(), CaptureError> {
-        let program = command.get_program().to_string_lossy().to_string();
-        teleprompt_plugin::tool::run(command, &program, 4)
-            .map(|_| ())
-            .map_err(|why| failed(first, why))
-    }
+/// `command` run to the end; the session fails with what it said if not.
+fn run(job: &Job<'_>, command: &mut Command) -> Result<(), CaptureError> {
+    let program = command.get_program().to_string_lossy().to_string();
+    teleprompt_plugin::tool::run(command, &program, 4)
+        .map(|_| ())
+        .map_err(|why| job.failed_all(why))
 }

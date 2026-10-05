@@ -4,8 +4,8 @@
 //! is the app and nothing else on the author's screen, and a capture runs
 //! the same on a laptop, a server or in CI. `xdotool` drives the window,
 //! and `ffmpeg` records the display with wall-clock timestamps, which is
-//! what [`teleprompt_desktop::run`] cuts shots by. The language and its
-//! timing are `teleprompt-desktop`'s.
+//! what [`crate::run`] cuts shots by. The language and its timing are the
+//! crate's, shared with [`crate::macos`].
 
 mod capture;
 pub mod tools;
@@ -17,8 +17,7 @@ pub use capture::X11Render;
 pub const PLUGIN_NAME: &str = "x11";
 
 /// The x11 plugin's compiler.
-pub const SCENE: teleprompt_desktop::DesktopScene =
-    teleprompt_desktop::DesktopScene { kind: PLUGIN_NAME };
+pub const SCENE: crate::DesktopScene = crate::DesktopScene { kind: PLUGIN_NAME };
 
 /// The plugin, to register.
 pub fn plugin() -> teleprompt_plugin::ScenePlugin {

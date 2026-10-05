@@ -184,8 +184,7 @@ reading the manifest it just published.
 | `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per scene plugin, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `plugin()` |
-| `teleprompt-desktop` | what the desktop scene plugins share: their action language and scene compiler, and the runner that plays a session's shots against a window and cuts them where they began |
-| `teleprompt-x11`, `-macos` | one crate per platform: the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation. Each records with ffmpeg |
+| `teleprompt-desktop` | the desktop scene plugins, `x11` and `macos`: one action language and scene compiler, the runner that plays a session's shots against a window and cuts them where they began, and a module per platform (the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation), each recording with ffmpeg |
 | `teleprompt-cli` | the `teleprompt` binary, and the registries every scene plugin and voice is composed into |
 
 `schedule`, `plugin` and `manifest` depend on `core` alone, and not on

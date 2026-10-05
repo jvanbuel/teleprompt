@@ -3,8 +3,8 @@
 use std::process::Command;
 use std::time::Duration;
 
-use teleprompt_desktop::run::Screen;
-use teleprompt_desktop::script::{Button, Chord, Key, Modifier};
+use crate::run::Screen;
+use crate::script::{Button, Chord, Key, Modifier};
 
 /// The app's window on display `display`.
 pub struct Window {
@@ -172,8 +172,8 @@ mod tests {
 
     #[test]
     fn chords_are_spelled_as_xdotool_reads_them() {
-        let chord = |line: &str| match teleprompt_desktop::script::classify(line) {
-            Ok(teleprompt_desktop::script::Action::Press { chord, .. }) => chord,
+        let chord = |line: &str| match crate::script::classify(line) {
+            Ok(crate::script::Action::Press { chord, .. }) => chord,
             other => panic!("{line}: {other:?}"),
         };
         assert_eq!(keysym(&chord("Ctrl+Shift+Space")), "ctrl+shift+space");

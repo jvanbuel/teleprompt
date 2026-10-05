@@ -20,8 +20,8 @@ fn built_in() -> Vec<ScenePlugin> {
         teleprompt_slidev::plugin(),
         teleprompt_asciinema::plugin(),
         teleprompt_media::plugin(),
-        teleprompt_x11::plugin(),
-        teleprompt_macos::plugin(),
+        teleprompt_desktop::x11::plugin(),
+        teleprompt_desktop::macos::plugin(),
         ScenePlugin::new(MockScene, MockCapture::default()),
     ]
 }

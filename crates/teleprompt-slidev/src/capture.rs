@@ -7,10 +7,12 @@
 //! at any length, which is why the length is not in the key.
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
-use teleprompt_plugin::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
+use teleprompt_plugin::capture::{
+    absolute, CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
+};
 
 use crate::scene::{parse, Step};
 
@@ -94,14 +96,7 @@ impl CaptureBackend for SlidevRender {
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
-        let wanted: Vec<_> = session.shots.iter().filter(|s| s.wanted).collect();
-        let first = wanted.first().map(|s| s.id.to_string()).unwrap_or_default();
-        let failed = |shot: &str, reason: String| CaptureError::Failed {
-            backend: "slidev".into(),
-            shot: shot.into(),
-            reason,
-        };
-
+        let mut job = Job::new("slidev", session, frame, out_dir, on_progress);
         let deck = absolute(&session.path("deck", "slides.md"));
         let dir = deck.parent().unwrap_or(Path::new(".")).to_path_buf();
         let Some(slidev) = dir
@@ -109,23 +104,20 @@ impl CaptureBackend for SlidevRender {
             .map(|d| d.join("node_modules/.bin/slidev"))
             .find(|p| p.is_file())
         else {
-            return Err(CaptureError::Unavailable {
-                backend: "slidev".into(),
-                reason: format!(
-                    "no Slidev is installed for {}; run `npm install` beside it",
-                    deck.display()
-                ),
-            });
+            return Err(job.unavailable(format!(
+                "no Slidev is installed for {}; run `npm install` beside it",
+                deck.display()
+            )));
         };
         let mut steps = Vec::new();
-        for shot in &wanted {
+        for shot in job.wanted() {
             match parse(&shot.source) {
                 Ok(Some(step)) => steps.push(step),
-                _ => return Err(failed(&shot.id, "the shot names no slide".into())),
+                _ => return Err(job.failed(&shot.id, "the shot names no slide")),
             }
         }
 
-        let stills = out_dir.join(format!(".slidev-{}", std::process::id()));
+        let stills = job.work_dir()?;
         let mut export = Command::new(&slidev);
         export
             .arg("export")
@@ -138,7 +130,7 @@ impl CaptureBackend for SlidevRender {
                 &range(&steps),
             ])
             .arg("--output")
-            .arg(&stills)
+            .arg(&*stills)
             .current_dir(&dir)
             .stdin(Stdio::null());
         if session.setting("dark", "false") == "true" {
@@ -154,96 +146,47 @@ impl CaptureBackend for SlidevRender {
         {
             export.arg("--executable-path").arg(browser);
         }
-        let result = teleprompt_plugin::tool::run(&mut export, "slidev export", 6)
-            .map(|_| ())
-            .map_err(|why| failed(&first, why))
-            .and_then(|()| {
-                let request = Request {
-                    session,
-                    frame,
-                    out_dir,
-                };
-                self.encode(&request, &wanted, &steps, &stills, on_progress, &failed)
-            });
-        let _ = std::fs::remove_dir_all(&stills);
-        result
-    }
-}
+        teleprompt_plugin::tool::run(&mut export, "slidev export", 6)
+            .map_err(|why| job.failed_all(why))?;
 
-/// What [`CaptureBackend::capture`] was asked to record, and where.
-struct Request<'a> {
-    session: &'a Session,
-    frame: &'a Frame,
-    out_dir: &'a Path,
-}
-
-impl SlidevRender {
-    fn encode(
-        &self,
-        request: &Request<'_>,
-        wanted: &[&teleprompt_plugin::capture::SessionShot],
-        steps: &[Step],
-        stills: &Path,
-        on_progress: &mut dyn FnMut(Progress),
-        failed: &dyn Fn(&str, String) -> CaptureError,
-    ) -> Result<Vec<Clip>, CaptureError> {
-        let Request {
-            session,
-            frame,
-            out_dir,
-        } = *request;
-        let mut clips = Vec::new();
-        for (shot, step) in wanted.iter().zip(steps) {
-            let still = stills.join(still_name(*step));
+        for (shot, step) in job.wanted().zip(steps) {
+            let still = stills.join(still_name(step));
             if !still.is_file() {
-                let has = std::fs::read_dir(stills)
-                    .map(|entries| {
-                        let prefix = format!("{:03}-", step.slide);
-                        entries
-                            .flatten()
-                            .filter(|e| e.file_name().to_string_lossy().starts_with(&prefix))
-                            .count()
-                    })
-                    .unwrap_or(0);
-                let why = if has == 0 {
-                    format!("the deck has no slide {}", step.slide)
-                } else {
-                    format!(
-                        "slide {} has {} click(s), not {}",
-                        step.slide,
-                        has - 1,
-                        step.clicks
-                    )
-                };
-                return Err(failed(&shot.id, why));
+                return Err(job.failed(&shot.id, missing_still(&stills, step)));
             }
-            let clip = out_dir.join(format!("{}.mp4", shot.key));
-            let status = Command::new(&self.ffmpeg)
-                .args(clip_args(&still, frame, &clip))
-                .stdin(Stdio::null())
-                .status()
-                .map_err(|e| failed(&shot.id, format!("{} could not be run: {e}", self.ffmpeg)))?;
-            if !status.success() {
-                return Err(failed(&shot.id, format!("{} exited {status}", self.ffmpeg)));
-            }
-            clips.push(Clip {
-                key: shot.key,
-                path: clip,
-            });
-            on_progress(Progress {
-                scene: session.scene.clone(),
-                shot: shot.id.clone(),
-                done: clips.len(),
-                of: wanted.len(),
-            });
+            let clip = job.clip_path(shot);
+            teleprompt_plugin::tool::run(
+                Command::new(&self.ffmpeg).args(clip_args(&still, frame, &clip)),
+                &self.ffmpeg,
+                1,
+            )
+            .map_err(|why| job.failed(&shot.id, why))?;
+            job.keep(shot);
         }
-        Ok(clips)
+        Ok(job.clips())
     }
 }
 
-/// `path` made absolute, since the export runs in another directory.
-fn absolute(path: &Path) -> PathBuf {
-    std::env::current_dir()
-        .map(|cwd| cwd.join(path))
-        .unwrap_or_else(|_| path.to_path_buf())
+/// Why the export left no still for `step`: no such slide, or not that
+/// many clicks on it.
+fn missing_still(stills: &Path, step: Step) -> String {
+    let has = std::fs::read_dir(stills)
+        .map(|entries| {
+            let prefix = format!("{:03}-", step.slide);
+            entries
+                .flatten()
+                .filter(|e| e.file_name().to_string_lossy().starts_with(&prefix))
+                .count()
+        })
+        .unwrap_or(0);
+    if has == 0 {
+        format!("the deck has no slide {}", step.slide)
+    } else {
+        format!(
+            "slide {} has {} click(s), not {}",
+            step.slide,
+            has - 1,
+            step.clicks
+        )
+    }
 }

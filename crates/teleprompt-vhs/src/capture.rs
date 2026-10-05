@@ -8,9 +8,8 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use teleprompt_plugin::capture::reel::{cut, starved, windows};
 use teleprompt_plugin::capture::{
-    CaptureBackend, CaptureError, Clip, Frame, Progress, Session, WorkDir,
+    CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
 };
 
 /// The tape `vhs` runs for a whole session, writing its video to `output`.
@@ -118,26 +117,8 @@ impl CaptureBackend for VhsRender {
         out_dir: &Path,
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
-        std::fs::create_dir_all(out_dir).map_err(|source| CaptureError::Io {
-            path: out_dir.display().to_string(),
-            source,
-        })?;
-        let work = WorkDir::create(out_dir, "vhs").map_err(|source| CaptureError::Io {
-            path: out_dir.display().to_string(),
-            source,
-        })?;
-
-        let failed = |shot: &str, reason: String| CaptureError::Failed {
-            backend: "vhs".to_string(),
-            shot: shot.into(),
-            reason,
-        };
-        let first = session
-            .shots
-            .first()
-            .map(|s| s.id.to_string())
-            .unwrap_or_default();
-
+        let mut job = Job::new("vhs", session, frame, out_dir, on_progress);
+        let work = job.work_dir()?;
         let video = work.join("session.mp4");
         let tape = work.join("session.tape");
         std::fs::write(
@@ -157,65 +138,31 @@ impl CaptureBackend for VhsRender {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-            .map_err(|e| failed(&first, format!("{} could not be run: {e}", self.vhs)))?;
+            .map_err(|e| job.failed_all(format!("{} could not be run: {e}", self.vhs)))?;
         let said = |ran: &std::process::Output| {
             let text = String::from_utf8_lossy(&ran.stderr).into_owned()
                 + &String::from_utf8_lossy(&ran.stdout);
-            let tail: Vec<&str> = text
-                .lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .collect();
-            let from = tail.len().saturating_sub(4);
-            tail[from..].join(" / ")
+            teleprompt_plugin::tool::tail(&text, 4)
         };
         if !ran.status.success() {
-            return Err(failed(
-                &first,
-                format!("{} exited {}: {}", self.vhs, ran.status, said(&ran)),
-            ));
+            return Err(job.failed_all(format!(
+                "{} exited {}: {}",
+                self.vhs,
+                ran.status,
+                said(&ran)
+            )));
         }
         // `vhs` can exit 0 and write no file.
         if !video.metadata().is_ok_and(|m| m.len() > 0) {
-            return Err(failed(
-                &first,
-                format!(
-                    "{} exited 0 and wrote no video to {}; it said: {}",
-                    self.vhs,
-                    video.display(),
-                    said(&ran)
-                ),
-            ));
+            return Err(job.failed_all(format!(
+                "{} exited 0 and wrote no video to {}; it said: {}",
+                self.vhs,
+                video.display(),
+                said(&ran)
+            )));
         }
-
-        // The windows predict the tape's length; check it against the
-        // recording before cutting.
-        if let Some(why) = starved(&video, session) {
-            return Err(failed(&first, why));
-        }
-
-        let wanted = session.wanted();
-        let mut clips = Vec::new();
-        for (shot, (from_ms, duration_ms)) in session.shots.iter().zip(windows(session)) {
-            if !shot.wanted {
-                continue;
-            }
-            let clip = out_dir.join(format!("{}.mp4", shot.key));
-            cut(&self.ffmpeg, &video, &clip, from_ms, duration_ms)
-                .map_err(|reason| failed(&shot.id, reason))?;
-            clips.push(Clip {
-                key: shot.key,
-                path: clip,
-            });
-            on_progress(Progress {
-                scene: session.scene.clone(),
-                shot: shot.id.clone(),
-                done: clips.len(),
-                of: wanted,
-            });
-        }
-
-        Ok(clips)
+        job.cut_reel(&self.ffmpeg, &video)?;
+        Ok(job.clips())
     }
 }
 
@@ -223,6 +170,7 @@ impl CaptureBackend for VhsRender {
 mod tests {
     use super::*;
     use teleprompt_core::Hash;
+    use teleprompt_plugin::capture::reel::windows;
     use teleprompt_plugin::capture::SessionShot;
 
     fn session(shots: &[(&str, u64)]) -> Session {
