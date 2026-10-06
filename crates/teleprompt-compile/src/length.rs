@@ -1,9 +1,9 @@
 //! A video over its `timing.length_ms`: by how much, what pictures hold,
 //! and about how much narration to cut (docs/design.md#led-by-the-picture).
 
-use teleprompt_core::program::ChapterInfo;
 use teleprompt_core::PolicyKind;
 use teleprompt_schedule::Timeline;
+use teleprompt_script::program::ChapterInfo;
 
 use crate::NarrationDetail;
 

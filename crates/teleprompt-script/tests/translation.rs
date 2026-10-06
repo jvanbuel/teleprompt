@@ -1,8 +1,8 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, ActionElement, Element, Program};
-use teleprompt_core::translation::{apply, source_of, Entry, Translation};
 use teleprompt_core::{Hash, Severity};
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::{resolve, ActionElement, Element, Program};
+use teleprompt_script::translation::{apply, source_of, Entry, Translation};
 
 const SRC: &str = r#"# Introduction
 
@@ -216,7 +216,7 @@ fn a_translation_round_trips_through_yaml_in_order() {
     assert_eq!(back, t);
 }
 
-use teleprompt_core::translation::{merged, pending, Kind};
+use teleprompt_script::translation::{merged, pending, Kind};
 
 /// Everything is to translate when nothing is yet: chapter titles, lines,
 /// and cues with the line they are in.

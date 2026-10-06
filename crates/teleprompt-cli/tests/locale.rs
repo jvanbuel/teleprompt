@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-use teleprompt_core::translation::{source_of, Entry, Translation};
+use teleprompt_script::translation::{source_of, Entry, Translation};
 
 const SCRIPT: &str = "\
 # Introduction

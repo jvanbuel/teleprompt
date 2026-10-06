@@ -10,13 +10,13 @@ use std::path::{Component, Path};
 
 use teleprompt_core::config::{Config, OutputConfig, SceneConfig};
 use teleprompt_core::policy::Align;
-use teleprompt_core::program::{ActionElement, ChapterInfo, Element, Program};
 use teleprompt_core::voice::spoken;
 use teleprompt_core::{
     Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId,
 };
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneCompilers, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Timeline};
+use teleprompt_script::program::{ActionElement, ChapterInfo, Element, Program};
 use teleprompt_voice::cache::{CacheKey, VoiceCache};
 use teleprompt_voice::takes::{TakeMeta, Takes};
 use teleprompt_voice::WpmEstimator;
@@ -617,7 +617,7 @@ impl<'a> Walker<'a, '_> {
                 .voice
                 .name
                 .clone()
-                .or_else(|| speaker.as_deref().map(teleprompt_core::ast::name_of)),
+                .or_else(|| speaker.as_deref().map(teleprompt_script::ast::name_of)),
             speaker: speaker.clone(),
         });
         self.pending = Some(Pending {

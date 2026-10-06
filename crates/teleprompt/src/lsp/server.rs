@@ -12,9 +12,9 @@ use lsp_types::{
     Position, Range, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
 };
 use serde_json::Value;
-use teleprompt_core::ast::{slugify, Node};
-use teleprompt_core::parse::parse_script;
 use teleprompt_core::Severity;
+use teleprompt_script::ast::{slugify, Node};
+use teleprompt_script::parse::parse_script;
 
 use crate::lsp::text::LineIndex;
 use crate::lsp::{complete, symbols, Analysis, Analyzer, Definition, Project};

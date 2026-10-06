@@ -99,7 +99,7 @@ pub struct LineEntry {
     pub audio: String,
     pub source_hash: Hash,
     /// Hash of the audio file's bytes, set by `dub` after encoding; see
-    /// [`build`]. Byte-identical audio repeats a hash (every same-length
+    /// `teleprompt_compile::manifest::build`. Byte-identical audio repeats a hash (every same-length
     /// line of `null` silence does), and that is correct: line identity is
     /// `source_hash`.
     pub audio_hash: Hash,

@@ -4,11 +4,11 @@ use teleprompt_core::{DurationSource, SpanMs, TimeMs};
 
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::check_ids;
-use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Program};
 use teleprompt_core::Diagnostics;
 use teleprompt_plugin::ScenePlugins;
+use teleprompt_script::ident::check_ids;
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::{resolve, Program};
 use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::WpmEstimator;

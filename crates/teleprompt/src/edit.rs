@@ -1,12 +1,14 @@
 //! `teleprompt edit <script> <edit>`: one timeline drag, or a line reworded
-//! to what its take says, written into the script (`teleprompt_core::edit`).
+//! to what its take says, written into the script (`teleprompt_script::edit`).
 //! The edited script must still compile, or nothing is written: a drag can
 //! move a shot, never break a script.
 
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_core::edit::{apply, Edit};
+use teleprompt_script::edit::apply;
+/// A shot's edit, as a timeline drag makes it.
+pub use teleprompt_script::edit::Edit;
 
 use teleprompt_voice::takes::Takes;
 

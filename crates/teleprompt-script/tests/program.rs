@@ -1,10 +1,10 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::ident::check_ids;
-use teleprompt_core::parse::parse_script;
 use teleprompt_core::policy::{Align, PolicyKind};
-use teleprompt_core::program::{resolve, ActionElement, Element, Program};
 use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
+use teleprompt_script::ident::check_ids;
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::{resolve, ActionElement, Element, Program};
 
 const SRC: &str = r#"---
 timing:
@@ -26,9 +26,9 @@ Second. {#second lead_in=400ms}
 <!-- teleprompt: pause 800ms -->
 "#;
 
-fn program() -> teleprompt_core::program::Program {
+fn program() -> teleprompt_script::program::Program {
     let s = parse_script(SRC).unwrap();
-    teleprompt_core::ident::check_ids(&s);
+    teleprompt_script::ident::check_ids(&s);
     resolve(
         &s,
         "demo.md",
@@ -96,7 +96,7 @@ fn segment_attributes_override_front_matter_for_that_line_only() {
 #[test]
 fn cli_flags_shot_everything() {
     let s = parse_script(SRC).unwrap();
-    teleprompt_core::ident::check_ids(&s);
+    teleprompt_script::ident::check_ids(&s);
     let cli = PartialConfig::from_yaml("timing:\n  lead_in_ms: 999\n").unwrap();
     let p = resolve(&s, "demo.md", "en", &PartialConfig::default(), &cli).unwrap();
     let Element::Narration { config, .. } = &p.elements[2] else {
@@ -124,7 +124,7 @@ fn source_hash_covers_the_normalised_text_only() {
 #[test]
 fn block_policy_and_align_default_when_unset() {
     let s = parse_script("# A\n\nOne.\n\n```teleprompt scene=mock\nwait 1s\n```\n").unwrap();
-    teleprompt_core::ident::check_ids(&s);
+    teleprompt_script::ident::check_ids(&s);
     let p = resolve(
         &s,
         "d.md",
@@ -143,7 +143,7 @@ fn block_policy_and_align_default_when_unset() {
 #[test]
 fn an_action_block_without_a_scene_is_an_error() {
     let s = parse_script("# A\n\nOne.\n\n```teleprompt\nwait 1s\n```\n").unwrap();
-    teleprompt_core::ident::check_ids(&s);
+    teleprompt_script::ident::check_ids(&s);
     let e = resolve(
         &s,
         "d.md",
@@ -158,7 +158,7 @@ fn an_action_block_without_a_scene_is_an_error() {
 #[test]
 fn unknown_attribute_keys_surface_as_errors() {
     let s = parse_script("# A\n\nOne. {#a polcy=hold}\n").unwrap();
-    teleprompt_core::ident::check_ids(&s);
+    teleprompt_script::ident::check_ids(&s);
     let e = resolve(
         &s,
         "d.md",
@@ -179,7 +179,7 @@ fn unknown_attribute_keys_surface_as_errors() {
 fn item_shots_match_their_source_node_not_a_fabricated_line() {
     let src = "# A\n\nFirst line. {#first}\n\n```teleprompt scene=mock\nwait 1s\n```\n";
     let s = parse_script(src).unwrap();
-    teleprompt_core::ident::check_ids(&s);
+    teleprompt_script::ident::check_ids(&s);
     let p = resolve(
         &s,
         "d.md",

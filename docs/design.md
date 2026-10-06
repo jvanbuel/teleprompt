@@ -165,7 +165,8 @@ reading the manifest it just published.
 
 | crate | holds |
 |---|---|
-| `teleprompt-core` | AST, parser, ids, config, `Hash`, diagnostics, shared vocabulary such as `VoiceSource` |
+| `teleprompt-core` | the words every crate shares: ids, times and durations, `Hash`, diagnostics, block and line attributes, policies and the config. A scene plugin or a voice depends on this and not on the script language |
+| `teleprompt-script` | the script language: the AST and parser, ids checked, a `Program` resolved against the config, lints, edits written back into the source, and the translation sidecar |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
 | `teleprompt-scene` | the scene contract: `SceneCompiler`, how a block compiles into shots offline, the mock scene, and `SceneCompilers`, the compilers by name. Nothing in it runs a tool |
 | `teleprompt-plugin` | what a scene plugin implements, in one crate: the scene contract (re-exported as `plugin::scene`), the `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it and core alone |
@@ -182,8 +183,8 @@ reading the manifest it just published.
 | `teleprompt` | the engine: the registries every scene plugin and voice is composed into, a project's `Script` and what is done with it (`check`, `plan`, `Dubber`, which publishes each line's audio in one format, fitted to its tempo, for the prompter as well as the video, `Scenes`, `Builder`, edits, translation), the drafts `import` and `record` make, the language server `teleprompt lsp` serves (its protocol and text kept apart from the compile behind an `Analyzer`), and `serve`, whose `prompter` module is the prompter's `Session`. It prints only progress, and asks nothing itself: a front end registers how to offer a missing model |
 | `teleprompt-cli` | the `teleprompt` binary over the engine: each command's flags, its report in either format, exit codes, and the questions it asks at a terminal |
 
-`schedule`, `scene`, `voice` and `manifest` depend on `core` alone, and
-not on one another. Anything that needs two of them belongs in `compile`.
+`script`, `schedule`, `scene`, `voice` and `manifest` depend on `core`
+alone, and not on one another. Anything that needs two of them belongs in `compile`.
 `render` reads the manifest and never the compiler. A scene plugin, built
 in or not, depends on `plugin` and `core` and nothing else of
 teleprompt's, so what an outside plugin can do, the built-in ones do

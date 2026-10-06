@@ -12,7 +12,7 @@
 //! else without a new build.
 
 use serde::{Deserialize, Serialize};
-use teleprompt_core::translation::{Item, Kind};
+use teleprompt_script::translation::{Item, Kind};
 
 mod claude;
 mod command;

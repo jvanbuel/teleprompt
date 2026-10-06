@@ -113,7 +113,7 @@ fn a_drafted_transcript_passes_check_and_casts_its_speakers() {
         .elements
         .iter()
         .filter_map(|e| match e {
-            teleprompt_core::program::Element::Narration { speaker, text, .. } => {
+            teleprompt_script::program::Element::Narration { speaker, text, .. } => {
                 Some((speaker.clone(), text.clone()))
             }
             _ => None,

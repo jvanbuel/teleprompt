@@ -2,9 +2,9 @@
 //! by the ids `plan` and the prompters show.
 
 use lsp_types::{DocumentSymbol, Range, SymbolKind};
-use teleprompt_core::ast::Node;
-use teleprompt_core::parse::parse_script;
 use teleprompt_core::SourceSpan;
+use teleprompt_script::ast::Node;
+use teleprompt_script::parse::parse_script;
 
 use crate::lsp::text::LineIndex;
 

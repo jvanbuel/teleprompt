@@ -5,9 +5,9 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use teleprompt_core::ast::slugify;
 use teleprompt_core::attrs::is_speaker_name;
 use teleprompt_listen::SpeakerSpan;
+use teleprompt_script::ast::slugify;
 
 use crate::document::{id_for, unique};
 

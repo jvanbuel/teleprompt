@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::ast::{Node, Script};
-use crate::{Diagnostic, SourceSpan};
+use teleprompt_core::{Diagnostic, SourceSpan};
 
 pub use crate::ast::IdOrigin;
 

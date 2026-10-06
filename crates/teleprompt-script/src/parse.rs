@@ -1,8 +1,8 @@
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 use crate::ast::{slugify, ActionBlock, Chapter, Directive, IdOrigin, Line, Node, Script};
-use crate::attrs::parse_attrs;
-use crate::{BlockId, Diagnostic, Diagnostics, LineId, SourceSpan};
+use teleprompt_core::attrs::parse_attrs;
+use teleprompt_core::{BlockId, Diagnostic, Diagnostics, LineId, SourceSpan};
 
 const FENCE_TAG: &str = "teleprompt";
 
@@ -432,7 +432,7 @@ fn directive_from_html(html: &str) -> Result<Option<Node>, String> {
         return Err(bad_value());
     };
     let n = digits.trim().parse::<u64>().map_err(|_| bad_value())?;
-    match crate::DurationMs::new(n) {
+    match teleprompt_core::DurationMs::new(n) {
         Ok(ms) => Ok(Some(Node::Directive(Directive::Pause(ms)))),
         Err(_) => Err(format!(
             "pause `{arg}` is longer than a day, the most a pause may be"

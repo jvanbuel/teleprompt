@@ -7,7 +7,7 @@
 //! reported as out of date rather than silently spoken.
 
 use crate::program::{ActionElement, Element, Program};
-use crate::{Diagnostic, Hash};
+use teleprompt_core::{Diagnostic, Hash};
 
 /// A translated chapter title, line or cue, keyed by chapter slug, line id
 /// or block id. Kept in the order written, which is the script's.

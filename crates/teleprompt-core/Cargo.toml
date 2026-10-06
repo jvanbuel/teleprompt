@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 blake3.workspace = true
-pulldown-cmark.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 thiserror.workspace = true

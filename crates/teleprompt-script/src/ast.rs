@@ -1,5 +1,5 @@
-use crate::SourceSpan;
-use crate::{BlockId, DurationMs, LineId};
+use teleprompt_core::SourceSpan;
+use teleprompt_core::{BlockId, DurationMs, LineId};
 
 #[derive(Debug, Clone)]
 pub struct Script {

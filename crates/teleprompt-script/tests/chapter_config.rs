@@ -1,7 +1,7 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Element};
 use teleprompt_core::DurationMs;
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::{resolve, Element};
 
 const SRC: &str = r#"---
 timing:

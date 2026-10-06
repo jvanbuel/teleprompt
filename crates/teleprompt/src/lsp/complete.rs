@@ -174,7 +174,7 @@ pub fn items(ctx: &Context, project: &Project) -> Vec<CompletionItem> {
 
 /// A cast member's name as a label writes it: `guest` is `Guest`.
 pub fn capitalized(name: &str) -> String {
-    teleprompt_core::ast::name_of(name)
+    teleprompt_script::ast::name_of(name)
 }
 
 /// The files beside the script, for `include=`.

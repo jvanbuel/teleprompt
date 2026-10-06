@@ -2,7 +2,7 @@
 //! `check`'s warnings about the narration itself.
 
 use crate::program::{Element, Program};
-use crate::Diagnostic;
+use teleprompt_core::Diagnostic;
 
 /// Words in one sentence past which it is hard to say in a breath, and to
 /// read as captions.

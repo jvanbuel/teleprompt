@@ -7,9 +7,9 @@ use std::path::Path;
 use teleprompt_compile::VoiceContext;
 use teleprompt_compile::{compile, CompileOutput};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::resolve;
 use teleprompt_plugin::ScenePlugins;
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::resolve;
 use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::WpmEstimator;
 

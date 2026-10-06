@@ -1,7 +1,7 @@
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::lint::lint;
-use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::resolve;
+use teleprompt_script::lint::lint;
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::resolve;
 
 fn warnings(body: &str) -> Vec<String> {
     let src = format!("# A\n\n{body}\n");

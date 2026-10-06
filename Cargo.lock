@@ -2030,6 +2030,7 @@ dependencies = [
  "teleprompt-remotion",
  "teleprompt-render",
  "teleprompt-schedule",
+ "teleprompt-script",
  "teleprompt-slidev",
  "teleprompt-testkit",
  "teleprompt-translate",
@@ -2069,6 +2070,7 @@ dependencies = [
  "teleprompt-manifest",
  "teleprompt-plugin",
  "teleprompt-schedule",
+ "teleprompt-script",
  "teleprompt-testkit",
  "teleprompt-voice",
  "tempfile",
@@ -2087,6 +2089,7 @@ dependencies = [
  "teleprompt-plugin",
  "teleprompt-scene",
  "teleprompt-schedule",
+ "teleprompt-script",
  "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",
@@ -2097,7 +2100,6 @@ name = "teleprompt-core"
 version = "0.1.0"
 dependencies = [
  "blake3",
- "pulldown-cmark",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2111,6 +2113,7 @@ version = "0.1.0"
 dependencies = [
  "teleprompt-core",
  "teleprompt-listen",
+ "teleprompt-script",
 ]
 
 [[package]]
@@ -2210,6 +2213,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-script"
+version = "0.1.0"
+dependencies = [
+ "pulldown-cmark",
+ "serde_json",
+ "serde_yaml",
+ "teleprompt-core",
+ "toml",
+]
+
+[[package]]
 name = "teleprompt-slidev"
 version = "0.1.0"
 dependencies = [
@@ -2235,6 +2249,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "teleprompt-core",
+ "teleprompt-script",
  "teleprompt-testkit",
  "tokio",
 ]

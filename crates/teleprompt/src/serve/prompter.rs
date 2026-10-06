@@ -91,7 +91,7 @@ fn word_at(text: &str, offset_ms: u64, duration_ms: u64) -> usize {
 }
 
 /// When each word of a line `duration_ms` long starts, spread over its
-/// characters as [`word_at`] spreads them: for audio without word timings.
+/// characters as `word_at` spreads them: for audio without word timings.
 pub fn word_starts(text: &str, duration_ms: u64) -> Vec<u64> {
     let chars = text.chars().count().max(1) as u64;
     let mut after_space = true;

@@ -1,5 +1,5 @@
 [package]
-name = "teleprompt-derive"
+name = "teleprompt-script"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,8 +7,12 @@ license.workspace = true
 
 [dependencies]
 teleprompt-core = { path = "../teleprompt-core" }
-teleprompt-script = { path = "../teleprompt-script" }
-teleprompt-listen = { path = "../teleprompt-listen" }
+pulldown-cmark.workspace = true
+serde_yaml.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true

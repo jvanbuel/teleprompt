@@ -10,7 +10,7 @@ impl Script {
         // locale with a translation.
         let display = self.path().display().to_string();
         warnings.extend(
-            teleprompt_core::lint::lint(&compiled.program)
+            teleprompt_script::lint::lint(&compiled.program)
                 .iter()
                 .map(|d| {
                     d.render(&display)

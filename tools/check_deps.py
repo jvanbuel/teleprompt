@@ -29,6 +29,8 @@ VOICE = {"core", "voice"}
 
 ALLOWED = {
     "core": set(),
+    # The script language: parsing, resolving, editing and translating.
+    "script": {"core"},
     "schedule": {"core"},
     "scene": {"core"},
     # Recording, on top of the scene contract it re-exports as `scene`.
@@ -36,7 +38,7 @@ ALLOWED = {
     "voice": {"core"},
     "manifest": {"core"},
     "voices": VOICE,
-    "compile": {"core", "scene", "schedule", "voice", "manifest"},
+    "compile": {"core", "script", "scene", "schedule", "voice", "manifest"},
     "render": {"core", "manifest"},
     "vhs": PLUGIN,
     "asciinema": PLUGIN,
@@ -46,11 +48,11 @@ ALLOWED = {
     "media": PLUGIN,
     # The desktop scene plugins, x11 and macos: one language and runner.
     "desktop": PLUGIN,
-    "translate": {"core"},
+    "translate": {"core", "script"},
     "listen": set(),
     # Ids and speaker names are the script's; who speaks when is what a
     # recognizer hears.
-    "derive": {"core", "listen"},
+    "derive": {"core", "script", "listen"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
     # The engine, where every scene plugin and voice is composed: may
     # depend on anything.

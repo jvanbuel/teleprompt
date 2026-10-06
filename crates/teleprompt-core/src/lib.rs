@@ -1,19 +1,16 @@
-pub mod ast;
+//! The words every teleprompt crate shares: ids, times and durations,
+//! hashes, diagnostics, block and line attributes, policies and the
+//! project's config. The script language is `teleprompt-script`'s.
+
 pub mod attrs;
 pub mod config;
 pub mod duration;
-pub mod edit;
 pub mod error;
 pub mod hash;
 pub mod id;
-pub mod ident;
-pub mod lint;
-pub mod parse;
 pub mod policy;
-pub mod program;
 pub mod said;
 pub mod time;
-pub mod translation;
 pub mod voice;
 
 pub use duration::{DurationMs, DurationSource};

@@ -5,13 +5,13 @@ use std::path::Path;
 
 use teleprompt_compile::{compile, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::resolve;
 use teleprompt_core::{BlockId, Diagnostic, Diagnostics, SpanMs};
 use teleprompt_plugin::capture::mock::MockCapture;
 use teleprompt_plugin::scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_plugin::scene::mock::MockScene;
 use teleprompt_plugin::{ScenePlugin, ScenePlugins};
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::resolve;
 use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::WpmEstimator;
 

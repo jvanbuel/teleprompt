@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
 use crate::ast::{ActionBlock, Chapter, Directive, Line, Node, Script};
-use crate::attrs::{BlockAttrs, LineAttrs};
-use crate::config::{Config, PartialConfig};
-use crate::policy::{Align, PolicyKind};
-use crate::DurationMs;
-use crate::{BlockId, Diagnostic, Diagnostics, Hash, LineId, SourceSpan};
+use teleprompt_core::attrs::{BlockAttrs, LineAttrs};
+use teleprompt_core::config::{Config, PartialConfig};
+use teleprompt_core::policy::{Align, PolicyKind};
+use teleprompt_core::DurationMs;
+use teleprompt_core::{BlockId, Diagnostic, Diagnostics, Hash, LineId, SourceSpan};
 
 /// A chapter as the manifest and other consumers need it: identity and a
 /// human title. `resolve` flattens chapters away, so without this the
@@ -59,7 +59,7 @@ pub enum Element {
     },
     Action(ActionElement),
     Pause {
-        ms: crate::DurationMs,
+        ms: teleprompt_core::DurationMs,
     },
 }
 
@@ -113,7 +113,7 @@ pub fn resolve(
     project: &PartialConfig,
     cli: &PartialConfig,
 ) -> Result<Program, Diagnostics> {
-    if let Some(problem) = crate::config::locale_problem(locale) {
+    if let Some(problem) = teleprompt_core::config::locale_problem(locale) {
         return Err(Diagnostics(vec![Diagnostic::error(problem)]));
     }
     let id_diags = crate::ident::check_ids(script);
@@ -191,11 +191,11 @@ fn heading_layer(chapter: &Chapter, diags: &mut Vec<Diagnostic>) -> PartialConfi
     if chapter.raw_attrs.trim().is_empty() {
         return PartialConfig::default();
     }
-    let (settings, mut d) = crate::attrs::heading_attrs(&chapter.raw_attrs, chapter.span);
+    let (settings, mut d) = teleprompt_core::attrs::heading_attrs(&chapter.raw_attrs, chapter.span);
     diags.append(&mut d);
     match PartialConfig::from_settings(&settings) {
         Ok(c) => c,
-        Err(crate::config::ConfigError::Yaml(e)) => {
+        Err(teleprompt_core::config::ConfigError::Yaml(e)) => {
             diags.push(
                 Diagnostic::error(format!("chapter `{}`: {e}", chapter.slug))
                     .at(chapter.span)

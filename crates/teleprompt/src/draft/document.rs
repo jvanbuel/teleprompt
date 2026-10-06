@@ -6,8 +6,8 @@
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
-use teleprompt_core::ast::slugify;
 use teleprompt_core::LineId;
+use teleprompt_script::ast::slugify;
 use teleprompt_voice::Pcm;
 
 use crate::draft::import::{cut_takes, read_voice};

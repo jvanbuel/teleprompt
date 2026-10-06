@@ -5,15 +5,15 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use teleprompt_core::program::Program;
+use teleprompt_script::program::Program;
 use teleprompt_voice::takes::Takes;
 
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Element};
-use teleprompt_core::translation::Translation;
 use teleprompt_core::{Diagnostic, Diagnostics};
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::{resolve, Element};
+use teleprompt_script::translation::Translation;
 use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::VoiceBackend;
 use teleprompt_voice::WpmEstimator;
@@ -252,7 +252,7 @@ fn translate(
     })?;
     let translation = Translation::from_yaml(&yaml)
         .map_err(|e| Diagnostics(vec![Diagnostic::error(format!("{}: {e}", path.display()))]))?;
-    let diags = teleprompt_core::translation::apply(program, &translation);
+    let diags = teleprompt_script::translation::apply(program, &translation);
     if diags.iter().any(Diagnostic::is_error) {
         return Err(Diagnostics(diags));
     }

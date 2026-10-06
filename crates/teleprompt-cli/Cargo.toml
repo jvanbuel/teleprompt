@@ -42,6 +42,7 @@ teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
+teleprompt-script = { path = "../teleprompt-script" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 serde_yaml.workspace = true
 insta.workspace = true

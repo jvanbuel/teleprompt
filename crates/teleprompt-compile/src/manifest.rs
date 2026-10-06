@@ -3,12 +3,12 @@
 //! from what `compile` kept in [`NarrationDetail`]. Only this crate holds
 //! both.
 
-use teleprompt_core::program::ChapterInfo;
 use teleprompt_manifest::{
     audio_path, AudioInfo, ChapterEntry, LineEntry, NarrationManifest, ShotEntry, WordEntry,
     MANIFEST_VERSION,
 };
 use teleprompt_schedule::Timeline;
+use teleprompt_script::program::ChapterInfo;
 
 use crate::NarrationDetail;
 

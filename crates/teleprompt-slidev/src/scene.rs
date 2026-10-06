@@ -6,7 +6,7 @@
 //! showing the reveal its sentence is about.
 //!
 //! A still is the same picture at any length. So `estimate` is
-//! [`Measured::Unknown`] — the scheduler gives the shot its sentence — and
+//! [`Measured::Unknown`](teleprompt_plugin::scene::Measured::Unknown) — the scheduler gives the shot its sentence — and
 //! there is no `retime`: the length is kept out of the key on purpose, and
 //! rewording a sentence reuses the slide it was spoken over.
 

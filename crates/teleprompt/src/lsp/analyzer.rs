@@ -5,8 +5,8 @@ use std::path::Path;
 
 use super::{Analysis, Analyzer, Definition, Project as Outline};
 use teleprompt_core::config::{Config, PartialConfig};
-use teleprompt_core::program::{ActionElement, Element};
 use teleprompt_core::{Diagnostic, SourceSpan};
+use teleprompt_script::program::{ActionElement, Element};
 
 use crate::project::Compiled;
 use crate::project::Project;
@@ -104,7 +104,7 @@ impl Analyzer for ProjectAnalyzer {
 
 /// The project's configuration with `script_text`'s front matter over it.
 fn merged(project: &Project, script_text: &str) -> Config {
-    let front = teleprompt_core::parse::parse_script(script_text)
+    let front = teleprompt_script::parse::parse_script(script_text)
         .ok()
         .and_then(|s| PartialConfig::from_yaml(&s.front_matter).ok())
         .unwrap_or_default();
@@ -122,7 +122,7 @@ fn line_of(text: &str, needle: &str) -> Option<u32> {
 /// block compiles to.
 fn analysis(compiled: &Compiled) -> Analysis {
     let mut out = Analysis {
-        diagnostics: teleprompt_core::lint::lint(&compiled.program),
+        diagnostics: teleprompt_script::lint::lint(&compiled.program),
         ..Analysis::default()
     };
     // The compile's warnings are sentences; most name their line.

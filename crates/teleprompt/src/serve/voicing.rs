@@ -202,7 +202,7 @@ impl Voicing {
         })
     }
 
-    /// Line `id`'s audio as a WAV, as [`Self::voice`] makes it; with `fit`,
+    /// Line `id`'s audio as a WAV, as `voice` makes it; with `fit`,
     /// as the last manifest publishes it, in the video's format and a
     /// `fit-line` line at its tempo, as `dub` writes it.
     pub fn audio(&self, id: &str, fresh: bool, fit: bool) -> Result<Option<Vec<u8>>, String> {

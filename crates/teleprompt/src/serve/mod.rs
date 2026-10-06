@@ -29,7 +29,7 @@ use tokio::task::block_in_place;
 use crate::project::{Project, Script};
 use crate::serve::voicing::Voicing;
 use crate::Failure;
-use teleprompt_core::edit::Edit;
+use teleprompt_script::edit::Edit;
 
 mod loopback;
 pub mod prompter;

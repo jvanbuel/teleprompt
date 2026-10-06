@@ -1,6 +1,6 @@
-use teleprompt_core::ast::{Directive, Node};
-use teleprompt_core::parse::parse_script;
 use teleprompt_core::DurationMs;
+use teleprompt_script::ast::{Directive, Node};
+use teleprompt_script::parse::parse_script;
 
 const BASIC: &str = r#"---
 teleprompt: 1
@@ -234,7 +234,7 @@ fn a_wrapped_paragraph_matches_the_same_prose_on_one_line() {
 //   error: expected `key=value`, found `fps:`
 // ---------------------------------------------------------------------------
 
-fn only_line(src: &str) -> teleprompt_core::ast::Line {
+fn only_line(src: &str) -> teleprompt_script::ast::Line {
     let s = parse_script(src).expect("script must parse");
     match &s.chapters[0].nodes[0] {
         Node::Line(seg) => seg.clone(),

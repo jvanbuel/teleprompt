@@ -1,9 +1,6 @@
 //! Durations: how long an author said something takes ([`DurationMs`]) and
 //! where a scheduled duration came from ([`DurationSource`]). Shared by the
-//! scheduler, the timeline and the manifest, so it lives in `core` like
-//! [`VoiceSource`].
-//!
-//! [`VoiceSource`]: crate::VoiceSource
+//! scheduler, the timeline and the manifest, so it lives in `core`.
 
 use serde::{Deserialize, Serialize};
 

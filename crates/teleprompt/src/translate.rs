@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use serde::Serialize;
-use teleprompt_core::translation::{items, merged, pending, Translation};
+use teleprompt_script::translation::{items, merged, pending, Translation};
 use teleprompt_translate::{Known, Request, Translator, Wanted};
 
 use crate::project::translation_path;

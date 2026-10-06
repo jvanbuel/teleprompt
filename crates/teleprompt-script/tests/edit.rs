@@ -1,7 +1,7 @@
 //! Timeline drags as script edits: each changes a block's attributes or
 //! its place, and nothing else in the file.
 
-use teleprompt_core::edit::{apply, Edit};
+use teleprompt_script::edit::{apply, Edit};
 
 const SCRIPT: &str = "---
 teleprompt: 1

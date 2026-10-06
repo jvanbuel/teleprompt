@@ -1,6 +1,6 @@
-use teleprompt_core::ast::Node;
-use teleprompt_core::ident::{check_ids, IdOrigin};
-use teleprompt_core::parse::parse_script;
+use teleprompt_script::ast::Node;
+use teleprompt_script::ident::{check_ids, IdOrigin};
+use teleprompt_script::parse::parse_script;
 
 fn ids(src: &str) -> Vec<String> {
     let s = parse_script(src).unwrap();
@@ -271,7 +271,7 @@ fn pinning_a_block_s_id_renames_no_other() {
 #[test]
 fn resolve_refuses_a_duplicate_id() {
     let s = parse_script("# A\n\nOne. {#dup}\n\nTwo. {#dup}\n").unwrap();
-    let err = teleprompt_core::program::resolve(
+    let err = teleprompt_script::program::resolve(
         &s,
         "t.md",
         "en",

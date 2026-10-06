@@ -1,8 +1,8 @@
 //! `[locale.<code>]`: settings for one locale, over the layer they are in.
 
 use teleprompt_core::config::PartialConfig;
-use teleprompt_core::parse::parse_script;
-use teleprompt_core::program::{resolve, Element, Program};
+use teleprompt_script::parse::parse_script;
+use teleprompt_script::program::{resolve, Element, Program};
 
 const PROJECT: &str = r#"
 [voice]

@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use crate::ast::Node;
 use crate::parse::parse_script;
-use crate::{BlockId, LineId};
+use teleprompt_core::{BlockId, LineId};
 
 /// One edit, naming blocks and lines by their ids as `plan` shows them.
 #[derive(Debug, Clone, PartialEq)]
