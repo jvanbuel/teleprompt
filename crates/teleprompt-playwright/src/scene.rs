@@ -5,8 +5,8 @@
 //! `None`, and the shot takes its line's length (`docs/design.md#scene-plugins`).
 //! A block may instead include one test of a test file ([`crate::spec`]).
 
-use teleprompt_core::Hash;
-use teleprompt_core::{BlockId, Diagnostic};
+use teleprompt_plugin::core::Hash;
+use teleprompt_plugin::core::{BlockId, Diagnostic};
 use teleprompt_plugin::scene::contract::{BlockSource, SceneCompiler, Shot, Validated};
 
 /// The mark, spelled as a JavaScript comment so the script still runs

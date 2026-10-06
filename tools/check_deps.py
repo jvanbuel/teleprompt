@@ -23,7 +23,7 @@ import sys
 
 # A plugin depends on the contracts it implements, and nothing else of
 # teleprompt's: what an outside plugin can do, the built-in ones do.
-PLUGIN = {"core", "plugin"}
+PLUGIN = {"plugin"}
 # The voices teleprompt ships depend on the voice contract, and nothing else.
 VOICE = {"core", "voice"}
 
@@ -61,7 +61,7 @@ ALLOWED = {
         "compile", "render", "setup",
     },
     # The one crate that knows every scene plugin and voice by name.
-    "registry": {"project", "plugin", "voice", "voices"} | PLUGIN_CRATES,
+    "registry": {"project", "plugin", "voices"} | PLUGIN_CRATES,
     # What `setup` finds and installs: what the plugins and voices need.
     "setup": {"core", "plugin"},
     # The language server, with the real compile as its analyzer.
@@ -69,15 +69,12 @@ ALLOWED = {
     # Drafts from what was said: `import` and `record`.
     "draft": {"project", "setup", "core", "script", "listen", "plugin", "voice"},
     # The prompter: its page, API and session, following a reader by ear.
-    "serve": {
-        "project", "setup", "core", "script", "compile", "manifest", "schedule",
-        "listen", "voice",
-    },
+    "serve": {"project", "setup", "core", "script", "listen", "voice"},
     # The command line, composing the rest, and the commands that only
     # read or print: check, plan, new, cache, voice clone.
     "cli": {
-        "project", "registry", "setup", "lsp", "draft", "serve", "core", "compile",
-        "schedule", "script", "voice",
+        "project", "registry", "setup", "lsp", "draft", "serve", "core", "schedule",
+        "script", "voice",
     },
 }
 

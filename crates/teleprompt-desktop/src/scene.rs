@@ -1,7 +1,7 @@
 //! The compile-time half, the same for every desktop: each platform's
 //! plugin registers it under its own scene plugin name.
 
-use teleprompt_core::{BlockId, Diagnostic, Hash};
+use teleprompt_plugin::core::{BlockId, Diagnostic, Hash};
 use teleprompt_plugin::scene::{
     validate_commands, BlockSource, Measured, SceneCompiler, Shot, Validated,
 };

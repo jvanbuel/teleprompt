@@ -3,9 +3,9 @@
 
 use std::process::Command;
 
-use teleprompt_core::Hash;
 use teleprompt_desktop::x11::X11Render;
 use teleprompt_plugin::capture::{CaptureBackend, Frame, Session, SessionShot};
+use teleprompt_plugin::core::Hash;
 
 fn ready() -> bool {
     let render = X11Render::default();

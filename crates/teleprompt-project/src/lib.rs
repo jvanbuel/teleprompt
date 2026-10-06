@@ -20,3 +20,8 @@ pub mod translate;
 pub mod voice;
 
 pub use error::Failure;
+/// What a compiled script is made of, for whoever is handed one: so a
+/// crate on top of this one need not name the pipeline crates itself.
+pub use teleprompt_compile::{CompileOutput, NarrationDetail};
+pub use teleprompt_manifest::NarrationManifest;
+pub use teleprompt_schedule::Timeline;

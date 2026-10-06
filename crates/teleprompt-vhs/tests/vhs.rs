@@ -1,4 +1,4 @@
-use teleprompt_core::{BlockId, SourceSpan};
+use teleprompt_plugin::core::{BlockId, SourceSpan};
 use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Validated};
 use teleprompt_vhs::VhsScene;
 

@@ -4,8 +4,8 @@
 //! itself. See `docs/design.md#scene-plugins` for what is refused and why a shot
 //! is `Exact` or `Estimated`.
 
-use teleprompt_core::attrs::parse_duration_ms;
-use teleprompt_core::{BlockId, Diagnostic, Hash};
+use teleprompt_plugin::core::attrs::parse_duration_ms;
+use teleprompt_plugin::core::{BlockId, Diagnostic, Hash};
 
 use teleprompt_plugin::scene::{
     validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,

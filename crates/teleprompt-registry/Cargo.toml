@@ -9,7 +9,6 @@ license.workspace = true
 [dependencies]
 teleprompt-project = { path = "../teleprompt-project" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
-teleprompt-voice = { path = "../teleprompt-voice" }
 teleprompt-voices = { path = "../teleprompt-voices" }
 teleprompt-asciinema = { path = "../teleprompt-asciinema" }
 teleprompt-desktop = { path = "../teleprompt-desktop" }

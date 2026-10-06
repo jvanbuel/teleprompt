@@ -8,9 +8,9 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::UNIX_EPOCH;
 
-use teleprompt_compile::NarrationDetail;
-use teleprompt_manifest::NarrationManifest;
 use teleprompt_project::dub::publish::Published;
+use teleprompt_project::NarrationDetail;
+use teleprompt_project::NarrationManifest;
 use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::VoiceBackend;
 
@@ -280,7 +280,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// The scheduler's plan as a prompter draws it on the glass: each line
 /// from its first sound to its last, and each shot with the line it runs
 /// with or after, and whether it states its own length, so can stretch.
-fn timeline_json(plan: &teleprompt_schedule::Timeline) -> serde_json::Value {
+fn timeline_json(plan: &teleprompt_project::Timeline) -> serde_json::Value {
     let (mut lines, mut shots) = (Vec::new(), Vec::new());
     for entry in &plan.entries {
         let line = entry.narration.as_ref().map(|n| n.line.to_string());

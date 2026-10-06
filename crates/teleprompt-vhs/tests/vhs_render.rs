@@ -14,8 +14,8 @@
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_core::Hash;
 use teleprompt_plugin::capture::{sessions, CaptureBackend, Frame, PlannedShot};
+use teleprompt_plugin::core::Hash;
 use teleprompt_vhs::capture::VhsRender;
 
 /// Try the capture, and treat a failure as a skip unless this machine is

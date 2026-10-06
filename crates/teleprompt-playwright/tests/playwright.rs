@@ -6,8 +6,8 @@
 //! dialect that looks like Playwright and isn't. A script says what it
 //! does, not how long it takes.
 
-use teleprompt_core::{BlockId, SourceSpan};
 use teleprompt_playwright::PlaywrightScene;
+use teleprompt_plugin::core::{BlockId, SourceSpan};
 use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler};
 
 const SPAN: SourceSpan = SourceSpan {
@@ -91,9 +91,9 @@ fn shots_are_identified_by_block_and_index() {
 }
 
 mod capture {
-    use teleprompt_core::Hash;
     use teleprompt_playwright::capture::script_for;
     use teleprompt_plugin::capture::{Frame, Session, SessionShot};
+    use teleprompt_plugin::core::Hash;
 
     fn shot(id: &str, source: &str, ms: u64) -> SessionShot {
         SessionShot {

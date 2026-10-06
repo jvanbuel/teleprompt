@@ -2008,7 +2008,6 @@ name = "teleprompt-asciinema"
 version = "0.1.0"
 dependencies = [
  "serde_json",
- "teleprompt-core",
  "teleprompt-plugin",
 ]
 
@@ -2078,7 +2077,6 @@ dependencies = [
 name = "teleprompt-desktop"
 version = "0.1.0"
 dependencies = [
- "teleprompt-core",
  "teleprompt-plugin",
  "tempfile",
 ]
@@ -2133,7 +2131,6 @@ dependencies = [
 name = "teleprompt-media"
 version = "0.1.0"
 dependencies = [
- "teleprompt-core",
  "teleprompt-plugin",
 ]
 
@@ -2141,7 +2138,6 @@ dependencies = [
 name = "teleprompt-playwright"
 version = "0.1.0"
 dependencies = [
- "teleprompt-core",
  "teleprompt-plugin",
  "tempfile",
 ]
@@ -2196,7 +2192,6 @@ dependencies = [
  "teleprompt-remotion",
  "teleprompt-slidev",
  "teleprompt-vhs",
- "teleprompt-voice",
  "teleprompt-voices",
 ]
 
@@ -2205,7 +2200,6 @@ name = "teleprompt-remotion"
 version = "0.1.0"
 dependencies = [
  "serde_json",
- "teleprompt-core",
  "teleprompt-plugin",
 ]
 
@@ -2257,12 +2251,9 @@ dependencies = [
  "futures-util",
  "serde",
  "serde_json",
- "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-listen",
- "teleprompt-manifest",
  "teleprompt-project",
- "teleprompt-schedule",
  "teleprompt-script",
  "teleprompt-setup",
  "teleprompt-voice",
@@ -2284,7 +2275,6 @@ dependencies = [
 name = "teleprompt-slidev"
 version = "0.1.0"
 dependencies = [
- "teleprompt-core",
  "teleprompt-plugin",
 ]
 
@@ -2301,7 +2291,6 @@ dependencies = [
 name = "teleprompt-vhs"
 version = "0.1.0"
 dependencies = [
- "teleprompt-core",
  "teleprompt-plugin",
  "teleprompt-testkit",
  "tempfile",

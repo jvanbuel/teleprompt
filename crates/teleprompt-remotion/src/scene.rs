@@ -13,8 +13,8 @@
 
 use std::path::{Path, PathBuf};
 
-use teleprompt_core::config::SceneConfig;
-use teleprompt_core::{BlockId, Diagnostic, Hash};
+use teleprompt_plugin::core::config::SceneConfig;
+use teleprompt_plugin::core::{BlockId, Diagnostic, Hash};
 use teleprompt_plugin::scene::contract::{
     split_at_mark, validate_parts, BlockSource, SceneCompiler, Shot, Validated,
 };

@@ -12,9 +12,9 @@
 
 use std::path::PathBuf;
 
-use teleprompt_core::attrs::parse_attrs;
-use teleprompt_core::config::SceneConfig;
-use teleprompt_core::{BlockId, Diagnostic, Hash, SourceSpan};
+use teleprompt_plugin::core::attrs::parse_attrs;
+use teleprompt_plugin::core::config::SceneConfig;
+use teleprompt_plugin::core::{BlockId, Diagnostic, Hash, SourceSpan};
 use teleprompt_plugin::scene::contract::{
     is_content, BlockSource, Measured, SceneCompiler, Shot, Validated,
 };
@@ -50,7 +50,7 @@ pub fn parse_time(v: &str) -> Result<u64, String> {
             let n: f64 = part.parse().map_err(|_| bad())?;
             seconds = seconds * 60.0 + n;
         }
-        return Ok(teleprompt_core::time::ms_from_seconds(seconds));
+        return Ok(teleprompt_plugin::core::time::ms_from_seconds(seconds));
     }
     if let Some(ms) = v.strip_suffix("ms") {
         return ms.parse().map_err(|_| bad());
@@ -63,7 +63,7 @@ pub fn parse_time(v: &str) -> Result<u64, String> {
     if n < 0.0 {
         return Err(bad());
     }
-    Ok(teleprompt_core::time::ms_from_seconds(n))
+    Ok(teleprompt_plugin::core::time::ms_from_seconds(n))
 }
 
 /// Read one directive line. Errors are messages with an optional help.

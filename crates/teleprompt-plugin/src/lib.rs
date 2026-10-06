@@ -25,6 +25,8 @@ mod scene_plugin;
 pub mod tool;
 
 pub use scene_plugin::{ScenePlugin, ScenePlugins};
+/// The ids, diagnostics, hashes, times and settings a plugin speaks in.
+pub use teleprompt_core as core;
 /// The scene contract, `teleprompt-scene`, so a scene plugin depends on
 /// this crate alone.
 pub use teleprompt_scene as scene;

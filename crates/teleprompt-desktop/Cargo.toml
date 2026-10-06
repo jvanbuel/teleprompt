@@ -6,7 +6,6 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-teleprompt-core = { path = "../teleprompt-core" }
 
 teleprompt-plugin = { path = "../teleprompt-plugin" }
 

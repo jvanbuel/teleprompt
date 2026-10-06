@@ -15,9 +15,6 @@ teleprompt-project = { path = "../teleprompt-project" }
 teleprompt-setup = { path = "../teleprompt-setup" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-script = { path = "../teleprompt-script" }
-teleprompt-compile = { path = "../teleprompt-compile" }
-teleprompt-manifest = { path = "../teleprompt-manifest" }
-teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 serde.workspace = true

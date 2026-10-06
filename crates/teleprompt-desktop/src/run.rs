@@ -11,8 +11,8 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use teleprompt_core::ShotId;
 use teleprompt_plugin::capture::{CaptureError, Job, Session};
+use teleprompt_plugin::core::ShotId;
 
 use crate::script::{classify, Action, Button, Chord, Pace};
 
@@ -268,8 +268,8 @@ pub fn cut_clips(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_core::Hash;
     use teleprompt_plugin::capture::SessionShot;
+    use teleprompt_plugin::core::Hash;
 
     /// A screen that writes down what it was asked to do, and when.
     #[derive(Default)]

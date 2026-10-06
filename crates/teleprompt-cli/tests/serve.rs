@@ -508,7 +508,7 @@ wait 800ms
 ```
 ";
 
-fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
+fn compiled_tour(tag: &str) -> teleprompt_project::CompileOutput {
     let dir = teleprompt_testkit::test_dir(tag);
     teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");

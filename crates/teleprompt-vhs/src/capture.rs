@@ -169,9 +169,9 @@ impl CaptureBackend for VhsRender {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_core::Hash;
     use teleprompt_plugin::capture::reel::windows;
     use teleprompt_plugin::capture::SessionShot;
+    use teleprompt_plugin::core::Hash;
 
     fn session(shots: &[(&str, u64)]) -> Session {
         Session {
