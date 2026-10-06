@@ -15,8 +15,7 @@ use teleprompt_core::voice::spoken;
 use teleprompt_core::{
     Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId,
 };
-use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
-use teleprompt_plugin::{ScenePlugin, ScenePlugins};
+use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneCompilers, Shot};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Timeline};
 use teleprompt_voice::cache::{CacheKey, VoiceCache};
 use teleprompt_voice::takes::{TakeMeta, Takes};
@@ -222,7 +221,7 @@ pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<
 fn retime_stretched_shots(
     timeline: &mut Timeline,
     shots: &mut BTreeMap<ShotId, ShotSource>,
-    registry: &ScenePlugins,
+    registry: &dyn SceneCompilers,
 ) -> Vec<String> {
     let mut warnings = Vec::new();
     for entry in &mut timeline.entries {
@@ -232,7 +231,7 @@ fn retime_stretched_shots(
         let Some(published) = shots.get_mut(&action.shot) else {
             continue;
         };
-        let Some(plugin) = registry.get(&action.plugin).map(ScenePlugin::scene) else {
+        let Some(plugin) = registry.compiler(&action.plugin) else {
             continue;
         };
 
@@ -294,7 +293,7 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-pw-1.63-v2";
 fn chain_capture_keys(
     timeline: &mut Timeline,
     config: &Config,
-    registry: &ScenePlugins,
+    registry: &dyn SceneCompilers,
     shots: &BTreeMap<ShotId, ShotSource>,
 ) {
     let mut chains: BTreeMap<(String, String), Hash> = BTreeMap::new();
@@ -324,14 +323,12 @@ fn chain_capture_keys(
         // Scene-wide inputs are read once per scene.
         let inputs = inputs
             .entry(action.scene.clone())
-            .or_insert_with(|| {
-                match (scene, registry.get(&action.plugin).map(ScenePlugin::scene)) {
-                    (Some(scene), Some(plugin)) => fingerprint(&plugin.inputs(scene), &scene.root),
-                    _ => String::new(),
-                }
+            .or_insert_with(|| match (scene, registry.compiler(&action.plugin)) {
+                (Some(scene), Some(plugin)) => fingerprint(&plugin.inputs(scene), &scene.root),
+                _ => String::new(),
             })
             .clone();
-        let own = match (scene, registry.get(&action.plugin).map(ScenePlugin::scene)) {
+        let own = match (scene, registry.compiler(&action.plugin)) {
             (Some(scene), Some(plugin)) => shots
                 .get(&action.shot)
                 .map(|s| fingerprint(&plugin.shot_inputs(scene, &s.source), &scene.root))
@@ -352,8 +349,8 @@ fn chain_capture_keys(
 
         // A scene plugin whose shots do not continue is keyed by name(n) alone.
         if registry
-            .get(&action.plugin)
-            .is_some_and(|plugin| !plugin.scene().continues())
+            .compiler(&action.plugin)
+            .is_some_and(|scene| !scene.continues())
         {
             action.capture_key = Hash::of_fields(&[&name.to_string()]);
             continue;
@@ -418,7 +415,7 @@ fn fingerprint(paths: &[std::path::PathBuf], root: &Path) -> String {
 /// miss (docs/design.md#estimated-and-measured).
 pub fn compile(
     program: &Program,
-    registry: &ScenePlugins,
+    registry: &dyn SceneCompilers,
     voice_ctx: &VoiceContext,
     base_dir: &Path,
     version: &str,
@@ -526,7 +523,7 @@ struct Placing {
 /// not there.
 struct Walker<'a, 'v> {
     program: &'a Program,
-    registry: &'a ScenePlugins,
+    registry: &'a dyn SceneCompilers,
     voice: &'a VoiceContext<'v>,
     base_dir: &'a Path,
     diags: Vec<Diagnostic>,
@@ -755,7 +752,7 @@ Read it, then remove the attribute.",
         }
         let path = self.base_dir.join(rel);
         match std::fs::read_to_string(&path) {
-            // ScenePlugin diagnostics then name this file.
+            // Scene compiler diagnostics then name this file.
             Ok(s) => Some((
                 s,
                 BodyOrigin::Included {
@@ -802,7 +799,7 @@ Read it, then remove the attribute.",
         let declared = config.scenes.get(scene);
         let plugin_name = declared.map_or_else(|| scene.to_string(), |s| s.plugin.clone());
         let registry = self.registry;
-        let Some(plugin) = registry.get(&plugin_name).map(ScenePlugin::scene) else {
+        let Some(plugin) = registry.compiler(&plugin_name) else {
             let available = registry.names().join(", ");
             if declared.is_none() && plugin_name == scene {
                 self.diags.push(

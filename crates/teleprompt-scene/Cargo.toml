@@ -1,0 +1,15 @@
+[package]
+name = "teleprompt-scene"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+# The scene contract alone: what a block compiles to, offline. Nothing here
+# runs a tool, so what plans a video can depend on it.
+[dependencies]
+serde.workspace = true
+teleprompt-core = { path = "../teleprompt-core" }
+
+[lints]
+workspace = true

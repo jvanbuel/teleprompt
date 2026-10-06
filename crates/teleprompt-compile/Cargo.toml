@@ -8,11 +8,13 @@ license.workspace = true
 [dependencies]
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
-teleprompt-plugin = { path = "../teleprompt-plugin" }
+teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 
 [dev-dependencies]
+# The tests compile against the mock scene plugin, as the engine registers it.
+teleprompt-plugin = { path = "../teleprompt-plugin" }
 teleprompt-testkit = { path = "../teleprompt-testkit" }
 insta.workspace = true
 serde_json.workspace = true

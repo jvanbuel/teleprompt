@@ -2085,6 +2085,7 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-manifest",
  "teleprompt-plugin",
+ "teleprompt-scene",
  "teleprompt-schedule",
  "teleprompt-testkit",
  "teleprompt-voice",
@@ -2163,6 +2164,7 @@ dependencies = [
  "serde",
  "serde_json",
  "teleprompt-core",
+ "teleprompt-scene",
  "teleprompt-testkit",
  "tempfile",
  "thiserror 1.0.69",
@@ -2187,6 +2189,14 @@ dependencies = [
  "teleprompt-manifest",
  "teleprompt-testkit",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "teleprompt-scene"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "teleprompt-core",
 ]
 
 [[package]]

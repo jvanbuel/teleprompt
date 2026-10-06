@@ -2,7 +2,7 @@
 //! and, where its tool can, how an author's session is recorded, under the
 //! one name a block's scene gives (`docs/design.md#crates`).
 
-use crate::scene::SceneCompiler;
+use crate::scene::{SceneCompiler, SceneCompilers};
 
 use crate::capture::mock::MockCapture;
 use crate::capture::CaptureBackend;
@@ -109,5 +109,15 @@ impl ScenePlugins {
 
     pub fn iter(&self) -> impl Iterator<Item = &ScenePlugin> {
         self.plugins.iter()
+    }
+}
+
+impl SceneCompilers for ScenePlugins {
+    fn compiler(&self, name: &str) -> Option<&dyn SceneCompiler> {
+        self.get(name).map(ScenePlugin::scene)
+    }
+
+    fn names(&self) -> Vec<&'static str> {
+        ScenePlugins::names(self)
     }
 }

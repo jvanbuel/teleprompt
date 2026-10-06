@@ -167,7 +167,8 @@ reading the manifest it just published.
 |---|---|
 | `teleprompt-core` | AST, parser, ids, config, `Hash`, diagnostics, shared vocabulary such as `VoiceSource` |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
-| `teleprompt-plugin` | what a scene plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it and core alone |
+| `teleprompt-scene` | the scene contract: `SceneCompiler`, how a block compiles into shots offline, the mock scene, and `SceneCompilers`, the compilers by name. Nothing in it runs a tool |
+| `teleprompt-plugin` | what a scene plugin implements, in one crate: the scene contract (re-exported as `plugin::scene`), the `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it and core alone |
 | `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the duration estimator, the registry, stretching a line to fit, the author's takes, the content-addressed voice cache, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
 | `teleprompt-voices` | the voices teleprompt ships, a module each: `openai`, HTTP against any server that speaks OpenAI's speech API (`kokoro` and `openai` are its presets, and any other `[backends.<name>]` is a server under that name); `voicebox`, a voice cloned from the author's takes or designed from a description; `elevenlabs`, premade or the account's own voices, with each word's timing; `gemini`, Google's Gemini TTS, delivery instructions sent beside the words |
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest. It plans: it reads each line's length from the voice cache or a take, and never encodes audio |
@@ -181,8 +182,8 @@ reading the manifest it just published.
 | `teleprompt` | the engine: the registries every scene plugin and voice is composed into, a project's `Script` and what is done with it (`check`, `plan`, `Dubber`, which publishes each line's audio in one format, fitted to its tempo, for the prompter as well as the video, `Scenes`, `Builder`, edits, translation), the drafts `import` and `record` make, the language server `teleprompt lsp` serves (its protocol and text kept apart from the compile behind an `Analyzer`), and `serve`, whose `prompter` module is the prompter's `Session`. It prints only progress, and asks nothing itself: a front end registers how to offer a missing model |
 | `teleprompt-cli` | the `teleprompt` binary over the engine: each command's flags, its report in either format, exit codes, and the questions it asks at a terminal |
 
-`schedule`, `plugin` and `manifest` depend on `core` alone, and not on
-one another. Anything that needs two of them belongs in `compile`.
+`schedule`, `scene`, `voice` and `manifest` depend on `core` alone, and
+not on one another. Anything that needs two of them belongs in `compile`.
 `render` reads the manifest and never the compiler. A scene plugin, built
 in or not, depends on `plugin` and `core` and nothing else of
 teleprompt's, so what an outside plugin can do, the built-in ones do
@@ -191,9 +192,10 @@ ships, in `voices`, depends on `voice` and `core`. Each scene plugin crate's `pl
 hands over its compiler, capture backend and recorder as one `ScenePlugin`,
 named by its compiler's kind, so its halves cannot be registered under two
 names. `compile`, and so `plan`, `check` and the prompter, reads a
-scene's shots and never runs its tool: it uses `plugin::scene` only,
-which `tools/check_deps.py` checks by name, along
-with the allowed edges between workspace crates. CI fails on any other.
+scene's shots and never runs its tool: it depends on `scene`, not on
+`plugin`, and is handed the compilers as `SceneCompilers`.
+`tools/check_deps.py` checks the allowed edges between workspace crates,
+and CI fails on any other.
 Scene plugins and voices are registered only in the engine, so adding one means
 a crate (a scene plugin) or a module of `voices` (a voice) and one registry
 line, and no other crate learns its name.

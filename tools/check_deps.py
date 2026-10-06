@@ -12,14 +12,12 @@ name. A new dependency between workspace
 crates has to be added here, which is where the argument for it belongs.
 Dev-dependencies are not checked.
 
-The plugin crate holds every contract, capturing included, so the crates
-that plan a video are also kept from its capture, protocol, record and
-tool modules by name: nothing that plans a video can run a tool.
+The scene contract is a crate of its own, apart from the plugin crate that
+runs tools, so the crates that plan a video depend on it and nothing that
+plans a video can run a tool.
 """
 
 import json
-import pathlib
-import re
 import subprocess
 import sys
 
@@ -32,11 +30,13 @@ VOICE = {"core", "voice"}
 ALLOWED = {
     "core": set(),
     "schedule": {"core"},
-    "plugin": {"core"},
+    "scene": {"core"},
+    # Recording, on top of the scene contract it re-exports as `scene`.
+    "plugin": {"core", "scene"},
     "voice": {"core"},
     "manifest": {"core"},
     "voices": VOICE,
-    "compile": {"core", "plugin", "schedule", "voice", "manifest"},
+    "compile": {"core", "scene", "schedule", "voice", "manifest"},
     "render": {"core", "manifest"},
     "vhs": PLUGIN,
     "asciinema": PLUGIN,
@@ -61,17 +61,6 @@ ALLOWED = {
 
 PREFIX = "teleprompt-"
 
-# What plans a video, and so reads a scene's shots without running its tool.
-PLANS = {"schedule", "manifest", "voice", "compile"}
-RUNS_TOOLS = re.compile(r"teleprompt_plugin::(capture|protocol|record|tool)\b")
-
-
-def runs_tools(crate):
-    """The sources of `crate` that reach a module that runs tools."""
-    src = pathlib.Path("crates") / f"{PREFIX}{crate}" / "src"
-    return [
-        str(p) for p in sorted(src.rglob("*.rs")) if RUNS_TOOLS.search(p.read_text())
-    ]
 
 
 def short(name):
@@ -99,9 +88,6 @@ def main():
                 continue
             if short(dep["name"]) not in allowed:
                 problems.append(f"{crate} depends on {short(dep['name'])}, which it may not")
-    for crate in sorted(PLANS):
-        for path in runs_tools(crate):
-            problems.append(f"{path} uses the plugin crate's capture, protocol, record or tool module")
     for p in problems:
         print(f"error: {p}", file=sys.stderr)
     if problems:

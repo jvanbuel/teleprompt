@@ -3,7 +3,9 @@
 //! (`docs/guide/scene-plugins.md`).
 //!
 //! - [`scene`]: how a block of a scene plugin's own language compiles into
-//!   shots, offline, so `plan` needs no tool.
+//!   shots, offline, so `plan` needs no tool. It is a crate of its own,
+//!   `teleprompt-scene`, so what plans a video depends on it and not on
+//!   what runs tools.
 //! - [`capture`]: how a scene's shots are recorded into clips.
 //! - [`record`]: how an author's working session is recorded, for a scene
 //!   plugin whose tool can.
@@ -19,8 +21,10 @@ pub mod capture;
 pub mod dirs;
 pub mod protocol;
 pub mod record;
-pub mod scene;
 mod scene_plugin;
 pub mod tool;
 
 pub use scene_plugin::{ScenePlugin, ScenePlugins};
+/// The scene contract, `teleprompt-scene`, so a scene plugin depends on
+/// this crate alone.
+pub use teleprompt_scene as scene;

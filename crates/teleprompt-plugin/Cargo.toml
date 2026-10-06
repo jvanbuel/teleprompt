@@ -10,6 +10,7 @@ async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-scene = { path = "../teleprompt-scene" }
 thiserror.workspace = true
 # Where teleprompt keeps per-user data: the XDG base directories, and
 # Windows' known folders there.
