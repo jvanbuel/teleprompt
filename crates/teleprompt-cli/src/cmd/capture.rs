@@ -17,6 +17,8 @@ use teleprompt_plugin::capture::{
 };
 use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 
+use crate::project::{CacheDir, Clips};
+
 /// The shots of a published manifest, as the planner needs them.
 ///
 /// Built from the manifest, not the in-process timeline, for the reason
@@ -119,12 +121,12 @@ impl CaptureReport {
 /// The scene plugins, recording into a clip directory at one frame size.
 pub struct Scenes<'a> {
     plugins: &'a ScenePlugins,
-    clips_dir: &'a Path,
+    clips_dir: &'a CacheDir<Clips>,
     frame: Frame,
 }
 
 impl<'a> Scenes<'a> {
-    pub fn new(plugins: &'a ScenePlugins, clips_dir: &'a Path, frame: Frame) -> Self {
+    pub fn new(plugins: &'a ScenePlugins, clips_dir: &'a CacheDir<Clips>, frame: Frame) -> Self {
         Self {
             plugins,
             clips_dir,

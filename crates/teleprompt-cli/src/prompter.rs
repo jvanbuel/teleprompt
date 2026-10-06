@@ -117,7 +117,7 @@ pub struct Prompt {
     /// Every shot, in script order.
     pub shots: Vec<ShotCue>,
     /// Where captured clips are, named by capture key.
-    pub clips: PathBuf,
+    pub clips: crate::project::CacheDir<crate::project::Clips>,
     /// Where takes are recorded to.
     pub takes: PathBuf,
 }

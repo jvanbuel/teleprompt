@@ -76,7 +76,7 @@ fn prompting_counted(
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: clips.to_path_buf(),
+        clips: teleprompt_cli::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     let count = Arc::new(AtomicUsize::new(0));
@@ -291,7 +291,7 @@ fn a_session_that_panics_lets_go_of_the_prompter() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: dir.to_path_buf(),
+        clips: teleprompt_cli::project::CacheDir::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
     std::thread::spawn(move || prompt_on(listener, prompt, Panics));
@@ -682,7 +682,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: clips.to_path_buf(),
+        clips: teleprompt_cli::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     // Edited once: the second shot moved to the first line's sixth word.
@@ -728,7 +728,7 @@ fn prompting_with_keep(
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: clips.to_path_buf(),
+        clips: teleprompt_cli::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     let edits = teleprompt_cli::cmd::serve::Edits {
@@ -772,7 +772,7 @@ fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: dir.to_path_buf(),
+        clips: teleprompt_cli::project::CacheDir::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
     let recognizer = Scripted(Default::default(), Default::default());

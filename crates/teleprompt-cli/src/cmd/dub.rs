@@ -13,7 +13,7 @@ use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
 
 use crate::output::Failure;
-use crate::project::{Compiled, Script};
+use crate::project::{CacheDir, Clips, Compiled, Script};
 use crate::voice::Backends;
 
 /// A script dubbed, in state `S`: [`Written`] under an output root, or
@@ -614,7 +614,7 @@ fn add_clips(
 /// no space; copies where it does not.
 fn place_clips(
     manifest: &NarrationManifest,
-    cache: &Path,
+    cache: &CacheDir<Clips>,
     into: &Path,
 ) -> std::io::Result<Vec<PathBuf>> {
     std::fs::create_dir_all(into)?;

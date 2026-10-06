@@ -2,6 +2,7 @@ mod compile;
 
 pub use compile::{translation_path, Compiled, Script};
 
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
 use teleprompt_core::config::PartialConfig;
@@ -41,18 +42,85 @@ impl CacheDirs {
     }
 
     /// Synthesized lines.
-    pub fn voice(&self) -> PathBuf {
-        self.root.join("voice")
+    pub fn voice(&self) -> CacheDir<Voice> {
+        CacheDir::at(self.root.join("voice"))
     }
 
     /// Captured clips, by capture key.
-    pub fn clips(&self) -> PathBuf {
-        self.root.join("video")
+    pub fn clips(&self) -> CacheDir<Clips> {
+        CacheDir::at(self.root.join("video"))
     }
 
     /// Encoded chunks of rendered picture.
-    pub fn compose(&self) -> PathBuf {
-        self.root.join("compose")
+    pub fn compose(&self) -> CacheDir<Compose> {
+        CacheDir::at(self.root.join("compose"))
+    }
+}
+
+/// The directory of one of a project's caches, `K` saying which, so the
+/// clip cache cannot be handed to what prunes encoded picture, or the
+/// other way round. It reads as a [`Path`] everywhere a path will do.
+///
+/// ```
+/// # use teleprompt_cli::{cmd::capture::Scenes, project::Project};
+/// # fn f(project: &Project, frame: teleprompt_plugin::capture::Frame) {
+/// let clips = project.caches().clips();
+/// Scenes::new(teleprompt_cli::scene::plugins(), &clips, frame);
+/// # }
+/// ```
+///
+/// ```compile_fail
+/// # use teleprompt_cli::{cmd::capture::Scenes, project::Project};
+/// # fn f(project: &Project, frame: teleprompt_plugin::capture::Frame) {
+/// let compose = project.caches().compose();
+/// Scenes::new(teleprompt_cli::scene::plugins(), &compose, frame);
+/// # }
+/// ```
+pub struct CacheDir<K> {
+    path: PathBuf,
+    kind: PhantomData<K>,
+}
+
+/// Synthesized lines: [`CacheDirs::voice`].
+pub enum Voice {}
+/// Captured clips: [`CacheDirs::clips`].
+pub enum Clips {}
+/// Encoded chunks of picture: [`CacheDirs::compose`].
+pub enum Compose {}
+
+impl<K> CacheDir<K> {
+    /// The cache of kind `K` at `path`: one of a project's, or a test's own.
+    pub fn at(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            kind: PhantomData,
+        }
+    }
+}
+
+impl<K> Clone for CacheDir<K> {
+    fn clone(&self) -> Self {
+        Self::at(self.path.clone())
+    }
+}
+
+impl<K> std::fmt::Debug for CacheDir<K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.path.fmt(f)
+    }
+}
+
+impl<K> std::ops::Deref for CacheDir<K> {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl<K> AsRef<Path> for CacheDir<K> {
+    fn as_ref(&self) -> &Path {
+        &self.path
     }
 }
 

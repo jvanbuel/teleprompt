@@ -16,7 +16,7 @@ use crate::cmd::cache;
 use crate::cmd::capture::Scenes;
 use crate::cmd::dub::Dubber;
 use crate::output::Failure;
-use crate::project::Script;
+use crate::project::{CacheDir, Clips, Compose, Script};
 
 /// Builds a script's video: dubs it, records what its shots are missing,
 /// and renders from the manifest it just published. Every setting starts
@@ -26,9 +26,9 @@ pub struct Builder<'s> {
     script: &'s Script,
     out: PathBuf,
     narration_root: PathBuf,
-    clips_dir: PathBuf,
+    clips_dir: CacheDir<Clips>,
     frame: FrameOverride,
-    compose_dir: Option<PathBuf>,
+    compose_dir: Option<CacheDir<Compose>>,
     cache_max_mb: u64,
     plugins: &'s ScenePlugins,
 }
@@ -116,7 +116,10 @@ impl<'s> Builder<'s> {
     fn renderer(&self) -> IncrementalRenderer {
         IncrementalRenderer {
             program: "ffmpeg".into(),
-            cache_dir: self.compose_dir.clone().unwrap_or_else(std::env::temp_dir),
+            cache_dir: self
+                .compose_dir
+                .as_ref()
+                .map_or_else(std::env::temp_dir, |dir| dir.to_path_buf()),
             reuse: self.compose_dir.is_some(),
         }
     }
@@ -155,7 +158,7 @@ impl<'s> Builder<'s> {
             &dubbed.manifest,
             &Inputs {
                 narration_dir: narration.clone(),
-                clips_dir: self.clips_dir.clone(),
+                clips_dir: self.clips_dir.to_path_buf(),
                 output: self.out.clone(),
                 width: frame.width,
                 height: frame.height,
