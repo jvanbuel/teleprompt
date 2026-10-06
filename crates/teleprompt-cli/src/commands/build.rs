@@ -41,13 +41,13 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
 /// A render's progress, each percent of it: to a human at a terminal as a
 /// line that rewrites itself with a carriage return, which a log cannot
 /// take; with `--format json`, as progress events.
-fn progress_reporter(format: crate::output::Format) -> impl FnMut(teleprompt_render::Progress) {
+fn progress_reporter(format: crate::output::Format) -> impl FnMut(Progress) {
     use crate::output::Format;
     use std::io::{IsTerminal, Write};
 
     let show = format == Format::Human && std::io::stderr().is_terminal();
     let mut last = u64::MAX;
-    move |p: teleprompt_render::Progress| {
+    move |p: Progress| {
         if p.of_ms == 0 {
             return;
         }

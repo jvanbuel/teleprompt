@@ -2072,7 +2072,6 @@ dependencies = [
  "teleprompt-listen-sherpa",
  "teleprompt-manifest",
  "teleprompt-plugin",
- "teleprompt-render",
  "teleprompt-schedule",
  "teleprompt-testkit",
  "teleprompt-voice",

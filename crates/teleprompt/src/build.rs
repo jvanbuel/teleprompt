@@ -10,7 +10,9 @@ use teleprompt_plugin::capture::Frame;
 use teleprompt_plugin::ScenePlugins;
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
-use teleprompt_render::{Picture, Progress, RenderError};
+/// A render's progress, as [`Builder::build`] reports it.
+pub use teleprompt_render::Progress;
+use teleprompt_render::{Picture, RenderError};
 
 use crate::cache;
 use crate::capture::Scenes;

@@ -63,7 +63,7 @@ ALLOWED = {
     # depend on anything.
     "teleprompt": None,
     # The command line over the engine, and the types its flags name.
-    "cli": {"teleprompt", "core", "plugin", "render", "listen-sherpa"},
+    "cli": {"teleprompt", "core", "listen-sherpa"},
 }
 
 PREFIX = "teleprompt-"

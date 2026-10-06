@@ -18,8 +18,6 @@ listen = ["teleprompt/listen", "dep:teleprompt-listen-sherpa"]
 [dependencies]
 teleprompt = { path = "../teleprompt" }
 teleprompt-core = { path = "../teleprompt-core" }
-teleprompt-plugin = { path = "../teleprompt-plugin" }
-teleprompt-render = { path = "../teleprompt-render" }
 clap.workspace = true
 inquire = "0.9"
 serde.workspace = true
@@ -44,6 +42,7 @@ teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-derive = { path = "../teleprompt-derive" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
+teleprompt-plugin = { path = "../teleprompt-plugin" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 serde_yaml.workspace = true
