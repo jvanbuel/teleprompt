@@ -16,12 +16,18 @@ fn ubuntu() -> Platform {
 }
 
 fn command(name: &str, platform: &Platform) -> Option<String> {
-    platform.command(resolve(teleprompt_registry::registry(), &[name.to_string()]).unwrap()[0])
+    platform.command(
+        resolve(
+            &teleprompt_registry::registry().shipped(),
+            &[name.to_string()],
+        )
+        .unwrap()[0],
+    )
 }
 
 fn names(given: &[&str]) -> Vec<&'static str> {
     let given: Vec<String> = given.iter().map(|s| s.to_string()).collect();
-    resolve(teleprompt_registry::registry(), &given)
+    resolve(&teleprompt_registry::registry().shipped(), &given)
         .unwrap()
         .iter()
         .map(|t| t.name)
@@ -72,7 +78,11 @@ fn every_plugin_needs_only_tools_setup_knows() {
     for plugin in teleprompt_registry::registry().scenes.names() {
         let needs = teleprompt_registry::registry().scene_needs(plugin).unwrap();
         assert!(!needs.is_empty(), "{plugin}");
-        resolve(teleprompt_registry::registry(), &[plugin.to_string()]).unwrap();
+        resolve(
+            &teleprompt_registry::registry().shipped(),
+            &[plugin.to_string()],
+        )
+        .unwrap();
     }
 }
 
@@ -86,7 +96,11 @@ fn a_tool_named_twice_is_listed_once() {
 
 #[test]
 fn an_unknown_name_says_what_there_is() {
-    let err = resolve(teleprompt_registry::registry(), &["obs".to_string()]).unwrap_err();
+    let err = resolve(
+        &teleprompt_registry::registry().shipped(),
+        &["obs".to_string()],
+    )
+    .unwrap_err();
     assert!(
         err.contains("obs") && err.contains("ffmpeg") && err.contains("vhs"),
         "{err}"
@@ -95,7 +109,7 @@ fn an_unknown_name_says_what_there_is() {
 
 #[test]
 fn every_tool_says_its_license_and_where_it_is_from() {
-    for tool in tools(teleprompt_registry::registry()) {
+    for tool in tools(&teleprompt_registry::registry().shipped()) {
         assert!(!tool.license.is_empty(), "{}", tool.name);
         assert!(tool.home.starts_with("https://"), "{}", tool.name);
     }
@@ -105,7 +119,11 @@ fn every_tool_says_its_license_and_where_it_is_from() {
 /// is not installed for them: `setup` says what to do instead.
 #[test]
 fn a_tool_of_the_authors_own_is_explained_not_installed() {
-    let remotion = &resolve(teleprompt_registry::registry(), &["remotion".to_string()]).unwrap()[1];
+    let remotion = &resolve(
+        &teleprompt_registry::registry().shipped(),
+        &["remotion".to_string()],
+    )
+    .unwrap()[1];
     assert_eq!(remotion.name, "remotion");
     assert_eq!(mac().command(remotion), None);
     assert!(remotion.guide.unwrap().contains("npm install"));
@@ -226,7 +244,11 @@ fn setup_with_no_way_to_install_says_where_the_tool_is_from() {
 /// one's weights come with conditions.
 #[test]
 fn voicebox_is_explained_with_its_models_licenses() {
-    let voicebox = &resolve(teleprompt_registry::registry(), &["voicebox".to_string()]).unwrap()[0];
+    let voicebox = &resolve(
+        &teleprompt_registry::registry().shipped(),
+        &["voicebox".to_string()],
+    )
+    .unwrap()[0];
     assert_eq!(mac().command(voicebox), None);
     assert!(voicebox.guide.unwrap().contains("teleprompt voice clone"));
     assert!(
@@ -240,7 +262,11 @@ fn voicebox_is_explained_with_its_models_licenses() {
 /// from and that the narration goes to Google, and installs nothing.
 #[test]
 fn gemini_is_explained_as_a_service() {
-    let gemini = &resolve(teleprompt_registry::registry(), &["gemini".to_string()]).unwrap()[0];
+    let gemini = &resolve(
+        &teleprompt_registry::registry().shipped(),
+        &["gemini".to_string()],
+    )
+    .unwrap()[0];
     assert_eq!(mac().command(gemini), None);
     let guide = gemini.guide.unwrap();
     assert!(
@@ -255,12 +281,15 @@ fn gemini_is_explained_as_a_service() {
 fn every_goal_is_a_name_setup_takes() {
     use teleprompt_setup::GOALS;
     for goal in GOALS {
-        let tools = resolve(teleprompt_registry::registry(), &[goal.name.to_string()])
-            .unwrap_or_else(|e| panic!("{}: {e}", goal.name));
+        let tools = resolve(
+            &teleprompt_registry::registry().shipped(),
+            &[goal.name.to_string()],
+        )
+        .unwrap_or_else(|e| panic!("{}: {e}", goal.name));
         assert!(!tools.is_empty(), "{}", goal.name);
         // A goal is not also a tool's name, which it would hide.
         assert!(
-            teleprompt_setup::tools(teleprompt_registry::registry())
+            teleprompt_setup::tools(&teleprompt_registry::registry().shipped())
                 .iter()
                 .all(|t| t.name != goal.name),
             "{}",
@@ -280,10 +309,14 @@ fn every_goal_is_a_name_setup_takes() {
 fn only_listening_goals_need_the_speech_models() {
     use teleprompt_setup::{download_mb, GOALS};
     for goal in GOALS {
-        let tools = resolve(teleprompt_registry::registry(), &[goal.name.to_string()]).unwrap();
+        let tools = resolve(
+            &teleprompt_registry::registry().shipped(),
+            &[goal.name.to_string()],
+        )
+        .unwrap();
         let models = tools
             .iter()
-            .any(|t| download_mb(teleprompt_registry::registry(), t.name).is_some());
+            .any(|t| download_mb(&teleprompt_registry::registry().shipped(), t.name).is_some());
         assert_eq!(goal.listens, models, "{}", goal.name);
     }
 }

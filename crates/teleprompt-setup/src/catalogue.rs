@@ -5,7 +5,7 @@
 
 use teleprompt_plugin::tool::{Found, Manager, Tool};
 
-use teleprompt_project::registry::Registry;
+use crate::Shipped;
 
 const SPEECH_MODEL: &str = "sherpa-onnx-streaming-zipformer-en-2023-06-26";
 const PUNCTUATION_MODEL: &str = "sherpa-onnx-online-punct-en-2024-08-06";
@@ -138,14 +138,15 @@ pub(crate) fn model(name: &str) -> Option<&'static Tool> {
 }
 
 /// Every tool `setup` knows, each once: what renders the video, what each
-/// plugin and voice in `registry` needs, in the order they are registered,
+/// plugin and voice `shipped` needs, in the order they are registered,
 /// and the models.
-pub fn tools(registry: Registry) -> Vec<&'static Tool> {
+pub fn tools(shipped: &Shipped) -> Vec<&'static Tool> {
     let mut out: Vec<&'static Tool> = vec![&teleprompt_plugin::tool::FFMPEG];
-    let plugins = registry
-        .scene_tools()
-        .into_iter()
-        .chain(registry.voice_tools());
+    let plugins = shipped
+        .scenes
+        .iter()
+        .flat_map(|s| s.tools.iter().copied())
+        .chain(shipped.voices.iter().map(|(_, t)| *t));
     for tool in plugins.chain(MODELS.iter()) {
         if !out.iter().any(|t| t.name == tool.name) {
             out.push(tool);
@@ -155,8 +156,8 @@ pub fn tools(registry: Registry) -> Vec<&'static Tool> {
 }
 
 /// How much tool `name` downloads, for saying so before it does.
-pub fn download_mb(registry: Registry, name: &str) -> Option<u32> {
-    tools(registry)
+pub fn download_mb(shipped: &Shipped, name: &str) -> Option<u32> {
+    tools(shipped)
         .into_iter()
         .find(|t| t.name == name)?
         .download_mb

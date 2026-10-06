@@ -2177,6 +2177,7 @@ dependencies = [
  "teleprompt-render",
  "teleprompt-schedule",
  "teleprompt-script",
+ "teleprompt-setup",
  "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",
@@ -2277,7 +2278,6 @@ dependencies = [
  "tabled",
  "teleprompt-core",
  "teleprompt-plugin",
- "teleprompt-project",
 ]
 
 [[package]]

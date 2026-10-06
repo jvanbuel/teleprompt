@@ -16,7 +16,48 @@ pub use catalogue::{download_mb, tools, Goal, GOALS};
 use teleprompt_core::progress::{Install, Progress, Reporter};
 use teleprompt_plugin::tool::Found;
 pub use teleprompt_plugin::tool::{Manager, Tool};
-use teleprompt_project::registry::Registry;
+
+/// What this build ships, as `setup` lists it: each scene plugin by name
+/// with what it needs, and each voice. Made from the build's registry by
+/// whoever has one, so `setup` need not know the plugins itself.
+#[derive(Debug, Clone, Default)]
+pub struct Shipped {
+    /// Every scene plugin, built in then installed as a program.
+    pub scenes: Vec<Needs>,
+    /// Every voice this build ships, with what it needs.
+    pub voices: Vec<(&'static str, &'static Tool)>,
+}
+
+/// A scene plugin, and what it runs: what `teleprompt setup <plugin>`
+/// installs.
+#[derive(Debug, Clone)]
+pub struct Needs {
+    pub name: &'static str,
+    pub tools: Vec<&'static Tool>,
+    /// Compiled in, so a program of the same name does not replace it.
+    pub built_in: bool,
+}
+
+impl Shipped {
+    /// The scene plugin `name`, if there is one.
+    pub fn scene(&self, name: &str) -> Option<&Needs> {
+        self.scenes.iter().find(|s| s.name == name)
+    }
+
+    /// Whether `name` is a scene plugin compiled into this build.
+    pub fn is_built_in(&self, name: &str) -> bool {
+        self.scene(name).is_some_and(|s| s.built_in)
+    }
+
+    fn scene_names(&self) -> Vec<&'static str> {
+        self.scenes.iter().map(|s| s.name).collect()
+    }
+
+    fn scene_needs(&self, name: &str) -> Option<Vec<&'static str>> {
+        self.scene(name)
+            .map(|s| s.tools.iter().map(|t| t.name).collect())
+    }
+}
 
 /// The machine: its OS, the managers on it, and where models go.
 #[derive(Debug, Clone)]
@@ -126,8 +167,8 @@ pub fn punctuation_model(given: Option<&Path>) -> Option<PathBuf> {
 
 /// The tools `names` stand for: a scene plugin's, or a tool by its own name;
 /// each once, in order. Every tool when `names` is empty.
-pub fn resolve(registry: Registry, names: &[String]) -> Result<Vec<&'static Tool>, String> {
-    let tools = tools(registry);
+pub fn resolve(shipped: &Shipped, names: &[String]) -> Result<Vec<&'static Tool>, String> {
+    let tools = tools(shipped);
     if names.is_empty() {
         return Ok(tools);
     }
@@ -137,15 +178,15 @@ pub fn resolve(registry: Registry, names: &[String]) -> Result<Vec<&'static Tool
             Some(goal) => goal
                 .needs
                 .iter()
-                .flat_map(|n| registry.scene_needs(n).unwrap_or_else(|| vec![*n]))
+                .flat_map(|n| shipped.scene_needs(n).unwrap_or_else(|| vec![*n]))
                 .collect(),
-            None => registry
+            None => shipped
                 .scene_needs(name)
                 .unwrap_or_else(|| vec![name.as_str()]),
         };
         for w in wanted {
             let Some(tool) = tools.iter().copied().find(|t| t.name == w) else {
-                let plugins = registry.scenes.names();
+                let plugins = shipped.scene_names();
                 let tools: Vec<&str> = tools.iter().map(|t| t.name).collect();
                 return Err(format!(
                     "`{name}` is neither a scene plugin ({}) nor a tool ({})",
@@ -237,47 +278,24 @@ pub struct ProjectVoice {
     pub problems: Vec<String>,
 }
 
-/// [`ProjectVoice`] for `project`, asking its backend's server.
-pub async fn project_voice(project: &teleprompt_project::project::Project) -> ProjectVoice {
-    let backends = project.backends();
-    let backend = project
-        .config
-        .voice
-        .as_ref()
-        .and_then(|v| v.backend.clone())
-        .unwrap_or_else(|| "null".to_string());
-    let problems = backends
-        .diagnostics()
-        .into_iter()
-        .chain(backends.unusable_diagnostics())
-        .map(|d| d.message)
-        .collect();
-    ProjectVoice {
-        answer: backends.probe(&backend).await,
-        backend,
-        problems,
-    }
-}
-
 /// Where `setup` looks and what it runs, fixed by the caller.
 pub struct Setup {
     pub platform: Platform,
-    /// Where npm installs and packages are looked for.
+    /// Where npm installs and packages are looked for: the project's root,
+    /// or the working directory outside one.
     pub project: PathBuf,
-    /// What this build has, whose needs are what `setup` finds.
-    pub registry: Registry,
+    /// What this build ships, whose needs are what `setup` finds.
+    pub shipped: Shipped,
 }
 
 impl Setup {
-    pub fn detect(registry: Registry) -> Self {
-        let here = PathBuf::from(".");
-        let project = teleprompt_project::project::Project::discover(&here, registry)
-            .map(|p| p.root.clone())
-            .unwrap_or(here);
+    /// This machine, for what `shipped` needs, with npm packages looked
+    /// for under `project`.
+    pub fn detect(shipped: Shipped, project: PathBuf) -> Self {
         Self {
             platform: Platform::detect(),
             project,
-            registry,
+            shipped,
         }
     }
 
@@ -306,7 +324,7 @@ impl Setup {
             password: command.as_deref().is_some_and(needs_password),
             command,
             guide: t.guide,
-            download_mb: download_mb(self.registry, t.name),
+            download_mb: download_mb(&self.shipped, t.name),
         }
     }
 
@@ -316,7 +334,7 @@ impl Setup {
         let uses = GOALS
             .iter()
             .map(|goal| {
-                let tools = resolve(self.registry, &[goal.name.to_string()]).unwrap_or_default();
+                let tools = resolve(&self.shipped, &[goal.name.to_string()]).unwrap_or_default();
                 let statuses: Vec<ToolStatus> = tools.iter().map(|t| self.status(t)).collect();
                 let gone = statuses.iter().filter(|t| t.installed == Some(false));
                 UseStatus {
@@ -426,7 +444,7 @@ impl Setup {
             if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
                 break status;
             }
-            let of = download_mb(self.registry, tool.name);
+            let of = download_mb(&self.shipped, tool.name);
             // What is on disk, never more than the whole, whatever else a
             // download writes beside it.
             let mb = downloaded_mb(&self.platform.models).min(of.unwrap_or(0));

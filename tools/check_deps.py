@@ -58,12 +58,12 @@ ALLOWED = {
     # plugin crate and no voice is here.
     "project": {
         "core", "script", "scene", "plugin", "schedule", "voice", "manifest",
-        "compile", "render",
+        "compile", "render", "setup",
     },
     # The one crate that knows every scene plugin and voice by name.
     "registry": {"project", "plugin", "voice", "voices"} | PLUGIN_CRATES,
     # What `setup` finds and installs: what the plugins and voices need.
-    "setup": {"project", "core", "plugin"},
+    "setup": {"core", "plugin"},
     # The language server, with the real compile as its analyzer.
     "lsp": {"project", "core", "script"},
     # Drafts from what was said: `import` and `record`.

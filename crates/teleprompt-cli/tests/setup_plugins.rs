@@ -17,11 +17,14 @@ fn setup_covers_every_program_an_plugin_finds_missing() {
         let Some(why) = backend.unavailable().filter(|w| w.ends_with(NOT_ON_PATH)) else {
             continue;
         };
-        let known: Vec<&str> = resolve(teleprompt_registry::registry(), &[plugin.to_string()])
-            .unwrap()
-            .iter()
-            .map(|t| t.name)
-            .collect();
+        let known: Vec<&str> = resolve(
+            &teleprompt_registry::registry().shipped(),
+            &[plugin.to_string()],
+        )
+        .unwrap()
+        .iter()
+        .map(|t| t.name)
+        .collect();
         for program in why.trim_end_matches(NOT_ON_PATH).split(" and ") {
             assert!(
                 known.contains(&program),

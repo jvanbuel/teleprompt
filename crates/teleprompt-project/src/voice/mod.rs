@@ -270,3 +270,26 @@ impl Backends {
         )
     }
 }
+
+/// `setup`'s word on `project`'s voice: its backend, what that backend's
+/// server says, and every `backends:` setting that cannot be used.
+pub async fn status(project: &crate::project::Project) -> teleprompt_setup::ProjectVoice {
+    let backends = project.backends();
+    let backend = project
+        .config
+        .voice
+        .as_ref()
+        .and_then(|v| v.backend.clone())
+        .unwrap_or_else(|| "null".to_string());
+    let problems = backends
+        .diagnostics()
+        .into_iter()
+        .chain(backends.unusable_diagnostics())
+        .map(|d| d.message)
+        .collect();
+    teleprompt_setup::ProjectVoice {
+        answer: backends.probe(&backend).await,
+        backend,
+        problems,
+    }
+}

@@ -122,6 +122,32 @@ impl Registry {
     pub fn default_backends(&self) -> Backends {
         self.backends(&BTreeMap::new(), "teleprompt.toml")
     }
+
+    /// What this build ships, as `setup` lists it.
+    pub fn shipped(&self) -> teleprompt_setup::Shipped {
+        teleprompt_setup::Shipped {
+            scenes: self
+                .scenes
+                .iter()
+                .map(|p| teleprompt_setup::Needs {
+                    name: p.name(),
+                    tools: p.needs(),
+                    built_in: self.is_shipped_scene(p.name()),
+                })
+                .collect(),
+            voices: self.shipped_voices(),
+        }
+    }
+
+    /// This machine, for what this build needs, with npm packages looked
+    /// for in the project around the working directory, if there is one.
+    pub fn setup_here(&self) -> teleprompt_setup::Setup {
+        let here = std::path::PathBuf::from(".");
+        let project = crate::project::Project::discover(&here, *self)
+            .map(|p| p.root)
+            .unwrap_or(here);
+        teleprompt_setup::Setup::detect(self.shipped(), project)
+    }
 }
 
 /// A scene plugin's recorder, under the plugin's name, which is the scene

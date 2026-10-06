@@ -284,7 +284,7 @@ async fn open_route(
 /// `teleprompt setup --uses` says it.
 async fn uses_route(State(server): Shared) -> Response {
     let registry = server.registry;
-    let uses = block_in_place(move || teleprompt_setup::Setup::detect(registry).uses());
+    let uses = block_in_place(move || registry.setup_here().uses());
     json(serde_json::to_value(uses).unwrap_or_default())
 }
 
@@ -307,13 +307,13 @@ async fn install_route(
     if uses.is_empty() {
         return (StatusCode::BAD_REQUEST, "uses= names what to set up").into_response();
     }
-    let tools = match teleprompt_setup::resolve(server.registry, &uses) {
+    let tools = match teleprompt_setup::resolve(&server.registry.shipped(), &uses) {
         Ok(tools) => tools,
         Err(why) => return failure(StatusCode::BAD_REQUEST, None, vec![why]),
     };
     let registry = server.registry;
     streamed(&server, move |say| {
-        let setup = teleprompt_setup::Setup::detect(registry);
+        let setup = registry.setup_here();
         match setup.install(&tools, &Say(Mutex::new(say))) {
             Ok(_) => serde_json::json!({ "event": "installed", "uses": uses }),
             Err(why) => serde_json::json!({ "event": "failed", "errors": [why] }),
