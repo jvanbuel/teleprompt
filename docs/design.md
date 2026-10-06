@@ -183,7 +183,7 @@ reading the manifest it just published.
 | `teleprompt-setup` | the machine: which tools and models are here and how to install them, for what the build ships (`Shipped`, handed to it as data) and the uses of teleprompt that ask for them. On `plugin` and `core` alone, beside the tools a plugin declares |
 | `teleprompt-lsp` | the language server: its protocol, positions and completion, with the real compile behind an `Analyzer` |
 | `teleprompt-draft` | the drafts `import` and `record` make: `derive`, the pure half, turns a recorded session (when each step began and timed words), a Markdown document, a Slidev deck's notes or a conversation's transcript into a script; the rest reads files, records, and listens |
-| `teleprompt-serve` | the prompter: its page, API version 1 and the session that follows a reader by ear (`prompter`), served on loopback. It runs `capture` and `build` as the command does |
+| `teleprompt-serve` | the prompter: its page, API version 1 and the session that follows a reader by ear (`prompter`), served on loopback. Its page's Capture and Build run the `Builder` here, their progress streamed to the page through a `Reporter` |
 | `teleprompt-cli` | the `teleprompt` binary, composing the rest: each command's flags, its report in either format, exit codes, and the questions it asks at a terminal |
 
 `script`, `schedule`, `scene`, `voice` and `manifest` depend on `core`

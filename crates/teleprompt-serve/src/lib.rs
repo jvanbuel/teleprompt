@@ -7,7 +7,6 @@
 //! the runtime's worker.
 
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
 use std::net::{SocketAddr, TcpListener};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -308,15 +307,7 @@ impl Prompted for Script {
                 }
                 std::fs::write(&undone, before).map_err(|e| e.to_string())
             }),
-            make: Some(Box::new(move |job, progress| {
-                make(
-                    &maker.project().root,
-                    maker.path(),
-                    maker.locale(),
-                    job,
-                    progress,
-                )
-            })),
+            make: Some(Box::new(move |job, progress| make(&maker, job, progress))),
             voice: Some(Voicing::new(self.clone())),
             listens: true,
         }
@@ -338,7 +329,9 @@ pub type UndoEdit = Box<dyn Fn() -> Result<(), String> + Send + Sync>;
 /// Runs a job on the script, handing on each progress event it reports;
 /// then the video, for a build.
 pub type Make = Box<
-    dyn Fn(Job, &mut dyn FnMut(serde_json::Value)) -> Result<Option<PathBuf>, String> + Send + Sync,
+    dyn Fn(Job, &mut (dyn FnMut(serde_json::Value) + Send)) -> Result<Option<PathBuf>, String>
+        + Send
+        + Sync,
 >;
 
 /// What a prompter can have made of its script.
@@ -390,69 +383,24 @@ fn write<T>(l: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
     l.write().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Runs `job` as the command would be run, from `root`, handing on each
-/// progress event it reports on stderr; then the video, for a build.
+/// Runs `job` on `script` as the command would, here, handing on each
+/// progress event it reports; then the video, for a build.
 fn make(
-    root: &std::path::Path,
-    script: &std::path::Path,
-    locale: &str,
+    script: &Script,
     job: Job,
-    progress: &mut dyn FnMut(serde_json::Value),
+    progress: &mut (dyn FnMut(serde_json::Value) + Send),
 ) -> Result<Option<PathBuf>, String> {
-    let args: Vec<std::ffi::OsString> = vec![
-        job.name().into(),
-        script.into(),
-        "--locale".into(),
-        locale.into(),
-    ];
-    let report = teleprompt(root, &args, progress)?;
-    Ok(report["output"].as_str().map(PathBuf::from))
-}
-
-/// Runs this teleprompt with `args` and `--format json` in `dir`, handing
-/// on each progress event it reports on stderr; then its report, or why it
-/// failed, in its own words.
-fn teleprompt(
-    dir: &std::path::Path,
-    args: &[std::ffi::OsString],
-    progress: &mut dyn FnMut(serde_json::Value),
-) -> Result<serde_json::Value, String> {
-    let me = std::env::current_exe().map_err(|e| format!("cannot find teleprompt: {e}"))?;
-    let mut child = std::process::Command::new(&me)
-        .args(["--format", "json"])
-        .args(args)
-        .current_dir(dir)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("cannot run {}: {e}", me.display()))?;
-    let stdout = child.stdout.take().expect("piped");
-    let report = std::thread::spawn(move || std::io::read_to_string(stdout).unwrap_or_default());
-    let mut said = String::new();
-    for line in BufReader::new(child.stderr.take().expect("piped")).lines() {
-        let line = line.unwrap_or_default();
-        match serde_json::from_str::<serde_json::Value>(&line) {
-            Ok(event) if event["event"] == "progress" => progress(event),
-            _ => {
-                said.push_str(&line);
-                said.push('\n');
-            }
-        }
+    let reporter = routes::Say(Mutex::new(progress));
+    let builder = teleprompt_project::build::Builder::new(script);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| format!("cannot start the job's runtime: {e}"))?;
+    match job {
+        Job::Capture => runtime.block_on(builder.capture(&reporter)).map(|_| None),
+        Job::Build => runtime
+            .block_on(builder.build(&reporter))
+            .map(|report| Some(report.output)),
     }
-    let status = child.wait().map_err(|e| e.to_string())?;
-    let report: serde_json::Value =
-        serde_json::from_str(&report.join().unwrap_or_default()).unwrap_or_default();
-    if !status.success() {
-        let errors: Vec<&str> = report["errors"]
-            .as_array()
-            .map(|e| e.iter().filter_map(serde_json::Value::as_str).collect())
-            .unwrap_or_default();
-        return Err(if errors.is_empty() {
-            said.trim().to_string()
-        } else {
-            errors.join("\n")
-        });
-    }
-    Ok(report)
+    .map_err(|e| e.to_string())
 }
