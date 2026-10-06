@@ -256,7 +256,8 @@ pub async fn capture_script(
     };
     // Dubbed afresh rather than read from disk, where the manifest may be
     // stale (docs/design.md#rendering).
-    let dubbed = crate::cmd::dub::Dubber::new(project, script, locale)
+    let opened = project.script(script, locale);
+    let dubbed = crate::cmd::dub::Dubber::new(&opened)
         .dub(&options.narration_root)
         .await?;
     let scenes = Scenes::new(

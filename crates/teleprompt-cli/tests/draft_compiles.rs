@@ -7,7 +7,6 @@
 
 use std::path::PathBuf;
 
-use teleprompt_cli::cmd::check::run_check;
 use teleprompt_cli::project::Project;
 use teleprompt_derive::document::draft;
 
@@ -42,7 +41,10 @@ fn check(source: &str) -> Result<Vec<String>, Vec<String>> {
 
     let script: PathBuf = dir.join("scripts/drafted.md");
     std::fs::write(&script, source).unwrap();
-    run_check(&Project::discover(&dir).unwrap(), &script, "en")
+    Project::discover(&dir)
+        .unwrap()
+        .script(&script, "en")
+        .check()
 }
 
 #[test]
@@ -102,12 +104,9 @@ fn a_drafted_transcript_passes_check_and_casts_its_speakers() {
     std::fs::write(&script, &drafted.script).unwrap();
     let project = Project::discover(&dir).unwrap();
     let compiled = project
-        .compile_source(
-            &teleprompt_cli::voice::Backends::defaults(),
-            &script,
-            &drafted.script,
-            "en",
-        )
+        .script(&script, "en")
+        .with_backends(teleprompt_cli::voice::Backends::defaults())
+        .compile_source(&drafted.script)
         .unwrap_or_else(|e| panic!("{e:?}"));
     let said: Vec<(Option<String>, String)> = compiled
         .program

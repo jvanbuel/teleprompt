@@ -506,9 +506,10 @@ fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
     std::fs::write(&script, TOUR).unwrap();
     let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
     project
-        .compile(&script, "en")
+        .script(&script, "en")
+        .compile()
         .unwrap_or_else(|e| panic!("{e:?}"))
-        .0
+        .output
 }
 
 /// Each shot starts where the reader's voice puts it, by the same policy the

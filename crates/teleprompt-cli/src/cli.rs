@@ -35,6 +35,13 @@ impl ScriptArgs {
     pub fn project(&self) -> Result<Project, Outcome> {
         project_for(&self.script)
     }
+
+    /// The script, in its project, for the locale asked for.
+    pub fn open(&self) -> Result<crate::project::Script, Outcome> {
+        let project = self.project()?;
+        let locale = self.locale(&project);
+        Ok(crate::project::Script::open(project, &self.script, locale))
+    }
 }
 
 /// A `--locale` or `--to` that is a language tag, refused before it names a file.

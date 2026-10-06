@@ -5,7 +5,6 @@
 use std::path::{Path, PathBuf};
 
 use teleprompt_cli::cmd::import::{run_import, Import, Words};
-use teleprompt_cli::cmd::{check::run_check, plan::run_plan};
 use teleprompt_cli::project::Project;
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
@@ -134,7 +133,7 @@ fn a_session_becomes_a_script_that_checks() {
     assert!(cast.contains(r#"[4.0,"m",""]"#), "{cast}");
 
     let project = Project::for_script(&script).unwrap();
-    let warnings = run_check(&project, &script, "en").unwrap();
+    let warnings = project.script(&script, "en").check().unwrap();
     assert!(
         warnings.iter().all(|w| !w.contains("error")),
         "{warnings:?}"
@@ -150,7 +149,7 @@ fn each_line_gets_its_take() {
     let report = import(&s, &script, false).unwrap();
 
     let project = Project::for_script(&script).unwrap();
-    let plan = run_plan(&project, &script, "en").unwrap();
+    let plan = project.script(&script, "en").plan().unwrap();
     let lines: Vec<_> = plan
         .narration
         .iter()
@@ -251,7 +250,7 @@ fn a_vhs_tape_drafts_as_vhs_blocks() {
         "{md}"
     );
     let project = Project::for_script(&script).unwrap();
-    let warnings = run_check(&project, &script, "en").unwrap();
+    let warnings = project.script(&script, "en").check().unwrap();
     assert!(
         warnings.iter().all(|w| !w.contains("error")),
         "{warnings:?}"

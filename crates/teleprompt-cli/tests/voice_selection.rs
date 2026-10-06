@@ -222,7 +222,7 @@ Every video in this repository is built from a script you can read.
 
 /// A script's own front matter can carry `backends:` too — `Config`'s doc
 /// comment says so, and `resolve` genuinely merges it into
-/// `program.config.backends`. But the registry `Project::compile` builds is
+/// `program.config.backends`. But the registry `Script::open` builds is
 /// constructed from the *project's* `backends:` alone, before this script
 /// is ever read, so the override the merge computed is never seen by
 /// anything that could act on it. That must be named, not dropped.
@@ -238,10 +238,9 @@ fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
     let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
     let script = dir.join("scripts/test.md");
 
-    let warnings =
-        teleprompt_cli::cmd::check::run_check(&project, &script, "en").unwrap_or_else(|e| {
-            panic!("a dropped front-matter override must not fail the compile: {e:?}")
-        });
+    let warnings = project.script(&script, "en").check().unwrap_or_else(|e| {
+        panic!("a dropped front-matter override must not fail the compile: {e:?}")
+    });
 
     let msg = warnings
         .iter()
@@ -293,7 +292,7 @@ fn a_front_matter_backends_block_matching_the_project_is_not_a_warning() {
     let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
     let script = dir.join("scripts/test.md");
 
-    let warnings = teleprompt_cli::cmd::check::run_check(&project, &script, "en").unwrap();
+    let warnings = project.script(&script, "en").check().unwrap();
     assert!(
         !warnings.iter().any(|w| w.contains("kokoro")),
         "{warnings:?}"
@@ -351,7 +350,7 @@ fn a_bad_setting_for_a_backend_the_project_never_uses_does_not_fail_check() {
         "unused-bad-setting",
         &format!("{NULL_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n"),
     );
-    teleprompt_cli::cmd::check::run_check(&project, &script, "en").unwrap_or_else(|e| {
+    project.script(&script, "en").check().unwrap_or_else(|e| {
         panic!("a null-backend project must not read kokoro's settings: {e:?}")
     });
 }
@@ -364,7 +363,9 @@ fn a_bad_setting_for_the_selected_backend_fails_check_and_names_the_config_file(
         "used-bad-setting",
         &format!("{KOKORO_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n"),
     );
-    let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+    let errors = project
+        .script(&script, "en")
+        .check()
         .expect_err("a backend the project uses must validate");
     let joined = errors.join("\n");
     assert!(joined.contains("concurrency"), "{joined}");
@@ -383,7 +384,9 @@ fn an_unknown_backends_key_fails_check_and_names_the_key() {
         "unknown-backends-key",
         &format!("{NULL_PROJECT}\n[backends.kokoro-local]\nvoice = \"af_heart\"\n"),
     );
-    let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+    let errors = project
+        .script(&script, "en")
+        .check()
         .expect_err("settings that reach nothing must be named");
     let joined = errors.join("\n");
     assert!(joined.contains("backends.kokoro-local"), "{joined}");
@@ -402,7 +405,9 @@ fn an_unknown_key_and_an_unused_bad_setting_report_exactly_one_problem() {
              \n[backends.kokoro-local]\nvoice = \"af_heart\"\n"
         ),
     );
-    let errors = teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+    let errors = project
+        .script(&script, "en")
+        .check()
         .expect_err("the unknown key is still an error");
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert!(errors[0].contains("backends.kokoro-local"), "{errors:?}");
@@ -423,7 +428,9 @@ fn a_gemini_project_checks_without_a_key() {
             "backend = \"gemini\"\n\n[backends.gemini]\napi_key_env = \"TELEPROMPT_TEST_NO_SUCH_KEY\"",
         ),
     );
-    teleprompt_cli::cmd::check::run_check(&project, &script, "en")
+    project
+        .script(&script, "en")
+        .check()
         .unwrap_or_else(|e| panic!("check must not need Gemini's key: {e:?}"));
 }
 

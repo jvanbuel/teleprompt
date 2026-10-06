@@ -1,30 +1,27 @@
-use std::path::Path;
-
 use serde::Serialize;
 
-use crate::project::Project;
+use crate::project::Script;
 
-/// Returns warnings on success, rendered errors on failure.
-pub fn run_check(
-    project: &Project,
-    script: &Path,
-    locale: &str,
-) -> Result<Vec<String>, Vec<String>> {
-    let compiled = project.compile_file(&project.backends(), script, locale)?;
-    let mut warnings = compiled.output.warnings;
-    // What is hard to say aloud, as it is said: translated, for a locale
-    // with a translation.
-    let display = script.display().to_string();
-    warnings.extend(
-        teleprompt_core::lint::lint(&compiled.program)
-            .iter()
-            .map(|d| {
-                d.render(&display)
-                    .trim_start_matches("warning: ")
-                    .to_string()
-            }),
-    );
-    Ok(warnings)
+impl Script {
+    /// Compiles the script, writing nothing: its warnings, or rendered
+    /// errors.
+    pub fn check(&self) -> Result<Vec<String>, Vec<String>> {
+        let compiled = self.compile()?;
+        let mut warnings = compiled.output.warnings;
+        // What is hard to say aloud, as it is said: translated, for a
+        // locale with a translation.
+        let display = self.path().display().to_string();
+        warnings.extend(
+            teleprompt_core::lint::lint(&compiled.program)
+                .iter()
+                .map(|d| {
+                    d.render(&display)
+                        .trim_start_matches("warning: ")
+                        .to_string()
+                }),
+        );
+        Ok(warnings)
+    }
 }
 
 /// `check`'s `--format json` output, with `ok` as every report has it.
@@ -39,8 +36,7 @@ pub struct CheckReport {
 /// `check` reports its own failure: its JSON report has room for the errors.
 pub fn run(args: crate::cli::ScriptArgs, format: crate::output::Format) -> crate::cli::Run {
     use crate::output::{Format, Outcome};
-    let project = args.project()?;
-    match run_check(&project, &args.script, &args.locale(&project)) {
+    match args.open()?.check() {
         Ok(warnings) => {
             crate::cli::warn(&warnings);
             let report = CheckReport {

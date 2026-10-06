@@ -78,7 +78,11 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     .unwrap();
 
     let project = Project::discover(&dir).unwrap();
-    let (compiled, _) = project.compile(&script, "en").expect("it compiles");
+    let compiled = project
+        .script(&script, "en")
+        .compile()
+        .expect("it compiles")
+        .output;
 
     let entry = compiled
         .timeline
@@ -134,9 +138,10 @@ fn a_scene_reads_its_files_from_the_project() {
     let key = || {
         let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
         let compiled = project
-            .compile(&dir.join("scripts/pics.md"), "en")
+            .script(dir.join("scripts/pics.md"), "en")
+            .compile()
             .unwrap_or_else(|e| panic!("{e:?}"));
-        compiled.0.timeline.entries[0]
+        compiled.output.timeline.entries[0]
             .action
             .as_ref()
             .unwrap()

@@ -196,7 +196,8 @@ pub async fn run_build_with_capture(
 ) -> Result<BuildReport, Failure> {
     // Stage 5 (docs/design.md#pipeline). What cannot be recorded becomes a
     // warning and a slate, not a failure; see [`capture::Scenes::capture`].
-    let dubbed = crate::cmd::dub::Dubber::new(project, script, locale)
+    let opened = project.script(script, locale);
+    let dubbed = crate::cmd::dub::Dubber::new(&opened)
         .dub(&options.narration_root)
         .await?;
     let frame = options.frame(&dubbed.output);

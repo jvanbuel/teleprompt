@@ -229,7 +229,7 @@ fn prompt_of(
     script: &std::path::Path,
     locale: &str,
 ) -> Result<Prompt, Vec<String>> {
-    let (compiled, _) = project.compile(script, locale)?;
+    let compiled = project.script(script, locale).compile()?.output;
     Ok(Prompt {
         name: script
             .file_name()

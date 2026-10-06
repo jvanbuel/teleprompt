@@ -23,7 +23,6 @@ use std::path::{Path, PathBuf};
 use teleprompt_core::DurationSource;
 
 use teleprompt_cli::cmd::build::{self, BuildOptions};
-use teleprompt_cli::cmd::{check::run_check, plan::run_plan, plan::run_plan_check};
 use teleprompt_cli::project::Project;
 
 fn repo() -> PathBuf {
@@ -52,14 +51,17 @@ fn manual() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
 #[test]
 fn the_manual_compiles() {
     let (_dir, p, s) = manual();
-    let warnings = run_check(&p, &s, "en").expect("the manual must be a valid script");
+    let warnings = p
+        .script(&s, "en")
+        .check()
+        .expect("the manual must be a valid script");
     assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
 }
 
 #[test]
 fn the_committed_timeline_is_current() {
     let (_dir, p, s) = manual();
-    let d = run_plan_check(&p, &s, "en").unwrap();
+    let d = p.script(&s, "en").plan_check().unwrap();
     assert!(
         d.is_empty(),
         "the manual has drifted from `manual/timelines/cli.en.json`; re-run\n  \
@@ -75,7 +77,7 @@ fn every_terminal_action_is_timed_exactly() {
     // terminal scene's pacing with no terminal anywhere: a tape states its
     // own timing, so nothing here is a guess.
     let (_dir, p, s) = manual();
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     let mut tapes = 0;
     for e in &out.timeline.entries {
         let Some(a) = &e.action else { continue };
@@ -99,7 +101,7 @@ fn the_manual_demonstrates_every_pacing_policy() {
     // A manual that only ever used the default policy would document the
     // tool it is not.
     let (_dir, p, s) = manual();
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     let policies: std::collections::BTreeSet<&str> = out
         .timeline
         .entries
@@ -242,9 +244,11 @@ fn every_tape_in_the_manual_is_a_tape_vhs_will_run() {
     }
 
     let (_dir, p, s) = manual();
-    let (out, _) = p
-        .compile(&s, "en")
-        .unwrap_or_else(|e| panic!("the manual compiles: {e:?}"));
+    let out = p
+        .script(&s, "en")
+        .compile()
+        .unwrap_or_else(|e| panic!("the manual compiles: {e:?}"))
+        .output;
 
     let dir = teleprompt_testkit::test_dir("manual-tapes");
 

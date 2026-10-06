@@ -44,8 +44,7 @@ pub fn run_edit(project: &Project, script: &Path, edit: &Edit) -> Result<EditRep
     let io =
         |e: std::io::Error| Failure::Runtime(format!("cannot write {}: {e}", script.display()));
     std::fs::write(&edited, &after).map_err(io)?;
-    let locale = project.source_locale();
-    if let Err(errors) = project.compile(&edited, &locale) {
+    if let Err(errors) = project.script(&edited, project.source_locale()).compile() {
         let _ = std::fs::remove_file(&edited);
         let mut reasons = vec!["not written, since the script would not compile:".to_string()];
         reasons.extend(
@@ -86,9 +85,11 @@ pub fn run_keep(
     script: &Path,
     line: Option<&str>,
 ) -> Result<EditReport, Failure> {
-    let (compiled, _) = project
-        .compile(script, &project.source_locale())
-        .map_err(Failure::Validation)?;
+    let compiled = project
+        .script(script, project.source_locale())
+        .compile()
+        .map_err(Failure::Validation)?
+        .output;
     let mut takes =
         Takes::load(&project.takes_dir()).map_err(|e| Failure::Runtime(e.to_string()))?;
     if let Some(line) = line {
@@ -118,9 +119,11 @@ pub fn run_keep(
 /// Rewords line `line` to what its take was heard to say, and keeps the
 /// take as the line's: it says what the line now does.
 pub fn run_said(project: &Project, script: &Path, line: &str) -> Result<EditReport, Failure> {
-    let (compiled, _) = project
-        .compile(script, &project.source_locale())
-        .map_err(Failure::Validation)?;
+    let compiled = project
+        .script(script, project.source_locale())
+        .compile()
+        .map_err(Failure::Validation)?
+        .output;
     let text = compiled
         .narration
         .iter()

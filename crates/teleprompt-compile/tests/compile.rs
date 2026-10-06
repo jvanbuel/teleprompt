@@ -476,7 +476,7 @@ The second paragraph.
     assert_eq!(
         slugs,
         vec!["quick-start", "provenance"],
-        "the CLI reaches compilation only through `Project::compile`, which \
+        "the CLI reaches compilation only through `Script::compile`, which \
          returns this struct — chapters unreachable here are unreachable to `dub`"
     );
 }

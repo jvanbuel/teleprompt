@@ -91,8 +91,10 @@ impl Analyzer for ProjectAnalyzer {
                 }
             }
         };
-        let locale = project.source_locale();
-        match project.compile_source(&project.backends(), script, text, &locale) {
+        match project
+            .script(script, project.source_locale())
+            .compile_source(text)
+        {
             Ok(compiled) => analysis(&compiled),
             Err(d) => Analysis {
                 diagnostics: d.0,

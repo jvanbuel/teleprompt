@@ -22,23 +22,6 @@ use super::Project;
 use crate::voice::Backends;
 
 impl Project {
-    /// Shared front half of every command: read, parse, identify, resolve,
-    /// compile. Writes nothing.
-    ///
-    /// Backends are built from the project's `backends:` settings before the
-    /// script is read, so a script's front-matter `backends:` cannot reach them
-    /// (it gets a warning instead). The resolved backend is returned so a
-    /// synthesizing caller uses the one the cache keys were computed from. It
-    /// is kept off `CompileOutput`, which `check`, `plan` and `plan --check` receive,
-    /// to hold docs/design.md#async-boundary.
-    pub fn compile(
-        &self,
-        script: &Path,
-        locale: &str,
-    ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
-        self.compile_with(&self.backends(), script, locale)
-    }
-
     /// The project's backends, built once from its settings and told which file
     /// those settings came from so a diagnostic about them can point at it.
     pub fn backends(&self) -> Backends {
@@ -46,35 +29,68 @@ impl Project {
         crate::voice::backends_for(&settings, &self.config_path().display().to_string())
     }
 
-    /// [`Project::compile`] against caller-supplied backends.
-    ///
-    /// The seam exists so a test can register a backend this build does not ship
-    /// and watch the whole path — key, synthesis, cache, manifest — follow it
-    /// (docs/design.md#crates), which a workspace with one real backend could not
-    /// otherwise check.
-    pub(crate) fn compile_with(
-        &self,
-        backends: &Backends,
-        script: &Path,
-        locale: &str,
-    ) -> Result<(CompileOutput, Arc<dyn VoiceBackend>), Vec<String>> {
-        self.compile_file(backends, script, locale)
-            .map(|c| (c.output, c.backend))
+    /// `path` in this project, compiled for `locale`.
+    pub fn script(&self, path: impl Into<PathBuf>, locale: impl Into<String>) -> Script {
+        Script::open(self.clone(), path, locale)
+    }
+}
+
+/// One script of a project, for one locale, and the voices it is compiled
+/// against: what every command that reads a script works on.
+pub struct Script {
+    project: Project,
+    path: PathBuf,
+    locale: String,
+    backends: Backends,
+}
+
+impl Script {
+    /// With the project's own voices, built from its `backends:` settings
+    /// before the script is read, so a script's front-matter `backends:`
+    /// cannot reach them (it gets a warning instead).
+    pub fn open(project: Project, path: impl Into<PathBuf>, locale: impl Into<String>) -> Self {
+        let backends = project.backends();
+        Self {
+            project,
+            path: path.into(),
+            locale: locale.into(),
+            backends,
+        }
     }
 
-    /// [`Project::compile_source`] on `script` as saved, its problems
-    /// rendered.
-    pub fn compile_file(
-        &self,
-        backends: &Backends,
-        script: &Path,
-        locale: &str,
-    ) -> Result<Compiled, Vec<String>> {
-        let display = script.display().to_string();
-        let src = std::fs::read_to_string(script)
+    /// With `backends` instead. The seam exists so a test can register a
+    /// backend this build does not ship and watch the whole path — key,
+    /// synthesis, cache, manifest — follow it (docs/design.md#crates),
+    /// which a workspace with one real backend could not otherwise check.
+    pub fn with_backends(self, backends: Backends) -> Self {
+        Self { backends, ..self }
+    }
+
+    pub fn project(&self) -> &Project {
+        &self.project
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn locale(&self) -> &str {
+        &self.locale
+    }
+
+    pub fn backends(&self) -> &Backends {
+        &self.backends
+    }
+
+    /// The script as saved: read, parsed, resolved, compiled, its problems
+    /// rendered. Writes nothing. The narrator's backend in [`Compiled`] is
+    /// the one the cache keys were computed from, so a synthesizing caller
+    /// uses it.
+    pub fn compile(&self) -> Result<Compiled, Vec<String>> {
+        let display = self.path.display().to_string();
+        let src = std::fs::read_to_string(&self.path)
             .map_err(|e| vec![format!("cannot read {display}: {e}")])?;
-        self.compile_source(backends, script, &src, locale)
-            .map_err(|d| render(&d, &display))
+        self.compile_source(&src).map_err(|d| render(&d, &display))
     }
 }
 
@@ -86,17 +102,16 @@ pub struct Compiled {
     pub program: Program,
 }
 
-impl Project {
-    /// [`Project::compile_with`] on `src`, the text of `script` as it may be in
-    /// an editor, not yet saved; its problems as diagnostics, not text.
-    pub fn compile_source(
-        &self,
-        backends: &Backends,
-        script: &Path,
-        src: &str,
-        locale: &str,
-    ) -> Result<Compiled, Diagnostics> {
-        let project = self;
+impl Script {
+    /// [`Script::compile`] on `src`, the script's text as it may be in an
+    /// editor, not yet saved; its problems as diagnostics, not text.
+    pub fn compile_source(&self, src: &str) -> Result<Compiled, Diagnostics> {
+        let (project, backends, script, locale) = (
+            &self.project,
+            &self.backends,
+            self.path.as_path(),
+            self.locale.as_str(),
+        );
         // Before the script is read: an unknown `backends:` key is wrong for
         // every script. Here rather than in `compile` so that `dub` and
         // the prompter, which call this directly, cannot reach a server with it.

@@ -1,18 +1,49 @@
-use std::path::Path;
-
 use teleprompt_compile::CompileOutput;
 use teleprompt_core::SpanMs;
 use teleprompt_schedule::{diff, Timeline, TimelineDiff, TIMELINE_VERSION};
 
-use crate::project::Project;
+use crate::project::Script;
 
-/// Compiles the timeline and returns it without writing anything to disk.
-pub fn run_plan(
-    project: &Project,
-    script: &Path,
-    locale: &str,
-) -> Result<CompileOutput, Vec<String>> {
-    project.compile(script, locale).map(|(out, _)| out)
+impl Script {
+    /// The timeline, compiled without writing anything to disk.
+    pub fn plan(&self) -> Result<CompileOutput, Vec<String>> {
+        self.compile().map(|c| c.output)
+    }
+
+    /// The timeline compared against the committed one. With none
+    /// committed, every item is `added`; one that does not parse is an
+    /// error.
+    pub fn plan_check(&self) -> Result<TimelineDiff, Vec<String>> {
+        let out = self.plan()?;
+        let name = self
+            .path()
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let committed_path = self.project().timeline_path(&name, self.locale());
+
+        let committed = if committed_path.exists() {
+            let text = std::fs::read_to_string(&committed_path)
+                .map_err(|e| vec![format!("cannot read {}: {e}", committed_path.display())])?;
+            serde_json::from_str::<Timeline>(&text).map_err(|e| {
+                vec![format!(
+                    "{} is not a valid timeline: {e}",
+                    committed_path.display()
+                )]
+            })?
+        } else {
+            Timeline {
+                version: TIMELINE_VERSION,
+                script: out.timeline.script.clone(),
+                locale: out.timeline.locale.clone(),
+                duration_ms: SpanMs::ZERO,
+                generated_by: String::new(),
+                entries: Vec::new(),
+            }
+        };
+
+        Ok(diff(&committed, &out.timeline))
+    }
 }
 
 /// Renders a `plan` result as a short prose report, one line per item.
@@ -43,44 +74,6 @@ pub fn render_plan(out: &CompileOutput) -> String {
     s
 }
 
-/// Compiles the script and compares it against the committed timeline. With
-/// none committed, every item is `added`; one that does not parse is an
-/// error.
-pub fn run_plan_check(
-    project: &Project,
-    script: &Path,
-    locale: &str,
-) -> Result<TimelineDiff, Vec<String>> {
-    let out = run_plan(project, script, locale)?;
-    let name = script
-        .file_name()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let committed_path = project.timeline_path(&name, locale);
-
-    let committed = if committed_path.exists() {
-        let text = std::fs::read_to_string(&committed_path)
-            .map_err(|e| vec![format!("cannot read {}: {e}", committed_path.display())])?;
-        serde_json::from_str::<Timeline>(&text).map_err(|e| {
-            vec![format!(
-                "{} is not a valid timeline: {e}",
-                committed_path.display()
-            )]
-        })?
-    } else {
-        Timeline {
-            version: TIMELINE_VERSION,
-            script: out.timeline.script.clone(),
-            locale: out.timeline.locale.clone(),
-            duration_ms: SpanMs::ZERO,
-            generated_by: String::new(),
-            entries: Vec::new(),
-        }
-    };
-
-    Ok(diff(&committed, &out.timeline))
-}
-
 /// `plan`'s arguments.
 #[derive(clap::Args)]
 pub struct Args {
@@ -94,12 +87,9 @@ pub struct Args {
 
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::output::Outcome;
-    let script = &args.script;
-    let project = script.project()?;
-    let locale = script.locale(&project);
+    let script = args.script.open()?;
     if args.check {
-        let d =
-            run_plan_check(&project, &script.script, &locale).map_err(Outcome::ValidationError)?;
+        let d = script.plan_check().map_err(Outcome::ValidationError)?;
         crate::cli::emit_ok(format, &d, &format!("{}\n", d.render()), d.is_empty());
         return Ok(if d.is_empty() {
             Outcome::Ok
@@ -107,7 +97,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
             Outcome::Drift
         });
     }
-    let out = run_plan(&project, &script.script, &locale).map_err(Outcome::ValidationError)?;
+    let out = script.plan().map_err(Outcome::ValidationError)?;
     crate::cli::emit_data(format, &out.timeline, &render_plan(&out));
     let narrated = out
         .timeline

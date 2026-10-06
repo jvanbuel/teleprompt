@@ -13,7 +13,7 @@ use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
 
 use crate::output::Failure;
-use crate::project::Project;
+use crate::project::{Compiled, Script};
 use crate::voice::Backends;
 
 pub struct DubOutput {
@@ -159,32 +159,15 @@ async fn render_one(
     })
 }
 
-/// Voices one script in one locale, and publishes it under an output root:
+/// Voices a script and publishes it under an output root:
 /// `<root>/<locale>/narration.json` and its audio.
 pub struct Dubber<'a> {
-    project: &'a Project,
-    script: &'a Path,
-    locale: &'a str,
-    backends: Backends,
+    script: &'a Script,
 }
 
 impl<'a> Dubber<'a> {
-    /// With the project's own voices: its `backends:` settings. A script's
-    /// front-matter override does not reach construction, as in
-    /// `Project::compile`.
-    pub fn new(project: &'a Project, script: &'a Path, locale: &'a str) -> Self {
-        Self {
-            project,
-            script,
-            locale,
-            backends: project.backends(),
-        }
-    }
-
-    /// With `backends` instead; the seam exists for the reason
-    /// `Project::compile_with` gives.
-    pub fn with_backends(self, backends: Backends) -> Self {
-        Self { backends, ..self }
+    pub fn new(script: &'a Script) -> Self {
+        Self { script }
     }
 
     /// Voices the script and writes it under `out_root`.
@@ -199,12 +182,12 @@ impl<'a> Dubber<'a> {
     }
 
     async fn run(&self, out_root: &Path, check_only: bool) -> Result<DubOutput, Failure> {
-        let (project, locale) = (self.project, self.locale);
+        let locale = self.script.locale();
         let Voiced {
             compiled,
             published,
             warnings,
-        } = voice(&self.backends, project, self.script, locale).await?;
+        } = voice(self.script).await?;
         let built = published.manifest.clone();
         let (written, drift) = if check_only {
             (
@@ -236,17 +219,15 @@ pub(crate) struct Voiced {
 
 /// Voices the script, what `dub` does short of writing it out, and what
 /// the prompter plays.
-pub(crate) async fn voice(
-    backends: &Backends,
-    project: &Project,
-    script: &Path,
-    locale: &str,
-) -> Result<Voiced, Failure> {
+pub(crate) async fn voice(script: &Script) -> Result<Voiced, Failure> {
+    let (project, backends) = (script.project(), script.backends());
     // Synthesize only with the backend the keys were computed from; see
-    // `Project::compile_with`.
-    let (compiled, backend) = project
-        .compile_with(backends, script, locale)
-        .map_err(Failure::Validation)?;
+    // `Script::compile`.
+    let Compiled {
+        output: compiled,
+        backend,
+        ..
+    } = script.compile().map_err(Failure::Validation)?;
     let cache = Arc::new(VoiceCache::new(project.caches().root));
     let voices = backends
         .voices(&backend, &compiled.narration)
@@ -283,9 +264,7 @@ pub(crate) async fn voice(
     // Recompile against the now-warm cache: the first compile ran before
     // anything was rendered, so on a cold project it holds estimates. This
     // makes `dub` idempotent, and costs no synthesis.
-    let (compiled, _) = project
-        .compile_with(backends, script, locale)
-        .map_err(Failure::Validation)?;
+    let compiled = script.compile().map_err(Failure::Validation)?.output;
     let published = publish::publish(&compiled, audio).map_err(Failure::Runtime)?;
     warnings.extend(compiled.warnings.iter().cloned());
     Ok(Voiced {
@@ -564,22 +543,15 @@ pub struct Args {
 
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::output::Outcome;
-    let project = args.script.project()?;
-    let locale = args.script.locale(&project);
-    let dubber = Dubber::new(&project, &args.script.script, &locale);
+    let script = args.script.open()?;
+    let dubber = Dubber::new(&script);
     let runtime = crate::cli::runtime()?;
     let result = if args.check {
         runtime.block_on(dubber.check(&args.out))?
     } else {
         let mut dubbed = runtime.block_on(dubber.dub(&args.out))?;
         if args.clips {
-            add_clips(
-                &project,
-                &args.script.script,
-                &locale,
-                &args.out,
-                &mut dubbed,
-            )?;
+            add_clips(&script, &args.out, &mut dubbed)?;
         }
         dubbed
     };
@@ -599,14 +571,9 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
 /// captured as `capture` does, then puts every shot's clip in
 /// `<locale>/clips/`. A shot nothing here can record is left out, with
 /// capture's warning.
-fn add_clips(
-    project: &Project,
-    script: &Path,
-    locale: &str,
-    out_root: &Path,
-    dubbed: &mut DubOutput,
-) -> Result<(), Failure> {
-    let options = crate::cmd::build::BuildOptions::defaults(project, script, locale);
+fn add_clips(script: &Script, out_root: &Path, dubbed: &mut DubOutput) -> Result<(), Failure> {
+    let (project, locale) = (script.project(), script.locale());
+    let options = crate::cmd::build::BuildOptions::defaults(project, script.path(), locale);
     let mut progress = |p: teleprompt_plugin::capture::Progress| {
         crate::output::progress(
             "capture",

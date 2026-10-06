@@ -1,6 +1,6 @@
 mod compile;
 
-pub use compile::{translation_path, Compiled};
+pub use compile::{translation_path, Compiled, Script};
 
 use std::path::{Path, PathBuf};
 

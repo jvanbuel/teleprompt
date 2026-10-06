@@ -179,8 +179,10 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
     write(session.script, &draft.markdown(&options))?;
 
     // The script as the compiler reads it, which is what names its lines.
-    let (compiled, _) = project
-        .compile(session.script, &project.source_locale())
+    let compiled = project
+        .script(session.script, project.source_locale())
+        .compile()
+        .map(|c| c.output)
         .map_err(|errors| {
             format!(
                 "the drafted {} does not compile, which is a bug in `import`:\n{}",

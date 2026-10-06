@@ -5,7 +5,6 @@
 //! the manifest `dub` publishes, which the page plays as an outside
 //! renderer would, so it cannot show timing the video will not have.
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::UNIX_EPOCH;
 
@@ -17,19 +16,14 @@ use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::dub;
 use crate::output::Failure;
-use crate::project::{fingerprint, translation_path, Project};
-use crate::voice::Backends;
+use crate::project::{fingerprint, translation_path, Compiled, Project, Script};
 use teleprompt_core::Hash;
 
 /// A script's voice, compiled afresh when what it is compiled from has
 /// changed: the script, its translation, its takes, or which of its lines
 /// the voice cache holds.
 pub struct Voicing {
-    project: Project,
-    script: PathBuf,
-    locale: String,
-    /// The project's voices, found once: finding a plugin searches PATH.
-    backends: OnceLock<Backends>,
+    script: Script,
     /// The last compile: each line's request and take, and who reads.
     voiced: Mutex<Option<Voiced>>,
     /// What the last compile was made from, as [`Voicing::inputs`] says it.
@@ -57,10 +51,7 @@ struct Voiced {
 impl Voicing {
     pub fn new(project: &Project, script: &std::path::Path, locale: &str) -> Self {
         Self {
-            project: project.clone(),
-            script: script.to_path_buf(),
-            locale: locale.to_string(),
-            backends: OnceLock::new(),
+            script: project.script(script, locale),
             voiced: Mutex::new(None),
             inputs: Mutex::new(None),
             error: Mutex::new(None),
@@ -70,11 +61,7 @@ impl Voicing {
     }
 
     fn cache(&self) -> VoiceCache {
-        VoiceCache::new(self.project.caches().root)
-    }
-
-    fn backends(&self) -> &Backends {
-        self.backends.get_or_init(|| self.project.backends())
+        VoiceCache::new(self.script.project().caches().root)
     }
 
     /// What a compile reads beyond the project's config, which is read
@@ -82,13 +69,13 @@ impl Voicing {
     /// lines last compiled the voice cache now holds.
     fn inputs(&self, last: Option<&Voiced>) -> Hash {
         let mut fields = vec![
-            fingerprint(&self.script),
-            fingerprint(&translation_path(&self.script, &self.locale)),
+            fingerprint(self.script.path()),
+            fingerprint(&translation_path(self.script.path(), self.script.locale())),
         ]
         .into_iter()
         .map(|h| h.map_or_else(String::new, |h| h.to_string()))
         .collect::<Vec<_>>();
-        let takes = std::fs::read_dir(self.project.takes_dir())
+        let takes = std::fs::read_dir(self.script.project().takes_dir())
             .into_iter()
             .flatten();
         let mut takes: Vec<String> = takes
@@ -122,13 +109,15 @@ impl Voicing {
             return voiced.clone();
         }
         *seen = Some(inputs);
-        let backends = self.backends();
-        match self
-            .project
-            .compile_with(backends, &self.script, &self.locale)
-        {
-            Ok((compiled, backend)) => {
-                let voices = backends
+        match self.script.compile() {
+            Ok(Compiled {
+                output: compiled,
+                backend,
+                ..
+            }) => {
+                let voices = self
+                    .script
+                    .backends()
                     .voices(&backend, &compiled.narration)
                     .unwrap_or_default();
                 *voiced = Some(Voiced {
@@ -162,12 +151,10 @@ impl Voicing {
     /// reads, every line's audio made first; or, if it no longer compiles,
     /// the one last made, and why only if there is none.
     pub fn manifest(&self) -> Result<NarrationManifest, Vec<String>> {
-        let voiced = self.runtime().map_err(|e| vec![e])?.block_on(dub::voice(
-            self.backends(),
-            &self.project,
-            &self.script,
-            &self.locale,
-        ));
+        let voiced = self
+            .runtime()
+            .map_err(|e| vec![e])?
+            .block_on(dub::voice(&self.script));
         let published = match voiced {
             Ok(voiced) => voiced.published,
             Err(e) => {
@@ -251,7 +238,7 @@ impl Voicing {
             return Ok(None);
         };
         if line.take.is_some() {
-            let take = self.project.takes_dir().join(format!("{id}.wav"));
+            let take = self.script.project().takes_dir().join(format!("{id}.wav"));
             return std::fs::read(&take)
                 .map(Some)
                 .map_err(|e| format!("cannot read {}: {e}", take.display()));

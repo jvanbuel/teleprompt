@@ -620,8 +620,8 @@ struct TestProject {
 
 /// Scaffold a project whose `teleprompt.toml` is replaced by `config_toml`
 /// (verbatim TOML — the project's own `backends:` settings are what
-/// a `Dubber` builds its registry from, before the script is ever read; see
-/// `Project::compile`'s doc comment), and drop `script` at `scripts/test.md`.
+/// a `Script` builds its registry from, before the script is ever read; see
+/// `Script::open`'s doc comment), and drop `script` at `scripts/test.md`.
 fn project_with_config_and_script(config_toml: &str, script: &str) -> TestProject {
     let dir = tempdir("inprocess");
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
@@ -705,7 +705,7 @@ async fn kokoro_stub_listing(voices: &[&str]) -> KokoroStub {
 #[tokio::test]
 async fn dub_with_the_null_backend_makes_no_network_call() {
     let p = project_with_script("# Intro\n\nHello there.\n");
-    Dubber::new(&p.project, &p.script, "en")
+    Dubber::new(&p.project.script(&p.script, "en"))
         .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
@@ -726,7 +726,9 @@ async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
         "# Intro\n\nHello there.\n",
     );
 
-    let result = Dubber::new(&p.project, &p.script, "en").dub(&p.out).await;
+    let result = Dubber::new(&p.project.script(&p.script, "en"))
+        .dub(&p.out)
+        .await;
     let msgs = match result {
         Ok(_) => panic!("an unknown voice must fail validation, not synthesize"),
         Err(Failure::Validation(msgs)) => msgs,
@@ -770,7 +772,10 @@ async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() 
         "# Intro\n\nHello there.\n",
     );
 
-    match Dubber::new(&p.project, &p.script, "en").dub(&p.out).await {
+    match Dubber::new(&p.project.script(&p.script, "en"))
+        .dub(&p.out)
+        .await
+    {
         Ok(_) => panic!("an unreachable server must fail, not synthesize"),
         Err(Failure::Validation(v)) => panic!(
             "an unreachable server is a runtime failure (exit 1), not a script \
@@ -921,7 +926,7 @@ async fn lines_are_synthesized_concurrently_but_collected_in_document_order() {
         "# Segments\n\nFirst line here.\n\nSecond line here.\n\nThird line here.\n",
     );
 
-    Dubber::new(&p.project, &p.script, "en")
+    Dubber::new(&p.project.script(&p.script, "en"))
         .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
@@ -970,7 +975,9 @@ async fn a_failure_in_one_line_fails_the_run() {
         "# Failure\n\nOne.\n\nTwo.\n\nThree.\n",
     );
     let start = std::time::Instant::now();
-    let result = Dubber::new(&p.project, &p.script, "en").dub(&p.out).await;
+    let result = Dubber::new(&p.project.script(&p.script, "en"))
+        .dub(&p.out)
+        .await;
     let elapsed = start.elapsed();
     match result {
         Ok(_) => panic!("a line failure must fail the run"),
@@ -1089,7 +1096,7 @@ async fn identical_narration_text_synthesizes_once_not_once_per_line() {
     let stub = kokoro_call_counting_stub().await;
     let p = project_with_duplicate_narration_text(&stub.base_url);
 
-    Dubber::new(&p.project, &p.script, "en")
+    Dubber::new(&p.project.script(&p.script, "en"))
         .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
@@ -1116,7 +1123,7 @@ async fn identical_narration_text_with_a_non_deterministic_backend_still_succeed
     let stub = kokoro_call_counting_stub().await;
     let p = project_with_duplicate_narration_text(&stub.base_url);
 
-    Dubber::new(&p.project, &p.script, "en")
+    Dubber::new(&p.project.script(&p.script, "en"))
         .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
@@ -1146,7 +1153,7 @@ async fn identical_narration_text_still_lands_in_document_order_with_matching_au
     let stub = kokoro_call_counting_stub().await;
     let p = project_with_duplicate_narration_text(&stub.base_url);
 
-    Dubber::new(&p.project, &p.script, "en")
+    Dubber::new(&p.project.script(&p.script, "en"))
         .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
@@ -1198,7 +1205,7 @@ async fn a_fully_cached_script_dubs_with_the_server_gone() {
     );
 
     // Fill the cache while the server is up.
-    Dubber::new(&p.project, &p.script, "en")
+    Dubber::new(&p.project.script(&p.script, "en"))
         .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
@@ -1214,7 +1221,7 @@ async fn a_fully_cached_script_dubs_with_the_server_gone() {
     .unwrap();
     let gone = Project::discover(&p.project.root).unwrap();
 
-    Dubber::new(&gone, &p.script, "en")
+    Dubber::new(&gone.script(&p.script, "en"))
         .dub(&p.out)
         .await
         .unwrap_or_else(|e| match e {

@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use teleprompt_core::SpanMs;
 
-use teleprompt_cli::cmd::{check::run_check, plan::run_plan, plan::run_plan_check};
 use teleprompt_cli::project::Project;
 
 const GOOD: &str = r#"---
@@ -33,20 +32,20 @@ fn project_with(script: &str) -> (teleprompt_testkit::TestDir, Project, PathBuf)
 #[test]
 fn check_accepts_a_valid_script() {
     let (_dir, p, s) = project_with(GOOD);
-    assert!(run_check(&p, &s, "en").is_ok());
+    assert!(p.script(&s, "en").check().is_ok());
 }
 
 #[test]
 fn check_reports_an_unknown_attribute_key() {
     let (_dir, p, s) = project_with(BAD_ATTR);
-    let errs = run_check(&p, &s, "en").unwrap_err();
+    let errs = p.script(&s, "en").check().unwrap_err();
     assert!(errs[0].contains("unknown attribute key `polcy`"));
 }
 
 #[test]
 fn check_reports_plugin_validation_errors() {
     let (_dir, p, s) = project_with(BAD_SCENE);
-    let errs = run_check(&p, &s, "en").unwrap_err();
+    let errs = p.script(&s, "en").check().unwrap_err();
     assert!(errs[0].contains("unknown mock directive"));
 }
 
@@ -54,14 +53,14 @@ fn check_reports_plugin_validation_errors() {
 fn check_does_not_write_anything() {
     let (_dir, p, s) = project_with(GOOD);
     let before = listing(&p.root);
-    run_check(&p, &s, "en").unwrap();
+    p.script(&s, "en").check().unwrap();
     assert_eq!(listing(&p.root), before, "check must have no side effects");
 }
 
 #[test]
 fn plan_produces_a_timeline_without_writing_one() {
     let (_dir, p, s) = project_with(GOOD);
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     assert!(out.timeline.duration_ms > SpanMs::of(0));
     assert!(!p.timeline_path("test.md", "en").exists());
 }
@@ -69,7 +68,7 @@ fn plan_produces_a_timeline_without_writing_one() {
 #[test]
 fn diff_against_a_missing_timeline_reports_every_item_as_added() {
     let (_dir, p, s) = project_with(GOOD);
-    let d = run_plan_check(&p, &s, "en").unwrap();
+    let d = p.script(&s, "en").plan_check().unwrap();
     assert_eq!(d.added.len(), 1);
     assert!(!d.is_empty());
 }
@@ -77,18 +76,18 @@ fn diff_against_a_missing_timeline_reports_every_item_as_added() {
 #[test]
 fn diff_against_an_identical_committed_timeline_is_empty() {
     let (_dir, p, s) = project_with(GOOD);
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     let dest = p.timeline_path("test.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, serde_json::to_string_pretty(&out.timeline).unwrap()).unwrap();
 
-    assert!(run_plan_check(&p, &s, "en").unwrap().is_empty());
+    assert!(p.script(&s, "en").plan_check().unwrap().is_empty());
 }
 
 #[test]
 fn diff_detects_an_edited_paragraph() {
     let (_dir, p, s) = project_with(GOOD);
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     let dest = p.timeline_path("test.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, serde_json::to_string_pretty(&out.timeline).unwrap()).unwrap();
@@ -98,7 +97,7 @@ fn diff_detects_an_edited_paragraph() {
         GOOD.replace("One two three four five six.", "One two three."),
     )
     .unwrap();
-    let d = run_plan_check(&p, &s, "en").unwrap();
+    let d = p.script(&s, "en").plan_check().unwrap();
     assert_eq!(d.changed.len(), 1);
     assert!(d.shift_ms < 0, "a shorter paragraph shortens the video");
 }
@@ -109,7 +108,7 @@ fn a_malformed_timeline_on_disk_is_an_error_not_a_panic() {
     let dest = p.timeline_path("test.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, "{ not json").unwrap();
-    assert!(run_plan_check(&p, &s, "en").is_err());
+    assert!(p.script(&s, "en").plan_check().is_err());
 }
 
 fn listing(root: &Path) -> Vec<String> {
@@ -136,7 +135,7 @@ fn tempdir() -> teleprompt_testkit::TestDir {
 /// not just on success — a CI consumer piping `--format json` at a failing
 /// command needs something it can parse. These drive the actual compiled binary
 /// rather than the library functions, since the bug was in `main.rs`'s wiring,
-/// not in `run_plan`/`run_plan_check` themselves.
+/// not in `Script::plan`/`Script::plan_check` themselves.
 #[test]
 fn plan_format_json_emits_a_typed_error_payload_on_failure() {
     let (_dir, p, _s) = project_with(BAD_ATTR);
@@ -237,7 +236,10 @@ fn an_unreachable_script_path_is_named_in_the_error() {
 fn an_unknown_voice_backend_is_a_validation_error_naming_what_exists() {
     let (_dir, p, s) =
         project_with("---\nvoice: { backend: nope }\n---\n\n# Intro\n\nOne two three. {#a}\n");
-    let errors = run_check(&p, &s, "en").expect_err("unknown backend must fail check");
+    let errors = p
+        .script(&s, "en")
+        .check()
+        .expect_err("unknown backend must fail check");
     let joined = errors.join("\n");
     assert!(joined.contains("nope"), "{joined}");
     assert!(
@@ -249,7 +251,7 @@ fn an_unknown_voice_backend_is_a_validation_error_naming_what_exists() {
 #[test]
 fn the_default_backend_is_null_so_existing_scripts_keep_working() {
     let (_dir, p, s) = project_with("# Intro\n\nOne two three. {#a}\n");
-    assert!(run_check(&p, &s, "en").is_ok());
+    assert!(p.script(&s, "en").check().is_ok());
 }
 
 /// A line may be spoken by another backend than the script's, as a cast's
@@ -258,7 +260,10 @@ fn the_default_backend_is_null_so_existing_scripts_keep_working() {
 #[test]
 fn a_line_whose_backend_does_not_exist_is_rejected_naming_it() {
     let (_dir, p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=nope}\n");
-    let errors = run_check(&p, &s, "en").expect_err("an unknown per-line backend must fail");
+    let errors = p
+        .script(&s, "en")
+        .check()
+        .expect_err("an unknown per-line backend must fail");
     let joined = errors.join("\n");
     assert!(joined.contains("`a`"), "must name the line: {joined}");
     assert!(
@@ -271,7 +276,7 @@ fn a_line_whose_backend_does_not_exist_is_rejected_naming_it() {
 #[test]
 fn a_line_level_backend_that_matches_the_resolved_backend_is_fine() {
     let (_dir, p, s) = project_with("# Intro\n\nOne two three. {#a voice.backend=null}\n");
-    assert!(run_check(&p, &s, "en").is_ok());
+    assert!(p.script(&s, "en").check().is_ok());
 }
 
 /// A chapter naming a backend that does not exist is one diagnostic naming
@@ -282,7 +287,10 @@ fn an_unknown_chapter_backend_across_several_lines_is_one_diagnostic() {
         "# Intro\n\n```yaml teleprompt\nvoice:\n  backend: elsewhere\n```\n\n\
          One. {#a}\n\nTwo. {#b}\n\nThree. {#c}\n",
     );
-    let errors = run_check(&p, &s, "en").expect_err("an unknown chapter backend must fail");
+    let errors = p
+        .script(&s, "en")
+        .check()
+        .expect_err("an unknown chapter backend must fail");
     assert_eq!(errors.len(), 1, "{errors:?}");
     let joined = errors.join("\n");
     for id in ["a", "b", "c"] {
@@ -297,7 +305,7 @@ fn an_unknown_chapter_backend_across_several_lines_is_one_diagnostic() {
 /// C1, through the real binary. The panic was the point: exit 101 is not a
 /// code `teleprompt_cli::output::exit_code_for` can issue, so the process
 /// bypassed the CLI's whole error contract. Driven through the binary rather
-/// than `run_check` because a panic in a library call would abort the test
+/// than `Script::check` because a panic in a library call would abort the test
 /// harness instead of being observed as an exit code.
 #[test]
 fn check_on_a_zero_voice_speed_exits_two_rather_than_panicking() {
@@ -396,7 +404,10 @@ fn an_absurd_lead_in_is_a_validation_error_not_a_panic() {
         "---\nteleprompt: 1\n---\n\n# One\n\n\
          First line. {#a lead_in=18446744073709551615ms}\n\nSecond. {#b}\n",
     );
-    let errors = run_check(&p, &s, "en").expect_err("an absurd lead_in must fail check");
+    let errors = p
+        .script(&s, "en")
+        .check()
+        .expect_err("an absurd lead_in must fail check");
     let joined = errors.join("\n");
     assert!(joined.contains("lead_in"), "{joined}");
 }

@@ -10,7 +10,6 @@ use std::path::PathBuf;
 use teleprompt_core::SpanMs;
 use teleprompt_core::TimeMs;
 
-use teleprompt_cli::cmd::{check::run_check, plan::run_plan, plan::run_plan_check};
 use teleprompt_cli::project::Project;
 
 fn fixture(name: &str) -> String {
@@ -32,14 +31,14 @@ fn workspace() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
 #[test]
 fn the_full_fixture_validates() {
     let (_dir, p, s) = workspace();
-    let warnings = run_check(&p, &s, "en").expect("fixture must be valid");
+    let warnings = p.script(&s, "en").check().expect("fixture must be valid");
     assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
 }
 
 #[test]
 fn every_policy_appears_in_the_compiled_timeline() {
     let (_dir, p, s) = workspace();
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     let policies: std::collections::BTreeSet<&str> = out
         .timeline
         .entries
@@ -54,7 +53,7 @@ fn every_policy_appears_in_the_compiled_timeline() {
 #[test]
 fn items_never_overlap_and_never_gap() {
     let (_dir, p, s) = workspace();
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     for pair in out.timeline.entries.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
         let expected = a.start_ms + a.duration_ms - a.transition.duration_ms;
@@ -69,7 +68,7 @@ fn items_never_overlap_and_never_gap() {
 #[test]
 fn the_timeline_ends_where_the_last_shot_ends() {
     let (_dir, p, s) = workspace();
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     let last = out.timeline.entries.last().unwrap();
     assert_eq!(
         TimeMs::ZERO + out.timeline.duration_ms,
@@ -80,8 +79,8 @@ fn the_timeline_ends_where_the_last_shot_ends() {
 #[test]
 fn planning_twice_gives_byte_identical_output() {
     let (_dir, p, s) = workspace();
-    let a = serde_json::to_string(&run_plan(&p, &s, "en").unwrap().timeline).unwrap();
-    let b = serde_json::to_string(&run_plan(&p, &s, "en").unwrap().timeline).unwrap();
+    let a = serde_json::to_string(&p.script(&s, "en").plan().unwrap().timeline).unwrap();
+    let b = serde_json::to_string(&p.script(&s, "en").plan().unwrap().timeline).unwrap();
     assert_eq!(a, b);
 }
 
@@ -90,7 +89,7 @@ fn planning_twice_gives_byte_identical_output() {
 fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     let (_dir, p, s) = workspace();
 
-    let baseline = run_plan(&p, &s, "en").unwrap();
+    let baseline = p.script(&s, "en").plan().unwrap();
     let dest = p.timeline_path("tour.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(
@@ -106,7 +105,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     );
     std::fs::write(&s, edited).unwrap();
 
-    let d = run_plan_check(&p, &s, "en").unwrap();
+    let d = p.script(&s, "en").plan_check().unwrap();
 
     assert_eq!(d.changed.len(), 1, "exactly one line changed");
     assert_eq!(d.changed[0].item, "deploy");
@@ -156,7 +155,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 #[test]
 fn rollback_line_has_the_hand_derived_exact_duration() {
     let (_dir, p, s) = workspace();
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     let entry = out
         .timeline
         .entry("rollback")
@@ -177,12 +176,12 @@ fn rollback_line_has_the_hand_derived_exact_duration() {
 #[test]
 fn an_unedited_script_diffs_clean_against_its_committed_timeline() {
     let (_dir, p, s) = workspace();
-    let out = run_plan(&p, &s, "en").unwrap();
+    let out = p.script(&s, "en").plan().unwrap();
     let dest = p.timeline_path("tour.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, serde_json::to_string_pretty(&out.timeline).unwrap()).unwrap();
 
-    let d = run_plan_check(&p, &s, "en").unwrap();
+    let d = p.script(&s, "en").plan_check().unwrap();
     assert!(
         d.is_empty(),
         "clean checkout must diff clean: {}",
