@@ -43,8 +43,8 @@ enum Command {
     /// it prints the commands unless --run. Without names outside a
     /// terminal, it reports on all of them.
     ///
-    /// It also lists the scene plugins installed as programs of their own,
-    /// or those named: named teleprompt-scene-<name>, on PATH or in the
+    /// It also lists, as a table each, the scene plugins and the voices, or
+    /// those named. Scene plugins are built in or installed as programs: named teleprompt-scene-<name>, on PATH or in the
     /// plugins directory ($TELEPROMPT_PLUGINS, or teleprompt/plugins in
     /// your data directory). Each is asked what it needs; one that does not
     /// answer, or whose name a built-in one has, says why it is not used.

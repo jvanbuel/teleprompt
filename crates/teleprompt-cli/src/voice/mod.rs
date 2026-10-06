@@ -27,6 +27,14 @@ pub fn needs() -> Vec<&'static Tool> {
     providers().into_iter().map(|(_, needs)| needs).collect()
 }
 
+/// The voices this build ships, `null` aside, each with what it needs.
+pub fn shipped() -> Vec<(&'static str, &'static Tool)> {
+    providers()
+        .into_iter()
+        .map(|(p, needs)| (p.id, needs))
+        .collect()
+}
+
 /// Whether `name` is a voice this build ships.
 pub fn is_built_in(name: &str) -> bool {
     name == "null" || providers().iter().any(|(p, _)| p.id == name)

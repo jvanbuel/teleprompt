@@ -65,9 +65,10 @@ A plugin ships in one of two ways:
   repository are. The same crate can also be built as a program of its
   own ([a Rust plugin as a program](#a-rust-plugin-as-a-program)).
 
-`teleprompt setup` lists the plugins installed as programs, asks each
-what it needs, and says why one cannot be used; `teleprompt setup <name>`
-shows one, with the tools it needs.
+`teleprompt setup` lists every scene plugin in a table, built in or
+installed as a program, with what it needs and what of that is missing
+here; one that cannot be used says why. A second table lists the voices.
+`teleprompt setup <name>` shows one plugin, with the tools it needs.
 
 `teleprompt-plugin` has a module per part of the contract:
 

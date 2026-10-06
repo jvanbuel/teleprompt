@@ -212,9 +212,12 @@ pub struct SetupReport {
     pub models: String,
     /// The project's own voice, in a project, when no tool was named.
     pub voice: Option<ProjectVoice>,
-    /// The scene plugins installed as programs: every one when nothing was
-    /// named, else those named.
-    pub plugins: Vec<plugins::Installed>,
+    /// The scene plugins, built in and installed as programs: every one
+    /// when nothing was named, else those named.
+    pub scenes: Vec<plugins::Scene>,
+    /// The voices this build ships and the project's own: every one when
+    /// nothing was named, else those named.
+    pub voices: Vec<plugins::Voice>,
     /// Where plugins go when not on PATH.
     pub plugins_dir: String,
 }
@@ -281,7 +284,8 @@ impl Setup {
             ran,
             models: self.platform.models.display().to_string(),
             voice: None,
-            plugins: Vec::new(),
+            scenes: Vec::new(),
+            voices: Vec::new(),
             plugins_dir: teleprompt_plugin::protocol::host::plugins_dir()
                 .display()
                 .to_string(),
@@ -507,10 +511,10 @@ impl SetupReport {
             }
         }
         let dir = names.is_empty().then_some(self.plugins_dir.as_str());
-        out.push_str(&plugins::render(&self.plugins, dir));
+        out.push_str(&plugins::render(&self.scenes, &self.voices, dir));
         if let Some(v) = &self.voice {
             let answer = v.answer.as_deref().unwrap_or("needs no server");
-            out.push_str(&format!("{:<18} {}: {answer}\n", "your voice", v.backend));
+            out.push_str(&format!("\n{:<18} {}: {answer}\n", "your voice", v.backend));
             for p in &v.problems {
                 out.push_str(&format!("{:<18} {p}\n", "problem"));
             }
@@ -591,7 +595,8 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         let ran = crate::ask::confirm_install(&setup, &tools).map_err(runtime_failure)?;
         let mut report = setup.report(&tools, ran);
         report.voice = voice_here()?;
-        report.plugins = plugins::installed();
+        report.scenes = plugins::scenes(&setup);
+        report.voices = plugins::voices(report.voice.as_ref());
         emit(format, &report, &report.render(&chosen));
         return Ok(Outcome::Ok);
     }
@@ -602,11 +607,14 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         Vec::new()
     };
     let mut report = setup.report(&tools, ran);
-    report.plugins = plugins::installed();
     if args.names.is_empty() {
         report.voice = voice_here()?;
-    } else {
-        report.plugins.retain(|p| args.names.contains(&p.name));
+    }
+    report.scenes = plugins::scenes(&setup);
+    report.voices = plugins::voices(report.voice.as_ref());
+    if !args.names.is_empty() {
+        report.scenes.retain(|s| args.names.contains(&s.name));
+        report.voices.retain(|v| args.names.contains(&v.name));
     }
     emit(format, &report, &report.render(&args.names));
     Ok(Outcome::Ok)

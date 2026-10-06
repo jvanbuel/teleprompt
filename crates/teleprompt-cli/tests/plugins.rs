@@ -39,7 +39,7 @@ fn teleprompt(dir: &std::path::Path, plugins: &std::path::Path, args: &[&str]) -
 }
 
 #[test]
-fn setup_lists_installed_plugins_with_what_they_need() {
+fn setup_lists_scene_plugins_and_voices() {
     if !have_python() {
         return;
     }
@@ -55,27 +55,44 @@ fn setup_lists_installed_plugins_with_what_they_need() {
         String::from_utf8_lossy(&out.stderr)
     );
     let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    let plugins = report["plugins"].as_array().unwrap();
-    let named = |name: &str| plugins.iter().find(|p| p["name"] == name).unwrap().clone();
+    let scenes = report["scenes"].as_array().unwrap();
+    let named = |name: &str| scenes.iter().find(|p| p["name"] == name).unwrap().clone();
+    let vhs = named("vhs");
+    assert!(vhs["path"].is_null(), "built in: {vhs}");
     let card = named("card");
     assert_eq!(card["needs"], serde_json::json!(["ffmpeg"]));
     assert!(card["problem"].is_null(), "{card}");
+    assert!(
+        card["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("teleprompt-scene-card"),
+        "{card}"
+    );
     let hidden = named("mock");
     assert!(
         hidden["problem"].as_str().unwrap().contains("built-in"),
         "{hidden}"
     );
+    let voices: Vec<_> = report["voices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["name"].clone())
+        .collect();
+    assert!(voices.contains(&serde_json::json!("kokoro")), "{voices:?}");
 
     // Named, only that plugin is listed, beside the tools it needs.
     let out = teleprompt(&dir, &dir, &["--format", "json", "setup", "card"]);
     let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    let names: Vec<_> = report["plugins"]
+    let names: Vec<_> = report["scenes"]
         .as_array()
         .unwrap()
         .iter()
         .map(|p| p["name"].clone())
         .collect();
     assert_eq!(names, [serde_json::json!("card")]);
+    assert_eq!(report["voices"], serde_json::json!([]));
     assert_eq!(report["tools"][0]["name"], "ffmpeg");
 }
 
