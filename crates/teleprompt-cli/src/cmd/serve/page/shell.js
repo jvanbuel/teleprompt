@@ -14,7 +14,7 @@ function progressSays(e) {
 /** Captures the shots not yet captured, or changed since, and for a build
  *  renders the video: one job at a time, never during a take. */
 async function make(job) {
-  if (making || listening || paused || counting || reading) return;
+  if (making || busy() || reading) return;
   making = job;
   $("working").hidden = false;
   $("working").firstElementChild.style.width = "0";
@@ -80,7 +80,7 @@ function tellShell(message) {
 /** The project's scripts, to open one: at start when none is open, or from
  *  the help to open another. */
 async function showHome() {
-  if (listening || paused || counting || making || reading || editing) {
+  if (busy() || making || reading || editing) {
     return status("Finish what is under way first");
   }
   let home;
@@ -110,21 +110,10 @@ async function showHome() {
 
   const list = $("scripts");
   list.replaceChildren(...home.scripts.map((s) => {
-    const item = document.createElement("li");
-    const open = document.createElement("button");
-    const title = document.createElement("span");
-    title.textContent = s.name;
-    open.append(title);
-    if (s.name === home.opened) {
-      const now = document.createElement("span");
-      now.className = "open-now";
-      now.textContent = "Open";
-      open.append(now);
-    }
-    open.title = s.path;
+    const open = h("button", { title: s.path }, h("span", { textContent: s.name }));
+    if (s.name === home.opened) open.append(h("span", { className: "open-now", textContent: "Open" }));
     open.addEventListener("click", () => openScript(s.path, narrator() === "voice"));
-    item.append(open);
-    return item;
+    return h("li", {}, open);
   }));
   $("no-scripts").hidden = home.scripts.length > 0;
   status(home.scripts.length ? "Choose a script" : "No scripts here");
@@ -149,8 +138,7 @@ function hideHome() {
   document.body.classList.remove("home");
   $("home").hidden = true;
   if (script.name) document.title = script.name;
-  if (voiced) voiceStatus();
-  else status(READY);
+  idle();
 }
 
 /** Opens `path` in place of what is open, then shows it; what it needs
@@ -220,38 +208,16 @@ async function listUses(wanted = []) {
 }
 
 function useRow(u, wanted) {
-  const item = document.createElement("li");
-  const label = document.createElement("label");
-  const box = document.createElement("input");
-  box.type = "checkbox";
-  box.value = u.name;
-  box.disabled = u.installed || !u.available || installing;
-  box.checked = wanted && !box.disabled;
+  const disabled = u.installed || !u.available || installing;
+  const box = h("input", { type: "checkbox", value: u.name, disabled, checked: wanted && !disabled });
   box.addEventListener("change", chosenChanged);
-  const title = document.createElement("span");
-  title.textContent = u.label;
-  const state = document.createElement("span");
-  state.className = `use-state${u.installed ? " ok" : ""}`;
-  state.textContent = useState(u);
-  label.append(box, title, state);
-  const more = document.createElement("details");
-  const summary = document.createElement("summary");
-  summary.textContent = "What it uses";
-  more.append(summary, ...u.tools.map((t) => {
-    const p = document.createElement("p");
-    const head = document.createElement("strong");
-    head.textContent = t.name;
-    p.append(head, ` ${t.what}. ${t.license}. `);
-    if (t.installed) p.append("Installed.");
-    else if (t.command) {
-      const code = document.createElement("code");
-      code.textContent = t.command;
-      p.append(code);
-    } else p.append(t.guide ?? "Nothing here can install it.");
-    return p;
-  }));
-  item.append(label, more);
-  return item;
+  const label = h("label", {}, box, h("span", { textContent: u.label }),
+    h("span", { className: `use-state${u.installed ? " ok" : ""}`, textContent: useState(u) }));
+  const more = h("details", {}, h("summary", { textContent: "What it uses" }), ...u.tools.map((t) =>
+    h("p", {}, h("strong", { textContent: t.name }), ` ${t.what}. ${t.license}. `,
+      t.installed ? "Installed." : t.command ? h("code", { textContent: t.command })
+      : t.guide ?? "Nothing here can install it.")));
+  return h("li", {}, label, more);
 }
 
 /** What a use needs here, as its row says it. */

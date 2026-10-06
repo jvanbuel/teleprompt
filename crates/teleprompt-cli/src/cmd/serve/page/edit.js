@@ -57,7 +57,7 @@ function moment(l, w) {
 }
 
 function setEdit(on) {
-  if (on && (listening || paused || counting)) return status("Keep or discard this take first");
+  if (on && busy()) return status("Keep or discard this take first");
   if (on && document.body.classList.contains("mirrored")) {
     return status("Mirrored text cannot be edited: M turns mirroring off");
   }
@@ -69,8 +69,7 @@ function setEdit(on) {
   drawRibbons();
   if (!on) scrub(null);
   if (on) status("Drag a shot onto a word to start it there, or its grip to set how long it runs");
-  else if (voiced) voiceStatus();
-  else status(READY);
+  else idle();
   keys();
 }
 
@@ -79,8 +78,7 @@ function drawRibbons() {
   $("ribbons")?.remove();
   if (!editMode || !hasTimeline() || VIEW) return;
   const root = $("script");
-  const layer = document.createElement("div");
-  layer.id = "ribbons";
+  const layer = h("div", { id: "ribbons" });
   root.append(layer);
   const box = root.getBoundingClientRect();
   const rect = (el) => {
@@ -96,11 +94,10 @@ function drawRibbons() {
   const after = new Map();
   for (const r of ribbons()) {
     const shot = script.timeline.shots[r.shot];
-    const piece = document.createElement("div");
-    piece.className = leads(shot) ? "piece leads" : "piece";
+    const piece = h("div", { className: leads(shot) ? "piece leads" : "piece",
+      title: `${name(shot.shot)} · ${shot.scene} · ${seconds(shot.end_ms - shot.start_ms)}` });
     piece.style.setProperty("--hue", hue(shot.scene));
     piece.dataset.shot = r.shot;
-    piece.title = `${name(shot.shot)} · ${shot.scene} · ${seconds(shot.end_ms - shot.start_ms)}`;
     layer.append(piece);
     const bars = [];
     for (const word of words[r.line].slice(r.from, r.to)) {
@@ -110,17 +107,15 @@ function drawRibbons() {
     }
     let end = null;
     for (const b of bars) {
-      const bar = document.createElement("span");
-      bar.className = "bar";
+      const bar = h("span", { className: "bar" });
       place(bar, b.x, b.y + b.h + 3, b.w);
       piece.append(bar);
       end = { x: b.x + b.w, y: b.y + b.h + 3 + 2.5 };
     }
     if (r.from === r.to || r.past > 0) {
       const last = rect(words[r.line].at(-1));
-      const pill = document.createElement("span");
-      pill.className = "pill";
-      pill.textContent = r.from === r.to ? `${shot.block} · ${seconds(r.past)}` : `+${seconds(r.past)}`;
+      const pill = h("span", { className: "pill",
+        textContent: r.from === r.to ? `${shot.block} · ${seconds(r.past)}` : `+${seconds(r.past)}` });
       piece.append(pill);
       const w = pill.offsetWidth;
       let x = after.get(r.line) ?? last.x + last.w + 14, y = last.y + (last.h - 24) / 2;
@@ -133,9 +128,7 @@ function drawRibbons() {
       end = { x: x + w, y: y + 12 };
     }
     if (end && shot.timed && leads(shot)) {
-      const grip = document.createElement("span");
-      grip.className = "grip";
-      grip.title = "Drag along the line to set how long it runs";
+      const grip = h("span", { className: "grip", title: "Drag along the line to set how long it runs" });
       place(grip, end.x - 3, end.y - 8);
       piece.append(grip);
     }
@@ -227,19 +220,17 @@ function dragTo(x, y) {
   $("drop-target")?.remove();
   if (onto && drag.edit) {
     const box = $("script").getBoundingClientRect();
-    const mark = document.createElement("div");
-    mark.id = "drop-target";
+    const mark = h("div", { id: "drop-target" });
     const r = (onto.word === null ? words[onto.line].at(-1) : words[onto.line][onto.word]).getBoundingClientRect();
-    const [left, top, w, h] = onto.word === null
+    const [left, top, width, height] = onto.word === null
       ? [r.right + 6, r.top + 6, 4, r.height - 12]
       : [r.left, r.bottom + 3, r.width, 5];
-    Object.assign(mark.style, { left: `${left - box.left}px`, top: `${top - box.top}px`, width: `${w}px`, height: `${h}px` });
+    Object.assign(mark.style, { left: `${left - box.left}px`, top: `${top - box.top}px`, width: `${width}px`, height: `${height}px` });
     $("script").append(mark);
   }
   let chip = $("drop-chip");
   if (!chip) {
-    chip = document.createElement("div");
-    chip.id = "drop-chip";
+    chip = h("div", { id: "drop-chip" });
     document.body.append(chip);
   }
   chip.textContent = drag.edit ? describe(drag.edit, script.timeline.shots[drag.shot].line) : "Not here";
@@ -267,43 +258,12 @@ function scrub(ms) {
     if (!playing) slate();
     return;
   }
-  const video = $("clip");
   const shot = script.timeline.shots.findLast((s) => s.start_ms <= ms && ms < s.end_ms);
-  $("progress").firstElementChild.style.width = "0";
-  if (!shot) {
-    video.pause();
-    video.hidden = true;
-    $("slate").classList.remove("missing");
-    $("slate").textContent = `Nothing on screen at ${seconds(ms)}`;
-    $("shot-title").textContent = "";
-    $("shot-time").textContent = "";
-    return broadcast();
-  }
+  if (!shot) return screen({ slate: `Nothing on screen at ${seconds(ms)}` });
   const clip = shots.get(shot.shot)?.clip ?? script.shots.find((s) => s.shot === shot.shot)?.clip;
-  $("shot-title").textContent = name(shot.shot);
-  $("shot-time").textContent = `${seconds(ms)} · ${seconds(ms - shot.start_ms)} into the shot`;
-  if (!clip) {
-    video.pause();
-    video.hidden = true;
-    $("slate").textContent = "This shot was never captured. Capture records it.";
-    $("slate").classList.add("missing");
-    return broadcast();
-  }
-  $("slate").textContent = "";
-  $("slate").classList.remove("missing");
-  video.hidden = false;
-  video.pause();
-  const into = (ms - shot.start_ms) / 1000;
-  if (video.getAttribute("src") !== clip) {
-    video.addEventListener("loadedmetadata", () => {
-      video.currentTime = Math.min(into, video.duration || into);
-      broadcast();
-    }, { once: true });
-    video.src = clip;
-  } else {
-    video.currentTime = Math.min(into, video.duration || into);
-  }
-  broadcast();
+  const title = name(shot.shot), time = `${seconds(ms)} · ${seconds(ms - shot.start_ms)} into the shot`;
+  if (!clip) return screen({ title, time, slate: "This shot was never captured. Capture records it.", missing: true });
+  screen({ title, time, clip, at: (ms - shot.start_ms) / 1000, paused: true });
 }
 
 // ---- Retakes: the lines reworded since their takes, recorded again -----
@@ -311,7 +271,7 @@ function scrub(ms) {
 const staleLines = () => (voiced ? [] : script.lines.flatMap((line, l) => (line.stale ? [l] : [])));
 
 function retake() {
-  if (voiced || listening || paused || counting || retakes) return;
+  if (voiced || busy() || retakes) return;
   const due = staleLines();
   if (due.length === 0) return toast("No line has been reworded since its take");
   retakes = { lines: due, at: 0 };

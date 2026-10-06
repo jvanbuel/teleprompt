@@ -2,7 +2,7 @@
 
 async function loadScript(given = null) {
   if (editing) endReword(false);
-  script = given ?? await (await fetch(`${API}/script`)).json();
+  script = given ?? await getScript();
   voiced = !!script.voice && !script.voice.listens;
   if (script.name) { $("title").textContent = script.name; document.title = script.name; }
   const root = $("script");
@@ -10,14 +10,12 @@ async function loadScript(given = null) {
   $("rundown").replaceChildren();
   shots = new Map();
   words = script.lines.map(({ text }, l) => {
-    const line = document.createElement("div");
-    line.className = "line";
-    line.tabIndex = 0;
+    const line = h("div", { className: "line", tabIndex: 0 });
     line.setAttribute("role", "button");
     const fromHere = () => {
       if (editing || editMode) return;
       if (voiced) return lineClicked(l);
-      if (listening || paused || counting) return status("Keep or discard this take first");
+      if (busy()) return status("Keep or discard this take first");
       take(l);
     };
     line.addEventListener("click", fromHere);
@@ -29,24 +27,17 @@ async function loadScript(given = null) {
         fromHere();
       }
     });
-    const gutter = document.createElement("span");
-    gutter.className = "gutter";
-    const who = document.createElement("span");
-    who.className = "who";
+    const who = h("span", { className: "who" });
     who.setAttribute("aria-hidden", "true");
-    gutter.append(who, String(l + 1));
-    const body = document.createElement("span");
+    const body = h("span");
     const spans = text.split(/\s+/).filter(Boolean).map((w, k) => {
-      const s = document.createElement("span");
-      s.className = "w";
-      s.textContent = w;
-      s.dataset.l = l;
-      s.dataset.w = k;
+      const s = h("span", { className: "w", textContent: w });
+      Object.assign(s.dataset, { l, w: k });
       body.append(s, " ");
       return s;
     });
     line.setAttribute("aria-label", `Line ${l + 1}: ${text}`);
-    line.append(gutter, body);
+    line.append(h("span", { className: "gutter" }, who, String(l + 1)), body);
     root.append(line);
     return spans;
   });
@@ -118,29 +109,21 @@ function offerSaid(quiet = false) {
 
 /** Shows the next line said in other words, to keep what was said or not. */
 function reviewSaid() {
-  if (listening || paused || counting || $("review").open) return;
+  if (busy() || $("review").open) return;
   const l = heardOtherwise();
   if (l === null) return toast("Every line reads as it was said");
   const line = script.lines[l];
   $("review-title").textContent = `Keep what you said on line ${l + 1}?`;
-  $("review-diff").replaceChildren(...line.said_diff.flatMap(({ kind, words }) => {
-    const el = document.createElement(kind === "gone" ? "del" : kind === "new" ? "ins" : "span");
-    el.textContent = words;
-    return [el, " "];
-  }));
+  $("review-diff").replaceChildren(...line.said_diff.flatMap(({ kind, words }) =>
+    [h(kind === "gone" ? "del" : kind === "new" ? "ins" : "span", { textContent: words }), " "]));
   $("review").dataset.line = l;
   $("review").showModal();
 }
 
-$("review-said").addEventListener("click", async () => {
+$("review-said").addEventListener("click", () => {
   const line = script.lines[$("review").dataset.line];
   $("review").close();
-  try {
-    await openSession();
-    ws.send(JSON.stringify({ type: "keep_said", line: line.id }));
-  } catch (e) {
-    status(e.message, true);
-  }
+  withSession(() => ws.send(JSON.stringify({ type: "keep_said", line: line.id })));
 });
 /** Keeping the script, by its button or Escape: not asked again this visit. */
 function keepScript() {
@@ -153,15 +136,12 @@ $("review").addEventListener("cancel", (e) => { e.preventDefault(); keepScript()
 
 /** A diamond in the text where a shot starts, and its row in the rundown. */
 function markShot({ shot, at: cue, clip }) {
-  const marker = document.createElement("span");
-  marker.className = "shot" + (clip ? "" : " missing");
-  marker.textContent = "◆";
+  const marker = h("span", { className: "shot" + (clip ? "" : " missing"), textContent: "◆" });
   const said = words[cue.line]?.[cue.word];
   if (said) said.before(marker);
   else lines[cue.line]?.lastElementChild.append(marker);
-  const row = document.createElement("li");
-  row.innerHTML = `<span class="dot"></span><span></span><span class="where"></span>`;
-  row.children[1].textContent = name(shot);
+  const row = h("li", {}, h("span", { className: "dot" }), h("span", { textContent: name(shot) }),
+    h("span", { className: "where" }));
   $("rundown").append(row);
   shots.set(shot, { clip, marker, row, at: cue });
   rundown();
@@ -189,41 +169,22 @@ function play(ids) {
 }
 
 function next() {
-  const video = $("clip");
   playing = queue.shift() ?? null;
   rundown();
   if (playing === null) return slate();
   const { clip } = shots.get(playing);
-  $("shot-title").textContent = name(playing);
-  if (clip) {
-    $("slate").textContent = "";
-    video.hidden = false;
-    video.src = clip;
-    video.play().catch(() => {});
-  } else {
-    video.hidden = true;
-    $("slate").textContent = "This shot was never captured. Run teleprompt capture to record it.";
-    $("slate").classList.add("missing");
-    const shot = playing;
-    setTimeout(() => { if (playing === shot) next(); }, 2000);
-  }
-  broadcast();
+  if (clip) return screen({ title: name(playing), clip, at: 0 });
+  screen({ title: name(playing), slate: "This shot was never captured. Run teleprompt capture to record it.", missing: true });
+  const shot = playing;
+  setTimeout(() => { if (playing === shot) next(); }, 2000);
 }
 
 /** The monitor with nothing playing: what comes next. */
 function slate() {
-  const video = $("clip");
-  video.pause();
-  video.hidden = true;
-  $("slate").classList.remove("missing");
-  $("shot-title").textContent = "";
-  $("shot-time").textContent = "";
-  $("progress").firstElementChild.style.width = "0";
   const upcoming = [...shots].find(([id, s]) => s.clip && !started.has(id)
     && (s.at.line > at.line || (s.at.line === at.line && s.at.word >= at.word)));
-  $("slate").textContent = upcoming ? `Next: ${name(upcoming[0])}, at line ${upcoming[1].at.line + 1}`
-    : started.size ? "Every shot has played." : "Each shot plays here as your reading reaches it.";
-  broadcast();
+  screen({ slate: upcoming ? `Next: ${name(upcoming[0])}, at line ${upcoming[1].at.line + 1}`
+    : started.size ? "Every shot has played." : "Each shot plays here as your reading reaches it." });
 }
 
 /** Dims what is said and the lines to come, marks the next word, and
@@ -293,7 +254,7 @@ function openSession() {
     socket.onclose = () => {
       if (ws === socket) status("Lost the server. Reload once it is running again.", true);
       ws = null;
-      listening = false;
+      if (takeState === "listening") takeState = "idle";
       keys();
     };
     socket.onmessage = (e) => onMessage(JSON.parse(e.data));
@@ -303,17 +264,16 @@ function openSession() {
 let toastTimer = null;
 /** Says `text` on the glass; with `action`, a button to act on it for longer. */
 function toast(text, action = null) {
-  const el = $("toast");
-  el.replaceChildren(text);
+  const box = $("toast");
+  box.replaceChildren(text);
   if (action) {
-    const button = document.createElement("button");
-    button.textContent = action.label;
-    button.addEventListener("click", () => { el.classList.remove("on"); action.run(); });
-    el.append(button);
+    const button = h("button", { textContent: action.label });
+    button.addEventListener("click", () => { box.classList.remove("on"); action.run(); });
+    box.append(button);
   }
-  el.classList.add("on");
+  box.classList.add("on");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("on"), action ? 8000 : 4000);
+  toastTimer = setTimeout(() => box.classList.remove("on"), action ? 8000 : 4000);
 }
 
 let undoable = false;         // the last take kept lines, which undo puts back
@@ -327,7 +287,7 @@ function lineNames(ids) {
  *  last thing done, what the edit changed. */
 function undo() {
   if (!undoable || editMode) return undoEdit();
-  if (!ws || listening || paused || counting) return;
+  if (!ws || busy()) return;
   undoable = false;
   ws.send(JSON.stringify({ type: "undo" }));
 }
@@ -335,15 +295,14 @@ function undo() {
 /** Ends the take, or the count before it, keeping nothing. */
 function discard() {
   retakes = null;
-  if (counting) {
-    counting = false;
+  if (takeState === "counting") {
+    takeState = "idle";
     status(READY);
     return keys();
   }
-  if (!ws || !(listening || paused)) return;
-  listening = false;
-  paused = false;
-  if (takeSince !== null) { takeTime += performance.now() - takeSince; takeSince = null; }
+  if (!ws || !recording()) return;
+  takeState = "idle";
+  stopClock();
   pending = [];
   ws.send(JSON.stringify({ type: "discard" }));
   level(0);
@@ -356,7 +315,7 @@ async function onMessage(message) {
     play(message.play);
     if (!playing) slate();
     // Re-recording a reworded line: kept once the reader has read it.
-    if (retakes && listening && queuedRead()) keep();
+    if (retakes && takeState === "listening" && queuedRead()) keep();
   } else if (message.type === "stopped") {
     const { saved } = message;
     undoable = saved.length > 0;
@@ -367,7 +326,7 @@ async function onMessage(message) {
       status(`Kept ${lineNames(saved)}. ${MAC ? "⌘Z" : "Ctrl+Z"} puts back what it replaced`);
       toast(`Kept ${lineNames(saved)}`, { label: "Undo", run: undo });
     }
-    markRecorded((await (await fetch(`${API}/script`)).json()).lines);
+    markRecorded((await getScript()).lines);
     offerSaid(undoable);
     if (retakes) retakeNext();
     keys();
@@ -377,15 +336,13 @@ async function onMessage(message) {
   } else if (message.type === "undone") {
     const was = message.lines.length === 1 ? "it was" : "they were";
     const put = message.lines.length ? `Put back ${lineNames(message.lines)} as ${was}` : "Nothing to put back";
-    status(put);
-    toast(put);
-    markRecorded((await (await fetch(`${API}/script`)).json()).lines);
+    say(put);
+    markRecorded((await getScript()).lines);
     keys();
   } else if (message.type === "kept_said") {
     const l = script.lines.findIndex((line) => line.id === message.line);
     await loadScript();
-    status(`Line ${l + 1} now reads as you said it`);
-    toast(`Line ${l + 1} now reads as you said it`);
+    say(`Line ${l + 1} now reads as you said it`);
     keys();
   } else if (message.type === "edited") {
     const said = lastEdit ?? "Edited";
@@ -401,8 +358,7 @@ async function onMessage(message) {
   } else if (message.type === "edit_undone") {
     undoEdits = Math.max(0, undoEdits - 1);
     await loadScript();
-    toast("Undone");
-    status("Undone");
+    say("Undone");
     voiceStatus();
     voiceUnmade();
     keys();
@@ -437,7 +393,7 @@ async function openMic() {
   await ctx.audioWorklet.addModule(url);
   const tap = new AudioWorkletNode(ctx, "tap");
   tap.port.onmessage = (e) => {
-    if (!listening) return;
+    if (takeState !== "listening") return;
     let power = 0;
     for (const v of e.data) { pending.push(v); power += v * v; }
     level(Math.sqrt(power / e.data.length));
@@ -454,7 +410,7 @@ function level(rms) {
 /** A new take from line `from`, after a count of three; the server drops
  *  any take not kept. */
 async function take(from = 0) {
-  if (counting) return;
+  if (takeState === "counting") return;
   if (editMode) setEdit(false);
   halt();
   try {
@@ -464,8 +420,7 @@ async function take(from = 0) {
     status(e.name === "NotAllowedError" ? "The browser may not use the microphone: allow it for this page." : e.message, true);
     return;
   }
-  listening = false;
-  paused = false;
+  takeState = "idle";
   undoable = false;
   pending = [];
   queue = [];
@@ -474,7 +429,7 @@ async function take(from = 0) {
   show({ line: from, word: 0 });
   rundown();
   slate();
-  counting = true;
+  takeState = "counting";
   const what = retakes ? `Re-recording ${retakes.at + 1} of ${retakes.lines.length}: line ${from + 1}`
     : `Recording from line ${from + 1}`;
   status(`${what} in…`);
@@ -483,13 +438,12 @@ async function take(from = 0) {
     $("countdown").textContent = n;
     $("countdown").classList.add("on");
     await new Promise((r) => setTimeout(r, COUNT_MS));
-    if (!counting) break;
+    if (takeState !== "counting") break;
   }
   $("countdown").classList.remove("on");
-  if (!counting) return;
-  counting = false;
+  if (takeState !== "counting") return;
   ws.send(JSON.stringify({ type: "start", from, rate }));
-  listening = true;
+  takeState = "listening";
   takeTime = 0;
   takeSince = performance.now();
   status(what);
@@ -498,16 +452,15 @@ async function take(from = 0) {
 
 /** Ends the take, keeping the lines read in full. */
 function keep() {
-  if (counting) {
+  if (takeState === "counting") {
     retakes = null;
-    counting = false;
+    takeState = "idle";
     status(READY);
     return keys();
   }
-  if (!ws || !(listening || paused)) return;
-  listening = false;
-  paused = false;
-  if (takeSince !== null) { takeTime += performance.now() - takeSince; takeSince = null; }
+  if (!ws || !recording()) return;
+  takeState = "idle";
+  stopClock();
   send();
   ws.send(JSON.stringify({ type: "stop" }));
   status("Keeping the take…");
@@ -516,12 +469,15 @@ function keep() {
 }
 
 function togglePause() {
-  if (!(listening || paused)) return;
-  paused = !paused;
-  listening = !paused;
-  if (paused) { takeTime += performance.now() - takeSince; takeSince = null; }
-  else takeSince = performance.now();
-  status(paused ? "Paused" : "Recording");
+  if (!recording()) return;
+  if (takeState === "listening") {
+    takeState = "paused";
+    stopClock();
+  } else {
+    takeState = "listening";
+    takeSince = performance.now();
+  }
+  status(takeState === "paused" ? "Paused" : "Recording");
   keys();
 }
 
@@ -577,7 +533,7 @@ document.addEventListener("keydown", (e) => {
 
 function recordOrKeep() {
   if (voiced) playOrStop();
-  else if (listening || paused || counting) keep();
+  else if (busy()) keep();
   else take(at.line < words.length ? at.line : 0);
 }
 

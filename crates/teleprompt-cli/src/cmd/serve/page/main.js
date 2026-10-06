@@ -3,16 +3,46 @@
 const monitorChannel = "BroadcastChannel" in window ? new BroadcastChannel("teleprompt-monitor") : null;
 let popped = false;           // the monitor is in its own window
 
+let shown = {};               // what screen() was last asked to show
+
+/** The monitor showing `title` over `clip` from `at` seconds in (still, if
+ *  `paused`), or over a `slate` that says why there is no picture. */
+function screen({ title = "", time = "", slate = "", missing = false, clip = null, at = null, paused = false }) {
+  shown = { title, slate, missing, clip };
+  $("shot-title").textContent = title;
+  $("shot-time").textContent = time;
+  $("slate").textContent = slate;
+  $("slate").classList.toggle("missing", missing);
+  const video = $("clip");
+  const progress = $("progress").firstElementChild;
+  if (!clip) {
+    video.pause();
+    video.hidden = true;
+    progress.style.width = "0";
+    return broadcast();
+  }
+  video.hidden = false;
+  const seek = () => {
+    const to = Math.min(at, video.duration || at);
+    if (paused ? video.currentTime !== to : Math.abs(video.currentTime - to) > 0.3) video.currentTime = to;
+  };
+  if (video.getAttribute("src") !== clip) {
+    progress.style.width = "0";
+    video.src = clip;
+    if (at) video.addEventListener("loadedmetadata", () => {
+      if (video.getAttribute("src") === clip) seek(), broadcast();
+    }, { once: true });
+  } else if (at !== null) seek();
+  if (paused) video.pause();
+  else video.play().catch(() => {});
+  broadcast();
+}
+
 /** What the monitor shows, for its own window to show too. */
 function broadcast() {
   if (!monitorChannel || VIEW || !popped) return;
   const video = $("clip");
-  monitorChannel.postMessage({
-    title: $("shot-title").textContent, time: $("shot-time").textContent,
-    slate: $("slate").textContent, missing: $("slate").classList.contains("missing"),
-    progress: $("progress").firstElementChild.style.width,
-    clip: video.hidden ? null : video.getAttribute("src"), at: video.currentTime, paused: video.paused,
-  });
+  monitorChannel.postMessage({ ...shown, time: $("shot-time").textContent, at: video.currentTime, paused: video.paused });
 }
 
 function popOut() {
@@ -29,23 +59,7 @@ function showMonitor() {
   document.body.classList.add("monitor-view");
   document.title = "Teleprompt · Screen";
   monitorChannel?.addEventListener("message", ({ data }) => {
-    if (data === "hello") return;
-    $("shot-title").textContent = data.title;
-    $("shot-time").textContent = data.time;
-    $("slate").textContent = data.slate;
-    $("slate").classList.toggle("missing", data.missing);
-    $("progress").firstElementChild.style.width = data.progress;
-    const video = $("clip");
-    if (!data.clip) {
-      video.pause();
-      video.hidden = true;
-      return;
-    }
-    video.hidden = false;
-    if (video.getAttribute("src") !== data.clip) video.src = data.clip;
-    if (Math.abs(video.currentTime - data.at) > 0.3) video.currentTime = data.at;
-    if (data.paused) video.pause();
-    else video.play().catch(() => {});
+    if (data !== "hello") screen(data);
   });
   monitorChannel?.postMessage("hello");
 }
@@ -55,16 +69,16 @@ function showMonitor() {
 /** Looks again at the script between takes: a line reworded or a shot
  *  moved in the author's editor shows here too. */
 async function watch() {
-  const busy = () => document.hidden || listening || paused || counting || editing
+  const away = () => document.hidden || busy() || editing
     || drag || making || voicing || $("panel").open || $("review").open;
-  if (busy()) return;
+  if (away()) return;
   let fresh;
   try {
-    fresh = await (await fetch(`${API}/script`)).json();
+    fresh = await getScript();
   } catch {
     return;
   }
-  if (busy()) return;
+  if (away()) return;
   showBroken(fresh.error);
   const shape = (s) => JSON.stringify([s.lines.map((l) => l.text), s.shots, s.timeline ?? null]);
   if (shape(fresh) === shape(script)) {
@@ -121,8 +135,7 @@ $("larger").addEventListener("click", () => resize(4));
 $("mirror").addEventListener("click", mirror);
 $("keys-help").addEventListener("click", () => $("help").showModal());
 
-$("record").addEventListener("click", () =>
-  voiced ? playOrStop() : listening || paused || counting ? keep() : take(at.line < words.length ? at.line : 0));
+$("record").addEventListener("click", recordOrKeep);
 $("edit").addEventListener("click", () => setEdit(!editMode));
 $("video").addEventListener("click", playOrStop);
 $("capture").addEventListener("click", () => make("capture"));
@@ -146,9 +159,9 @@ $("clip").addEventListener("timeupdate", (e) => {
 });
 /** The first line and the last can both reach the reading line. */
 function margins() {
-  const h = $("scroller").clientHeight;
-  $("script").style.paddingTop = `${h * READING}px`;
-  $("script").style.paddingBottom = `${h * (1 - READING)}px`;
+  const height = $("scroller").clientHeight;
+  $("script").style.paddingTop = `${height * READING}px`;
+  $("script").style.paddingBottom = `${height * (1 - READING)}px`;
   glide();
   drawRibbons();
 }
@@ -160,9 +173,7 @@ if (VIEW === "monitor") {
     // Only the clip that should be on screen; a load cut short is no error.
     const clip = playing && shots.get(playing)?.clip;
     if (!clip || !e.target.src.endsWith(clip)) return;
-    e.target.hidden = true;
-    $("slate").textContent = "This browser cannot play the clip. Chrome, Edge and Safari can.";
-    $("slate").classList.add("missing");
+    screen({ title: name(playing), slate: "This browser cannot play the clip. Chrome, Edge and Safari can.", missing: true });
   });
   // A monitor window just opened asks what to show.
   monitorChannel?.addEventListener("message", ({ data }) => {

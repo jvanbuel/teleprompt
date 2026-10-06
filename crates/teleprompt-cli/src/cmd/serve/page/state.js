@@ -9,6 +9,14 @@ const GLIDE = 0.22;          // how quickly the text settles on it, in seconds
 const COUNT_MS = 650;        // one beat of the count before a take
 const $ = (id) => document.getElementById(id);
 
+/** An element: `tag` with `props` set on it (className, textContent…),
+ *  and `children` in it. */
+function h(tag, props = {}, ...children) {
+  const made = Object.assign(document.createElement(tag), props);
+  made.append(...children);
+  return made;
+}
+
 let script = { lines: [], shots: [] };
 let words = [];              // per line, the word spans, split as the server splits
 let lines = [];              // the line elements
@@ -17,7 +25,10 @@ let queue = [];              // shots to play after the one playing
 let playing = null;
 let started = new Set();     // shots started this take
 let at = { line: 0, word: 0 };
-let listening = false, paused = false, counting = false;
+// Where a take is: "idle", "counting" down to it, "listening" or "paused".
+let takeState = "idle";
+const busy = () => takeState !== "idle";
+const recording = () => takeState === "listening" || takeState === "paused";
 let pending = [];            // samples not yet sent, at the microphone's rate
 let rate = 0;                // the microphone's rate, once it is open
 let ws = null;               // the session socket, once open
@@ -49,6 +60,36 @@ function status(text, bad = false) {
   $("status").classList.toggle("bad", bad);
 }
 
+/** `text` in the status line and a toast both. */
+function say(text) {
+  status(text);
+  toast(text);
+}
+
+/** The status line with nothing under way: who reads, or how to start. */
+function idle() {
+  if (voiced) voiceStatus();
+  else status(READY);
+}
+
+/** The script as the server has it now. */
+const getScript = async () => (await fetch(`${API}/script`)).json();
+
+/** Runs `send` once the session socket is open, or says why it cannot be. */
+async function withSession(send) {
+  try {
+    await openSession();
+  } catch (e) {
+    return status(e.message, true);
+  }
+  send();
+}
+
+/** Stops the take's clock, keeping the time it ran. */
+function stopClock() {
+  if (takeSince !== null) { takeTime += performance.now() - takeSince; takeSince = null; }
+}
+
 /** Starts and stops recording: ⌘⇧Space on a Mac, Ctrl+Shift+Space elsewhere. */
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 // What to do first, in the terms of the device: a phone has no keys.
@@ -65,19 +106,13 @@ function keys() {
     : reading ? [[voiced ? "Space" : "V", "Stop"], ["← →", "5 s"], ["Esc", "Stop"]]
     : editMode ? [["Drag", "Move a shot"], [MAC ? "⌘Z" : "Ctrl Z", "Undo"], ["E", "Done"]]
     : voiced ? [["Space", "Play"], ["Click", "Direct a line"], ["F2", "Reword"], ["M", "Mirror"]]
-    : counting ? [["Esc", "Cancel"]]
-    : paused ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Resume"]]
-    : listening ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Pause"]]
+    : takeState === "counting" ? [["Esc", "Cancel"]]
+    : takeState === "paused" ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Resume"]]
+    : takeState === "listening" ? [[RECORD_KEY, "Keep take"], ["Esc", "Discard"], ["P", "Pause"]]
     : heardOtherwise() !== null ? [[RECORD_KEY, "Record"], ["W", "Review"], ...retake]
     : [[RECORD_KEY, "Record"], ...retake, ["V", "Play video"]];
-  $("keys").replaceChildren(...pairs.map(([k, action]) => {
-    const pair = document.createElement("span");
-    const kbd = document.createElement("kbd");
-    kbd.textContent = k;
-    pair.append(kbd, action);
-    return pair;
-  }));
-  const taking = listening || paused || counting;
+  $("keys").replaceChildren(...pairs.map(([k, action]) => h("span", {}, h("kbd", { textContent: k }), action)));
+  const taking = busy(), onAir = takeState === "listening";
   for (const job of ["capture", "build"]) {
     $(job).disabled = !!making || taking || !!reading;
     $(job).textContent = making === job ? (job === "build" ? "Building…" : "Capturing…")
@@ -90,16 +125,16 @@ function keys() {
   $("edit").setAttribute("aria-pressed", editMode);
   document.body.classList.toggle("editing", editMode);
   $("record").textContent = voiced ? (reading ? "Stop" : "Play")
-    : counting ? "Cancel" : taking ? "Keep take" : "Record";
+    : takeState === "counting" ? "Cancel" : taking ? "Keep take" : "Record";
   $("record").title = voiced ? "Read aloud from the line you are on, or stop (Space)"
     : "Record from the line you are on";
   document.body.classList.toggle("voiced", voiced);
   document.body.classList.toggle("reading", !!reading);
-  $("record").classList.toggle("keep", listening || paused);
-  for (const el of [$("tally"), $("timecode")]) el.classList.toggle("on-air", listening);
-  $("tally").setAttribute("aria-label", listening ? "On air" : paused ? "Paused" : "Off air");
-  document.body.classList.toggle("on-air", listening);
-  document.body.classList.toggle("paused", paused);
+  $("record").classList.toggle("keep", recording());
+  for (const el of [$("tally"), $("timecode")]) el.classList.toggle("on-air", onAir);
+  $("tally").setAttribute("aria-label", onAir ? "On air" : takeState === "paused" ? "Paused" : "Off air");
+  document.body.classList.toggle("on-air", onAir);
+  document.body.classList.toggle("paused", takeState === "paused");
 }
 
 function name(shot) { return shot.replace(/#0$/, ""); }

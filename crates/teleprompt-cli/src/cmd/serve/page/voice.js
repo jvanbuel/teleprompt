@@ -27,7 +27,7 @@ function voiceStatus() {
 /** The script's lines again, for which the voice has made; the whole
  *  script if its words changed. */
 async function refreshLines() {
-  const fresh = await (await fetch(`${API}/script`)).json();
+  const fresh = await getScript();
   const same = fresh.lines.length === script.lines.length
     && fresh.lines.every((l, i) => l.text === script.lines[i].text);
   if (!same && !reading && !editing) return loadScript();
@@ -130,7 +130,7 @@ function markMoved() {
 
 /** Plays the video from `fromMs`, to `untilMs` or its end. */
 async function playVideo(fromMs, untilMs = null) {
-  if (listening || paused || counting || editing) return;
+  if (busy() || editing) return;
   halt();
   $("panel").close();
   const mine = reading = { until: untilMs, since: performance.now(), nodes: [], shot: undefined };
@@ -197,27 +197,17 @@ function screenAt(t) {
     reading.shot = id;
     playing = id;
     rundown();
-    $("progress").firstElementChild.style.width = "0";
-    $("shot-time").textContent = "";
-    $("slate").classList.remove("missing");
     const clip = id && shots.get(id)?.clip;
     if (!shot || shot.scene === "pause" || !clip) {
-      video.pause();
-      video.hidden = true;
-      $("shot-title").textContent = id ? name(id) : "";
-      $("slate").textContent = !shot ? "No picture at this point"
-        : shot.scene === "pause" ? `Holding for ${seconds(shot.duration_ms)}`
-        : "This shot was never captured. Capture records it.";
-      $("slate").classList.toggle("missing", !!shot && shot.scene !== "pause" && !clip);
-      return broadcast();
+      return screen({
+        title: id ? name(id) : "",
+        slate: !shot ? "No picture at this point"
+          : shot.scene === "pause" ? `Holding for ${seconds(shot.duration_ms)}`
+          : "This shot was never captured. Capture records it.",
+        missing: !!shot && shot.scene !== "pause" && !clip,
+      });
     }
-    $("shot-title").textContent = name(id);
-    $("slate").textContent = "";
-    video.hidden = false;
-    video.src = clip;
-    video.currentTime = (t - shot.start_ms) / 1000;
-    video.play().catch(() => {});
-    return broadcast();
+    return screen({ title: name(id), clip, at: (t - shot.start_ms) / 1000 });
   }
   // A clip that has drifted from the clock is put back on it.
   if (shot && !video.hidden && !video.seeking && Math.abs(video.currentTime * 1000 - (t - shot.start_ms)) > 300) {
@@ -245,7 +235,7 @@ function stopReading(why = null, bad = false) {
 }
 
 function playOrStop() {
-  if (editing || listening || paused || counting) return;
+  if (editing || busy()) return;
   if (reading) return stopReading();
   readFrom(at.line < words.length ? at.line : 0);
 }
@@ -332,27 +322,19 @@ document.addEventListener("pointerdown", (e) => {
 });
 
 /** Sends `edit` over the session socket, to be said as `said` once made. */
-async function sendEdit(edit, said) {
-  try {
-    await openSession();
-  } catch (e) {
-    return status(e.message, true);
-  }
-  lastEdit = said;
-  undoable = false;
-  ws.send(JSON.stringify(edit));
+function sendEdit(edit, said) {
+  return withSession(() => {
+    lastEdit = said;
+    undoable = false;
+    ws.send(JSON.stringify(edit));
+  });
 }
 
 /** Puts back what the last edit changed: the server keeps the script as
  *  it was before each. */
-async function undoEdit() {
-  if (undoEdits === 0 || editing || listening || paused || counting) return;
-  try {
-    await openSession();
-  } catch (e) {
-    return status(e.message, true);
-  }
-  ws.send(JSON.stringify({ type: "undo_edit" }));
+function undoEdit() {
+  if (undoEdits === 0 || editing || busy()) return;
+  return withSession(() => ws.send(JSON.stringify({ type: "undo_edit" })));
 }
 
 /** Line `l`'s words become editable where they stand: Enter keeps them,
@@ -360,15 +342,13 @@ async function undoEdit() {
  *  glass, which reads backwards. */
 function reword(l) {
   if (editing || !lines[l]) return;
-  if (listening || paused || counting) return status("Keep or discard this take first");
+  if (busy()) return status("Keep or discard this take first");
   if (document.body.classList.contains("mirrored")) return status("Mirrored text cannot be edited: M turns mirroring off");
   halt();
   $("panel").close();
   show({ line: l, word: 0 });
   const body = lines[l].children[1];
-  const editor = document.createElement("textarea");
-  editor.className = "line-editor";
-  editor.value = script.lines[l].text;
+  const editor = h("textarea", { className: "line-editor", value: script.lines[l].text });
   editor.setAttribute("aria-label", `Line ${l + 1}`);
   const fit = () => { editor.style.height = "auto"; editor.style.height = `${editor.scrollHeight}px`; };
   editor.addEventListener("input", fit);
@@ -399,8 +379,7 @@ function endReword(keepIt) {
   if (keepIt && text && text !== line.text) {
     sendEdit({ type: "reword", line: line.id, text }, `Reworded line ${l + 1}`);
   }
-  if (voiced) voiceStatus();
-  else status(READY);
+  idle();
   keys();
 }
 
