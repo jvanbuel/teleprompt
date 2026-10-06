@@ -73,14 +73,7 @@ impl Platform {
 /// Where `setup` unpacks models, and where commands look for them:
 /// `$TELEPROMPT_MODELS`, or `teleprompt/models` in the user's data directory.
 pub fn models_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("TELEPROMPT_MODELS") {
-        return PathBuf::from(dir);
-    }
-    let data = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    data.join("teleprompt/models")
+    teleprompt_plugin::dirs::data("TELEPROMPT_MODELS", "models")
 }
 
 fn on_path(program: &str) -> bool {

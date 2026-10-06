@@ -11,6 +11,9 @@ serde.workspace = true
 serde_json.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
 thiserror.workspace = true
+# Where teleprompt keeps per-user data: the XDG base directories, and
+# Windows' known folders there.
+etcetera = "0.10"
 
 [dev-dependencies]
 teleprompt-testkit = { path = "../teleprompt-testkit" }

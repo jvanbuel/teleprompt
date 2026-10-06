@@ -16,6 +16,7 @@
 //! speech API (`teleprompt-voice`). Nothing here knows any plugin by name.
 
 pub mod capture;
+pub mod dirs;
 pub mod protocol;
 pub mod record;
 pub mod scene;

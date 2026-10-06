@@ -29,14 +29,7 @@ pub struct Found {
 /// Where plugins are installed when not on PATH: `$TELEPROMPT_PLUGINS`, or
 /// `teleprompt/plugins` in the user's data directory.
 pub fn plugins_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("TELEPROMPT_PLUGINS") {
-        return PathBuf::from(dir);
-    }
-    let data = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    data.join("teleprompt/plugins")
+    crate::dirs::data("TELEPROMPT_PLUGINS", "plugins")
 }
 
 /// Every plugin in the plugins directory and on PATH, by its executable's

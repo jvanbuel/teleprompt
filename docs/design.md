@@ -932,7 +932,8 @@ a video needs comes in three tiers.
    `teleprompt setup <plugin or tool>` says how to install each with the author's own package manager, and its license, and runs
    that command when asked (`--run`). Models go in
    `$TELEPROMPT_MODELS`, by default `teleprompt/models` in the user's data
-   directory, where `serve`, `record` and `import` look when no
+   directory (`$XDG_DATA_HOME`, else `~/.local/share`, on Linux and macOS
+   alike; `%APPDATA%` on Windows), where `serve`, `record` and `import` look when no
    `--model` is given. What the author's own project holds, a Remotion
    project or a Kokoro server, `setup` explains rather than installs.
    `setup` is organised by use (render, terminal, browser, prompt,
