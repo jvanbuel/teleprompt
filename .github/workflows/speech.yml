@@ -9,8 +9,7 @@ on:
       - crates/teleprompt-listen/**
       - crates/teleprompt-listen-sherpa/**
       - crates/teleprompt-derive/**
-      - crates/teleprompt-cli/src/cmd/import*
-      - crates/teleprompt-cli/src/cmd/record*
+      - crates/teleprompt/src/draft/**
       - crates/teleprompt-cli/tests/import*
       - crates/teleprompt-cli/tests/record*
       - .github/workflows/speech.yml
@@ -19,8 +18,7 @@ on:
       - crates/teleprompt-listen/**
       - crates/teleprompt-listen-sherpa/**
       - crates/teleprompt-derive/**
-      - crates/teleprompt-cli/src/cmd/import*
-      - crates/teleprompt-cli/src/cmd/record*
+      - crates/teleprompt/src/draft/**
       - crates/teleprompt-cli/tests/import*
       - crates/teleprompt-cli/tests/record*
       - .github/workflows/speech.yml
@@ -88,6 +86,6 @@ jobs:
           TELEPROMPT_PUNCT_MODEL: ${{ github.workspace }}/model/${{ env.PUNCT }}
         run: |
           cargo clippy -p teleprompt-listen-sherpa --features sherpa --all-targets -- -D warnings
-          cargo clippy -p teleprompt-cli --features listen --all-targets -- -D warnings
+          cargo clippy -p teleprompt -p teleprompt-cli --features listen --all-targets -- -D warnings
           cargo test -p teleprompt-listen-sherpa --features sherpa
           cargo test -p teleprompt-cli --features listen --test import_listen --test record_listen --test record

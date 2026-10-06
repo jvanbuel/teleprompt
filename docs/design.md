@@ -179,11 +179,12 @@ reading the manifest it just published.
 | `teleprompt-listen-sherpa` | the recognizer, a streaming sherpa-onnx model; empty without its opt-in `sherpa` feature, so the default build stays offline |
 | `teleprompt-derive` | drafting a script: from a recorded session (when each step began and timed words in, lines and the blocks between them out), a Markdown document, a Slidev deck's notes, or a conversation's transcript. Pure: no IO |
 | `teleprompt-translate` | translation providers for `translate`, chosen by name: a local model through Ollama (the default), any OpenAI-compatible server, Claude, and a command of the author's; the request each is sent and the prompt the model-backed ones share |
-| `teleprompt-lsp` | the language server: the protocol, positions and completion; what a script compiles to comes from an `Analyzer` the CLI implements, so it depends on core alone |
+| `teleprompt-lsp` | the language server: the protocol, positions and completion; what a script compiles to comes from an `Analyzer` the engine implements, so it depends on core alone |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per scene plugin, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `plugin()` |
 | `teleprompt-desktop` | the desktop scene plugins, `x11` and `macos`: one action language and scene compiler, the runner that plays a session's shots against a window and cuts them where they began, and a module per platform (the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation), each recording with ffmpeg |
-| `teleprompt-cli` | the `teleprompt` binary, and the registries every scene plugin and voice is composed into; its `prompter` module is the prompter's `Session`, which `serve` serves |
+| `teleprompt` | the engine: the registries every scene plugin and voice is composed into, a project's `Script` and what is done with it (`check`, `plan`, `Dubber`, `Scenes`, `Builder`, edits, translation), the drafts `import` and `record` make, and `serve`, whose `prompter` module is the prompter's `Session`. It prints only progress, and asks nothing itself: a front end registers how to offer a missing model |
+| `teleprompt-cli` | the `teleprompt` binary over the engine: each command's flags, its report in either format, exit codes, and the questions it asks at a terminal |
 
 `schedule`, `plugin` and `manifest` depend on `core` alone, and not on
 one another. Anything that needs two of them belongs in `compile`.

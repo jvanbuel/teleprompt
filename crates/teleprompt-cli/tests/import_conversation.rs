@@ -1,8 +1,8 @@
 //! `import` with the conversation's recording: each line speaks its stretch
 //! of it, in its speaker's own voice, until it is reworded.
 
-use teleprompt_cli::cmd::draft::document::{run_document, Audio, Reading};
-use teleprompt_cli::project::Project;
+use teleprompt::draft::document::{run_document, Audio, Reading};
+use teleprompt::project::Project;
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
@@ -34,7 +34,7 @@ fn seconds(pcm: &Pcm) -> Vec<i16> {
 #[test]
 fn each_line_is_given_its_stretch_of_the_recording() {
     let dir = teleprompt_testkit::test_dir("from-conversation");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let doc = dir.join("talk.vtt");
     std::fs::write(&doc, VTT).unwrap();
     let audio = dir.join("talk.wav");
@@ -64,7 +64,7 @@ fn each_line_is_given_its_stretch_of_the_recording() {
 #[test]
 fn a_transcript_with_no_times_cannot_be_heard() {
     let dir = teleprompt_testkit::test_dir("from-untimed");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let doc = dir.join("talk.txt");
     std::fs::write(&doc, "Ada: Hello.\n\nCharles: Hi.\n").unwrap();
     let audio = dir.join("talk.wav");
@@ -82,7 +82,7 @@ fn a_transcript_with_no_times_cannot_be_heard() {
 #[test]
 fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
     let dir = teleprompt_testkit::test_dir("from-revoice");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let doc = dir.join("talk.vtt");
     std::fs::write(&doc, VTT).unwrap();
     let audio = dir.join("talk.wav");
@@ -122,7 +122,7 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
 #[test]
 fn a_recording_needs_the_listening_build() {
     let dir = teleprompt_testkit::test_dir("from-recording");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let doc = dir.join("talk.wav");
     std::fs::write(&doc, wav::encode(&recording())).unwrap();
     let script = dir.join("scripts/talk.md");
@@ -142,7 +142,7 @@ fn a_recording_needs_the_listening_build() {
 #[test]
 fn a_corrected_line_keeps_its_take_when_told_to() {
     let dir = teleprompt_testkit::test_dir("from-keep");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let doc = dir.join("talk.vtt");
     std::fs::write(&doc, VTT).unwrap();
     let audio = dir.join("talk.wav");

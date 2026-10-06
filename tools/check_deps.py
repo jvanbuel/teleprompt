@@ -56,10 +56,14 @@ ALLOWED = {
     "derive": {"core", "listen"},
     "listen-sherpa": {"listen"},
     # The protocol and the text; the compile reaches it through a trait
-    # the CLI implements.
+    # the engine implements.
     "lsp": {"core"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
-    "cli": None,  # the composition root: may depend on anything
+    # The engine, where every scene plugin and voice is composed: may
+    # depend on anything.
+    "teleprompt": None,
+    # The command line over the engine, and the types its flags name.
+    "cli": {"teleprompt", "core", "plugin", "render", "listen-sherpa"},
 }
 
 PREFIX = "teleprompt-"

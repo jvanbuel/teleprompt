@@ -20,7 +20,7 @@ Deploying is one command. {#deploy}
 
 fn project(tag: &str) -> teleprompt_testkit::TestDir {
     let dir = teleprompt_testkit::test_dir(&format!("locale-{tag}"));
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/tour.md"), SCRIPT).unwrap();
     dir
 }
@@ -149,7 +149,7 @@ fn check_lints_the_translation() {
 fn an_english_take_is_not_spoken_in_a_translation() {
     let dir = project("takes");
     std::fs::write(dir.join("scripts/tour.nl.yaml"), dutch(false)).unwrap();
-    let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
+    let project = teleprompt::project::Project::discover(&dir).unwrap();
     let mut takes = teleprompt_voice::takes::Takes::load(&project.takes_dir()).unwrap();
     let pcm = teleprompt_voice::Pcm {
         sample_rate: 24_000,

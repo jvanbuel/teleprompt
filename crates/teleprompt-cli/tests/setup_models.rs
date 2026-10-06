@@ -8,7 +8,7 @@ const SPEECH: &str = "sherpa-onnx-streaming-zipformer-en-2023-06-26";
 
 fn tp(models: &std::path::Path, args: &[&str]) -> Output {
     let dir = teleprompt_testkit::test_dir("setup-models-project");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(&dir)
         .env("TELEPROMPT_MODELS", models)

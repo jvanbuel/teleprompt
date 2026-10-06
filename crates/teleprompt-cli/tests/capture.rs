@@ -8,9 +8,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use teleprompt_cli::cmd::build::Builder;
-use teleprompt_cli::project::Project;
-use teleprompt_cli::project::Script;
+use teleprompt::build::Builder;
+use teleprompt::project::Project;
+use teleprompt::project::Script;
 
 const SCRIPT: &str = "\
 ---
@@ -51,7 +51,7 @@ fn have_ffmpeg() -> bool {
 
 fn project(name: &str) -> (teleprompt_testkit::TestDir, PathBuf) {
     let dir = teleprompt_testkit::test_dir(&format!("capture-e2e-{name}"));
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, SCRIPT).unwrap();
     (dir, script)

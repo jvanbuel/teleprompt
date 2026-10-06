@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-use teleprompt_cli::cmd::setup::{resolve, tools, Manager, Platform};
+use teleprompt::setup::{resolve, tools, Manager, Platform};
 
 fn mac() -> Platform {
     Platform::new("macos", &[Manager::Brew])
@@ -65,8 +65,8 @@ fn an_plugin_names_the_tools_it_runs() {
 /// tools `setup` knows.
 #[test]
 fn every_plugin_needs_only_tools_setup_knows() {
-    for plugin in teleprompt_cli::scene::plugins().names() {
-        let needs = teleprompt_cli::scene::needs(plugin).unwrap();
+    for plugin in teleprompt::scene::plugins().names() {
+        let needs = teleprompt::scene::needs(plugin).unwrap();
         assert!(!needs.is_empty(), "{plugin}");
         resolve(&[plugin.to_string()]).unwrap();
     }
@@ -249,14 +249,14 @@ fn gemini_is_explained_as_a_service() {
 /// takes too: `setup conversations` is the models a recording needs.
 #[test]
 fn every_goal_is_a_name_setup_takes() {
-    use teleprompt_cli::cmd::setup::GOALS;
+    use teleprompt::setup::GOALS;
     for goal in GOALS {
         let tools =
             resolve(&[goal.name.to_string()]).unwrap_or_else(|e| panic!("{}: {e}", goal.name));
         assert!(!tools.is_empty(), "{}", goal.name);
         // A goal is not also a tool's name, which it would hide.
         assert!(
-            teleprompt_cli::cmd::setup::tools()
+            teleprompt::setup::tools()
                 .iter()
                 .all(|t| t.name != goal.name),
             "{}",
@@ -274,7 +274,7 @@ fn every_goal_is_a_name_setup_takes() {
 /// every build.
 #[test]
 fn only_listening_goals_need_the_speech_models() {
-    use teleprompt_cli::cmd::setup::{download_mb, GOALS};
+    use teleprompt::setup::{download_mb, GOALS};
     for goal in GOALS {
         let tools = resolve(&[goal.name.to_string()]).unwrap();
         let models = tools.iter().any(|t| download_mb(t.name).is_some());

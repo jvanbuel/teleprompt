@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-use teleprompt_cli::project::Project;
+use teleprompt::project::Project;
 
 const SCRIPT: &str = "\
 # Quick start
@@ -17,7 +17,7 @@ fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
 /// `commands.rs::project_with`. Returns the project root.
 fn project_with(tag: &str, script: &str) -> teleprompt_testkit::TestDir {
     let dir = tempdir(tag);
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
     Project::discover(&dir).unwrap();
     dir

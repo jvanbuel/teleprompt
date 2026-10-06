@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use teleprompt_cli::cmd::cache;
+use teleprompt::cache;
 
 /// A cache entry of `bytes` bytes, last used `age` ago.
 fn entry(dir: &Path, name: &str, bytes: usize, age: Duration) -> PathBuf {

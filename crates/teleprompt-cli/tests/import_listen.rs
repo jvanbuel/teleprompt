@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use teleprompt_cli::cmd::draft::import::{run_import, Import, Words};
+use teleprompt::draft::import::{run_import, Import, Words};
 use teleprompt_voice::{wav, Pcm};
 
 fn model() -> Option<PathBuf> {
@@ -24,7 +24,7 @@ fn a_spoken_session_becomes_two_lines_and_a_block_between() {
         return;
     };
     let dir = teleprompt_testkit::test_dir("import-listen");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
 
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../teleprompt-listen-sherpa/tests/fixtures/two-lines.wav");

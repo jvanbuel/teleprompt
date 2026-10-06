@@ -31,7 +31,7 @@ fn voiced(tag: &str) -> Served {
 /// [`voiced`], prompting `scripts/<name>`, written as `source` if given.
 fn voiced_script(tag: &str, name: &str, source: Option<&str>) -> Served {
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     if let Some(source) = source {
         std::fs::write(dir.join("scripts").join(name), source).unwrap();
     }

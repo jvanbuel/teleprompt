@@ -8,7 +8,7 @@
 //! saying the scene plugin `vhs` is not available, on a build that ships
 //! one.
 
-use teleprompt_cli::scene::plugins;
+use teleprompt::scene::plugins;
 use teleprompt_core::SpanMs;
 
 #[test]
@@ -54,11 +54,11 @@ fn an_unknown_plugin_is_not_served() {
 /// is a frozen frame.
 #[tokio::test]
 async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
-    use teleprompt_cli::project::Project;
+    use teleprompt::project::Project;
     use teleprompt_plugin::scene::Measured;
 
     let dir = teleprompt_testkit::test_dir("stretch");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/stretch.md");
     std::fs::write(
         &script,
@@ -123,7 +123,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
 #[test]
 fn a_scene_reads_its_files_from_the_project() {
     let dir = teleprompt_testkit::test_dir("scene-paths");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
         "[locales]\nsource = \"en\"\n\n[scene.media]\ndir = \"pictures\"\n",
@@ -136,7 +136,7 @@ fn a_scene_reads_its_files_from_the_project() {
     )
     .unwrap();
     let key = || {
-        let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
+        let project = teleprompt::project::Project::discover(&dir).unwrap();
         let compiled = project
             .script(dir.join("scripts/pics.md"), "en")
             .compile()

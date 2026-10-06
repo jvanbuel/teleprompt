@@ -2004,24 +2004,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "teleprompt-asciinema"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "teleprompt-core",
- "teleprompt-plugin",
-]
-
-[[package]]
-name = "teleprompt-cli"
+name = "teleprompt"
 version = "0.1.0"
 dependencies = [
  "axum",
- "base64",
- "clap",
  "futures-util",
- "inquire",
- "insta",
  "portable-pty",
  "serde",
  "serde_json",
@@ -2052,6 +2039,43 @@ dependencies = [
  "teleprompt-voice-gemini",
  "teleprompt-voice-openai",
  "teleprompt-voice-voicebox",
+ "tokio",
+]
+
+[[package]]
+name = "teleprompt-asciinema"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "teleprompt-core",
+ "teleprompt-plugin",
+]
+
+[[package]]
+name = "teleprompt-cli"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "clap",
+ "inquire",
+ "insta",
+ "portable-pty",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "teleprompt",
+ "teleprompt-asciinema",
+ "teleprompt-compile",
+ "teleprompt-core",
+ "teleprompt-derive",
+ "teleprompt-listen",
+ "teleprompt-listen-sherpa",
+ "teleprompt-manifest",
+ "teleprompt-plugin",
+ "teleprompt-render",
+ "teleprompt-schedule",
+ "teleprompt-testkit",
+ "teleprompt-voice",
  "tempfile",
  "tokio",
  "tungstenite 0.27.0",

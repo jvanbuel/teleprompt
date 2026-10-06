@@ -23,7 +23,7 @@ fn action_ms(root: &Path, item: usize) -> u64 {
 #[test]
 fn a_stretch_lengthens_the_shot_in_the_plan() {
     let dir = teleprompt_testkit::test_dir("edit-stretch");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     assert_eq!(action_ms(&dir, 0), 500);
     let out = tp(
         &dir,
@@ -49,7 +49,7 @@ fn a_stretch_lengthens_the_shot_in_the_plan() {
 #[test]
 fn a_cue_starts_the_shot_on_its_word() {
     let dir = teleprompt_testkit::test_dir("edit-cue");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let out = tp(
         &dir,
         &["edit", "scripts/demo.md", "cue", "welcome-a", "--word", "4"],
@@ -70,7 +70,7 @@ fn a_cue_starts_the_shot_on_its_word() {
 #[test]
 fn an_edit_that_breaks_the_script_is_not_written() {
     let dir = teleprompt_testkit::test_dir("edit-refused");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let before = std::fs::read_to_string(dir.join("scripts/demo.md")).unwrap();
     let out = tp(
         &dir,
@@ -98,7 +98,7 @@ fn an_edit_that_breaks_the_script_is_not_written() {
 #[test]
 fn said_rewords_a_line_to_what_its_take_says() {
     let dir = teleprompt_testkit::test_dir("edit-said");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let text = "Welcome to teleprompt. This paragraph is a narration line, and its spoken \
                 length decides how long the visuals below stay on screen.";
     let pcm = teleprompt_voice::Pcm {
@@ -140,7 +140,7 @@ fn said_rewords_a_line_to_what_its_take_says() {
 #[test]
 fn a_refused_edit_lists_its_reasons_and_leaves_no_file() {
     let dir = teleprompt_testkit::test_dir("edit-refused-json");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let args = [
         "--format",
         "json",
@@ -172,7 +172,7 @@ fn a_refused_edit_lists_its_reasons_and_leaves_no_file() {
 #[test]
 fn an_edit_of_an_unknown_block_is_invalid() {
     let dir = teleprompt_testkit::test_dir("edit-unknown");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let out = tp(&dir, &["edit", "scripts/demo.md", "hold", "no-such-block"]);
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&out.stderr).contains("no-such-block"));
@@ -185,7 +185,7 @@ fn an_edit_of_an_unknown_block_is_invalid() {
 fn an_edit_writes_through_a_link_and_keeps_the_mode() {
     use std::os::unix::fs::PermissionsExt;
     let dir = teleprompt_testkit::test_dir("edit-link");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let scripts = dir.join("scripts");
     std::fs::rename(scripts.join("demo.md"), scripts.join("demo.real.md")).unwrap();
     std::os::unix::fs::symlink("demo.real.md", scripts.join("demo.md")).unwrap();
@@ -219,7 +219,7 @@ fn an_edit_writes_through_a_link_and_keeps_the_mode() {
 #[test]
 fn a_line_is_reworded_and_told_how_to_sound() {
     let dir = teleprompt_testkit::test_dir("edit-reword");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let ok = |args: &[&str]| {
         let out = tp(&dir, args);
         assert!(

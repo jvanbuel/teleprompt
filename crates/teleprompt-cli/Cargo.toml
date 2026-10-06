@@ -5,68 +5,28 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
-[lib]
-name = "teleprompt_cli"
-path = "src/lib.rs"
-
 [[bin]]
 name = "teleprompt"
 path = "src/main.rs"
 
-# `teleprompt serve`'s speech recognizer. Opt-in: it downloads a native
-# library when it builds, and the default build stays offline.
+# The prompter's speech recognizer, and drafting from what was said.
+# Opt-in: it downloads a native library when it builds, and the default
+# build stays offline.
 [features]
-listen = ["dep:teleprompt-listen-sherpa", "teleprompt-listen-sherpa/sherpa"]
+listen = ["teleprompt/listen", "dep:teleprompt-listen-sherpa"]
 
 [dependencies]
-teleprompt-compile = { path = "../teleprompt-compile" }
-teleprompt-derive = { path = "../teleprompt-derive" }
-teleprompt-listen = { path = "../teleprompt-listen" }
-inquire = "0.9"
-# `setup`: the installed plugins, as a table.
-tabled = { version = "0.20", default-features = false, features = ["std"] }
-teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = true }
+teleprompt = { path = "../teleprompt" }
 teleprompt-core = { path = "../teleprompt-core" }
-teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
 teleprompt-render = { path = "../teleprompt-render" }
-teleprompt-desktop = { path = "../teleprompt-desktop" }
-teleprompt-media = { path = "../teleprompt-media" }
-teleprompt-playwright = { path = "../teleprompt-playwright" }
-teleprompt-asciinema = { path = "../teleprompt-asciinema" }
-teleprompt-remotion = { path = "../teleprompt-remotion" }
-teleprompt-slidev = { path = "../teleprompt-slidev" }
-teleprompt-vhs = { path = "../teleprompt-vhs" }
-teleprompt-schedule = { path = "../teleprompt-schedule" }
-teleprompt-translate = { path = "../teleprompt-translate" }
-teleprompt-voice = { path = "../teleprompt-voice" }
-teleprompt-voice-openai = { path = "../teleprompt-voice-openai" }
-teleprompt-voice-voicebox = { path = "../teleprompt-voice-voicebox" }
-teleprompt-voice-gemini = { path = "../teleprompt-voice-gemini" }
-teleprompt-voice-elevenlabs = { path = "../teleprompt-voice-elevenlabs" }
-teleprompt-lsp = { path = "../teleprompt-lsp" }
 clap.workspace = true
+inquire = "0.9"
 serde.workspace = true
 serde_json.workspace = true
-serde_yaml.workspace = true
-# `sync` beyond the workspace entry's `rt-multi-thread`/`macros`: `dub` is
-# the only command that fans out concurrently, and it is the only crate
-# that needs `Semaphore`/`JoinSet` — widening the workspace entry would hand
-# `sync` to every crate taking tokio as a dev-dependency for no reason.
-# `time` is for `tokio::time::timeout` around `setup`'s voice probe: `setup`
-# is the command reached for when something is broken, so it must not
-# itself wait out a hanging server's full synthesis `timeout_ms`.
-# `net` is for `serve`'s listener.
-tokio = { workspace = true, features = ["sync", "time", "net"] }
-# `serve`: the prompter's page, its API and the session's WebSocket, on
-# loopback, over HTTP/1.1 only.
-axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "query"] }
-# The stream a capture or build's progress is written to the page from.
-futures-util = { version = "0.3", default-features = false }
-
-[target.'cfg(unix)'.dependencies]
-# SIGTERM stops a recording and still drafts it, for the app's Stop.
-signal-hook = "0.3"
+tokio.workspace = true
+# Only for the tests that listen, as the engine does in this build.
+teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = true }
 
 # `record`'s tests give it a terminal, as the recording tools need one.
 [target.'cfg(unix)'.dev-dependencies]
@@ -78,6 +38,15 @@ base64.workspace = true
 # A client for `serve`'s session socket.
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 teleprompt-testkit = { path = "../teleprompt-testkit" }
+# The tests look at what the engine made with the crates it made it with.
+teleprompt-asciinema = { path = "../teleprompt-asciinema" }
+teleprompt-compile = { path = "../teleprompt-compile" }
+teleprompt-derive = { path = "../teleprompt-derive" }
+teleprompt-listen = { path = "../teleprompt-listen" }
+teleprompt-manifest = { path = "../teleprompt-manifest" }
+teleprompt-schedule = { path = "../teleprompt-schedule" }
+teleprompt-voice = { path = "../teleprompt-voice" }
+serde_yaml.workspace = true
 insta.workspace = true
 tempfile.workspace = true
 # `net` and `io-util` beyond the binary's own `rt-multi-thread`/`macros`:

@@ -1,5 +1,6 @@
 use clap::ValueEnum;
 use serde::Serialize;
+use teleprompt::Failure;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Format {
@@ -7,40 +8,9 @@ pub enum Format {
     Json,
 }
 
-static JSON_PROGRESS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// Whether progress is said as JSON events: set once, from `--format`.
+/// Says progress as JSON events with `--format json`, as lines otherwise.
 pub fn set_progress_format(format: Format) {
-    JSON_PROGRESS.store(format == Format::Json, std::sync::atomic::Ordering::SeqCst);
-}
-
-/// Whether progress is said as JSON events, for an app reading them.
-pub fn json_progress() -> bool {
-    JSON_PROGRESS.load(std::sync::atomic::Ordering::SeqCst)
-}
-
-/// One step of a long command, on stderr: the line `human` says, or with
-/// `--format json` an event an app reads, `{"event": "progress", "stage":
-/// …, …fields}`, one per line.
-pub fn progress(stage: &str, human: impl FnOnce() -> String, fields: serde_json::Value) {
-    if JSON_PROGRESS.load(std::sync::atomic::Ordering::SeqCst) {
-        let mut event = serde_json::json!({ "event": "progress", "stage": stage });
-        if let (Some(e), serde_json::Value::Object(f)) = (event.as_object_mut(), fields) {
-            e.extend(f);
-        }
-        eprintln!("{event}");
-    } else {
-        eprintln!("{}", human());
-    }
-}
-
-/// One shot of a capture recorded, as [`progress`] says it.
-pub fn capture_progress(p: teleprompt_plugin::capture::Progress) {
-    progress(
-        "capture",
-        || format!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot),
-        serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
-    );
+    teleprompt::progress::set_json(format == Format::Json);
 }
 
 /// A failed command's `--format json` output, for every command whose
@@ -54,25 +24,6 @@ pub struct ErrorReport {
 impl ErrorReport {
     pub fn new(errors: Vec<String>) -> Self {
         Self { ok: false, errors }
-    }
-}
-
-/// Why a command failed: the script (exit 2), or anything else (exit 1).
-/// The one error every command returns.
-#[derive(Debug)]
-pub enum Failure {
-    /// The script, or what was asked of it: each reason on its own.
-    Validation(Vec<String>),
-    /// Not the script's fault: a missing tool, a server, a file.
-    Runtime(String),
-}
-
-impl std::fmt::Display for Failure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Validation(reasons) => write!(f, "{}", reasons.join("\n")),
-            Self::Runtime(message) => write!(f, "{message}"),
-        }
     }
 }
 

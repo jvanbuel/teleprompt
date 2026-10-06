@@ -9,8 +9,8 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use teleprompt_cli::cmd::setup::project_voice;
-use teleprompt_cli::project::Project;
+use teleprompt::setup::project_voice;
+use teleprompt::project::Project;
 use teleprompt_core::config::{PartialConfig, PartialVoice};
 
 /// A minimal `/v1/audio/voices` responder, built the same way
@@ -313,7 +313,7 @@ async fn a_gemini_project_probes_its_key() {
 #[test]
 fn setup_in_a_project_reports_its_voice() {
     let dir = teleprompt_testkit::test_dir("setup-voice");
-    teleprompt_cli::cmd::new::scaffold(dir.path()).unwrap();
+    teleprompt::new::scaffold(dir.path()).unwrap();
     let setup = |args: &[&str]| -> serde_json::Value {
         let out = std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
             .args(["--format", "json", "setup"])

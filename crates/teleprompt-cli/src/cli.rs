@@ -1,7 +1,7 @@
 //! What every command shares on the command line: the script and locale
 //! it works on, a frame size, how it reports in either format, and how a
 //! failure is told. Each command's own arguments and `run` are in its
-//! module under `cmd`; `main` lists the commands.
+//! module under `commands`; `main` lists the commands.
 
 use std::path::{Path, PathBuf};
 
@@ -9,7 +9,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::output::{ErrorReport, Format, Outcome};
-use crate::project::Project;
+use teleprompt::project::Project;
 
 /// A command's result: `Err` is a failure not yet reported, which
 /// [`fail`] reports in the format asked for.
@@ -37,10 +37,14 @@ impl ScriptArgs {
     }
 
     /// The script, in its project, for the locale asked for.
-    pub fn open(&self) -> Result<crate::project::Script, Outcome> {
+    pub fn open(&self) -> Result<teleprompt::project::Script, Outcome> {
         let project = self.project()?;
         let locale = self.locale(&project);
-        Ok(crate::project::Script::open(project, &self.script, locale))
+        Ok(teleprompt::project::Script::open(
+            project,
+            &self.script,
+            locale,
+        ))
     }
 }
 
@@ -51,27 +55,20 @@ pub fn language_tag(s: &str) -> Result<String, String> {
 
 /// A frame size and rate that override the script's `output:` block.
 #[derive(Args, Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FrameOverride {
+pub struct FrameArgs {
     /// Frame size, as WIDTHxHEIGHT
-    #[arg(long, value_parser = crate::cmd::build::parse_resolution)]
+    #[arg(long, value_parser = teleprompt::build::parse_resolution)]
     pub resolution: Option<(u32, u32)>,
     /// Frames per second
     #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
     pub fps: Option<u32>,
 }
 
-impl FrameOverride {
-    /// The frame to record and render at: the script's `output:` frame,
-    /// with these overrides.
-    pub fn frame(
-        &self,
-        output: &teleprompt_core::config::OutputConfig,
-    ) -> teleprompt_plugin::capture::Frame {
-        let (width, height) = self.resolution.unwrap_or(output.resolution);
-        teleprompt_plugin::capture::Frame {
-            width,
-            height,
-            fps: self.fps.unwrap_or(output.fps),
+impl From<FrameArgs> for teleprompt::build::FrameOverride {
+    fn from(args: FrameArgs) -> Self {
+        Self {
+            resolution: args.resolution,
+            fps: args.fps,
         }
     }
 }

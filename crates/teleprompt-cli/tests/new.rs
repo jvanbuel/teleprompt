@@ -1,4 +1,4 @@
-use teleprompt_cli::cmd::new::scaffold;
+use teleprompt::new::scaffold;
 use teleprompt_core::SpanMs;
 use teleprompt_plugin::ScenePlugins;
 

@@ -10,8 +10,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use teleprompt_cli::cmd::serve::prompt_on;
-use teleprompt_cli::cmd::serve::prompter::{Prompt, ShotCue};
+use teleprompt::serve::prompt_on;
+use teleprompt::serve::prompter::{Prompt, ShotCue};
 use teleprompt_core::{Hash, LineId};
 use teleprompt_listen::{Heard, Position, Recognizer};
 
@@ -76,7 +76,7 @@ fn prompting_counted(
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_cli::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     let count = Arc::new(AtomicUsize::new(0));
@@ -291,7 +291,7 @@ fn a_session_that_panics_lets_go_of_the_prompter() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_cli::project::CacheDir::at(dir.to_path_buf()),
+        clips: teleprompt::project::CacheDir::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
     std::thread::spawn(move || prompt_on(listener, prompt, Panics));
@@ -433,7 +433,7 @@ fn the_page_has_the_apps_icon() {
 
 fn tp_prompt(tag: &str, extra: &[&str]) -> std::process::Output {
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(&dir)
         .args(["serve", "scripts/demo.md"])
@@ -501,10 +501,10 @@ wait 800ms
 
 fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, TOUR).unwrap();
-    let project = teleprompt_cli::project::Project::discover(&dir).unwrap();
+    let project = teleprompt::project::Project::discover(&dir).unwrap();
     project
         .script(&script, "en")
         .compile()
@@ -519,7 +519,7 @@ fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
 fn each_shot_is_cued_where_its_policy_starts_it() {
     use teleprompt_listen::Position;
     let compiled = compiled_tour("prompt-cues");
-    let cues = teleprompt_cli::cmd::serve::prompter::shot_cues(&compiled);
+    let cues = teleprompt::serve::prompter::shot_cues(&compiled);
     let at: Vec<Position> = cues.iter().map(|c| c.at).collect();
     let pos = |line, word| Position { line, word };
     assert_eq!(at, [pos(0, 0), pos(1, 0), pos(1, 7), pos(2, 1)]);
@@ -648,7 +648,7 @@ fn a_take_discarded_over_the_socket_keeps_nothing() {
 fn the_listening_event_is_the_example() {
     let addr: SocketAddr = "127.0.0.1:7879".parse().unwrap();
     assert_eq!(
-        teleprompt_cli::cmd::serve::listening_event(addr),
+        teleprompt::serve::listening_event(addr),
         example("listening.json")
     );
 }
@@ -682,7 +682,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_cli::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     // Edited once: the second shot moved to the first line's sixth word.
@@ -691,14 +691,14 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
         moved.shots[1].at = Position { line: 0, word: 5 };
         moved
     }));
-    let reload: teleprompt_cli::cmd::serve::Reload =
+    let reload: teleprompt::serve::Reload =
         Box::new(move || edited.lock().unwrap().take());
     std::thread::spawn(move || {
-        teleprompt_cli::cmd::serve::prompt_watching(
+        teleprompt::serve::prompt_watching(
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
-            Some(teleprompt_cli::cmd::serve::Edits {
+            Some(teleprompt::serve::Edits {
                 reload,
                 keep_said: Box::new(|_| Ok(())),
                 edit: Box::new(|_| Ok(())),
@@ -718,7 +718,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
 
 /// Serves `serve` with `keep_said` for the edits, and no reload.
 fn prompting_with_keep(
-    keep_said: teleprompt_cli::cmd::serve::KeepSaid,
+    keep_said: teleprompt::serve::KeepSaid,
 ) -> (SocketAddr, teleprompt_testkit::TestDir) {
     let clips = teleprompt_testkit::test_dir("prompt-keep");
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
@@ -728,10 +728,10 @@ fn prompting_with_keep(
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_cli::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
-    let edits = teleprompt_cli::cmd::serve::Edits {
+    let edits = teleprompt::serve::Edits {
         reload: Box::new(|| None),
         keep_said,
         edit: Box::new(|_| Ok(())),
@@ -741,7 +741,7 @@ fn prompting_with_keep(
         listens: true,
     };
     std::thread::spawn(move || {
-        teleprompt_cli::cmd::serve::prompt_watching(
+        teleprompt::serve::prompt_watching(
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
@@ -772,7 +772,7 @@ fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_cli::project::CacheDir::at(dir.to_path_buf()),
+        clips: teleprompt::project::CacheDir::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
     let recognizer = Scripted(Default::default(), Default::default());

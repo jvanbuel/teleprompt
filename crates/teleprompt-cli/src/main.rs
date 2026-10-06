@@ -1,16 +1,22 @@
 //! The `teleprompt` binary: the commands, each with its help, and which
 //! module runs it. A command's flags and its `run` are in its module under
-//! `teleprompt_cli::cmd`; what they share is `teleprompt_cli::cli`.
+//! `commands`; what they share is `cli`. What they do is the `teleprompt`
+//! crate's.
+
+mod ask;
+mod cli;
+mod commands;
+mod output;
 
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use teleprompt_cli::cli::{fail, Run, ScriptArgs};
-use teleprompt_cli::cmd::draft::{import, record};
-use teleprompt_cli::cmd::{
-    build, cache, capture, check, dub, edit, new, plan, serve, setup, translate, voice,
+use cli::{fail, Run, ScriptArgs};
+use commands::{
+    build, cache, capture, check, dub, edit, import, new, plan, record, serve, setup, translate,
+    voice,
 };
-use teleprompt_cli::output::{exit_code_for, Format, Outcome};
+use output::{exit_code_for, Format, Outcome};
 
 #[derive(Parser)]
 #[command(
@@ -159,7 +165,8 @@ enum Command {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let format = cli.format;
-    teleprompt_cli::output::set_progress_format(format);
+    output::set_progress_format(format);
+    teleprompt::setup::on_missing(ask::offer);
     let outcome = run(cli.command, format).unwrap_or_else(|failure| fail(format, failure));
     ExitCode::from(exit_code_for(&outcome) as u8)
 }
@@ -175,7 +182,7 @@ fn run(command: Command, format: Format) -> Run {
         Command::Translate(args) => translate::run(args, format),
         Command::Record(args) => record::run(args, format),
         Command::Lsp => {
-            teleprompt_cli::cmd::lsp::run_lsp().map_err(teleprompt_cli::cli::runtime_failure)?;
+            teleprompt::lsp::run_lsp().map_err(cli::runtime_failure)?;
             Ok(Outcome::Ok)
         }
         Command::Check(args) => check::run(args, format),

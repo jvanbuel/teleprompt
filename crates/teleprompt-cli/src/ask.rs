@@ -8,7 +8,7 @@ use std::io::IsTerminal;
 
 use inquire::{Confirm, MultiSelect};
 
-use crate::cmd::setup::{download_mb, resolve, Goal, Setup, Tool, GOALS};
+use teleprompt::setup::{download_mb, resolve, Goal, Setup, Tool, GOALS};
 
 /// Whether a person is at a terminal to answer.
 pub fn interactive() -> bool {

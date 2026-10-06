@@ -1,12 +1,12 @@
 //! A script edited while it is read: the prompter reloads it, shots moved
 //! and lines reworded alike.
 
-use teleprompt_cli::project::Project;
+use teleprompt::project::Project;
 
 #[test]
 fn an_edited_script_is_reloaded_shots_and_lines_alike() {
     let dir = teleprompt_testkit::test_dir("prompt-reload-edit");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
     let project = Project::for_script(&script).unwrap();
     let reload = project.script(&script, "en").reload_on_edit();
@@ -48,7 +48,7 @@ fn an_edited_script_is_reloaded_shots_and_lines_alike() {
 #[test]
 fn an_edit_that_keeps_the_modification_time_is_reloaded() {
     let dir = teleprompt_testkit::test_dir("prompt-reload-same-mtime");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
     let project = Project::for_script(&script).unwrap();
     let reload = project.script(&script, "en").reload_on_edit();
@@ -80,7 +80,7 @@ fn an_edit_that_keeps_the_modification_time_is_reloaded() {
 #[test]
 fn keeping_what_was_said_rewords_the_script_and_reloads() {
     let dir = teleprompt_testkit::test_dir("prompt-keep-said");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let text = "Welcome to teleprompt. This paragraph is a narration line, and its spoken \
                 length decides how long the visuals below stay on screen.";
     let pcm = teleprompt_voice::Pcm {

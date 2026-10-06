@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use teleprompt_cli::project::Project;
+use teleprompt::project::Project;
 use teleprompt_derive::document::draft;
 
 const README: &str = "\
@@ -37,7 +37,7 @@ The configuration file looks like this.
 /// Writes `source` into a scaffolded project and runs `check` over it.
 fn check(source: &str) -> Result<Vec<String>, Vec<String>> {
     let dir = teleprompt_testkit::test_dir("draft");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
 
     let script: PathBuf = dir.join("scripts/drafted.md");
     std::fs::write(&script, source).unwrap();
@@ -99,13 +99,13 @@ fn a_drafted_transcript_passes_check_and_casts_its_speakers() {
     assert!(warnings.is_empty(), "{warnings:#?}");
 
     let dir = teleprompt_testkit::test_dir("draft-cast");
-    teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
+    teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/talk.md");
     std::fs::write(&script, &drafted.script).unwrap();
     let project = Project::discover(&dir).unwrap();
     let compiled = project
         .script(&script, "en")
-        .with_backends(teleprompt_cli::voice::Backends::defaults())
+        .with_backends(teleprompt::voice::Backends::defaults())
         .compile_source(&drafted.script)
         .unwrap_or_else(|e| panic!("{e:?}"));
     let said: Vec<(Option<String>, String)> = compiled
