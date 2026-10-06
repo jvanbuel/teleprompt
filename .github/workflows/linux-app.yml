@@ -70,6 +70,11 @@ jobs:
           # which Ubuntu 24.04's AppArmor denies by default; without them the
           # first web page aborts the app.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # sherpa-onnx-sys unpacks its native library into
+      # target/sherpa-onnx-prebuilt, and trusts that directory if it
+      # exists. The Rust cache restores it without the library in it, so
+      # remove it and rerun the build script to download it again.
+      - run: rm -rf target/sherpa-onnx-prebuilt && cargo clean -p sherpa-onnx-sys
       # The server the app launches, with the recognizer.
       - run: cargo build -p teleprompt-cli --features listen
       - uses: actions/cache@v6
