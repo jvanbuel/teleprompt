@@ -29,6 +29,7 @@ pub use translator::{
 use crate::project::translation_path;
 use crate::project::Script;
 use crate::Failure;
+use teleprompt_core::Diagnostics;
 
 #[derive(Debug, Serialize)]
 pub struct TranslateReport {
@@ -105,15 +106,16 @@ impl Script {
             .map_err(Failure::Validation)?;
         let source = program.locale.clone();
         if target == source {
-            return Err(Failure::Validation(vec![format!(
+            return Err(Failure::Validation(Diagnostics::error(format!(
                 "{} is written in `{source}`; translate it --to another locale",
                 script.display()
-            )]));
+            ))));
         }
         let file = translation_path(script, target);
         let existing = match std::fs::read_to_string(&file) {
-            Ok(yaml) => Translation::from_yaml(&yaml)
-                .map_err(|e| Failure::Validation(vec![format!("{}: {e}", file.display())]))?,
+            Ok(yaml) => Translation::from_yaml(&yaml).map_err(|e| {
+                Failure::Validation(Diagnostics::error(format!("{}: {e}", file.display())))
+            })?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Translation::default(),
             Err(e) => {
                 return Err(Failure::Runtime(format!(

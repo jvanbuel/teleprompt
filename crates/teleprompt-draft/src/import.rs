@@ -196,7 +196,7 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
             format!(
                 "the drafted {} does not compile, which is a bug in `import`:\n{}",
                 session.script.display(),
-                errors.join("\n")
+                errors.render().join("\n")
             )
         })?;
     let lines: Vec<(LineId, String)> = compiled

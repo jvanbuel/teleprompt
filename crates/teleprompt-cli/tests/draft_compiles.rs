@@ -45,6 +45,7 @@ fn check(source: &str) -> Result<Vec<String>, Vec<String>> {
         .unwrap()
         .script(&script, "en")
         .check()
+        .map_err(|d| d.render())
 }
 
 #[test]

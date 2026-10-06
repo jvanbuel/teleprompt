@@ -731,7 +731,7 @@ async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
         .await;
     let msgs = match result {
         Ok(_) => panic!("an unknown voice must fail validation, not synthesize"),
-        Err(Failure::Validation(msgs)) => msgs,
+        Err(Failure::Validation(msgs)) => msgs.render(),
         Err(Failure::Runtime(r)) => {
             panic!("must be a validation error, not a runtime failure: {r}")
         }
@@ -995,7 +995,7 @@ async fn a_failure_in_one_line_fails_the_run() {
         }
         Err(Failure::Validation(v)) => panic!(
             "a synthesis failure is a runtime error, not a validation one: {}",
-            v.join("; ")
+            v.render().join("; ")
         ),
     }
     assert!(!manifest_path(&p.out, "en").exists(), "no partial output");

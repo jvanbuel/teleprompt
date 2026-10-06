@@ -67,6 +67,9 @@ impl Diagnostic {
         self.severity == Severity::Error
     }
 
+    /// As a person reads it, pointing at `file` unless it names its own.
+    /// With neither a file nor a span there is nothing to point at, so it
+    /// is the message alone, for whoever prints it to label.
     pub fn render(&self, file: &str) -> String {
         let label = if self.is_error() { "error" } else { "warning" };
         let file = self.file.as_deref().unwrap_or(file);
@@ -74,6 +77,9 @@ impl Diagnostic {
             Some(s) => format!("{file}:{}:{}", s.line, s.column),
             None => file.to_string(),
         };
+        if loc.is_empty() {
+            return self.message.clone();
+        }
         let mut out = format!("{label}: {}\n  --> {loc}", self.message);
         if let Some(h) = &self.help {
             out.push_str(&format!("\n  help: {h}"));
@@ -89,6 +95,32 @@ pub struct Diagnostics(pub Vec<Diagnostic>);
 impl Diagnostics {
     pub fn has_errors(&self) -> bool {
         self.0.iter().any(Diagnostic::is_error)
+    }
+
+    /// One error, with no place it points at.
+    pub fn error(message: impl Into<String>) -> Self {
+        Self(vec![Diagnostic::error(message)])
+    }
+
+    /// Each as a person reads it, pointing where it says it is about.
+    pub fn render(&self) -> Vec<String> {
+        self.0.iter().map(|d| d.render("")).collect()
+    }
+
+    /// Each pointed at `file`, where it does not name its own: what a
+    /// script's problems are given once the script is known, so they can
+    /// be read anywhere.
+    pub fn about(mut self, file: &str) -> Self {
+        for d in &mut self.0 {
+            d.file.get_or_insert_with(|| file.to_string());
+        }
+        self
+    }
+}
+
+impl From<Vec<Diagnostic>> for Diagnostics {
+    fn from(diagnostics: Vec<Diagnostic>) -> Self {
+        Self(diagnostics)
     }
 }
 

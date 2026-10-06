@@ -14,6 +14,7 @@ use teleprompt_voice::takes::Takes;
 
 use crate::project::Script;
 use crate::Failure;
+use teleprompt_core::Diagnostics;
 
 #[derive(Debug, Serialize)]
 pub struct EditReport {
@@ -22,7 +23,7 @@ pub struct EditReport {
 }
 
 fn invalid(reason: String) -> Failure {
-    Failure::Validation(vec![reason])
+    Failure::Validation(Diagnostics::error(reason))
 }
 
 /// What an edit works on: the script as written, in its source locale,
@@ -51,15 +52,20 @@ impl Script {
         let io =
             |e: std::io::Error| Failure::Runtime(format!("cannot write {}: {e}", script.display()));
         std::fs::write(&edited, &after).map_err(io)?;
-        if let Err(errors) = project.script(&edited, project.source_locale()).compile() {
+        if let Err(mut errors) = project.script(&edited, project.source_locale()).compile() {
             let _ = std::fs::remove_file(&edited);
-            let mut reasons = vec!["not written, since the script would not compile:".to_string()];
-            reasons.extend(
-                errors
-                    .iter()
-                    .map(|e| e.replace(&*edited.to_string_lossy(), &script.to_string_lossy())),
-            );
-            return Err(Failure::Validation(reasons));
+            // The problems are the script's, not the copy's.
+            let (copy, own) = (edited.to_string_lossy(), script.to_string_lossy());
+            for d in &mut errors.0 {
+                if d.file.as_deref() == Some(&*copy) {
+                    d.file = Some(own.to_string());
+                }
+            }
+            let mut problems = vec![teleprompt_core::Diagnostic::error(
+                "not written, since the script would not compile:",
+            )];
+            problems.extend(errors.0);
+            return Err(Failure::Validation(Diagnostics(problems)));
         }
         let _ = std::fs::remove_file(&edited);
         replace(script, &after).map_err(io)?;

@@ -15,7 +15,9 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::output::Outcome;
     let script = args.script.open()?;
     if args.check {
-        let d = script.plan_check().map_err(Outcome::ValidationError)?;
+        let d = script
+            .plan_check()
+            .map_err(|p| Outcome::ValidationError(p.render()))?;
         crate::cli::emit_ok(format, &d, &format!("{}\n", d.render()), d.is_empty());
         return Ok(if d.is_empty() {
             Outcome::Ok
@@ -23,7 +25,9 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
             Outcome::Drift
         });
     }
-    let out = script.plan().map_err(Outcome::ValidationError)?;
+    let out = script
+        .plan()
+        .map_err(|p| Outcome::ValidationError(p.render()))?;
     crate::cli::emit_data(format, &out.timeline, &render_plan(&out));
     let narrated = out
         .timeline

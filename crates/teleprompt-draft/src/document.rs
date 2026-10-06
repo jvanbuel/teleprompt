@@ -433,7 +433,12 @@ fn speak_from(
     let compiled = project
         .script(script, project.source_locale())
         .compile()
-        .map_err(|errors| format!("the draft does not compile:\n{}", errors.join("\n")))?
+        .map_err(|errors| {
+            format!(
+                "the draft does not compile:\n{}",
+                errors.render().join("\n")
+            )
+        })?
         .output;
     let lines: Vec<(LineId, String)> = compiled
         .narration

@@ -97,11 +97,11 @@ impl Script {
     /// rendered. Writes nothing. The narrator's backend in [`Compiled`] is
     /// the one the cache keys were computed from, so a synthesizing caller
     /// uses it.
-    pub fn compile(&self) -> Result<Compiled, Vec<String>> {
+    pub fn compile(&self) -> Result<Compiled, Diagnostics> {
         let display = self.path.display().to_string();
         let src = std::fs::read_to_string(&self.path)
-            .map_err(|e| vec![format!("cannot read {display}: {e}")])?;
-        self.compile_source(&src).map_err(|d| render(&d, &display))
+            .map_err(|e| Diagnostics::error(format!("cannot read {display}: {e}")))?;
+        self.compile_source(&src).map_err(|d| d.about(&display))
     }
 }
 
@@ -367,7 +367,7 @@ fn differing_backend_keys(
 impl Project {
     /// `script` resolved in its own language, for reading its narration rather
     /// than compiling it.
-    pub(crate) fn source_program(&self, script: &Path) -> Result<Program, Vec<String>> {
+    pub(crate) fn source_program(&self, script: &Path) -> Result<Program, Diagnostics> {
         self.resolved(script, &self.source_locale())
     }
 
@@ -381,15 +381,15 @@ impl Project {
 
     /// `script` resolved for `locale`, untranslated: its configuration as that
     /// locale sees it.
-    pub(crate) fn resolved(&self, script: &Path, locale: &str) -> Result<Program, Vec<String>> {
+    pub(crate) fn resolved(&self, script: &Path, locale: &str) -> Result<Program, Diagnostics> {
         let project = self;
         let display = script.display().to_string();
         let name = script
             .file_name()
             .map_or_else(|| display.clone(), |s| s.to_string_lossy().to_string());
         let src = std::fs::read_to_string(script)
-            .map_err(|e| vec![format!("cannot read {display}: {e}")])?;
-        let parsed = parse_script(&src).map_err(|d| render(&d, &display))?;
+            .map_err(|e| Diagnostics::error(format!("cannot read {display}: {e}")))?;
+        let parsed = parse_script(&src).map_err(|d| d.about(&display))?;
         resolve(
             &parsed,
             &name,
@@ -397,10 +397,6 @@ impl Project {
             &project.config,
             &PartialConfig::default(),
         )
-        .map_err(|d| render(&d, &display))
+        .map_err(|d| d.about(&display))
     }
-}
-
-fn render(d: &teleprompt_core::Diagnostics, file: &str) -> Vec<String> {
-    d.0.iter().map(|x| x.render(file)).collect()
 }

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use publish::{LineAudio, Published};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
-use teleprompt_core::{LineId, Progress, Reporter, Silent, SpanMs};
+use teleprompt_core::{Diagnostics, LineId, Progress, Reporter, Silent, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
@@ -369,7 +369,12 @@ async fn check_voices(
     if problems.is_empty() {
         Ok(())
     } else {
-        Err(Failure::Validation(problems))
+        Err(Failure::Validation(Diagnostics(
+            problems
+                .into_iter()
+                .map(teleprompt_core::Diagnostic::error)
+                .collect(),
+        )))
     }
 }
 

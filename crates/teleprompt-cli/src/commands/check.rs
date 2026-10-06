@@ -22,7 +22,8 @@ pub fn run(args: crate::cli::ScriptArgs, format: crate::output::Format) -> crate
             crate::cli::emit(format, &report, "ok\n");
             Ok(Outcome::Ok)
         }
-        Err(errors) => {
+        Err(problems) => {
+            let errors = problems.render();
             match format {
                 Format::Json => {
                     let report = CheckReport {

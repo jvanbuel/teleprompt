@@ -1,9 +1,11 @@
+use teleprompt_core::Diagnostics;
+
 use crate::project::Script;
 
 impl Script {
     /// Compiles the script, writing nothing: its warnings, or rendered
     /// errors.
-    pub fn check(&self) -> Result<Vec<String>, Vec<String>> {
+    pub fn check(&self) -> Result<Vec<String>, Diagnostics> {
         let compiled = self.compile()?;
         let mut warnings = compiled.output.warnings;
         // What is hard to say aloud, as it is said: translated, for a

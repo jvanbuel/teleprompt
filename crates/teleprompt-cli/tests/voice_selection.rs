@@ -374,7 +374,8 @@ fn a_bad_setting_for_the_selected_backend_fails_check_and_names_the_config_file(
     let errors = project
         .script(&script, "en")
         .check()
-        .expect_err("a backend the project uses must validate");
+        .expect_err("a backend the project uses must validate")
+        .render();
     let joined = errors.join("\n");
     assert!(joined.contains("concurrency"), "{joined}");
     assert!(
@@ -395,7 +396,8 @@ fn an_unknown_backends_key_fails_check_and_names_the_key() {
     let errors = project
         .script(&script, "en")
         .check()
-        .expect_err("settings that reach nothing must be named");
+        .expect_err("settings that reach nothing must be named")
+        .render();
     let joined = errors.join("\n");
     assert!(joined.contains("backends.kokoro-local"), "{joined}");
     assert!(joined.contains("teleprompt.toml"), "{joined}");
@@ -416,7 +418,8 @@ fn an_unknown_key_and_an_unused_bad_setting_report_exactly_one_problem() {
     let errors = project
         .script(&script, "en")
         .check()
-        .expect_err("the unknown key is still an error");
+        .expect_err("the unknown key is still an error")
+        .render();
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert!(errors[0].contains("backends.kokoro-local"), "{errors:?}");
     assert!(

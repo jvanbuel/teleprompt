@@ -26,7 +26,7 @@ use teleprompt_listen::Recognizer;
 use tokio::task::block_in_place;
 
 use crate::voicing::Voicing;
-use teleprompt_core::Silent;
+use teleprompt_core::{Diagnostic, Diagnostics, Silent};
 use teleprompt_project::project::{Project, Script};
 use teleprompt_project::registry::Registry;
 use teleprompt_project::Failure;
@@ -91,7 +91,9 @@ pub fn run_serve(
     let opened = match script {
         Some(script) => Some(opener.open(script, matches!(ear, Ear::Voice)).map_err(
             |e| match e {
-                OpenError::Invalid(errors) => Failure::Validation(errors),
+                OpenError::Invalid(errors) => Failure::Validation(Diagnostics(
+                    errors.into_iter().map(Diagnostic::error).collect(),
+                )),
                 OpenError::Unheard(why) | OpenError::Busy(why) => Failure::Runtime(why),
             },
         )?),
@@ -145,7 +147,7 @@ impl Opener {
                 .or_else(|| teleprompt_setup::speech_model(None, &Silent).ok());
             recognizer(model.as_deref()).map_err(|e| match e {
                 Failure::Runtime(why) => OpenError::Unheard(why),
-                Failure::Validation(why) => OpenError::Unheard(why.join("\n")),
+                Failure::Validation(why) => OpenError::Unheard(why.render().join("\n")),
             })?
         };
         let session =
@@ -238,7 +240,7 @@ pub trait Prompted {
 impl Prompted for Script {
     fn prompt(&self) -> Result<Prompt, Vec<String>> {
         let project = self.project();
-        let compiled = self.compile()?.output;
+        let compiled = self.compile().map_err(|d| d.render())?.output;
         Ok(Prompt {
             name: self
                 .path()

@@ -240,7 +240,7 @@ fn an_unregistered_backend_is_still_rejected() {
     let Err(errors) = project.script(&script, "en").compile() else {
         panic!("the default registry does not ship `tone`, so this must fail");
     };
-    assert!(errors.join("\n").contains("tone"), "{errors:?}");
+    assert!(errors.render().join("\n").contains("tone"), "{errors:?}");
 }
 
 const DRAWL_SCRIPT: &str = "\

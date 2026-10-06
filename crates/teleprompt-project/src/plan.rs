@@ -1,19 +1,19 @@
 use teleprompt_compile::CompileOutput;
-use teleprompt_core::SpanMs;
+use teleprompt_core::{Diagnostics, SpanMs};
 use teleprompt_schedule::{diff, Timeline, TimelineDiff, TIMELINE_VERSION};
 
 use crate::project::Script;
 
 impl Script {
     /// The timeline, compiled without writing anything to disk.
-    pub fn plan(&self) -> Result<CompileOutput, Vec<String>> {
+    pub fn plan(&self) -> Result<CompileOutput, Diagnostics> {
         self.compile().map(|c| c.output)
     }
 
     /// The timeline compared against the committed one. With none
     /// committed, every item is `added`; one that does not parse is an
     /// error.
-    pub fn plan_check(&self) -> Result<TimelineDiff, Vec<String>> {
+    pub fn plan_check(&self) -> Result<TimelineDiff, Diagnostics> {
         let out = self.plan()?;
         let name = self
             .path()
@@ -23,13 +23,14 @@ impl Script {
         let committed_path = self.project().timeline_path(&name, self.locale());
 
         let committed = if committed_path.exists() {
-            let text = std::fs::read_to_string(&committed_path)
-                .map_err(|e| vec![format!("cannot read {}: {e}", committed_path.display())])?;
+            let text = std::fs::read_to_string(&committed_path).map_err(|e| {
+                Diagnostics::error(format!("cannot read {}: {e}", committed_path.display()))
+            })?;
             serde_json::from_str::<Timeline>(&text).map_err(|e| {
-                vec![format!(
+                Diagnostics::error(format!(
                     "{} is not a valid timeline: {e}",
                     committed_path.display()
-                )]
+                ))
             })?
         } else {
             Timeline {

@@ -115,7 +115,7 @@ impl ErrorReport {
 impl From<Failure> for Outcome {
     fn from(e: Failure) -> Self {
         match e {
-            Failure::Validation(reasons) => Self::ValidationError(reasons),
+            Failure::Validation(problems) => Self::ValidationError(problems.render()),
             Failure::Runtime(message) => Self::RuntimeFailure(message),
         }
     }

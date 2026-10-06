@@ -38,14 +38,14 @@ fn check_accepts_a_valid_script() {
 #[test]
 fn check_reports_an_unknown_attribute_key() {
     let (_dir, p, s) = project_with(BAD_ATTR);
-    let errs = p.script(&s, "en").check().unwrap_err();
+    let errs = p.script(&s, "en").check().unwrap_err().render();
     assert!(errs[0].contains("unknown attribute key `polcy`"));
 }
 
 #[test]
 fn check_reports_plugin_validation_errors() {
     let (_dir, p, s) = project_with(BAD_SCENE);
-    let errs = p.script(&s, "en").check().unwrap_err();
+    let errs = p.script(&s, "en").check().unwrap_err().render();
     assert!(errs[0].contains("unknown mock directive"));
 }
 
@@ -239,7 +239,8 @@ fn an_unknown_voice_backend_is_a_validation_error_naming_what_exists() {
     let errors = p
         .script(&s, "en")
         .check()
-        .expect_err("unknown backend must fail check");
+        .expect_err("unknown backend must fail check")
+        .render();
     let joined = errors.join("\n");
     assert!(joined.contains("nope"), "{joined}");
     assert!(
@@ -263,7 +264,8 @@ fn a_line_whose_backend_does_not_exist_is_rejected_naming_it() {
     let errors = p
         .script(&s, "en")
         .check()
-        .expect_err("an unknown per-line backend must fail");
+        .expect_err("an unknown per-line backend must fail")
+        .render();
     let joined = errors.join("\n");
     assert!(joined.contains("`a`"), "must name the line: {joined}");
     assert!(
@@ -290,7 +292,8 @@ fn an_unknown_chapter_backend_across_several_lines_is_one_diagnostic() {
     let errors = p
         .script(&s, "en")
         .check()
-        .expect_err("an unknown chapter backend must fail");
+        .expect_err("an unknown chapter backend must fail")
+        .render();
     assert_eq!(errors.len(), 1, "{errors:?}");
     let joined = errors.join("\n");
     for id in ["a", "b", "c"] {
@@ -407,7 +410,8 @@ fn an_absurd_lead_in_is_a_validation_error_not_a_panic() {
     let errors = p
         .script(&s, "en")
         .check()
-        .expect_err("an absurd lead_in must fail check");
+        .expect_err("an absurd lead_in must fail check")
+        .render();
     let joined = errors.join("\n");
     assert!(joined.contains("lead_in"), "{joined}");
 }

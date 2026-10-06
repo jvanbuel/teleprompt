@@ -129,7 +129,7 @@ impl Voicing {
                 });
                 *lock(&self.error) = None;
             }
-            Err(errors) => *lock(&self.error) = Some(errors),
+            Err(errors) => *lock(&self.error) = Some(errors.render()),
         }
         voiced.clone()
     }
@@ -162,7 +162,7 @@ impl Voicing {
                 return match (e, last) {
                     // A script that no longer compiles keeps playing as it last did.
                     (Failure::Validation(_), Some(last)) => Ok(last),
-                    (Failure::Validation(errors), None) => Err(errors),
+                    (Failure::Validation(errors), None) => Err(errors.render()),
                     (Failure::Runtime(e), _) => Err(vec![e]),
                 };
             }
