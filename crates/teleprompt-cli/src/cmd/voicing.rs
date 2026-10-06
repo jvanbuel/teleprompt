@@ -16,7 +16,7 @@ use teleprompt_voice::VoiceBackend;
 
 use crate::cmd::dub;
 use crate::output::Failure;
-use crate::project::{fingerprint, translation_path, Compiled, Project, Script};
+use crate::project::{fingerprint, translation_path, Compiled, Script};
 use teleprompt_core::Hash;
 
 /// A script's voice, compiled afresh when what it is compiled from has
@@ -49,9 +49,9 @@ struct Voiced {
 }
 
 impl Voicing {
-    pub fn new(project: &Project, script: &std::path::Path, locale: &str) -> Self {
+    pub fn new(script: Script) -> Self {
         Self {
-            script: project.script(script, locale),
+            script,
             voiced: Mutex::new(None),
             inputs: Mutex::new(None),
             error: Mutex::new(None),

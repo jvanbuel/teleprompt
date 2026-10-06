@@ -5,7 +5,7 @@ use crate::VoiceBackend;
 
 /// Ordered so `setup`'s output does not depend on insertion order. `Arc`
 /// because `dub` shares a backend across concurrent synthesis tasks.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct VoiceRegistry {
     backends: BTreeMap<String, Arc<dyn VoiceBackend>>,
 }

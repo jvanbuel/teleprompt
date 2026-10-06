@@ -254,7 +254,7 @@ pub(super) fn error(message: String) -> serde_json::Value {
     serde_json::json!({ "type": "error", "message": message })
 }
 
-pub(super) fn script(s: Script) -> serde_json::Value {
+pub(super) fn script(s: ScriptView) -> serde_json::Value {
     let lines: Vec<_> = s
         .lines
         .iter()

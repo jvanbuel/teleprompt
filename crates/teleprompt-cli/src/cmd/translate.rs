@@ -2,7 +2,7 @@
 //! translated into `<script>.<locale>.yaml`, asking the translator only for
 //! what is missing or has changed in the English since.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::Serialize;
 use teleprompt_core::translation::{items, merged, pending, Translation};
@@ -10,7 +10,7 @@ use teleprompt_translate::{Known, Request, Translator, Wanted};
 
 use crate::output::Failure;
 use crate::project::translation_path;
-use crate::project::Project;
+use crate::project::Script;
 
 #[derive(Debug, Serialize)]
 pub struct TranslateReport {
@@ -51,109 +51,107 @@ pub struct Choice<'a> {
     pub command: Option<&'a str>,
 }
 
-/// The translator `[translate]` names for `target`, as `choice` overrides it.
-pub fn translator(
-    project: &Project,
-    script: &Path,
-    target: &str,
-    choice: &Choice,
-) -> Result<Translator, Failure> {
-    let config = project
-        .resolved(script, target)
-        .map_err(Failure::Validation)?
-        .config;
-    let timeout_ms = config.translate.timeout_ms;
-    if let Some(cmd) = choice.command {
-        let program = teleprompt_translate::Program::new(cmd);
-        return Ok(Translator::Command(program).timeout(timeout_ms));
-    }
-    let provider = choice.provider.unwrap_or(&config.translate.provider);
-    // A model named for one provider means nothing to another.
-    let model = choice.model.or(if choice.provider.is_none() {
-        config.translate.model.as_deref()
-    } else {
-        None
-    });
-    Translator::new(provider, model, config.translate.settings.get(provider))
-        .map(|t| t.timeout(timeout_ms))
-        .map_err(Failure::Runtime)
-}
-
-pub async fn run_translate(
-    project: &Project,
-    script: &Path,
-    target: &str,
-    translator: &Translator,
-) -> Result<TranslateReport, Failure> {
-    let program = project
-        .source_program(script)
-        .map_err(Failure::Validation)?;
-    let source = program.locale.clone();
-    if target == source {
-        return Err(Failure::Validation(vec![format!(
-            "{} is written in `{source}`; translate it --to another locale",
-            script.display()
-        )]));
-    }
-    let file = translation_path(script, target);
-    let existing = match std::fs::read_to_string(&file) {
-        Ok(yaml) => Translation::from_yaml(&yaml)
-            .map_err(|e| Failure::Validation(vec![format!("{}: {e}", file.display())]))?,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Translation::default(),
-        Err(e) => {
-            return Err(Failure::Runtime(format!(
-                "cannot read {}: {e}",
-                file.display()
-            )))
+/// Translating: the script in the locale it is translated into.
+impl Script {
+    /// The translator `[translate]` names for this locale, as `choice`
+    /// overrides it.
+    pub fn translator(&self, choice: &Choice) -> Result<Translator, Failure> {
+        let (project, script, target) = (self.project(), self.path(), self.locale());
+        let config = project
+            .resolved(script, target)
+            .map_err(Failure::Validation)?
+            .config;
+        let timeout_ms = config.translate.timeout_ms;
+        if let Some(cmd) = choice.command {
+            let program = teleprompt_translate::Program::new(cmd);
+            return Ok(Translator::Command(program).timeout(timeout_ms));
         }
-    };
-
-    let todo = pending(&program, &existing);
-    if todo.is_empty() {
-        return Ok(TranslateReport {
-            file,
-            translated: Vec::new(),
-            missing: Vec::new(),
+        let provider = choice.provider.unwrap_or(&config.translate.provider);
+        // A model named for one provider means nothing to another.
+        let model = choice.model.or(if choice.provider.is_none() {
+            config.translate.model.as_deref()
+        } else {
+            None
         });
+        Translator::new(provider, model, config.translate.settings.get(provider))
+            .map(|t| t.timeout(timeout_ms))
+            .map_err(Failure::Runtime)
     }
-    let asked: Vec<String> = todo.iter().map(|i| i.id()).collect();
-    let request = Request {
-        source,
-        target: target.to_string(),
-        existing: items(&program)
-            .iter()
-            .filter(|i| !asked.contains(&i.id()))
-            .filter_map(|i| {
-                existing.of(i).map(|e| Known {
-                    id: i.id(),
-                    english: i.english.clone(),
-                    translation: e.text.clone(),
+
+    /// Translates what is missing from, or has changed since, this
+    /// locale's translation, and writes it beside the script.
+    pub async fn translate(&self, translator: &Translator) -> Result<TranslateReport, Failure> {
+        let (project, script, target) = (self.project(), self.path(), self.locale());
+        let program = project
+            .source_program(script)
+            .map_err(Failure::Validation)?;
+        let source = program.locale.clone();
+        if target == source {
+            return Err(Failure::Validation(vec![format!(
+                "{} is written in `{source}`; translate it --to another locale",
+                script.display()
+            )]));
+        }
+        let file = translation_path(script, target);
+        let existing = match std::fs::read_to_string(&file) {
+            Ok(yaml) => Translation::from_yaml(&yaml)
+                .map_err(|e| Failure::Validation(vec![format!("{}: {e}", file.display())]))?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Translation::default(),
+            Err(e) => {
+                return Err(Failure::Runtime(format!(
+                    "cannot read {}: {e}",
+                    file.display()
+                )))
+            }
+        };
+
+        let todo = pending(&program, &existing);
+        if todo.is_empty() {
+            return Ok(TranslateReport {
+                file,
+                translated: Vec::new(),
+                missing: Vec::new(),
+            });
+        }
+        let asked: Vec<String> = todo.iter().map(|i| i.id()).collect();
+        let request = Request {
+            source,
+            target: target.to_string(),
+            existing: items(&program)
+                .iter()
+                .filter(|i| !asked.contains(&i.id()))
+                .filter_map(|i| {
+                    existing.of(i).map(|e| Known {
+                        id: i.id(),
+                        english: i.english.clone(),
+                        translation: e.text.clone(),
+                    })
                 })
-            })
-            .collect(),
-        translate: todo.iter().map(Wanted::from).collect(),
-    };
-    let done: Vec<(String, String)> = translator
-        .translate(&request)
-        .await
-        .map_err(Failure::Runtime)?
-        .into_iter()
-        .filter(|(id, _)| asked.contains(id))
-        .collect();
+                .collect(),
+            translate: todo.iter().map(Wanted::from).collect(),
+        };
+        let done: Vec<(String, String)> = translator
+            .translate(&request)
+            .await
+            .map_err(Failure::Runtime)?
+            .into_iter()
+            .filter(|(id, _)| asked.contains(id))
+            .collect();
 
-    let (translation, rejected) = merged(&program, &existing, &done);
-    let yaml = translation.to_yaml(&program.script_name, target);
-    let partial = file.with_extension("yaml.partial");
-    std::fs::write(&partial, yaml)
-        .and_then(|()| std::fs::rename(&partial, &file))
-        .map_err(|e| Failure::Runtime(format!("cannot write {}: {e}", file.display())))?;
+        let (translation, rejected) = merged(&program, &existing, &done);
+        let yaml = translation.to_yaml(&program.script_name, target);
+        let partial = file.with_extension("yaml.partial");
+        std::fs::write(&partial, yaml)
+            .and_then(|()| std::fs::rename(&partial, &file))
+            .map_err(|e| Failure::Runtime(format!("cannot write {}: {e}", file.display())))?;
 
-    let answered = |id: &String| done.iter().any(|(d, _)| d == id) && !rejected.contains(id);
-    Ok(TranslateReport {
-        file,
-        translated: asked.iter().filter(|id| answered(id)).cloned().collect(),
-        missing: asked.iter().filter(|id| !answered(id)).cloned().collect(),
-    })
+        let answered = |id: &String| done.iter().any(|(d, _)| d == id) && !rejected.contains(id);
+        Ok(TranslateReport {
+            file,
+            translated: asked.iter().filter(|id| answered(id)).cloned().collect(),
+            missing: asked.iter().filter(|id| !answered(id)).cloned().collect(),
+        })
+    }
 }
 
 /// `translate`'s arguments.
@@ -183,13 +181,9 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         command: args.command.as_deref(),
     };
     let project = crate::cli::project_for(&args.script)?;
-    let translator = translator(&project, &args.script, &args.to, &choice)?;
-    let report = crate::cli::runtime()?.block_on(run_translate(
-        &project,
-        &args.script,
-        &args.to,
-        &translator,
-    ))?;
+    let script = project.script(&args.script, &args.to);
+    let translator = script.translator(&choice)?;
+    let report = crate::cli::runtime()?.block_on(script.translate(&translator))?;
     crate::cli::emit(format, &report, &report.render());
     Ok(Outcome::Ok)
 }

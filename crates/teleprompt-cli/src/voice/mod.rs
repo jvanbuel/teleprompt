@@ -49,6 +49,7 @@ pub fn is_built_in(name: &str) -> bool {
 /// * A `backends:` key naming no voice this build ships, which is a server
 ///   of the author's, and whose settings do not make one: an error whether
 ///   or not it is chosen (see [`Backends::diagnostics`]).
+#[derive(Clone)]
 pub struct Backends {
     registry: VoiceRegistry,
     /// Shipped backends whose settings did not validate, by id.

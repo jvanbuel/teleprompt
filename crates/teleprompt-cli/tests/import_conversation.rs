@@ -165,13 +165,18 @@ fn a_corrected_line_keeps_its_take_when_told_to() {
             .stale("quite", "Quite so.")
     };
     assert!(stale(), "a changed line's take is to record again");
-    let none = teleprompt_cli::cmd::edit::run_keep(&project, &script, Some("the-engine-weaves"));
+    let none = project
+        .script(&script, "en")
+        .keep_take(Some("the-engine-weaves"));
     assert!(
         !none.unwrap().changed,
         "a line that did not change keeps nothing"
     );
-    assert!(teleprompt_cli::cmd::edit::run_keep(&project, &script, Some("nope")).is_err());
-    let kept = teleprompt_cli::cmd::edit::run_keep(&project, &script, None).unwrap();
+    assert!(project
+        .script(&script, "en")
+        .keep_take(Some("nope"))
+        .is_err());
+    let kept = project.script(&script, "en").keep_take(None).unwrap();
     assert!(kept.changed);
     assert!(!stale(), "kept: the take says the corrected line");
 }

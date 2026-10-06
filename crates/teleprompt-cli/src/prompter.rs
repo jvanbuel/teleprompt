@@ -132,7 +132,7 @@ pub struct Reached {
 
 /// The script as a front end shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Script {
+pub struct ScriptView {
     pub name: String,
     pub lines: Vec<ScriptLine>,
     pub shots: Vec<ScriptShot>,
@@ -346,7 +346,7 @@ impl<R: Recognizer> Session<R> {
         true
     }
 
-    pub fn script(&self) -> Script {
+    pub fn script(&self) -> ScriptView {
         let lines = self
             .prompt
             .ids
@@ -371,7 +371,7 @@ impl<R: Recognizer> Session<R> {
                 clip: self.clip(&s.capture_key.to_string()),
             })
             .collect();
-        Script {
+        ScriptView {
             name: self.prompt.name.clone(),
             lines,
             shots,

@@ -1,7 +1,6 @@
 //! A script edited while it is read: the prompter reloads it, shots moved
 //! and lines reworded alike.
 
-use teleprompt_cli::cmd::serve::{edits_of, reload_on_edit};
 use teleprompt_cli::project::Project;
 
 #[test]
@@ -10,7 +9,7 @@ fn an_edited_script_is_reloaded_shots_and_lines_alike() {
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
     let project = Project::for_script(&script).unwrap();
-    let reload = reload_on_edit(&project, &script, "en");
+    let reload = project.script(&script, "en").reload_on_edit();
 
     // Unchanged: nothing to place.
     assert!(reload().is_none());
@@ -52,7 +51,7 @@ fn an_edit_that_keeps_the_modification_time_is_reloaded() {
     teleprompt_cli::cmd::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
     let project = Project::for_script(&script).unwrap();
-    let reload = reload_on_edit(&project, &script, "en");
+    let reload = project.script(&script, "en").reload_on_edit();
     let before = std::fs::metadata(&script).unwrap().modified().unwrap();
 
     let text = std::fs::read_to_string(&script).unwrap();
@@ -100,7 +99,7 @@ fn keeping_what_was_said_rewords_the_script_and_reloads() {
         .unwrap();
     let script = dir.join("scripts/demo.md");
     let project = Project::for_script(&script).unwrap();
-    let edits = edits_of(&project, &script, "en");
+    let edits = project.script(&script, "en").edits();
 
     (edits.keep_said)("welcome").unwrap();
     let said = "Welcome to teleprompt. This paragraph is a narration line.";

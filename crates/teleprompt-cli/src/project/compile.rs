@@ -37,6 +37,7 @@ impl Project {
 
 /// One script of a project, for one locale, and the voices it is compiled
 /// against: what every command that reads a script works on.
+#[derive(Clone)]
 pub struct Script {
     project: Project,
     path: PathBuf,
@@ -80,6 +81,15 @@ impl Script {
 
     pub fn backends(&self) -> &Backends {
         &self.backends
+    }
+
+    /// The same script in its project's source locale: what it says as
+    /// written, which is what an edit changes.
+    pub fn in_source_locale(&self) -> Script {
+        Self {
+            locale: self.project.source_locale(),
+            ..self.clone()
+        }
     }
 
     /// The script as saved: read, parsed, resolved, compiled, its problems

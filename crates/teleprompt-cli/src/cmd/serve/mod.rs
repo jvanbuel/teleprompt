@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockWriteGuard};
 
-use crate::prompter::{Position, Prompt, Reached, Script, Session, LISTEN_RATE};
+use crate::prompter::{Position, Prompt, Reached, ScriptView, Session, LISTEN_RATE};
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, Request, State};
@@ -28,7 +28,7 @@ use tokio::task::block_in_place;
 
 use crate::cmd::voicing::Voicing;
 use crate::output::{Failure, Format, Outcome};
-use crate::project::Project;
+use crate::project::{Project, Script};
 use teleprompt_core::edit::Edit;
 
 mod routes;
@@ -138,7 +138,8 @@ impl Opener {
             .locale
             .clone()
             .unwrap_or_else(|| project.source_locale());
-        let prompt = prompt_of(&project, script, &locale).map_err(OpenError::Invalid)?;
+        let opened = project.script(script, locale);
+        let prompt = opened.prompt().map_err(OpenError::Invalid)?;
         let hearing: Hearing = if voice {
             Box::new(teleprompt_listen::Deaf)
         } else {
@@ -153,7 +154,7 @@ impl Opener {
         };
         let session =
             Session::new(prompt, hearing).map_err(|e| OpenError::Invalid(vec![e.to_string()]))?;
-        let mut edits = edits_of(&project, script, &locale);
+        let mut edits = opened.edits();
         edits.listens = !voice;
         Ok(Opened { session, edits })
     }
@@ -223,45 +224,45 @@ fn recognizer(_model: Option<&std::path::Path>) -> Result<Hearing, Failure> {
     ))
 }
 
-/// What the prompter shows of `script`, as it now reads.
-fn prompt_of(
-    project: &Project,
-    script: &std::path::Path,
-    locale: &str,
-) -> Result<Prompt, Vec<String>> {
-    let compiled = project.script(script, locale).compile()?.output;
-    Ok(Prompt {
-        name: script
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default(),
-        shots: crate::prompter::shot_cues(&compiled),
-        ids: compiled
-            .narration
-            .iter()
-            .map(|n| n.line_id.clone())
-            .collect(),
-        lines: compiled.narration.into_iter().map(|n| n.text).collect(),
-        clips: project.caches().clips(),
-        takes: project.takes_dir(),
-    })
-}
+impl Script {
+    /// What the prompter shows of the script, as it now reads.
+    fn prompt(&self) -> Result<Prompt, Vec<String>> {
+        let project = self.project();
+        let compiled = self.compile()?.output;
+        Ok(Prompt {
+            name: self
+                .path()
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            shots: crate::prompter::shot_cues(&compiled),
+            ids: compiled
+                .narration
+                .iter()
+                .map(|n| n.line_id.clone())
+                .collect(),
+            lines: compiled.narration.into_iter().map(|n| n.text).collect(),
+            clips: project.caches().clips(),
+            takes: project.takes_dir(),
+        })
+    }
 
-/// The script again whenever its file has changed since last asked, for
-/// one edited while it is being read: a shot moved or stretched, a line
-/// reworded. `None` when it has not changed, or does not compile.
-pub fn reload_on_edit(project: &Project, script: &std::path::Path, locale: &str) -> Reload {
-    let seen = Mutex::new(crate::project::fingerprint(script));
-    let (project, script, locale) = (project.clone(), script.to_path_buf(), locale.to_string());
-    Box::new(move || {
-        let now = crate::project::fingerprint(&script);
-        let mut seen = seen.lock().unwrap_or_else(PoisonError::into_inner);
-        if now == *seen {
-            return None;
-        }
-        *seen = now;
-        prompt_of(&project, &script, &locale).ok()
-    })
+    /// The script again whenever its file has changed since last asked,
+    /// for one edited while it is being read: a shot moved or stretched, a
+    /// line reworded. `None` when it has not changed, or does not compile.
+    pub fn reload_on_edit(&self) -> Reload {
+        let seen = Mutex::new(crate::project::fingerprint(self.path()));
+        let script = self.clone();
+        Box::new(move || {
+            let now = crate::project::fingerprint(script.path());
+            let mut seen = seen.lock().unwrap_or_else(PoisonError::into_inner);
+            if now == *seen {
+                return None;
+            }
+            *seen = now;
+            script.prompt().ok()
+        })
+    }
 }
 
 /// The script anew, if it has changed.
@@ -323,52 +324,58 @@ pub struct Edits {
     pub listens: bool,
 }
 
-/// `script`'s edits: reloaded when changed, a line reworded as
-/// `teleprompt edit <script> said <line>` does, each edit kept to undo,
-/// and captured or built as the commands do.
-pub fn edits_of(project: &Project, script: &std::path::Path, locale: &str) -> Edits {
-    let (keeper, path) = (project.clone(), script.to_path_buf());
-    let (editor, edited) = (project.clone(), script.to_path_buf());
-    // The script before and after each edit, latest last.
-    let history = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
-    let (kept, undone) = (history.clone(), script.to_path_buf());
-    let (root, made, locale_of) = (
-        project.root.clone(),
-        script.to_path_buf(),
-        locale.to_string(),
-    );
-    Edits {
-        reload: reload_on_edit(project, script, locale),
-        keep_said: Box::new(move |line| {
-            crate::cmd::edit::run_said(&keeper, &path, line)
-                .map(|_| ())
-                .map_err(|e| e.to_string())
-        }),
-        edit: Box::new(move |edit| {
-            let before = std::fs::read_to_string(&edited).map_err(|e| e.to_string())?;
-            crate::cmd::edit::run_edit(&editor, &edited, edit).map_err(|e| e.to_string())?;
-            let after = std::fs::read_to_string(&edited).map_err(|e| e.to_string())?;
-            if after != before {
-                lock(&kept).push((before, after));
-            }
-            Ok(())
-        }),
-        undo: Box::new(move || {
-            let (before, after) = lock(&history)
-                .pop()
-                .ok_or_else(|| "nothing to undo".to_string())?;
-            let now = std::fs::read_to_string(&undone).map_err(|e| e.to_string())?;
-            if now != after {
-                lock(&history).clear();
-                return Err("the script has changed since: undo it in your editor".into());
-            }
-            std::fs::write(&undone, before).map_err(|e| e.to_string())
-        }),
-        make: Some(Box::new(move |job, progress| {
-            make(&root, &made, &locale_of, job, progress)
-        })),
-        voice: Some(Voicing::new(project, script, locale)),
-        listens: true,
+impl Script {
+    /// The script's edits: reloaded when changed, a line reworded as
+    /// `teleprompt edit <script> said <line>` does, each edit kept to undo,
+    /// and captured or built as the commands do.
+    pub fn edits(&self) -> Edits {
+        let keeper = self.clone();
+        let editor = self.clone();
+        // The script before and after each edit, latest last.
+        let history = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+        let (kept, undone) = (history.clone(), self.path().to_path_buf());
+        let maker = self.clone();
+        Edits {
+            reload: self.reload_on_edit(),
+            keep_said: Box::new(move |line| {
+                keeper
+                    .keep_said(line)
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            }),
+            edit: Box::new(move |edit| {
+                let edited = editor.path();
+                let before = std::fs::read_to_string(edited).map_err(|e| e.to_string())?;
+                editor.edit(edit).map_err(|e| e.to_string())?;
+                let after = std::fs::read_to_string(edited).map_err(|e| e.to_string())?;
+                if after != before {
+                    lock(&kept).push((before, after));
+                }
+                Ok(())
+            }),
+            undo: Box::new(move || {
+                let (before, after) = lock(&history)
+                    .pop()
+                    .ok_or_else(|| "nothing to undo".to_string())?;
+                let now = std::fs::read_to_string(&undone).map_err(|e| e.to_string())?;
+                if now != after {
+                    lock(&history).clear();
+                    return Err("the script has changed since: undo it in your editor".into());
+                }
+                std::fs::write(&undone, before).map_err(|e| e.to_string())
+            }),
+            make: Some(Box::new(move |job, progress| {
+                make(
+                    &maker.project().root,
+                    maker.path(),
+                    maker.locale(),
+                    job,
+                    progress,
+                )
+            })),
+            voice: Some(Voicing::new(self.clone())),
+            listens: true,
+        }
     }
 }
 
