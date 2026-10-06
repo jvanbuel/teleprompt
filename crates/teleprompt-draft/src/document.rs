@@ -1,5 +1,5 @@
 //! `teleprompt import <doc>`: a document, deck or conversation drafted into
-//! a script. The file handling around `teleprompt_derive::document` and
+//! a script. The file handling around `crate::derive::document` and
 //! `::transcript`, which do the drafting; a recorded session is `import`'s
 //! other half, `crate::import`.
 
@@ -10,10 +10,10 @@ use teleprompt_core::LineId;
 use teleprompt_script::ast::slugify;
 use teleprompt_voice::Pcm;
 
+use crate::derive::document::{draft, draft_slidev};
+use crate::derive::transcript::{conversation, draft_transcript, turns, Format, Turn};
 use crate::import::{cut_takes, read_voice};
 use serde::Serialize;
-use teleprompt_derive::document::{draft, draft_slidev};
-use teleprompt_derive::transcript::{conversation, draft_transcript, turns, Format, Turn};
 use teleprompt_project::project::Project;
 use teleprompt_project::registry::Registry;
 

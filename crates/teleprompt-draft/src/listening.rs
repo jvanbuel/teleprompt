@@ -27,9 +27,9 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
     let samples = at_16k(pcm);
     let model = setup::speech_model(None)?;
     let words = teleprompt_listen::sherpa::transcribe(&model, &samples)?;
-    let words: Vec<teleprompt_derive::Word> = words
+    let words: Vec<crate::derive::Word> = words
         .into_iter()
-        .map(|w| teleprompt_derive::Word {
+        .map(|w| crate::derive::Word {
             text: w.text,
             start_ms: w.start_ms,
             end_ms: w.end_ms,
@@ -47,13 +47,13 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
         Some(dir) => {
             let text: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
             let text = teleprompt_listen::sherpa::punctuate(&dir, &text.join(" "))?;
-            teleprompt_derive::punctuate(&words, &text)
+            crate::derive::punctuate(&words, &text)
         }
         // The model hears in capitals; without punctuation, lower case
         // reads better than shouting.
         None => words
             .into_iter()
-            .map(|w| teleprompt_derive::Word {
+            .map(|w| crate::derive::Word {
                 text: w.text.to_lowercase(),
                 ..w
             })

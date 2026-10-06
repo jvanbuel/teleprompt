@@ -42,7 +42,6 @@ teleprompt-testkit = { path = "../teleprompt-testkit" }
 # The tests look at what the engine made with the crates it made it with.
 teleprompt-asciinema = { path = "../teleprompt-asciinema" }
 teleprompt-compile = { path = "../teleprompt-compile" }
-teleprompt-derive = { path = "../teleprompt-derive" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }

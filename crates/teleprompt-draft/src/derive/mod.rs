@@ -2,7 +2,7 @@
 //! and when each step of the recording began, become narration lines and
 //! the blocks between them (`docs/design.md#recording-a-session`).
 //!
-//! Pure: the caller reads the recording, as the plugin that made it
+//! Pure, so a draft is tested without a tool: the caller reads the recording, as the plugin that made it
 //! does, and transcribes the voice. A block names a run of steps; the
 //! script includes that part of the recording.
 //!

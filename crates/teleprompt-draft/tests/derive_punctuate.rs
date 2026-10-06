@@ -1,4 +1,4 @@
-use teleprompt_derive::{derive, punctuate, Options, Word};
+use teleprompt_draft::derive::{derive, punctuate, Options, Word};
 
 fn heard(text: &str) -> Vec<Word> {
     text.split_whitespace()

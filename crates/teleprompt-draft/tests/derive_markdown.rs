@@ -1,6 +1,6 @@
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::policy::PolicyKind;
-use teleprompt_derive::{derive, Options, Word};
+use teleprompt_draft::derive::{derive, Options, Word};
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, ActionElement, Element};
 

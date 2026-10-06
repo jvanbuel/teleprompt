@@ -1,6 +1,6 @@
 //! A draft written out as a script.
 
-use crate::{Block, Draft, Mode, Options};
+use crate::derive::{Block, Draft, Mode, Options};
 
 pub(crate) fn render(draft: &Draft, options: &Options) -> String {
     let mut out = format!("---\nteleprompt: 1\n---\n\n# {}\n", options.title);

@@ -2027,7 +2027,6 @@ dependencies = [
  "teleprompt-asciinema",
  "teleprompt-compile",
  "teleprompt-core",
- "teleprompt-derive",
  "teleprompt-draft",
  "teleprompt-listen",
  "teleprompt-lsp",
@@ -2076,15 +2075,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "teleprompt-derive"
-version = "0.1.0"
-dependencies = [
- "teleprompt-core",
- "teleprompt-listen",
- "teleprompt-script",
-]
-
-[[package]]
 name = "teleprompt-desktop"
 version = "0.1.0"
 dependencies = [
@@ -2101,7 +2091,6 @@ dependencies = [
  "serde_json",
  "signal-hook",
  "teleprompt-core",
- "teleprompt-derive",
  "teleprompt-listen",
  "teleprompt-plugin",
  "teleprompt-project",

@@ -1,4 +1,4 @@
-use teleprompt_derive::{derive, Mode, Options, Word};
+use teleprompt_draft::derive::{derive, Mode, Options, Word};
 
 /// Words spoken from `at`, one every 400 ms, each 350 ms long.
 fn say(at: u64, text: &str) -> Vec<Word> {

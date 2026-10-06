@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use crate::{Draft, Options, Word};
+use crate::derive::{Draft, Options, Word};
 
 /// A narration line: what was said, as the script will read it, and when.
 #[derive(Debug, Clone, PartialEq, Eq)]

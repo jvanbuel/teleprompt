@@ -1,7 +1,7 @@
 //! Punctuation from a punctuator's copy of the transcript, put back onto
 //! the timed words.
 
-use crate::Word;
+use crate::derive::Word;
 
 /// How far ahead a word is looked for in the punctuated text, past words
 /// the punctuator added or rewrote.

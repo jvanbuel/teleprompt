@@ -52,9 +52,6 @@ ALLOWED = {
     "desktop": PLUGIN,
     "translate": {"core", "script"},
     "listen": set(),
-    # Ids and speaker names are the script's; who speaks when is what a
-    # recognizer hears.
-    "derive": {"core", "script", "listen"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
     # A project and what the commands do to its scripts: compiled, dubbed,
     # captured, built, edited and translated. It is handed its scene
@@ -71,7 +68,7 @@ ALLOWED = {
     # The language server, with the real compile as its analyzer.
     "lsp": {"project", "core", "script"},
     # Drafts from what was said: `import` and `record`.
-    "draft": {"project", "setup", "core", "script", "derive", "listen", "plugin", "voice"},
+    "draft": {"project", "setup", "core", "script", "listen", "plugin", "voice"},
     # The prompter: its page, API and session, following a reader by ear.
     "serve": {
         "project", "setup", "core", "script", "compile", "manifest", "schedule",

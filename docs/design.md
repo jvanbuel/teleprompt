@@ -175,7 +175,6 @@ reading the manifest it just published.
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest. It plans: it reads each line's length from the voice cache or a take, and never encodes audio |
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies. Its opt-in `sherpa` feature adds the recognizer, a streaming sherpa-onnx model, and the offline models drafts are made with; without it the default build stays offline |
-| `teleprompt-derive` | drafting a script: from a recorded session (when each step began and timed words in, lines and the blocks between them out), a Markdown document, a Slidev deck's notes, or a conversation's transcript. Pure: no IO |
 | `teleprompt-translate` | translation providers for `translate`, chosen by name: a local model through Ollama (the default), any OpenAI-compatible server, Claude, and a command of the author's; the request each is sent and the prompt the model-backed ones share |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per scene plugin, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `plugin()` |
@@ -184,7 +183,7 @@ reading the manifest it just published.
 | `teleprompt-registry` | the one crate that knows every scene plugin and voice by name: it builds the `Registry` the command line hands to each project |
 | `teleprompt-setup` | what `setup` finds and installs: what each scene plugin and voice needs, the speech models, and the uses of teleprompt that ask for them |
 | `teleprompt-lsp` | the language server: its protocol, positions and completion, with the real compile behind an `Analyzer` |
-| `teleprompt-draft` | the drafts `import` and `record` make from what was said |
+| `teleprompt-draft` | the drafts `import` and `record` make: `derive`, the pure half, turns a recorded session (when each step began and timed words), a Markdown document, a Slidev deck's notes or a conversation's transcript into a script; the rest reads files, records, and listens |
 | `teleprompt-serve` | the prompter: its page, API version 1 and the session that follows a reader by ear (`prompter`), served on loopback. It runs `capture` and `build` as the command does |
 | `teleprompt-cli` | the `teleprompt` binary, composing the rest: each command's flags, its report in either format, exit codes, and the questions it asks at a terminal |
 
@@ -477,7 +476,7 @@ from its first key to the next command's; a tape's, a command through its
 `Enter`, timed as `vhs` would play it; a codegen script's, a statement,
 timed by when it appeared in the file, which the recorder watches. The
 voice is placed on the recording's clock by when its first sample was
-taken. `teleprompt-derive` then drafts the script, purely, from the steps'
+taken. `draft::derive` then drafts the script, purely, from the steps'
 start times and the words the recognizer heard with their times:
 
 - Speech is cut into lines where a silence reaches 700 ms. The prose is

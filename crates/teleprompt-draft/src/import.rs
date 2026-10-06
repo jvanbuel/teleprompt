@@ -1,14 +1,14 @@
 //! `teleprompt import <recording> --voice <wav>`: a session recorded with
 //! a scene plugin's tool (a cast, a tape) and the voice recorded with it
 //! become a script, and the takes its lines are spoken from. The deriving
-//! is `teleprompt-derive`; reading the recording is its plugin's; this
+//! is `derive`; reading the recording is its plugin's; this
 //! hears the voice and writes the results.
 
 use std::path::{Path, PathBuf};
 use teleprompt_core::LineId;
 
+use crate::derive::{derive, Draft, Line, Options, Word};
 use serde::{Deserialize, Serialize};
-use teleprompt_derive::{derive, Draft, Line, Options, Word};
 use teleprompt_plugin::record::Recorded;
 
 use teleprompt_project::registry::{Recording, Registry};
@@ -278,7 +278,7 @@ fn transcribe(dir: &Path, pcm: &Pcm) -> Result<Vec<(String, u64, u64)>, String> 
 fn punctuated(dir: &Path, words: &[Word]) -> Result<Vec<Word>, String> {
     let text: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
     let text = teleprompt_listen::sherpa::punctuate(dir, &text.join(" "))?;
-    Ok(teleprompt_derive::punctuate(words, &text))
+    Ok(crate::derive::punctuate(words, &text))
 }
 
 #[cfg(not(feature = "listen"))]
