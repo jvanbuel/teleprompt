@@ -48,15 +48,17 @@ impl Pcm {
         if bytes.is_empty() {
             return Err("returned an empty audio body".to_string());
         }
-        if bytes.len() % 2 != 0 {
+        if !bytes.len().is_multiple_of(2) {
             return Err(format!(
                 "returned {} bytes, an odd count for 16-bit samples",
                 bytes.len()
             ));
         }
         let samples = bytes
-            .chunks_exact(2)
-            .map(|p| i16::from_le_bytes([p[0], p[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&p| i16::from_le_bytes(p))
             .collect();
         Ok(Pcm {
             sample_rate,

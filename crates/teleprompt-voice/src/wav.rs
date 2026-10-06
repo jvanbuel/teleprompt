@@ -171,16 +171,20 @@ impl<R: Read> Reader<R> {
             self.left = 0;
             return Ok((!bytes.is_empty()).then(|| {
                 bytes
-                    .chunks_exact(2)
-                    .map(|s| i16::from_le_bytes([s[0], s[1]]))
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|&s| i16::from_le_bytes(s))
                     .collect()
             }));
         }
         self.left -= want;
         Ok(Some(
             bytes
-                .chunks_exact(2)
-                .map(|s| i16::from_le_bytes([s[0], s[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|&s| i16::from_le_bytes(s))
                 .collect(),
         ))
     }

@@ -22,7 +22,9 @@ fn samples(path: &Path) -> Vec<f32> {
         at += 8 + len;
     }
     bytes[at + 8..]
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|b| f32::from(i16::from_le_bytes([b[0], b[1]])) / 32768.0)
         .collect()
 }

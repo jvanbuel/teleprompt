@@ -50,8 +50,8 @@ when the value drops, even if the test panics, so keep it bound for as long
 as anything uses the path: return it from a helper alongside what was built
 in it, and bind it as `_dir`, not `_`, which drops it at once.
 
-The oldest supported Rust is 1.85, the `rust-version` in `Cargo.toml`, and
-CI checks it with `cargo +1.85 check --workspace --locked`.
+The oldest supported Rust is 1.88, the `rust-version` in `Cargo.toml`, and
+CI checks it with `cargo +1.88 check --workspace --locked`.
 
 ## Changes
 

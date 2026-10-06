@@ -2,7 +2,7 @@
 name = "teleprompt-gtk"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT"
 description = "teleprompt's prompter page in a GTK 4 and libadwaita window"
 publish = false

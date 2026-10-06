@@ -212,9 +212,9 @@ fn number_words(n: u32) -> String {
     ];
     match n {
         0..=19 => ONES[n as usize].to_string(),
-        20..=99 if n % 10 == 0 => TENS[(n / 10) as usize].to_string(),
+        20..=99 if n.is_multiple_of(10) => TENS[(n / 10) as usize].to_string(),
         20..=99 => format!("{} {}", TENS[(n / 10) as usize], ONES[(n % 10) as usize]),
-        _ if n % 100 == 0 => format!("{} hundred", ONES[(n / 100) as usize]),
+        _ if n.is_multiple_of(100) => format!("{} hundred", ONES[(n / 100) as usize]),
         _ => format!(
             "{} hundred {}",
             ONES[(n / 100) as usize],

@@ -122,7 +122,9 @@ fn samples(wav: &[u8]) -> Vec<i16> {
     assert_eq!(&wav[0..4], b"RIFF");
     let len = u32::from_le_bytes(wav[40..44].try_into().unwrap()) as usize;
     wav[44..44 + len]
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| i16::from_le_bytes([c[0], c[1]]))
         .collect()
 }
