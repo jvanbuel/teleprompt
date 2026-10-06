@@ -2166,6 +2166,7 @@ dependencies = [
 name = "teleprompt-project"
 version = "0.1.0"
 dependencies = [
+ "reqwest",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2177,7 +2178,6 @@ dependencies = [
  "teleprompt-schedule",
  "teleprompt-script",
  "teleprompt-testkit",
- "teleprompt-translate",
  "teleprompt-voice",
  "tokio",
 ]
@@ -2293,20 +2293,6 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "teleprompt-translate"
-version = "0.1.0"
-dependencies = [
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "teleprompt-core",
- "teleprompt-script",
- "teleprompt-testkit",
  "tokio",
 ]
 

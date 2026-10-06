@@ -4,8 +4,8 @@
 use serde_json::{json, Value};
 use teleprompt_core::error::with_causes;
 
-use crate::prompt::{answer, schema, SYSTEM};
-use crate::{Request, Response};
+use crate::translate::prompt::{answer, schema, SYSTEM};
+use crate::translate::{Request, Response};
 
 /// The model asked unless the author names another.
 pub const DEFAULT_MODEL: &str = "claude-opus-5";
@@ -49,7 +49,7 @@ impl Claude {
             api_key,
             model: model.unwrap_or(DEFAULT_MODEL).to_string(),
             base_url: std::env::var("ANTHROPIC_BASE_URL").unwrap_or_else(|_| API.to_string()),
-            timeout_ms: crate::TIMEOUT_MS,
+            timeout_ms: crate::translate::TIMEOUT_MS,
         })
     }
 
@@ -67,7 +67,7 @@ impl Claude {
                 "content": serde_json::to_string_pretty(request).map_err(|e| e.to_string())?,
             }],
         });
-        let reply = crate::client(self.timeout_ms)
+        let reply = crate::translate::client(self.timeout_ms)
             .post(format!(
                 "{}/v1/messages",
                 self.base_url.trim_end_matches('/')
@@ -80,7 +80,7 @@ impl Claude {
             .await
             .map_err(|e| {
                 if e.is_timeout() {
-                    return crate::unanswered("the Anthropic API", self.timeout_ms);
+                    return crate::translate::unanswered("the Anthropic API", self.timeout_ms);
                 }
                 format!("cannot reach the Anthropic API: {}", with_causes(&e))
             })?;

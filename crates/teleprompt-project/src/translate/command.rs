@@ -6,7 +6,7 @@ use std::process::Stdio;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
-use crate::{Request, Response};
+use crate::translate::{Request, Response};
 
 /// The program and how long it may take over one batch.
 #[derive(Debug, Clone)]
@@ -19,7 +19,7 @@ impl Program {
     pub fn new(run: &str) -> Self {
         Program {
             run: run.to_string(),
-            timeout_ms: crate::TIMEOUT_MS,
+            timeout_ms: crate::translate::TIMEOUT_MS,
         }
     }
 }
@@ -49,7 +49,7 @@ pub(crate) async fn translate(program: &Program, request: &Request) -> Result<Re
     let run = async { tokio::join!(write, child.wait_with_output()).1 };
     let out = tokio::time::timeout(std::time::Duration::from_millis(program.timeout_ms), run)
         .await
-        .map_err(|_| crate::unanswered(&format!("`{command}`"), program.timeout_ms))?
+        .map_err(|_| crate::translate::unanswered(&format!("`{command}`"), program.timeout_ms))?
         .map_err(|e| format!("`{command}` failed: {e}"))?;
     if !out.status.success() {
         return Err(format!(

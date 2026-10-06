@@ -1,5 +1,5 @@
-//! Translating a script's narration: what `teleprompt translate` sends a
-//! translator, and the translators it can send it to.
+//! What `teleprompt translate` sends a translator, and the translators it
+//! can send it to.
 //!
 //! Every translator gets the same [`Request`], the items to translate and
 //! the translations already made, and answers with a [`Response`], one
@@ -14,16 +14,7 @@
 use serde::{Deserialize, Serialize};
 use teleprompt_script::translation::{Item, Kind};
 
-mod claude;
-mod command;
-pub mod ollama;
-pub mod openai;
-mod prompt;
-
-pub use claude::Claude;
-pub use command::Program;
-pub use ollama::Ollama;
-pub use openai::OpenAi;
+use super::{Claude, Ollama, OpenAi, Program};
 
 /// How long one batch may take unless `[translate]`'s `timeout_ms` says
 /// otherwise.
@@ -31,7 +22,7 @@ pub const TIMEOUT_MS: u64 = teleprompt_core::config::TRANSLATE_TIMEOUT_MS;
 
 /// An HTTP client that gives up: on connecting after ten seconds, on the
 /// whole request after `timeout_ms`.
-fn client(timeout_ms: u64) -> reqwest::Client {
+pub(crate) fn client(timeout_ms: u64) -> reqwest::Client {
     reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(10))
         .timeout(std::time::Duration::from_millis(timeout_ms))
@@ -40,7 +31,7 @@ fn client(timeout_ms: u64) -> reqwest::Client {
 }
 
 /// What to say when `who` has not answered within `timeout_ms`.
-fn unanswered(who: &str, timeout_ms: u64) -> String {
+pub(crate) fn unanswered(who: &str, timeout_ms: u64) -> String {
     format!("{who} did not answer within {timeout_ms} ms: raise `timeout_ms` under [translate]")
 }
 
@@ -202,7 +193,7 @@ impl Translator {
                 Translator::Ollama(o) => o.translate(&part).await?,
                 Translator::OpenAi(o) => o.translate(&part).await?,
                 Translator::Claude(c) => c.translate(&part).await?,
-                Translator::Command(cmd) => command::translate(cmd, &part).await?,
+                Translator::Command(cmd) => super::command::translate(cmd, &part).await?,
             };
             out.extend(response.items.into_iter().map(|t| (t.id, t.text)));
         }

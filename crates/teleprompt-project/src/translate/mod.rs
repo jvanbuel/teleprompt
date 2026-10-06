@@ -1,12 +1,30 @@
 //! `teleprompt translate <script> --to <locale>`: the script's narration
 //! translated into `<script>.<locale>.yaml`, asking the translator only for
-//! what is missing or has changed in the English since.
+//! what is missing or has changed in the English since. The translators
+//! are chosen by name ([`PROVIDERS`]), each with its own settings from
+//! `[translate.<name>]`; adding one is a module with a `translate` method
+//! and an arm in [`Translator::new`].
 
 use std::path::PathBuf;
 
 use serde::Serialize;
 use teleprompt_script::translation::{items, merged, pending, Translation};
-use teleprompt_translate::{Known, Request, Translator, Wanted};
+
+mod claude;
+mod command;
+pub mod ollama;
+pub mod openai;
+mod prompt;
+mod translator;
+
+pub use claude::Claude;
+pub use command::Program;
+pub use ollama::Ollama;
+pub use openai::OpenAi;
+pub(crate) use translator::{client, unanswered};
+pub use translator::{
+    Known, Request, Response, Translated, Translator, Wanted, PROVIDERS, TIMEOUT_MS,
+};
 
 use crate::project::translation_path;
 use crate::project::Script;
@@ -63,7 +81,7 @@ impl Script {
             .config;
         let timeout_ms = config.translate.timeout_ms;
         if let Some(cmd) = choice.command {
-            let program = teleprompt_translate::Program::new(cmd);
+            let program = Program::new(cmd);
             return Ok(Translator::Command(program).timeout(timeout_ms));
         }
         let provider = choice.provider.unwrap_or(&config.translate.provider);

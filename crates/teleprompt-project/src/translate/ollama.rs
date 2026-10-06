@@ -5,8 +5,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use teleprompt_core::error::with_causes;
 
-use crate::prompt::{answer, schema, SYSTEM};
-use crate::{Request, Response};
+use crate::translate::prompt::{answer, schema, SYSTEM};
+use crate::translate::{Request, Response};
 
 /// A multilingual open model that runs on a laptop.
 pub const DEFAULT_MODEL: &str = "gemma3:12b";
@@ -36,7 +36,7 @@ impl Ollama {
         Ollama {
             url,
             model: model.unwrap_or(DEFAULT_MODEL).to_string(),
-            timeout_ms: crate::TIMEOUT_MS,
+            timeout_ms: crate::translate::TIMEOUT_MS,
         }
     }
 
@@ -52,14 +52,14 @@ impl Ollama {
             // The same words for the same line, run after run.
             "options": { "temperature": 0 },
         });
-        let reply = crate::client(self.timeout_ms)
+        let reply = crate::translate::client(self.timeout_ms)
             .post(format!("{}/api/chat", self.url.trim_end_matches('/')))
             .json(&body)
             .send()
             .await
             .map_err(|e| {
                 if e.is_timeout() {
-                    return crate::unanswered("Ollama", self.timeout_ms);
+                    return crate::translate::unanswered("Ollama", self.timeout_ms);
                 }
                 format!(
                     "cannot reach Ollama at {}: {}\n  install it from ollama.com, then \
@@ -72,7 +72,7 @@ impl Ollama {
         let status = reply.status();
         let message: Value = reply.json().await.map_err(|e| {
             if e.is_timeout() {
-                return crate::unanswered("Ollama", self.timeout_ms);
+                return crate::translate::unanswered("Ollama", self.timeout_ms);
             }
             format!("Ollama answered {status} with no JSON: {e}")
         })?;

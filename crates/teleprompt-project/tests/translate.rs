@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 use teleprompt_testkit::http::{self, Reply, Stub};
 
-use teleprompt_translate::{Claude, Program, Request, Translator, Wanted};
+use teleprompt_project::translate::{Claude, Program, Request, Translator, Wanted};
 
 fn request() -> Request {
     Request {
@@ -118,7 +118,7 @@ async fn ollama_is_the_default_and_asked_for_json() {
     }))
     .await;
     let t = Translator::new(
-        teleprompt_translate::PROVIDERS[0],
+        teleprompt_project::translate::PROVIDERS[0],
         None,
         Some(&settings(&format!("url: {url}"))),
     )
@@ -131,7 +131,10 @@ async fn ollama_is_the_default_and_asked_for_json() {
 
     let (head, body) = asked(&server);
     assert!(head.to_lowercase().starts_with("post /api/chat "), "{head}");
-    assert_eq!(body["model"], teleprompt_translate::ollama::DEFAULT_MODEL);
+    assert_eq!(
+        body["model"],
+        teleprompt_project::translate::ollama::DEFAULT_MODEL
+    );
     assert_eq!(body["stream"], false);
     assert_eq!(body["format"]["required"][0], "items");
     assert_eq!(body["messages"][0]["role"], "system");
@@ -182,7 +185,7 @@ async fn an_openai_compatible_server_is_asked_the_same() {
     let head = head.to_lowercase();
     assert!(head.starts_with("post /v1/chat/completions "), "{head}");
     assert!(
-        head.contains("authorization: bearer teleprompt-translate"),
+        head.contains("authorization: bearer teleprompt-project"),
         "{head}"
     );
     assert_eq!(body["model"], "qwen2.5-7b-instruct");

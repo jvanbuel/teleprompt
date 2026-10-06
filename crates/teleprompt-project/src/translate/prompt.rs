@@ -2,7 +2,7 @@
 
 use serde_json::{json, Value};
 
-use crate::Response;
+use crate::translate::Response;
 
 pub(crate) const SYSTEM: &str = "\
 You translate the narration of a narrated software video. Each line is \

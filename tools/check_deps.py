@@ -50,7 +50,6 @@ ALLOWED = {
     "media": PLUGIN,
     # The desktop scene plugins, x11 and macos: one language and runner.
     "desktop": PLUGIN,
-    "translate": {"core", "script"},
     "listen": set(),
     "testkit": set(),  # dev-dependency only; never a normal dependency
     # A project and what the commands do to its scripts: compiled, dubbed,
@@ -59,7 +58,7 @@ ALLOWED = {
     # plugin crate and no voice is here.
     "project": {
         "core", "script", "scene", "plugin", "schedule", "voice", "manifest",
-        "compile", "render", "translate",
+        "compile", "render",
     },
     # The one crate that knows every scene plugin and voice by name.
     "registry": {"project", "plugin", "voice", "voices"} | PLUGIN_CRATES,

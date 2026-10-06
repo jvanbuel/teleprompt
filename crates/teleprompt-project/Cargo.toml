@@ -15,7 +15,6 @@ teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
 teleprompt-render = { path = "../teleprompt-render" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
-teleprompt-translate = { path = "../teleprompt-translate" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 serde.workspace = true
 serde_json.workspace = true
@@ -27,10 +26,15 @@ serde_yaml.workspace = true
 # `time` is for `tokio::time::timeout` around `setup`'s voice probe: `setup`
 # is the command reached for when something is broken, so it must not
 # itself wait out a hanging server's full synthesis `timeout_ms`.
-tokio = { workspace = true, features = ["sync", "time"] }
+# `process` and `io-util` are for `translate`'s `command` provider.
+tokio = { workspace = true, features = ["sync", "time", "process", "io-util"] }
+# `translate`'s providers over HTTP.
+reqwest = { workspace = true }
 
 [dev-dependencies]
 teleprompt-testkit = { path = "../teleprompt-testkit" }
+# `translate`'s tests answer as a provider would, from an in-process stub.
+tokio = { workspace = true, features = ["macros", "rt", "net", "io-util"] }
 
 [lints]
 workspace = true

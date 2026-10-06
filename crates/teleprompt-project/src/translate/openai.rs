@@ -5,8 +5,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use teleprompt_core::error::with_causes;
 
-use crate::prompt::{answer, schema, SYSTEM};
-use crate::{Request, Response};
+use crate::translate::prompt::{answer, schema, SYSTEM};
+use crate::translate::{Request, Response};
 
 /// `[translate.openai]`.
 #[derive(Debug, Default, Deserialize)]
@@ -53,7 +53,7 @@ impl OpenAi {
             url,
             model: model.to_string(),
             api_key,
-            timeout_ms: crate::TIMEOUT_MS,
+            timeout_ms: crate::translate::TIMEOUT_MS,
         })
     }
 
@@ -70,7 +70,7 @@ impl OpenAi {
             },
             "temperature": 0,
         });
-        let mut post = crate::client(self.timeout_ms)
+        let mut post = crate::translate::client(self.timeout_ms)
             .post(format!(
                 "{}/chat/completions",
                 self.url.trim_end_matches('/')
@@ -81,14 +81,14 @@ impl OpenAi {
         }
         let reply = post.send().await.map_err(|e| {
             if e.is_timeout() {
-                return crate::unanswered(&self.url, self.timeout_ms);
+                return crate::translate::unanswered(&self.url, self.timeout_ms);
             }
             format!("cannot reach {}: {}", self.url, with_causes(&e))
         })?;
         let status = reply.status();
         let message: Value = reply.json().await.map_err(|e| {
             if e.is_timeout() {
-                return crate::unanswered(&self.url, self.timeout_ms);
+                return crate::translate::unanswered(&self.url, self.timeout_ms);
             }
             format!("{} answered {status} with no JSON: {e}", self.url)
         })?;
