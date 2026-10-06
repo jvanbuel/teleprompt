@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use teleprompt_manifest::chapters;
+use teleprompt_plugin::capture::Frame;
 use teleprompt_render::incremental::IncrementalRenderer;
 use teleprompt_render::plan::{self, Inputs};
 use teleprompt_render::{Picture, Progress, RenderError};
@@ -39,6 +40,17 @@ pub struct BuildOptions {
 }
 
 impl BuildOptions {
+    /// The frame to record and render at: the script's `output:` frame,
+    /// with this build's overrides.
+    pub fn frame(&self, output: &teleprompt_core::config::OutputConfig) -> Frame {
+        let (width, height) = self.resolution.unwrap_or(output.resolution);
+        Frame {
+            width,
+            height,
+            fps: self.fps.unwrap_or(output.fps),
+        }
+    }
+
     /// Where a build writes when nobody says otherwise.
     pub fn defaults(project: &Project, script: &Path, locale: &str) -> Self {
         let stem = script
@@ -184,8 +196,10 @@ pub async fn run_build_with_capture(
 ) -> Result<BuildReport, Failure> {
     // Stage 5 (docs/design.md#pipeline). What cannot be recorded becomes a
     // warning and a slate, not a failure; see [`capture::run_capture`].
-    let (dubbed, frame, recorded) =
-        capture::dub_and_capture(project, script, locale, options, captures, &mut |_| {}).await?;
+    let dubbed =
+        crate::cmd::dub::run_dub(project, script, locale, &options.narration_root, false).await?;
+    let frame = options.frame(&dubbed.output);
+    let recorded = capture::run_capture(&dubbed, captures, &options.clips_dir, frame, &mut |_| {});
     let mut warnings = dubbed.warnings;
     warnings.extend(recorded.warnings);
     let captured = recorded.captured;

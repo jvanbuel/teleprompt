@@ -116,21 +116,20 @@ impl CaptureReport {
     }
 }
 
-/// Record whatever is missing from `clips_dir`.
+/// Record whatever the shots `dub` scheduled are missing from `clips_dir`.
 ///
 /// Infallible by design: a scene nothing here can record, or a backend
 /// that fails, is a warning and slates. The timing is still real, and a
 /// video with a hole in it is more use than no video.
 pub fn run_capture(
-    manifest: &NarrationManifest,
-    shots: &BTreeMap<ShotId, ShotSource>,
-    scenes: &BTreeMap<String, SceneConfig>,
+    dubbed: &crate::cmd::dub::DubOutput,
     plugins: &ScenePlugins,
     clips_dir: &Path,
     frame: Frame,
     on_progress: &mut dyn FnMut(Progress),
 ) -> CaptureReport {
-    let shots = cues_of(manifest, shots, scenes);
+    let scenes = &dubbed.scenes;
+    let shots = cues_of(&dubbed.manifest, &dubbed.shots, scenes);
     let have = |key: &teleprompt_core::Hash| clips_dir.join(format!("{key}.mp4")).is_file();
     let mut planned = sessions(&shots, &have);
     for session in &mut planned {
@@ -238,48 +237,18 @@ pub async fn capture_script(
         fps,
         ..crate::cmd::build::BuildOptions::defaults(project, script, locale)
     };
-    let (_, _, report) = dub_and_capture(
-        project,
-        script,
-        locale,
-        &options,
-        crate::scene::plugins(),
-        on_progress,
-    )
-    .await?;
-    Ok(report)
-}
-
-/// Dubs the script, then records what its shots are missing into
-/// `options.clips_dir`: where `capture` stops and `build` goes on to
-/// render. It dubs first rather than read a manifest on disk that may be
-/// stale (docs/design.md#rendering).
-pub(crate) async fn dub_and_capture(
-    project: &crate::project::Project,
-    script: &Path,
-    locale: &str,
-    options: &crate::cmd::build::BuildOptions,
-    plugins: &ScenePlugins,
-    on_progress: &mut dyn FnMut(Progress),
-) -> Result<(crate::cmd::dub::DubOutput, Frame, CaptureReport), crate::output::Failure> {
+    // Dubbed afresh rather than read from disk, where the manifest may be
+    // stale (docs/design.md#rendering).
     let dubbed =
         crate::cmd::dub::run_dub(project, script, locale, &options.narration_root, false).await?;
-    let (width, height) = options.resolution.unwrap_or(dubbed.output.resolution);
-    let frame = Frame {
-        width,
-        height,
-        fps: options.fps.unwrap_or(dubbed.output.fps),
-    };
-    let report = run_capture(
-        &dubbed.manifest,
-        &dubbed.shots,
-        &dubbed.scenes,
-        plugins,
+    let frame = options.frame(&dubbed.output);
+    Ok(run_capture(
+        &dubbed,
+        crate::scene::plugins(),
         &options.clips_dir,
         frame,
         on_progress,
-    );
-    Ok((dubbed, frame, report))
+    ))
 }
 
 /// `capture`'s arguments.

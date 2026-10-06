@@ -584,10 +584,7 @@ pub async fn dub_with_clips(
     locale: &str,
     out_root: &Path,
 ) -> Result<DubOutput, Failure> {
-    let options = crate::cmd::build::BuildOptions {
-        narration_root: out_root.to_path_buf(),
-        ..crate::cmd::build::BuildOptions::defaults(project, script, locale)
-    };
+    let options = crate::cmd::build::BuildOptions::defaults(project, script, locale);
     let mut progress = |p: teleprompt_plugin::capture::Progress| {
         crate::output::progress(
             "capture",
@@ -595,15 +592,15 @@ pub async fn dub_with_clips(
             serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
         );
     };
-    let (mut dubbed, _, captured) = crate::cmd::capture::dub_and_capture(
-        project,
-        script,
-        locale,
-        &options,
+    let mut dubbed = run_dub(project, script, locale, out_root, false).await?;
+    let frame = options.frame(&dubbed.output);
+    let captured = crate::cmd::capture::run_capture(
+        &dubbed,
         crate::scene::plugins(),
+        &options.clips_dir,
+        frame,
         &mut progress,
-    )
-    .await?;
+    );
     dubbed.warnings.extend(captured.warnings);
     let into = locale_dir(out_root, locale).join("clips");
     let placed = place_clips(&dubbed.manifest, &options.clips_dir, &into)
