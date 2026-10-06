@@ -691,8 +691,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
         moved.shots[1].at = Position { line: 0, word: 5 };
         moved
     }));
-    let reload: teleprompt::serve::Reload =
-        Box::new(move || edited.lock().unwrap().take());
+    let reload: teleprompt::serve::Reload = Box::new(move || edited.lock().unwrap().take());
     std::thread::spawn(move || {
         teleprompt::serve::prompt_watching(
             listener,

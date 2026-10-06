@@ -9,8 +9,8 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use teleprompt::setup::project_voice;
 use teleprompt::project::Project;
+use teleprompt::setup::project_voice;
 use teleprompt_core::config::{PartialConfig, PartialVoice};
 
 /// A minimal `/v1/audio/voices` responder, built the same way

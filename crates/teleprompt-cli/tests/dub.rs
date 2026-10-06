@@ -7,8 +7,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use teleprompt::dub::{manifest_path, Dubber};
-use teleprompt::Failure;
 use teleprompt::project::Project;
+use teleprompt::Failure;
 use teleprompt_manifest::MANIFEST_VERSION;
 
 const SCRIPT: &str = "\
