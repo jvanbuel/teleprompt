@@ -4,8 +4,8 @@
 
 use std::path::{Path, PathBuf};
 
-use teleprompt::project::Project;
 use teleprompt_draft::import::{run_import, Import, Words};
+use teleprompt_project::project::Project;
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
@@ -24,7 +24,7 @@ struct Session {
 /// between; 10 s of tone standing in for the voice.
 fn session() -> Session {
     let dir = teleprompt_testkit::test_dir("import");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     let root = dir.to_path_buf();
 
     let mut cast = String::from("{\"version\": 2, \"width\": 80, \"height\": 24}\n");

@@ -8,16 +8,16 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::UNIX_EPOCH;
 
-use teleprompt::dub::publish::Published;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_manifest::NarrationManifest;
+use teleprompt_project::dub::publish::Published;
 use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::VoiceBackend;
 
-use teleprompt::dub;
-use teleprompt::project::{fingerprint, translation_path, Compiled, Script};
-use teleprompt::Failure;
 use teleprompt_core::Hash;
+use teleprompt_project::dub;
+use teleprompt_project::project::{fingerprint, translation_path, Compiled, Script};
+use teleprompt_project::Failure;
 
 /// A script's voice, compiled afresh when what it is compiled from has
 /// changed: the script, its translation, its takes, or which of its lines
@@ -41,7 +41,7 @@ struct Voiced {
     /// The narrator's backend.
     backend: Arc<dyn VoiceBackend>,
     /// Every backend a line is spoken by, the narrator's included.
-    voices: teleprompt::voice::Voices,
+    voices: teleprompt_project::voice::Voices,
     lines: Vec<NarrationDetail>,
     length_ms: u64,
     /// Each line and shot in time, as [`timeline_json`] says it.

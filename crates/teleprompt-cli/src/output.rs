@@ -1,6 +1,6 @@
 use clap::ValueEnum;
 use serde::Serialize;
-use teleprompt::Failure;
+use teleprompt_project::Failure;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Format {
@@ -10,7 +10,7 @@ pub enum Format {
 
 /// Says progress as JSON events with `--format json`, as lines otherwise.
 pub fn set_progress_format(format: Format) {
-    teleprompt::progress::set_json(format == Format::Json);
+    teleprompt_project::progress::set_json(format == Format::Json);
 }
 
 /// A failed command's `--format json` output, for every command whose

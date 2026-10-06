@@ -8,8 +8,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use teleprompt::build::Builder;
-use teleprompt::project::Project;
+use teleprompt_project::build::Builder;
+use teleprompt_project::project::Project;
 
 const SCRIPT: &str = "\
 ---
@@ -83,7 +83,7 @@ fn picture_seconds(path: &Path) -> f64 {
 
 fn project_with_script(name: &str) -> (teleprompt_testkit::TestDir, PathBuf) {
     let dir = teleprompt_testkit::test_dir(&format!("build-{name}"));
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, SCRIPT).unwrap();
     (dir, script)
@@ -427,7 +427,7 @@ async fn a_build_leaves_the_cache_under_its_cap() {
 
     let compose = project.caches().compose();
     assert_eq!(
-        teleprompt::cache::stats(&compose).bytes,
+        teleprompt_project::cache::stats(&compose).bytes,
         0,
         "a cap of nothing kept something"
     );
@@ -439,7 +439,7 @@ async fn a_build_leaves_the_cache_under_its_cap() {
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert!(
-        teleprompt::cache::stats(&compose).bytes > 0,
+        teleprompt_project::cache::stats(&compose).bytes > 0,
         "a build under a cap it fits inside threw its own work away"
     );
 }

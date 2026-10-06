@@ -162,7 +162,7 @@ fn every_offline_project_dubs_as_before() {
 fn every_command_fails_as_before() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
-    teleprompt::new::scaffold(&root.join("proj")).unwrap();
+    teleprompt_project::new::scaffold(&root.join("proj")).unwrap();
     std::fs::write(
         root.join("proj/scripts/bad.md"),
         "Before any heading.\n\n```teleprompt\nnope\n```\n",

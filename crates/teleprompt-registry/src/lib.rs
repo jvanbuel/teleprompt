@@ -5,7 +5,7 @@
 
 use std::sync::OnceLock;
 
-pub use teleprompt::registry::{Recording, Registry, Voice};
+pub use teleprompt_project::registry::{Recording, Registry, Voice};
 
 mod needs;
 mod scenes;

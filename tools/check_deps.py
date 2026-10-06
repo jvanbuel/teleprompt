@@ -60,25 +60,25 @@ ALLOWED = {
     # captured, built, edited and translated. It is handed its scene
     # plugins and voices as a `Registry` and knows none by name, so no
     # plugin crate and no voice is here.
-    "teleprompt": {
+    "project": {
         "core", "script", "scene", "plugin", "schedule", "voice", "manifest",
         "compile", "render", "translate",
     },
     # The one crate that knows every scene plugin and voice by name.
-    "registry": {"teleprompt", "plugin", "voice", "voices"} | PLUGIN_CRATES,
+    "registry": {"project", "plugin", "voice", "voices"} | PLUGIN_CRATES,
     # What `setup` finds and installs: what the plugins and voices need.
-    "setup": {"teleprompt", "plugin"},
+    "setup": {"project", "plugin"},
     # The language server, with the real compile as its analyzer.
-    "lsp": {"teleprompt", "core", "script"},
+    "lsp": {"project", "core", "script"},
     # Drafts from what was said: `import` and `record`.
-    "draft": {"teleprompt", "setup", "core", "script", "derive", "listen", "plugin", "voice"},
+    "draft": {"project", "setup", "core", "script", "derive", "listen", "plugin", "voice"},
     # The prompter: its page, API and session, following a reader by ear.
     "serve": {
-        "teleprompt", "setup", "core", "script", "compile", "manifest", "schedule",
+        "project", "setup", "core", "script", "compile", "manifest", "schedule",
         "listen", "voice",
     },
     # The command line, composing the rest; the types its flags name.
-    "cli": {"teleprompt", "registry", "setup", "lsp", "draft", "serve", "core"},
+    "cli": {"project", "registry", "setup", "lsp", "draft", "serve", "core"},
 }
 
 PREFIX = "teleprompt-"

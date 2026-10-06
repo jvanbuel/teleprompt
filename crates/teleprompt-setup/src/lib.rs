@@ -13,9 +13,9 @@ mod catalogue;
 pub mod plugins;
 
 pub use catalogue::{download_mb, tools, Goal, GOALS};
-use teleprompt::registry::Registry;
 use teleprompt_plugin::tool::Found;
 pub use teleprompt_plugin::tool::{Manager, Tool};
+use teleprompt_project::registry::Registry;
 
 /// The machine: its OS, the managers on it, and where models go.
 #[derive(Debug, Clone)]
@@ -252,7 +252,7 @@ pub struct ProjectVoice {
 }
 
 /// [`ProjectVoice`] for `project`, asking its backend's server.
-pub async fn project_voice(project: &teleprompt::project::Project) -> ProjectVoice {
+pub async fn project_voice(project: &teleprompt_project::project::Project) -> ProjectVoice {
     let backends = project.backends();
     let backend = project
         .config
@@ -285,7 +285,7 @@ pub struct Setup {
 impl Setup {
     pub fn detect(registry: Registry) -> Self {
         let here = PathBuf::from(".");
-        let project = teleprompt::project::Project::discover(&here, registry)
+        let project = teleprompt_project::project::Project::discover(&here, registry)
             .map(|p| p.root.clone())
             .unwrap_or(here);
         Self {
@@ -373,17 +373,17 @@ impl Setup {
                 continue;
             };
             let command = without_a_terminal(&command)?;
-            teleprompt::progress::progress(
+            teleprompt_project::progress::progress(
                 "install",
                 || format!("installing {}: {command}", tool.name),
                 serde_json::json!({ "tool": tool.name, "state": "start", "command": command }),
             );
-            if teleprompt::progress::json() {
+            if teleprompt_project::progress::json() {
                 self.run_quietly(tool, &command)?;
             } else {
                 self.run_aloud(&command)?;
             }
-            teleprompt::progress::progress(
+            teleprompt_project::progress::progress(
                 "install",
                 || format!("installed {}", tool.name),
                 serde_json::json!({ "tool": tool.name, "state": "done" }),
@@ -437,7 +437,7 @@ impl Setup {
             let mb = downloaded_mb(&self.platform.models).min(of.unwrap_or(0));
             if let (Some(of), true) = (of, mb > said) {
                 said = mb;
-                teleprompt::progress::progress(
+                teleprompt_project::progress::progress(
                     "install",
                     String::new,
                     serde_json::json!({

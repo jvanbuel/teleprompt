@@ -1,6 +1,6 @@
-use teleprompt::new::scaffold;
 use teleprompt_core::SpanMs;
 use teleprompt_plugin::ScenePlugins;
+use teleprompt_project::new::scaffold;
 
 #[test]
 fn scaffold_writes_a_runnable_project() {

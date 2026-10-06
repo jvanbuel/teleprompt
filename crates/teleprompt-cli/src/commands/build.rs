@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use teleprompt::build::*;
+use teleprompt_project::build::*;
 
 /// `build`'s arguments.
 #[derive(clap::Args)]
@@ -57,7 +57,7 @@ fn progress_reporter(format: crate::output::Format) -> impl FnMut(Progress) {
         }
         last = percent;
         if format == Format::Json {
-            teleprompt::progress::progress(
+            teleprompt_project::progress::progress(
                 "render",
                 String::new,
                 serde_json::json!({ "done_ms": p.rendered_ms.min(p.of_ms), "of_ms": p.of_ms }),

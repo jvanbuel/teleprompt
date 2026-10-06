@@ -11,7 +11,7 @@ license.workspace = true
 listen = []
 
 [dependencies]
-teleprompt = { path = "../teleprompt" }
+teleprompt-project = { path = "../teleprompt-project" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
 serde.workspace = true
 serde_json.workspace = true

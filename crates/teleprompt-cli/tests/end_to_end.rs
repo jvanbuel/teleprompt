@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use teleprompt_core::SpanMs;
 use teleprompt_core::TimeMs;
 
-use teleprompt::project::Project;
+use teleprompt_project::project::Project;
 
 fn fixture(name: &str) -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -21,7 +21,7 @@ fn fixture(name: &str) -> String {
 
 fn workspace() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     let dir = teleprompt_testkit::test_dir("e2e");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, fixture("tour.md")).unwrap();
     let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();

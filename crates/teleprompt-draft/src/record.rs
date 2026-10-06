@@ -14,8 +14,8 @@ use serde::Serialize;
 use teleprompt_plugin::record::Start;
 
 use crate::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
-use teleprompt::project::Project;
-use teleprompt::registry::{Recording, Registry};
+use teleprompt_project::project::Project;
+use teleprompt_project::registry::{Recording, Registry};
 
 pub struct Record<'a> {
     pub registry: Registry,

@@ -28,7 +28,7 @@ print(json.dumps({"items": out}))
 
 fn project(tag: &str) -> teleprompt_testkit::TestDir {
     let dir = teleprompt_testkit::test_dir(&format!("translate-{tag}"));
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/tour.md"), SCRIPT).unwrap();
     dir
 }

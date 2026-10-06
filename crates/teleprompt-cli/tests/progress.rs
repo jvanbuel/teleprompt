@@ -34,7 +34,7 @@ fn stage<'a>(events: &'a [Value], name: &str) -> Vec<&'a Value> {
 #[test]
 fn capture_says_each_shot_it_records() {
     let dir = teleprompt_testkit::test_dir("progress-capture");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     let (events, report) = run(&dir, &["capture", "scripts/demo.md"]);
     let shots = stage(&events, "capture");
     assert_eq!(shots.len(), 2, "{events:?}");
@@ -49,7 +49,7 @@ fn capture_says_each_shot_it_records() {
 #[test]
 fn build_says_how_far_the_render_has_got() {
     let dir = teleprompt_testkit::test_dir("progress-build");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     let (events, report) = run(&dir, &["build", "scripts/demo.md", "--out", "out.mp4"]);
     let render = stage(&events, "render");
     assert!(!render.is_empty(), "{events:?}");

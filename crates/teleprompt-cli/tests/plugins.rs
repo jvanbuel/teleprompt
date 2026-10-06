@@ -102,7 +102,7 @@ fn a_script_compiles_against_an_installed_scene_plugin() {
         return;
     }
     let dir = teleprompt_testkit::test_dir("plugins-check");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/cards.md");
     std::fs::write(
         &script,

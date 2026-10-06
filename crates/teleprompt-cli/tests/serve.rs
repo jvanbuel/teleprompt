@@ -76,7 +76,7 @@ fn prompting_counted(
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt_project::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     let count = Arc::new(AtomicUsize::new(0));
@@ -298,7 +298,7 @@ fn a_session_that_panics_lets_go_of_the_prompter() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt::project::CacheDir::at(dir.to_path_buf()),
+        clips: teleprompt_project::project::CacheDir::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
     std::thread::spawn(move || {
@@ -442,7 +442,7 @@ fn the_page_has_the_apps_icon() {
 
 fn tp_prompt(tag: &str, extra: &[&str]) -> std::process::Output {
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(&dir)
         .args(["serve", "scripts/demo.md"])
@@ -510,11 +510,12 @@ wait 800ms
 
 fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, TOUR).unwrap();
     let project =
-        teleprompt::project::Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+        teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
+            .unwrap();
     project
         .script(&script, "en")
         .compile()
@@ -692,7 +693,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt_project::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     // Edited once: the second shot moved to the first line's sixth word.
@@ -738,7 +739,7 @@ fn prompting_with_keep(
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt_project::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     let edits = teleprompt_serve::Edits {
@@ -783,7 +784,7 @@ fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt::project::CacheDir::at(dir.to_path_buf()),
+        clips: teleprompt_project::project::CacheDir::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
     let recognizer = Scripted(Default::default(), Default::default());

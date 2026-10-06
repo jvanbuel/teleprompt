@@ -22,8 +22,8 @@
 use std::path::{Path, PathBuf};
 use teleprompt_core::DurationSource;
 
-use teleprompt::build::Builder;
-use teleprompt::project::Project;
+use teleprompt_project::build::Builder;
+use teleprompt_project::project::Project;
 
 fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../")

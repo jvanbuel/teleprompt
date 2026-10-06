@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use teleprompt_derive::{derive, Draft, Line, Options, Word};
 use teleprompt_plugin::record::Recorded;
 
-use teleprompt::registry::{Recording, Registry};
+use teleprompt_project::registry::{Recording, Registry};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
-use teleprompt::project::Project;
+use teleprompt_project::project::Project;
 
 /// Where the words come from.
 pub enum Words<'a> {
@@ -165,7 +165,7 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
         .unwrap_or_default()
         .to_string_lossy();
     let include = format!("recordings/{stem}.{}", session.recorder.extension());
-    let recording = teleprompt::project::script_dir(session.script).join(&include);
+    let recording = teleprompt_project::project::script_dir(session.script).join(&include);
     if recording.exists() && !session.force {
         return Err(format!(
             "{} already exists; pass --force to replace it",

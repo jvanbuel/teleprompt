@@ -117,7 +117,7 @@ pub struct Prompt {
     /// Every shot, in script order.
     pub shots: Vec<ShotCue>,
     /// Where captured clips are, named by capture key.
-    pub clips: teleprompt::project::CacheDir<teleprompt::project::Clips>,
+    pub clips: teleprompt_project::project::CacheDir<teleprompt_project::project::Clips>,
     /// Where takes are recorded to.
     pub takes: PathBuf,
 }

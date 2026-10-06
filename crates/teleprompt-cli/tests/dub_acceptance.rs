@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-use teleprompt::project::Project;
+use teleprompt_project::project::Project;
 
 fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
     teleprompt_testkit::test_dir(&format!("dub-acceptance-{tag}"))
@@ -11,7 +11,7 @@ fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
 /// `commands.rs::project_with`. Returns the project root.
 fn project_with(tag: &str, script: &str) -> teleprompt_testkit::TestDir {
     let dir = tempdir(tag);
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
     Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     dir

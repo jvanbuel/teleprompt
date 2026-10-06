@@ -1,4 +1,4 @@
-use teleprompt::plan::*;
+use teleprompt_project::plan::*;
 
 /// `plan`'s arguments.
 #[derive(clap::Args)]

@@ -8,9 +8,9 @@ use teleprompt_core::config::{Config, PartialConfig};
 use teleprompt_core::{Diagnostic, SourceSpan};
 use teleprompt_script::program::{ActionElement, Element};
 
-use teleprompt::project::Compiled;
-use teleprompt::project::Project;
-use teleprompt::registry::Registry;
+use teleprompt_project::project::Compiled;
+use teleprompt_project::project::Project;
+use teleprompt_project::registry::Registry;
 
 /// Serves on stdin and stdout until the editor says to exit.
 pub fn run_lsp(registry: Registry) -> Result<(), String> {
@@ -23,7 +23,7 @@ pub struct ProjectAnalyzer {
 
 impl Analyzer for ProjectAnalyzer {
     fn project(&self, script: &Path) -> Outline {
-        let script_dir = teleprompt::project::script_dir(script).to_path_buf();
+        let script_dir = teleprompt_project::project::script_dir(script).to_path_buf();
         let Ok(project) = Project::for_script(script, self.registry) else {
             return Outline {
                 script_dir,

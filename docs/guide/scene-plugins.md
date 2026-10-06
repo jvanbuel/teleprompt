@@ -117,8 +117,9 @@ built-in plugin's name wins over an installed one's, which `teleprompt
 plugins` says. Publish it with the GitHub topic `teleprompt-plugin`.
 
 **Compiled in:** add your crate to the workspace, and one line to
-`built_in()` in `teleprompt-cli`'s `src/scene.rs`. Then add your crate to
-`tools/check_deps.py`, with `PLUGIN` as what it may depend on.
+`built_in()` in `crates/teleprompt-registry/src/scenes.rs`, with its name
+in `SHIPPED` there. Then add your crate to `tools/check_deps.py`, with
+`PLUGIN` as what it may depend on.
 
 ## The protocol
 

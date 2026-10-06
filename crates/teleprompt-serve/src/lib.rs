@@ -27,9 +27,9 @@ use teleprompt_listen::Recognizer;
 use tokio::task::block_in_place;
 
 use crate::voicing::Voicing;
-use teleprompt::project::{Project, Script};
-use teleprompt::registry::Registry;
-use teleprompt::Failure;
+use teleprompt_project::project::{Project, Script};
+use teleprompt_project::registry::Registry;
+use teleprompt_project::Failure;
 use teleprompt_script::edit::Edit;
 
 mod loopback;
@@ -269,10 +269,10 @@ impl Prompted for Script {
     }
 
     fn reload_on_edit(&self) -> Reload {
-        let seen = Mutex::new(teleprompt::project::fingerprint(self.path()));
+        let seen = Mutex::new(teleprompt_project::project::fingerprint(self.path()));
         let script = self.clone();
         Box::new(move || {
-            let now = teleprompt::project::fingerprint(script.path());
+            let now = teleprompt_project::project::fingerprint(script.path());
             let mut seen = seen.lock().unwrap_or_else(PoisonError::into_inner);
             if now == *seen {
                 return None;

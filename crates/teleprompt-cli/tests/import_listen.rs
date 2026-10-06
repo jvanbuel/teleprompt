@@ -24,7 +24,7 @@ fn a_spoken_session_becomes_two_lines_and_a_block_between() {
         return;
     };
     let dir = teleprompt_testkit::test_dir("import-listen");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
 
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../teleprompt-listen/tests/fixtures/two-lines.wav");

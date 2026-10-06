@@ -231,14 +231,15 @@ Every video in this repository is built from a script you can read.
 #[test]
 fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
     let dir = tempdir("front-matter-backends");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("scripts/test.md"),
         SCRIPT_WITH_FRONT_MATTER_BACKENDS,
     )
     .unwrap();
     let project =
-        teleprompt::project::Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+        teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
+            .unwrap();
     let script = dir.join("scripts/test.md");
 
     let warnings = project.script(&script, "en").check().unwrap_or_else(|e| {
@@ -281,7 +282,7 @@ fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
 #[test]
 fn a_front_matter_backends_block_matching_the_project_is_not_a_warning() {
     let dir = tempdir("front-matter-backends-match");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
         "[backends.kokoro]\nbase_url = \"http://gpu-box:8880\"\n",
@@ -293,7 +294,8 @@ fn a_front_matter_backends_block_matching_the_project_is_not_a_warning() {
     )
     .unwrap();
     let project =
-        teleprompt::project::Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+        teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
+            .unwrap();
     let script = dir.join("scripts/test.md");
 
     let warnings = project.script(&script, "en").check().unwrap();
@@ -311,14 +313,15 @@ fn project_with_toml(
     toml: &str,
 ) -> (
     teleprompt_testkit::TestDir,
-    teleprompt::project::Project,
+    teleprompt_project::project::Project,
     PathBuf,
 ) {
     let dir = tempdir(tag);
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("teleprompt.toml"), toml).unwrap();
     let project =
-        teleprompt::project::Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+        teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
+            .unwrap();
     let script = dir.join("scripts/demo.md");
     (dir, project, script)
 }

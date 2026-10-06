@@ -180,8 +180,13 @@ reading the manifest it just published.
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per scene plugin, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `plugin()` |
 | `teleprompt-desktop` | the desktop scene plugins, `x11` and `macos`: one action language and scene compiler, the runner that plays a session's shots against a window and cuts them where they began, and a module per platform (the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation), each recording with ffmpeg |
-| `teleprompt` | the engine: the registries every scene plugin and voice is composed into, a project's `Script` and what is done with it (`check`, `plan`, `Dubber`, which publishes each line's audio in one format, fitted to its tempo, for the prompter as well as the video, `Scenes`, `Builder`, edits, translation), the drafts `import` and `record` make, the language server `teleprompt lsp` serves (its protocol and text kept apart from the compile behind an `Analyzer`), and `serve`, whose `prompter` module is the prompter's `Session`. It prints only progress, and asks nothing itself: a front end registers how to offer a missing model |
-| `teleprompt-cli` | the `teleprompt` binary over the engine: each command's flags, its report in either format, exit codes, and the questions it asks at a terminal |
+| `teleprompt-project` | a project on disk and what the commands do to its scripts: `Script`, `check`, `plan`, `Dubber` (which publishes each line's audio in one format, fitted to its tempo, for the prompter as well as the video), `Scenes`, `Builder`, edits, translation and the caches. It is handed its scene plugins and voices as a `Registry` and knows none by name |
+| `teleprompt-registry` | the one crate that knows every scene plugin and voice by name: it builds the `Registry` the command line hands to each project |
+| `teleprompt-setup` | what `setup` finds and installs: what each scene plugin and voice needs, the speech models, and the uses of teleprompt that ask for them |
+| `teleprompt-lsp` | the language server: its protocol, positions and completion, with the real compile behind an `Analyzer` |
+| `teleprompt-draft` | the drafts `import` and `record` make from what was said |
+| `teleprompt-serve` | the prompter: its page, API version 1 and the session that follows a reader by ear (`prompter`), served on loopback. It runs `capture` and `build` as the command does |
+| `teleprompt-cli` | the `teleprompt` binary, composing the rest: each command's flags, its report in either format, exit codes, and the questions it asks at a terminal |
 
 `script`, `schedule`, `scene`, `voice` and `manifest` depend on `core`
 alone, and not on one another. Anything that needs two of them belongs in `compile`.
@@ -197,9 +202,10 @@ scene's shots and never runs its tool: it depends on `scene`, not on
 `plugin`, and is handed the compilers as `SceneCompilers`.
 `tools/check_deps.py` checks the allowed edges between workspace crates,
 and CI fails on any other.
-Scene plugins and voices are registered only in the engine, so adding one means
-a crate (a scene plugin) or a module of `voices` (a voice) and one registry
-line, and no other crate learns its name.
+Scene plugins and voices are named only in `registry`, so adding one means
+a crate (a scene plugin) or a module of `voices` (a voice) and one line
+there, and no other crate learns its name. Everything that compiles or
+records a script is handed a `Registry` and asks it; nothing looks one up.
 
 ## Voice
 

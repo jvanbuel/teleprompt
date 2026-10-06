@@ -55,9 +55,10 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
 
 /// The voice of the project here, if this is one.
 fn voice_here() -> Result<Option<ProjectVoice>, crate::output::Outcome> {
-    let Ok(project) =
-        teleprompt::project::Project::discover(std::path::Path::new("."), crate::cli::registry())
-    else {
+    let Ok(project) = teleprompt_project::project::Project::discover(
+        std::path::Path::new("."),
+        crate::cli::registry(),
+    ) else {
         return Ok(None);
     };
     Ok(Some(

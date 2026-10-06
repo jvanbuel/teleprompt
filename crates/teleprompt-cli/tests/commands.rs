@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use teleprompt_core::SpanMs;
 
-use teleprompt::project::Project;
+use teleprompt_project::project::Project;
 
 const GOOD: &str = r#"---
 scene: { mock: { plugin: mock } }
@@ -22,7 +22,7 @@ const BAD_SCENE: &str = "# Intro\n\nOne. {#a}\n\n```teleprompt scene=mock\nclick
 
 fn project_with(script: &str) -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     let dir = tempdir();
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     let path = dir.join("scripts/test.md");
     std::fs::write(&path, script).unwrap();
     let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
@@ -303,7 +303,7 @@ fn an_unknown_chapter_backend_across_several_lines_is_one_diagnostic() {
 }
 
 /// C1, through the real binary. The panic was the point: exit 101 is not a
-/// code `teleprompt::output::exit_code_for` can issue, so the process
+/// code `teleprompt_project::output::exit_code_for` can issue, so the process
 /// bypassed the CLI's whole error contract. Driven through the binary rather
 /// than `Script::check` because a panic in a library call would abort the test
 /// harness instead of being observed as an exit code.

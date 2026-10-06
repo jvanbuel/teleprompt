@@ -10,7 +10,7 @@ on:
       - apps/fixtures/**
       - docs/api/**
       - crates/teleprompt-serve/**
-      - crates/teleprompt/src/dub/**
+      - crates/teleprompt-project/src/dub/**
       - crates/teleprompt-setup/**
       - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
@@ -24,7 +24,7 @@ on:
       - apps/fixtures/**
       - docs/api/**
       - crates/teleprompt-serve/**
-      - crates/teleprompt/src/dub/**
+      - crates/teleprompt-project/src/dub/**
       - crates/teleprompt-setup/**
       - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**

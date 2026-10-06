@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use teleprompt_core::{DurationSource, SpanMs};
 
-use teleprompt::project::Project;
+use teleprompt_project::project::Project;
 use teleprompt_voice::async_trait;
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::VoiceRegistry;
@@ -85,12 +85,12 @@ impl VoiceBackend for DrawlVoice {
     }
 }
 
-fn registry_with_tone() -> teleprompt::voice::Backends {
+fn registry_with_tone() -> teleprompt_project::voice::Backends {
     let mut r = VoiceRegistry::default();
     r.register(Arc::new(NullVoice::default()));
     r.register(Arc::new(ToneVoice));
     r.register(Arc::new(DrawlVoice));
-    teleprompt::voice::Backends::from_registry(r)
+    teleprompt_project::voice::Backends::from_registry(r)
 }
 
 fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
@@ -110,7 +110,7 @@ Every video in this repository is built from a script you can read.
 
 fn project_with(tag: &str, script: &str) -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     let dir = tempdir(tag);
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
     let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let path = dir.join("scripts/test.md");
@@ -139,7 +139,7 @@ async fn dub_synthesizes_with_the_backend_the_script_resolved_to() {
     let (_dir, project, script) = project_with("resolved", SCRIPT);
     let out_root = project.root.join("public/narration");
 
-    let result = teleprompt::dub::Dubber::new(
+    let result = teleprompt_project::dub::Dubber::new(
         &project
             .script(&script, "en")
             .with_backends(registry_with_tone()),
@@ -147,8 +147,8 @@ async fn dub_synthesizes_with_the_backend_the_script_resolved_to() {
     .dub(&out_root)
     .await
     .unwrap_or_else(|e| match e {
-        teleprompt::Failure::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt::Failure::Runtime(r) => panic!("runtime: {r}"),
+        teleprompt_project::Failure::Validation(v) => panic!("validation: {v:?}"),
+        teleprompt_project::Failure::Runtime(r) => panic!("runtime: {r}"),
     });
 
     assert_eq!(result.manifest.lines.len(), 1);
@@ -171,7 +171,7 @@ async fn the_manifest_reports_the_rate_the_backend_actually_produced() {
     let (_dir, project, script) = project_with("rate", SCRIPT);
     let out_root = project.root.join("public/narration");
 
-    let result = teleprompt::dub::Dubber::new(
+    let result = teleprompt_project::dub::Dubber::new(
         &project
             .script(&script, "en")
             .with_backends(registry_with_tone()),
@@ -197,7 +197,7 @@ async fn each_speaker_is_spoken_by_their_own_backend() {
                   **Guest:** Only on Fridays, actually. {#friday}\n";
     let (_dir, project, script) = project_with("cast", script);
     let out_root = project.root.join("public/narration");
-    let result = teleprompt::dub::Dubber::new(
+    let result = teleprompt_project::dub::Dubber::new(
         &project
             .script(&script, "en")
             .with_backends(registry_with_tone()),
@@ -205,8 +205,8 @@ async fn each_speaker_is_spoken_by_their_own_backend() {
     .dub(&out_root)
     .await
     .unwrap_or_else(|e| match e {
-        teleprompt::Failure::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt::Failure::Runtime(r) => panic!("runtime: {r}"),
+        teleprompt_project::Failure::Validation(v) => panic!("validation: {v:?}"),
+        teleprompt_project::Failure::Runtime(r) => panic!("runtime: {r}"),
     });
     let lines = &result.manifest.lines;
     assert_eq!(lines.len(), 2);
@@ -268,7 +268,7 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
     let (_dir, project, script) = project_with("drawl", DRAWL_SCRIPT);
     let out_root = project.root.join("public/narration");
 
-    let result = teleprompt::dub::Dubber::new(
+    let result = teleprompt_project::dub::Dubber::new(
         &project
             .script(&script, "en")
             .with_backends(registry_with_tone()),
@@ -276,8 +276,8 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
     .dub(&out_root)
     .await
     .unwrap_or_else(|e| match e {
-        teleprompt::Failure::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt::Failure::Runtime(r) => {
+        teleprompt_project::Failure::Validation(v) => panic!("validation: {v:?}"),
+        teleprompt_project::Failure::Runtime(r) => {
             panic!("the first dub of a cold line must not fail: {r}")
         }
     });

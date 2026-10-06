@@ -9,7 +9,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::output::{ErrorReport, Format, Outcome};
-use teleprompt::project::Project;
+use teleprompt_project::project::Project;
 
 /// A command's result: `Err` is a failure not yet reported, which
 /// [`fail`] reports in the format asked for.
@@ -37,10 +37,10 @@ impl ScriptArgs {
     }
 
     /// The script, in its project, for the locale asked for.
-    pub fn open(&self) -> Result<teleprompt::project::Script, Outcome> {
+    pub fn open(&self) -> Result<teleprompt_project::project::Script, Outcome> {
         let project = self.project()?;
         let locale = self.locale(&project);
-        Ok(teleprompt::project::Script::open(
+        Ok(teleprompt_project::project::Script::open(
             project,
             &self.script,
             locale,
@@ -57,14 +57,14 @@ pub fn language_tag(s: &str) -> Result<String, String> {
 #[derive(Args, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FrameArgs {
     /// Frame size, as WIDTHxHEIGHT
-    #[arg(long, value_parser = teleprompt::build::parse_resolution)]
+    #[arg(long, value_parser = teleprompt_project::build::parse_resolution)]
     pub resolution: Option<(u32, u32)>,
     /// Frames per second
     #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
     pub fps: Option<u32>,
 }
 
-impl From<FrameArgs> for teleprompt::build::FrameOverride {
+impl From<FrameArgs> for teleprompt_project::build::FrameOverride {
     fn from(args: FrameArgs) -> Self {
         Self {
             resolution: args.resolution,
@@ -74,7 +74,7 @@ impl From<FrameArgs> for teleprompt::build::FrameOverride {
 }
 
 /// What this build has: every scene plugin and voice, found once.
-pub fn registry() -> teleprompt::registry::Registry {
+pub fn registry() -> teleprompt_project::registry::Registry {
     teleprompt_registry::registry()
 }
 

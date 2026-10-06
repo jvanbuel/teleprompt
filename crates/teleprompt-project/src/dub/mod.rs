@@ -24,7 +24,7 @@ pub mod publish;
 /// captures from a manifest that was never published.
 ///
 /// ```
-/// # use teleprompt::{capture::Scenes, dub::Dubber, project::Script};
+/// # use teleprompt_project::{capture::Scenes, dub::Dubber, project::Script};
 /// # async fn f(script: &Script, scenes: &Scenes<'_>) {
 /// let dubbed = Dubber::new(script).dub("out".as_ref()).await.unwrap();
 /// scenes.capture(&dubbed, &mut |_| {});
@@ -34,7 +34,7 @@ pub mod publish;
 /// A check publishes nothing, so there is nothing to capture from:
 ///
 /// ```compile_fail
-/// # use teleprompt::{capture::Scenes, dub::Dubber, project::Script};
+/// # use teleprompt_project::{capture::Scenes, dub::Dubber, project::Script};
 /// # async fn f(script: &Script, scenes: &Scenes<'_>) {
 /// let checked = Dubber::new(script).check("out".as_ref()).await.unwrap();
 /// scenes.capture(&checked, &mut |_| {});

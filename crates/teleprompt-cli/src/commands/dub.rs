@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use teleprompt::dub::*;
+use teleprompt_project::dub::*;
 
 /// `dub`'s arguments.
 #[derive(clap::Args)]

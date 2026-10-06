@@ -16,7 +16,7 @@ path = "src/main.rs"
 listen = ["teleprompt-draft/listen", "teleprompt-serve/listen", "teleprompt-setup/listen"]
 
 [dependencies]
-teleprompt = { path = "../teleprompt" }
+teleprompt-project = { path = "../teleprompt-project" }
 teleprompt-registry = { path = "../teleprompt-registry" }
 teleprompt-setup = { path = "../teleprompt-setup" }
 teleprompt-lsp = { path = "../teleprompt-lsp" }

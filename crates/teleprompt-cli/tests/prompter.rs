@@ -56,7 +56,7 @@ fn prompt(dir: &std::path::Path) -> Prompt {
             cue("welcome-a#0", pos(0, 3)),
             cue("welcome-b#0", pos(1, 0)),
         ],
-        clips: teleprompt::project::CacheDir::at(dir),
+        clips: teleprompt_project::project::CacheDir::at(dir),
         takes: dir.join("takes"),
     }
 }
@@ -351,7 +351,7 @@ fn a_deaf_session_hears_nothing_and_stays_where_it_started() {
             lines: vec!["One two.".into()],
             ids: vec!["one".into()],
             shots: Vec::new(),
-            clips: teleprompt::project::CacheDir::at(std::env::temp_dir()),
+            clips: teleprompt_project::project::CacheDir::at(std::env::temp_dir()),
             takes: std::env::temp_dir().join("teleprompt-deaf-takes"),
         },
         teleprompt_listen::Deaf,

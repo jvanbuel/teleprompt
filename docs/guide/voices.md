@@ -314,7 +314,7 @@ defaults: override them for what the provider can do, such as
 `clone_voice`. `version` is part of the cache key: put in it anything that
 changes the audio but is not in the request, such as the model.
 
-It is registered in `providers()` in the engine's `src/voice/mod.rs`,
+It is registered in `shipped()` in `crates/teleprompt-registry/src/voices.rs`,
 as a `teleprompt_voice::Provider` (its id, which `voice.backend` names, and
 how it is built from its own `[backends.<id>]` settings), with what it
 needs for `setup`. A build that fails is kept and reported only where that

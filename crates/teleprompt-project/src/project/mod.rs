@@ -66,7 +66,7 @@ impl CacheDirs {
 /// other way round. It reads as a [`Path`] everywhere a path will do.
 ///
 /// ```
-/// # use teleprompt::{capture::Scenes, project::Project};
+/// # use teleprompt_project::{capture::Scenes, project::Project};
 /// # fn f(project: &Project, frame: teleprompt_plugin::capture::Frame) {
 /// let clips = project.caches().clips();
 /// Scenes::new(project.registry.scenes, &clips, frame);
@@ -74,7 +74,7 @@ impl CacheDirs {
 /// ```
 ///
 /// ```compile_fail
-/// # use teleprompt::{capture::Scenes, project::Project};
+/// # use teleprompt_project::{capture::Scenes, project::Project};
 /// # fn f(project: &Project, frame: teleprompt_plugin::capture::Frame) {
 /// let compose = project.caches().compose();
 /// Scenes::new(project.registry.scenes, &compose, frame);

@@ -6,10 +6,10 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use teleprompt::dub::{manifest_path, Dubber};
-use teleprompt::project::Project;
-use teleprompt::Failure;
 use teleprompt_manifest::MANIFEST_VERSION;
+use teleprompt_project::dub::{manifest_path, Dubber};
+use teleprompt_project::project::Project;
+use teleprompt_project::Failure;
 
 const SCRIPT: &str = "\
 # Quick start
@@ -29,7 +29,7 @@ fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {
 /// `commands.rs::project_with`. Returns the project root.
 fn project_with(tag: &str, script: &str) -> teleprompt_testkit::TestDir {
     let dir = tempdir(tag);
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
     Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     dir
@@ -624,7 +624,7 @@ struct TestProject {
 /// `Script::open`'s doc comment), and drop `script` at `scripts/test.md`.
 fn project_with_config_and_script(config_toml: &str, script: &str) -> TestProject {
     let dir = tempdir("inprocess");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     if !config_toml.is_empty() {
         std::fs::write(dir.join("teleprompt.toml"), config_toml).unwrap();
     }

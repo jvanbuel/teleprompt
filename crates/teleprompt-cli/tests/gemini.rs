@@ -27,7 +27,7 @@ async fn a_project_speaks_in_its_gemini_voice() {
     .await;
     let url = &stub.base_url;
     let dir = teleprompt_testkit::test_dir("gemini-dub");
-    teleprompt::new::scaffold(&dir).unwrap();
+    teleprompt_project::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
         format!(

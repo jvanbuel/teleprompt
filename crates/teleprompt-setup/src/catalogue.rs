@@ -5,7 +5,7 @@
 
 use teleprompt_plugin::tool::{Found, Manager, Tool};
 
-use teleprompt::registry::Registry;
+use teleprompt_project::registry::Registry;
 
 const SPEECH_MODEL: &str = "sherpa-onnx-streaming-zipformer-en-2023-06-26";
 const PUNCTUATION_MODEL: &str = "sherpa-onnx-online-punct-en-2024-08-06";

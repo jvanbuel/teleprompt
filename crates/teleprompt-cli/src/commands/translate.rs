@@ -1,4 +1,4 @@
-use teleprompt::translate::*;
+use teleprompt_project::translate::*;
 
 /// `translate`'s arguments.
 #[derive(clap::Args)]

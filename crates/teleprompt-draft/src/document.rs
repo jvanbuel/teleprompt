@@ -12,10 +12,10 @@ use teleprompt_voice::Pcm;
 
 use crate::import::{cut_takes, read_voice};
 use serde::Serialize;
-use teleprompt::project::Project;
-use teleprompt::registry::Registry;
 use teleprompt_derive::document::{draft, draft_slidev};
 use teleprompt_derive::transcript::{conversation, draft_transcript, turns, Format, Turn};
+use teleprompt_project::project::Project;
+use teleprompt_project::registry::Registry;
 
 /// The stable, typed shape of `import`'s output in both formats.
 #[derive(Debug, Serialize)]

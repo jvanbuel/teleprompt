@@ -1,4 +1,4 @@
-use teleprompt::cache::*;
+use teleprompt_project::cache::*;
 
 /// `cache`'s arguments.
 #[derive(clap::Args)]

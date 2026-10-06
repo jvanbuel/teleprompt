@@ -1,4 +1,4 @@
-use teleprompt::new::*;
+use teleprompt_project::new::*;
 
 /// `new`'s arguments.
 #[derive(clap::Args)]

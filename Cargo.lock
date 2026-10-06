@@ -2004,26 +2004,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "teleprompt"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "serde_yaml",
- "teleprompt-compile",
- "teleprompt-core",
- "teleprompt-manifest",
- "teleprompt-plugin",
- "teleprompt-render",
- "teleprompt-schedule",
- "teleprompt-script",
- "teleprompt-testkit",
- "teleprompt-translate",
- "teleprompt-voice",
- "tokio",
-]
-
-[[package]]
 name = "teleprompt-asciinema"
 version = "0.1.0"
 dependencies = [
@@ -2044,7 +2024,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "teleprompt",
  "teleprompt-asciinema",
  "teleprompt-compile",
  "teleprompt-core",
@@ -2054,6 +2033,7 @@ dependencies = [
  "teleprompt-lsp",
  "teleprompt-manifest",
  "teleprompt-plugin",
+ "teleprompt-project",
  "teleprompt-registry",
  "teleprompt-schedule",
  "teleprompt-script",
@@ -2120,11 +2100,11 @@ dependencies = [
  "serde",
  "serde_json",
  "signal-hook",
- "teleprompt",
  "teleprompt-core",
  "teleprompt-derive",
  "teleprompt-listen",
  "teleprompt-plugin",
+ "teleprompt-project",
  "teleprompt-script",
  "teleprompt-setup",
  "teleprompt-testkit",
@@ -2146,8 +2126,8 @@ dependencies = [
  "lsp-types",
  "serde",
  "serde_json",
- "teleprompt",
  "teleprompt-core",
+ "teleprompt-project",
  "teleprompt-script",
 ]
 
@@ -2194,15 +2174,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-project"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "teleprompt-compile",
+ "teleprompt-core",
+ "teleprompt-manifest",
+ "teleprompt-plugin",
+ "teleprompt-render",
+ "teleprompt-schedule",
+ "teleprompt-script",
+ "teleprompt-testkit",
+ "teleprompt-translate",
+ "teleprompt-voice",
+ "tokio",
+]
+
+[[package]]
 name = "teleprompt-registry"
 version = "0.1.0"
 dependencies = [
- "teleprompt",
  "teleprompt-asciinema",
  "teleprompt-desktop",
  "teleprompt-media",
  "teleprompt-playwright",
  "teleprompt-plugin",
+ "teleprompt-project",
  "teleprompt-remotion",
  "teleprompt-slidev",
  "teleprompt-vhs",
@@ -2267,11 +2267,11 @@ dependencies = [
  "futures-util",
  "serde",
  "serde_json",
- "teleprompt",
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-listen",
  "teleprompt-manifest",
+ "teleprompt-project",
  "teleprompt-schedule",
  "teleprompt-script",
  "teleprompt-setup",
@@ -2286,8 +2286,8 @@ dependencies = [
  "serde",
  "serde_json",
  "tabled",
- "teleprompt",
  "teleprompt-plugin",
+ "teleprompt-project",
 ]
 
 [[package]]

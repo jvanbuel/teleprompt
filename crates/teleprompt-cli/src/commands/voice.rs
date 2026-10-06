@@ -1,4 +1,4 @@
-use teleprompt::voice::clone::*;
+use teleprompt_project::voice::clone::*;
 
 /// `voice`'s arguments: what to do with a voice.
 #[derive(clap::Args)]
