@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use teleprompt_cli::commands::check::check;
 
 fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
     let mut m = BTreeMap::new();
@@ -231,7 +232,7 @@ Every video in this repository is built from a script you can read.
 #[test]
 fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
     let dir = tempdir("front-matter-backends");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("scripts/test.md"),
         SCRIPT_WITH_FRONT_MATTER_BACKENDS,
@@ -242,7 +243,7 @@ fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
             .unwrap();
     let script = dir.join("scripts/test.md");
 
-    let warnings = project.script(&script, "en").check().unwrap_or_else(|e| {
+    let warnings = check(&project.script(&script, "en")).unwrap_or_else(|e| {
         panic!("a dropped front-matter override must not fail the compile: {e:?}")
     });
 
@@ -282,7 +283,7 @@ fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
 #[test]
 fn a_front_matter_backends_block_matching_the_project_is_not_a_warning() {
     let dir = tempdir("front-matter-backends-match");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
         "[backends.kokoro]\nbase_url = \"http://gpu-box:8880\"\n",
@@ -298,7 +299,7 @@ fn a_front_matter_backends_block_matching_the_project_is_not_a_warning() {
             .unwrap();
     let script = dir.join("scripts/test.md");
 
-    let warnings = project.script(&script, "en").check().unwrap();
+    let warnings = check(&project.script(&script, "en")).unwrap();
     assert!(
         !warnings.iter().any(|w| w.contains("kokoro")),
         "{warnings:?}"
@@ -317,7 +318,7 @@ fn project_with_toml(
     PathBuf,
 ) {
     let dir = tempdir(tag);
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("teleprompt.toml"), toml).unwrap();
     let project =
         teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
@@ -358,7 +359,7 @@ fn a_bad_setting_for_a_backend_the_project_never_uses_does_not_fail_check() {
         "unused-bad-setting",
         &format!("{NULL_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n"),
     );
-    project.script(&script, "en").check().unwrap_or_else(|e| {
+    check(&project.script(&script, "en")).unwrap_or_else(|e| {
         panic!("a null-backend project must not read kokoro's settings: {e:?}")
     });
 }
@@ -371,9 +372,7 @@ fn a_bad_setting_for_the_selected_backend_fails_check_and_names_the_config_file(
         "used-bad-setting",
         &format!("{KOKORO_PROJECT}\n[backends.kokoro]\nconcurrency = 0\n"),
     );
-    let errors = project
-        .script(&script, "en")
-        .check()
+    let errors = check(&project.script(&script, "en"))
         .expect_err("a backend the project uses must validate")
         .render();
     let joined = errors.join("\n");
@@ -393,9 +392,7 @@ fn an_unknown_backends_key_fails_check_and_names_the_key() {
         "unknown-backends-key",
         &format!("{NULL_PROJECT}\n[backends.kokoro-local]\nvoice = \"af_heart\"\n"),
     );
-    let errors = project
-        .script(&script, "en")
-        .check()
+    let errors = check(&project.script(&script, "en"))
         .expect_err("settings that reach nothing must be named")
         .render();
     let joined = errors.join("\n");
@@ -415,9 +412,7 @@ fn an_unknown_key_and_an_unused_bad_setting_report_exactly_one_problem() {
              \n[backends.kokoro-local]\nvoice = \"af_heart\"\n"
         ),
     );
-    let errors = project
-        .script(&script, "en")
-        .check()
+    let errors = check(&project.script(&script, "en"))
         .expect_err("the unknown key is still an error")
         .render();
     assert_eq!(errors.len(), 1, "{errors:?}");
@@ -439,9 +434,7 @@ fn a_gemini_project_checks_without_a_key() {
             "backend = \"gemini\"\n\n[backends.gemini]\napi_key_env = \"TELEPROMPT_TEST_NO_SUCH_KEY\"",
         ),
     );
-    project
-        .script(&script, "en")
-        .check()
+    check(&project.script(&script, "en"))
         .unwrap_or_else(|e| panic!("check must not need Gemini's key: {e:?}"));
 }
 

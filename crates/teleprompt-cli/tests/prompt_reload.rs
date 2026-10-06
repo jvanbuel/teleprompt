@@ -7,7 +7,7 @@ use teleprompt_serve::Prompted;
 #[test]
 fn an_edited_script_is_reloaded_shots_and_lines_alike() {
     let dir = teleprompt_testkit::test_dir("prompt-reload-edit");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
     let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
     let reload = project.script(&script, "en").reload_on_edit();
@@ -49,7 +49,7 @@ fn an_edited_script_is_reloaded_shots_and_lines_alike() {
 #[test]
 fn an_edit_that_keeps_the_modification_time_is_reloaded() {
     let dir = teleprompt_testkit::test_dir("prompt-reload-same-mtime");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
     let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
     let reload = project.script(&script, "en").reload_on_edit();
@@ -81,7 +81,7 @@ fn an_edit_that_keeps_the_modification_time_is_reloaded() {
 #[test]
 fn keeping_what_was_said_rewords_the_script_and_reloads() {
     let dir = teleprompt_testkit::test_dir("prompt-keep-said");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let text = "Welcome to teleprompt. This paragraph is a narration line, and its spoken \
                 length decides how long the visuals below stay on screen.";
     let pcm = teleprompt_voice::Pcm {

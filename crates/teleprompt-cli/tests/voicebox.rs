@@ -37,7 +37,7 @@ async fn a_project_speaks_in_its_voicebox_voice() {
     let stub = stub(wav).await;
     let url = &stub.base_url;
     let dir = teleprompt_testkit::test_dir("voicebox-dub");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
         format!("[voice]\nbackend = \"voicebox\"\nvoice = \"Jan\"\ninstruct = \"calmly\"\n\n[backends.voicebox]\nbase_url = \"{url}\"\n"),
@@ -96,7 +96,7 @@ async fn voice_clone_makes_a_voice_from_your_takes() {
     let stub = stub(Vec::new()).await;
     let url = &stub.base_url;
     let dir = teleprompt_testkit::test_dir("voicebox-clone");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
         format!("[backends.voicebox]\nbase_url = \"{url}\"\n"),

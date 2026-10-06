@@ -86,7 +86,7 @@ impl Server {
 #[test]
 fn an_editor_is_told_of_problems_and_offered_the_cast() {
     let dir = teleprompt_testkit::test_dir("lsp");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let toml = dir.join("teleprompt.toml");
     let config = std::fs::read_to_string(&toml).unwrap();
     std::fs::write(

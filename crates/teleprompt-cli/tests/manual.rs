@@ -20,6 +20,8 @@
 //! this suite on exactly the machines that had exercised the manual most.
 
 use std::path::{Path, PathBuf};
+use teleprompt_cli::commands::check::check;
+use teleprompt_cli::commands::plan::{plan, plan_check};
 use teleprompt_core::DurationSource;
 
 use teleprompt_project::build::Builder;
@@ -52,17 +54,14 @@ fn manual() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
 #[test]
 fn the_manual_compiles() {
     let (_dir, p, s) = manual();
-    let warnings = p
-        .script(&s, "en")
-        .check()
-        .expect("the manual must be a valid script");
+    let warnings = check(&p.script(&s, "en")).expect("the manual must be a valid script");
     assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
 }
 
 #[test]
 fn the_committed_timeline_is_current() {
     let (_dir, p, s) = manual();
-    let d = p.script(&s, "en").plan_check().unwrap();
+    let d = plan_check(&p.script(&s, "en")).unwrap();
     assert!(
         d.is_empty(),
         "the manual has drifted from `manual/timelines/cli.en.json`; re-run\n  \
@@ -78,7 +77,7 @@ fn every_terminal_action_is_timed_exactly() {
     // terminal scene's pacing with no terminal anywhere: a tape states its
     // own timing, so nothing here is a guess.
     let (_dir, p, s) = manual();
-    let out = p.script(&s, "en").plan().unwrap();
+    let out = plan(&p.script(&s, "en")).unwrap();
     let mut tapes = 0;
     for e in &out.timeline.entries {
         let Some(a) = &e.action else { continue };
@@ -102,7 +101,7 @@ fn the_manual_demonstrates_every_pacing_policy() {
     // A manual that only ever used the default policy would document the
     // tool it is not.
     let (_dir, p, s) = manual();
-    let out = p.script(&s, "en").plan().unwrap();
+    let out = plan(&p.script(&s, "en")).unwrap();
     let policies: std::collections::BTreeSet<&str> = out
         .timeline
         .entries

@@ -13,8 +13,6 @@ use std::time::SystemTime;
 
 use serde::Serialize;
 
-use crate::project::Project;
-
 /// How much encoded video a project keeps when nobody says otherwise.
 ///
 /// Generous: too large costs disk, too small costs re-encoding. A 1080p
@@ -132,63 +130,5 @@ pub fn prune(dir: &Path, max_bytes: u64) -> std::io::Result<Pruned> {
         removed,
         freed,
         bytes,
-    })
-}
-
-#[derive(Debug, Serialize)]
-pub struct CacheReport {
-    pub root: PathBuf,
-    pub voice: Stats,
-    pub compose: Stats,
-    /// What a `prune` did, or `null` for a report that only looked.
-    pub pruned: Option<Pruned>,
-}
-
-impl CacheReport {
-    pub fn render(&self) -> String {
-        let mut out = format!("  {}\n", self.root.display());
-        out.push_str(&format!(
-            "  voice            {} entries, {}\n",
-            self.voice.entries,
-            size(self.voice.bytes)
-        ));
-        out.push_str(&format!(
-            "  compose          {} entries, {}\n",
-            self.compose.entries,
-            size(self.compose.bytes)
-        ));
-        if let Some(pruned) = self.pruned {
-            out.push_str(&format!(
-                "  pruned           {} entries, {} freed\n",
-                pruned.removed,
-                size(pruned.freed)
-            ));
-        }
-        out
-    }
-}
-
-/// Bytes, in the unit a human would have said them in.
-fn size(bytes: u64) -> String {
-    const MB: f64 = 1_048_576.0;
-    match bytes {
-        0..=1023 => format!("{bytes} B"),
-        1024..=1_048_575 => format!("{:.0} KB", bytes as f64 / 1024.0),
-        _ => format!("{:.1} MB", bytes as f64 / MB),
-    }
-}
-
-/// Report the caches, having first pruned the compose cache to `max_mb` if
-/// one was asked for.
-pub fn run_cache(project: &Project, max_mb: Option<u64>) -> std::io::Result<CacheReport> {
-    let pruned = match max_mb {
-        Some(mb) => Some(prune(&project.caches().compose(), mb * 1_048_576)?),
-        None => None,
-    };
-    Ok(CacheReport {
-        root: project.caches().root,
-        voice: stats(&project.caches().voice()),
-        compose: stats(&project.caches().compose()),
-        pruned,
     })
 }

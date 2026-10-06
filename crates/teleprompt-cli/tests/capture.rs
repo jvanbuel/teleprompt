@@ -51,7 +51,7 @@ fn have_ffmpeg() -> bool {
 
 fn project(name: &str) -> (teleprompt_testkit::TestDir, PathBuf) {
     let dir = teleprompt_testkit::test_dir(&format!("capture-e2e-{name}"));
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, SCRIPT).unwrap();
     (dir, script)

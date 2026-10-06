@@ -83,7 +83,7 @@ fn picture_seconds(path: &Path) -> f64 {
 
 fn project_with_script(name: &str) -> (teleprompt_testkit::TestDir, PathBuf) {
     let dir = teleprompt_testkit::test_dir(&format!("build-{name}"));
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, SCRIPT).unwrap();
     (dir, script)

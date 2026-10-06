@@ -58,7 +58,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     use teleprompt_project::project::Project;
 
     let dir = teleprompt_testkit::test_dir("stretch");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/stretch.md");
     std::fs::write(
         &script,
@@ -127,7 +127,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
 #[test]
 fn a_scene_reads_its_files_from_the_project() {
     let dir = teleprompt_testkit::test_dir("scene-paths");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(
         dir.join("teleprompt.toml"),
         "[locales]\nsource = \"en\"\n\n[scene.media]\ndir = \"pictures\"\n",

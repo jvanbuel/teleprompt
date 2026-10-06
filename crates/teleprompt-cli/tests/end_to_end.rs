@@ -7,6 +7,8 @@
 //! video's pacing?
 
 use std::path::PathBuf;
+use teleprompt_cli::commands::check::check;
+use teleprompt_cli::commands::plan::{plan, plan_check};
 use teleprompt_core::SpanMs;
 use teleprompt_core::TimeMs;
 
@@ -21,7 +23,7 @@ fn fixture(name: &str) -> String {
 
 fn workspace() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     let dir = teleprompt_testkit::test_dir("e2e");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, fixture("tour.md")).unwrap();
     let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
@@ -31,14 +33,14 @@ fn workspace() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
 #[test]
 fn the_full_fixture_validates() {
     let (_dir, p, s) = workspace();
-    let warnings = p.script(&s, "en").check().expect("fixture must be valid");
+    let warnings = check(&p.script(&s, "en")).expect("fixture must be valid");
     assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
 }
 
 #[test]
 fn every_policy_appears_in_the_compiled_timeline() {
     let (_dir, p, s) = workspace();
-    let out = p.script(&s, "en").plan().unwrap();
+    let out = plan(&p.script(&s, "en")).unwrap();
     let policies: std::collections::BTreeSet<&str> = out
         .timeline
         .entries
@@ -53,7 +55,7 @@ fn every_policy_appears_in_the_compiled_timeline() {
 #[test]
 fn items_never_overlap_and_never_gap() {
     let (_dir, p, s) = workspace();
-    let out = p.script(&s, "en").plan().unwrap();
+    let out = plan(&p.script(&s, "en")).unwrap();
     for pair in out.timeline.entries.windows(2) {
         let (a, b) = (&pair[0], &pair[1]);
         let expected = a.start_ms + a.duration_ms - a.transition.duration_ms;
@@ -68,7 +70,7 @@ fn items_never_overlap_and_never_gap() {
 #[test]
 fn the_timeline_ends_where_the_last_shot_ends() {
     let (_dir, p, s) = workspace();
-    let out = p.script(&s, "en").plan().unwrap();
+    let out = plan(&p.script(&s, "en")).unwrap();
     let last = out.timeline.entries.last().unwrap();
     assert_eq!(
         TimeMs::ZERO + out.timeline.duration_ms,
@@ -79,8 +81,8 @@ fn the_timeline_ends_where_the_last_shot_ends() {
 #[test]
 fn planning_twice_gives_byte_identical_output() {
     let (_dir, p, s) = workspace();
-    let a = serde_json::to_string(&p.script(&s, "en").plan().unwrap().timeline).unwrap();
-    let b = serde_json::to_string(&p.script(&s, "en").plan().unwrap().timeline).unwrap();
+    let a = serde_json::to_string(&plan(&p.script(&s, "en")).unwrap().timeline).unwrap();
+    let b = serde_json::to_string(&plan(&p.script(&s, "en")).unwrap().timeline).unwrap();
     assert_eq!(a, b);
 }
 
@@ -89,7 +91,7 @@ fn planning_twice_gives_byte_identical_output() {
 fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     let (_dir, p, s) = workspace();
 
-    let baseline = p.script(&s, "en").plan().unwrap();
+    let baseline = plan(&p.script(&s, "en")).unwrap();
     let dest = p.timeline_path("tour.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(
@@ -105,7 +107,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     );
     std::fs::write(&s, edited).unwrap();
 
-    let d = p.script(&s, "en").plan_check().unwrap();
+    let d = plan_check(&p.script(&s, "en")).unwrap();
 
     assert_eq!(d.changed.len(), 1, "exactly one line changed");
     assert_eq!(d.changed[0].item, "deploy");
@@ -155,7 +157,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 #[test]
 fn rollback_line_has_the_hand_derived_exact_duration() {
     let (_dir, p, s) = workspace();
-    let out = p.script(&s, "en").plan().unwrap();
+    let out = plan(&p.script(&s, "en")).unwrap();
     let entry = out
         .timeline
         .entry("rollback")
@@ -176,12 +178,12 @@ fn rollback_line_has_the_hand_derived_exact_duration() {
 #[test]
 fn an_unedited_script_diffs_clean_against_its_committed_timeline() {
     let (_dir, p, s) = workspace();
-    let out = p.script(&s, "en").plan().unwrap();
+    let out = plan(&p.script(&s, "en")).unwrap();
     let dest = p.timeline_path("tour.md", "en");
     std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
     std::fs::write(&dest, serde_json::to_string_pretty(&out.timeline).unwrap()).unwrap();
 
-    let d = p.script(&s, "en").plan_check().unwrap();
+    let d = plan_check(&p.script(&s, "en")).unwrap();
     assert!(
         d.is_empty(),
         "clean checkout must diff clean: {}",

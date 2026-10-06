@@ -41,7 +41,7 @@ fn session(tag: &str, terminate: bool) {
     };
 
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../teleprompt-listen/tests/fixtures/two-lines.wav");
     let once = wav::decode(&std::fs::read(fixture).unwrap()).unwrap();

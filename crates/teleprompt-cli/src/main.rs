@@ -1,22 +1,15 @@
 //! The `teleprompt` binary: the commands, each with its help, and which
-//! module runs it. A command's flags and its `run` are in its module under
-//! `commands`; what they share is `cli`. What they do is the `teleprompt`
-//! crate's.
-
-mod ask;
-mod cli;
-mod commands;
-mod output;
+//! module runs it.
 
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use cli::{fail, Run, ScriptArgs};
-use commands::{
+use teleprompt_cli::cli::{self, fail, Run, ScriptArgs};
+use teleprompt_cli::commands::{
     build, cache, capture, check, dub, edit, import, new, plan, record, serve, setup, translate,
     voice,
 };
-use output::{exit_code_for, Format, Outcome};
+use teleprompt_cli::output::{exit_code_for, Format, Outcome};
 
 #[derive(Parser)]
 #[command(

@@ -110,7 +110,7 @@ Every video in this repository is built from a script you can read.
 
 fn project_with(tag: &str, script: &str) -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     let dir = tempdir(tag);
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
     let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let path = dir.join("scripts/test.md");

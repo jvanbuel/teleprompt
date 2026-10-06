@@ -7,8 +7,6 @@ use teleprompt_voice::NullVoice;
 use teleprompt_voice::VoiceRegistry;
 use teleprompt_voice::{ClonedVoice, VoiceBackend, VoiceSample};
 
-pub mod clone;
-
 /// The backends this build ships, together with everything the project's
 /// `backends:` settings said that could not be turned into one.
 ///

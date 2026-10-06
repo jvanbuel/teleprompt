@@ -442,7 +442,7 @@ fn the_page_has_the_apps_icon() {
 
 fn tp_prompt(tag: &str, extra: &[&str]) -> std::process::Output {
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(&dir)
         .args(["serve", "scripts/demo.md"])
@@ -510,7 +510,7 @@ wait 800ms
 
 fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, TOUR).unwrap();
     let project =

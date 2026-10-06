@@ -37,15 +37,16 @@ The configuration file looks like this.
 /// Writes `source` into a scaffolded project and runs `check` over it.
 fn check(source: &str) -> Result<Vec<String>, Vec<String>> {
     let dir = teleprompt_testkit::test_dir("draft");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
 
     let script: PathBuf = dir.join("scripts/drafted.md");
     std::fs::write(&script, source).unwrap();
-    Project::discover(&dir, teleprompt_registry::registry())
-        .unwrap()
-        .script(&script, "en")
-        .check()
-        .map_err(|d| d.render())
+    teleprompt_cli::commands::check::check(
+        &Project::discover(&dir, teleprompt_registry::registry())
+            .unwrap()
+            .script(&script, "en"),
+    )
+    .map_err(|d| d.render())
 }
 
 #[test]
@@ -100,7 +101,7 @@ fn a_drafted_transcript_passes_check_and_casts_its_speakers() {
     assert!(warnings.is_empty(), "{warnings:#?}");
 
     let dir = teleprompt_testkit::test_dir("draft-cast");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/talk.md");
     std::fs::write(&script, &drafted.script).unwrap();
     let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();

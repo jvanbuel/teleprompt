@@ -279,7 +279,7 @@ fn record_lists_its_tools() {
 #[test]
 fn a_recording_that_cannot_start_says_why_in_its_status() {
     let dir = teleprompt_testkit::test_dir("record-status");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let status = dir.join("status.json");
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(dir.path())
@@ -304,7 +304,7 @@ fn a_recording_that_cannot_start_says_why_in_its_status() {
 #[test]
 fn an_unknown_tool_names_the_ones_that_record() {
     let dir = teleprompt_testkit::test_dir("record-unknown");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(dir.path())
         .args(["record", "scripts/s.md", "--model", ".", "--with", "slidev"])

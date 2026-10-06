@@ -20,7 +20,7 @@ Deploying is one command. {#deploy}
 
 fn project(tag: &str) -> teleprompt_testkit::TestDir {
     let dir = teleprompt_testkit::test_dir(&format!("locale-{tag}"));
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/tour.md"), SCRIPT).unwrap();
     dir
 }

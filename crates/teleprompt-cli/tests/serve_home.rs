@@ -22,7 +22,7 @@ impl Drop for Served {
 /// A scaffolded project, served with no script open.
 fn home(tag: &str) -> Served {
     let dir = teleprompt_testkit::test_dir(tag);
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let mut child = Command::new(env!("CARGO_BIN_EXE_teleprompt"))
         .current_dir(&dir)
         .args(["--format", "json", "serve", "--port", "0"])

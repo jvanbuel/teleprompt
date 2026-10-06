@@ -73,8 +73,12 @@ ALLOWED = {
         "project", "setup", "core", "script", "compile", "manifest", "schedule",
         "listen", "voice",
     },
-    # The command line, composing the rest; the types its flags name.
-    "cli": {"project", "registry", "setup", "lsp", "draft", "serve", "core"},
+    # The command line, composing the rest, and the commands that only
+    # read or print: check, plan, new, cache, voice clone.
+    "cli": {
+        "project", "registry", "setup", "lsp", "draft", "serve", "core", "compile",
+        "schedule", "script", "voice",
+    },
 }
 
 PREFIX = "teleprompt-"

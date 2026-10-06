@@ -314,7 +314,7 @@ async fn a_gemini_project_probes_its_key() {
 #[test]
 fn setup_in_a_project_reports_its_voice() {
     let dir = teleprompt_testkit::test_dir("setup-voice");
-    teleprompt_project::new::scaffold(dir.path()).unwrap();
+    teleprompt_cli::commands::new::scaffold(dir.path()).unwrap();
     let setup = |args: &[&str]| -> serde_json::Value {
         let out = std::process::Command::new(env!("CARGO_BIN_EXE_teleprompt"))
             .args(["--format", "json", "setup"])

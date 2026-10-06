@@ -23,6 +23,10 @@ teleprompt-lsp = { path = "../teleprompt-lsp" }
 teleprompt-draft = { path = "../teleprompt-draft" }
 teleprompt-serve = { path = "../teleprompt-serve" }
 teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-compile = { path = "../teleprompt-compile" }
+teleprompt-schedule = { path = "../teleprompt-schedule" }
+teleprompt-script = { path = "../teleprompt-script" }
+teleprompt-voice = { path = "../teleprompt-voice" }
 clap.workspace = true
 inquire = "0.9"
 serde.workspace = true
@@ -41,13 +45,9 @@ tungstenite = { version = "0.27", default-features = false, features = ["handsha
 teleprompt-testkit = { path = "../teleprompt-testkit" }
 # The tests look at what the engine made with the crates it made it with.
 teleprompt-asciinema = { path = "../teleprompt-asciinema" }
-teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
-teleprompt-schedule = { path = "../teleprompt-schedule" }
-teleprompt-script = { path = "../teleprompt-script" }
-teleprompt-voice = { path = "../teleprompt-voice" }
 serde_yaml.workspace = true
 insta.workspace = true
 tempfile.workspace = true

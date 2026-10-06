@@ -3,6 +3,8 @@
 //! without a speech model; the Speech workflow runs one.
 
 use std::path::{Path, PathBuf};
+use teleprompt_cli::commands::check::check;
+use teleprompt_cli::commands::plan::plan;
 
 use teleprompt_draft::import::{run_import, Import, Words};
 use teleprompt_project::project::Project;
@@ -24,7 +26,7 @@ struct Session {
 /// between; 10 s of tone standing in for the voice.
 fn session() -> Session {
     let dir = teleprompt_testkit::test_dir("import");
-    teleprompt_project::new::scaffold(&dir).unwrap();
+    teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let root = dir.to_path_buf();
 
     let mut cast = String::from("{\"version\": 2, \"width\": 80, \"height\": 24}\n");
@@ -135,7 +137,7 @@ fn a_session_becomes_a_script_that_checks() {
     assert!(cast.contains(r#"[4.0,"m",""]"#), "{cast}");
 
     let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
-    let warnings = project.script(&script, "en").check().unwrap();
+    let warnings = check(&project.script(&script, "en")).unwrap();
     assert!(
         warnings.iter().all(|w| !w.contains("error")),
         "{warnings:?}"
@@ -151,7 +153,7 @@ fn each_line_gets_its_take() {
     let report = import(&s, &script, false).unwrap();
 
     let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
-    let plan = project.script(&script, "en").plan().unwrap();
+    let plan = plan(&project.script(&script, "en")).unwrap();
     let lines: Vec<_> = plan
         .narration
         .iter()
@@ -256,7 +258,7 @@ fn a_vhs_tape_drafts_as_vhs_blocks() {
         "{md}"
     );
     let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
-    let warnings = project.script(&script, "en").check().unwrap();
+    let warnings = check(&project.script(&script, "en")).unwrap();
     assert!(
         warnings.iter().all(|w| !w.contains("error")),
         "{warnings:?}"
