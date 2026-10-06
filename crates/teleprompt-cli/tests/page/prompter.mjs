@@ -36,7 +36,7 @@ execFileSync(bin, ["capture", "scripts/tour.md"], { cwd: project, stdio: "ignore
 // recognizer hears the reading end.
 const reading = join(work, "reading.wav");
 execFileSync("ffmpeg", ["-v", "error", "-i",
-  join(repo, "crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav"), "-af", "apad=pad_dur=3", reading]);
+  join(repo, "crates/teleprompt-listen/tests/fixtures/two-lines.wav"), "-af", "apad=pad_dur=3", reading]);
 
 const executablePath = process.env.TELEPROMPT_CHROMIUM
   ?? ["chromium", "chromium-browser", "google-chrome"].map((name) => {

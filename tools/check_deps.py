@@ -51,7 +51,6 @@ ALLOWED = {
     # Ids and speaker names are the script's; who speaks when is what a
     # recognizer hears.
     "derive": {"core", "listen"},
-    "listen-sherpa": {"listen"},
     # The protocol and the text; the compile reaches it through a trait
     # the engine implements.
     "lsp": {"core"},
@@ -60,7 +59,7 @@ ALLOWED = {
     # depend on anything.
     "teleprompt": None,
     # The command line over the engine, and the types its flags name.
-    "cli": {"teleprompt", "core", "listen-sherpa"},
+    "cli": {"teleprompt", "core"},
 }
 
 PREFIX = "teleprompt-"

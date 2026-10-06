@@ -2021,7 +2021,6 @@ dependencies = [
  "teleprompt-derive",
  "teleprompt-desktop",
  "teleprompt-listen",
- "teleprompt-listen-sherpa",
  "teleprompt-lsp",
  "teleprompt-manifest",
  "teleprompt-media",
@@ -2066,7 +2065,6 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-derive",
  "teleprompt-listen",
- "teleprompt-listen-sherpa",
  "teleprompt-manifest",
  "teleprompt-plugin",
  "teleprompt-schedule",
@@ -2125,13 +2123,8 @@ dependencies = [
 [[package]]
 name = "teleprompt-listen"
 version = "0.1.0"
-
-[[package]]
-name = "teleprompt-listen-sherpa"
-version = "0.1.0"
 dependencies = [
  "sherpa-onnx",
- "teleprompt-listen",
 ]
 
 [[package]]

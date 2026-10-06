@@ -22,7 +22,7 @@ fn heard(dir: &std::path::Path, pcm: &teleprompt_voice::Pcm) -> String {
         .iter()
         .map(|&s| f32::from(s) / 32768.0)
         .collect();
-    let words = teleprompt_listen_sherpa::transcribe(dir, &samples).unwrap();
+    let words = teleprompt_listen::sherpa::transcribe(dir, &samples).unwrap();
     words
         .iter()
         .map(|w| w.text.as_str())
@@ -35,7 +35,7 @@ fn a_stretched_reading_says_the_same_words() {
     let Some(dir) = model() else {
         return;
     };
-    let wav = std::fs::read("../teleprompt-listen-sherpa/tests/fixtures/two-lines.wav").unwrap();
+    let wav = std::fs::read("../teleprompt-listen/tests/fixtures/two-lines.wav").unwrap();
     let reading = teleprompt_voice::wav::decode(&wav).unwrap();
     let original = heard(&dir, &reading);
     assert!(original.starts_with("WELCOME TO ACME"), "{original}");

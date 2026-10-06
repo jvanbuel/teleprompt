@@ -4,8 +4,8 @@
 #![cfg(feature = "sherpa")]
 
 use std::path::{Path, PathBuf};
+use teleprompt_listen::sherpa::SherpaRecognizer;
 use teleprompt_listen::{Follower, Position};
-use teleprompt_listen_sherpa::SherpaRecognizer;
 
 const LINES: &[&str] = &[
     "Welcome to Acme. Let me show you around.",

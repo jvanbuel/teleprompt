@@ -43,7 +43,7 @@ fn session(tag: &str, terminate: bool) {
     let dir = teleprompt_testkit::test_dir(tag);
     teleprompt::new::scaffold(&dir).unwrap();
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../teleprompt-listen-sherpa/tests/fixtures/two-lines.wav");
+        .join("../teleprompt-listen/tests/fixtures/two-lines.wav");
     let once = wav::decode(&std::fs::read(fixture).unwrap()).unwrap();
     let reading = Duration::from_millis(once.duration_ms());
     let gap = vec![0i16; once.sample_rate as usize * 5];

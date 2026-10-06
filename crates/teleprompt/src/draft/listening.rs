@@ -26,7 +26,7 @@ pub struct Conversation {
 pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> {
     let samples = at_16k(pcm);
     let model = setup::speech_model(None)?;
-    let words = teleprompt_listen_sherpa::transcribe(&model, &samples)?;
+    let words = teleprompt_listen::sherpa::transcribe(&model, &samples)?;
     let words: Vec<teleprompt_derive::Word> = words
         .into_iter()
         .map(|w| teleprompt_derive::Word {
@@ -46,7 +46,7 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
     let words = match punctuation {
         Some(dir) => {
             let text: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
-            let text = teleprompt_listen_sherpa::punctuate(&dir, &text.join(" "))?;
+            let text = teleprompt_listen::sherpa::punctuate(&dir, &text.join(" "))?;
             teleprompt_derive::punctuate(&words, &text)
         }
         // The model hears in capitals; without punctuation, lower case
@@ -65,7 +65,9 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
             .flatten()
     });
     let voices = match speaker_models {
-        Some(dir) => Some(teleprompt_listen_sherpa::diarize(&dir, &samples, speakers)?),
+        Some(dir) => Some(teleprompt_listen::sherpa::diarize(
+            &dir, &samples, speakers,
+        )?),
         None => None,
     };
     Ok(Conversation {
@@ -90,7 +92,7 @@ pub fn hear(_: &Pcm, _: Option<usize>) -> Result<Conversation, String> {
 #[cfg(feature = "listen")]
 pub fn at_16k(pcm: &Pcm) -> Vec<f32> {
     let mut resampler =
-        teleprompt_voice::Resampler::new(pcm.sample_rate, teleprompt_listen_sherpa::SAMPLE_RATE);
+        teleprompt_voice::Resampler::new(pcm.sample_rate, teleprompt_listen::sherpa::SAMPLE_RATE);
     let mut samples = Vec::new();
     for block in pcm.samples.chunks(1 << 16) {
         let block: Vec<f32> = block.iter().map(|&s| f32::from(s) / 32768.0).collect();

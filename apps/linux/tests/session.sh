@@ -73,7 +73,7 @@ shots=${UI_SHOTS:-$work/shots}
 mkdir -p "$shots"
 trap 'rm -rf "$work"' EXIT
 "$TELEPROMPT_BIN" new "$work/project" >/dev/null
-fixture="$repo/crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav"
+fixture="$repo/crates/teleprompt-listen/tests/fixtures/two-lines.wav"
 # The reading, a pause for typing, the reading again, and room tone.
 ffmpeg -v error -i "$fixture" -i "$fixture" -filter_complex \
   "[0]apad=pad_dur=5[a];[1]apad=pad_dur=3[b];[a][b]concat=n=2:v=0:a=1" "$work/voice.wav"

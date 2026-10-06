@@ -8,7 +8,7 @@ license.workspace = true
 # The prompter's speech recognizer. Opt-in: it downloads a native library
 # when it builds, and the default build stays offline.
 [features]
-listen = ["dep:teleprompt-listen-sherpa", "teleprompt-listen-sherpa/sherpa"]
+listen = ["teleprompt-listen/sherpa"]
 
 [dependencies]
 teleprompt-compile = { path = "../teleprompt-compile" }
@@ -16,7 +16,6 @@ teleprompt-derive = { path = "../teleprompt-derive" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 # `setup`: the installed plugins, as a table.
 tabled = { version = "0.20", default-features = false, features = ["std"] }
-teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = true }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }

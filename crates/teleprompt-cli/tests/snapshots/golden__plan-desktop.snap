@@ -40,7 +40,7 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "capture_key": "e0f30742b6d01af9bc06c60d3dc71e9f1fe79bc288f935bce5cca9400e1e68d5",
+          "capture_key": "6022889141371f31e31e5f0baebe32c070655a67ec51d6b0a27a389a3a83078a",
           "duration_ms": 11300,
           "duration_source": "exact",
           "plugin": "x11",
@@ -68,7 +68,7 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "capture_key": "5ea976c6670a5aacaf55f7436afdd0ac2437d2146d9930140bf80689b05c0147",
+          "capture_key": "a2137458f4ddf8778ff75fff36f755404a129cf0b6ec59d447e55c8d6be388ff",
           "duration_ms": 6400,
           "duration_source": "exact",
           "plugin": "x11",
@@ -96,7 +96,7 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "capture_key": "a02f6af4a16e7f875e4f4a74c63e33e3d70d18fc3f7614ccf76d5008b3994d6b",
+          "capture_key": "05a4f4d5065a2a919e243799e8ac4c3f0df51fd6a1ce7a1b7385b18fa3ed0772",
           "duration_ms": 8800,
           "duration_source": "exact",
           "plugin": "x11",
@@ -124,7 +124,7 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "capture_key": "ed67aea2de09bc5c9ab7b8a0b6b26397d355c16cc17ec0bd60c6873ed0777636",
+          "capture_key": "7a99572f8b32672b90ffe2a869ebdb6dfb18332a9a68e9430c314bb4c1ca8dc8",
           "duration_ms": 9300,
           "duration_source": "exact",
           "plugin": "x11",
@@ -152,7 +152,7 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "capture_key": "32f9f41f03b66f3d8794077e2d8b6c061cda4d769b40d50e9848a2c43dacd66f",
+          "capture_key": "76c3fcfa62a9949911030d46cfce3e5f92c95bea5f6f8fe9a435a704c833195c",
           "duration_ms": 8950,
           "duration_source": "exact",
           "plugin": "x11",
@@ -180,7 +180,7 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "capture_key": "4833733310a01611a0075cbc664e90b9e74e3a34e58f451b000c174bda746f7a",
+          "capture_key": "733c3cb7a0234c63653b487408caffd4364dfea484f91e49818795331a3e2196",
           "duration_ms": 11550,
           "duration_source": "exact",
           "plugin": "x11",
@@ -208,7 +208,7 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "capture_key": "2d36c936ec77d9a0847e4c76946b84a8a712cbb2717976cdbc97d8296e89a2c6",
+          "capture_key": "d36d290df3b94a2b78656e70986ae83043b70377570c2ee20f52c4e6407507f4",
           "duration_ms": 5600,
           "duration_source": "exact",
           "plugin": "x11",
@@ -236,7 +236,7 @@ expression: transcript(&out)
       },
       {
         "action": {
-          "capture_key": "370763c378801e63f8047a263e2f32b869b29d2fe87736912e91bd1e6754a502",
+          "capture_key": "056196a94687251576d83dec7c536d07eeeaf8f1dad1aba78f219eb04b3958a4",
           "duration_ms": 6950,
           "duration_source": "exact",
           "plugin": "x11",

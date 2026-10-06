@@ -2,6 +2,8 @@
 
 mod cues;
 mod follow;
+#[cfg(feature = "sherpa")]
+pub mod sherpa;
 mod take;
 
 pub use cues::Cues;

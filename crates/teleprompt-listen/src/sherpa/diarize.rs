@@ -3,8 +3,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::SpeakerSpan;
 use sherpa_onnx::{OfflineSpeakerDiarization, OfflineSpeakerDiarizationConfig};
-use teleprompt_listen::SpeakerSpan;
 
 /// The voices in `samples` (mono, 16 kHz) and when each speaks, by the
 /// models in `dir`: a `sherpa-onnx-pyannote-*` directory beside

@@ -13,7 +13,7 @@ path = "src/main.rs"
 # Opt-in: it downloads a native library when it builds, and the default
 # build stays offline.
 [features]
-listen = ["teleprompt/listen", "dep:teleprompt-listen-sherpa"]
+listen = ["teleprompt/listen"]
 
 [dependencies]
 teleprompt = { path = "../teleprompt" }
@@ -23,8 +23,6 @@ inquire = "0.9"
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-# Only for the tests that listen, as the engine does in this build.
-teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = true }
 
 # `record`'s tests give it a terminal, as the recording tools need one.
 [target.'cfg(unix)'.dev-dependencies]

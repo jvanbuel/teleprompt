@@ -210,7 +210,7 @@ fn recognizer(model: Option<&std::path::Path>) -> Result<Hearing, Failure> {
              one, or download and unpack {MODEL} and pass its directory with --model"
         ))
     })?;
-    teleprompt_listen_sherpa::SherpaRecognizer::new(dir)
+    teleprompt_listen::sherpa::SherpaRecognizer::new(dir)
         .map(|r| Box::new(r) as Hearing)
         .map_err(Failure::Runtime)
 }

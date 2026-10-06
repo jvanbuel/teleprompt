@@ -7,7 +7,6 @@ on:
     branches: [main]
     paths:
       - crates/teleprompt-listen/**
-      - crates/teleprompt-listen-sherpa/**
       - crates/teleprompt-derive/**
       - crates/teleprompt/src/draft/**
       - crates/teleprompt-cli/tests/import*
@@ -16,7 +15,6 @@ on:
   pull_request:
     paths:
       - crates/teleprompt-listen/**
-      - crates/teleprompt-listen-sherpa/**
       - crates/teleprompt-derive/**
       - crates/teleprompt/src/draft/**
       - crates/teleprompt-cli/tests/import*
@@ -85,7 +83,7 @@ jobs:
           TELEPROMPT_LISTEN_MODEL: ${{ github.workspace }}/model/${{ env.MODEL }}
           TELEPROMPT_PUNCT_MODEL: ${{ github.workspace }}/model/${{ env.PUNCT }}
         run: |
-          cargo clippy -p teleprompt-listen-sherpa --features sherpa --all-targets -- -D warnings
+          cargo clippy -p teleprompt-listen --features sherpa --all-targets -- -D warnings
           cargo clippy -p teleprompt -p teleprompt-cli --features listen --all-targets -- -D warnings
-          cargo test -p teleprompt-listen-sherpa --features sherpa
+          cargo test -p teleprompt-listen --features sherpa
           cargo test -p teleprompt-cli --features listen --test import_listen --test record_listen --test record

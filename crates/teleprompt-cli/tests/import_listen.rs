@@ -27,7 +27,7 @@ fn a_spoken_session_becomes_two_lines_and_a_block_between() {
     teleprompt::new::scaffold(&dir).unwrap();
 
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../teleprompt-listen-sherpa/tests/fixtures/two-lines.wav");
+        .join("../teleprompt-listen/tests/fixtures/two-lines.wav");
     let once = wav::decode(&std::fs::read(fixture).unwrap()).unwrap();
     let reading_ms = once.duration_ms();
     let gap = vec![0i16; once.sample_rate as usize * 4];

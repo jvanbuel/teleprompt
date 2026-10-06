@@ -29,7 +29,7 @@ runs them in CI):
 
 ```bash
 TELEPROMPT_LISTEN_MODEL=path/to/sherpa-onnx-streaming-zipformer-en-2023-06-26 \
-  cargo test -p teleprompt-listen-sherpa --features sherpa
+  cargo test -p teleprompt-listen --features sherpa
 ```
 
 The model is sherpa-onnx's streaming English zipformer; the smaller 20M

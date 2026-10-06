@@ -13,7 +13,7 @@ fn a_transcript_gets_capitals_and_punctuation() {
         "TELEPROMPT_REQUIRE_LISTEN is set and TELEPROMPT_PUNCT_MODEL is not"
     );
     let Some(dir) = dir else { return };
-    let out = teleprompt_listen_sherpa::punctuate(
+    let out = teleprompt_listen::sherpa::punctuate(
         &dir,
         "WELCOME TO ACME LET ME SHOW YOU AROUND DEPLOYING IS ONE COMMAND",
     )

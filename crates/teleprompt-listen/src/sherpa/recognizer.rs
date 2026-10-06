@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use crate::{Heard, Recognizer, TimedWord};
 use sherpa_onnx::{OnlineRecognizer, OnlineRecognizerConfig, OnlineStream, RecognizerResult};
-use teleprompt_listen::{Heard, Recognizer, TimedWord};
 
 /// The rate the streaming zipformer models are trained at; audio is
 /// resampled to it before it gets here.

@@ -118,7 +118,7 @@ trap 'rm -rf "$work"' EXIT
 cp -r "$repo/apps/fixtures/tour" "$work/project"
 (cd "$work/project" && "$TELEPROMPT_BIN" capture scripts/tour.md >/dev/null)
 # A microphone does not stop at the last word: room tone after it.
-ffmpeg -v error -i "$repo/crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav" \
+ffmpeg -v error -i "$repo/crates/teleprompt-listen/tests/fixtures/two-lines.wav" \
   -af apad=pad_dur=3 "$work/reading.wav"
 
 export app work shots

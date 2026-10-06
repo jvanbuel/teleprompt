@@ -259,7 +259,7 @@ fn hear(words: &Words, pcm: &Pcm, offset_ms: i64) -> Result<Vec<Word>, String> {
 #[cfg(feature = "listen")]
 fn transcribe(dir: &Path, pcm: &Pcm) -> Result<Vec<(String, u64, u64)>, String> {
     let samples = crate::draft::listening::at_16k(pcm);
-    Ok(teleprompt_listen_sherpa::transcribe(dir, &samples)?
+    Ok(teleprompt_listen::sherpa::transcribe(dir, &samples)?
         .into_iter()
         .map(|w| (w.text, w.start_ms, w.end_ms))
         .collect())
@@ -269,7 +269,7 @@ fn transcribe(dir: &Path, pcm: &Pcm) -> Result<Vec<(String, u64, u64)>, String> 
 #[cfg(feature = "listen")]
 fn punctuated(dir: &Path, words: &[Word]) -> Result<Vec<Word>, String> {
     let text: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
-    let text = teleprompt_listen_sherpa::punctuate(dir, &text.join(" "))?;
+    let text = teleprompt_listen::sherpa::punctuate(dir, &text.join(" "))?;
     Ok(teleprompt_derive::punctuate(words, &text))
 }
 

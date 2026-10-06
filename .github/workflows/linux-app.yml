@@ -16,7 +16,6 @@ on:
       - crates/teleprompt-core/**
       - crates/teleprompt-schedule/**
       - crates/teleprompt-listen/**
-      - crates/teleprompt-listen-sherpa/**
       - .github/workflows/linux-app.yml
   pull_request:
     paths:
@@ -30,7 +29,6 @@ on:
       - crates/teleprompt-core/**
       - crates/teleprompt-schedule/**
       - crates/teleprompt-listen/**
-      - crates/teleprompt-listen-sherpa/**
       - .github/workflows/linux-app.yml
 
 # A newer push supersedes a run still going.

@@ -3,7 +3,7 @@
 #![cfg(feature = "sherpa")]
 
 use std::path::{Path, PathBuf};
-use teleprompt_listen_sherpa::transcribe;
+use teleprompt_listen::sherpa::transcribe;
 
 fn model() -> Option<PathBuf> {
     let dir = std::env::var_os("TELEPROMPT_LISTEN_MODEL").map(PathBuf::from);

@@ -5,5 +5,14 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+# The recognizer is opt-in: sherpa-onnx fetches its native library when it
+# builds, and the default build stays offline. Without `sherpa` there is no
+# `sherpa` module, and no dependencies.
+[features]
+sherpa = ["dep:sherpa-onnx"]
+
+[dependencies]
+sherpa-onnx = { version = "1.13.8", optional = true }
+
 [lints]
 workspace = true

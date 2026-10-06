@@ -38,4 +38,4 @@ command = "sh -c 'rm -rf takes && exec teleprompt-gtk scripts/acme.md'"
 ready = "acme.md — Teleprompt"
 launch_timeout_ms = 90000
 settle_ms = 800
-env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/app", TELEPROMPT_MIC = "../../crates/teleprompt-listen-sherpa/tests/fixtures/two-lines.wav" }
+env = { GSK_RENDERER = "cairo", WEBKIT_DISABLE_DMABUF_RENDERER = "1", XDG_CONFIG_HOME = "/tmp/teleprompt-desktop-example/app", TELEPROMPT_MIC = "../../crates/teleprompt-listen/tests/fixtures/two-lines.wav" }
