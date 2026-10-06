@@ -50,14 +50,30 @@ pub fn language_tag(s: &str) -> Result<String, String> {
 }
 
 /// A frame size and rate that override the script's `output:` block.
-#[derive(Args)]
-pub struct FrameArgs {
+#[derive(Args, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FrameOverride {
     /// Frame size, as WIDTHxHEIGHT
     #[arg(long, value_parser = crate::cmd::build::parse_resolution)]
     pub resolution: Option<(u32, u32)>,
     /// Frames per second
     #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
     pub fps: Option<u32>,
+}
+
+impl FrameOverride {
+    /// The frame to record and render at: the script's `output:` frame,
+    /// with these overrides.
+    pub fn frame(
+        &self,
+        output: &teleprompt_core::config::OutputConfig,
+    ) -> teleprompt_plugin::capture::Frame {
+        let (width, height) = self.resolution.unwrap_or(output.resolution);
+        teleprompt_plugin::capture::Frame {
+            width,
+            height,
+            fps: self.fps.unwrap_or(output.fps),
+        }
+    }
 }
 
 /// The project `script` is in.

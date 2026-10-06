@@ -238,62 +238,20 @@ fn record(
     Ok(clips.len())
 }
 
-/// `teleprompt capture`: dubs the script, then records whatever its shots
-/// are missing into the build's clip directory. `size` and `fps` override
-/// the script's own `output:` frame.
-pub async fn capture_script(
-    project: &crate::project::Project,
-    script: &Path,
-    locale: &str,
-    size: Option<(u32, u32)>,
-    fps: Option<u32>,
-    on_progress: &mut dyn FnMut(Progress),
-) -> Result<CaptureReport, crate::output::Failure> {
-    let options = crate::cmd::build::BuildOptions {
-        resolution: size,
-        fps,
-        ..crate::cmd::build::BuildOptions::defaults(project, script, locale)
-    };
-    // Dubbed afresh rather than read from disk, where the manifest may be
-    // stale (docs/design.md#rendering).
-    let opened = project.script(script, locale);
-    let dubbed = crate::cmd::dub::Dubber::new(&opened)
-        .dub(&options.narration_root)
-        .await?;
-    let scenes = Scenes::new(
-        crate::scene::plugins(),
-        &options.clips_dir,
-        options.frame(&dubbed.output),
-    );
-    Ok(scenes.capture(&dubbed, on_progress))
-}
-
 /// `capture`'s arguments.
 #[derive(clap::Args)]
 pub struct Args {
     #[command(flatten)]
     pub script: crate::cli::ScriptArgs,
     #[command(flatten)]
-    pub frame: crate::cli::FrameArgs,
+    pub frame: crate::cli::FrameOverride,
 }
 
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
-    let project = args.script.project()?;
-    let mut progress = |p: teleprompt_plugin::capture::Progress| {
-        crate::output::progress(
-            "capture",
-            || format!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot),
-            serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
-        );
-    };
-    let report = crate::cli::runtime()?.block_on(capture_script(
-        &project,
-        &args.script.script,
-        &args.script.locale(&project),
-        args.frame.resolution,
-        args.frame.fps,
-        &mut progress,
-    ))?;
+    let script = args.script.open()?;
+    let builder = crate::cmd::build::Builder::new(&script).frame(args.frame);
+    let report =
+        crate::cli::runtime()?.block_on(builder.capture(&mut crate::output::capture_progress))?;
     crate::cli::warn(&report.warnings);
     crate::cli::emit(format, &report, &report.render());
     Ok(crate::output::Outcome::Ok)

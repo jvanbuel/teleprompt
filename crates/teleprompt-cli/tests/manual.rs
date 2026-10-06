@@ -22,7 +22,7 @@
 use std::path::{Path, PathBuf};
 use teleprompt_core::DurationSource;
 
-use teleprompt_cli::cmd::build::{self, BuildOptions};
+use teleprompt_cli::cmd::build::Builder;
 use teleprompt_cli::project::Project;
 
 fn repo() -> PathBuf {
@@ -128,15 +128,13 @@ async fn the_manual_renders() {
         return;
     }
     let (_dir, project, script) = manual();
-    let options = BuildOptions {
-        // Small and slow-framed: CI is checking that the pipeline runs and
-        // the arithmetic holds over 25 items, not how a codec looks.
-        resolution: Some((320, 180)),
-        fps: Some(12),
-        ..BuildOptions::defaults(&project, &script, "en")
-    };
+    let opened = project.script(&script, "en");
+    // Small and slow-framed: CI is checking that the pipeline runs and
+    // the arithmetic holds over 25 items, not how a codec looks.
+    let builder = Builder::new(&opened).resolution(320, 180).fps(12);
 
-    let report = build::run_build(&project, &script, "en", &options)
+    let report = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("the manual must render: {}", e));
 

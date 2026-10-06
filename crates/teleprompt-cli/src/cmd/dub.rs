@@ -572,24 +572,13 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
 /// `<locale>/clips/`. A shot nothing here can record is left out, with
 /// capture's warning.
 fn add_clips(script: &Script, out_root: &Path, dubbed: &mut DubOutput) -> Result<(), Failure> {
-    let (project, locale) = (script.project(), script.locale());
-    let options = crate::cmd::build::BuildOptions::defaults(project, script.path(), locale);
-    let mut progress = |p: teleprompt_plugin::capture::Progress| {
-        crate::output::progress(
-            "capture",
-            || format!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot),
-            serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
-        );
-    };
-    let scenes = crate::cmd::capture::Scenes::new(
-        crate::scene::plugins(),
-        &options.clips_dir,
-        options.frame(&dubbed.output),
-    );
-    let captured = scenes.capture(dubbed, &mut progress);
+    let clips_dir = script.project().caches().clips();
+    let frame = crate::cli::FrameOverride::default().frame(&dubbed.output);
+    let scenes = crate::cmd::capture::Scenes::new(crate::scene::plugins(), &clips_dir, frame);
+    let captured = scenes.capture(dubbed, &mut crate::output::capture_progress);
     dubbed.warnings.extend(captured.warnings);
-    let into = locale_dir(out_root, locale).join("clips");
-    let placed = place_clips(&dubbed.manifest, &options.clips_dir, &into)
+    let into = locale_dir(out_root, script.locale()).join("clips");
+    let placed = place_clips(&dubbed.manifest, &clips_dir, &into)
         .map_err(|e| Failure::Runtime(format!("{}: {e}", into.display())))?;
     dubbed.written.extend(placed);
     Ok(())

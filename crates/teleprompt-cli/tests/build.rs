@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use teleprompt_cli::cmd::build::{self, BuildOptions};
+use teleprompt_cli::cmd::build::Builder;
 use teleprompt_cli::project::Project;
 
 const SCRIPT: &str = "\
@@ -97,14 +97,12 @@ async fn a_script_renders_to_a_video_as_long_as_its_timeline() {
     }
     let (dir, script) = project_with_script("renders");
     let project = Project::discover(&dir).unwrap();
-    let options = BuildOptions {
-        // Small and fast: this test is about the pipeline, not the encoder.
-        resolution: Some((320, 180)),
-        fps: Some(24),
-        ..BuildOptions::defaults(&project, &script, "en")
-    };
+    let opened = project.script(&script, "en");
+    // Small and fast: this test is about the pipeline, not the encoder.
+    let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
-    let report = build::run_build(&project, &script, "en", &options)
+    let report = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -138,26 +136,18 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
     }
     let (dir, script) = project_with_script("slates");
     let project = Project::discover(&dir).unwrap();
-    let options = BuildOptions {
-        resolution: Some((320, 180)),
-        fps: Some(24),
-        ..BuildOptions::defaults(&project, &script, "en")
-    };
+    let opened = project.script(&script, "en");
+    let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
     // A machine with no backend for this scene. Not a contrivance: it is
     // every machine that has no terminal renderer installed, and every
     // scene kind teleprompt can compile and cannot yet run.
-    let report = build::run_build_with_capture(
-        &build::renderer(&options),
-        &teleprompt_plugin::ScenePlugins::new([]),
-        &project,
-        &script,
-        "en",
-        &options,
-        &mut |_| {},
-    )
-    .await
-    .unwrap_or_else(|e| panic!("build failed: {}", e));
+    let none = teleprompt_plugin::ScenePlugins::new([]);
+    let report = builder
+        .plugins(&none)
+        .build(&mut |_| {})
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     // A video of correctly-timed slates is a useful artifact and a
     // misleading one to hand over unannounced, so the count is part of the
@@ -240,14 +230,11 @@ async fn front_matter_decides_the_frame_when_no_flag_does() {
     .unwrap();
     let project = Project::discover(&dir).unwrap();
 
-    let report = build::run_build(
-        &project,
-        &script,
-        "en",
-        &BuildOptions::defaults(&project, &script, "en"),
-    )
-    .await
-    .unwrap_or_else(|e| panic!("build failed: {}", e));
+    let opened = project.script(&script, "en");
+    let report = Builder::new(&opened)
+        .build(&mut |_| {})
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     // The rate is compared with a tolerance, not for equality. A
     // container reports `avg_frame_rate` as a rational computed from the
@@ -303,23 +290,14 @@ async fn a_render_reports_how_far_along_it_is() {
     }
     let (dir, script) = project_with_script("progress");
     let project = Project::discover(&dir).unwrap();
-    let options = BuildOptions {
-        resolution: Some((320, 180)),
-        fps: Some(24),
-        ..BuildOptions::defaults(&project, &script, "en")
-    };
+    let opened = project.script(&script, "en");
+    let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
     let mut seen: Vec<u64> = Vec::new();
-    let report = teleprompt_cli::cmd::build::run_build_with(
-        &teleprompt_cli::cmd::build::renderer(&options),
-        &project,
-        &script,
-        "en",
-        &options,
-        &mut |p| seen.push(p.rendered_ms),
-    )
-    .await
-    .unwrap_or_else(|e| panic!("build failed: {}", e));
+    let report = builder
+        .build(&mut |p| seen.push(p.rendered_ms))
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     assert!(
         seen.len() > 1,
@@ -343,9 +321,12 @@ async fn a_render_reports_how_far_along_it_is() {
 fn the_default_output_is_inside_the_directory_the_scaffold_ignores() {
     let (dir, script) = project_with_script("defaults");
     let project = Project::discover(&dir).unwrap();
-    let options = BuildOptions::defaults(&project, &script, "en");
+    let opened = project.script(&script, "en");
 
-    assert_eq!(options.out, dir.join("build/tour.en.mp4"));
+    assert_eq!(
+        Builder::new(&opened).output(),
+        dir.join("build/tour.en.mp4")
+    );
     let ignored = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
     assert!(ignored.contains("build/"), "{ignored}");
 }
@@ -363,18 +344,17 @@ async fn a_second_build_of_an_unchanged_script_reuses_the_picture() {
     }
     let (dir, script) = project_with_script("reuse");
     let project = Project::discover(&dir).unwrap();
-    let options = BuildOptions {
-        resolution: Some((320, 180)),
-        fps: Some(24),
-        ..BuildOptions::defaults(&project, &script, "en")
-    };
+    let opened = project.script(&script, "en");
+    let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
-    let cold = build::run_build(&project, &script, "en", &options)
+    let cold = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(cold.renderer, "ffmpeg-incremental");
 
-    let warm = build::run_build(&project, &script, "en", &options)
+    let warm = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(
@@ -397,14 +377,14 @@ async fn no_cache_re_encodes_everything_and_says_so() {
     }
     let (dir, script) = project_with_script("nocache");
     let project = Project::discover(&dir).unwrap();
-    let options = BuildOptions {
-        resolution: Some((320, 180)),
-        fps: Some(24),
-        compose_dir: None,
-        ..BuildOptions::defaults(&project, &script, "en")
-    };
+    let opened = project.script(&script, "en");
+    let builder = Builder::new(&opened)
+        .resolution(320, 180)
+        .fps(24)
+        .no_cache();
 
-    let report = build::run_build(&project, &script, "en", &options)
+    let report = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(
@@ -431,16 +411,16 @@ async fn a_build_leaves_the_cache_under_its_cap() {
     }
     let (dir, script) = project_with_script("cap");
     let project = Project::discover(&dir).unwrap();
-    let options = BuildOptions {
-        resolution: Some((320, 180)),
-        fps: Some(24),
-        // Nothing at all fits: every entry is evicted on the way out, and
-        // the next build is cold. That is exactly what a cap of zero says.
-        cache_max_mb: 0,
-        ..BuildOptions::defaults(&project, &script, "en")
-    };
+    let opened = project.script(&script, "en");
+    // Nothing at all fits: every entry is evicted on the way out, and
+    // the next build is cold. That is exactly what a cap of zero says.
+    let builder = Builder::new(&opened)
+        .resolution(320, 180)
+        .fps(24)
+        .cache_max_mb(0);
 
-    let report = build::run_build(&project, &script, "en", &options)
+    let report = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert!(report.output.exists(), "the video is still produced");
@@ -453,11 +433,9 @@ async fn a_build_leaves_the_cache_under_its_cap() {
     );
 
     // And the real case: a generous cap keeps what the build just made.
-    let kept = BuildOptions {
-        cache_max_mb: 1_024,
-        ..options
-    };
-    build::run_build(&project, &script, "en", &kept)
+    builder
+        .cache_max_mb(1_024)
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert!(

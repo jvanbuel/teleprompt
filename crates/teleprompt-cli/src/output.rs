@@ -34,6 +34,15 @@ pub fn progress(stage: &str, human: impl FnOnce() -> String, fields: serde_json:
     }
 }
 
+/// One shot of a capture recorded, as [`progress`] says it.
+pub fn capture_progress(p: teleprompt_plugin::capture::Progress) {
+    progress(
+        "capture",
+        || format!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot),
+        serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
+    );
+}
+
 /// A failed command's `--format json` output, for every command whose
 /// success payload has no room for `errors`. Always `ok: false`.
 #[derive(Debug, Serialize)]

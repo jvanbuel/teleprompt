@@ -8,8 +8,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use teleprompt_cli::cmd::build::{self, BuildOptions};
+use teleprompt_cli::cmd::build::Builder;
 use teleprompt_cli::project::Project;
+use teleprompt_cli::project::Script;
 
 const SCRIPT: &str = "\
 ---
@@ -56,12 +57,8 @@ fn project(name: &str) -> (teleprompt_testkit::TestDir, PathBuf) {
     (dir, script)
 }
 
-fn options(project: &Project, script: &Path) -> BuildOptions {
-    BuildOptions {
-        resolution: Some((320, 180)),
-        fps: Some(24),
-        ..BuildOptions::defaults(project, script, "en")
-    }
+fn builder(script: &Script) -> Builder<'_> {
+    Builder::new(script).resolution(320, 180).fps(24)
 }
 
 /// The whole point of stage 5. Before it, a build was a correctly-paced
@@ -74,9 +71,11 @@ async fn a_build_records_its_scenes_and_renders_no_slates() {
     }
     let (dir, script) = project("records");
     let p = Project::discover(&dir).unwrap();
-    let options = options(&p, &script);
+    let opened = p.script(&script, "en");
+    let builder = builder(&opened);
 
-    let report = build::run_build(&p, &script, "en", &options)
+    let report = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -101,12 +100,15 @@ async fn a_second_build_records_nothing_and_still_has_no_slates() {
     }
     let (dir, script) = project("warm");
     let p = Project::discover(&dir).unwrap();
-    let options = options(&p, &script);
+    let opened = p.script(&script, "en");
+    let builder = builder(&opened);
 
-    build::run_build(&p, &script, "en", &options)
+    builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
-    let warm = build::run_build(&p, &script, "en", &options)
+    let warm = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -125,14 +127,17 @@ async fn editing_the_first_shot_re_records_the_second() {
     }
     let (dir, script) = project("edit");
     let p = Project::discover(&dir).unwrap();
-    let options = options(&p, &script);
+    let opened = p.script(&script, "en");
+    let builder = builder(&opened);
 
-    build::run_build(&p, &script, "en", &options)
+    builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     std::fs::write(&script, SCRIPT.replacen("wait 800ms", "wait 900ms", 1)).unwrap();
-    let after = build::run_build(&p, &script, "en", &options)
+    let after = builder
+        .build(&mut |_| {})
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -154,22 +159,18 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
     }
     let (dir, script) = project("unbacked");
     let p = Project::discover(&dir).unwrap();
-    let options = options(&p, &script);
+    let opened = p.script(&script, "en");
+    let builder = builder(&opened);
 
     // A machine with no backend for this scene — which is every machine
     // that has not installed one, and every scene kind teleprompt can
     // compile and cannot yet run.
-    let report = build::run_build_with_capture(
-        &build::renderer(&options),
-        &teleprompt_plugin::ScenePlugins::new([]),
-        &p,
-        &script,
-        "en",
-        &options,
-        &mut |_| {},
-    )
-    .await
-    .unwrap_or_else(|e| panic!("build failed: {}", e));
+    let none = teleprompt_plugin::ScenePlugins::new([]);
+    let report = builder
+        .plugins(&none)
+        .build(&mut |_| {})
+        .await
+        .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     assert_eq!(report.captured, 0);
     assert_eq!(report.slates, 2);
