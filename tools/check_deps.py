@@ -51,9 +51,6 @@ ALLOWED = {
     # Ids and speaker names are the script's; who speaks when is what a
     # recognizer hears.
     "derive": {"core", "listen"},
-    # The protocol and the text; the compile reaches it through a trait
-    # the engine implements.
-    "lsp": {"core"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
     # The engine, where every scene plugin and voice is composed: may
     # depend on anything.

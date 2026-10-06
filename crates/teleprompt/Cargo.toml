@@ -31,7 +31,6 @@ teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-translate = { path = "../teleprompt-translate" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 teleprompt-voices = { path = "../teleprompt-voices" }
-teleprompt-lsp = { path = "../teleprompt-lsp" }
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
@@ -49,6 +48,9 @@ tokio = { workspace = true, features = ["sync", "time", "net"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "query"] }
 # The stream a capture or build's progress is written to the page from.
 futures-util = { version = "0.3", default-features = false }
+# `lsp`: the language server's protocol.
+lsp-server = "0.7"
+lsp-types = "0.95"
 
 [target.'cfg(unix)'.dependencies]
 # SIGTERM stops a recording and still drafts it, for the app's Stop.

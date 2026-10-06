@@ -2009,6 +2009,8 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "futures-util",
+ "lsp-server",
+ "lsp-types",
  "portable-pty",
  "serde",
  "serde_json",
@@ -2021,7 +2023,6 @@ dependencies = [
  "teleprompt-derive",
  "teleprompt-desktop",
  "teleprompt-listen",
- "teleprompt-lsp",
  "teleprompt-manifest",
  "teleprompt-media",
  "teleprompt-playwright",
@@ -2125,17 +2126,6 @@ name = "teleprompt-listen"
 version = "0.1.0"
 dependencies = [
  "sherpa-onnx",
-]
-
-[[package]]
-name = "teleprompt-lsp"
-version = "0.1.0"
-dependencies = [
- "lsp-server",
- "lsp-types",
- "serde",
- "serde_json",
- "teleprompt-core",
 ]
 
 [[package]]

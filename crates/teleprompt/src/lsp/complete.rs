@@ -6,8 +6,8 @@
 use lsp_types::{CompletionItem, CompletionItemKind, Position};
 use teleprompt_core::attrs::{BLOCK_KEYS, SEGMENT_KEYS};
 
-use crate::text::LineIndex;
-use crate::Project;
+use crate::lsp::text::LineIndex;
+use crate::lsp::Project;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Context {
@@ -130,7 +130,7 @@ pub fn items(ctx: &Context, project: &Project) -> Vec<CompletionItem> {
             })
             .collect::<Vec<_>>()
     };
-    let named = |defs: &[crate::Definition], kind| {
+    let named = |defs: &[crate::lsp::Definition], kind| {
         defs.iter()
             .map(|d| item(d.name.clone(), &d.detail, kind, d.name.clone()))
             .collect::<Vec<_>>()

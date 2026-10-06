@@ -6,7 +6,7 @@ use teleprompt_core::ast::Node;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::SourceSpan;
 
-use crate::text::LineIndex;
+use crate::lsp::text::LineIndex;
 
 /// The chapters of `text`, each with its lines and blocks; nothing for a
 /// script that does not parse.

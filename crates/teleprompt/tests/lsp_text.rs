@@ -2,8 +2,8 @@
 //! a line) against the byte offsets and spans the compiler reports.
 
 use lsp_types::{Position, Range};
+use teleprompt::lsp::text::LineIndex;
 use teleprompt_core::SourceSpan;
-use teleprompt_lsp::text::LineIndex;
 
 fn pos(line: u32, character: u32) -> Position {
     Position { line, character }

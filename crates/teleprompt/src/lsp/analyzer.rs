@@ -1,21 +1,19 @@
-//! `teleprompt lsp`: the language server, with the real compile as its
-//! analyzer. What the protocol needs is in `teleprompt-lsp`; here is what
-//! only the CLI knows: the project, its cast and scenes, and what a script
-//! compiles to.
+//! The language server's analyzer: the real compile. The project, its cast
+//! and scenes, and what a script compiles to.
 
 use std::path::Path;
 
+use super::{Analysis, Analyzer, Definition, Project as Outline};
 use teleprompt_core::config::{Config, PartialConfig};
 use teleprompt_core::program::{ActionElement, Element};
 use teleprompt_core::{Diagnostic, SourceSpan};
-use teleprompt_lsp::{Analysis, Analyzer, Definition, Project as Outline};
 
 use crate::project::Compiled;
 use crate::project::Project;
 
 /// Serves on stdin and stdout until the editor says to exit.
 pub fn run_lsp() -> Result<(), String> {
-    teleprompt_lsp::run(ProjectAnalyzer).map_err(|e| e.to_string())
+    super::run(ProjectAnalyzer).map_err(|e| e.to_string())
 }
 
 pub struct ProjectAnalyzer;

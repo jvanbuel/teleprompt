@@ -3,8 +3,8 @@
 //! its heading, a block's attributes on its fence, and each one's values.
 
 use lsp_types::Position;
-use teleprompt_lsp::complete::{context, items, Context};
-use teleprompt_lsp::{Definition, Project};
+use teleprompt::lsp::complete::{context, items, Context};
+use teleprompt::lsp::{Definition, Project};
 
 const SCRIPT: &str =
     "---\nteleprompt: 1\n---\n\n# Tour {speaker=g}\n**Gu\n\nHello there. {#hi }\n\n\
@@ -12,7 +12,7 @@ const SCRIPT: &str =
 
 fn at(needle: &str, after: usize) -> Position {
     let offset = SCRIPT.find(needle).unwrap() + after;
-    teleprompt_lsp::text::LineIndex::new(SCRIPT).position(offset)
+    teleprompt::lsp::text::LineIndex::new(SCRIPT).position(offset)
 }
 
 fn project() -> Project {

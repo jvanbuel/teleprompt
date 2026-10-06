@@ -4,21 +4,22 @@
 //! scene's definition or an included file; and an outline of chapters and
 //! lines.
 //!
-//! The protocol and the text are here; knowing the project is not. What
-//! the compiler says about a script comes from an [`Analyzer`], which the
-//! CLI implements with the real compile, so this crate depends on core
-//! alone and `teleprompt lsp` is the one thing that starts it.
+//! The protocol and the text are kept apart from knowing the project: what
+//! the compiler says about a script comes from an [`Analyzer`].
+//! [`run_lsp`] serves with the real compile; the tests serve with a stub.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use teleprompt_core::Diagnostic;
 
+mod analyzer;
 pub mod complete;
 mod server;
 pub mod symbols;
 pub mod text;
 
+pub use analyzer::{run_lsp, ProjectAnalyzer};
 pub use server::{run, serve};
 
 /// Whether `text` is a teleprompt script: its front matter names
