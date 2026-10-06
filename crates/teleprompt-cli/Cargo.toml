@@ -17,6 +17,7 @@ listen = ["teleprompt/listen"]
 
 [dependencies]
 teleprompt = { path = "../teleprompt" }
+teleprompt-registry = { path = "../teleprompt-registry" }
 teleprompt-core = { path = "../teleprompt-core" }
 clap.workspace = true
 inquire = "0.9"

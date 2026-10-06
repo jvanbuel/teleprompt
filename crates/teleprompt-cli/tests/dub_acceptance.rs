@@ -13,7 +13,7 @@ fn project_with(tag: &str, script: &str) -> teleprompt_testkit::TestDir {
     let dir = tempdir(tag);
     teleprompt::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
-    Project::discover(&dir).unwrap();
+    Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     dir
 }
 

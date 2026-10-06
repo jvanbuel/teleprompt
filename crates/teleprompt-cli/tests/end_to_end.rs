@@ -24,7 +24,7 @@ fn workspace() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
     teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, fixture("tour.md")).unwrap();
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     (dir, project, script)
 }
 

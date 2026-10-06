@@ -25,7 +25,7 @@ fn project_with(script: &str) -> (teleprompt_testkit::TestDir, Project, PathBuf)
     teleprompt::new::scaffold(&dir).unwrap();
     let path = dir.join("scripts/test.md");
     std::fs::write(&path, script).unwrap();
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     (dir, project, path)
 }
 

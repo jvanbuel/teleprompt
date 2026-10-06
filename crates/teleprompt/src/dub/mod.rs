@@ -555,7 +555,7 @@ pub fn add_clips(
 ) -> Result<(), Failure> {
     let clips_dir = script.project().caches().clips();
     let frame = crate::build::FrameOverride::default().frame(&dubbed.output);
-    let scenes = crate::capture::Scenes::new(crate::scene::plugins(), &clips_dir, frame);
+    let scenes = crate::capture::Scenes::new(script.project().registry.scenes, &clips_dir, frame);
     let captured = scenes.capture(dubbed, &mut crate::progress::capture_progress);
     dubbed.warnings.extend(captured.warnings);
     let into = locale_dir(out_root, script.locale()).join("clips");

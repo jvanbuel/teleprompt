@@ -12,6 +12,7 @@ use serde::Serialize;
 mod catalogue;
 pub mod plugins;
 
+use crate::registry::Registry;
 pub use catalogue::{download_mb, tools, Goal, GOALS};
 use teleprompt_plugin::tool::Found;
 pub use teleprompt_plugin::tool::{Manager, Tool};
@@ -83,7 +84,7 @@ fn on_path(program: &str) -> bool {
 
 /// Where `setup` put tool `name`'s model, if it is there.
 fn installed_model(name: &str) -> Option<PathBuf> {
-    let Found::Model(dir) = tools().into_iter().find(|t| t.name == name)?.found else {
+    let Found::Model(dir) = catalogue::model(name)?.found else {
         return None;
     };
     Some(models_dir().join(dir)).filter(|p| p.is_dir())
@@ -139,9 +140,10 @@ pub fn punctuation_model(given: Option<&Path>) -> Option<PathBuf> {
 
 /// The tools `names` stand for: a scene plugin's, or a tool by its own name;
 /// each once, in order. Every tool when `names` is empty.
-pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
+pub fn resolve(registry: Registry, names: &[String]) -> Result<Vec<&'static Tool>, String> {
+    let tools = tools(registry);
     if names.is_empty() {
-        return Ok(tools());
+        return Ok(tools);
     }
     let mut out: Vec<&'static Tool> = Vec::new();
     for name in names {
@@ -149,14 +151,16 @@ pub fn resolve(names: &[String]) -> Result<Vec<&'static Tool>, String> {
             Some(goal) => goal
                 .needs
                 .iter()
-                .flat_map(|n| crate::scene::needs(n).unwrap_or_else(|| vec![*n]))
+                .flat_map(|n| registry.scene_needs(n).unwrap_or_else(|| vec![*n]))
                 .collect(),
-            None => crate::scene::needs(name).unwrap_or_else(|| vec![name.as_str()]),
+            None => registry
+                .scene_needs(name)
+                .unwrap_or_else(|| vec![name.as_str()]),
         };
         for w in wanted {
-            let Some(tool) = tools().into_iter().find(|t| t.name == w) else {
-                let plugins = crate::scene::plugins().names();
-                let tools: Vec<&str> = tools().iter().map(|t| t.name).collect();
+            let Some(tool) = tools.iter().copied().find(|t| t.name == w) else {
+                let plugins = registry.scenes.names();
+                let tools: Vec<&str> = tools.iter().map(|t| t.name).collect();
                 return Err(format!(
                     "`{name}` is neither a scene plugin ({}) nor a tool ({})",
                     plugins.join(", "),
@@ -274,17 +278,20 @@ pub struct Setup {
     pub platform: Platform,
     /// Where npm installs and packages are looked for.
     pub project: PathBuf,
+    /// What this build has, whose needs are what `setup` finds.
+    pub registry: Registry,
 }
 
 impl Setup {
-    pub fn detect() -> Self {
+    pub fn detect(registry: Registry) -> Self {
         let here = PathBuf::from(".");
-        let project = crate::project::Project::discover(&here)
+        let project = crate::project::Project::discover(&here, registry)
             .map(|p| p.root.clone())
             .unwrap_or(here);
         Self {
             platform: Platform::detect(),
             project,
+            registry,
         }
     }
 
@@ -313,7 +320,7 @@ impl Setup {
             password: command.as_deref().is_some_and(needs_password),
             command,
             guide: t.guide,
-            download_mb: download_mb(t.name),
+            download_mb: download_mb(self.registry, t.name),
         }
     }
 
@@ -323,7 +330,7 @@ impl Setup {
         let uses = GOALS
             .iter()
             .map(|goal| {
-                let tools = resolve(&[goal.name.to_string()]).unwrap_or_default();
+                let tools = resolve(self.registry, &[goal.name.to_string()]).unwrap_or_default();
                 let statuses: Vec<ToolStatus> = tools.iter().map(|t| self.status(t)).collect();
                 let gone = statuses.iter().filter(|t| t.installed == Some(false));
                 UseStatus {
@@ -424,7 +431,7 @@ impl Setup {
             if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
                 break status;
             }
-            let of = download_mb(tool.name);
+            let of = download_mb(self.registry, tool.name);
             // What is on disk, never more than the whole, whatever else a
             // download writes beside it.
             let mb = downloaded_mb(&self.platform.models).min(of.unwrap_or(0));

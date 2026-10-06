@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use teleprompt_derive::{derive, Draft, Line, Options, Word};
 use teleprompt_plugin::record::Recorded;
 
-use crate::scene::Recording;
+use crate::registry::{Recording, Registry};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
@@ -27,6 +27,7 @@ pub enum Words<'a> {
 }
 
 pub struct Import<'a> {
+    pub registry: Registry,
     pub recording: &'a Path,
     /// The plugin whose tool made it; found by its extension when `None`.
     pub with: Option<&'a str>,
@@ -74,13 +75,14 @@ const TAIL_MS: u64 = 250;
 
 pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
     refuse_to_replace(imp.script, imp.force)?;
-    let recorder = recorder_for(imp.with, imp.recording)?;
+    let recorder = recorder_for(imp.registry, imp.with, imp.recording)?;
     let text = std::fs::read_to_string(imp.recording)
         .map_err(|e| format!("cannot read {}: {e}", imp.recording.display()))?;
     let recorded = recorder
         .read(&text)
         .map_err(|e| format!("{}: {e}", imp.recording.display()))?;
     draft_session(&Session {
+        registry: imp.registry,
         script: imp.script,
         recorder: &recorder,
         recorded: &recorded,
@@ -94,8 +96,12 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
 
 /// The recorder `with` names, or the one whose recordings have
 /// `recording`'s extension.
-pub fn recorder_for(with: Option<&str>, recording: &Path) -> Result<Recording, String> {
-    let all = crate::scene::recorders();
+pub fn recorder_for(
+    registry: Registry,
+    with: Option<&str>,
+    recording: &Path,
+) -> Result<Recording, String> {
+    let all = registry.recorders();
     let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
     let ext = recording.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -125,6 +131,7 @@ pub fn refuse_to_replace(script: &Path, force: bool) -> Result<(), String> {
 
 /// A recorded session, and the voice recorded beside it.
 pub struct Session<'a> {
+    pub registry: Registry,
     pub script: &'a Path,
     pub recorder: &'a Recording,
     pub recorded: &'a Recorded,
@@ -140,7 +147,8 @@ pub struct Session<'a> {
 /// script including each part after the line it goes with, and each line
 /// spoken from the voice.
 pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
-    let project = Project::for_script(session.script).map_err(|e| e.to_string())?;
+    let project =
+        Project::for_script(session.script, session.registry).map_err(|e| e.to_string())?;
     let pcm = read_voice(session.voice)?;
     let words = hear(session.words, &pcm, session.offset_ms)?;
     if words.is_empty() {

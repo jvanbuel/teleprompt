@@ -2017,26 +2017,18 @@ dependencies = [
  "serde_yaml",
  "signal-hook",
  "tabled",
- "teleprompt-asciinema",
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-derive",
- "teleprompt-desktop",
  "teleprompt-listen",
  "teleprompt-manifest",
- "teleprompt-media",
- "teleprompt-playwright",
  "teleprompt-plugin",
- "teleprompt-remotion",
  "teleprompt-render",
  "teleprompt-schedule",
  "teleprompt-script",
- "teleprompt-slidev",
  "teleprompt-testkit",
  "teleprompt-translate",
- "teleprompt-vhs",
  "teleprompt-voice",
- "teleprompt-voices",
  "tokio",
 ]
 
@@ -2069,6 +2061,7 @@ dependencies = [
  "teleprompt-listen",
  "teleprompt-manifest",
  "teleprompt-plugin",
+ "teleprompt-registry",
  "teleprompt-schedule",
  "teleprompt-script",
  "teleprompt-testkit",
@@ -2172,6 +2165,23 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
+]
+
+[[package]]
+name = "teleprompt-registry"
+version = "0.1.0"
+dependencies = [
+ "teleprompt",
+ "teleprompt-asciinema",
+ "teleprompt-desktop",
+ "teleprompt-media",
+ "teleprompt-playwright",
+ "teleprompt-plugin",
+ "teleprompt-remotion",
+ "teleprompt-slidev",
+ "teleprompt-vhs",
+ "teleprompt-voice",
+ "teleprompt-voices",
 ]
 
 [[package]]

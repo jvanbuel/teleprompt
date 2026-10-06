@@ -27,6 +27,7 @@ use teleprompt_listen::Recognizer;
 use tokio::task::block_in_place;
 
 use crate::project::{Project, Script};
+use crate::registry::Registry;
 use crate::serve::voicing::Voicing;
 use crate::Failure;
 use teleprompt_script::edit::Edit;
@@ -61,6 +62,7 @@ type Hearing = Box<dyn Recognizer + Send>;
 /// What `serve` was started with, for opening a script from the page: the
 /// speech model named, and the locale.
 pub struct Opener {
+    pub registry: Registry,
     pub model: Option<PathBuf>,
     pub locale: Option<String>,
 }
@@ -71,6 +73,7 @@ pub struct Opener {
 /// teleprompt up. With `json`, where to connect is also said on stdout, as
 /// an event an app that launched it reads.
 pub fn run_serve(
+    registry: Registry,
     script: Option<&std::path::Path>,
     locale: Option<&str>,
     port: u16,
@@ -78,6 +81,7 @@ pub fn run_serve(
     json: bool,
 ) -> Result<(), Failure> {
     let opener = Opener {
+        registry,
         model: match &ear {
             Ear::Model(model) => model.map(std::path::Path::to_path_buf),
             Ear::Voice => None,
@@ -110,7 +114,7 @@ pub fn run_serve(
             .flush()
             .map_err(|e| Failure::Runtime(e.to_string()))?;
     }
-    let server = Server::new(opened, Some(opener));
+    let server = Server::new(registry, opened, Some(opener));
     serve_on(listener, server).map_err(|e| Failure::Runtime(e.to_string()))
 }
 
@@ -135,8 +139,8 @@ impl Opener {
     /// `script`, compiled and ready to read: by ear, or with `voice` by its
     /// voice.
     fn open(&self, script: &std::path::Path, voice: bool) -> Result<Opened, OpenError> {
-        let project =
-            Project::for_script(script).map_err(|e| OpenError::Invalid(vec![e.to_string()]))?;
+        let project = Project::for_script(script, self.registry)
+            .map_err(|e| OpenError::Invalid(vec![e.to_string()]))?;
         let locale = self
             .locale
             .clone()
@@ -169,7 +173,7 @@ impl Opener {
     /// be heard here or only a voice can read.
     fn home(&self, opened: Option<String>) -> serde_json::Value {
         let here = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let project = Project::discover(&here).ok();
+        let project = Project::discover(&here, self.registry).ok();
         let mut scripts: Vec<PathBuf> = project
             .as_ref()
             .and_then(|p| std::fs::read_dir(p.root.join("scripts")).ok())

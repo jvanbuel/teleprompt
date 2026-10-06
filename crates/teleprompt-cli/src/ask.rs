@@ -67,7 +67,7 @@ pub fn choose(setup: &Setup) -> Result<(Vec<String>, Vec<&'static Tool>), String
     if names.is_empty() {
         return Ok((names, Vec::new()));
     }
-    let tools = resolve(&names)?;
+    let tools = resolve(crate::cli::registry(), &names)?;
     Ok((names, tools))
 }
 
@@ -78,8 +78,9 @@ fn state(setup: &Setup, goal: &Goal) -> String {
         return "installed".to_string();
     }
     // Programs by name; models, which nobody knows by name, by count.
-    let (models, programs): (Vec<&Tool>, Vec<&Tool>) =
-        gone.iter().partition(|t| download_mb(t.name).is_some());
+    let (models, programs): (Vec<&Tool>, Vec<&Tool>) = gone
+        .iter()
+        .partition(|t| download_mb(crate::cli::registry(), t.name).is_some());
     let mut parts: Vec<String> = programs.iter().map(|t| t.name.to_string()).collect();
     match models.len() {
         0 => {}
@@ -94,7 +95,7 @@ fn state(setup: &Setup, goal: &Goal) -> String {
 
 fn missing(setup: &Setup, goal: &Goal) -> Vec<&'static Tool> {
     let names: Vec<String> = vec![goal.name.to_string()];
-    resolve(&names)
+    resolve(crate::cli::registry(), &names)
         .unwrap_or_default()
         .into_iter()
         .filter(|t| setup.missing(t))
@@ -102,7 +103,10 @@ fn missing(setup: &Setup, goal: &Goal) -> Vec<&'static Tool> {
 }
 
 fn megabytes(tools: &[&Tool]) -> u32 {
-    tools.iter().filter_map(|t| download_mb(t.name)).sum()
+    tools
+        .iter()
+        .filter_map(|t| download_mb(crate::cli::registry(), t.name))
+        .sum()
 }
 
 /// Asks whether to install `tools`, those of them that are missing, saying
@@ -156,10 +160,10 @@ pub fn offer(names: &[&str], to: &str) -> bool {
         return false;
     }
     let names: Vec<String> = names.iter().map(|n| (*n).to_string()).collect();
-    let Ok(tools) = resolve(&names) else {
+    let Ok(tools) = resolve(crate::cli::registry(), &names) else {
         return false;
     };
-    let setup = Setup::detect();
+    let setup = Setup::detect(crate::cli::registry());
     let gone: Vec<&'static Tool> = tools
         .into_iter()
         .filter(|t| setup.missing(t) && setup.command(t).is_some())

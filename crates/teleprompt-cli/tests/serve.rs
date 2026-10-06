@@ -81,7 +81,14 @@ fn prompting_counted(
     };
     let count = Arc::new(AtomicUsize::new(0));
     let recognizer = Scripted(heard.iter().copied().collect(), count.clone());
-    std::thread::spawn(move || prompt_on(listener, prompt, recognizer));
+    std::thread::spawn(move || {
+        prompt_on(
+            teleprompt_registry::registry(),
+            listener,
+            prompt,
+            recognizer,
+        )
+    });
     (addr, clips, count)
 }
 
@@ -294,7 +301,9 @@ fn a_session_that_panics_lets_go_of_the_prompter() {
         clips: teleprompt::project::CacheDir::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
-    std::thread::spawn(move || prompt_on(listener, prompt, Panics));
+    std::thread::spawn(move || {
+        prompt_on(teleprompt_registry::registry(), listener, prompt, Panics)
+    });
 
     let mut first = session(addr);
     send(
@@ -504,7 +513,8 @@ fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
     teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, TOUR).unwrap();
-    let project = teleprompt::project::Project::discover(&dir).unwrap();
+    let project =
+        teleprompt::project::Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     project
         .script(&script, "en")
         .compile()
@@ -694,6 +704,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
     let reload: teleprompt::serve::Reload = Box::new(move || edited.lock().unwrap().take());
     std::thread::spawn(move || {
         teleprompt::serve::prompt_watching(
+            teleprompt_registry::registry(),
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
@@ -741,6 +752,7 @@ fn prompting_with_keep(
     };
     std::thread::spawn(move || {
         teleprompt::serve::prompt_watching(
+            teleprompt_registry::registry(),
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
@@ -775,7 +787,14 @@ fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
         takes: dir.join("takes"),
     };
     let recognizer = Scripted(Default::default(), Default::default());
-    std::thread::spawn(move || prompt_on(listener, prompt, recognizer));
+    std::thread::spawn(move || {
+        prompt_on(
+            teleprompt_registry::registry(),
+            listener,
+            prompt,
+            recognizer,
+        )
+    });
 
     let line = &json_at(addr, "/api/v1/script")["lines"][1];
     assert_eq!(line["said"], "Deployment is just one command.", "{line}");

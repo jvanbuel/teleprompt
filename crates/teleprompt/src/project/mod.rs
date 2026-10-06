@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 use teleprompt_core::config::PartialConfig;
 
+use crate::registry::Registry;
+
 /// A discovered teleprompt project: the directory containing
 /// `teleprompt.toml` and that file's parsed contents.
 ///
@@ -15,6 +17,8 @@ use teleprompt_core::config::PartialConfig;
 pub struct Project {
     pub root: PathBuf,
     pub config: PartialConfig,
+    /// What this build has to compile and record it with.
+    pub registry: Registry,
 }
 
 /// The directory a script lives in. `Path::new("demo.md").parent()` is
@@ -65,7 +69,7 @@ impl CacheDirs {
 /// # use teleprompt::{capture::Scenes, project::Project};
 /// # fn f(project: &Project, frame: teleprompt_plugin::capture::Frame) {
 /// let clips = project.caches().clips();
-/// Scenes::new(teleprompt::scene::plugins(), &clips, frame);
+/// Scenes::new(project.registry.scenes, &clips, frame);
 /// # }
 /// ```
 ///
@@ -73,7 +77,7 @@ impl CacheDirs {
 /// # use teleprompt::{capture::Scenes, project::Project};
 /// # fn f(project: &Project, frame: teleprompt_plugin::capture::Frame) {
 /// let compose = project.caches().compose();
-/// Scenes::new(teleprompt::scene::plugins(), &compose, frame);
+/// Scenes::new(project.registry.scenes, &compose, frame);
 /// # }
 /// ```
 pub struct CacheDir<K> {
@@ -137,8 +141,8 @@ impl Project {
     }
 
     /// Finds the project a `script` belongs to, naming the script on failure.
-    pub fn for_script(script: &Path) -> std::io::Result<Project> {
-        Project::discover(script_dir(script)).map_err(|e| {
+    pub fn for_script(script: &Path, registry: Registry) -> std::io::Result<Project> {
+        Project::discover(script_dir(script), registry).map_err(|e| {
             std::io::Error::new(
                 e.kind(),
                 format!("cannot locate a project for {}: {e}", script.display()),
@@ -146,8 +150,9 @@ impl Project {
         })
     }
 
-    /// Walks up from `from` looking for `teleprompt.toml`.
-    pub fn discover(from: &Path) -> std::io::Result<Project> {
+    /// Walks up from `from` looking for `teleprompt.toml`; the project found
+    /// works with what `registry` has.
+    pub fn discover(from: &Path, registry: Registry) -> std::io::Result<Project> {
         let mut dir = from.canonicalize().map_err(|e| {
             std::io::Error::new(e.kind(), format!("cannot read {}: {e}", from.display()))
         })?;
@@ -159,7 +164,11 @@ impl Project {
                     std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
                 })?;
                 config.root = Some(dir.clone());
-                return Ok(Project { root: dir, config });
+                return Ok(Project {
+                    root: dir,
+                    config,
+                    registry,
+                });
             }
             if !dir.pop() {
                 return Err(std::io::Error::new(

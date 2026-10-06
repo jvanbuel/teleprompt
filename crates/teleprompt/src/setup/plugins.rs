@@ -49,15 +49,17 @@ pub fn scenes(setup: &Setup) -> Vec<Scene> {
             .collect(),
         problem,
     };
-    let built_in = crate::scene::plugins()
+    let registry = setup.registry;
+    let built_in = registry
+        .scenes
         .iter()
         // `mock` stands in for the others in tests.
-        .filter(|p| crate::scene::is_built_in(p.name()) && p.name() != "mock")
+        .filter(|p| registry.is_shipped_scene(p.name()) && p.name() != "mock")
         .map(|p| row(p.name(), None, &p.needs(), None));
     let programs = host::discover().into_iter().map(|found| {
         let name = found.name.clone();
         let path = Some(found.path.display().to_string());
-        if crate::scene::is_built_in(&name) {
+        if registry.is_shipped_scene(&name) {
             let why = "the built-in plugin of this name is used instead".to_string();
             return row(&name, path, &[], Some(why));
         }
@@ -72,9 +74,11 @@ pub fn scenes(setup: &Setup) -> Vec<Scene> {
 
 /// Every voice this build ships, and the project's own when it is a server
 /// of the author's.
-pub fn voices(chosen: Option<&ProjectVoice>) -> Vec<Voice> {
+pub fn voices(setup: &Setup, chosen: Option<&ProjectVoice>) -> Vec<Voice> {
     let chosen = chosen.map(|v| v.backend.as_str());
-    let mut out: Vec<Voice> = crate::voice::shipped()
+    let mut out: Vec<Voice> = setup
+        .registry
+        .shipped_voices()
         .into_iter()
         .map(|(name, needs)| Voice {
             name: name.to_string(),

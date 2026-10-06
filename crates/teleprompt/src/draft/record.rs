@@ -13,12 +13,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use teleprompt_plugin::record::Start;
 
-use crate::scene::Recording;
-
 use crate::draft::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
 use crate::project::Project;
+use crate::registry::{Recording, Registry};
 
 pub struct Record<'a> {
+    pub registry: Registry,
     pub script: &'a Path,
     /// The plugin whose tool records; asciinema when `None`.
     pub with: Option<&'a str>,
@@ -51,7 +51,7 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
                 .and_then(|()| std::fs::rename(&partial, path));
         }
     };
-    let result = recorder(r.with).and_then(|recorder| {
+    let result = recorder(r.registry, r.with).and_then(|recorder| {
         check(r, &recorder)?;
         record(r, &recorder, &say)
     });
@@ -68,8 +68,8 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
 }
 
 /// The recorder `with` names, asciinema's by default.
-fn recorder(with: Option<&str>) -> Result<Recording, String> {
-    let all = crate::scene::recorders();
+fn recorder(registry: Registry, with: Option<&str>) -> Result<Recording, String> {
+    let all = registry.recorders();
     let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
     let wanted = with.unwrap_or("asciinema");
@@ -106,7 +106,7 @@ fn record(
     recorder: &Recording,
     say: &dyn Fn(serde_json::Value),
 ) -> Result<ImportReport, String> {
-    let project = Project::for_script(r.script).map_err(|e| e.to_string())?;
+    let project = Project::for_script(r.script, r.registry).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
@@ -165,6 +165,7 @@ fn record(
         eprintln!("transcribing {}", voice.display());
     }
     draft_session(&Session {
+        registry: r.registry,
         script: r.script,
         recorder,
         recorded: &recorded,
@@ -195,8 +196,9 @@ pub struct Tool {
 }
 
 /// Every recorder this build has, the default first.
-pub fn tools() -> Vec<Tool> {
-    crate::scene::recorders()
+pub fn tools(registry: Registry) -> Vec<Tool> {
+    registry
+        .recorders()
         .iter()
         .map(|r| Tool {
             plugin: r.plugin,

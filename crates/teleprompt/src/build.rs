@@ -78,7 +78,7 @@ impl<'s> Builder<'s> {
             frame: FrameOverride::default(),
             compose_dir: Some(project.caches().compose()),
             cache_max_mb: cache::DEFAULT_MAX_MB,
-            plugins: crate::scene::plugins(),
+            plugins: project.registry.scenes,
         }
     }
 

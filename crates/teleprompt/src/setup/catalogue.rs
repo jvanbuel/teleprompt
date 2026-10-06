@@ -5,6 +5,8 @@
 
 use teleprompt_plugin::tool::{Found, Manager, Tool};
 
+use crate::registry::Registry;
+
 const SPEECH_MODEL: &str = "sherpa-onnx-streaming-zipformer-en-2023-06-26";
 const PUNCTUATION_MODEL: &str = "sherpa-onnx-online-punct-en-2024-08-06";
 const SPEAKER_MODELS: &str = "speaker-models";
@@ -130,13 +132,20 @@ pub static GOALS: &[Goal] = &[
     },
 ];
 
+/// The model tool `name`, if it is one.
+pub(crate) fn model(name: &str) -> Option<&'static Tool> {
+    MODELS.iter().find(|t| t.name == name)
+}
+
 /// Every tool `setup` knows, each once: what renders the video, what each
-/// plugin needs, in the order the CLI registers them, and the models.
-pub fn tools() -> Vec<&'static Tool> {
+/// plugin and voice in `registry` needs, in the order they are registered,
+/// and the models.
+pub fn tools(registry: Registry) -> Vec<&'static Tool> {
     let mut out: Vec<&'static Tool> = vec![&teleprompt_plugin::tool::FFMPEG];
-    let plugins = crate::scene::plugin_needs()
+    let plugins = registry
+        .scene_tools()
         .into_iter()
-        .chain(crate::voice::needs());
+        .chain(registry.voice_tools());
     for tool in plugins.chain(MODELS.iter()) {
         if !out.iter().any(|t| t.name == tool.name) {
             out.push(tool);
@@ -146,6 +155,9 @@ pub fn tools() -> Vec<&'static Tool> {
 }
 
 /// How much tool `name` downloads, for saying so before it does.
-pub fn download_mb(name: &str) -> Option<u32> {
-    tools().into_iter().find(|t| t.name == name)?.download_mb
+pub fn download_mb(registry: Registry, name: &str) -> Option<u32> {
+    tools(registry)
+        .into_iter()
+        .find(|t| t.name == name)?
+        .download_mb
 }

@@ -27,6 +27,8 @@ PLUGIN = {"core", "plugin"}
 # The voices teleprompt ships depend on the voice contract, and nothing else.
 VOICE = {"core", "voice"}
 
+PLUGIN_CRATES = {"vhs", "asciinema", "playwright", "remotion", "slidev", "media", "desktop"}
+
 ALLOWED = {
     "core": set(),
     # The script language: parsing, resolving, editing and translating.
@@ -54,11 +56,18 @@ ALLOWED = {
     # recognizer hears.
     "derive": {"core", "script", "listen"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
-    # The engine, where every scene plugin and voice is composed: may
-    # depend on anything.
-    "teleprompt": None,
+    # The engine: a project's scripts compiled, dubbed, captured and
+    # built, the prompter, the drafts, the language server and setup. It
+    # is handed its scene plugins and voices as a `Registry` and knows
+    # none by name, so no plugin crate and no voice is here.
+    "teleprompt": {
+        "core", "script", "scene", "plugin", "schedule", "voice", "manifest",
+        "compile", "render", "derive", "translate", "listen",
+    },
+    # The one crate that knows every scene plugin and voice by name.
+    "registry": {"teleprompt", "plugin", "voice", "voices"} | PLUGIN_CRATES,
     # The command line over the engine, and the types its flags name.
-    "cli": {"teleprompt", "core"},
+    "cli": {"teleprompt", "registry", "core"},
 }
 
 PREFIX = "teleprompt-"

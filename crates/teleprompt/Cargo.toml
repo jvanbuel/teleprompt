@@ -21,17 +21,9 @@ teleprompt-script = { path = "../teleprompt-script" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
 teleprompt-render = { path = "../teleprompt-render" }
-teleprompt-desktop = { path = "../teleprompt-desktop" }
-teleprompt-media = { path = "../teleprompt-media" }
-teleprompt-playwright = { path = "../teleprompt-playwright" }
-teleprompt-asciinema = { path = "../teleprompt-asciinema" }
-teleprompt-remotion = { path = "../teleprompt-remotion" }
-teleprompt-slidev = { path = "../teleprompt-slidev" }
-teleprompt-vhs = { path = "../teleprompt-vhs" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-translate = { path = "../teleprompt-translate" }
 teleprompt-voice = { path = "../teleprompt-voice" }
-teleprompt-voices = { path = "../teleprompt-voices" }
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true

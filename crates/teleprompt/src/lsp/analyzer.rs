@@ -10,18 +10,21 @@ use teleprompt_script::program::{ActionElement, Element};
 
 use crate::project::Compiled;
 use crate::project::Project;
+use crate::registry::Registry;
 
 /// Serves on stdin and stdout until the editor says to exit.
-pub fn run_lsp() -> Result<(), String> {
-    super::run(ProjectAnalyzer).map_err(|e| e.to_string())
+pub fn run_lsp(registry: Registry) -> Result<(), String> {
+    super::run(ProjectAnalyzer { registry }).map_err(|e| e.to_string())
 }
 
-pub struct ProjectAnalyzer;
+pub struct ProjectAnalyzer {
+    pub registry: Registry,
+}
 
 impl Analyzer for ProjectAnalyzer {
     fn project(&self, script: &Path) -> Outline {
         let script_dir = crate::project::script_dir(script).to_path_buf();
-        let Ok(project) = Project::for_script(script) else {
+        let Ok(project) = Project::for_script(script, self.registry) else {
             return Outline {
                 script_dir,
                 ..Outline::default()
@@ -63,7 +66,7 @@ impl Analyzer for ProjectAnalyzer {
                     .map(|l| (toml_path.clone(), l)),
             })
             .collect();
-        for plugin in crate::scene::plugins().names() {
+        for plugin in self.registry.scenes.names() {
             if !scenes.iter().any(|s| s.name == plugin) {
                 scenes.push(Definition {
                     name: plugin.to_string(),
@@ -80,7 +83,7 @@ impl Analyzer for ProjectAnalyzer {
     }
 
     fn analyze(&self, script: &Path, text: &str) -> Analysis {
-        let project = match Project::for_script(script) {
+        let project = match Project::for_script(script, self.registry) {
             Ok(project) => project,
             Err(e) => {
                 return Analysis {

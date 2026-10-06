@@ -38,6 +38,7 @@ pub fn run(args: Args, format: Format) -> crate::cli::Run {
             .or_else(|| teleprompt::setup::speech_model(None).ok())
     });
     run_serve(
+        crate::cli::registry(),
         args.script.as_deref(),
         args.locale.as_deref(),
         args.port,

@@ -52,6 +52,7 @@ fn a_spoken_session_becomes_two_lines_and_a_block_between() {
 
     let script = dir.join("scripts/session.md");
     let report = run_import(&Import {
+        registry: teleprompt_registry::registry(),
         recording: &cast_path,
         with: None,
         voice: &voice,
@@ -83,6 +84,7 @@ fn a_spoken_session_becomes_two_lines_and_a_block_between() {
     );
     let Some(punct) = punct else { return };
     run_import(&Import {
+        registry: teleprompt_registry::registry(),
         recording: &cast_path,
         with: None,
         voice: &voice,

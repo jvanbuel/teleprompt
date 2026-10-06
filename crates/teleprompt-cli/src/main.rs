@@ -182,7 +182,7 @@ fn run(command: Command, format: Format) -> Run {
         Command::Translate(args) => translate::run(args, format),
         Command::Record(args) => record::run(args, format),
         Command::Lsp => {
-            teleprompt::lsp::run_lsp().map_err(cli::runtime_failure)?;
+            teleprompt::lsp::run_lsp(cli::registry()).map_err(cli::runtime_failure)?;
             Ok(Outcome::Ok)
         }
         Command::Check(args) => check::run(args, format),

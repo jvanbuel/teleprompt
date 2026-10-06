@@ -3,17 +3,17 @@
 //!
 //! `ScenePlugins::mock()` carries only the mock, so a scene plugin living
 //! in its own crate is reachable only if something adds it. That something
-//! is `scene::plugins()`, and these tests are what catch a command
+//! is `scene::registry().scenes`, and these tests are what catch a command
 //! compiling against the narrower set — which fails `scene=terminal`,
 //! saying the scene plugin `vhs` is not available, on a build that ships
 //! one.
 
-use teleprompt::scene::plugins;
 use teleprompt_core::SpanMs;
+use teleprompt_registry::registry;
 
 #[test]
 fn the_registry_serves_every_plugin_this_build_ships() {
-    let r = plugins();
+    let r = registry().scenes;
     for name in [
         "mock",
         "vhs",
@@ -44,7 +44,7 @@ fn the_registry_serves_every_plugin_this_build_ships() {
 
 #[test]
 fn an_unknown_plugin_is_not_served() {
-    assert!(plugins().get("selenium").is_none());
+    assert!(registry().scenes.get("selenium").is_none());
 }
 
 /// The other half of `fit-action`: the scheduler decides the action
@@ -77,7 +77,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     )
     .unwrap();
 
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let compiled = project
         .script(&script, "en")
         .compile()
@@ -96,7 +96,11 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
         .expect("its source is published");
 
     // Split again, as a fresh block: what the tape says it lasts.
-    let plugin = plugins().get("vhs").expect("this build ships vhs").scene();
+    let plugin = registry()
+        .scenes
+        .get("vhs")
+        .expect("this build ships vhs")
+        .scene();
     let again = teleprompt_plugin::scene::Validated {
         scene: published.scene.clone(),
         body: published.source.clone(),
@@ -136,7 +140,8 @@ fn a_scene_reads_its_files_from_the_project() {
     )
     .unwrap();
     let key = || {
-        let project = teleprompt::project::Project::discover(&dir).unwrap();
+        let project =
+            teleprompt::project::Project::discover(&dir, teleprompt_registry::registry()).unwrap();
         let compiled = project
             .script(dir.join("scripts/pics.md"), "en")
             .compile()

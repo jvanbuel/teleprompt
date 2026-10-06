@@ -16,7 +16,7 @@ pub mod new;
 pub mod plan;
 pub mod progress;
 pub mod project;
-pub mod scene;
+pub mod registry;
 pub mod serve;
 pub mod setup;
 pub mod translate;

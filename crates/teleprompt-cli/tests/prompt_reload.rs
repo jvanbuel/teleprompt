@@ -8,7 +8,7 @@ fn an_edited_script_is_reloaded_shots_and_lines_alike() {
     let dir = teleprompt_testkit::test_dir("prompt-reload-edit");
     teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
-    let project = Project::for_script(&script).unwrap();
+    let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
     let reload = project.script(&script, "en").reload_on_edit();
 
     // Unchanged: nothing to place.
@@ -50,7 +50,7 @@ fn an_edit_that_keeps_the_modification_time_is_reloaded() {
     let dir = teleprompt_testkit::test_dir("prompt-reload-same-mtime");
     teleprompt::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/demo.md");
-    let project = Project::for_script(&script).unwrap();
+    let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
     let reload = project.script(&script, "en").reload_on_edit();
     let before = std::fs::metadata(&script).unwrap().modified().unwrap();
 
@@ -98,7 +98,7 @@ fn keeping_what_was_said_rewords_the_script_and_reloads() {
         )
         .unwrap();
     let script = dir.join("scripts/demo.md");
-    let project = Project::for_script(&script).unwrap();
+    let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
     let edits = project.script(&script, "en").edits();
 
     (edits.keep_said)("welcome").unwrap();

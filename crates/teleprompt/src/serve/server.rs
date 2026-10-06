@@ -21,6 +21,8 @@ impl Drop for OpenSession {
 }
 
 pub(super) struct Server {
+    /// What this build has, for setting it up from the page.
+    pub(super) registry: Registry,
     /// The open script's session; none until a script is opened.
     pub(super) session: Mutex<Option<Session<Hearing>>>,
     /// What can be done to the open script's file.
@@ -35,12 +37,17 @@ pub(super) struct Server {
 }
 
 impl Server {
-    pub(super) fn new(opened: Option<Opened>, opener: Option<Opener>) -> Arc<Self> {
+    pub(super) fn new(
+        registry: Registry,
+        opened: Option<Opened>,
+        opener: Option<Opener>,
+    ) -> Arc<Self> {
         let (session, edits) = match opened {
             Some(o) => (Some(o.session), Some(Arc::new(o.edits))),
             None => (None, None),
         };
         Arc::new(Self {
+            registry,
             session: Mutex::new(session),
             edits: RwLock::new(edits),
             opener,

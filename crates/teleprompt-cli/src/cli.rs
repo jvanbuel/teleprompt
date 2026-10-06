@@ -73,14 +73,19 @@ impl From<FrameArgs> for teleprompt::build::FrameOverride {
     }
 }
 
+/// What this build has: every scene plugin and voice, found once.
+pub fn registry() -> teleprompt::registry::Registry {
+    teleprompt_registry::registry()
+}
+
 /// The project `script` is in.
 pub fn project_for(script: &Path) -> Result<Project, Outcome> {
-    Project::for_script(script).map_err(runtime_failure)
+    Project::for_script(script, registry()).map_err(runtime_failure)
 }
 
 /// The project around the working directory.
 pub fn project_here() -> Result<Project, Outcome> {
-    Project::discover(Path::new(".")).map_err(runtime_failure)
+    Project::discover(Path::new("."), registry()).map_err(runtime_failure)
 }
 
 pub fn runtime_failure(e: impl ToString) -> Outcome {

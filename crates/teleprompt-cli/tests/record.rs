@@ -15,14 +15,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
-use teleprompt::scene::Recording as Recorder;
 use teleprompt_plugin::record::Start;
+use teleprompt_registry::Recording as Recorder;
 
 /// Set in the child: where it writes what it recorded.
 const CHILD: &str = "TELEPROMPT_RECORD_TEST_OUT";
 
 fn recorder(plugin: &str) -> Option<Recorder> {
-    let r = teleprompt::scene::recorders()
+    let r = teleprompt_registry::registry()
+        .recorders()
         .into_iter()
         .find(|r| r.plugin == plugin)
         .expect("a recorder");

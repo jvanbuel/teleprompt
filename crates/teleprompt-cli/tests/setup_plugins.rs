@@ -11,13 +11,13 @@ fn setup_covers_every_program_an_plugin_finds_missing() {
     let empty = teleprompt_testkit::test_dir("setup-plugins");
     std::env::set_var("PATH", empty.path());
     let mut checked = 0;
-    for p in teleprompt::scene::plugins().iter() {
+    for p in teleprompt_registry::registry().scenes.iter() {
         let (plugin, backend) = (p.name(), p.capture());
         // Held back by something setup cannot install (macos off a Mac).
         let Some(why) = backend.unavailable().filter(|w| w.ends_with(NOT_ON_PATH)) else {
             continue;
         };
-        let known: Vec<&str> = resolve(&[plugin.to_string()])
+        let known: Vec<&str> = resolve(teleprompt_registry::registry(), &[plugin.to_string()])
             .unwrap()
             .iter()
             .map(|t| t.name)

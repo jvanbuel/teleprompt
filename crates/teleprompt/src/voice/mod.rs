@@ -1,46 +1,13 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::registry::Registry;
 use teleprompt_core::Diagnostic;
-use teleprompt_plugin::tool::Tool;
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::VoiceRegistry;
-use teleprompt_voice::{ClonedVoice, Provider, VoiceBackend, VoiceSample};
-use teleprompt_voices::{elevenlabs, gemini, openai, voicebox};
+use teleprompt_voice::{ClonedVoice, VoiceBackend, VoiceSample};
 
 pub mod clone;
-mod needs;
-
-/// Every voice this build ships, `null` aside, in the order errors and
-/// `setup` list them, with what each needs that teleprompt does not ship.
-fn providers() -> Vec<(Provider, &'static Tool)> {
-    vec![
-        (openai::kokoro(), &needs::KOKORO),
-        (openai::openai(), &needs::OPENAI),
-        (voicebox::provider(), &needs::VOICEBOX),
-        (gemini::provider(), &needs::GEMINI),
-        (elevenlabs::provider(), &needs::ELEVENLABS),
-    ]
-}
-
-/// What the voices teleprompt ships need that it does not: their servers,
-/// or keys.
-pub fn needs() -> Vec<&'static Tool> {
-    providers().into_iter().map(|(_, needs)| needs).collect()
-}
-
-/// The voices this build ships, `null` aside, each with what it needs.
-pub fn shipped() -> Vec<(&'static str, &'static Tool)> {
-    providers()
-        .into_iter()
-        .map(|(p, needs)| (p.id, needs))
-        .collect()
-}
-
-/// Whether `name` is a voice this build ships.
-pub fn is_built_in(name: &str) -> bool {
-    name == "null" || providers().iter().any(|(p, _)| p.id == name)
-}
 
 /// The backends this build ships, together with everything the project's
 /// `backends:` settings said that could not be turned into one.
@@ -61,16 +28,23 @@ pub struct Backends {
     unknown: Vec<String>,
     /// The file the settings came from, which diagnostics about them name.
     config_file: String,
+    /// The voices this build ships, whatever the project configures.
+    shipped: Vec<&'static str>,
 }
 
-/// Every backend this build ships, each built from its own slice of
-/// `backends:` (docs/design.md#crates). Infallible: each failure is kept in
-/// [`Backends`] for whoever knows whether it matters.
-pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file: &str) -> Backends {
+/// Every backend `registry` ships, each built from its own slice of
+/// `backends:` (docs/design.md#crates). Infallible: each failure is kept
+/// in [`Backends`] for whoever knows whether it matters.
+pub(crate) fn backends_for(
+    build: &Registry,
+    settings: &BTreeMap<String, serde_yaml::Value>,
+    config_file: &str,
+) -> Backends {
     let mut registry = VoiceRegistry::default();
     let mut unusable = BTreeMap::new();
     registry.register(Arc::new(NullVoice::default()));
-    for (provider, _) in providers() {
+    let ids: Vec<&'static str> = build.voices.iter().map(|(p, _)| p.id).collect();
+    for (provider, _) in build.voices {
         match (provider.build)(settings.get(provider.id)) {
             Ok(backend) => registry.register(backend),
             Err(e) => {
@@ -82,10 +56,10 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
     // under the name they gave it.
     let mut unknown = Vec::new();
     for (name, given) in settings {
-        if is_built_in(name) {
+        if name == "null" || ids.contains(&name.as_str()) {
             continue;
         }
-        match openai::endpoint(name, given) {
+        match (build.own_server)(name, given) {
             Ok(backend) => registry.register(backend),
             Err(e) => {
                 unusable.insert(name.clone(), e);
@@ -99,16 +73,11 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
         unusable,
         unknown,
         config_file: config_file.to_string(),
+        shipped: ids,
     }
 }
 
 impl Backends {
-    /// Settings-free, so every backend gets its defaults. For callers with
-    /// no project config in hand, such as tests.
-    pub fn defaults() -> Self {
-        backends_for(&BTreeMap::new(), "teleprompt.toml")
-    }
-
     /// A `Backends` wrapping a caller-supplied registry, so a test can follow
     /// a backend this build does not ship through key, synthesis, cache and
     /// manifest.
@@ -118,6 +87,7 @@ impl Backends {
             unusable: BTreeMap::new(),
             unknown: Vec::new(),
             config_file: "teleprompt.toml".to_string(),
+            shipped: Vec::new(),
         }
     }
 
@@ -228,7 +198,7 @@ impl Backends {
     /// The voices this build ships, whatever the project configures.
     fn ids_shipped(&self) -> Vec<&'static str> {
         std::iter::once("null")
-            .chain(providers().into_iter().map(|(p, _)| p.id))
+            .chain(self.shipped.iter().copied())
             .collect()
     }
 

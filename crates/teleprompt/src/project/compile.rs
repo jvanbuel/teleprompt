@@ -26,7 +26,8 @@ impl Project {
     /// those settings came from so a diagnostic about them can point at it.
     pub fn backends(&self) -> Backends {
         let settings = self.config.backends.clone().unwrap_or_default();
-        crate::voice::backends_for(&settings, &self.config_path().display().to_string())
+        self.registry
+            .backends(&settings, &self.config_path().display().to_string())
     }
 
     /// `path` in this project, compiled for `locale`.
@@ -289,7 +290,7 @@ fn compile_with_voice(
 
     let mut out = compile(
         program,
-        crate::scene::plugins(),
+        project.registry.scenes,
         &ctx,
         base_dir,
         env!("CARGO_PKG_VERSION"),

@@ -96,7 +96,7 @@ async fn a_script_renders_to_a_video_as_long_as_its_timeline() {
         return;
     }
     let (dir, script) = project_with_script("renders");
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let opened = project.script(&script, "en");
     // Small and fast: this test is about the pipeline, not the encoder.
     let builder = Builder::new(&opened).resolution(320, 180).fps(24);
@@ -135,7 +135,7 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
         return;
     }
     let (dir, script) = project_with_script("slates");
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let opened = project.script(&script, "en");
     let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
@@ -228,7 +228,7 @@ async fn front_matter_decides_the_frame_when_no_flag_does() {
         ),
     )
     .unwrap();
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
 
     let opened = project.script(&script, "en");
     let report = Builder::new(&opened)
@@ -289,7 +289,7 @@ async fn a_render_reports_how_far_along_it_is() {
         return;
     }
     let (dir, script) = project_with_script("progress");
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let opened = project.script(&script, "en");
     let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
@@ -320,7 +320,7 @@ async fn a_render_reports_how_far_along_it_is() {
 #[test]
 fn the_default_output_is_inside_the_directory_the_scaffold_ignores() {
     let (dir, script) = project_with_script("defaults");
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let opened = project.script(&script, "en");
 
     assert_eq!(
@@ -343,7 +343,7 @@ async fn a_second_build_of_an_unchanged_script_reuses_the_picture() {
         return;
     }
     let (dir, script) = project_with_script("reuse");
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let opened = project.script(&script, "en");
     let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
@@ -376,7 +376,7 @@ async fn no_cache_re_encodes_everything_and_says_so() {
         return;
     }
     let (dir, script) = project_with_script("nocache");
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let opened = project.script(&script, "en");
     let builder = Builder::new(&opened)
         .resolution(320, 180)
@@ -410,7 +410,7 @@ async fn a_build_leaves_the_cache_under_its_cap() {
         return;
     }
     let (dir, script) = project_with_script("cap");
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     let opened = project.script(&script, "en");
     // Nothing at all fits: every entry is evicted on the way out, and
     // the next build is cold. That is exactly what a cap of zero says.

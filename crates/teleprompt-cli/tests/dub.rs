@@ -31,7 +31,7 @@ fn project_with(tag: &str, script: &str) -> teleprompt_testkit::TestDir {
     let dir = tempdir(tag);
     teleprompt::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
-    Project::discover(&dir).unwrap();
+    Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     dir
 }
 
@@ -629,7 +629,7 @@ fn project_with_config_and_script(config_toml: &str, script: &str) -> TestProjec
         std::fs::write(dir.join("teleprompt.toml"), config_toml).unwrap();
     }
     std::fs::write(dir.join("scripts/test.md"), script).unwrap();
-    let project = Project::discover(&dir).unwrap();
+    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
     TestProject {
         script: dir.join("scripts/test.md"),
         out: dir.join("public/narration"),
@@ -1219,7 +1219,7 @@ async fn a_fully_cached_script_dubs_with_the_server_gone() {
          base_url = \"http://127.0.0.1:9\"\n",
     )
     .unwrap();
-    let gone = Project::discover(&p.project.root).unwrap();
+    let gone = Project::discover(&p.project.root, teleprompt_registry::registry()).unwrap();
 
     Dubber::new(&gone.script(&p.script, "en"))
         .dub(&p.out)

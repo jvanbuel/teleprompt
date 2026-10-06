@@ -38,23 +38,25 @@ static PAGE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
 /// `GET /api/v1/script`, `GET /api/v1/clips/<key>.mp4`, and the session as
 /// a WebSocket at `GET /api/v1/session`.
 pub fn prompt_on<R: Recognizer + Send + 'static>(
+    registry: Registry,
     listener: TcpListener,
     prompt: Prompt,
     recognizer: R,
 ) -> std::io::Result<()> {
-    prompt_watching(listener, prompt, recognizer, None)
+    prompt_watching(registry, listener, prompt, recognizer, None)
 }
 
 /// [`prompt_on`] for a script file: placing the shots again when `edits`
 /// reloads them, asked each time the script is fetched, which a client
 /// does after an edit, and keeping what a take said when asked.
 pub fn prompt_watching<R: Recognizer + Send + 'static>(
+    registry: Registry,
     listener: TcpListener,
     prompt: Prompt,
     recognizer: R,
     edits: Option<Edits>,
 ) -> std::io::Result<()> {
-    let server = Server::new(None, None);
+    let server = Server::new(registry, None, None);
     *server.session() = Some(Session::new(prompt, Box::new(recognizer) as Hearing)?);
     *write(&server.edits) = edits.map(Arc::new);
     serve_on(listener, server)
@@ -279,8 +281,9 @@ async fn open_route(
 
 /// `GET /api/v1/setup`: what teleprompt can be set up to do here, as
 /// `teleprompt setup --uses` says it.
-async fn uses_route() -> Response {
-    let uses = block_in_place(|| crate::setup::Setup::detect().uses());
+async fn uses_route(State(server): Shared) -> Response {
+    let registry = server.registry;
+    let uses = block_in_place(move || crate::setup::Setup::detect(registry).uses());
     json(serde_json::to_value(uses).unwrap_or_default())
 }
 
@@ -303,7 +306,7 @@ async fn install_route(
     if uses.is_empty() {
         return (StatusCode::BAD_REQUEST, "uses= names what to set up").into_response();
     }
-    if let Err(why) = crate::setup::resolve(&uses) {
+    if let Err(why) = crate::setup::resolve(server.registry, &uses) {
         return failure(StatusCode::BAD_REQUEST, None, vec![why]);
     }
     let dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

@@ -12,6 +12,7 @@ use teleprompt_voice::Pcm;
 
 use crate::draft::import::{cut_takes, read_voice};
 use crate::project::Project;
+use crate::registry::Registry;
 use serde::Serialize;
 use teleprompt_derive::document::{draft, draft_slidev};
 use teleprompt_derive::transcript::{conversation, draft_transcript, turns, Format, Turn};
@@ -140,6 +141,7 @@ pub struct Audio<'a> {
 }
 
 pub fn run_document(
+    registry: Registry,
     doc: &Path,
     out: Option<PathBuf>,
     reading: Reading,
@@ -213,7 +215,7 @@ pub fn run_document(
                     .as_ref()
                     .is_none_or(|speaker| !revoice.contains(speaker))
             };
-            speak_from(&created, &spans, &pcm, keep)
+            speak_from(registry, &created, &spans, &pcm, keep)
                 .map_err(|e| Error::other(format!("{}: {e}", path.display())))?
         }
         None => 0,
@@ -408,12 +410,13 @@ fn recording(path: &Path, spans: &[(Option<u64>, Option<u64>)]) -> std::io::Resu
 /// Gives each of `script`'s lines `keep` keeps its stretch of `pcm` as its take, so it
 /// is spoken in its speaker's own voice; how many.
 fn speak_from(
+    registry: Registry,
     script: &Path,
     spans: &[(u64, u64)],
     pcm: &Pcm,
     keep: impl Fn(usize) -> bool,
 ) -> Result<usize, String> {
-    let project = Project::for_script(script).map_err(|_| {
+    let project = Project::for_script(script, registry).map_err(|_| {
         format!(
             "{} is not in a teleprompt project, which keeps takes; draft it into one's \
              scripts/ with --out",

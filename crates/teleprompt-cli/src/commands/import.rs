@@ -79,7 +79,9 @@ impl Args {
     /// Whether `source` is a session a recorder reads, rather than a
     /// document: named as one, given its voice, or by its extension.
     fn is_session(&self) -> bool {
-        self.voice.is_some() || self.with.is_some() || recorder_for(None, &self.source).is_ok()
+        self.voice.is_some()
+            || self.with.is_some()
+            || recorder_for(crate::cli::registry(), None, &self.source).is_ok()
     }
 
     /// The flags given that are for the other kind of source.
@@ -151,6 +153,7 @@ fn run_session_import(format: Format, args: Args) -> Run {
     };
     let punctuation = setup::punctuation_model(args.punctuation.as_deref());
     let report = run_import(&Import {
+        registry: crate::cli::registry(),
         recording: &args.source,
         with: args.with.as_deref(),
         voice,
@@ -183,8 +186,14 @@ fn run_document_import(format: Format, args: Args) -> Run {
         revoice: &args.revoice,
         speakers: args.speakers,
     };
-    let report =
-        document::run_document(&args.source, args.out, reading, audio).map_err(runtime_failure)?;
+    let report = document::run_document(
+        crate::cli::registry(),
+        &args.source,
+        args.out,
+        reading,
+        audio,
+    )
+    .map_err(runtime_failure)?;
     emit(format, &report, &report.render());
     Ok(Outcome::Ok)
 }

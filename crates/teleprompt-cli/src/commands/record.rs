@@ -51,7 +51,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::output::Outcome;
     use teleprompt::setup;
     if args.tools {
-        let tools = tools();
+        let tools = tools(crate::cli::registry());
         let human: String = tools
             .iter()
             .map(|t| {
@@ -74,6 +74,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         m.split_whitespace().map(str::to_string).collect()
     });
     let report = run_record(&Record {
+        registry: crate::cli::registry(),
         script,
         with: args.with.as_deref(),
         model,

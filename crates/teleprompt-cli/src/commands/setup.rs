@@ -16,7 +16,7 @@ pub struct Args {
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::cli::{emit, runtime_failure};
     use crate::output::{Format, Outcome};
-    let setup = Setup::detect();
+    let setup = Setup::detect(crate::cli::registry());
     if args.uses {
         let report = setup.uses();
         emit(format, &report, &report.render());
@@ -29,11 +29,11 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         let mut report = setup.report(&tools, ran);
         report.voice = voice_here()?;
         report.scenes = plugins::scenes(&setup);
-        report.voices = plugins::voices(report.voice.as_ref());
+        report.voices = plugins::voices(&setup, report.voice.as_ref());
         emit(format, &report, &report.render(&chosen));
         return Ok(Outcome::Ok);
     }
-    let tools = resolve(&args.names).map_err(runtime_failure)?;
+    let tools = resolve(setup.registry, &args.names).map_err(runtime_failure)?;
     let ran = if args.run {
         setup.install(&tools).map_err(runtime_failure)?
     } else {
@@ -44,7 +44,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         report.voice = voice_here()?;
     }
     report.scenes = plugins::scenes(&setup);
-    report.voices = plugins::voices(report.voice.as_ref());
+    report.voices = plugins::voices(&setup, report.voice.as_ref());
     if !args.names.is_empty() {
         report.scenes.retain(|s| args.names.contains(&s.name));
         report.voices.retain(|v| args.names.contains(&v.name));
@@ -55,7 +55,9 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
 
 /// The voice of the project here, if this is one.
 fn voice_here() -> Result<Option<ProjectVoice>, crate::output::Outcome> {
-    let Ok(project) = teleprompt::project::Project::discover(std::path::Path::new(".")) else {
+    let Ok(project) =
+        teleprompt::project::Project::discover(std::path::Path::new("."), crate::cli::registry())
+    else {
         return Ok(None);
     };
     Ok(Some(
