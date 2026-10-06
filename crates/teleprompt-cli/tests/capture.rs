@@ -183,3 +183,109 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
         report.warnings
     );
 }
+
+fn teleprompt(root: &Path, args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_teleprompt"))
+        .current_dir(root)
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+/// `dub --clips` makes the narration directory a whole package: each shot's
+/// clip beside the manifest, under the key the manifest names, recorded on
+/// the way if it was missing. The manifest is the one `dub` writes alone.
+#[test]
+fn dub_with_clips_puts_each_shot_beside_the_manifest() {
+    if !have_ffmpeg() {
+        return;
+    }
+    let (dir, _) = project("dub-clips");
+    let plain = teleprompt(&dir, &["dub", "scripts/tour.md", "--out", "plain"]);
+    assert!(
+        plain.status.success(),
+        "{}",
+        String::from_utf8_lossy(&plain.stderr)
+    );
+    let out = teleprompt(
+        &dir,
+        &["dub", "scripts/tour.md", "--out", "package", "--clips"],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let manifest = std::fs::read_to_string(dir.join("package/en/narration.json")).unwrap();
+    assert_eq!(
+        manifest,
+        std::fs::read_to_string(dir.join("plain/en/narration.json")).unwrap(),
+        "--clips changes nothing in the manifest"
+    );
+    let manifest: serde_json::Value = serde_json::from_str(&manifest).unwrap();
+    let keys: Vec<String> = manifest["shots"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["capture_key"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(keys.len(), 2);
+    let clips = dir.join("package/en/clips");
+    for key in &keys {
+        let clip = clips.join(format!("{key}.mp4"));
+        assert!(
+            std::fs::metadata(&clip).unwrap().len() > 0,
+            "{}",
+            clip.display()
+        );
+    }
+    assert!(
+        !dir.join("plain/en/clips").exists(),
+        "no clips without --clips"
+    );
+}
+
+/// A clip no shot names any more is taken out, so the package holds what
+/// the manifest describes and nothing else.
+#[test]
+fn dub_with_clips_drops_clips_no_shot_names() {
+    if !have_ffmpeg() {
+        return;
+    }
+    let (dir, _) = project("dub-clips-stale");
+    let stale = dir.join("package/en/clips/0000.mp4");
+    std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
+    std::fs::write(&stale, b"old").unwrap();
+    let out = teleprompt(
+        &dir,
+        &["dub", "scripts/tour.md", "--out", "package", "--clips"],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!stale.exists());
+    assert_eq!(
+        std::fs::read_dir(dir.join("package/en/clips"))
+            .unwrap()
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn dub_clips_and_check_do_not_go_together() {
+    let (dir, _) = project("dub-clips-check");
+    let out = teleprompt(
+        &dir,
+        &["dub", "scripts/tour.md", "--out", "o", "--clips", "--check"],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}

@@ -536,19 +536,33 @@ pub struct Args {
     /// what the comparison measures against
     #[arg(long)]
     pub check: bool,
+    /// Also put each shot's clip beside the manifest, as
+    /// `clips/<capture_key>.mp4`, recording those not yet captured: one
+    /// directory another editor can take whole
+    #[arg(long, conflicts_with = "check")]
+    pub clips: bool,
 }
 
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::output::Outcome;
     let project = args.script.project()?;
     let locale = args.script.locale(&project);
-    let result = crate::cli::runtime()?.block_on(run_dub(
-        &project,
-        &args.script.script,
-        &locale,
-        &args.out,
-        args.check,
-    ))?;
+    let result = if args.clips {
+        crate::cli::runtime()?.block_on(dub_with_clips(
+            &project,
+            &args.script.script,
+            &locale,
+            &args.out,
+        ))?
+    } else {
+        crate::cli::runtime()?.block_on(run_dub(
+            &project,
+            &args.script.script,
+            &locale,
+            &args.out,
+            args.check,
+        ))?
+    };
     crate::cli::warn(&result.warnings);
     match &result.drift {
         Some(d) => crate::cli::emit_ok(format, d, &d.render(), d.is_empty()),
@@ -559,4 +573,80 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     } else {
         Outcome::Ok
     })
+}
+
+/// `dub --clips`: dubs into `out_root`, records the shots not yet captured
+/// as `capture` does, then puts every shot's clip in `<locale>/clips/`. A
+/// shot nothing here can record is left out, with capture's warning.
+pub async fn dub_with_clips(
+    project: &Project,
+    script: &Path,
+    locale: &str,
+    out_root: &Path,
+) -> Result<DubOutput, Failure> {
+    let options = crate::cmd::build::BuildOptions {
+        narration_root: out_root.to_path_buf(),
+        ..crate::cmd::build::BuildOptions::defaults(project, script, locale)
+    };
+    let mut progress = |p: teleprompt_plugin::capture::Progress| {
+        crate::output::progress(
+            "capture",
+            || format!("  [{}/{}] {} {}", p.done, p.of, p.scene, p.shot),
+            serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
+        );
+    };
+    let (mut dubbed, _, captured) = crate::cmd::capture::dub_and_capture(
+        project,
+        script,
+        locale,
+        &options,
+        crate::scene::plugins(),
+        &mut progress,
+    )
+    .await?;
+    dubbed.warnings.extend(captured.warnings);
+    let into = locale_dir(out_root, locale).join("clips");
+    let placed = place_clips(&dubbed.manifest, &options.clips_dir, &into)
+        .map_err(|e| Failure::Runtime(format!("{}: {e}", into.display())))?;
+    dubbed.written.extend(placed);
+    Ok(dubbed)
+}
+
+/// Every clip `manifest` names that `cache` holds, in `into`, and nothing
+/// else there. Hard links where the file system allows, so a package costs
+/// no space; copies where it does not.
+fn place_clips(
+    manifest: &NarrationManifest,
+    cache: &Path,
+    into: &Path,
+) -> std::io::Result<Vec<PathBuf>> {
+    std::fs::create_dir_all(into)?;
+    let named: std::collections::BTreeSet<String> = manifest
+        .shots
+        .iter()
+        .filter_map(|s| s.clip_name())
+        .collect();
+    for entry in std::fs::read_dir(into)? {
+        let entry = entry?;
+        if !named.contains(&*entry.file_name().to_string_lossy()) {
+            std::fs::remove_file(entry.path())?;
+        }
+    }
+    let mut placed = Vec::new();
+    for name in &named {
+        let (from, to) = (cache.join(name), into.join(name));
+        if !from.is_file() {
+            continue;
+        }
+        if to.exists() {
+            std::fs::remove_file(&to)?;
+        }
+        if std::fs::hard_link(&from, &to).is_err() {
+            let partial = into.join(format!("{name}.partial"));
+            std::fs::copy(&from, &partial)?;
+            std::fs::rename(&partial, &to)?;
+        }
+        placed.push(to);
+    }
+    Ok(placed)
 }

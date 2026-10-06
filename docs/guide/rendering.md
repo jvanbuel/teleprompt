@@ -116,6 +116,26 @@ Two rules for consumers:
   `round((start_ms + duration_ms) × fps / 1000)`. Rounding a duration on its
   own lets the error build up over a long video.
 
+To finish the video in another editor with teleprompt's own recordings
+of its scenes, add `--clips`. It records any shot not yet captured, as
+`teleprompt capture` does, and puts each shot's clip beside the manifest,
+named by the `capture_key` the manifest gives that shot:
+
+```bash
+teleprompt dub scripts/tour.md --out public/narration --clips
+```
+
+```
+public/narration/en/clips/3f9a1c….mp4
+```
+
+The directory is then the whole video in parts: voice, timing and picture.
+A pause has no clip, since it holds the shot before it. A shot nothing on
+this machine can record has none either, and `dub` warns which. The clips
+are hard links into teleprompt's cache where the file system allows, so
+they take no extra space; gitignore them, as they are rebuilt from the
+script.
+
 [Rendering with Remotion](../integrations/remotion.md) is a complete worked
 example, with types for every field.
 

@@ -75,6 +75,15 @@ pub struct ShotEntry {
     pub session: Option<String>,
 }
 
+impl ShotEntry {
+    /// The file its picture is kept in, `<capture_key>.mp4`, in the clips
+    /// directory `build` reads and `dub --clips` fills; `None` for a pause,
+    /// which holds what is already on screen and owes no clip.
+    pub fn clip_name(&self) -> Option<String> {
+        (self.scene != "pause").then(|| format!("{}.mp4", self.capture_key))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LineEntry {
     pub id: LineId,

@@ -12,9 +12,6 @@ use crate::{Narration, Picture, RenderPlan, Shot, Title, Transition};
 /// How long a speaker's name stays on screen when they first speak.
 const TITLE_MS: u64 = 4000;
 
-/// The scene name the manifest gives a shot that is only a pause.
-const PAUSE: &str = "pause";
-
 /// Where a render's inputs live, and the output's shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Inputs {
@@ -48,16 +45,15 @@ pub fn from_manifest(manifest: &NarrationManifest, inputs: &Inputs) -> (RenderPl
         .shots
         .iter()
         .map(|shot| {
-            // A pause holds, so it owes no clip. Clips are keyed by capture
-            // key, not shot hash (`docs/design.md#capture-key`).
-            let clip = inputs.clips_dir.join(format!("{}.mp4", shot.capture_key));
-            let picture = if shot.scene == PAUSE {
-                Picture::Hold
-            } else if clip.exists() {
-                Picture::Clip(clip)
-            } else {
-                uncaptured += 1;
-                Picture::Slate
+            // Clips are keyed by capture key, not shot hash
+            // (`docs/design.md#capture-key`).
+            let picture = match shot.clip_name().map(|name| inputs.clips_dir.join(name)) {
+                None => Picture::Hold,
+                Some(clip) if clip.exists() => Picture::Clip(clip),
+                Some(_) => {
+                    uncaptured += 1;
+                    Picture::Slate
+                }
             };
             Shot {
                 id: shot.shot.clone(),

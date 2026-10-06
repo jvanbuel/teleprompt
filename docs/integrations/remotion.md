@@ -321,6 +321,33 @@ Playwright script. A consumer that draws its own picture does not need it;
 one that wants to replay the scene's own actions does, and that is the
 renderer's business rather than an integrator's.
 
+### Using teleprompt's recordings
+
+To show what teleprompt recorded rather than draw each shot yourself, dub
+with `--clips`:
+
+```bash
+teleprompt dub scripts/tour.md --out public/narration --clips
+```
+
+Each shot's clip is then at `clips/<capture_key>.mp4` beside the manifest,
+recorded first if it was not yet. Play a clip for its shot's slot from
+its first frame; it was recorded to the shot's length, so it ends with the
+slot:
+
+```tsx
+import { OffthreadVideo, staticFile } from "remotion";
+
+const Scene: React.FC<{ shot: Shot }> = ({ shot }) => (
+  <OffthreadVideo src={staticFile(`narration/en/clips/${shot.capture_key}.mp4`)} />
+);
+```
+
+A pause has no clip: the picture holds, so freeze the last frame of the
+shot before it for the pause's slot. A shot this machine could not record
+has none either; show a slate for its slot, as teleprompt's own render
+does, rather than skip it and run every later shot early.
+
 ## Licence
 
 This route ships no Remotion code and takes no Remotion dependency. The

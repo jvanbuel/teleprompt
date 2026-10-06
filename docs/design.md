@@ -783,6 +783,11 @@ and `words` when timed), and `shots` (the action schedule with scene,
 `plugin` (the scene's plugin), policy, transition, `shot_hash`,
 `capture_key` and session). A consumer must refuse a version it does not know.
 
+`dub --clips` also records what is not yet captured and puts each shot's
+clip at `<locale>/clips/<capture_key>.mp4`, a hard link into the clip cache
+where it can be, so the directory holds voice, timing and picture. The
+manifest is the same either way: whether a clip exists is a fact about this
+machine, not the script, and the manifest is byte-stable.
 `audio_hash` hashes the WAV bytes on disk, not the voice cache key, so it
 changes only when the audio does.
 
