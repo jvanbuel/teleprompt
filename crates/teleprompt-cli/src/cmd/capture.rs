@@ -140,7 +140,7 @@ impl<'a> Scenes<'a> {
     /// video with a hole in it is more use than no video.
     pub fn capture(
         &self,
-        dubbed: &crate::cmd::dub::DubOutput,
+        dubbed: &crate::cmd::dub::Dubbed<crate::cmd::dub::Written>,
         on_progress: &mut dyn FnMut(Progress),
     ) -> CaptureReport {
         let clips_dir = self.clips_dir;

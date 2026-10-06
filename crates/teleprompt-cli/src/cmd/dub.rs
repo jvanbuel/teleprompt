@@ -16,7 +16,29 @@ use crate::output::Failure;
 use crate::project::{Compiled, Script};
 use crate::voice::Backends;
 
-pub struct DubOutput {
+/// A script dubbed, in state `S`: [`Written`] under an output root, or
+/// [`Compared`] with what is there. What only one state has is only in
+/// that state, so nothing asks a check for the files it wrote, or
+/// captures from a manifest that was never published.
+///
+/// ```
+/// # use teleprompt_cli::{cmd::{capture::Scenes, dub::Dubber}, project::Script};
+/// # async fn f(script: &Script, scenes: &Scenes<'_>) {
+/// let dubbed = Dubber::new(script).dub("out".as_ref()).await.unwrap();
+/// scenes.capture(&dubbed, &mut |_| {});
+/// # }
+/// ```
+///
+/// A check publishes nothing, so there is nothing to capture from:
+///
+/// ```compile_fail
+/// # use teleprompt_cli::{cmd::{capture::Scenes, dub::Dubber}, project::Script};
+/// # async fn f(script: &Script, scenes: &Scenes<'_>) {
+/// let checked = Dubber::new(script).check("out".as_ref()).await.unwrap();
+/// scenes.capture(&checked, &mut |_| {});
+/// # }
+/// ```
+pub struct Dubbed<S> {
     pub manifest: NarrationManifest,
     /// Every shot's source, which a capture backend runs. The manifest
     /// names the shots; only this says what they do.
@@ -26,10 +48,32 @@ pub struct DubOutput {
     /// The script's `output:` block, which `build` needs and the manifest
     /// does not carry.
     pub output: OutputConfig,
-    pub written: Vec<PathBuf>,
     pub warnings: Vec<String>,
-    /// `Some` only under `--check`. `None` means nothing was compared.
-    pub drift: Option<ManifestDiff>,
+    pub state: S,
+}
+
+/// Published: the files written under the output root.
+pub struct Written {
+    pub files: Vec<PathBuf>,
+}
+
+/// Compared with the manifest already under the output root, writing
+/// nothing there.
+pub struct Compared {
+    pub drift: ManifestDiff,
+}
+
+impl<S> Dubbed<S> {
+    fn new(voiced: Voiced, state: S) -> Self {
+        Dubbed {
+            manifest: voiced.published.manifest,
+            shots: voiced.compiled.shots,
+            scenes: voiced.compiled.scenes,
+            output: voiced.compiled.output,
+            warnings: voiced.warnings,
+            state,
+        }
+    }
 }
 
 fn locale_dir(out_root: &Path, locale: &str) -> PathBuf {
@@ -171,41 +215,19 @@ impl<'a> Dubber<'a> {
     }
 
     /// Voices the script and writes it under `out_root`.
-    pub async fn dub(&self, out_root: &Path) -> Result<DubOutput, Failure> {
-        self.run(out_root, false).await
+    pub async fn dub(&self, out_root: &Path) -> Result<Dubbed<Written>, Failure> {
+        let voiced = voice(self.script).await?;
+        let files = write_output(out_root, self.script.locale(), &voiced.published)?;
+        Ok(Dubbed::new(voiced, Written { files }))
     }
 
     /// Voices the script and compares it with the manifest under
-    /// `out_root`, writing nothing there; the difference is in `drift`.
-    pub async fn check(&self, out_root: &Path) -> Result<DubOutput, Failure> {
-        self.run(out_root, true).await
-    }
-
-    async fn run(&self, out_root: &Path, check_only: bool) -> Result<DubOutput, Failure> {
-        let locale = self.script.locale();
-        let Voiced {
-            compiled,
-            published,
-            warnings,
-        } = voice(self.script).await?;
-        let built = published.manifest.clone();
-        let (written, drift) = if check_only {
-            (
-                Vec::new(),
-                Some(drift_from_committed(out_root, locale, &built)?),
-            )
-        } else {
-            (write_output(out_root, locale, &published)?, None)
-        };
-        Ok(DubOutput {
-            manifest: built,
-            shots: compiled.shots,
-            scenes: compiled.scenes,
-            output: compiled.output,
-            written,
-            warnings,
-            drift,
-        })
+    /// `out_root`, writing nothing there.
+    pub async fn check(&self, out_root: &Path) -> Result<Dubbed<Compared>, Failure> {
+        let voiced = voice(self.script).await?;
+        let drift =
+            drift_from_committed(out_root, self.script.locale(), &voiced.published.manifest)?;
+        Ok(Dubbed::new(voiced, Compared { drift }))
     }
 }
 
@@ -506,7 +528,7 @@ fn write_output(
     Ok(written)
 }
 
-pub fn render_dub(out: &DubOutput) -> String {
+pub fn render_dub(out: &Dubbed<Written>) -> String {
     let mut s = format!(
         "{} ({}) — {} line(s), {:.1}s\n",
         out.manifest.script,
@@ -514,7 +536,7 @@ pub fn render_dub(out: &DubOutput) -> String {
         out.manifest.lines.len(),
         out.manifest.duration_ms.ms() as f64 / 1000.0,
     );
-    for path in &out.written {
+    for path in &out.state.files {
         s.push_str(&format!("  wrote {}\n", path.display()));
     }
     s
@@ -546,32 +568,35 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     let script = args.script.open()?;
     let dubber = Dubber::new(&script);
     let runtime = crate::cli::runtime()?;
-    let result = if args.check {
-        runtime.block_on(dubber.check(&args.out))?
-    } else {
-        let mut dubbed = runtime.block_on(dubber.dub(&args.out))?;
-        if args.clips {
-            add_clips(&script, &args.out, &mut dubbed)?;
-        }
-        dubbed
-    };
-    crate::cli::warn(&result.warnings);
-    match &result.drift {
-        Some(d) => crate::cli::emit_ok(format, d, &d.render(), d.is_empty()),
-        None => crate::cli::emit_data(format, &result.manifest, &render_dub(&result)),
+    if args.check {
+        let checked = runtime.block_on(dubber.check(&args.out))?;
+        crate::cli::warn(&checked.warnings);
+        let drift = &checked.state.drift;
+        crate::cli::emit_ok(format, drift, &drift.render(), drift.is_empty());
+        return Ok(if drift.is_empty() {
+            Outcome::Ok
+        } else {
+            Outcome::Drift
+        });
     }
-    Ok(if result.drift.as_ref().is_some_and(|d| !d.is_empty()) {
-        Outcome::Drift
-    } else {
-        Outcome::Ok
-    })
+    let mut dubbed = runtime.block_on(dubber.dub(&args.out))?;
+    if args.clips {
+        add_clips(&script, &args.out, &mut dubbed)?;
+    }
+    crate::cli::warn(&dubbed.warnings);
+    crate::cli::emit_data(format, &dubbed.manifest, &render_dub(&dubbed));
+    Ok(Outcome::Ok)
 }
 
 /// `dub --clips`, once dubbed into `out_root`: records the shots not yet
 /// captured as `capture` does, then puts every shot's clip in
 /// `<locale>/clips/`. A shot nothing here can record is left out, with
 /// capture's warning.
-fn add_clips(script: &Script, out_root: &Path, dubbed: &mut DubOutput) -> Result<(), Failure> {
+fn add_clips(
+    script: &Script,
+    out_root: &Path,
+    dubbed: &mut Dubbed<Written>,
+) -> Result<(), Failure> {
     let clips_dir = script.project().caches().clips();
     let frame = crate::cli::FrameOverride::default().frame(&dubbed.output);
     let scenes = crate::cmd::capture::Scenes::new(crate::scene::plugins(), &clips_dir, frame);
@@ -580,7 +605,7 @@ fn add_clips(script: &Script, out_root: &Path, dubbed: &mut DubOutput) -> Result
     let into = locale_dir(out_root, script.locale()).join("clips");
     let placed = place_clips(&dubbed.manifest, &clips_dir, &into)
         .map_err(|e| Failure::Runtime(format!("{}: {e}", into.display())))?;
-    dubbed.written.extend(placed);
+    dubbed.state.files.extend(placed);
     Ok(())
 }
 
