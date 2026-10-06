@@ -5,5 +5,6 @@ pub mod listening;
 pub mod loopback;
 pub mod output;
 pub mod project;
+pub mod prompter;
 pub mod scene;
 pub mod voice;

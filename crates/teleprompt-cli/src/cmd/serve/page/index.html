@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teleprompt</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+/* prompt.css */
+</style>
+</head>
+<body>
+<header>
+  <span id="tools">
+    <button id="smaller" title="Smaller text (−)" aria-label="Smaller text">A−</button>
+    <button id="larger" title="Larger text (+)" aria-label="Larger text">A+</button>
+    <button id="mirror" title="Mirror the text, for beam-splitter glass (M)" aria-pressed="false">Mirror</button>
+    <button id="keys-help" title="Keys (?)" aria-label="Keys">?</button>
+    <span class="divider" aria-hidden="true"></span>
+    <button id="video" title="Play the video as it will play, from the line you are on (V)" hidden>Play video</button>
+    <button id="edit" title="Edit: drag the shots on the glass (E)" aria-pressed="false" hidden>Edit</button>
+    <button id="capture" title="Capture the shots not yet captured, or changed since" hidden>Capture</button>
+    <button id="build" title="Build the video" hidden>Build</button>
+  </span>
+  <span id="brand"><img src="/icon.svg" alt=""><span id="title">Teleprompt</span></span>
+  <button id="record" title="Record from the line you are on">Record</button>
+</header>
+<main>
+  <section id="glass">
+    <div id="glass-inner">
+      <div id="scroller"><div id="script"></div></div>
+      <div id="reading"></div>
+    </div>
+    <div id="countdown" aria-live="assertive"></div>
+    <div id="broken" role="alert" hidden><strong>This save does not compile. The glass shows the version that did.</strong><pre></pre></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </section>
+  <dialog id="review">
+    <h2 id="review-title"></h2>
+    <p>The take says this, not what the line reads. Keep it, and the line is reworded to match: nothing to record again.</p>
+    <blockquote id="review-diff"></blockquote>
+    <menu>
+      <button id="review-script">Keep the Script</button>
+      <button id="review-said" class="suggested" autofocus>Use What I Said</button>
+    </menu>
+  </dialog>
+  <dialog id="help" aria-labelledby="help-title">
+    <h2 id="help-title">Keys</h2>
+    <table>
+      <tr><td><kbd class="rec"></kbd></td><td>Start a take from the line you are on; during one, keep it</td></tr>
+      <tr><td><kbd class="cmd"></kbd> <kbd>Enter</kbd></td><td>Keep the take</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Throw the take away, or cancel the count</td></tr>
+      <tr><td><kbd class="cmd"></kbd> <kbd>Z</kbd></td><td>Undo the take just kept</td></tr>
+      <tr><td><kbd>P</kbd></td><td>Pause and resume</td></tr>
+      <tr><td><kbd>W</kbd></td><td>Review a line said in other words</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Mirror the text</td></tr>
+      <tr><td><kbd>+</kbd> <kbd>−</kbd></td><td>Text size</td></tr>
+      <tr><td><kbd>S</kbd></td><td>Hide or show the screen</td></tr>
+      <tr><td><kbd>R</kbd></td><td>Record again, one after another, the lines reworded since their takes</td></tr>
+      <tr><td><kbd>V</kbd></td><td>Play the video as it will play, from the line you are on, or stop; <kbd>←</kbd> <kbd>→</kbd> five seconds back or on</td></tr>
+      <tr><td><kbd>J</kbd></td><td>Play from what the last save moved</td></tr>
+      <tr class="has-timeline"><td><kbd>E</kbd></td><td>Edit: drag a shot onto a word to start it there, or its grip to set how long it runs; hover a word to see the screen then</td></tr>
+      <tr><td><kbd>Enter</kbd> on a line</td><td>Between takes, start a take from that line</td></tr>
+      <tr><td><kbd>F2</kbd></td><td>Reword the line you are on, where it stands</td></tr>
+      <tr class="voice-only"><td><kbd>Space</kbd></td><td>Read by a voice: play the video from the line you are on, or stop</td></tr>
+    </table>
+    <form method="dialog">
+      <button type="button" id="help-scripts" class="quiet">Scripts…</button>
+      <button type="button" id="help-setup" class="quiet">Set up…</button>
+      <button>Close</button>
+    </form>
+  </dialog>
+  <dialog id="panel" aria-labelledby="panel-title">
+    <h2 id="panel-title"></h2>
+    <p id="panel-who"></p>
+    <menu>
+      <button id="panel-listen" class="suggested">Listen</button>
+      <button id="panel-on">Read on from here</button>
+    </menu>
+    <div id="panel-voice">
+      <label for="panel-instruct">How to say it</label>
+      <input id="panel-instruct" placeholder="slower, amused" autocomplete="off">
+      <small>For a voice that takes directions. Enter to apply.</small>
+    </div>
+    <menu>
+      <button id="panel-again">Say it again</button>
+      <button id="panel-reword">Reword…</button>
+    </menu>
+  </dialog>
+  <aside id="monitor" aria-label="Screen">
+    <div id="screen"><video id="clip" muted playsinline hidden></video><div id="slate"></div></div>
+    <div id="caption"><span id="shot-title"></span><span id="shot-time"></span></div>
+    <div id="progress"><div></div></div>
+    <div id="monitor-head"><h2>Rundown</h2><button id="pop" title="The screen in a window of its own, for a second display">Own window</button></div>
+    <ul id="rundown"></ul>
+  </aside>
+</main>
+<section id="home" hidden aria-labelledby="home-title">
+  <div>
+    <h1 id="home-title">Teleprompt</h1>
+    <p>Open a script and read it aloud: the words follow your voice, each shot plays as you
+      reach it, and every line you finish is kept as a take. Or let a voice read it, and direct
+      it line by line.</p>
+    <fieldset id="narrator">
+      <legend>Who narrates</legend>
+      <label><input type="radio" name="narrator" value="you" checked> You read</label>
+      <label><input type="radio" name="narrator" value="voice"> A voice reads</label>
+    </fieldset>
+    <p id="narrator-note" hidden></p>
+    <menu id="home-actions">
+      <button id="setup-open">Set up teleprompt…</button>
+      <button id="home-back" hidden>Back to the script</button>
+    </menu>
+  </div>
+  <div>
+    <h2 id="scripts-title">Scripts</h2>
+    <ul id="scripts"></ul>
+    <p id="no-scripts" hidden>No scripts here. Run <code>teleprompt serve</code> in a project, or
+      <code>teleprompt serve path/to/script.md</code>.</p>
+    <div id="home-errors" role="alert"></div>
+  </div>
+</section>
+<dialog id="setup" aria-labelledby="setup-title">
+  <h2 id="setup-title">Set up teleprompt</h2>
+  <p id="setup-why" hidden></p>
+  <ul id="uses"></ul>
+  <p id="setup-says" role="status"></p>
+  <div id="setup-bar" hidden><div></div></div>
+  <menu>
+    <button id="setup-close">Close</button>
+    <button id="setup-install" class="suggested" disabled>Install</button>
+  </menu>
+</dialog>
+<footer>
+  <span id="tally" role="img" aria-label="Off air"></span>
+  <span id="timecode">00:00.0</span>
+  <span id="meter"><div></div></span>
+  <span id="working" hidden><div></div></span>
+  <span id="status" role="status" aria-live="polite">Loading the script</span>
+  <span id="keys"></span>
+</footer>
+<script>
+// prompt.js
+</script>
+</body>
+</html>

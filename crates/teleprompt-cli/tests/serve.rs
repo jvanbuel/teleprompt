@@ -1,6 +1,6 @@
 //! `teleprompt serve`'s API, v1, driven over real sockets with a
 //! recognizer that hears what the test says. What the prompter does is
-//! tested in `teleprompt-prompter`; these pin the routes, the socket's
+//! tested in `prompter.rs` (`tests/prompter.rs`); these pin the routes, the socket's
 //! messages and their JSON.
 
 use std::collections::VecDeque;
@@ -11,9 +11,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use teleprompt_cli::cmd::serve::prompt_on;
+use teleprompt_cli::prompter::{Prompt, ShotCue};
 use teleprompt_core::{Hash, LineId};
 use teleprompt_listen::{Heard, Position, Recognizer};
-use teleprompt_prompter::{Prompt, ShotCue};
 
 /// Hears what the test says, one hypothesis per chunk, and counts the
 /// samples it was given.
@@ -518,7 +518,7 @@ fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
 fn each_shot_is_cued_where_its_policy_starts_it() {
     use teleprompt_listen::Position;
     let compiled = compiled_tour("prompt-cues");
-    let cues = teleprompt_prompter::shot_cues(&compiled);
+    let cues = teleprompt_cli::prompter::shot_cues(&compiled);
     let at: Vec<Position> = cues.iter().map(|c| c.at).collect();
     let pos = |line, word| Position { line, word };
     assert_eq!(at, [pos(0, 0), pos(1, 0), pos(1, 7), pos(2, 1)]);

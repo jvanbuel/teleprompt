@@ -35,12 +35,11 @@ ALLOWED = {
     "plugin": {"core"},
     "voice": {"core"},
     "manifest": {"core"},
-    "cache": {"core", "voice"},
     "voice-openai": VOICE,
     "voice-voicebox": VOICE,
     "voice-gemini": VOICE,
     "voice-elevenlabs": VOICE,
-    "compile": {"core", "plugin", "schedule", "voice", "cache", "manifest"},
+    "compile": {"core", "plugin", "schedule", "voice", "manifest"},
     "render": {"core", "manifest"},
     "vhs": PLUGIN,
     "asciinema": PLUGIN,
@@ -56,7 +55,6 @@ ALLOWED = {
     # recognizer hears.
     "derive": {"core", "listen"},
     "listen-sherpa": {"listen"},
-    "prompter": {"core", "compile", "listen", "voice"},
     # The protocol and the text; the compile reaches it through a trait
     # the CLI implements.
     "lsp": {"core"},
@@ -67,7 +65,7 @@ ALLOWED = {
 PREFIX = "teleprompt-"
 
 # What plans a video, and so reads a scene's shots without running its tool.
-PLANS = {"schedule", "manifest", "voice", "cache", "compile", "prompter"}
+PLANS = {"schedule", "manifest", "voice", "compile"}
 RUNS_TOOLS = re.compile(r"teleprompt_plugin::(capture|protocol|record|tool)\b")
 
 

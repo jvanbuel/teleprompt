@@ -997,7 +997,7 @@ async fn a_failure_in_one_line_fails_the_run() {
     );
 }
 
-// --- `teleprompt_cache::key` hashes backend id/version, locale, voice,
+// --- `teleprompt_voice::cache::key` hashes backend id/version, locale, voice,
 // speed, and the *text*, not the line id — so two lines with
 // identical narration text collide on one `CacheKey` by design. Rendering
 // each occurrence independently would double-count synthesis work against

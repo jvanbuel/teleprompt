@@ -8,13 +8,13 @@ use std::sync::Arc;
 use teleprompt_core::program::Program;
 use teleprompt_voice::takes::Takes;
 
-use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::{resolve, Element};
 use teleprompt_core::translation::Translation;
 use teleprompt_core::{Diagnostic, Diagnostics};
+use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::VoiceBackend;
 use teleprompt_voice::WpmEstimator;
 

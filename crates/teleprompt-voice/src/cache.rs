@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use crate::{wav, Pcm, SynthRequest, WordTiming};
 use serde::{Deserialize, Serialize};
 use teleprompt_core::Hash;
-use teleprompt_voice::{wav, Pcm, SynthRequest, WordTiming};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CacheError {

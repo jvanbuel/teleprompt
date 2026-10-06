@@ -1,0 +1,429 @@
+  /* The prompters' design: apps/DESIGN.md. The glass is black because a
+     beam-splitter does not reflect black; amber marks the next word and
+     the reading line, and nothing else; red is the tally, and means
+     recording. */
+  @font-face {
+    font-family: "Atkinson Hyperlegible Next";
+    src: url("/fonts/atkinson-hyperlegible-next.woff2") format("woff2");
+    font-weight: 200 800;
+  }
+  :root {
+    color-scheme: dark;
+    --glass: #000; --ink: #f2f4f7; --cue: #ffb800; --tally: #ff3b30;
+    --recorded: #3ddc84; --missing: #f28b82; --heard: #8ab5f7; --brought: #81c995;
+    --chrome: #17181b; --raised: #202227; --line: #2c2f36;
+    /* The tally, deep enough to carry white text: 5.3:1. */
+    --on-air: #d70015;
+    --said: rgb(242 244 247 / 0.4); --later: rgb(242 244 247 / 0.55);
+    --size: 48px;
+    --reading: 36%;
+    --face: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--chrome); color: var(--ink); font: 500 15px/1.4 var(--face);
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr); overflow: hidden;
+  }
+  button { font: inherit; color: inherit; }
+
+  header {
+    display: grid; grid-template-columns: 1fr minmax(0, auto) 1fr; align-items: center; gap: 12px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+  }
+  #tools { display: flex; gap: 6px; }
+  #tools button {
+    min-width: 40px; height: 36px; padding: 0 10px; border-radius: 10px; cursor: pointer;
+    background: transparent; border: 1px solid var(--line); color: var(--ink); font-weight: 700;
+  }
+  #tools button[aria-pressed="true"] { background: var(--raised); }
+  /* The app's mark beside the script's name: in the chrome, never on the
+     glass, where it would show in the reflection. */
+  #brand { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
+  #brand img { width: 28px; height: 28px; flex: none; }
+  #title { font-weight: 700; min-width: 0;
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #record {
+    justify-self: end; display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised);
+    color: var(--ink); font-weight: 700; cursor: pointer;
+  }
+  /* Red is the tally: idle, only its dot; on air, the whole button. */
+  #record::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--tally); }
+  #record.keep { background: var(--on-air); border-color: var(--on-air); color: #fff; }
+  #record.keep::before { border-radius: 1px; background: currentColor; }
+  #record:focus-visible, header button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  /* A box on the glass would show in the reflection: focus is marked in
+     the gutter instead. */
+  .line:focus { outline: none; }
+  .line:focus-visible .gutter { color: var(--ink); text-decoration: underline 2px; text-underline-offset: 4px; }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 0; }
+  body.no-monitor main { grid-template-columns: minmax(0, 1fr); }
+  body.no-monitor #monitor { display: none; }
+
+  /* The glass. */
+  #glass { position: relative; background: var(--glass); min-height: 0; overflow: hidden; }
+  #scroller { position: absolute; inset: 0; overflow: hidden; }
+  #script { padding: 0 72px 0 0; font-size: var(--size); line-height: 1.32; }
+  body.mirrored #glass-inner { transform: scaleX(-1); }
+  #glass-inner { position: absolute; inset: 0; }
+  .line {
+    display: grid; grid-template-columns: 76px 1fr; margin: 0 0 0.58em; cursor: pointer;
+    color: var(--later);
+  }
+  .line.current { color: var(--ink); }
+  .gutter {
+    position: relative; font: 700 14px/calc(var(--size) * 1.32) var(--face);
+    color: rgb(242 244 247 / 0.55); text-align: right; padding-right: 22px;
+  }
+  .line.current .gutter { color: rgb(242 244 247 / 0.9); }
+  .line.recorded .gutter::before {
+    content: ""; position: absolute; left: 12px; top: calc(var(--size) * 0.66 - 5px);
+    width: 9px; height: 5px; border: solid var(--recorded); border-width: 0 0 2.2px 2.2px;
+    transform: rotate(-45deg);
+  }
+  /* Beside the tick of a take heard saying other words: W reviews it. */
+  .line.heard .gutter::after {
+    content: ""; position: absolute; right: 8px; top: calc(var(--size) * 0.66 - 3.5px);
+    width: 7px; height: 7px; border-radius: 50%; background: var(--heard);
+  }
+  .w.said { color: var(--said); }
+  .w.next { color: var(--cue); text-decoration: underline; text-decoration-color: var(--cue);
+            text-underline-offset: 0.14em; text-decoration-thickness: 0.06em; }
+  .shot { font-size: 0.5em; vertical-align: 0.35em; color: rgb(242 244 247 / 0.6); margin-right: 0.4em; }
+  .shot.aired { color: rgb(242 244 247 / 0.42); }
+  .shot.missing { color: var(--missing); }
+  /* The reading line: a cue arrow, and the glass fading out above and below. */
+  #reading {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(#000d, #0000 20%, #0000 78%, #000e);
+  }
+  #reading::before {
+    content: ""; position: absolute; left: 10px; top: var(--reading);
+    border: 8px solid transparent; border-left: 12px solid var(--cue); transform: translateY(-50%);
+  }
+  #countdown {
+    position: absolute; inset: 0; display: none; place-items: center;
+    background: rgb(0 0 0 / 0.78); font: 300 180px/1 var(--face); font-variant-numeric: tabular-nums;
+    color: rgb(242 244 247 / 0.92); pointer-events: none;
+  }
+  #countdown.on { display: grid; }
+  /* On air, the glass itself says so, where the reader is looking, and
+     reads the same mirrored. Paused, it stays, faint. */
+  #glass::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    border: 6px solid var(--tally); opacity: 0; transition: opacity 120ms;
+  }
+  body.on-air #glass::after { opacity: 1; }
+  body.paused #glass::after { opacity: 0.35; }
+
+  /* The monitor. */
+  #monitor { border-left: 1px solid var(--line); padding: 20px; overflow: auto; }
+  #screen {
+    position: relative; aspect-ratio: 16 / 9; background: var(--glass);
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+    display: grid; place-items: center;
+  }
+  #clip { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #clip[hidden] { display: none; }
+  #slate { color: rgb(242 244 247 / 0.6); text-align: center; padding: 0 24px; }
+  #slate.missing { color: var(--missing); }
+  #caption { display: flex; justify-content: space-between; margin-top: 12px; min-height: 21px; }
+  #shot-title { font-weight: 700; }
+  #shot-time { color: rgb(242 244 247 / 0.55); font-size: 13px; font-variant-numeric: tabular-nums; }
+  #progress { height: 3px; margin-top: 8px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  #progress > div { height: 100%; width: 0; background: var(--ink); }
+  h2 { font-size: 13px; color: rgb(242 244 247 / 0.55); margin: 28px 0 6px; }
+  #rundown { list-style: none; margin: 0; padding: 0; }
+  #rundown li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center; padding: 7px 4px; }
+  #rundown .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid rgb(242 244 247 / 0.55); }
+  #rundown .where { color: rgb(242 244 247 / 0.6); font-size: 13px; font-variant-numeric: tabular-nums; }
+  #rundown li.aired { color: rgb(242 244 247 / 0.58); }
+  #rundown li.aired .dot { background: rgb(242 244 247 / 0.3); border-color: transparent; }
+  #rundown li.on-screen { font-weight: 700; }
+  #rundown li.on-screen .dot { background: var(--ink); border-color: var(--ink); }
+  #rundown li.on-screen .where { color: var(--ink); }
+  #rundown li.not-captured .dot { border-color: var(--missing); }
+  #rundown li.not-captured .where { color: var(--missing); }
+
+  /* The tally bar. */
+  footer {
+    display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+    background: var(--raised); border-top: 1px solid var(--line);
+  }
+  #tally { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid rgb(242 244 247 / 0.45); }
+  #tally.on-air { background: var(--tally); border-color: var(--tally); }
+  #timecode { font-weight: 600; letter-spacing: 0.5px; color: rgb(242 244 247 / 0.58); font-variant-numeric: tabular-nums; }
+  #timecode.on-air { color: var(--ink); }
+  #meter { width: 72px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  #meter > div { height: 100%; width: 100%; background: var(--recorded);
+                 transform: scaleX(0); transform-origin: left; transition: transform 80ms linear; }
+  #status { flex: 1; margin-left: 6px; color: rgb(242 244 247 / 0.7); font-size: 14px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status.bad { color: var(--missing); }
+  #keys { display: flex; gap: 14px; }
+  #keys span { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: rgb(242 244 247 / 0.6); }
+  kbd {
+    font: 700 12px/1.4 var(--face); color: var(--ink); background: var(--chrome);
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px;
+  }
+
+  /* What a take did, large enough to read from where the reader sits. */
+  #toast {
+    position: absolute; left: 50%; bottom: 56px; transform: translate(-50%, 12px); opacity: 0;
+    display: flex; align-items: center; gap: 18px; max-width: calc(100% - 32px);
+    background: var(--raised); border: 1px solid var(--line); border-radius: 16px; padding: 14px 22px;
+    font-size: 24px; font-weight: 700; transition: opacity 180ms, transform 180ms; pointer-events: none;
+  }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  #toast.on:has(button) { pointer-events: auto; }
+  #toast button {
+    font: 700 16px var(--face); padding: 8px 16px; border-radius: 999px; cursor: pointer;
+    background: var(--ink); color: #000; border: 0; white-space: nowrap;
+  }
+
+  #review {
+    max-width: min(560px, calc(100vw - 32px)); padding: 24px; border-radius: 14px;
+    background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+  }
+  #review::backdrop, #help::backdrop { background: rgb(0 0 0 / 0.55); }
+  #help {
+    max-width: min(520px, calc(100vw - 32px)); padding: 24px; border-radius: 14px;
+    background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+  }
+  #help h2 { margin: 0 0 12px; font-size: 19px; color: var(--ink); }
+  #help table { border-collapse: collapse; width: 100%; }
+  #help td { padding: 6px 0; vertical-align: top; }
+  #help td:first-child { white-space: nowrap; padding-right: 18px; }
+  #help form { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  #help button.quiet { background: var(--chrome); color: var(--ink); border: 1px solid var(--line); }
+  #help button {
+    font: 700 14px var(--face); border-radius: 8px; padding: 8px 16px; cursor: pointer;
+    background: var(--ink); color: #000; border: 0;
+  }
+  #review h2 { margin: 0 0 8px; font-size: 19px; }
+  #review p { margin: 0 0 16px; color: rgb(242 244 247 / 0.7); }
+  #review blockquote { margin: 0 0 22px; font-size: 20px; line-height: 1.45; }
+  #review del { color: var(--missing); }
+  #review ins { color: var(--brought); font-weight: 800; text-decoration: none; }
+  #review menu { display: flex; justify-content: flex-end; gap: 10px; margin: 0; padding: 0; }
+  #review button {
+    font: 700 14px var(--face); border-radius: 8px; padding: 8px 16px; cursor: pointer;
+    background: var(--chrome); color: var(--ink); border: 1px solid var(--line);
+  }
+  #review button.suggested { background: var(--ink); color: #000; border-color: var(--ink); }
+  @media (prefers-reduced-motion: reduce) { #toast, #meter > div { transition: none; } }
+
+  /* The welcome, with no script open: what teleprompt does, who narrates,
+     the project's scripts to open, and setting it up. */
+  #home {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px;
+    align-content: center; padding: 48px clamp(16px, 6vw, 96px); overflow: auto;
+  }
+  #home[hidden] { display: none; }
+  body.home main { display: none; }
+  body.home #tools, body.home #record, body.home #keys,
+  body.home #tally, body.home #timecode, body.home #meter { visibility: hidden; }
+  #home h1 { margin: 0 0 14px; font-size: 40px; font-weight: 800; }
+  #home h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em;
+             color: var(--later); }
+  #home p { margin: 0 0 22px; font-size: 18px; line-height: 1.5; color: rgb(242 244 247 / 0.7);
+            max-width: 34em; }
+  #narrator { border: 0; padding: 0; margin: 0 0 22px; display: flex; gap: 8px; flex-wrap: wrap;
+              align-items: center; }
+  #narrator legend { float: left; margin-right: 10px; font-weight: 700; }
+  #narrator label {
+    display: inline-flex; gap: 8px; align-items: center; padding: 8px 14px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px;
+  }
+  #narrator label:has(input:checked) { background: var(--raised); border-color: var(--ink); }
+  #narrator label:has(input:disabled) { opacity: 0.5; cursor: default; }
+  #narrator-note { font-size: 14px; color: var(--later); margin: -12px 0 22px; }
+  #home button, #setup button {
+    font: 700 14px var(--face); border-radius: 8px; padding: 10px 16px; cursor: pointer;
+    background: var(--chrome); color: var(--ink); border: 1px solid var(--line);
+  }
+  #home button.suggested, #setup button.suggested {
+    background: var(--ink); color: #000; border-color: var(--ink);
+  }
+  #home button:disabled, #setup button:disabled { opacity: 0.5; cursor: default; }
+  #home-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 0; padding: 0; }
+  #scripts { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
+  #scripts button {
+    width: 100%; text-align: left; display: flex; justify-content: space-between; gap: 12px;
+    font-size: 17px; padding: 14px 16px; background: var(--raised);
+  }
+  #scripts button .open-now { color: var(--cue); font-size: 13px; }
+  #home-errors { color: var(--missing); white-space: pre-wrap; font-size: 14px; }
+  #setup {
+    width: min(620px, calc(100vw - 32px)); padding: 24px; border-radius: 14px;
+    background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+  }
+  #setup::backdrop { background: rgb(0 0 0 / 0.55); }
+  #setup h2 { margin: 0 0 8px; font-size: 19px; color: var(--ink); }
+  #setup-why { margin: 0 0 14px; color: var(--cue); }
+  #uses { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+  #uses label { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; padding: 10px 12px;
+                border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+  #uses label:has(input:disabled) { cursor: default; }
+  #uses input { grid-row: span 2; margin-top: 4px; }
+  #uses .use-state { font-size: 13px; color: var(--later); }
+  #uses .use-state.ok { color: var(--recorded); }
+  #uses details { font-size: 13px; color: var(--later); margin: 4px 12px 0 40px; }
+  #uses details p { margin: 6px 0; }
+  #uses code { font-size: 12px; overflow-wrap: anywhere; }
+  #setup-says { min-height: 1.4em; margin: 0 0 10px; }
+  #setup-says.bad { color: var(--missing); white-space: pre-wrap; }
+  #setup-bar { height: 4px; border-radius: 2px; background: var(--line); margin: 0 0 14px; overflow: hidden; }
+  #setup-bar > div { height: 100%; width: 0; background: var(--cue); transition: width 0.3s; }
+  #setup menu { display: flex; justify-content: flex-end; gap: 10px; margin: 0; padding: 0; }
+  @media (max-width: 720px) { #home { grid-template-columns: minmax(0, 1fr); gap: 32px; } }
+
+  /* Edit mode: the glass is the timeline. Each shot is a ribbon under the
+     words it plays over, in its scene's colour, or a pill in the pause
+     after its line; dragged onto a word it starts there, and its grip,
+     dragged along its line, sets how long it runs. */
+  #script { position: relative; }
+  #ribbons { position: absolute; inset: 0; pointer-events: none; }
+  body:not(.editing) #ribbons { display: none; }
+  body.editing .line { cursor: default; }
+  body.editing #script .w:hover { text-decoration: underline 1px rgb(242 244 247 / 0.4); text-underline-offset: 0.2em; }
+  .piece { position: absolute; inset: 0; }
+  .piece.dragged { opacity: 0.3; }
+  .piece .bar, .piece .pill, .piece .grip { position: absolute; pointer-events: auto; }
+  .piece:not(.leads) .bar, .piece:not(.leads) .pill { pointer-events: none; opacity: 0.7; }
+  body.dragging .piece * { pointer-events: none !important; }
+  /* A bar is thin to see and thick to grab. */
+  .bar { height: 15px; margin-top: -5px; cursor: grab; }
+  .bar::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 5px;
+                 border-radius: 3px; background: var(--hue); opacity: 0.85; }
+  .pill { height: 24px; padding: 0 10px; border-radius: 12px; white-space: nowrap; cursor: grab;
+          font: 700 12px/21px var(--face); color: var(--ink);
+          background: color-mix(in srgb, var(--hue) 30%, transparent); border: 1.5px solid var(--hue); }
+  .grip { width: 6px; height: 16px; border-radius: 3px; background: var(--ink); cursor: ew-resize; }
+  #drop-target { position: absolute; background: var(--cue); border-radius: 2px; pointer-events: none; }
+  #drop-chip {
+    position: fixed; z-index: 10; pointer-events: none; transform: translate(-50%, calc(-100% - 18px));
+    background: var(--cue); color: #000; font: 700 12px/1 var(--face); padding: 6px 9px; border-radius: 999px;
+    white-space: nowrap;
+  }
+  #tools button[hidden] { display: none; }
+  /* A save that does not compile: said over the glass, which keeps the
+     version that did. */
+  #broken {
+    position: absolute; top: 12px; left: 76px; right: 24px; z-index: 2; padding: 12px 16px;
+    background: var(--raised); border: 1px solid var(--missing); border-radius: 12px;
+  }
+  #broken[hidden] { display: none; }
+  #broken strong { color: var(--missing); }
+  #broken pre { margin: 6px 0 0; font: 13px/1.5 ui-monospace, monospace; white-space: pre-wrap; max-height: 9em; overflow: auto; }
+  /* A line the last save moved: its number in blue, as J plays from it. */
+  .line.moved .gutter { color: var(--heard); }
+  #tools .divider { width: 1px; background: var(--line); margin: 4px 4px; }
+  #tools button:disabled { opacity: 0.45; cursor: default; }
+  #working { width: 96px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  #working[hidden] { display: none; }
+  #working > div { height: 100%; width: 0; background: var(--ink); transition: width 200ms linear; }
+  #pop { margin-left: auto; font: 600 13px var(--face); color: rgb(242 244 247 / 0.7); background: none;
+         border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; cursor: pointer; }
+  #monitor-head { display: flex; align-items: baseline; gap: 10px; margin: 28px 0 6px; }
+  #monitor-head h2 { margin: 0; }
+
+  /* The monitor on its own, in a window of its own (?view=monitor), for a
+     second display: only the screen, as large as it fits. */
+  body.monitor-view { grid-template-rows: minmax(0, 1fr); background: var(--glass); }
+  body.monitor-view header, body.monitor-view #glass, body.monitor-view footer,
+  body.monitor-view #monitor-head, body.monitor-view #rundown { display: none; }
+  body.monitor-view main { grid-template-columns: minmax(0, 1fr); }
+  body.monitor-view #monitor {
+    border: 0; padding: 12px; display: grid; gap: 8px;
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto;
+  }
+  body.monitor-view #screen { aspect-ratio: auto; min-height: 0; grid-row: auto; border-radius: 10px; }
+  body.monitor-view #caption { margin-top: 0; }
+  /* In an app's window (?shell=1), whose own title bar names the script. */
+  body.in-app #brand { visibility: hidden; }
+  /* The app's title bar names it; the welcome has nothing else for this one. */
+  body.in-app.home header { display: none; }
+  body.in-app.home { grid-template-rows: minmax(0, 1fr) auto; }
+
+  /* Read by a voice: Play is the header's action, in the chrome, with no
+     red, since nothing records. */
+  body.voiced #record::before {
+    width: 0; height: 0; border-radius: 0; background: none;
+    border: 6px solid transparent; border-left: 10px solid var(--cue); border-right: 0;
+  }
+  body.voiced.reading #record::before { width: 9px; height: 9px; border: 0; border-radius: 1px; background: var(--cue); }
+  /* Each line the voice reads: a waveform in the margin, faint until the
+     voice has made it. */
+  .line.voiced .gutter { --wave: rgb(242 244 247 / 0.7); }
+  .line.unvoiced .gutter { --wave: rgb(242 244 247 / 0.25); }
+  .line.voiced .gutter, .line.unvoiced .gutter {
+    background:
+      linear-gradient(var(--wave), var(--wave)) var(--wave-x) calc(var(--size) * 0.66 - 2.5px) / 2px 5px no-repeat,
+      linear-gradient(var(--wave), var(--wave)) calc(var(--wave-x) + 4px) calc(var(--size) * 0.66 - 5px) / 2px 10px no-repeat,
+      linear-gradient(var(--wave), var(--wave)) calc(var(--wave-x) + 8px) calc(var(--size) * 0.66 - 3.5px) / 2px 7px no-repeat;
+  }
+  /* A speaker's line: their initial, in their colour (the same in every
+     app: apps/DESIGN.md), faint until the voice has made it. */
+  .gutter .who { position: absolute; top: 0; left: var(--wave-x); font: 700 13px/calc(var(--size) * 1.32) var(--face); }
+  .line.unmade .who { opacity: 0.45; }
+  /* Clear of the reading line's arrow, beside the number. */
+  .gutter { --wave-x: 27px; }
+  /* A line's words, edited where they stand, underlined in the cue's amber. */
+  .line-editor {
+    display: block; width: 100%; resize: none; overflow: hidden; margin: 0; padding: 0;
+    font: inherit; line-height: inherit; color: var(--ink); background: var(--glass);
+    border: 0; border-bottom: 2px solid var(--cue); outline: none; caret-color: var(--cue);
+  }
+  body:not(.voiced) .voice-only { display: none; }
+  #panel {
+    position: fixed; inset: auto; margin: 0; width: min(340px, calc(100vw - 32px)); padding: 16px;
+    border-radius: 12px; background: var(--raised); color: var(--ink); border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.5); font-size: 14px;
+  }
+  #panel h2 { margin: 0; font-size: 15px; color: var(--ink); }
+  #panel p { margin: 2px 0 12px; font-size: 13px; color: rgb(242 244 247 / 0.66); }
+  #panel label { display: block; margin: 14px 0 6px; font-size: 13px; color: rgb(242 244 247 / 0.66); }
+  #panel input {
+    width: 100%; font: 500 14px var(--face); color: var(--ink); background: var(--chrome);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  }
+  #panel input:focus-visible { outline: 2px solid var(--cue); outline-offset: 1px; }
+  #panel small { display: block; margin-top: 6px; font-size: 12px; color: rgb(242 244 247 / 0.55); }
+  #panel menu { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; }
+  #panel menu + menu { margin-top: 14px; }
+  #panel button {
+    font: 600 14px var(--face); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+    background: var(--chrome); color: var(--ink); border: 1px solid var(--line);
+  }
+  #panel button.suggested { background: var(--ink); color: #000; border-color: var(--ink); }
+  #panel button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* A tablet or phone as the prompter: the monitor goes under the glass,
+     small, and the keys, which it has none of, go. Record stays in reach. */
+  @media (max-width: 900px) {
+    main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+    #monitor { border-left: 0; border-top: 1px solid var(--line); padding: 10px 14px;
+               display: grid; grid-template-columns: minmax(0, 160px) minmax(0, 1fr); gap: 4px 14px; }
+    #screen { grid-row: span 2; border-radius: 6px; }
+    #caption { margin-top: 0; }
+    #monitor h2, #rundown { display: none; }
+  }
+  @media (max-width: 700px) {
+    /* Too narrow for both: the script's name wins. */
+    #brand img { display: none; }
+    :root { --size: 32px; }
+    header { grid-template-columns: auto minmax(0, 1fr) auto; padding: 8px 10px; }
+    #script { padding-right: 16px; }
+    .line { grid-template-columns: 48px 1fr; }
+    .gutter { --wave-x: 4px; }
+    .gutter { padding-right: 14px; }
+    #keys { display: none; }
+    #tools #edit, #tools #capture, #tools #build, #tools .divider { display: none; }
+    #status { white-space: normal; }
+    #countdown { font-size: 120px; }
+  }

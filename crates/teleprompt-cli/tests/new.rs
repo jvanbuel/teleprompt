@@ -17,11 +17,11 @@ fn scaffold_writes_a_runnable_project() {
 
 #[test]
 fn the_scaffolded_script_compiles() {
-    use teleprompt_cache::VoiceCache;
     use teleprompt_compile::{compile, VoiceContext};
     use teleprompt_core::config::PartialConfig;
     use teleprompt_core::parse::parse_script;
     use teleprompt_core::program::resolve;
+    use teleprompt_voice::cache::VoiceCache;
     use teleprompt_voice::WpmEstimator;
 
     let dir = tempdir();

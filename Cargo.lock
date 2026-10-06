@@ -1975,18 +1975,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "teleprompt-cache"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "teleprompt-core",
- "teleprompt-testkit",
- "teleprompt-voice",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "teleprompt-cli"
 version = "0.1.0"
 dependencies = [
@@ -2002,7 +1990,6 @@ dependencies = [
  "serde_yaml",
  "signal-hook",
  "teleprompt-asciinema",
- "teleprompt-cache",
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-derive",
@@ -2014,7 +2001,6 @@ dependencies = [
  "teleprompt-media",
  "teleprompt-playwright",
  "teleprompt-plugin",
- "teleprompt-prompter",
  "teleprompt-remotion",
  "teleprompt-render",
  "teleprompt-schedule",
@@ -2038,7 +2024,6 @@ version = "0.1.0"
 dependencies = [
  "insta",
  "serde_json",
- "teleprompt-cache",
  "teleprompt-core",
  "teleprompt-manifest",
  "teleprompt-plugin",
@@ -2139,17 +2124,6 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
-]
-
-[[package]]
-name = "teleprompt-prompter"
-version = "0.1.0"
-dependencies = [
- "teleprompt-compile",
- "teleprompt-core",
- "teleprompt-listen",
- "teleprompt-testkit",
- "teleprompt-voice",
 ]
 
 [[package]]

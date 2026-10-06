@@ -3,12 +3,12 @@
 
 use std::path::Path;
 
-use teleprompt_cache::VoiceCache;
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::parse::parse_script;
 use teleprompt_core::program::resolve;
 use teleprompt_plugin::ScenePlugins;
+use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::WpmEstimator;
 
 fn compile_it(src: &str) -> CompileOutput {

@@ -9,15 +9,14 @@ on:
       - apps/linux/**
       - apps/fixtures/**
       - docs/api/**
-      - crates/teleprompt-cli/src/cmd/prompt*
-      - crates/teleprompt-cli/src/cmd/serve.rs
+      - crates/teleprompt-cli/src/cmd/serve/**
       - crates/teleprompt-cli/src/cmd/voicing.rs
       - crates/teleprompt-cli/src/cmd/dub.rs
       - crates/teleprompt-cli/src/cmd/setup/**
       - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
       - crates/teleprompt-schedule/**
-      - crates/teleprompt-prompter/**
+      - crates/teleprompt-cli/src/prompter.rs
       - crates/teleprompt-listen/**
       - crates/teleprompt-listen-sherpa/**
       - .github/workflows/linux-app.yml
@@ -26,15 +25,14 @@ on:
       - apps/linux/**
       - apps/fixtures/**
       - docs/api/**
-      - crates/teleprompt-cli/src/cmd/prompt*
-      - crates/teleprompt-cli/src/cmd/serve.rs
+      - crates/teleprompt-cli/src/cmd/serve/**
       - crates/teleprompt-cli/src/cmd/voicing.rs
       - crates/teleprompt-cli/src/cmd/dub.rs
       - crates/teleprompt-cli/src/cmd/setup/**
       - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
       - crates/teleprompt-schedule/**
-      - crates/teleprompt-prompter/**
+      - crates/teleprompt-cli/src/prompter.rs
       - crates/teleprompt-listen/**
       - crates/teleprompt-listen-sherpa/**
       - .github/workflows/linux-app.yml

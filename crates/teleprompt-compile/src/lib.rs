@@ -8,7 +8,6 @@
 use std::collections::BTreeMap;
 use std::path::{Component, Path};
 
-use teleprompt_cache::{CacheKey, VoiceCache};
 use teleprompt_core::config::{Config, OutputConfig, SceneConfig};
 use teleprompt_core::policy::Align;
 use teleprompt_core::program::{ActionElement, ChapterInfo, Element, Program};
@@ -19,6 +18,7 @@ use teleprompt_core::{
 use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Timeline};
+use teleprompt_voice::cache::{CacheKey, VoiceCache};
 use teleprompt_voice::takes::{TakeMeta, Takes};
 use teleprompt_voice::WpmEstimator;
 use teleprompt_voice::{SynthRequest, WordTiming};
@@ -588,7 +588,7 @@ impl<'a> Walker<'a, '_> {
             speed: config.voice.speed,
             instruct: config.voice.instruct.clone(),
         };
-        let cache_key = teleprompt_cache::key(backend, &backend_version, &req);
+        let cache_key = teleprompt_voice::cache::key(backend, &backend_version, &req);
         let take = self.voice.takes.current(id, text).cloned();
         let (duration_ms, duration_source, word_timings, audio_hash) = match &take {
             Some(t) => (t.duration_ms, DurationSource::Measured, None, t.audio_hash),

@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use teleprompt_cache::{CachedAudio, VoiceCache};
 use teleprompt_compile::publish::{self, LineAudio, Published};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
@@ -9,6 +8,7 @@ use teleprompt_core::{LineId, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
+use teleprompt_voice::cache::{CachedAudio, VoiceCache};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
 
@@ -296,7 +296,7 @@ async fn check_voices(
             && detail.take.is_none()
             && !matches!(
                 cache.lookup_meta(&detail.cache_key),
-                Ok(teleprompt_cache::CacheRead::Hit(_))
+                Ok(teleprompt_voice::cache::CacheRead::Hit(_))
             )
     });
     let Some(backend) = backends
@@ -432,7 +432,7 @@ async fn render_all(
 /// [`RenderedAudio`]), ordered by first occurrence so tasks spawn in
 /// document order and stderr is reproducible.
 fn groups_by_key(narration: &[NarrationDetail]) -> Vec<Vec<usize>> {
-    let mut groups: std::collections::HashMap<teleprompt_cache::CacheKey, Vec<usize>> =
+    let mut groups: std::collections::HashMap<teleprompt_voice::cache::CacheKey, Vec<usize>> =
         std::collections::HashMap::new();
     for (i, detail) in narration.iter().enumerate() {
         groups.entry(detail.cache_key.clone()).or_default().push(i);

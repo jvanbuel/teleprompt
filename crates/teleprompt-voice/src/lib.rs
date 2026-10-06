@@ -17,6 +17,7 @@ pub use contract::{
 };
 pub use resample::{resample, Resampler};
 
+pub mod cache;
 pub mod estimator;
 pub mod null;
 pub mod registry;

@@ -19,7 +19,6 @@ path = "src/main.rs"
 listen = ["dep:teleprompt-listen-sherpa", "teleprompt-listen-sherpa/sherpa"]
 
 [dependencies]
-teleprompt-cache = { path = "../teleprompt-cache" }
 teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-derive = { path = "../teleprompt-derive" }
 teleprompt-listen = { path = "../teleprompt-listen" }
@@ -28,7 +27,6 @@ teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = tr
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
-teleprompt-prompter = { path = "../teleprompt-prompter" }
 teleprompt-render = { path = "../teleprompt-render" }
 teleprompt-desktop = { path = "../teleprompt-desktop" }
 teleprompt-media = { path = "../teleprompt-media" }

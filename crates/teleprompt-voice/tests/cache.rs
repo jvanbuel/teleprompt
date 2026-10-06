@@ -1,6 +1,6 @@
 use std::sync::{Arc, Barrier};
 
-use teleprompt_cache::{key, CacheKey, CachedMeta, VoiceCache};
+use teleprompt_voice::cache::{key, CacheKey, CachedMeta, VoiceCache};
 use teleprompt_voice::{Pcm, SynthRequest, WordTiming};
 
 fn req(text: &str, voice: Option<&str>, speed: f64, locale: &str) -> SynthRequest {

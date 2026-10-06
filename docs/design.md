@@ -168,12 +168,11 @@ reading the manifest it just published.
 | `teleprompt-core` | AST, parser, ids, config, `Hash`, diagnostics, shared vocabulary such as `VoiceSource` |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
 | `teleprompt-plugin` | what a scene plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it and core alone |
-| `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the duration estimator, the registry, stretching a line to fit, the author's takes, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
+| `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the duration estimator, the registry, stretching a line to fit, the author's takes, the content-addressed voice cache, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
 | `teleprompt-voice-openai` | HTTP against any server that speaks OpenAI's speech API: `kokoro` (Kokoro-FastAPI) and `openai` are its presets, and any other `[backends.<name>]` is a server under that name |
 | `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
 | `teleprompt-voice-elevenlabs` | HTTP against ElevenLabs: premade or the account's own voices, found by name, with each word's timing |
 | `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |
-| `teleprompt-cache` | the content-addressed voice cache |
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest; and what `dub` publishes from each line's audio, which the prompter plays too |
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
@@ -181,11 +180,10 @@ reading the manifest it just published.
 | `teleprompt-derive` | drafting a script: from a recorded session (when each step began and timed words in, lines and the blocks between them out), a Markdown document, a Slidev deck's notes, or a conversation's transcript. Pure: no IO |
 | `teleprompt-translate` | translation providers for `translate`, chosen by name: a local model through Ollama (the default), any OpenAI-compatible server, Claude, and a command of the author's; the request each is sent and the prompt the model-backed ones share |
 | `teleprompt-lsp` | the language server: the protocol, positions and completion; what a script compiles to comes from an `Analyzer` the CLI implements, so it depends on core alone |
-| `teleprompt-prompter` | the prompter as a library: a `Session` that follows a reader, says which shots to play, and records takes; knows nothing of HTTP |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
 | `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per scene plugin, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `plugin()` |
 | `teleprompt-desktop` | the desktop scene plugins, `x11` and `macos`: one action language and scene compiler, the runner that plays a session's shots against a window and cuts them where they began, and a module per platform (the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation), each recording with ffmpeg |
-| `teleprompt-cli` | the `teleprompt` binary, and the registries every scene plugin and voice is composed into |
+| `teleprompt-cli` | the `teleprompt` binary, and the registries every scene plugin and voice is composed into; its `prompter` module is the prompter's `Session`, which `serve` serves |
 
 `schedule`, `plugin` and `manifest` depend on `core` alone, and not on
 one another. Anything that needs two of them belongs in `compile`.
@@ -328,7 +326,7 @@ model mishears, so a word a letter off in three, or heard split in two
 said <line>` writes it into the script and gives the take the new words,
 so it stays current: keeping what you said instead of reading it again.
 
-`serve` records takes. The prompter is `teleprompt-prompter`, a
+`serve` records takes. The prompter is the CLI's `prompter` module, a
 `Session` with typed calls (`start`, `listen`, `stop`, `script`, `clip`);
 `teleprompt serve` serves it as an API and the page that drives it.
 **The page is the only prompter.** The apps (`apps/linux`, `apps/macos`)

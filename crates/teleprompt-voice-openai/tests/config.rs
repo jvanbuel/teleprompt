@@ -49,7 +49,7 @@ fn zero_concurrency_is_rejected() {
     assert!(err.contains("concurrency"), "{err}");
 }
 
-// The load-bearing one. `teleprompt_cache::key` is built from `backend_id`,
+// The load-bearing one. `teleprompt_voice::cache::key` is built from `backend_id`,
 // `backend_version` and the SynthRequest — text, locale, voice, speed. What
 // a Kokoro server produces depends on the model it loaded, and that reaches
 // the key only through this string.
