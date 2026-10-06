@@ -16,8 +16,8 @@ use teleprompt_core::Severity;
 use teleprompt_script::ast::{slugify, Node};
 use teleprompt_script::parse::parse_script;
 
-use crate::lsp::text::LineIndex;
-use crate::lsp::{complete, symbols, Analysis, Analyzer, Definition, Project};
+use crate::text::LineIndex;
+use crate::{complete, symbols, Analysis, Analyzer, Definition, Project};
 
 type Failure = Box<dyn Error + Send + Sync>;
 
@@ -101,7 +101,7 @@ impl<A: Analyzer> Server<A> {
             _ => return None,
         };
         let path = uri.to_file_path().ok()?;
-        let analysis = if crate::lsp::is_script(&text) {
+        let analysis = if crate::is_script(&text) {
             self.analyzer.analyze(&path, &text)
         } else {
             Analysis::default()
@@ -116,7 +116,7 @@ impl<A: Analyzer> Server<A> {
         let params = &request.params;
         let uri: Url = serde_json::from_value(params["textDocument"]["uri"].clone()).ok()?;
         let document = self.documents.get(&uri)?;
-        if !crate::lsp::is_script(&document.text) {
+        if !crate::is_script(&document.text) {
             return None;
         }
         let path = uri.to_file_path().ok()?;

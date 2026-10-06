@@ -101,11 +101,11 @@ fn router(server: Arc<Server>) -> Router {
 }
 
 /// Refuses a request that names another host or comes from another
-/// site's page (`crate::serve::loopback`), and lets no answer be cached.
+/// site's page (`crate::loopback`), and lets no answer be cached.
 async fn guard(request: Request, next: Next) -> Response {
     let refused = {
         let header = |name| request.headers().get(name).and_then(|v| v.to_str().ok());
-        crate::serve::loopback::refused(header(HOST), header(ORIGIN))
+        crate::loopback::refused(header(HOST), header(ORIGIN))
     };
     if let Some(why) = refused {
         return (StatusCode::FORBIDDEN, why).into_response();
@@ -283,7 +283,7 @@ async fn open_route(
 /// `teleprompt setup --uses` says it.
 async fn uses_route(State(server): Shared) -> Response {
     let registry = server.registry;
-    let uses = block_in_place(move || crate::setup::Setup::detect(registry).uses());
+    let uses = block_in_place(move || teleprompt_setup::Setup::detect(registry).uses());
     json(serde_json::to_value(uses).unwrap_or_default())
 }
 
@@ -306,7 +306,7 @@ async fn install_route(
     if uses.is_empty() {
         return (StatusCode::BAD_REQUEST, "uses= names what to set up").into_response();
     }
-    if let Err(why) = crate::setup::resolve(server.registry, &uses) {
+    if let Err(why) = teleprompt_setup::resolve(server.registry, &uses) {
         return failure(StatusCode::BAD_REQUEST, None, vec![why]);
     }
     let dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

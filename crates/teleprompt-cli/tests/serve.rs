@@ -10,10 +10,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use teleprompt::serve::prompt_on;
-use teleprompt::serve::prompter::{Prompt, ShotCue};
 use teleprompt_core::{Hash, LineId};
 use teleprompt_listen::{Heard, Position, Recognizer};
+use teleprompt_serve::prompt_on;
+use teleprompt_serve::prompter::{Prompt, ShotCue};
 
 /// Hears what the test says, one hypothesis per chunk, and counts the
 /// samples it was given.
@@ -529,7 +529,7 @@ fn compiled_tour(tag: &str) -> teleprompt_compile::CompileOutput {
 fn each_shot_is_cued_where_its_policy_starts_it() {
     use teleprompt_listen::Position;
     let compiled = compiled_tour("prompt-cues");
-    let cues = teleprompt::serve::prompter::shot_cues(&compiled);
+    let cues = teleprompt_serve::prompter::shot_cues(&compiled);
     let at: Vec<Position> = cues.iter().map(|c| c.at).collect();
     let pos = |line, word| Position { line, word };
     assert_eq!(at, [pos(0, 0), pos(1, 0), pos(1, 7), pos(2, 1)]);
@@ -658,7 +658,7 @@ fn a_take_discarded_over_the_socket_keeps_nothing() {
 fn the_listening_event_is_the_example() {
     let addr: SocketAddr = "127.0.0.1:7879".parse().unwrap();
     assert_eq!(
-        teleprompt::serve::listening_event(addr),
+        teleprompt_serve::listening_event(addr),
         example("listening.json")
     );
 }
@@ -701,14 +701,14 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
         moved.shots[1].at = Position { line: 0, word: 5 };
         moved
     }));
-    let reload: teleprompt::serve::Reload = Box::new(move || edited.lock().unwrap().take());
+    let reload: teleprompt_serve::Reload = Box::new(move || edited.lock().unwrap().take());
     std::thread::spawn(move || {
-        teleprompt::serve::prompt_watching(
+        teleprompt_serve::prompt_watching(
             teleprompt_registry::registry(),
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
-            Some(teleprompt::serve::Edits {
+            Some(teleprompt_serve::Edits {
                 reload,
                 keep_said: Box::new(|_| Ok(())),
                 edit: Box::new(|_| Ok(())),
@@ -728,7 +728,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
 
 /// Serves `serve` with `keep_said` for the edits, and no reload.
 fn prompting_with_keep(
-    keep_said: teleprompt::serve::KeepSaid,
+    keep_said: teleprompt_serve::KeepSaid,
 ) -> (SocketAddr, teleprompt_testkit::TestDir) {
     let clips = teleprompt_testkit::test_dir("prompt-keep");
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
@@ -741,7 +741,7 @@ fn prompting_with_keep(
         clips: teleprompt::project::CacheDir::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
-    let edits = teleprompt::serve::Edits {
+    let edits = teleprompt_serve::Edits {
         reload: Box::new(|| None),
         keep_said,
         edit: Box::new(|_| Ok(())),
@@ -751,7 +751,7 @@ fn prompting_with_keep(
         listens: true,
     };
     std::thread::spawn(move || {
-        teleprompt::serve::prompt_watching(
+        teleprompt_serve::prompt_watching(
             teleprompt_registry::registry(),
             listener,
             prompt,

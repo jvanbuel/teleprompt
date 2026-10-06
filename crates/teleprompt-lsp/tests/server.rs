@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::Url;
 use serde_json::{json, Value};
-use teleprompt::lsp::{Analysis, Analyzer, Definition, Project};
 use teleprompt_core::{Diagnostic, SourceSpan};
+use teleprompt_lsp::{Analysis, Analyzer, Definition, Project};
 
 struct Stub {
     toml: PathBuf,
@@ -95,7 +95,7 @@ fn started(script: &str) -> (Editor, Url, std::thread::JoinHandle<()>) {
     let (client, server) = Connection::memory();
     let toml = std::env::temp_dir().join("teleprompt-lsp-test.toml");
     let handle = std::thread::spawn(move || {
-        teleprompt::lsp::serve(server, Stub { toml }).unwrap();
+        teleprompt_lsp::serve(server, Stub { toml }).unwrap();
     });
     let mut editor = Editor {
         conn: client,
@@ -196,13 +196,13 @@ fn a_markdown_file_that_is_not_a_script_is_left_alone() {
     let published = editor.wait("textDocument/publishDiagnostics");
     assert_eq!(published["diagnostics"], json!([]));
     stop(editor, handle);
-    assert!(teleprompt::lsp::is_script(
+    assert!(teleprompt_lsp::is_script(
         "---\nteleprompt: 1\n---\n\n# A\n"
     ));
-    assert!(teleprompt::lsp::is_script(
+    assert!(teleprompt_lsp::is_script(
         "# A\n\nHi.\n\n```teleprompt scene=mock\n```\n"
     ));
-    assert!(!teleprompt::lsp::is_script(
+    assert!(!teleprompt_lsp::is_script(
         "---\ntitle: Notes\n---\n\n# A\n"
     ));
 }

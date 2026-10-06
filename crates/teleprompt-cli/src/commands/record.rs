@@ -1,4 +1,4 @@
-use teleprompt::draft::record::*;
+use teleprompt_draft::record::*;
 
 /// What `record` records, and where it writes.
 #[derive(clap::Args)]
@@ -49,7 +49,7 @@ pub struct Args {
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::cli::{emit, emit_data, runtime_failure};
     use crate::output::Outcome;
-    use teleprompt::setup;
+    use teleprompt_setup as setup;
     if args.tools {
         let tools = tools(crate::cli::registry());
         let human: String = tools

@@ -56,18 +56,29 @@ ALLOWED = {
     # recognizer hears.
     "derive": {"core", "script", "listen"},
     "testkit": set(),  # dev-dependency only; never a normal dependency
-    # The engine: a project's scripts compiled, dubbed, captured and
-    # built, the prompter, the drafts, the language server and setup. It
-    # is handed its scene plugins and voices as a `Registry` and knows
-    # none by name, so no plugin crate and no voice is here.
+    # A project and what the commands do to its scripts: compiled, dubbed,
+    # captured, built, edited and translated. It is handed its scene
+    # plugins and voices as a `Registry` and knows none by name, so no
+    # plugin crate and no voice is here.
     "teleprompt": {
         "core", "script", "scene", "plugin", "schedule", "voice", "manifest",
-        "compile", "render", "derive", "translate", "listen",
+        "compile", "render", "translate",
     },
     # The one crate that knows every scene plugin and voice by name.
     "registry": {"teleprompt", "plugin", "voice", "voices"} | PLUGIN_CRATES,
-    # The command line over the engine, and the types its flags name.
-    "cli": {"teleprompt", "registry", "core"},
+    # What `setup` finds and installs: what the plugins and voices need.
+    "setup": {"teleprompt", "plugin"},
+    # The language server, with the real compile as its analyzer.
+    "lsp": {"teleprompt", "core", "script"},
+    # Drafts from what was said: `import` and `record`.
+    "draft": {"teleprompt", "setup", "core", "script", "derive", "listen", "plugin", "voice"},
+    # The prompter: its page, API and session, following a reader by ear.
+    "serve": {
+        "teleprompt", "setup", "core", "script", "compile", "manifest", "schedule",
+        "listen", "voice",
+    },
+    # The command line, composing the rest; the types its flags name.
+    "cli": {"teleprompt", "registry", "setup", "lsp", "draft", "serve", "core"},
 }
 
 PREFIX = "teleprompt-"

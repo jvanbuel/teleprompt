@@ -1,8 +1,8 @@
 //! `import` with the conversation's recording: each line speaks its stretch
 //! of it, in its speaker's own voice, until it is reworded.
 
-use teleprompt::draft::document::{run_document, Audio, Reading};
 use teleprompt::project::Project;
+use teleprompt_draft::document::{run_document, Audio, Reading};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 

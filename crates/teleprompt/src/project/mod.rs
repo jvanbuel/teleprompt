@@ -24,7 +24,7 @@ pub struct Project {
 /// The directory a script lives in. `Path::new("demo.md").parent()` is
 /// `Some("")`, not `None`, and `""` does not canonicalize, so the bare
 /// filename case needs `.` spelled out.
-pub(crate) fn script_dir(script: &Path) -> &Path {
+pub fn script_dir(script: &Path) -> &Path {
     match script.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
         _ => Path::new("."),
@@ -181,7 +181,7 @@ impl Project {
 
     /// The file `config` was read from, which diagnostics about project
     /// settings point at rather than at the script being compiled.
-    pub(crate) fn config_path(&self) -> PathBuf {
+    pub fn config_path(&self) -> PathBuf {
         self.root.join("teleprompt.toml")
     }
 

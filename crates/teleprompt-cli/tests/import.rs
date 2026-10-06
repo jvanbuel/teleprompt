@@ -4,8 +4,8 @@
 
 use std::path::{Path, PathBuf};
 
-use teleprompt::draft::import::{run_import, Import, Words};
 use teleprompt::project::Project;
+use teleprompt_draft::import::{run_import, Import, Words};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
@@ -86,7 +86,7 @@ fn import(
     s: &Session,
     script: &Path,
     force: bool,
-) -> Result<teleprompt::draft::import::ImportReport, String> {
+) -> Result<teleprompt_draft::import::ImportReport, String> {
     run_import(&Import {
         registry: teleprompt_registry::registry(),
         recording: &s.cast,

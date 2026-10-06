@@ -2007,20 +2007,11 @@ dependencies = [
 name = "teleprompt"
 version = "0.1.0"
 dependencies = [
- "axum",
- "futures-util",
- "lsp-server",
- "lsp-types",
- "portable-pty",
  "serde",
  "serde_json",
  "serde_yaml",
- "signal-hook",
- "tabled",
  "teleprompt-compile",
  "teleprompt-core",
- "teleprompt-derive",
- "teleprompt-listen",
  "teleprompt-manifest",
  "teleprompt-plugin",
  "teleprompt-render",
@@ -2058,12 +2049,16 @@ dependencies = [
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-derive",
+ "teleprompt-draft",
  "teleprompt-listen",
+ "teleprompt-lsp",
  "teleprompt-manifest",
  "teleprompt-plugin",
  "teleprompt-registry",
  "teleprompt-schedule",
  "teleprompt-script",
+ "teleprompt-serve",
+ "teleprompt-setup",
  "teleprompt-testkit",
  "teleprompt-voice",
  "tempfile",
@@ -2119,10 +2114,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-draft"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "teleprompt",
+ "teleprompt-core",
+ "teleprompt-derive",
+ "teleprompt-listen",
+ "teleprompt-plugin",
+ "teleprompt-script",
+ "teleprompt-setup",
+ "teleprompt-testkit",
+ "teleprompt-voice",
+]
+
+[[package]]
 name = "teleprompt-listen"
 version = "0.1.0"
 dependencies = [
  "sherpa-onnx",
+]
+
+[[package]]
+name = "teleprompt-lsp"
+version = "0.1.0"
+dependencies = [
+ "lsp-server",
+ "lsp-types",
+ "serde",
+ "serde_json",
+ "teleprompt",
+ "teleprompt-core",
+ "teleprompt-script",
 ]
 
 [[package]]
@@ -2231,6 +2257,37 @@ dependencies = [
  "serde_yaml",
  "teleprompt-core",
  "toml",
+]
+
+[[package]]
+name = "teleprompt-serve"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "teleprompt",
+ "teleprompt-compile",
+ "teleprompt-core",
+ "teleprompt-listen",
+ "teleprompt-manifest",
+ "teleprompt-schedule",
+ "teleprompt-script",
+ "teleprompt-setup",
+ "teleprompt-voice",
+ "tokio",
+]
+
+[[package]]
+name = "teleprompt-setup"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tabled",
+ "teleprompt",
+ "teleprompt-plugin",
 ]
 
 [[package]]

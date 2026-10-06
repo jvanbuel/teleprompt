@@ -13,11 +13,15 @@ path = "src/main.rs"
 # Opt-in: it downloads a native library when it builds, and the default
 # build stays offline.
 [features]
-listen = ["teleprompt/listen"]
+listen = ["teleprompt-draft/listen", "teleprompt-serve/listen", "teleprompt-setup/listen"]
 
 [dependencies]
 teleprompt = { path = "../teleprompt" }
 teleprompt-registry = { path = "../teleprompt-registry" }
+teleprompt-setup = { path = "../teleprompt-setup" }
+teleprompt-lsp = { path = "../teleprompt-lsp" }
+teleprompt-draft = { path = "../teleprompt-draft" }
+teleprompt-serve = { path = "../teleprompt-serve" }
 teleprompt-core = { path = "../teleprompt-core" }
 clap.workspace = true
 inquire = "0.9"

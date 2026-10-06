@@ -208,7 +208,7 @@ impl Backends {
     /// Separate from [`diagnostics`](Self::diagnostics): `check` asks
     /// whether this script compiles, which an unselected backend cannot
     /// affect; `setup` asks what is wrong, which it is.
-    pub(crate) fn unusable_diagnostics(&self) -> Vec<Diagnostic> {
+    pub fn unusable_diagnostics(&self) -> Vec<Diagnostic> {
         self.unusable
             .iter()
             .map(|(id, why)| {

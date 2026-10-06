@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use teleprompt_derive::{derive, Draft, Line, Options, Word};
 use teleprompt_plugin::record::Recorded;
 
-use crate::registry::{Recording, Registry};
+use teleprompt::registry::{Recording, Registry};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
-use crate::project::Project;
+use teleprompt::project::Project;
 
 /// Where the words come from.
 pub enum Words<'a> {
@@ -165,7 +165,7 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
         .unwrap_or_default()
         .to_string_lossy();
     let include = format!("recordings/{stem}.{}", session.recorder.extension());
-    let recording = crate::project::script_dir(session.script).join(&include);
+    let recording = teleprompt::project::script_dir(session.script).join(&include);
     if recording.exists() && !session.force {
         return Err(format!(
             "{} already exists; pass --force to replace it",
@@ -266,7 +266,7 @@ fn hear(words: &Words, pcm: &Pcm, offset_ms: i64) -> Result<Vec<Word>, String> {
 
 #[cfg(feature = "listen")]
 fn transcribe(dir: &Path, pcm: &Pcm) -> Result<Vec<(String, u64, u64)>, String> {
-    let samples = crate::draft::listening::at_16k(pcm);
+    let samples = crate::listening::at_16k(pcm);
     Ok(teleprompt_listen::sherpa::transcribe(dir, &samples)?
         .into_iter()
         .map(|w| (w.text, w.start_ms, w.end_ms))

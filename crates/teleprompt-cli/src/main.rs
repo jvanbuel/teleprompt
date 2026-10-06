@@ -166,7 +166,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let format = cli.format;
     output::set_progress_format(format);
-    teleprompt::setup::on_missing(ask::offer);
+    teleprompt_setup::on_missing(ask::offer);
     let outcome = run(cli.command, format).unwrap_or_else(|failure| fail(format, failure));
     ExitCode::from(exit_code_for(&outcome) as u8)
 }
@@ -182,7 +182,7 @@ fn run(command: Command, format: Format) -> Run {
         Command::Translate(args) => translate::run(args, format),
         Command::Record(args) => record::run(args, format),
         Command::Lsp => {
-            teleprompt::lsp::run_lsp(cli::registry()).map_err(cli::runtime_failure)?;
+            teleprompt_lsp::run_lsp(cli::registry()).map_err(cli::runtime_failure)?;
             Ok(Outcome::Ok)
         }
         Command::Check(args) => check::run(args, format),

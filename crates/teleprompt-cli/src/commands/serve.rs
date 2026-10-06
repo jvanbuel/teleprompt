@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use teleprompt::serve::*;
+use teleprompt_serve::*;
 
 use crate::output::{Format, Outcome};
 
@@ -35,7 +35,7 @@ pub fn run(args: Args, format: Format) -> crate::cli::Run {
     }
     let model = (!args.voice).then(|| {
         args.model
-            .or_else(|| teleprompt::setup::speech_model(None).ok())
+            .or_else(|| teleprompt_setup::speech_model(None).ok())
     });
     run_serve(
         crate::cli::registry(),

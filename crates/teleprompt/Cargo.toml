@@ -7,15 +7,8 @@ license.workspace = true
 
 # The prompter's speech recognizer. Opt-in: it downloads a native library
 # when it builds, and the default build stays offline.
-[features]
-listen = ["teleprompt-listen/sherpa"]
-
 [dependencies]
 teleprompt-compile = { path = "../teleprompt-compile" }
-teleprompt-derive = { path = "../teleprompt-derive" }
-teleprompt-listen = { path = "../teleprompt-listen" }
-# `setup`: the installed plugins, as a table.
-tabled = { version = "0.20", default-features = false, features = ["std"] }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-script = { path = "../teleprompt-script" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
@@ -34,24 +27,7 @@ serde_yaml.workspace = true
 # `time` is for `tokio::time::timeout` around `setup`'s voice probe: `setup`
 # is the command reached for when something is broken, so it must not
 # itself wait out a hanging server's full synthesis `timeout_ms`.
-# `net` is for `serve`'s listener.
-tokio = { workspace = true, features = ["sync", "time", "net"] }
-# `serve`: the prompter's page, its API and the session's WebSocket, on
-# loopback, over HTTP/1.1 only.
-axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "query"] }
-# The stream a capture or build's progress is written to the page from.
-futures-util = { version = "0.3", default-features = false }
-# `lsp`: the language server's protocol.
-lsp-server = "0.7"
-lsp-types = "0.95"
-
-[target.'cfg(unix)'.dependencies]
-# SIGTERM stops a recording and still drafts it, for the app's Stop.
-signal-hook = "0.3"
-
-# `record`'s tests give it a terminal, as the recording tools need one.
-[target.'cfg(unix)'.dev-dependencies]
-portable-pty = "0.9"
+tokio = { workspace = true, features = ["sync", "time"] }
 
 [dev-dependencies]
 teleprompt-testkit = { path = "../teleprompt-testkit" }

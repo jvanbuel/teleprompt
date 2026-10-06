@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use teleprompt::draft::document;
-use teleprompt::draft::import::*;
-use teleprompt::setup;
+use teleprompt_draft::document;
+use teleprompt_draft::import::*;
+use teleprompt_setup as setup;
 
 use crate::cli::{emit, runtime_failure, Run};
 use crate::output::{Format, Outcome};

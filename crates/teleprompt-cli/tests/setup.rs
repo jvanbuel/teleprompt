@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-use teleprompt::setup::{resolve, tools, Manager, Platform};
+use teleprompt_setup::{resolve, tools, Manager, Platform};
 
 fn mac() -> Platform {
     Platform::new("macos", &[Manager::Brew])
@@ -253,14 +253,14 @@ fn gemini_is_explained_as_a_service() {
 /// takes too: `setup conversations` is the models a recording needs.
 #[test]
 fn every_goal_is_a_name_setup_takes() {
-    use teleprompt::setup::GOALS;
+    use teleprompt_setup::GOALS;
     for goal in GOALS {
         let tools = resolve(teleprompt_registry::registry(), &[goal.name.to_string()])
             .unwrap_or_else(|e| panic!("{}: {e}", goal.name));
         assert!(!tools.is_empty(), "{}", goal.name);
         // A goal is not also a tool's name, which it would hide.
         assert!(
-            teleprompt::setup::tools(teleprompt_registry::registry())
+            teleprompt_setup::tools(teleprompt_registry::registry())
                 .iter()
                 .all(|t| t.name != goal.name),
             "{}",
@@ -278,7 +278,7 @@ fn every_goal_is_a_name_setup_takes() {
 /// every build.
 #[test]
 fn only_listening_goals_need_the_speech_models() {
-    use teleprompt::setup::{download_mb, GOALS};
+    use teleprompt_setup::{download_mb, GOALS};
     for goal in GOALS {
         let tools = resolve(teleprompt_registry::registry(), &[goal.name.to_string()]).unwrap();
         let models = tools

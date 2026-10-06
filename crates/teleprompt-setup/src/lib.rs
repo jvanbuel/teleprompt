@@ -12,8 +12,8 @@ use serde::Serialize;
 mod catalogue;
 pub mod plugins;
 
-use crate::registry::Registry;
 pub use catalogue::{download_mb, tools, Goal, GOALS};
+use teleprompt::registry::Registry;
 use teleprompt_plugin::tool::Found;
 pub use teleprompt_plugin::tool::{Manager, Tool};
 
@@ -103,7 +103,7 @@ pub fn on_missing(offer: Offer) {
 }
 
 /// Whether `names`, needed to `why`, were offered and are now installed.
-pub(crate) fn offer(names: &[&str], why: &str) -> bool {
+pub fn offer(names: &[&str], why: &str) -> bool {
     OFFER.get().is_some_and(|offer| offer(names, why))
 }
 
@@ -113,7 +113,7 @@ pub fn speech_model(given: Option<&Path>) -> Result<PathBuf, String> {
         .map(Path::to_path_buf)
         .or_else(|| installed_model("speech-model"))
         .or_else(|| {
-            crate::setup::offer(&["speech-model"], "listen")
+            crate::offer(&["speech-model"], "listen")
                 .then(|| installed_model("speech-model"))
                 .flatten()
         })
@@ -252,7 +252,7 @@ pub struct ProjectVoice {
 }
 
 /// [`ProjectVoice`] for `project`, asking its backend's server.
-pub async fn project_voice(project: &crate::project::Project) -> ProjectVoice {
+pub async fn project_voice(project: &teleprompt::project::Project) -> ProjectVoice {
     let backends = project.backends();
     let backend = project
         .config
@@ -285,7 +285,7 @@ pub struct Setup {
 impl Setup {
     pub fn detect(registry: Registry) -> Self {
         let here = PathBuf::from(".");
-        let project = crate::project::Project::discover(&here, registry)
+        let project = teleprompt::project::Project::discover(&here, registry)
             .map(|p| p.root.clone())
             .unwrap_or(here);
         Self {
@@ -373,17 +373,17 @@ impl Setup {
                 continue;
             };
             let command = without_a_terminal(&command)?;
-            crate::progress::progress(
+            teleprompt::progress::progress(
                 "install",
                 || format!("installing {}: {command}", tool.name),
                 serde_json::json!({ "tool": tool.name, "state": "start", "command": command }),
             );
-            if crate::progress::json() {
+            if teleprompt::progress::json() {
                 self.run_quietly(tool, &command)?;
             } else {
                 self.run_aloud(&command)?;
             }
-            crate::progress::progress(
+            teleprompt::progress::progress(
                 "install",
                 || format!("installed {}", tool.name),
                 serde_json::json!({ "tool": tool.name, "state": "done" }),
@@ -437,7 +437,7 @@ impl Setup {
             let mb = downloaded_mb(&self.platform.models).min(of.unwrap_or(0));
             if let (Some(of), true) = (of, mb > said) {
                 said = mb;
-                crate::progress::progress(
+                teleprompt::progress::progress(
                     "install",
                     String::new,
                     serde_json::json!({

@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use teleprompt::draft::import::{run_import, Import, Words};
+use teleprompt_draft::import::{run_import, Import, Words};
 use teleprompt_voice::{wav, Pcm};
 
 fn model() -> Option<PathBuf> {

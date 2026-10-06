@@ -2,6 +2,7 @@
 //! and lines reworded alike.
 
 use teleprompt::project::Project;
+use teleprompt_serve::Prompted;
 
 #[test]
 fn an_edited_script_is_reloaded_shots_and_lines_alike() {

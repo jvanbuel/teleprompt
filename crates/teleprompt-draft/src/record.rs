@@ -1,7 +1,7 @@
 //! `teleprompt record <script> --with <plugin>`: the plugin's own tool
 //! records the author at work (asciinema, `vhs record`, `playwright
 //! codegen`), and ffmpeg records the microphone beside it. When the tool
-//! finishes, the two are drafted into `<script>` (`crate::draft::import`).
+//! finishes, the two are drafted into `<script>` (`crate::import`).
 
 use std::io::Write;
 use std::path::Path;
@@ -13,9 +13,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use teleprompt_plugin::record::Start;
 
-use crate::draft::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
-use crate::project::Project;
-use crate::registry::{Recording, Registry};
+use crate::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
+use teleprompt::project::Project;
+use teleprompt::registry::{Recording, Registry};
 
 pub struct Record<'a> {
     pub registry: Registry,

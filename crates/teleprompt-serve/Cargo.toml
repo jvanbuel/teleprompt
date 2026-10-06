@@ -1,0 +1,33 @@
+[package]
+name = "teleprompt-serve"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+# `listen`: follow the reader by ear, with the speech model `setup`
+# installs. Without it, the prompter reads the script with its voice.
+[features]
+listen = ["teleprompt-listen/sherpa", "teleprompt-setup/listen"]
+
+[dependencies]
+teleprompt = { path = "../teleprompt" }
+teleprompt-setup = { path = "../teleprompt-setup" }
+teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-script = { path = "../teleprompt-script" }
+teleprompt-compile = { path = "../teleprompt-compile" }
+teleprompt-manifest = { path = "../teleprompt-manifest" }
+teleprompt-schedule = { path = "../teleprompt-schedule" }
+teleprompt-listen = { path = "../teleprompt-listen" }
+teleprompt-voice = { path = "../teleprompt-voice" }
+serde.workspace = true
+serde_json.workspace = true
+# `net` for the listener; the page, its API and the session's WebSocket
+# are served with axum on loopback, over HTTP/1.1 only.
+tokio = { workspace = true, features = ["net"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "query"] }
+# The stream a capture or build's progress is written to the page from.
+futures-util = { version = "0.3", default-features = false }
+
+[lints]
+workspace = true

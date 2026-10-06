@@ -8,15 +8,15 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::UNIX_EPOCH;
 
-use crate::dub::publish::Published;
+use teleprompt::dub::publish::Published;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_manifest::NarrationManifest;
 use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::VoiceBackend;
 
-use crate::dub;
-use crate::project::{fingerprint, translation_path, Compiled, Script};
-use crate::Failure;
+use teleprompt::dub;
+use teleprompt::project::{fingerprint, translation_path, Compiled, Script};
+use teleprompt::Failure;
 use teleprompt_core::Hash;
 
 /// A script's voice, compiled afresh when what it is compiled from has
@@ -41,7 +41,7 @@ struct Voiced {
     /// The narrator's backend.
     backend: Arc<dyn VoiceBackend>,
     /// Every backend a line is spoken by, the narrator's included.
-    voices: crate::voice::Voices,
+    voices: teleprompt::voice::Voices,
     lines: Vec<NarrationDetail>,
     length_ms: u64,
     /// Each line and shot in time, as [`timeline_json`] says it.
@@ -307,7 +307,7 @@ fn line_audio(line: &NarrationDetail, cache: &VoiceCache) -> serde_json::Value {
     let url = format!("/api/v1/voice/{}.wav", line.line_id);
     let instruct = line.synth_request.instruct.clone();
     if let Some(take) = &line.take {
-        let words = crate::serve::prompter::word_starts(&line.text, take.duration_ms);
+        let words = crate::prompter::word_starts(&line.text, take.duration_ms);
         return serde_json::json!({
             "audio": { "source": "take", "url": url, "ready": true,
                        "duration_ms": take.duration_ms, "words": words },
@@ -326,7 +326,7 @@ fn line_audio(line: &NarrationDetail, cache: &VoiceCache) -> serde_json::Value {
             // script counts words; spread over the line otherwise.
             let words = match meta.word_timings {
                 Some(t) if t.len() == count => t.iter().map(|w| w.start_ms).collect(),
-                _ => crate::serve::prompter::word_starts(&line.text, meta.duration_ms),
+                _ => crate::prompter::word_starts(&line.text, meta.duration_ms),
             };
             (Some(meta.duration_ms), Some(words))
         }

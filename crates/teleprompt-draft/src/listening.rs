@@ -6,7 +6,7 @@ use teleprompt_listen::SpeakerSpan;
 use teleprompt_voice::Pcm;
 
 #[cfg(feature = "listen")]
-use crate::setup;
+use teleprompt_setup as setup;
 
 /// A word heard, and when: its text, start and end, in milliseconds.
 pub type Heard = (String, u64, u64);
@@ -36,7 +36,7 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
         })
         .collect();
     let punctuation = setup::punctuation_model(None).or_else(|| {
-        crate::setup::offer(
+        teleprompt_setup::offer(
             &["punctuation-model"],
             "give the draft capitals and full stops",
         )
@@ -60,7 +60,7 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
             .collect(),
     };
     let speaker_models = setup::speaker_models().or_else(|| {
-        crate::setup::offer(&["speaker-model"], "tell the voices apart")
+        teleprompt_setup::offer(&["speaker-model"], "tell the voices apart")
             .then(setup::speaker_models)
             .flatten()
     });

@@ -16,7 +16,7 @@ use crate::project::{CacheDir, Clips, Compiled, Script};
 use crate::voice::Backends;
 use crate::Failure;
 
-pub(crate) mod publish;
+pub mod publish;
 
 /// A script dubbed, in state `S`: [`Written`] under an output root, or
 /// [`Compared`] with what is there. What only one state has is only in
@@ -144,7 +144,7 @@ struct Rendered {
 /// process may store the same key concurrently; `VoiceCache::store` returns
 /// whichever entry won, so the caller's bytes and the sidecar a recompile
 /// reads are the same entry.
-pub(crate) async fn synthesize_and_store(
+pub async fn synthesize_and_store(
     backend: &Arc<dyn VoiceBackend>,
     cache: &VoiceCache,
     detail: &NarrationDetail,
@@ -235,7 +235,7 @@ impl<'a> Dubber<'a> {
 
 /// A script voiced: every line's audio made or read from its take, and
 /// the manifest that publishes it.
-pub(crate) struct Voiced {
+pub struct Voiced {
     pub compiled: teleprompt_compile::CompileOutput,
     pub published: Published,
     pub warnings: Vec<String>,
@@ -243,7 +243,7 @@ pub(crate) struct Voiced {
 
 /// Voices the script, what `dub` does short of writing it out, and what
 /// the prompter plays.
-pub(crate) async fn voice(script: &Script) -> Result<Voiced, Failure> {
+pub async fn voice(script: &Script) -> Result<Voiced, Failure> {
     let (project, backends) = (script.project(), script.backends());
     // Synthesize only with the backend the keys were computed from; see
     // `Script::compile`.

@@ -1,0 +1,18 @@
+[package]
+name = "teleprompt-lsp"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+teleprompt = { path = "../teleprompt" }
+teleprompt-core = { path = "../teleprompt-core" }
+teleprompt-script = { path = "../teleprompt-script" }
+lsp-server = "0.7"
+lsp-types = "0.95"
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

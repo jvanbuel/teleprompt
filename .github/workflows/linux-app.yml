@@ -9,9 +9,9 @@ on:
       - apps/linux/**
       - apps/fixtures/**
       - docs/api/**
-      - crates/teleprompt/src/serve/**
+      - crates/teleprompt-serve/**
       - crates/teleprompt/src/dub/**
-      - crates/teleprompt/src/setup/**
+      - crates/teleprompt-setup/**
       - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
       - crates/teleprompt-script/**
@@ -23,9 +23,9 @@ on:
       - apps/linux/**
       - apps/fixtures/**
       - docs/api/**
-      - crates/teleprompt/src/serve/**
+      - crates/teleprompt-serve/**
       - crates/teleprompt/src/dub/**
-      - crates/teleprompt/src/setup/**
+      - crates/teleprompt-setup/**
       - crates/teleprompt-cli/tests/page/**
       - crates/teleprompt-core/**
       - crates/teleprompt-script/**

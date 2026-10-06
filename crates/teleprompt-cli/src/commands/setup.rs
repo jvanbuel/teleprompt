@@ -1,4 +1,4 @@
-use teleprompt::setup::*;
+use teleprompt_setup::*;
 
 /// `setup`'s arguments.
 #[derive(clap::Args)]
