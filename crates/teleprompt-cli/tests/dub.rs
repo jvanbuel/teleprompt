@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use teleprompt_cli::cmd::dub::{manifest_path, run_dub};
+use teleprompt_cli::cmd::dub::{manifest_path, Dubber};
 use teleprompt_cli::output::Failure;
 use teleprompt_cli::project::Project;
 use teleprompt_manifest::MANIFEST_VERSION;
@@ -604,12 +604,12 @@ fn null_path_progress_is_document_order_on_every_run() {
 }
 
 // --- The voice list is checked once, before the first line is synthesized. The
-// tests below call `run_dub` in-process rather than through `tp` (the
+// tests below call the `Dubber` in-process rather than through `tp` (the
 // `teleprompt` binary), because the whole point is to observe network traffic
 // (or its absence) mid-command — a subprocess only ever hands back an exit code
 // and captured output.
 
-/// A discovered project plus the two paths `run_dub`/`run_dub_with` want
+/// A discovered project plus the two paths a `Dubber` wants
 /// directly, for tests that call them in-process.
 struct TestProject {
     _dir: teleprompt_testkit::TestDir,
@@ -620,7 +620,7 @@ struct TestProject {
 
 /// Scaffold a project whose `teleprompt.toml` is replaced by `config_toml`
 /// (verbatim TOML — the project's own `backends:` settings are what
-/// `run_dub` builds its registry from, before the script is ever read; see
+/// a `Dubber` builds its registry from, before the script is ever read; see
 /// `Project::compile`'s doc comment), and drop `script` at `scripts/test.md`.
 fn project_with_config_and_script(config_toml: &str, script: &str) -> TestProject {
     let dir = tempdir("inprocess");
@@ -705,7 +705,8 @@ async fn kokoro_stub_listing(voices: &[&str]) -> KokoroStub {
 #[tokio::test]
 async fn dub_with_the_null_backend_makes_no_network_call() {
     let p = project_with_script("# Intro\n\nHello there.\n");
-    run_dub(&p.project, &p.script, "en", &p.out, false)
+    Dubber::new(&p.project, &p.script, "en")
+        .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
 }
@@ -725,7 +726,7 @@ async fn an_unknown_kokoro_voice_fails_before_any_line_is_synthesized() {
         "# Intro\n\nHello there.\n",
     );
 
-    let result = run_dub(&p.project, &p.script, "en", &p.out, false).await;
+    let result = Dubber::new(&p.project, &p.script, "en").dub(&p.out).await;
     let msgs = match result {
         Ok(_) => panic!("an unknown voice must fail validation, not synthesize"),
         Err(Failure::Validation(msgs)) => msgs,
@@ -769,7 +770,7 @@ async fn an_unreachable_kokoro_server_fails_as_a_runtime_error_not_validation() 
         "# Intro\n\nHello there.\n",
     );
 
-    match run_dub(&p.project, &p.script, "en", &p.out, false).await {
+    match Dubber::new(&p.project, &p.script, "en").dub(&p.out).await {
         Ok(_) => panic!("an unreachable server must fail, not synthesize"),
         Err(Failure::Validation(v)) => panic!(
             "an unreachable server is a runtime failure (exit 1), not a script \
@@ -920,7 +921,8 @@ async fn lines_are_synthesized_concurrently_but_collected_in_document_order() {
         "# Segments\n\nFirst line here.\n\nSecond line here.\n\nThird line here.\n",
     );
 
-    run_dub(&p.project, &p.script, "en", &p.out, false)
+    Dubber::new(&p.project, &p.script, "en")
+        .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
 
@@ -968,7 +970,7 @@ async fn a_failure_in_one_line_fails_the_run() {
         "# Failure\n\nOne.\n\nTwo.\n\nThree.\n",
     );
     let start = std::time::Instant::now();
-    let result = run_dub(&p.project, &p.script, "en", &p.out, false).await;
+    let result = Dubber::new(&p.project, &p.script, "en").dub(&p.out).await;
     let elapsed = start.elapsed();
     match result {
         Ok(_) => panic!("a line failure must fail the run"),
@@ -1087,7 +1089,8 @@ async fn identical_narration_text_synthesizes_once_not_once_per_line() {
     let stub = kokoro_call_counting_stub().await;
     let p = project_with_duplicate_narration_text(&stub.base_url);
 
-    run_dub(&p.project, &p.script, "en", &p.out, false)
+    Dubber::new(&p.project, &p.script, "en")
+        .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
 
@@ -1113,7 +1116,8 @@ async fn identical_narration_text_with_a_non_deterministic_backend_still_succeed
     let stub = kokoro_call_counting_stub().await;
     let p = project_with_duplicate_narration_text(&stub.base_url);
 
-    run_dub(&p.project, &p.script, "en", &p.out, false)
+    Dubber::new(&p.project, &p.script, "en")
+        .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
 
@@ -1142,7 +1146,8 @@ async fn identical_narration_text_still_lands_in_document_order_with_matching_au
     let stub = kokoro_call_counting_stub().await;
     let p = project_with_duplicate_narration_text(&stub.base_url);
 
-    run_dub(&p.project, &p.script, "en", &p.out, false)
+    Dubber::new(&p.project, &p.script, "en")
+        .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
 
@@ -1193,7 +1198,8 @@ async fn a_fully_cached_script_dubs_with_the_server_gone() {
     );
 
     // Fill the cache while the server is up.
-    run_dub(&p.project, &p.script, "en", &p.out, false)
+    Dubber::new(&p.project, &p.script, "en")
+        .dub(&p.out)
         .await
         .unwrap_or_else(|e| panic!("{e}"));
 
@@ -1208,7 +1214,8 @@ async fn a_fully_cached_script_dubs_with_the_server_gone() {
     .unwrap();
     let gone = Project::discover(&p.project.root).unwrap();
 
-    run_dub(&gone, &p.script, "en", &p.out, false)
+    Dubber::new(&gone, &p.script, "en")
+        .dub(&p.out)
         .await
         .unwrap_or_else(|e| match e {
             Failure::Validation(v) => panic!("validation: {v:?}"),

@@ -129,7 +129,7 @@ fn samples(wav: &[u8]) -> Vec<i16> {
         .collect()
 }
 
-/// `run_dub` built a `NullVoice` unconditionally while `cache_key` came from
+/// `dub` built a `NullVoice` unconditionally while `cache_key` came from
 /// the *resolved* backend's `id()` and `version()`. With only
 /// `null` registered the two coincided; with a second backend the script asks
 /// for kokoro and gets silence — written into the content-addressed cache under
@@ -139,19 +139,14 @@ async fn dub_synthesizes_with_the_backend_the_script_resolved_to() {
     let (_dir, project, script) = project_with("resolved", SCRIPT);
     let out_root = project.root.join("public/narration");
 
-    let result = teleprompt_cli::cmd::dub::run_dub_with(
-        &registry_with_tone(),
-        &project,
-        &script,
-        "en",
-        &out_root,
-        false,
-    )
-    .await
-    .unwrap_or_else(|e| match e {
-        teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt_cli::output::Failure::Runtime(r) => panic!("runtime: {r}"),
-    });
+    let result = teleprompt_cli::cmd::dub::Dubber::new(&project, &script, "en")
+        .with_backends(registry_with_tone())
+        .dub(&out_root)
+        .await
+        .unwrap_or_else(|e| match e {
+            teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
+            teleprompt_cli::output::Failure::Runtime(r) => panic!("runtime: {r}"),
+        });
 
     assert_eq!(result.manifest.lines.len(), 1);
     let wav = std::fs::read(out_root.join("en").join(&result.manifest.lines[0].audio)).unwrap();
@@ -173,16 +168,11 @@ async fn the_manifest_reports_the_rate_the_backend_actually_produced() {
     let (_dir, project, script) = project_with("rate", SCRIPT);
     let out_root = project.root.join("public/narration");
 
-    let result = teleprompt_cli::cmd::dub::run_dub_with(
-        &registry_with_tone(),
-        &project,
-        &script,
-        "en",
-        &out_root,
-        false,
-    )
-    .await
-    .expect("dub must succeed");
+    let result = teleprompt_cli::cmd::dub::Dubber::new(&project, &script, "en")
+        .with_backends(registry_with_tone())
+        .dub(&out_root)
+        .await
+        .expect("dub must succeed");
 
     assert_eq!(
         result.manifest.audio.sample_rate, TONE_SAMPLE_RATE,
@@ -201,19 +191,14 @@ async fn each_speaker_is_spoken_by_their_own_backend() {
                   **Guest:** Only on Fridays, actually. {#friday}\n";
     let (_dir, project, script) = project_with("cast", script);
     let out_root = project.root.join("public/narration");
-    let result = teleprompt_cli::cmd::dub::run_dub_with(
-        &registry_with_tone(),
-        &project,
-        &script,
-        "en",
-        &out_root,
-        false,
-    )
-    .await
-    .unwrap_or_else(|e| match e {
-        teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt_cli::output::Failure::Runtime(r) => panic!("runtime: {r}"),
-    });
+    let result = teleprompt_cli::cmd::dub::Dubber::new(&project, &script, "en")
+        .with_backends(registry_with_tone())
+        .dub(&out_root)
+        .await
+        .unwrap_or_else(|e| match e {
+            teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
+            teleprompt_cli::output::Failure::Runtime(r) => panic!("runtime: {r}"),
+        });
     let lines = &result.manifest.lines;
     assert_eq!(lines.len(), 2);
     let read = |i: usize| std::fs::read(out_root.join("en").join(&lines[i].audio)).unwrap();
@@ -274,21 +259,16 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
     let (_dir, project, script) = project_with("drawl", DRAWL_SCRIPT);
     let out_root = project.root.join("public/narration");
 
-    let result = teleprompt_cli::cmd::dub::run_dub_with(
-        &registry_with_tone(),
-        &project,
-        &script,
-        "en",
-        &out_root,
-        false,
-    )
-    .await
-    .unwrap_or_else(|e| match e {
-        teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
-        teleprompt_cli::output::Failure::Runtime(r) => {
-            panic!("the first dub of a cold line must not fail: {r}")
-        }
-    });
+    let result = teleprompt_cli::cmd::dub::Dubber::new(&project, &script, "en")
+        .with_backends(registry_with_tone())
+        .dub(&out_root)
+        .await
+        .unwrap_or_else(|e| match e {
+            teleprompt_cli::output::Failure::Validation(v) => panic!("validation: {v:?}"),
+            teleprompt_cli::output::Failure::Runtime(r) => {
+                panic!("the first dub of a cold line must not fail: {r}")
+            }
+        });
 
     let seg = &result.manifest.lines[0];
     let wav = std::fs::read(out_root.join("en").join(&seg.audio)).unwrap();

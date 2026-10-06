@@ -71,7 +71,7 @@ fn read_committed(path: &Path) -> Result<Option<NarrationManifest>, String> {
 ///
 /// Keyed to a key, not a line: the key hashes the text, not the line id
 /// (docs/design.md#voice-cache), so two lines with identical text share
-/// one render. `run_dub_with` groups lines by key so each key is rendered
+/// one render. [`voice`] groups lines by key so each key is rendered
 /// once, by one task, and this run never races itself in `store`.
 struct RenderedAudio {
     wav_bytes: Vec<u8>,
@@ -159,52 +159,71 @@ async fn render_one(
     })
 }
 
-pub async fn run_dub(
-    project: &Project,
-    script: &Path,
-    locale: &str,
-    out_root: &Path,
-    check_only: bool,
-) -> Result<DubOutput, Failure> {
-    // The project's `backends:` settings; a script's front-matter override
-    // does not reach construction, as in `Project::compile`.
-    let backends = project.backends();
-    run_dub_with(&backends, project, script, locale, out_root, check_only).await
+/// Voices one script in one locale, and publishes it under an output root:
+/// `<root>/<locale>/narration.json` and its audio.
+pub struct Dubber<'a> {
+    project: &'a Project,
+    script: &'a Path,
+    locale: &'a str,
+    backends: Backends,
 }
 
-/// [`run_dub`] against caller-supplied backends; the seam exists for the
-/// reason `Project::compile_with` gives.
-pub async fn run_dub_with(
-    backends: &Backends,
-    project: &Project,
-    script: &Path,
-    locale: &str,
-    out_root: &Path,
-    check_only: bool,
-) -> Result<DubOutput, Failure> {
-    let Voiced {
-        compiled,
-        published,
-        warnings,
-    } = voice(backends, project, script, locale).await?;
-    let built = published.manifest.clone();
-    let (written, drift) = if check_only {
-        (
-            Vec::new(),
-            Some(drift_from_committed(out_root, locale, &built)?),
-        )
-    } else {
-        (write_output(out_root, locale, &published)?, None)
-    };
-    Ok(DubOutput {
-        manifest: built,
-        shots: compiled.shots,
-        scenes: compiled.scenes,
-        output: compiled.output,
-        written,
-        warnings,
-        drift,
-    })
+impl<'a> Dubber<'a> {
+    /// With the project's own voices: its `backends:` settings. A script's
+    /// front-matter override does not reach construction, as in
+    /// `Project::compile`.
+    pub fn new(project: &'a Project, script: &'a Path, locale: &'a str) -> Self {
+        Self {
+            project,
+            script,
+            locale,
+            backends: project.backends(),
+        }
+    }
+
+    /// With `backends` instead; the seam exists for the reason
+    /// `Project::compile_with` gives.
+    pub fn with_backends(self, backends: Backends) -> Self {
+        Self { backends, ..self }
+    }
+
+    /// Voices the script and writes it under `out_root`.
+    pub async fn dub(&self, out_root: &Path) -> Result<DubOutput, Failure> {
+        self.run(out_root, false).await
+    }
+
+    /// Voices the script and compares it with the manifest under
+    /// `out_root`, writing nothing there; the difference is in `drift`.
+    pub async fn check(&self, out_root: &Path) -> Result<DubOutput, Failure> {
+        self.run(out_root, true).await
+    }
+
+    async fn run(&self, out_root: &Path, check_only: bool) -> Result<DubOutput, Failure> {
+        let (project, locale) = (self.project, self.locale);
+        let Voiced {
+            compiled,
+            published,
+            warnings,
+        } = voice(&self.backends, project, self.script, locale).await?;
+        let built = published.manifest.clone();
+        let (written, drift) = if check_only {
+            (
+                Vec::new(),
+                Some(drift_from_committed(out_root, locale, &built)?),
+            )
+        } else {
+            (write_output(out_root, locale, &published)?, None)
+        };
+        Ok(DubOutput {
+            manifest: built,
+            shots: compiled.shots,
+            scenes: compiled.scenes,
+            output: compiled.output,
+            written,
+            warnings,
+            drift,
+        })
+    }
 }
 
 /// A script voiced: every line's audio made or read from its take, and
@@ -547,21 +566,22 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::output::Outcome;
     let project = args.script.project()?;
     let locale = args.script.locale(&project);
-    let result = if args.clips {
-        crate::cli::runtime()?.block_on(dub_with_clips(
-            &project,
-            &args.script.script,
-            &locale,
-            &args.out,
-        ))?
+    let dubber = Dubber::new(&project, &args.script.script, &locale);
+    let runtime = crate::cli::runtime()?;
+    let result = if args.check {
+        runtime.block_on(dubber.check(&args.out))?
     } else {
-        crate::cli::runtime()?.block_on(run_dub(
-            &project,
-            &args.script.script,
-            &locale,
-            &args.out,
-            args.check,
-        ))?
+        let mut dubbed = runtime.block_on(dubber.dub(&args.out))?;
+        if args.clips {
+            add_clips(
+                &project,
+                &args.script.script,
+                &locale,
+                &args.out,
+                &mut dubbed,
+            )?;
+        }
+        dubbed
     };
     crate::cli::warn(&result.warnings);
     match &result.drift {
@@ -575,15 +595,17 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     })
 }
 
-/// `dub --clips`: dubs into `out_root`, records the shots not yet captured
-/// as `capture` does, then puts every shot's clip in `<locale>/clips/`. A
-/// shot nothing here can record is left out, with capture's warning.
-pub async fn dub_with_clips(
+/// `dub --clips`, once dubbed into `out_root`: records the shots not yet
+/// captured as `capture` does, then puts every shot's clip in
+/// `<locale>/clips/`. A shot nothing here can record is left out, with
+/// capture's warning.
+fn add_clips(
     project: &Project,
     script: &Path,
     locale: &str,
     out_root: &Path,
-) -> Result<DubOutput, Failure> {
+    dubbed: &mut DubOutput,
+) -> Result<(), Failure> {
     let options = crate::cmd::build::BuildOptions::defaults(project, script, locale);
     let mut progress = |p: teleprompt_plugin::capture::Progress| {
         crate::output::progress(
@@ -592,21 +614,18 @@ pub async fn dub_with_clips(
             serde_json::json!({ "done": p.done, "of": p.of, "scene": p.scene, "shot": p.shot }),
         );
     };
-    let mut dubbed = run_dub(project, script, locale, out_root, false).await?;
-    let frame = options.frame(&dubbed.output);
-    let captured = crate::cmd::capture::run_capture(
-        &dubbed,
+    let scenes = crate::cmd::capture::Scenes::new(
         crate::scene::plugins(),
         &options.clips_dir,
-        frame,
-        &mut progress,
+        options.frame(&dubbed.output),
     );
+    let captured = scenes.capture(dubbed, &mut progress);
     dubbed.warnings.extend(captured.warnings);
     let into = locale_dir(out_root, locale).join("clips");
     let placed = place_clips(&dubbed.manifest, &options.clips_dir, &into)
         .map_err(|e| Failure::Runtime(format!("{}: {e}", into.display())))?;
     dubbed.written.extend(placed);
-    Ok(dubbed)
+    Ok(())
 }
 
 /// Every clip `manifest` names that `cache` holds, in `into`, and nothing

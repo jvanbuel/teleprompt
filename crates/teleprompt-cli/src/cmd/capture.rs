@@ -116,55 +116,72 @@ impl CaptureReport {
     }
 }
 
-/// Record whatever the shots `dub` scheduled are missing from `clips_dir`.
-///
-/// Infallible by design: a scene nothing here can record, or a backend
-/// that fails, is a warning and slates. The timing is still real, and a
-/// video with a hole in it is more use than no video.
-pub fn run_capture(
-    dubbed: &crate::cmd::dub::DubOutput,
-    plugins: &ScenePlugins,
-    clips_dir: &Path,
+/// The scene plugins, recording into a clip directory at one frame size.
+pub struct Scenes<'a> {
+    plugins: &'a ScenePlugins,
+    clips_dir: &'a Path,
     frame: Frame,
-    on_progress: &mut dyn FnMut(Progress),
-) -> CaptureReport {
-    let scenes = &dubbed.scenes;
-    let shots = cues_of(&dubbed.manifest, &dubbed.shots, scenes);
-    let have = |key: &teleprompt_core::Hash| clips_dir.join(format!("{key}.mp4")).is_file();
-    let mut planned = sessions(&shots, &have);
-    for session in &mut planned {
-        if let Some(scene) = scenes.get(&session.scene) {
-            session.root = scene.root.clone();
+}
+
+impl<'a> Scenes<'a> {
+    pub fn new(plugins: &'a ScenePlugins, clips_dir: &'a Path, frame: Frame) -> Self {
+        Self {
+            plugins,
+            clips_dir,
+            frame,
         }
     }
 
-    let mut warnings = Vec::new();
-    let mut captured = 0usize;
-    let mut ran = 0usize;
-    let mut uncaptured = 0usize;
-
-    for session in &planned {
-        let backend = plugins.get(&session.plugin).map(ScenePlugin::capture);
-        match record(backend, session, &frame, clips_dir, on_progress) {
-            Ok(clips) => {
-                captured += clips;
-                ran += 1;
-            }
-            Err(why) => {
-                uncaptured += session.wanted();
-                warnings.push(why);
+    /// Records whatever the shots `dub` scheduled are missing from the clip
+    /// directory.
+    ///
+    /// Infallible by design: a scene nothing here can record, or a backend
+    /// that fails, is a warning and slates. The timing is still real, and a
+    /// video with a hole in it is more use than no video.
+    pub fn capture(
+        &self,
+        dubbed: &crate::cmd::dub::DubOutput,
+        on_progress: &mut dyn FnMut(Progress),
+    ) -> CaptureReport {
+        let clips_dir = self.clips_dir;
+        let scenes = &dubbed.scenes;
+        let shots = cues_of(&dubbed.manifest, &dubbed.shots, scenes);
+        let have = |key: &teleprompt_core::Hash| clips_dir.join(format!("{key}.mp4")).is_file();
+        let mut planned = sessions(&shots, &have);
+        for session in &mut planned {
+            if let Some(scene) = scenes.get(&session.scene) {
+                session.root = scene.root.clone();
             }
         }
-    }
 
-    let total = shots.iter().filter(|b| b.scene != "pause").count();
-    CaptureReport {
-        clips_dir: clips_dir.to_path_buf(),
-        sessions: ran,
-        captured,
-        reused: total.saturating_sub(captured + uncaptured),
-        uncaptured,
-        warnings,
+        let mut warnings = Vec::new();
+        let mut captured = 0usize;
+        let mut ran = 0usize;
+        let mut uncaptured = 0usize;
+
+        for session in &planned {
+            let backend = self.plugins.get(&session.plugin).map(ScenePlugin::capture);
+            match record(backend, session, &self.frame, clips_dir, on_progress) {
+                Ok(clips) => {
+                    captured += clips;
+                    ran += 1;
+                }
+                Err(why) => {
+                    uncaptured += session.wanted();
+                    warnings.push(why);
+                }
+            }
+        }
+
+        let total = shots.iter().filter(|b| b.scene != "pause").count();
+        CaptureReport {
+            clips_dir: clips_dir.to_path_buf(),
+            sessions: ran,
+            captured,
+            reused: total.saturating_sub(captured + uncaptured),
+            uncaptured,
+            warnings,
+        }
     }
 }
 
@@ -239,16 +256,15 @@ pub async fn capture_script(
     };
     // Dubbed afresh rather than read from disk, where the manifest may be
     // stale (docs/design.md#rendering).
-    let dubbed =
-        crate::cmd::dub::run_dub(project, script, locale, &options.narration_root, false).await?;
-    let frame = options.frame(&dubbed.output);
-    Ok(run_capture(
-        &dubbed,
+    let dubbed = crate::cmd::dub::Dubber::new(project, script, locale)
+        .dub(&options.narration_root)
+        .await?;
+    let scenes = Scenes::new(
         crate::scene::plugins(),
         &options.clips_dir,
-        frame,
-        on_progress,
-    ))
+        options.frame(&dubbed.output),
+    );
+    Ok(scenes.capture(&dubbed, on_progress))
 }
 
 /// `capture`'s arguments.
