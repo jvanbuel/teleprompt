@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use teleprompt_compile::publish::{self, LineAudio, Published};
+use publish::{LineAudio, Published};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
 use teleprompt_core::{LineId, SpanMs};
@@ -15,6 +15,8 @@ use teleprompt_voice::VoiceBackend;
 use crate::project::{CacheDir, Clips, Compiled, Script};
 use crate::voice::Backends;
 use crate::Failure;
+
+pub(crate) mod publish;
 
 /// A script dubbed, in state `S`: [`Written`] under an output root, or
 /// [`Compared`] with what is there. What only one state has is only in

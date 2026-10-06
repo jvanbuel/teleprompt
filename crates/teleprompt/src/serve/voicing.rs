@@ -8,7 +8,7 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::UNIX_EPOCH;
 
-use teleprompt_compile::publish::Published;
+use crate::dub::publish::Published;
 use teleprompt_compile::NarrationDetail;
 use teleprompt_manifest::NarrationManifest;
 use teleprompt_voice::cache::VoiceCache;
