@@ -33,9 +33,10 @@ pub fn run(args: Args, format: Format) -> crate::cli::Run {
         // A script outside any project is said as every command says it.
         crate::cli::project_for(script)?;
     }
+    let reporter = crate::output::Terminal::new(format);
     let model = (!args.voice).then(|| {
         args.model
-            .or_else(|| teleprompt_setup::speech_model(None).ok())
+            .or_else(|| teleprompt_setup::speech_model(None, &reporter).ok())
     });
     run_serve(
         crate::cli::registry(),
@@ -46,7 +47,19 @@ pub fn run(args: Args, format: Format) -> crate::cli::Run {
             Some(model) => Ear::Model(model.as_deref()),
             None => Ear::Voice,
         },
-        format == Format::Json,
+        &|addr, opened| {
+            let says = if opened {
+                "open it, click, and read"
+            } else {
+                "open it and choose a script"
+            };
+            eprintln!("prompting at http://{addr}/ — {says}");
+            if format == Format::Json {
+                use std::io::Write;
+                println!("{}", listening_event(addr));
+                let _ = std::io::stdout().flush();
+            }
+        },
     )?;
     Ok(Outcome::Ok)
 }

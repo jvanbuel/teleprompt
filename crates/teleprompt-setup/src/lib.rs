@@ -13,6 +13,7 @@ mod catalogue;
 pub mod plugins;
 
 pub use catalogue::{download_mb, tools, Goal, GOALS};
+use teleprompt_core::progress::{Install, Progress, Reporter};
 use teleprompt_plugin::tool::Found;
 pub use teleprompt_plugin::tool::{Manager, Tool};
 use teleprompt_project::registry::Registry;
@@ -90,30 +91,15 @@ fn installed_model(name: &str) -> Option<PathBuf> {
     Some(models_dir().join(dir)).filter(|p| p.is_dir())
 }
 
-/// How a front end offers to install what a step finds missing: the
-/// tools' names and what they are for, and whether they are now installed.
-pub type Offer = fn(&[&str], &str) -> bool;
-
-static OFFER: std::sync::OnceLock<Offer> = std::sync::OnceLock::new();
-
-/// Lets `offer` be asked whenever a step finds a model it needs missing,
-/// as the command does at a terminal; without one, nothing is asked.
-pub fn on_missing(offer: Offer) {
-    let _ = OFFER.set(offer);
-}
-
-/// Whether `names`, needed to `why`, were offered and are now installed.
-pub fn offer(names: &[&str], why: &str) -> bool {
-    OFFER.get().is_some_and(|offer| offer(names, why))
-}
-
-/// The speech model to listen with: `given`, or the one `setup` installed.
-pub fn speech_model(given: Option<&Path>) -> Result<PathBuf, String> {
+/// The speech model to listen with: `given`, or the one `setup` installed,
+/// or the one `reporter` installs when offered.
+pub fn speech_model(given: Option<&Path>, reporter: &dyn Reporter) -> Result<PathBuf, String> {
     given
         .map(Path::to_path_buf)
         .or_else(|| installed_model("speech-model"))
         .or_else(|| {
-            crate::offer(&["speech-model"], "listen")
+            reporter
+                .offer(&["speech-model"], "listen")
                 .then(|| installed_model("speech-model"))
                 .flatten()
         })
@@ -365,7 +351,11 @@ impl Setup {
     /// at the first that fails. What they print goes to stderr, so stdout
     /// stays the report; for an app (`--format json`), it is kept to say
     /// why one failed, and each tool's start, download and end are events.
-    pub fn install(&self, tools: &[&'static Tool]) -> Result<Vec<String>, String> {
+    pub fn install(
+        &self,
+        tools: &[&'static Tool],
+        reporter: &dyn Reporter,
+    ) -> Result<Vec<String>, String> {
         let mut ran = Vec::new();
         for tool in tools {
             let missing = tool.installed(&self.project, &self.platform.models) == Some(false);
@@ -373,21 +363,21 @@ impl Setup {
                 continue;
             };
             let command = without_a_terminal(&command)?;
-            teleprompt_project::progress::progress(
-                "install",
-                || format!("installing {}: {command}", tool.name),
-                serde_json::json!({ "tool": tool.name, "state": "start", "command": command }),
-            );
-            if teleprompt_project::progress::json() {
-                self.run_quietly(tool, &command)?;
-            } else {
+            reporter.progress(Progress::Install {
+                tool: tool.name.to_string(),
+                state: Install::Start {
+                    command: command.clone(),
+                },
+            });
+            if reporter.attended() {
                 self.run_aloud(&command)?;
+            } else {
+                self.run_quietly(tool, &command, reporter)?;
             }
-            teleprompt_project::progress::progress(
-                "install",
-                || format!("installed {}", tool.name),
-                serde_json::json!({ "tool": tool.name, "state": "done" }),
-            );
+            reporter.progress(Progress::Install {
+                tool: tool.name.to_string(),
+                state: Install::Done,
+            });
             ran.push(command);
         }
         Ok(ran)
@@ -413,7 +403,12 @@ impl Setup {
     /// Runs `command` for an app: its output kept in a log, which says why
     /// it failed if it does, and how far a model's download has got said
     /// as it goes.
-    fn run_quietly(&self, tool: &Tool, command: &str) -> Result<(), String> {
+    fn run_quietly(
+        &self,
+        tool: &Tool,
+        command: &str,
+        reporter: &dyn Reporter,
+    ) -> Result<(), String> {
         let log = std::env::temp_dir().join(format!("teleprompt-setup-{}.log", std::process::id()));
         let file = std::fs::File::create(&log).map_err(|e| format!("{}: {e}", log.display()))?;
         let err = file.try_clone().map_err(|e| e.to_string())?;
@@ -437,13 +432,13 @@ impl Setup {
             let mb = downloaded_mb(&self.platform.models).min(of.unwrap_or(0));
             if let (Some(of), true) = (of, mb > said) {
                 said = mb;
-                teleprompt_project::progress::progress(
-                    "install",
-                    String::new,
-                    serde_json::json!({
-                        "tool": tool.name, "state": "downloading", "mb": mb, "of": of,
-                    }),
-                );
+                reporter.progress(Progress::Install {
+                    tool: tool.name.to_string(),
+                    state: Install::Downloading {
+                        mb: u64::from(mb),
+                        of: u64::from(of),
+                    },
+                });
             }
             std::thread::sleep(std::time::Duration::from_millis(250));
         };

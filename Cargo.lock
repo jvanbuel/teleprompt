@@ -2275,6 +2275,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tabled",
+ "teleprompt-core",
  "teleprompt-plugin",
  "teleprompt-project",
 ]

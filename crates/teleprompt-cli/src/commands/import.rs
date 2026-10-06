@@ -143,17 +143,20 @@ fn run_session_import(format: Format, args: Args) -> Run {
         Some(out) => out,
         None => default_import_script(&args.source)?,
     };
+    let reporter = crate::output::Terminal::new(format);
     let model;
     let words = match &args.words {
         Some(path) => Words::File(path),
         None => {
-            model = setup::speech_model(args.model.as_deref()).map_err(runtime_failure)?;
+            model =
+                setup::speech_model(args.model.as_deref(), &reporter).map_err(runtime_failure)?;
             Words::Model(&model)
         }
     };
     let punctuation = setup::punctuation_model(args.punctuation.as_deref());
     let report = run_import(&Import {
         registry: crate::cli::registry(),
+        reporter: &reporter,
         recording: &args.source,
         with: args.with.as_deref(),
         voice,
@@ -186,12 +189,14 @@ fn run_document_import(format: Format, args: Args) -> Run {
         revoice: &args.revoice,
         speakers: args.speakers,
     };
+    let reporter = crate::output::Terminal::new(format);
     let report = document::run_document(
         crate::cli::registry(),
         &args.source,
         args.out,
         reading,
         audio,
+        &reporter,
     )
     .map_err(runtime_failure)?;
     emit(format, &report, &report.render());

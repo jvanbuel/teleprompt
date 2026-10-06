@@ -154,7 +154,7 @@ impl Voicing {
         let voiced = self
             .runtime()
             .map_err(|e| vec![e])?
-            .block_on(dub::voice(&self.script));
+            .block_on(dub::voice(&self.script, &teleprompt_core::Silent));
         let published = match voiced {
             Ok(voiced) => voiced.published,
             Err(e) => {

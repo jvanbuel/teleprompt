@@ -7,7 +7,7 @@
 //! the runtime's worker.
 
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::net::{SocketAddr, TcpListener};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,6 +27,7 @@ use teleprompt_listen::Recognizer;
 use tokio::task::block_in_place;
 
 use crate::voicing::Voicing;
+use teleprompt_core::Silent;
 use teleprompt_project::project::{Project, Script};
 use teleprompt_project::registry::Registry;
 use teleprompt_project::Failure;
@@ -78,7 +79,7 @@ pub fn run_serve(
     locale: Option<&str>,
     port: u16,
     ear: Ear<'_>,
-    json: bool,
+    listening: &dyn Fn(SocketAddr, bool),
 ) -> Result<(), Failure> {
     let opener = Opener {
         registry,
@@ -102,18 +103,7 @@ pub fn run_serve(
     let addr = listener
         .local_addr()
         .map_err(|e| Failure::Runtime(e.to_string()))?;
-    let says = if opened.is_some() {
-        "open it, click, and read"
-    } else {
-        "open it and choose a script"
-    };
-    eprintln!("prompting at http://{addr}/ — {says}");
-    if json {
-        println!("{}", listening_event(addr));
-        std::io::stdout()
-            .flush()
-            .map_err(|e| Failure::Runtime(e.to_string()))?;
-    }
+    listening(addr, opened.is_some());
     let server = Server::new(registry, opened, Some(opener));
     serve_on(listener, server).map_err(|e| Failure::Runtime(e.to_string()))
 }
@@ -153,7 +143,7 @@ impl Opener {
             let model = self
                 .model
                 .clone()
-                .or_else(|| teleprompt_setup::speech_model(None).ok());
+                .or_else(|| teleprompt_setup::speech_model(None, &Silent).ok());
             recognizer(model.as_deref()).map_err(|e| match e {
                 Failure::Runtime(why) => OpenError::Unheard(why),
                 Failure::Validation(why) => OpenError::Unheard(why.join("\n")),
@@ -195,7 +185,7 @@ impl Opener {
         let model = self
             .model
             .clone()
-            .or_else(|| teleprompt_setup::speech_model(None).ok());
+            .or_else(|| teleprompt_setup::speech_model(None, &Silent).ok());
         serde_json::json!({
             "project": project.as_ref().and_then(|p| p.root.file_name()).map(|n| n.to_string_lossy()),
             "scripts": scripts,

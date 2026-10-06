@@ -17,6 +17,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::cli::{emit, runtime_failure};
     use crate::output::{Format, Outcome};
     let setup = Setup::detect(crate::cli::registry());
+    let reporter = crate::output::Terminal::new(format);
     if args.uses {
         let report = setup.uses();
         emit(format, &report, &report.render());
@@ -25,7 +26,8 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     // Asked rather than listed: what to do with teleprompt, not which tools.
     if args.names.is_empty() && !args.run && format == Format::Human && crate::ask::interactive() {
         let (chosen, tools) = crate::ask::choose(&setup).map_err(runtime_failure)?;
-        let ran = crate::ask::confirm_install(&setup, &tools).map_err(runtime_failure)?;
+        let ran =
+            crate::ask::confirm_install(&setup, &tools, &reporter).map_err(runtime_failure)?;
         let mut report = setup.report(&tools, ran);
         report.voice = voice_here()?;
         report.scenes = plugins::scenes(&setup);
@@ -35,7 +37,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     }
     let tools = resolve(setup.registry, &args.names).map_err(runtime_failure)?;
     let ran = if args.run {
-        setup.install(&tools).map_err(runtime_failure)?
+        setup.install(&tools, &reporter).map_err(runtime_failure)?
     } else {
         Vec::new()
     };

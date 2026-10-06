@@ -89,6 +89,7 @@ fn import(
 ) -> Result<teleprompt_draft::import::ImportReport, String> {
     run_import(&Import {
         registry: teleprompt_registry::registry(),
+        reporter: &teleprompt_core::Silent,
         recording: &s.cast,
         with: None,
         voice: &s.voice,
@@ -210,6 +211,7 @@ fn an_unknown_recording_asks_which_tool_made_it() {
     std::fs::copy(&s.cast, &odd).unwrap();
     let e = run_import(&Import {
         registry: teleprompt_registry::registry(),
+        reporter: &teleprompt_core::Silent,
         recording: &odd,
         with: None,
         voice: &s.voice,
@@ -236,6 +238,7 @@ fn a_vhs_tape_drafts_as_vhs_blocks() {
     let script = s.root.join("scripts/tour.md");
     let report = run_import(&Import {
         registry: teleprompt_registry::registry(),
+        reporter: &teleprompt_core::Silent,
         recording: &tape,
         with: None,
         voice: &s.voice,

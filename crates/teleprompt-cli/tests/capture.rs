@@ -75,7 +75,7 @@ async fn a_build_records_its_scenes_and_renders_no_slates() {
     let builder = builder(&opened);
 
     let report = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -104,11 +104,11 @@ async fn a_second_build_records_nothing_and_still_has_no_slates() {
     let builder = builder(&opened);
 
     builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     let warm = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -131,13 +131,13 @@ async fn editing_the_first_shot_re_records_the_second() {
     let builder = builder(&opened);
 
     builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
     std::fs::write(&script, SCRIPT.replacen("wait 800ms", "wait 900ms", 1)).unwrap();
     let after = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -168,7 +168,7 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
     let none = teleprompt_plugin::ScenePlugins::new([]);
     let report = builder
         .plugins(&none)
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 

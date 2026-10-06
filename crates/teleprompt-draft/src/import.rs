@@ -11,6 +11,7 @@ use crate::derive::{derive, Draft, Line, Options, Word};
 use serde::{Deserialize, Serialize};
 use teleprompt_plugin::record::Recorded;
 
+use teleprompt_core::Reporter;
 use teleprompt_project::registry::{Recording, Registry};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
@@ -28,6 +29,7 @@ pub enum Words<'a> {
 
 pub struct Import<'a> {
     pub registry: Registry,
+    pub reporter: &'a dyn Reporter,
     pub recording: &'a Path,
     /// The plugin whose tool made it; found by its extension when `None`.
     pub with: Option<&'a str>,
@@ -83,6 +85,7 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
         .map_err(|e| format!("{}: {e}", imp.recording.display()))?;
     draft_session(&Session {
         registry: imp.registry,
+        reporter: imp.reporter,
         script: imp.script,
         recorder: &recorder,
         recorded: &recorded,
@@ -132,6 +135,7 @@ pub fn refuse_to_replace(script: &Path, force: bool) -> Result<(), String> {
 /// A recorded session, and the voice recorded beside it.
 pub struct Session<'a> {
     pub registry: Registry,
+    pub reporter: &'a dyn Reporter,
     pub script: &'a Path,
     pub recorder: &'a Recording,
     pub recorded: &'a Recorded,

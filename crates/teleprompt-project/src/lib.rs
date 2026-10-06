@@ -15,7 +15,6 @@ pub mod edit;
 pub mod error;
 pub mod new;
 pub mod plan;
-pub mod progress;
 pub mod project;
 pub mod registry;
 pub mod translate;

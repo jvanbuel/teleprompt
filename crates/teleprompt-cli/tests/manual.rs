@@ -135,7 +135,7 @@ async fn the_manual_renders() {
     let builder = Builder::new(&opened).resolution(320, 180).fps(12);
 
     let report = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("the manual must render: {}", e));
 

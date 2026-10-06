@@ -112,7 +112,11 @@ fn megabytes(tools: &[&Tool]) -> u32 {
 /// Asks whether to install `tools`, those of them that are missing, saying
 /// what each is and its license; and installs them if so. The commands it
 /// ran.
-pub fn confirm_install(setup: &Setup, tools: &[&'static Tool]) -> Result<Vec<String>, String> {
+pub fn confirm_install(
+    setup: &Setup,
+    tools: &[&'static Tool],
+    reporter: &dyn teleprompt_core::Reporter,
+) -> Result<Vec<String>, String> {
     let gone: Vec<&'static Tool> = tools
         .iter()
         .copied()
@@ -136,7 +140,7 @@ pub fn confirm_install(setup: &Setup, tools: &[&'static Tool]) -> Result<Vec<Str
         .prompt()
         .unwrap_or(false);
     if yes {
-        setup.install(&gone)
+        setup.install(&gone, reporter)
     } else {
         Ok(Vec::new())
     }
@@ -155,7 +159,7 @@ fn spoken(name: &str) -> &str {
 /// When a command finds `names` missing: offers to install them `to` do
 /// what they are for, and says whether they are there now. Asks nobody who
 /// is not at a terminal.
-pub fn offer(names: &[&str], to: &str) -> bool {
+pub fn offer(reporter: &dyn teleprompt_core::Reporter, names: &[&str], to: &str) -> bool {
     if !interactive() {
         return false;
     }
@@ -189,7 +193,7 @@ pub fn offer(names: &[&str], to: &str) -> bool {
     if !yes {
         return false;
     }
-    match setup.install(&gone) {
+    match setup.install(&gone, reporter) {
         Ok(_) => true,
         Err(e) => {
             eprintln!("{e}");

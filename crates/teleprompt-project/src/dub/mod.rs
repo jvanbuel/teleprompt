@@ -4,7 +4,7 @@ use std::sync::Arc;
 use publish::{LineAudio, Published};
 use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
-use teleprompt_core::{LineId, SpanMs};
+use teleprompt_core::{LineId, Progress, Reporter, Silent, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
@@ -209,16 +209,26 @@ async fn render_one(
 /// `<root>/<locale>/narration.json` and its audio.
 pub struct Dubber<'a> {
     script: &'a Script,
+    reporter: &'a dyn Reporter,
 }
 
 impl<'a> Dubber<'a> {
+    /// Reporting to nobody until [`reporting`](Self::reporting) says to whom.
     pub fn new(script: &'a Script) -> Self {
-        Self { script }
+        Self {
+            script,
+            reporter: &Silent,
+        }
+    }
+
+    /// Says each line's progress to `reporter`.
+    pub fn reporting(self, reporter: &'a dyn Reporter) -> Self {
+        Self { reporter, ..self }
     }
 
     /// Voices the script and writes it under `out_root`.
     pub async fn dub(&self, out_root: &Path) -> Result<Dubbed<Written>, Failure> {
-        let voiced = voice(self.script).await?;
+        let voiced = voice(self.script, self.reporter).await?;
         let files = write_output(out_root, self.script.locale(), &voiced.published)?;
         Ok(Dubbed::new(voiced, Written { files }))
     }
@@ -226,7 +236,7 @@ impl<'a> Dubber<'a> {
     /// Voices the script and compares it with the manifest under
     /// `out_root`, writing nothing there.
     pub async fn check(&self, out_root: &Path) -> Result<Dubbed<Compared>, Failure> {
-        let voiced = voice(self.script).await?;
+        let voiced = voice(self.script, self.reporter).await?;
         let drift =
             drift_from_committed(out_root, self.script.locale(), &voiced.published.manifest)?;
         Ok(Dubbed::new(voiced, Compared { drift }))
@@ -243,7 +253,7 @@ pub struct Voiced {
 
 /// Voices the script, what `dub` does short of writing it out, and what
 /// the prompter plays.
-pub async fn voice(script: &Script) -> Result<Voiced, Failure> {
+pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, Failure> {
     let (project, backends) = (script.project(), script.backends());
     // Synthesize only with the backend the keys were computed from; see
     // `Script::compile`.
@@ -268,7 +278,7 @@ pub async fn voice(script: &Script) -> Result<Voiced, Failure> {
         .filter(|d| d.take.is_none())
         .cloned()
         .collect();
-    let rendered = render_all(&voices, &cache, &synthesized, limit).await?;
+    let rendered = render_all(&voices, &cache, &synthesized, limit, reporter).await?;
     // The re-render notices come first: they explain why anything below them
     // is being recomputed at all.
     let mut warnings: Vec<String> = rendered
@@ -377,43 +387,28 @@ async fn render_all(
     cache: &Arc<VoiceCache>,
     narration: &[NarrationDetail],
     limit: usize,
+    reporter: &dyn Reporter,
 ) -> Result<Vec<Rendered>, Failure> {
     let permits = Arc::new(tokio::sync::Semaphore::new(limit));
     // Progress is per line, in completion order with a running count: under
     // concurrency, which line finishes next is a fact about the server, and
     // relabelling it into document order would misreport what happened.
     let total = narration.len();
-    let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut completed = 0;
 
     let mut tasks: tokio::task::JoinSet<(Vec<usize>, Result<RenderedAudio, Failure>)> =
         tokio::task::JoinSet::new();
     for indices in groups_by_key(narration) {
         let detail = narration[indices[0]].clone();
-        let line_ids: Vec<LineId> = indices
-            .iter()
-            .map(|&i| narration[i].line_id.clone())
-            .collect();
         let backend = voices[&detail.backend].clone();
         let cache = cache.clone();
         let permits = permits.clone();
-        let completed = completed.clone();
         tasks.spawn(async move {
             let _permit = permits
                 .acquire_owned()
                 .await
                 .expect("semaphore is never closed");
             let r = render_one(&backend, &cache, &detail).await;
-            if r.is_ok() {
-                // Progress counts the script's lines, not requests.
-                for id in &line_ids {
-                    let n = completed.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-                    crate::progress::progress(
-                        "voice",
-                        || format!("  [{n}/{total}] {id} done"),
-                        serde_json::json!({ "done": n, "of": total, "line": id }),
-                    );
-                }
-            }
             (indices, r)
         });
     }
@@ -431,6 +426,13 @@ async fn render_all(
         };
         for i in indices {
             let line_id = narration[i].line_id.clone();
+            // Progress counts the script's lines, not requests.
+            completed += 1;
+            reporter.progress(Progress::Voice {
+                done: completed,
+                of: total,
+                line: line_id.clone(),
+            });
             slots[i] = Some(Rendered {
                 audio: LineAudio {
                     line_id: line_id.clone(),
@@ -552,11 +554,12 @@ pub fn add_clips(
     script: &Script,
     out_root: &Path,
     dubbed: &mut Dubbed<Written>,
+    reporter: &dyn Reporter,
 ) -> Result<(), Failure> {
     let clips_dir = script.project().caches().clips();
     let frame = crate::build::FrameOverride::default().frame(&dubbed.output);
     let scenes = crate::capture::Scenes::new(script.project().registry.scenes, &clips_dir, frame);
-    let captured = scenes.capture(dubbed, &mut crate::progress::capture_progress);
+    let captured = scenes.capture(dubbed, &mut |p| reporter.progress(captured_shot(p)));
     dubbed.warnings.extend(captured.warnings);
     let into = locale_dir(out_root, script.locale()).join("clips");
     let placed = place_clips(&dubbed.manifest, &clips_dir, &into)
@@ -602,4 +605,14 @@ fn place_clips(
         placed.push(to);
     }
     Ok(placed)
+}
+
+/// A shot's capture progress, as a [`Reporter`] takes it.
+pub fn captured_shot(p: teleprompt_plugin::capture::Progress) -> Progress {
+    Progress::Capture {
+        done: p.done,
+        of: p.of,
+        scene: p.scene,
+        shot: p.shot,
+    }
 }

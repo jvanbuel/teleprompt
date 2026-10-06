@@ -12,6 +12,7 @@ listen = []
 
 [dependencies]
 teleprompt-project = { path = "../teleprompt-project" }
+teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-plugin = { path = "../teleprompt-plugin" }
 serde.workspace = true
 serde_json.workspace = true

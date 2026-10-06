@@ -874,8 +874,15 @@ The binary is a thin shell over the library crates. Every command takes
 `--format json`, and errors are reported in the format requested. With it,
 a long command's progress is one JSON event per line on stderr, for an app
 to show as it goes: `{"event": "progress", "stage": "voice" | "capture" |
-"render", …}` with `done` and `of` (lines, shots) or `done_ms` and `of_ms`
-(a render). The report is on stdout at the end.
+"render" | "install", …}` with `done` and `of` (lines, shots), `done_ms` and
+`of_ms` (a render), or a tool's `state` (an install). The report is on
+stdout at the end.
+
+A library never prints. A long step reports to a `Reporter`
+(`teleprompt_core::progress`), which also answers what only a front end
+can: whether to install a model a step finds missing, and whether a person
+is watching. The binary's reporter writes the lines above or the events;
+the prompter's sends the events to its page; a test's reports to nobody.
 
 ### Exit codes
 

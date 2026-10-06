@@ -165,8 +165,6 @@ enum Command {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let format = cli.format;
-    output::set_progress_format(format);
-    teleprompt_setup::on_missing(ask::offer);
     let outcome = run(cli.command, format).unwrap_or_else(|failure| fail(format, failure));
     ExitCode::from(exit_code_for(&outcome) as u8)
 }

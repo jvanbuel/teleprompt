@@ -2,6 +2,7 @@
 //! and who said them. Behind the `listen` feature, like everything that
 //! runs a speech model.
 
+use teleprompt_core::Reporter;
 use teleprompt_listen::SpeakerSpan;
 use teleprompt_voice::Pcm;
 
@@ -23,9 +24,13 @@ pub struct Conversation {
 /// where it is; and the speaker models, where they are. `speakers` is how
 /// many voices there are, where the caller knows.
 #[cfg(feature = "listen")]
-pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> {
+pub fn hear(
+    pcm: &Pcm,
+    speakers: Option<usize>,
+    reporter: &dyn Reporter,
+) -> Result<Conversation, String> {
     let samples = at_16k(pcm);
-    let model = setup::speech_model(None)?;
+    let model = setup::speech_model(None, reporter)?;
     let words = teleprompt_listen::sherpa::transcribe(&model, &samples)?;
     let words: Vec<crate::derive::Word> = words
         .into_iter()
@@ -36,12 +41,13 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
         })
         .collect();
     let punctuation = setup::punctuation_model(None).or_else(|| {
-        teleprompt_setup::offer(
-            &["punctuation-model"],
-            "give the draft capitals and full stops",
-        )
-        .then(|| setup::punctuation_model(None))
-        .flatten()
+        reporter
+            .offer(
+                &["punctuation-model"],
+                "give the draft capitals and full stops",
+            )
+            .then(|| setup::punctuation_model(None))
+            .flatten()
     });
     let words = match punctuation {
         Some(dir) => {
@@ -60,7 +66,8 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
             .collect(),
     };
     let speaker_models = setup::speaker_models().or_else(|| {
-        teleprompt_setup::offer(&["speaker-model"], "tell the voices apart")
+        reporter
+            .offer(&["speaker-model"], "tell the voices apart")
             .then(setup::speaker_models)
             .flatten()
     });
@@ -80,7 +87,7 @@ pub fn hear(pcm: &Pcm, speakers: Option<usize>) -> Result<Conversation, String> 
 }
 
 #[cfg(not(feature = "listen"))]
-pub fn hear(_: &Pcm, _: Option<usize>) -> Result<Conversation, String> {
+pub fn hear(_: &Pcm, _: Option<usize>, _: &dyn Reporter) -> Result<Conversation, String> {
     Err(
         "this teleprompt was built without speech models, so it cannot transcribe a \
          recording: rebuild it with `--features listen`, or draft from a transcript"

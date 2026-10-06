@@ -68,13 +68,15 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     let Some(script) = &args.script else {
         unreachable!("clap requires it without --tools");
     };
-    let model = &setup::speech_model(args.model.as_deref()).map_err(runtime_failure)?;
+    let reporter = crate::output::Terminal::new(format);
+    let model = &setup::speech_model(args.model.as_deref(), &reporter).map_err(runtime_failure)?;
     let punctuation = setup::punctuation_model(args.punctuation.as_deref());
     let mic = args.mic.as_deref().map_or_else(Vec::new, |m| {
         m.split_whitespace().map(str::to_string).collect()
     });
     let report = run_record(&Record {
         registry: crate::cli::registry(),
+        reporter: &reporter,
         script,
         with: args.with.as_deref(),
         model,

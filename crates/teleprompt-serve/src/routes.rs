@@ -2,6 +2,7 @@
 
 use super::server::{Flag, OpenSession, Server};
 use super::*;
+use teleprompt_core::{Progress, Reporter};
 
 /// Where the command listens, for `--format json`: the API's origin and
 /// the path its version is served under.
@@ -205,7 +206,7 @@ async fn make_route(
 /// line as they come, then what `job` answers last. One job at a time.
 fn streamed(
     server: &Arc<Server>,
-    job: impl FnOnce(&mut dyn FnMut(serde_json::Value)) -> serde_json::Value + Send + 'static,
+    job: impl FnOnce(&mut (dyn FnMut(serde_json::Value) + Send)) -> serde_json::Value + Send + 'static,
 ) -> Response {
     if server.making.swap(true, Ordering::SeqCst) {
         return (
@@ -306,15 +307,14 @@ async fn install_route(
     if uses.is_empty() {
         return (StatusCode::BAD_REQUEST, "uses= names what to set up").into_response();
     }
-    if let Err(why) = teleprompt_setup::resolve(server.registry, &uses) {
-        return failure(StatusCode::BAD_REQUEST, None, vec![why]);
-    }
-    let dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let tools = match teleprompt_setup::resolve(server.registry, &uses) {
+        Ok(tools) => tools,
+        Err(why) => return failure(StatusCode::BAD_REQUEST, None, vec![why]),
+    };
+    let registry = server.registry;
     streamed(&server, move |say| {
-        let mut args: Vec<std::ffi::OsString> = vec!["setup".into()];
-        args.extend(uses.iter().map(Into::into));
-        args.push("--run".into());
-        match teleprompt(&dir, &args, say) {
+        let setup = teleprompt_setup::Setup::detect(registry);
+        match setup.install(&tools, &Say(Mutex::new(say))) {
             Ok(_) => serde_json::json!({ "event": "installed", "uses": uses }),
             Err(why) => serde_json::json!({ "event": "failed", "errors": [why] }),
         }
@@ -362,4 +362,22 @@ fn json(value: serde_json::Value) -> Response {
 
 fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "not found").into_response()
+}
+
+/// A job's progress, said to the page as the events an app reads.
+pub(super) struct Say<'a>(pub(super) Mutex<&'a mut (dyn FnMut(serde_json::Value) + Send)>);
+
+impl Reporter for Say<'_> {
+    fn progress(&self, progress: Progress) {
+        let mut event = serde_json::json!({ "event": "progress" });
+        if let (Some(e), Ok(serde_json::Value::Object(f))) =
+            (event.as_object_mut(), serde_json::to_value(progress))
+        {
+            e.extend(f);
+        }
+        (self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner))(event);
+    }
 }

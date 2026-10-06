@@ -14,6 +14,7 @@ use crate::derive::document::{draft, draft_slidev};
 use crate::derive::transcript::{conversation, draft_transcript, turns, Format, Turn};
 use crate::import::{cut_takes, read_voice};
 use serde::Serialize;
+use teleprompt_core::Reporter;
 use teleprompt_project::project::Project;
 use teleprompt_project::registry::Registry;
 
@@ -146,6 +147,7 @@ pub fn run_document(
     out: Option<PathBuf>,
     reading: Reading,
     audio: Audio,
+    reporter: &dyn Reporter,
 ) -> std::io::Result<DocumentReport> {
     let created = out.unwrap_or_else(|| default_out(doc));
     if created.exists() {
@@ -181,7 +183,7 @@ pub fn run_document(
     // leaves nothing behind.
     let (drafted, pcm) = if reading == Reading::Recording {
         let pcm = recording(doc, &[])?;
-        (heard_draft(doc, &pcm, audio.speakers)?, Some(pcm))
+        (heard_draft(doc, &pcm, audio.speakers, reporter)?, Some(pcm))
     } else {
         let source = std::fs::read_to_string(doc)
             .map_err(|e| Error::new(e.kind(), format!("cannot read {}: {e}", doc.display())))?;
@@ -293,8 +295,13 @@ fn drafted(doc: &Path, source: &str, reading: Reading) -> std::io::Result<Drafte
 
 /// A draft of the conversation in `pcm`, heard with the models `setup`
 /// installed.
-fn heard_draft(doc: &Path, pcm: &Pcm, speakers: Option<usize>) -> std::io::Result<Drafted> {
-    let heard = crate::listening::hear(pcm, speakers).map_err(Error::other)?;
+fn heard_draft(
+    doc: &Path,
+    pcm: &Pcm,
+    speakers: Option<usize>,
+    reporter: &dyn Reporter,
+) -> std::io::Result<Drafted> {
+    let heard = crate::listening::hear(pcm, speakers, reporter).map_err(Error::other)?;
     let turns = conversation(&heard.words, heard.voices.as_deref().unwrap_or_default());
     let mut drafted = conversation_draft(doc, &turns)?;
     if heard.voices.is_none() {

@@ -16,9 +16,10 @@ use teleprompt_render::{Picture, RenderError};
 
 use crate::cache;
 use crate::capture::Scenes;
-use crate::dub::Dubber;
+use crate::dub::{captured_shot, Dubber};
 use crate::project::{CacheDir, Clips, Compose, Script};
 use crate::Failure;
+use teleprompt_core::Reporter;
 
 /// A frame size and rate that override a script's `output:` frame.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -152,26 +153,30 @@ impl<'s> Builder<'s> {
     /// (docs/design.md#rendering).
     pub async fn capture(
         &self,
-        on_progress: &mut dyn FnMut(teleprompt_plugin::capture::Progress),
+        reporter: &dyn Reporter,
     ) -> Result<crate::capture::CaptureReport, Failure> {
-        let dubbed = Dubber::new(self.script).dub(&self.narration_root).await?;
+        let dubbed = Dubber::new(self.script)
+            .reporting(reporter)
+            .dub(&self.narration_root)
+            .await?;
         let frame = self.frame.frame(&dubbed.output);
-        Ok(Scenes::new(self.plugins, &self.clips_dir, frame).capture(&dubbed, on_progress))
+        Ok(Scenes::new(self.plugins, &self.clips_dir, frame)
+            .capture(&dubbed, &mut |p| reporter.progress(captured_shot(p))))
     }
 
     /// Dubs, captures, then renders what was dubbed, as an outside
     /// consumer would (docs/design.md#rendering).
-    pub async fn build(
-        &self,
-        on_progress: &mut dyn FnMut(Progress),
-    ) -> Result<BuildReport, Failure> {
+    pub async fn build(&self, reporter: &dyn Reporter) -> Result<BuildReport, Failure> {
         let locale = self.script.locale();
-        let dubbed = Dubber::new(self.script).dub(&self.narration_root).await?;
+        let dubbed = Dubber::new(self.script)
+            .reporting(reporter)
+            .dub(&self.narration_root)
+            .await?;
         // Stage 5 (docs/design.md#pipeline). What cannot be recorded becomes
         // a warning and a slate, not a failure; see [`Scenes::capture`].
         let frame = self.frame.frame(&dubbed.output);
-        let recorded =
-            Scenes::new(self.plugins, &self.clips_dir, frame).capture(&dubbed, &mut |_| {});
+        let recorded = Scenes::new(self.plugins, &self.clips_dir, frame)
+            .capture(&dubbed, &mut |p| reporter.progress(captured_shot(p)));
         let mut warnings = dubbed.warnings;
         warnings.extend(recorded.warnings);
 
@@ -196,7 +201,12 @@ impl<'s> Builder<'s> {
 
         let renderer = self.renderer();
         let rendered = renderer
-            .render(&render_plan, on_progress)
+            .render(&render_plan, &mut |p: Progress| {
+                reporter.progress(teleprompt_core::Progress::Render {
+                    done_ms: p.rendered_ms,
+                    of_ms: p.of_ms,
+                });
+            })
             .map_err(|e| Failure::Runtime(explain(&e)))?;
 
         // Pruned after the render, never before: pruning first could evict

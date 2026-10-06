@@ -102,7 +102,7 @@ async fn a_script_renders_to_a_video_as_long_as_its_timeline() {
     let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
     let report = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -145,7 +145,7 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
     let none = teleprompt_plugin::ScenePlugins::new([]);
     let report = builder
         .plugins(&none)
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -232,7 +232,7 @@ async fn front_matter_decides_the_frame_when_no_flag_does() {
 
     let opened = project.script(&script, "en");
     let report = Builder::new(&opened)
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
 
@@ -293,11 +293,16 @@ async fn a_render_reports_how_far_along_it_is() {
     let opened = project.script(&script, "en");
     let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
-    let mut seen: Vec<u64> = Vec::new();
+    let seen: std::sync::Mutex<Vec<u64>> = std::sync::Mutex::new(Vec::new());
     let report = builder
-        .build(&mut |p| seen.push(p.rendered_ms))
+        .build(&|p: teleprompt_core::Progress| {
+            if let teleprompt_core::Progress::Render { done_ms, .. } = p {
+                seen.lock().unwrap().push(done_ms);
+            }
+        })
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
+    let seen = seen.into_inner().unwrap();
 
     assert!(
         seen.len() > 1,
@@ -348,13 +353,13 @@ async fn a_second_build_of_an_unchanged_script_reuses_the_picture() {
     let builder = Builder::new(&opened).resolution(320, 180).fps(24);
 
     let cold = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(cold.renderer, "ffmpeg-incremental");
 
     let warm = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(
@@ -384,7 +389,7 @@ async fn no_cache_re_encodes_everything_and_says_so() {
         .no_cache();
 
     let report = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert_eq!(
@@ -420,7 +425,7 @@ async fn a_build_leaves_the_cache_under_its_cap() {
         .cache_max_mb(0);
 
     let report = builder
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert!(report.output.exists(), "the video is still produced");
@@ -435,7 +440,7 @@ async fn a_build_leaves_the_cache_under_its_cap() {
     // And the real case: a generous cap keeps what the build just made.
     builder
         .cache_max_mb(1_024)
-        .build(&mut |_| {})
+        .build(&teleprompt_core::Silent)
         .await
         .unwrap_or_else(|e| panic!("build failed: {}", e));
     assert!(

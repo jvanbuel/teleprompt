@@ -51,6 +51,7 @@ fn each_line_is_given_its_stretch_of_the_recording() {
         Some(script.clone()),
         Reading::Document,
         audio,
+        &teleprompt_core::Silent,
     )
     .unwrap();
     assert_eq!(report.takes, 3, "{}", report.render());
@@ -87,6 +88,7 @@ fn a_transcript_with_no_times_cannot_be_heard() {
         Some(script.clone()),
         Reading::Transcript,
         audio,
+        &teleprompt_core::Silent,
     )
     .unwrap_err();
     assert!(err.to_string().contains("turn 1"), "{err}");
@@ -114,6 +116,7 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
         Some(script),
         Reading::Document,
         audio,
+        &teleprompt_core::Silent,
     )
     .unwrap();
     assert_eq!(report.takes, 2);
@@ -138,6 +141,7 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
             revoice: &nobody,
             speakers: None,
         },
+        &teleprompt_core::Silent,
     )
     .unwrap_err();
     assert!(err.to_string().contains("byron"), "{err}");
@@ -159,6 +163,7 @@ fn a_recording_needs_the_listening_build() {
         Some(script.clone()),
         Reading::Document,
         Audio::default(),
+        &teleprompt_core::Silent,
     )
     .unwrap_err();
     assert!(err.to_string().contains("--features listen"), "{err}");
@@ -186,6 +191,7 @@ fn a_corrected_line_keeps_its_take_when_told_to() {
         Some(script.clone()),
         Reading::Document,
         audio,
+        &teleprompt_core::Silent,
     )
     .unwrap();
     let corrected = std::fs::read_to_string(&script)

@@ -26,7 +26,8 @@ pub struct Args {
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::output::Outcome;
     let script = args.script.open()?;
-    let dubber = Dubber::new(&script);
+    let reporter = crate::output::Terminal::new(format);
+    let dubber = Dubber::new(&script).reporting(&reporter);
     let runtime = crate::cli::runtime()?;
     if args.check {
         let checked = runtime.block_on(dubber.check(&args.out))?;
@@ -41,7 +42,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     }
     let mut dubbed = runtime.block_on(dubber.dub(&args.out))?;
     if args.clips {
-        add_clips(&script, &args.out, &mut dubbed)?;
+        add_clips(&script, &args.out, &mut dubbed, &reporter)?;
     }
     crate::cli::warn(&dubbed.warnings);
     crate::cli::emit_data(format, &dubbed.manifest, &render_dub(&dubbed));

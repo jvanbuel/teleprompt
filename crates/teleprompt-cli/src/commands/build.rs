@@ -32,46 +32,9 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     if let Some(mb) = args.cache_max_mb {
         builder = builder.cache_max_mb(mb);
     }
-    let report = crate::cli::runtime()?.block_on(builder.build(&mut progress_reporter(format)))?;
+    let reporter = crate::output::Terminal::new(format);
+    let report = crate::cli::runtime()?.block_on(builder.build(&reporter))?;
     crate::cli::warn(&report.warnings);
     crate::cli::emit(format, &report, &report.render());
     Ok(crate::output::Outcome::Ok)
-}
-
-/// A render's progress, each percent of it: to a human at a terminal as a
-/// line that rewrites itself with a carriage return, which a log cannot
-/// take; with `--format json`, as progress events.
-fn progress_reporter(format: crate::output::Format) -> impl FnMut(Progress) {
-    use crate::output::Format;
-    use std::io::{IsTerminal, Write};
-
-    let show = format == Format::Human && std::io::stderr().is_terminal();
-    let mut last = u64::MAX;
-    move |p: Progress| {
-        if p.of_ms == 0 {
-            return;
-        }
-        let percent = (p.rendered_ms.min(p.of_ms) * 100) / p.of_ms;
-        if percent == last {
-            return;
-        }
-        last = percent;
-        if format == Format::Json {
-            teleprompt_project::progress::progress(
-                "render",
-                String::new,
-                serde_json::json!({ "done_ms": p.rendered_ms.min(p.of_ms), "of_ms": p.of_ms }),
-            );
-            return;
-        }
-        if !show {
-            return;
-        }
-        let mut err = std::io::stderr();
-        let _ = write!(err, "\r  rendering  {percent:>3}%");
-        if percent == 100 {
-            let _ = writeln!(err);
-        }
-        let _ = err.flush();
-    }
 }

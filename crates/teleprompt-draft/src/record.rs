@@ -14,11 +14,13 @@ use serde::Serialize;
 use teleprompt_plugin::record::Start;
 
 use crate::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
+use teleprompt_core::Reporter;
 use teleprompt_project::project::Project;
 use teleprompt_project::registry::{Recording, Registry};
 
 pub struct Record<'a> {
     pub registry: Registry,
+    pub reporter: &'a dyn Reporter,
     pub script: &'a Path,
     /// The plugin whose tool records; asciinema when `None`.
     pub with: Option<&'a str>,
@@ -137,10 +139,10 @@ fn record(
         } else {
             "talk as you work in its window, then close it to finish"
         };
-        eprintln!(
+        r.reporter.note(&format!(
             "recording with {} and the microphone: {how}\r",
             recorder.plugin
-        );
+        ));
     }
     let file = dir.join(format!("session.{}", recorder.extension()));
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -162,10 +164,12 @@ fn record(
 
     say(serde_json::json!({ "state": "drafting" }));
     if !r.quiet {
-        eprintln!("transcribing {}", voice.display());
+        r.reporter
+            .note(&format!("transcribing {}", voice.display()));
     }
     draft_session(&Session {
         registry: r.registry,
+        reporter: r.reporter,
         script: r.script,
         recorder,
         recorded: &recorded,
