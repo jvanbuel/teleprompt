@@ -11,7 +11,7 @@ To use it, put this directory on PATH, or copy it into the plugins
 directory, and check that teleprompt finds it:
 
     export PATH="$PWD/examples/plugins:$PATH"
-    teleprompt plugins
+    teleprompt setup card
 
 Then a block can say `scene=card`. The tests in `crates/teleprompt-plugin`
 and `crates/teleprompt-cli` run it, so it stays in step with the protocol,

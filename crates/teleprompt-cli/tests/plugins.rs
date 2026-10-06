@@ -39,7 +39,7 @@ fn teleprompt(dir: &std::path::Path, plugins: &std::path::Path, args: &[&str]) -
 }
 
 #[test]
-fn installed_plugins_are_listed_with_what_they_need() {
+fn setup_lists_installed_plugins_with_what_they_need() {
     if !have_python() {
         return;
     }
@@ -48,7 +48,7 @@ fn installed_plugins_are_listed_with_what_they_need() {
     let mock = dir.join("teleprompt-scene-mock");
     std::fs::write(&mock, "#!/bin/sh\nexit 1\n").unwrap();
     std::fs::set_permissions(&mock, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
-    let out = teleprompt(&dir, &dir, &["--format", "json", "plugins"]);
+    let out = teleprompt(&dir, &dir, &["--format", "json", "setup"]);
     assert!(
         out.status.success(),
         "{}",
@@ -65,6 +65,18 @@ fn installed_plugins_are_listed_with_what_they_need() {
         hidden["problem"].as_str().unwrap().contains("built-in"),
         "{hidden}"
     );
+
+    // Named, only that plugin is listed, beside the tools it needs.
+    let out = teleprompt(&dir, &dir, &["--format", "json", "setup", "card"]);
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let names: Vec<_> = report["plugins"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["name"].clone())
+        .collect();
+    assert_eq!(names, [serde_json::json!("card")]);
+    assert_eq!(report["tools"][0]["name"], "ffmpeg");
 }
 
 #[test]

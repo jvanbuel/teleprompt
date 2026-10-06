@@ -23,6 +23,8 @@ teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-derive = { path = "../teleprompt-derive" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 inquire = "0.9"
+# `setup`: the installed plugins, as a table.
+tabled = { version = "0.20", default-features = false, features = ["std"] }
 teleprompt-listen-sherpa = { path = "../teleprompt-listen-sherpa", optional = true }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }

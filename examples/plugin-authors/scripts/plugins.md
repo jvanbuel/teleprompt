@@ -21,7 +21,7 @@ color #1d4ed8
 # A program with a name
 
 A plugin is a program whose name says what it is: teleprompt scene, then
-a name. Put it on your path, and teleprompt plugins lists it, with the
+a name. Put it on your path, and teleprompt setup lists it, with the
 tools it needs. {#name}
 
 ```teleprompt scene=asciinema policy=fit-action include=casts/session.cast#find

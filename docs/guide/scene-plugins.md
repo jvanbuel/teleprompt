@@ -65,8 +65,9 @@ A plugin ships in one of two ways:
   repository are. The same crate can also be built as a program of its
   own ([a Rust plugin as a program](#a-rust-plugin-as-a-program)).
 
-`teleprompt plugins` lists the plugins installed as programs, asks each
-what it is, and says why one cannot be used.
+`teleprompt setup` lists the plugins installed as programs, asks each
+what it needs, and says why one cannot be used; `teleprompt setup <name>`
+shows one, with the tools it needs.
 
 `teleprompt-plugin` has a module per part of the contract:
 

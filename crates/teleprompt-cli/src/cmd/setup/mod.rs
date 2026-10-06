@@ -10,6 +10,7 @@ use std::process::{Command, Stdio};
 use serde::Serialize;
 
 mod catalogue;
+pub mod plugins;
 
 pub use catalogue::{download_mb, tools, Goal, GOALS};
 use teleprompt_plugin::tool::Found;
@@ -211,6 +212,11 @@ pub struct SetupReport {
     pub models: String,
     /// The project's own voice, in a project, when no tool was named.
     pub voice: Option<ProjectVoice>,
+    /// The scene plugins installed as programs: every one when nothing was
+    /// named, else those named.
+    pub plugins: Vec<plugins::Installed>,
+    /// Where plugins go when not on PATH.
+    pub plugins_dir: String,
 }
 
 /// The voice the project chose, and whether it can speak here: the one
@@ -275,6 +281,10 @@ impl Setup {
             ran,
             models: self.platform.models.display().to_string(),
             voice: None,
+            plugins: Vec::new(),
+            plugins_dir: teleprompt_plugin::protocol::host::plugins_dir()
+                .display()
+                .to_string(),
         }
     }
 
@@ -496,6 +506,8 @@ impl SetupReport {
                 )),
             }
         }
+        let dir = names.is_empty().then_some(self.plugins_dir.as_str());
+        out.push_str(&plugins::render(&self.plugins, dir));
         if let Some(v) = &self.voice {
             let answer = v.answer.as_deref().unwrap_or("needs no server");
             out.push_str(&format!("{:<18} {}: {answer}\n", "your voice", v.backend));
@@ -579,6 +591,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         let ran = crate::ask::confirm_install(&setup, &tools).map_err(runtime_failure)?;
         let mut report = setup.report(&tools, ran);
         report.voice = voice_here()?;
+        report.plugins = plugins::installed();
         emit(format, &report, &report.render(&chosen));
         return Ok(Outcome::Ok);
     }
@@ -589,8 +602,11 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         Vec::new()
     };
     let mut report = setup.report(&tools, ran);
+    report.plugins = plugins::installed();
     if args.names.is_empty() {
         report.voice = voice_here()?;
+    } else {
+        report.plugins.retain(|p| args.names.contains(&p.name));
     }
     emit(format, &report, &report.render(&args.names));
     Ok(Outcome::Ok)

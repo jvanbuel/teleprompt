@@ -950,7 +950,7 @@ a video needs comes in three tiers.
    speaking JSON a line at a time on stdin and stdout
    ([the protocol](guide/scene-plugins.md#the-protocol)). The author installs
    one with their own tools (pipx, npm, cargo, a copied file) and finds
-   them by the GitHub topic `teleprompt-plugin`; `teleprompt plugins` lists
+   them by the GitHub topic `teleprompt-plugin`; `teleprompt setup` lists
    what is installed. Teleprompt hosts nothing and passes no license on. A
    plugin starts when a command first needs it and stops when the command
    ends; teleprompt sends it one request at a time. A built-in plugin's
