@@ -306,7 +306,7 @@ so name the `model` after what the server has loaded.
 ### In teleprompt itself
 
 A provider that does not speak OpenAI's API, a hosted service you cannot
-change, is a crate in this repository that takes the same request and
+change, is a module of `teleprompt-voices` that takes the same request and
 translates it: it implements `teleprompt_voice::VoiceBackend`, with `id`,
 `version` and `synthesize`, which returns PCM. The other methods have
 defaults: override them for what the provider can do, such as
@@ -314,11 +314,11 @@ defaults: override them for what the provider can do, such as
 `clone_voice`. `version` is part of the cache key: put in it anything that
 changes the audio but is not in the request, such as the model.
 
-It is registered in `providers()` in `teleprompt-cli`'s `src/voice/mod.rs`,
+It is registered in `providers()` in the engine's `src/voice/mod.rs`,
 as a `teleprompt_voice::Provider` (its id, which `voice.backend` names, and
 how it is built from its own `[backends.<id>]` settings), with what it
 needs for `setup`. A build that fails is kept and reported only where that
-voice is chosen. `crates/teleprompt-voice-elevenlabs` is the example.
+voice is chosen. `crates/teleprompt-voices/src/elevenlabs` is the example.
 
 ## Testing against a real server
 
@@ -326,5 +326,5 @@ The OpenAI-compatible backend's tests run against an in-process stub. One test u
 server and is ignored by default. Start a server on `localhost:8880`, then:
 
 ```bash
-cargo test -p teleprompt-voice-openai --test real -- --ignored
+cargo test -p teleprompt-voices --test openai_real -- --ignored
 ```

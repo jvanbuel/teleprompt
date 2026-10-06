@@ -169,10 +169,7 @@ reading the manifest it just published.
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
 | `teleprompt-plugin` | what a scene plugin implements, in one crate: the `SceneCompiler`, `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it and core alone |
 | `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the duration estimator, the registry, stretching a line to fit, the author's takes, the content-addressed voice cache, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
-| `teleprompt-voice-openai` | HTTP against any server that speaks OpenAI's speech API: `kokoro` (Kokoro-FastAPI) and `openai` are its presets, and any other `[backends.<name>]` is a server under that name |
-| `teleprompt-voice-voicebox` | HTTP against a Voicebox server: a voice cloned from the author's takes, or designed from a description, and delivery instructions |
-| `teleprompt-voice-elevenlabs` | HTTP against ElevenLabs: premade or the account's own voices, found by name, with each word's timing |
-| `teleprompt-voice-gemini` | HTTP against Google's Gemini TTS (the Interactions API): prebuilt or custom voices, delivery instructions sent beside the words |
+| `teleprompt-voices` | the voices teleprompt ships, a module each: `openai`, HTTP against any server that speaks OpenAI's speech API (`kokoro` and `openai` are its presets, and any other `[backends.<name>]` is a server under that name); `voicebox`, a voice cloned from the author's takes or designed from a description; `elevenlabs`, premade or the account's own voices, with each word's timing; `gemini`, Google's Gemini TTS, delivery instructions sent beside the words |
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest; and what `dub` publishes from each line's audio, which the prompter plays too |
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies |
@@ -192,15 +189,16 @@ one another. Anything that needs two of them belongs in `compile`.
 in or not, depends on `plugin` and `core` and nothing else of
 teleprompt's, so what an outside plugin can do, the built-in ones do
 ([writing a scene plugin](guide/scene-plugins.md)). A voice teleprompt
-ships depends on `voice` and `core`. Each scene plugin crate's `plugin()`
+ships, in `voices`, depends on `voice` and `core`. Each scene plugin crate's `plugin()`
 hands over its compiler, capture backend and recorder as one `ScenePlugin`,
 named by its compiler's kind, so its halves cannot be registered under two
 names. `compile`, and so `plan`, `check` and the prompter, reads a
 scene's shots and never runs its tool: it uses `plugin::scene` only,
 which `tools/check_deps.py` checks by name, along
 with the allowed edges between workspace crates. CI fails on any other.
-Scene plugins and voices are registered only in the CLI, so adding one means
-one crate and one registry line, and no other crate learns its name.
+Scene plugins and voices are registered only in the engine, so adding one means
+a crate (a scene plugin) or a module of `voices` (a voice) and one registry
+line, and no other crate learns its name.
 
 ## Voice
 

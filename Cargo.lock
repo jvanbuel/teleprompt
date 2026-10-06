@@ -2035,10 +2035,7 @@ dependencies = [
  "teleprompt-translate",
  "teleprompt-vhs",
  "teleprompt-voice",
- "teleprompt-voice-elevenlabs",
- "teleprompt-voice-gemini",
- "teleprompt-voice-openai",
- "teleprompt-voice-voicebox",
+ "teleprompt-voices",
  "tokio",
 ]
 
@@ -2274,51 +2271,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "teleprompt-voice-elevenlabs"
+name = "teleprompt-voices"
 version = "0.1.0"
 dependencies = [
  "base64",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "teleprompt-testkit",
- "teleprompt-voice",
- "tokio",
-]
-
-[[package]]
-name = "teleprompt-voice-gemini"
-version = "0.1.0"
-dependencies = [
- "base64",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "teleprompt-testkit",
- "teleprompt-voice",
- "tokio",
-]
-
-[[package]]
-name = "teleprompt-voice-openai"
-version = "0.1.0"
-dependencies = [
- "base64",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "teleprompt-testkit",
- "teleprompt-voice",
- "tokio",
-]
-
-[[package]]
-name = "teleprompt-voice-voicebox"
-version = "0.1.0"
-dependencies = [
  "reqwest",
  "serde",
  "serde_json",

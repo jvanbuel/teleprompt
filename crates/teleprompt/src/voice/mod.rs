@@ -6,6 +6,7 @@ use teleprompt_plugin::tool::Tool;
 use teleprompt_voice::NullVoice;
 use teleprompt_voice::VoiceRegistry;
 use teleprompt_voice::{ClonedVoice, Provider, VoiceBackend, VoiceSample};
+use teleprompt_voices::{elevenlabs, gemini, openai, voicebox};
 
 pub mod clone;
 mod needs;
@@ -14,11 +15,11 @@ mod needs;
 /// `setup` list them, with what each needs that teleprompt does not ship.
 fn providers() -> Vec<(Provider, &'static Tool)> {
     vec![
-        (teleprompt_voice_openai::kokoro(), &needs::KOKORO),
-        (teleprompt_voice_openai::openai(), &needs::OPENAI),
-        (teleprompt_voice_voicebox::provider(), &needs::VOICEBOX),
-        (teleprompt_voice_gemini::provider(), &needs::GEMINI),
-        (teleprompt_voice_elevenlabs::provider(), &needs::ELEVENLABS),
+        (openai::kokoro(), &needs::KOKORO),
+        (openai::openai(), &needs::OPENAI),
+        (voicebox::provider(), &needs::VOICEBOX),
+        (gemini::provider(), &needs::GEMINI),
+        (elevenlabs::provider(), &needs::ELEVENLABS),
     ]
 }
 
@@ -84,7 +85,7 @@ pub fn backends_for(settings: &BTreeMap<String, serde_yaml::Value>, config_file:
         if is_built_in(name) {
             continue;
         }
-        match teleprompt_voice_openai::endpoint(name, given) {
+        match openai::endpoint(name, given) {
             Ok(backend) => registry.register(backend),
             Err(e) => {
                 unusable.insert(name.clone(), e);

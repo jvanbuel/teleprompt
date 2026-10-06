@@ -26,7 +26,7 @@ import sys
 # A plugin depends on the contracts it implements, and nothing else of
 # teleprompt's: what an outside plugin can do, the built-in ones do.
 PLUGIN = {"core", "plugin"}
-# A voice teleprompt ships depends on the voice contract, and nothing else.
+# The voices teleprompt ships depend on the voice contract, and nothing else.
 VOICE = {"core", "voice"}
 
 ALLOWED = {
@@ -35,10 +35,7 @@ ALLOWED = {
     "plugin": {"core"},
     "voice": {"core"},
     "manifest": {"core"},
-    "voice-openai": VOICE,
-    "voice-voicebox": VOICE,
-    "voice-gemini": VOICE,
-    "voice-elevenlabs": VOICE,
+    "voices": VOICE,
     "compile": {"core", "plugin", "schedule", "voice", "manifest"},
     "render": {"core", "manifest"},
     "vhs": PLUGIN,

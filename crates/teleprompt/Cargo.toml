@@ -31,10 +31,7 @@ teleprompt-vhs = { path = "../teleprompt-vhs" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-translate = { path = "../teleprompt-translate" }
 teleprompt-voice = { path = "../teleprompt-voice" }
-teleprompt-voice-openai = { path = "../teleprompt-voice-openai" }
-teleprompt-voice-voicebox = { path = "../teleprompt-voice-voicebox" }
-teleprompt-voice-gemini = { path = "../teleprompt-voice-gemini" }
-teleprompt-voice-elevenlabs = { path = "../teleprompt-voice-elevenlabs" }
+teleprompt-voices = { path = "../teleprompt-voices" }
 teleprompt-lsp = { path = "../teleprompt-lsp" }
 serde.workspace = true
 serde_json.workspace = true
