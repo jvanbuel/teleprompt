@@ -1,6 +1,6 @@
 //! `teleprompt serve <script>`: a prompter that follows the reader's voice.
 //!
-//! The prompter itself is `crate::prompter`; this is its API, version 1
+//! The prompter itself is `crate::cmd::serve::prompter`; this is its API, version 1
 //! (`routes`), and the page that drives it: HTTP for the script and clips, and a
 //! WebSocket for the session, served with axum on loopback, for one reader.
 //! The session, compiling and voicing are blocking work, done in place on
@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, RwLockWriteGuard};
 
-use crate::prompter::{Position, Prompt, Reached, ScriptView, Session, LISTEN_RATE};
+use crate::cmd::serve::prompter::{Position, Prompt, Reached, ScriptView, Session, LISTEN_RATE};
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, Request, State};
@@ -26,13 +26,16 @@ use axum::Router;
 use teleprompt_listen::Recognizer;
 use tokio::task::block_in_place;
 
-use crate::cmd::voicing::Voicing;
+use crate::cmd::serve::voicing::Voicing;
 use crate::output::{Failure, Format, Outcome};
 use crate::project::{Project, Script};
 use teleprompt_core::edit::Edit;
 
+mod loopback;
+pub mod prompter;
 mod routes;
 mod server;
+pub mod voicing;
 
 use routes::serve_on;
 pub use routes::{listening_event, prompt_on, prompt_watching};
@@ -235,7 +238,7 @@ impl Script {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default(),
-            shots: crate::prompter::shot_cues(&compiled),
+            shots: crate::cmd::serve::prompter::shot_cues(&compiled),
             ids: compiled
                 .narration
                 .iter()

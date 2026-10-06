@@ -5,7 +5,7 @@ use std::cell::Cell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use teleprompt_cli::prompter::{Position, Prompt, Reached, Session, ShotCue};
+use teleprompt_cli::cmd::serve::prompter::{Position, Prompt, Reached, Session, ShotCue};
 use teleprompt_core::Hash;
 use teleprompt_listen::{Heard, Recognizer};
 
@@ -333,7 +333,7 @@ fn the_last_take_kept_can_be_undone() {
 
 #[test]
 fn word_starts_spread_a_line_over_its_characters() {
-    use teleprompt_cli::prompter::word_starts;
+    use teleprompt_cli::cmd::serve::prompter::word_starts;
     // 20 characters, words at 0, 6 and 13.
     assert_eq!(
         word_starts("Hello world, friend!", 2000),
@@ -345,8 +345,8 @@ fn word_starts_spread_a_line_over_its_characters() {
 
 #[test]
 fn a_deaf_session_hears_nothing_and_stays_where_it_started() {
-    let mut session = teleprompt_cli::prompter::Session::new(
-        teleprompt_cli::prompter::Prompt {
+    let mut session = teleprompt_cli::cmd::serve::prompter::Session::new(
+        teleprompt_cli::cmd::serve::prompter::Prompt {
             name: "s.md".into(),
             lines: vec!["One two.".into()],
             ids: vec!["one".into()],

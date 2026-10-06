@@ -1,10 +1,7 @@
 pub mod ask;
 pub mod cli;
 pub mod cmd;
-pub mod listening;
-pub mod loopback;
 pub mod output;
 pub mod project;
-pub mod prompter;
 pub mod scene;
 pub mod voice;

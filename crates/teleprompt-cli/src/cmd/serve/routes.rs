@@ -99,11 +99,11 @@ fn router(server: Arc<Server>) -> Router {
 }
 
 /// Refuses a request that names another host or comes from another
-/// site's page (`crate::loopback`), and lets no answer be cached.
+/// site's page (`crate::cmd::serve::loopback`), and lets no answer be cached.
 async fn guard(request: Request, next: Next) -> Response {
     let refused = {
         let header = |name| request.headers().get(name).and_then(|v| v.to_str().ok());
-        crate::loopback::refused(header(HOST), header(ORIGIN))
+        crate::cmd::serve::loopback::refused(header(HOST), header(ORIGIN))
     };
     if let Some(why) = refused {
         return (StatusCode::FORBIDDEN, why).into_response();

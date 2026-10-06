@@ -1,7 +1,7 @@
 //! `teleprompt import <doc>`: a document, deck or conversation drafted into
 //! a script. The file handling around `teleprompt_derive::document` and
 //! `::transcript`, which do the drafting; a recorded session is `import`'s
-//! other half, `crate::cmd::import`.
+//! other half, `crate::cmd::draft::import`.
 
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -10,7 +10,7 @@ use teleprompt_core::ast::slugify;
 use teleprompt_core::LineId;
 use teleprompt_voice::Pcm;
 
-use crate::cmd::import::{cut_takes, read_voice};
+use crate::cmd::draft::import::{cut_takes, read_voice};
 use crate::project::Project;
 use serde::Serialize;
 use teleprompt_derive::document::{draft, draft_slidev};
@@ -292,7 +292,7 @@ fn drafted(doc: &Path, source: &str, reading: Reading) -> std::io::Result<Drafte
 /// A draft of the conversation in `pcm`, heard with the models `setup`
 /// installed.
 fn heard_draft(doc: &Path, pcm: &Pcm, speakers: Option<usize>) -> std::io::Result<Drafted> {
-    let heard = crate::listening::hear(pcm, speakers).map_err(Error::other)?;
+    let heard = crate::cmd::draft::listening::hear(pcm, speakers).map_err(Error::other)?;
     let turns = conversation(&heard.words, heard.voices.as_deref().unwrap_or_default());
     let mut drafted = conversation_draft(doc, &turns)?;
     if heard.voices.is_none() {

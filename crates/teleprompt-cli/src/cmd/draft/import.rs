@@ -16,7 +16,9 @@ use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
 use crate::cli::{emit, runtime_failure, Run};
-use crate::cmd::{document, setup};
+use crate::cmd::setup;
+
+use super::document;
 use crate::output::{Format, Outcome};
 use crate::project::Project;
 
@@ -261,7 +263,7 @@ fn hear(words: &Words, pcm: &Pcm, offset_ms: i64) -> Result<Vec<Word>, String> {
 
 #[cfg(feature = "listen")]
 fn transcribe(dir: &Path, pcm: &Pcm) -> Result<Vec<(String, u64, u64)>, String> {
-    let samples = crate::listening::at_16k(pcm);
+    let samples = crate::cmd::draft::listening::at_16k(pcm);
     Ok(teleprompt_listen_sherpa::transcribe(dir, &samples)?
         .into_iter()
         .map(|w| (w.text, w.start_ms, w.end_ms))

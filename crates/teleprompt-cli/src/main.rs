@@ -6,9 +6,9 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use teleprompt_cli::cli::{fail, Run, ScriptArgs};
+use teleprompt_cli::cmd::draft::{import, record};
 use teleprompt_cli::cmd::{
-    build, cache, capture, check, dub, edit, import, new, plan, record, serve, setup, translate,
-    voice,
+    build, cache, capture, check, dub, edit, new, plan, serve, setup, translate, voice,
 };
 use teleprompt_cli::output::{exit_code_for, Format, Outcome};
 
