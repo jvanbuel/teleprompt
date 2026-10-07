@@ -11,6 +11,7 @@ license.workspace = true
 listen = []
 
 [dependencies]
+thiserror.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 serde.workspace = true

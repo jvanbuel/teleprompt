@@ -4,6 +4,7 @@
 //! it; the prompter plays it. Neither synthesizes here: the caller brings
 //! the audio, from the voice cache or a backend.
 
+use crate::Failure;
 use teleprompt_core::{Hash, LineId};
 use teleprompt_manifest::{AudioInfo, NarrationManifest};
 use teleprompt_pipeline::schedule::Timeline;
@@ -49,7 +50,7 @@ pub struct Published {
 /// without a take, in order, and each recorded line's take, converted to
 /// the synthesized lines' rate and channels, since the manifest publishes
 /// one.
-pub fn with_takes(
+pub(crate) fn with_takes(
     narration: &[NarrationDetail],
     synthesized: Vec<LineAudio>,
     takes: &Takes,
@@ -76,7 +77,11 @@ pub fn with_takes(
 /// document order: in the first line's format, fitted, and checked against
 /// the lengths the manifest states before anything is written, since an
 /// output that disagrees with its own manifest is worse than none.
-pub fn publish(compiled: &CompileOutput, audio: Vec<LineAudio>) -> Result<Published, String> {
+pub fn publish(compiled: &CompileOutput, audio: Vec<LineAudio>) -> Result<Published, Failure> {
+    published(compiled, audio).map_err(Failure::Runtime)
+}
+
+fn published(compiled: &CompileOutput, audio: Vec<LineAudio>) -> Result<Published, String> {
     let audio = in_one_format(audio)?;
     let format = audio.first().map(|a| (a.sample_rate, a.channels));
     let mut lines = Vec::with_capacity(audio.len());

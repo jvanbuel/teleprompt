@@ -309,14 +309,14 @@ async fn install_route(
     }
     let tools = match teleprompt_setup::resolve(&server.shipped, &uses) {
         Ok(tools) => tools,
-        Err(why) => return failure(StatusCode::BAD_REQUEST, None, vec![why]),
+        Err(why) => return failure(StatusCode::BAD_REQUEST, None, vec![why.to_string()]),
     };
     let shared = server.clone();
     streamed(&server, move |say| {
         let setup = shared.setup();
         match setup.install(&tools, &Say(Mutex::new(say))) {
             Ok(_) => serde_json::json!({ "event": "installed", "uses": uses }),
-            Err(why) => serde_json::json!({ "event": "failed", "errors": [why] }),
+            Err(why) => serde_json::json!({ "event": "failed", "errors": [why.to_string()] }),
         }
     })
 }

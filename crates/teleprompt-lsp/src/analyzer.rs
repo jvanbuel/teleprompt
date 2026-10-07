@@ -13,8 +13,8 @@ use teleprompt_project::project::Project;
 use teleprompt_project::registry::Registry;
 
 /// Serves on stdin and stdout until the editor says to exit.
-pub fn run_lsp(registry: Registry) -> Result<(), String> {
-    super::run(ProjectAnalyzer { registry }).map_err(|e| e.to_string())
+pub fn run_lsp(registry: Registry) -> Result<(), LspError> {
+    super::run(ProjectAnalyzer { registry }).map_err(LspError)
 }
 
 pub struct ProjectAnalyzer {
@@ -236,3 +236,8 @@ fn seconds(ms: u64) -> String {
 fn clock(ms: u64) -> String {
     format!("{}:{:04.1}", ms / 60_000, (ms % 60_000) as f64 / 1000.0)
 }
+
+/// Why the language server stopped: its connection, or what was sent on it.
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct LspError(pub Box<dyn std::error::Error + Send + Sync>);

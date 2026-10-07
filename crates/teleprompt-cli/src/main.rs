@@ -173,7 +173,7 @@ fn run(command: Command, format: Format) -> Run {
         Command::Translate(args) => translate::run(args, format),
         Command::Record(args) => record::run(args, format),
         Command::Lsp => {
-            teleprompt_lsp::run_lsp(cli::registry()).map_err(cli::runtime_failure)?;
+            teleprompt_lsp::run_lsp(cli::registry())?;
             Ok(Outcome::Ok)
         }
         Command::Check(args) => check::run(args, format),

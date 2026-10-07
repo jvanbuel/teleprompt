@@ -23,7 +23,7 @@ pub use ollama::Ollama;
 pub use openai::OpenAi;
 pub(crate) use translator::{client, unanswered};
 pub use translator::{
-    Known, Request, Response, Translated, Translator, Wanted, PROVIDERS, TIMEOUT_MS,
+    Known, Request, Response, TranslateError, Translated, Translator, Wanted, PROVIDERS, TIMEOUT_MS,
 };
 
 use crate::project::translation_path;
@@ -94,7 +94,7 @@ impl Script {
         });
         Translator::new(provider, model, config.translate.settings.get(provider))
             .map(|t| t.timeout(timeout_ms))
-            .map_err(Failure::Runtime)
+            .map_err(|e| Failure::Runtime(e.to_string()))
     }
 
     /// Translates what is missing from, or has changed since, this

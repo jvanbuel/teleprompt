@@ -341,18 +341,30 @@ fn explain(error: &RenderError) -> String {
 ///
 /// Rejects rather than guesses: a typo silently rendered at some default
 /// is a long wait for the wrong file.
-pub fn parse_resolution(text: &str) -> Result<(u32, u32), String> {
+pub fn parse_resolution(text: &str) -> Result<(u32, u32), ResolutionError> {
     let (w, h) = text
         .split_once(['x', 'X'])
-        .ok_or_else(|| format!("`{text}` is not a resolution (expected e.g. `1920x1080`)"))?;
-    let parse = |part: &str, which: &str| {
+        .ok_or_else(|| ResolutionError::NotOne(text.to_string()))?;
+    let parse = |part: &str, which: &'static str| {
         part.trim()
             .parse::<u32>()
             .ok()
             .filter(|n| *n > 0)
-            .ok_or_else(|| format!("`{text}` has no usable {which} (expected e.g. `1920x1080`)"))
+            .ok_or_else(|| ResolutionError::NoUsable {
+                text: text.to_string(),
+                which,
+            })
     };
     Ok((parse(w, "width")?, parse(h, "height")?))
+}
+
+/// Why `--resolution` was refused.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ResolutionError {
+    #[error("`{0}` is not a resolution (expected e.g. `1920x1080`)")]
+    NotOne(String),
+    #[error("`{text}` has no usable {which} (expected e.g. `1920x1080`)")]
+    NoUsable { text: String, which: &'static str },
 }
 
 #[cfg(test)]

@@ -179,9 +179,21 @@ translate providers `OpenAi::new` and `Claude::from_env` return
 the `map_err(runtime_failure)` calls on those paths go. Exit codes and
 printed text are unchanged; the integration tests prove it.
 
-Done when `grep -rE "pub (async )?fn [^{]*Result<[^>]*, String>" crates/*/src`
-matches only functions inside `scenes`, `voices` and `scene::protocol`,
-where no caller distinguishes cases.
+As done: the grep this step first named was single-line and missed
+signatures that span lines. A multi-line search found seven more in the
+same four crates. Two were boundaries failing for teleprompt's own
+reasons and are typed too: `setup::resolve` (`SetupError::Unknown`) and
+`draft::import::recorder_for`. `with_takes` had no caller outside its
+crate and is `pub(crate)`. The rest carry a provider's or a voice
+server's error through unchanged (`Backends::clone_voice`,
+`Backends::voices`, `synthesize_and_store`, `Translator::translate`), the
+same category as `scenes`, `voices` and `scene::protocol`, and stay
+strings. Below the four crates, `core`, `voice`, `script`, `listen` and
+the scene contract keep string errors on parsing helpers whose callers
+wrap them; typing those is a separate decision.
+
+Done when the eleven functions named here and the two above return typed
+errors, and the integration tests pass with their messages unchanged.
 
 ### 4. Docs and the page
 
@@ -199,6 +211,6 @@ where no caller distinguishes cases.
   `Cargo.toml` has no `teleprompt-setup` line.
 - `core/src/config.rs` is under 300 lines; `teleprompt-scene` does not link
   `toml`.
-- The only `Result<_, String>` on public functions are in `scenes`,
-  `voices` and `scene::protocol`.
+- The functions step 3 names return typed errors; what still returns a
+  string is listed there with the reason.
 - All checks in "Every step" are clean; CI green on `main`.

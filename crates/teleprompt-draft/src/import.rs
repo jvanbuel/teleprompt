@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use teleprompt_core::LineId;
 
 use crate::derive::{derive, Draft, Line, Options, Word};
+use crate::DraftError;
 use serde::{Deserialize, Serialize};
 use teleprompt_scene::record::Recorded;
 
@@ -75,7 +76,7 @@ impl ImportReport {
 const LEAD_MS: u64 = 150;
 const TAIL_MS: u64 = 250;
 
-pub fn run_import(imp: &Import) -> Result<ImportReport, String> {
+pub fn run_import(imp: &Import) -> Result<ImportReport, DraftError> {
     refuse_to_replace(imp.script, imp.force)?;
     let recorder = recorder_for(imp.registry, imp.with, imp.recording)?;
     let text = std::fs::read_to_string(imp.recording)
@@ -103,7 +104,7 @@ pub fn recorder_for(
     registry: Registry,
     with: Option<&str>,
     recording: &Path,
-) -> Result<Recording, String> {
+) -> Result<Recording, DraftError> {
     let all = registry.recorders();
     let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
@@ -112,22 +113,24 @@ pub fn recorder_for(
         Some(name) => r.plugin == name,
         None => r.extension() == ext,
     });
-    found.ok_or_else(|| match with {
-        Some(name) => format!("`{name}` cannot record a session; these can: {names}"),
-        None => format!(
-            "cannot tell which tool made {}; name it with --with ({names})",
-            recording.display()
-        ),
+    found.ok_or_else(|| {
+        DraftError::Other(match with {
+            Some(name) => format!("`{name}` cannot record a session; these can: {names}"),
+            None => format!(
+                "cannot tell which tool made {}; name it with --with ({names})",
+                recording.display()
+            ),
+        })
     })
 }
 
 /// A script about to be drafted over an existing one without `--force`.
-pub fn refuse_to_replace(script: &Path, force: bool) -> Result<(), String> {
+pub fn refuse_to_replace(script: &Path, force: bool) -> Result<(), DraftError> {
     if script.exists() && !force {
-        return Err(format!(
+        return Err(DraftError::WouldReplace(format!(
             "{} already exists; pass --force to replace it and its lines' takes",
             script.display()
-        ));
+        )));
     }
     Ok(())
 }
@@ -150,13 +153,13 @@ pub struct Session<'a> {
 /// Drafts `session.script`: the recording saved beside it in parts, the
 /// script including each part after the line it goes with, and each line
 /// spoken from the voice.
-pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
+pub fn draft_session(session: &Session) -> Result<ImportReport, DraftError> {
     let project =
         Project::for_script(session.script, session.registry).map_err(|e| e.to_string())?;
     let pcm = read_voice(session.voice)?;
     let words = hear(session.words, &pcm, session.offset_ms)?;
     if words.is_empty() {
-        return Err(format!("nothing was heard in {}", session.voice.display()));
+        return Err(format!("nothing was heard in {}", session.voice.display()).into());
     }
     let words = match session.punctuation {
         Some(dir) => punctuated(dir, &words)?,
@@ -171,10 +174,10 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
     let include = format!("recordings/{stem}.{}", session.recorder.extension());
     let recording = teleprompt_project::project::script_dir(session.script).join(&include);
     if recording.exists() && !session.force {
-        return Err(format!(
+        return Err(DraftError::WouldReplace(format!(
             "{} already exists; pass --force to replace it",
             recording.display()
-        ));
+        )));
     }
     let options = Options {
         title: title_of(session.script),
@@ -192,12 +195,9 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, String> {
         .script(session.script, project.source_locale())
         .compile()
         .map(|c| c.output)
-        .map_err(|errors| {
-            format!(
-                "the drafted {} does not compile, which is a bug in `import`:\n{}",
-                session.script.display(),
-                errors.render().join("\n")
-            )
+        .map_err(|problems| DraftError::DraftDoesNotCompile {
+            path: session.script.to_path_buf(),
+            problems,
         })?;
     let lines: Vec<(LineId, String)> = compiled
         .narration

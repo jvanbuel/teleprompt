@@ -67,7 +67,8 @@ pub fn choose(setup: &Setup) -> Result<(Vec<String>, Vec<&'static Tool>), String
     if names.is_empty() {
         return Ok((names, Vec::new()));
     }
-    let tools = resolve(&crate::registry::shipped(crate::cli::registry()), &names)?;
+    let tools = resolve(&crate::registry::shipped(crate::cli::registry()), &names)
+        .map_err(|e| e.to_string())?;
     Ok((names, tools))
 }
 
@@ -116,7 +117,7 @@ pub fn confirm_install(
     setup: &Setup,
     tools: &[&'static Tool],
     reporter: &dyn teleprompt_core::Reporter,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, teleprompt_setup::SetupError> {
     let gone: Vec<&'static Tool> = tools
         .iter()
         .copied()

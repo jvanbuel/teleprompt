@@ -1,6 +1,7 @@
 //! Any server speaking the OpenAI chat completions API: LM Studio,
 //! llama.cpp's server, vLLM, LocalAI, or a hosted service.
 
+use crate::translate::TranslateError;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use teleprompt_core::error::with_causes;
@@ -38,15 +39,13 @@ impl std::fmt::Debug for OpenAi {
 }
 
 impl OpenAi {
-    pub fn new(model: Option<&str>, settings: Settings) -> Result<Self, String> {
-        let url = settings.url.ok_or(
-            "the openai provider needs the server's address: set `url` under [translate.openai], \
-             e.g. http://localhost:1234/v1 for LM Studio",
-        )?;
-        let model =
-            model.ok_or("the openai provider needs a model: set `model` under [translate]")?;
+    pub fn new(model: Option<&str>, settings: Settings) -> Result<Self, TranslateError> {
+        let url = settings.url.ok_or(TranslateError::NoUrl)?;
+        let model = model.ok_or(TranslateError::NoModel)?;
         let api_key = match settings.api_key_env {
-            Some(var) => Some(std::env::var(&var).map_err(|_| format!("{var} is not set"))?),
+            Some(var) => Some(
+                std::env::var(&var).map_err(|_| TranslateError::EnvNotSet { var: var.clone() })?,
+            ),
             None => None,
         };
         Ok(OpenAi {

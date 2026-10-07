@@ -10,6 +10,7 @@ use serde::Serialize;
 use teleprompt_scene::record::{record_session, Settings, Start};
 
 use crate::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
+use crate::DraftError;
 use teleprompt_core::Reporter;
 use teleprompt_project::project::Project;
 use teleprompt_project::registry::{Recording, Registry};
@@ -38,7 +39,7 @@ pub struct Record<'a> {
     pub quiet: bool,
 }
 
-pub fn run_record(r: &Record) -> Result<ImportReport, String> {
+pub fn run_record(r: &Record) -> Result<ImportReport, DraftError> {
     let say = |state: serde_json::Value| {
         if let Some(path) = r.status {
             let partial = path.with_extension("partial");
@@ -57,41 +58,48 @@ pub fn run_record(r: &Record) -> Result<ImportReport, String> {
             "lines": report.lines,
             "blocks": report.blocks,
         }),
-        Err(e) => serde_json::json!({ "state": "failed", "error": e }),
+        Err(e) => serde_json::json!({ "state": "failed", "error": e.to_string() }),
     });
     result
 }
 
 /// The recorder `with` names, asciinema's by default.
-fn recorder(registry: Registry, with: Option<&str>) -> Result<Recording, String> {
+fn recorder(registry: Registry, with: Option<&str>) -> Result<Recording, DraftError> {
     let all = registry.recorders();
     let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
     let wanted = with.unwrap_or("asciinema");
-    all.into_iter()
-        .find(|r| r.plugin == wanted)
-        .ok_or_else(|| format!("`{wanted}` cannot record a session; these can: {names}"))
+    all.into_iter().find(|r| r.plugin == wanted).ok_or_else(|| {
+        DraftError::Other(format!(
+            "`{wanted}` cannot record a session; these can: {names}"
+        ))
+    })
 }
 
 /// Everything that could stop the draft, checked before anything is
 /// recorded rather than after the author has talked for ten minutes.
-fn check(r: &Record, recorder: &Recording) -> Result<(), String> {
+fn check(r: &Record, recorder: &Recording) -> Result<(), DraftError> {
     refuse_to_replace(r.script, r.force)?;
     if !cfg!(feature = "listen") {
-        return Err(
-            "this teleprompt was built without a speech recognizer: rebuild it \
-                    with `--features listen`"
-                .to_string(),
-        );
+        return Err(DraftError::NoRecognizer);
     }
     if !r.model.is_dir() {
-        return Err(format!("no speech model at {}", r.model.display()));
+        return Err(DraftError::NoModel {
+            what: "speech",
+            dir: r.model.to_path_buf(),
+        });
     }
     if let Some(dir) = r.punctuation.filter(|d| !d.is_dir()) {
-        return Err(format!("no punctuation model at {}", dir.display()));
+        return Err(DraftError::NoModel {
+            what: "punctuation",
+            dir: dir.to_path_buf(),
+        });
     }
     if let Some(why) = recorder.unavailable() {
-        return Err(format!("cannot record with {}: {why}", recorder.plugin));
+        return Err(DraftError::Recorder {
+            plugin: recorder.plugin,
+            why,
+        });
     }
     Ok(())
 }
@@ -100,7 +108,7 @@ fn record(
     r: &Record,
     recorder: &Recording,
     say: &dyn Fn(serde_json::Value),
-) -> Result<ImportReport, String> {
+) -> Result<ImportReport, DraftError> {
     let project = Project::for_script(r.script, r.registry).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)

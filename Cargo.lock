@@ -2060,6 +2060,7 @@ dependencies = [
  "teleprompt-setup",
  "teleprompt-testkit",
  "teleprompt-voice",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2080,6 +2081,7 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-project",
  "teleprompt-script",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2123,6 +2125,7 @@ dependencies = [
  "teleprompt-script",
  "teleprompt-testkit",
  "teleprompt-voice",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -2202,6 +2205,7 @@ dependencies = [
  "tabled",
  "teleprompt-core",
  "teleprompt-scene",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

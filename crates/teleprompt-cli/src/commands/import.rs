@@ -148,8 +148,7 @@ fn run_session_import(format: Format, args: Args) -> Run {
     let words = match &args.words {
         Some(path) => Words::File(path),
         None => {
-            model =
-                setup::speech_model(args.model.as_deref(), &reporter).map_err(runtime_failure)?;
+            model = setup::speech_model(args.model.as_deref(), &reporter)?;
             Words::Model(&model)
         }
     };
@@ -165,8 +164,7 @@ fn run_session_import(format: Format, args: Args) -> Run {
         offset_ms: args.offset_ms,
         punctuation: punctuation.as_deref(),
         force: args.force,
-    })
-    .map_err(Outcome::RuntimeFailure)?;
+    })?;
     emit(format, &report, &report.render());
     Ok(Outcome::Ok)
 }

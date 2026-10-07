@@ -302,7 +302,7 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
     // anything was rendered, so on a cold project it holds estimates. This
     // makes `dub` idempotent, and costs no synthesis.
     let compiled = script.compile().map_err(Failure::Validation)?.output;
-    let published = publish::publish(&compiled, audio).map_err(Failure::Runtime)?;
+    let published = publish::publish(&compiled, audio)?;
     warnings.extend(compiled.warnings.iter().cloned());
     Ok(Voiced {
         compiled,

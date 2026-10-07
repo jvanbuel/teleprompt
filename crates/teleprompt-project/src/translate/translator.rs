@@ -122,16 +122,18 @@ impl Translator {
         provider: &str,
         model: Option<&str>,
         settings: Option<&serde_yaml::Value>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, TranslateError> {
         fn read<T: serde::de::DeserializeOwned + Default>(
             provider: &str,
             settings: Option<&serde_yaml::Value>,
-        ) -> Result<T, String> {
+        ) -> Result<T, TranslateError> {
             settings.map_or_else(
                 || Ok(T::default()),
                 |v| {
-                    serde_yaml::from_value(v.clone())
-                        .map_err(|e| format!("translate.{provider}: {e}"))
+                    serde_yaml::from_value(v.clone()).map_err(|e| TranslateError::Settings {
+                        provider: provider.to_string(),
+                        why: e.to_string(),
+                    })
                 },
             )
         }
@@ -148,16 +150,11 @@ impl Translator {
             "command" => {
                 let s: CommandSettings = read(provider, settings)?;
                 let program = s.run.as_deref().map(Program::new);
-                program.map(Translator::Command).ok_or_else(|| {
-                    "the command provider needs a program: set `run` under [translate.command], \
-                     or pass --command"
-                        .to_string()
-                })
+                program
+                    .map(Translator::Command)
+                    .ok_or(TranslateError::NoProgram)
             }
-            other => Err(format!(
-                "unknown translation provider `{other}`; known: {}",
-                PROVIDERS.join(", ")
-            )),
+            other => Err(TranslateError::Unknown(other.to_string())),
         }
     }
 
@@ -199,4 +196,32 @@ impl Translator {
         }
         Ok(out)
     }
+}
+
+/// Why a translator could not be made from its settings.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum TranslateError {
+    #[error(
+        "the openai provider needs the server's address: set `url` under [translate.openai], \
+         e.g. http://localhost:1234/v1 for LM Studio"
+    )]
+    NoUrl,
+    #[error("the openai provider needs a model: set `model` under [translate]")]
+    NoModel,
+    #[error("{var} is not set")]
+    EnvNotSet { var: String },
+    #[error(
+        "translating with Claude needs an Anthropic API key in ANTHROPIC_API_KEY \
+         (console.anthropic.com); the default provider, ollama, needs none"
+    )]
+    NoAnthropicKey,
+    #[error(
+        "the command provider needs a program: set `run` under [translate.command], \
+         or pass --command"
+    )]
+    NoProgram,
+    #[error("unknown translation provider `{0}`; known: {}", PROVIDERS.join(", "))]
+    Unknown(String),
+    #[error("translate.{provider}: {why}")]
+    Settings { provider: String, why: String },
 }

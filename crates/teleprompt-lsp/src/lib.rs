@@ -19,7 +19,7 @@ mod server;
 pub mod symbols;
 pub mod text;
 
-pub use analyzer::{run_lsp, ProjectAnalyzer};
+pub use analyzer::{run_lsp, LspError, ProjectAnalyzer};
 pub use server::{run, serve};
 
 /// Whether `text` is a teleprompt script: its front matter names

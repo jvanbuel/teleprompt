@@ -1,6 +1,7 @@
 //! Claude as a translator, through the Messages API. Rust has no official
 //! Anthropic SDK, so this is the documented HTTP request.
 
+use crate::translate::TranslateError;
 use serde_json::{json, Value};
 use teleprompt_core::error::with_causes;
 
@@ -39,12 +40,9 @@ impl std::fmt::Debug for Claude {
 impl Claude {
     /// Credentials and endpoint from the environment: `ANTHROPIC_API_KEY`,
     /// and `ANTHROPIC_BASE_URL` if set.
-    pub fn from_env(model: Option<&str>) -> Result<Self, String> {
-        let api_key = std::env::var("ANTHROPIC_API_KEY").map_err(|_| {
-            "translating with Claude needs an Anthropic API key in ANTHROPIC_API_KEY \
-             (console.anthropic.com); the default provider, ollama, needs none"
-                .to_string()
-        })?;
+    pub fn from_env(model: Option<&str>) -> Result<Self, TranslateError> {
+        let api_key =
+            std::env::var("ANTHROPIC_API_KEY").map_err(|_| TranslateError::NoAnthropicKey)?;
         Ok(Claude {
             api_key,
             model: model.unwrap_or(DEFAULT_MODEL).to_string(),

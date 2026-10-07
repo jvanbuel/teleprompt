@@ -3,6 +3,8 @@
 //! runs a speech model.
 
 use teleprompt_core::Reporter;
+
+use crate::DraftError;
 use teleprompt_listen::SpeakerSpan;
 use teleprompt_voice::Pcm;
 
@@ -28,7 +30,7 @@ pub fn hear(
     pcm: &Pcm,
     speakers: Option<usize>,
     reporter: &dyn Reporter,
-) -> Result<Conversation, String> {
+) -> Result<Conversation, DraftError> {
     let samples = at_16k(pcm);
     let model = setup::speech_model(None, reporter)?;
     let words = teleprompt_listen::sherpa::transcribe(&model, &samples)?;
@@ -87,12 +89,8 @@ pub fn hear(
 }
 
 #[cfg(not(feature = "listen"))]
-pub fn hear(_: &Pcm, _: Option<usize>, _: &dyn Reporter) -> Result<Conversation, String> {
-    Err(
-        "this teleprompt was built without speech models, so it cannot transcribe a \
-         recording: rebuild it with `--features listen`, or draft from a transcript"
-            .to_string(),
-    )
+pub fn hear(_: &Pcm, _: Option<usize>, _: &dyn Reporter) -> Result<Conversation, DraftError> {
+    Err(DraftError::CannotTranscribe)
 }
 
 /// `pcm` as the speech models take it: floats at 16 kHz.

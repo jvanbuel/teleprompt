@@ -105,7 +105,8 @@ fn an_unknown_name_says_what_there_is() {
         &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
         &["obs".to_string()],
     )
-    .unwrap_err();
+    .unwrap_err()
+    .to_string();
     assert!(
         err.contains("obs") && err.contains("ffmpeg") && err.contains("vhs"),
         "{err}"

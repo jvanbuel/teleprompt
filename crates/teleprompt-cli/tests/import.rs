@@ -89,6 +89,7 @@ fn import(
     script: &Path,
     force: bool,
 ) -> Result<teleprompt_draft::import::ImportReport, String> {
+    // The message, as the command prints it.
     run_import(&Import {
         registry: teleprompt_cli::registry::registry(),
         reporter: &teleprompt_core::Silent,
@@ -101,6 +102,7 @@ fn import(
         punctuation: None,
         force,
     })
+    .map_err(|e| e.to_string())
 }
 
 #[test]
@@ -223,7 +225,8 @@ fn an_unknown_recording_asks_which_tool_made_it() {
         punctuation: None,
         force: false,
     })
-    .unwrap_err();
+    .unwrap_err()
+    .to_string();
     assert!(e.contains("--with") && e.contains("asciinema"), "{e}");
 }
 

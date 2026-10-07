@@ -198,6 +198,7 @@ fn providers_say_what_they_are_missing() {
         Translator::new(p, None, s.map(settings).as_ref())
             .err()
             .unwrap()
+            .to_string()
     };
     assert!(err("deepl", None).contains("ollama, openai, claude, command"));
     assert!(err("openai", None).contains("[translate.openai]"));

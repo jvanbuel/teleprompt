@@ -47,7 +47,7 @@ pub struct Args {
 }
 
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
-    use crate::cli::{emit, emit_data, runtime_failure};
+    use crate::cli::{emit, emit_data};
     use crate::output::Outcome;
     use teleprompt_setup as setup;
     if args.tools {
@@ -69,7 +69,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         unreachable!("clap requires it without --tools");
     };
     let reporter = crate::output::Terminal::new(format);
-    let model = &setup::speech_model(args.model.as_deref(), &reporter).map_err(runtime_failure)?;
+    let model = &setup::speech_model(args.model.as_deref(), &reporter)?;
     let punctuation = setup::punctuation_model(args.punctuation.as_deref());
     let mic = args.mic.as_deref().map_or_else(Vec::new, |m| {
         m.split_whitespace().map(str::to_string).collect()
@@ -87,8 +87,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         force: args.force,
         status: args.status.as_deref(),
         quiet: args.quiet,
-    })
-    .map_err(Outcome::RuntimeFailure)?;
+    })?;
     if !args.quiet {
         emit(format, &report, &report.render());
     }

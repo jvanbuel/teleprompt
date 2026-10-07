@@ -121,6 +121,24 @@ impl From<Failure> for Outcome {
     }
 }
 
+/// Drafting, setting up and serving an editor fail at run time: none of
+/// them is the script's fault.
+macro_rules! runtime_failures {
+    ($($e:ty),*) => {$(
+        impl From<$e> for Outcome {
+            fn from(e: $e) -> Self {
+                Self::RuntimeFailure(e.to_string())
+            }
+        }
+    )*};
+}
+
+runtime_failures!(
+    teleprompt_draft::DraftError,
+    teleprompt_lsp::LspError,
+    teleprompt_setup::SetupError
+);
+
 /// Every way a command can end. Centralised so no subcommand invents a code.
 #[derive(Debug)]
 pub enum Outcome {

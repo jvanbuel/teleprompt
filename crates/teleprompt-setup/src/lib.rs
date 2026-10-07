@@ -134,7 +134,7 @@ fn installed_model(name: &str) -> Option<PathBuf> {
 
 /// The speech model to listen with: `given`, or the one `setup` installed,
 /// or the one `reporter` installs when offered.
-pub fn speech_model(given: Option<&Path>, reporter: &dyn Reporter) -> Result<PathBuf, String> {
+pub fn speech_model(given: Option<&Path>, reporter: &dyn Reporter) -> Result<PathBuf, SetupError> {
     given
         .map(Path::to_path_buf)
         .or_else(|| installed_model("speech-model"))
@@ -144,13 +144,31 @@ pub fn speech_model(given: Option<&Path>, reporter: &dyn Reporter) -> Result<Pat
                 .then(|| installed_model("speech-model"))
                 .flatten()
         })
-        .ok_or_else(|| {
-            format!(
-                "no speech model: `teleprompt setup speech-model` installs one in {}, \
-                 or --model names one",
-                models_dir().display()
-            )
+        .ok_or_else(|| SetupError::NoSpeechModel {
+            models: models_dir(),
         })
+}
+
+/// Why `setup` could not give a caller what it asked for.
+#[derive(Debug, thiserror::Error)]
+pub enum SetupError {
+    /// No speech model was given, installed, or installed when offered.
+    #[error(
+        "no speech model: `teleprompt setup speech-model` installs one in {}, \
+         or --model names one",
+        .models.display()
+    )]
+    NoSpeechModel { models: PathBuf },
+    /// A name that is neither a use, a scene plugin, nor a tool.
+    #[error("`{name}` is neither a scene plugin ({plugins}) nor a tool ({tools})")]
+    Unknown {
+        name: String,
+        plugins: String,
+        tools: String,
+    },
+    /// A tool's install command failed, or cannot run without a terminal.
+    #[error("{why}")]
+    Install { tool: &'static str, why: String },
 }
 
 /// The speaker models `setup` installed, if any.
@@ -167,7 +185,7 @@ pub fn punctuation_model(given: Option<&Path>) -> Option<PathBuf> {
 
 /// The tools `names` stand for: a scene plugin's, or a tool by its own name;
 /// each once, in order. Every tool when `names` is empty.
-pub fn resolve(shipped: &Shipped, names: &[String]) -> Result<Vec<&'static Tool>, String> {
+pub fn resolve(shipped: &Shipped, names: &[String]) -> Result<Vec<&'static Tool>, SetupError> {
     let tools = tools(shipped);
     if names.is_empty() {
         return Ok(tools);
@@ -188,11 +206,11 @@ pub fn resolve(shipped: &Shipped, names: &[String]) -> Result<Vec<&'static Tool>
             let Some(tool) = tools.iter().copied().find(|t| t.name == w) else {
                 let plugins = shipped.scene_names();
                 let tools: Vec<&str> = tools.iter().map(|t| t.name).collect();
-                return Err(format!(
-                    "`{name}` is neither a scene plugin ({}) nor a tool ({})",
-                    plugins.join(", "),
-                    tools.join(", ")
-                ));
+                return Err(SetupError::Unknown {
+                    name: name.clone(),
+                    plugins: plugins.join(", "),
+                    tools: tools.join(", "),
+                });
             };
             if !out.iter().any(|t| t.name == tool.name) {
                 out.push(tool);
@@ -373,14 +391,18 @@ impl Setup {
         &self,
         tools: &[&'static Tool],
         reporter: &dyn Reporter,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, SetupError> {
         let mut ran = Vec::new();
         for tool in tools {
+            let failed = |why: String| SetupError::Install {
+                tool: tool.name,
+                why,
+            };
             let missing = tool.installed(&self.project, &self.platform.models) == Some(false);
             let Some(command) = self.command(tool).filter(|_| missing) else {
                 continue;
             };
-            let command = without_a_terminal(&command)?;
+            let command = without_a_terminal(&command).map_err(failed)?;
             reporter.progress(Progress::Install {
                 tool: tool.name.to_string(),
                 state: Install::Start {
@@ -388,9 +410,9 @@ impl Setup {
                 },
             });
             if reporter.attended() {
-                self.run_aloud(&command)?;
+                self.run_aloud(&command).map_err(failed)?;
             } else {
-                self.run_quietly(tool, &command, reporter)?;
+                self.run_quietly(tool, &command, reporter).map_err(failed)?;
             }
             reporter.progress(Progress::Install {
                 tool: tool.name.to_string(),
