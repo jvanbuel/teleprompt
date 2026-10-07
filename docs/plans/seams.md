@@ -1,6 +1,6 @@
 # Round four: the seams
 
-Status: in progress. Follows `crate-consolidation.md`, which is done. The crate
+Status: done. Follows `crate-consolidation.md`, which is done. The crate
 count stays at 17; every step here is about an edge or a type at a
 boundary. One commit per step, in order, with the checks in "Every step"
 clean before each. Nothing depends on a later step.

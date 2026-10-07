@@ -196,9 +196,14 @@ cannot be registered under two names. The `pipeline`, and so `plan`,
 `check` and the prompter, reads a scene's shots and never runs its tool: it
 uses only the scene crate's `contract` module, and is handed the compilers
 as `SceneCompilers`. Cargo cannot enforce that one, so review does.
-`project` is a project and its scripts, built on those; `setup`, `lsp`,
-`draft` and `serve` are four front ends on top of it, each with a
-dependency set of its own, and `cli` composes them all.
+`script` also holds the project file, `config`, so a crate that never
+reads one, such as `scene`, `manifest` or `render`, links only the words
+core's `config` defines. `project` is a project and its scripts, built on
+those. `lsp`, `draft` and `serve` are front ends on top of it, each with a
+dependency set of its own; `setup`, the machine and what is installed on
+it, is a leaf on `scene` and `core` that nothing in the domain depends on.
+Each front end fails with an error type of its own, which `cli` turns into
+an exit code in one place, and `cli` composes them all.
 `tools/check_deps.py` checks the allowed edges between workspace crates,
 and CI fails on any other.
 Scene plugins and voices are named only in the command line's `registry`
