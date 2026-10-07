@@ -194,8 +194,9 @@ plugin module's `plugin()` hands over its compiler, capture backend and
 recorder as one `ScenePlugin`, named by its compiler's kind, so its halves
 cannot be registered under two names. The `pipeline`, and so `plan`,
 `check` and the prompter, reads a scene's shots and never runs its tool: it
-uses only the scene crate's `contract` module, and is handed the compilers
-as `SceneCompilers`. Cargo cannot enforce that one, so review does.
+uses only the scene crate's `contract` module, and is handed the
+`ScenePlugins` to look compilers up in. Cargo cannot enforce that one, so
+`tools/check_deps.py` holds it.
 `script` also holds the project file, `config`, so a crate that never
 reads one, such as `scene`, `manifest` or `render`, links only the words
 core's `config` defines. `project` is a project and its scripts, built on

@@ -3,6 +3,7 @@ use teleprompt_core::{DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKi
 use teleprompt_script::config::{Config, TimingConfig, TransitionConfig};
 
 #[derive(Debug, Clone)]
+#[doc(hidden)]
 pub struct NarrationInput {
     pub line_id: LineId,
     pub source_hash: Hash,
@@ -28,6 +29,7 @@ impl NarrationInput {
     /// Lead-in, clip and tail. Saturating because the clip is measured, not
     /// bounded: a saturated timeline is visibly absurd, a wrapped one
     /// quietly wrong.
+    #[doc(hidden)]
     pub fn padded_duration_ms(&self) -> u64 {
         self.lead_in_ms
             .ms()
@@ -37,6 +39,7 @@ impl NarrationInput {
 }
 
 #[derive(Debug, Clone)]
+#[doc(hidden)]
 pub struct ActionInput {
     pub shot_id: ShotId,
     pub scene: String,
@@ -64,6 +67,7 @@ pub struct Item {
 
 /// The part of an item's configuration the scheduler reads.
 #[derive(Debug, Clone)]
+#[doc(hidden)]
 pub struct Pacing {
     pub timing: TimingConfig,
     pub transition: TransitionConfig,

@@ -79,7 +79,7 @@ pub struct NarrationDetail {
 
 impl VoiceContext<'_> {
     /// The version of backend `id`, if this compile has it.
-    pub fn version_of(&self, id: &str) -> Option<&str> {
+    pub(crate) fn version_of(&self, id: &str) -> Option<&str> {
         if id == self.backend_id {
             Some(self.backend_version)
         } else {
@@ -174,6 +174,7 @@ fn at_offset_ms(
 /// the text's one for one, the word is taken by position; otherwise (a
 /// backend that reads `0:12` as three words) it is the timed occurrence
 /// nearest the same relative position. `None` when the word was not timed.
+#[doc(hidden)]
 pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<u64> {
     fn norm(w: &str) -> String {
         w.chars()
@@ -283,6 +284,7 @@ const PAUSE_SCENE: &str = "pause";
 /// the scene language, not the program that rasterises it, and settings are
 /// only what the author wrote, so a changed default moves neither and stale
 /// clips would be served as current.
+#[doc(hidden)]
 pub const CAPTURE_RECIPE: &str = "vhs-0.11-pw-1.63-v2";
 
 /// Names each shot's picture, which is its own source chained to every shot

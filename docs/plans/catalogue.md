@@ -199,6 +199,18 @@ in plain prose, no bullet lists, no model names. Push to
   module-level rule, and one checker is better than two.
 - `docs/design.md`: the sentence "Cargo cannot enforce that one, so
   review does" becomes "`tools/check_deps.py` holds it".
+- As done: `over_length` and `version_of` are crate-private. `CAPTURE_RECIPE`,
+  `word_offset_ms`, `padded_duration_ms`, `fit_line`, `layout_at`,
+  `Layout`, `ActionInput`, `NarrationInput` and `Pacing` are used by the
+  pipeline's own tests, so they stay `pub` with `#[doc(hidden)]`.
+  `ActionEntry`, `NarrationEntry`, `ChangedBeat`, `ChangedTransition` and
+  `ReorderedBeat` stay public and documented: they are the types of public
+  fields on `Timeline`'s entries and on `TimelineDiff`, which `project`,
+  `manifest` and the cli read, so hiding them would hide real API. The
+  checker's rule matches a path and a braced import alike; adding
+  `use teleprompt_scene::protocol;` and `use teleprompt_scene::{Shot,
+  record::Recorder};` to the pipeline failed it with the file and line,
+  and `teleprompt_scene::core` passed.
 
 ### 5. Docs and the page
 

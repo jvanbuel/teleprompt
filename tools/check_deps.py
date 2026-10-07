@@ -13,11 +13,14 @@ crates has to be added here, which is where the argument for it belongs.
 Dev-dependencies are not checked.
 
 The scene crate holds the contract a plugin implements and the code that
-runs one; the compiler may use only its contract (`scene::contract`), which
-review enforces.
+runs one; the compiler may use only its contract (`scene::contract`): it
+plans, and never runs a tool. Cargo sees crates, not modules, so that rule
+is a search of the pipeline's source, below.
 """
 
 import json
+import pathlib
+import re
 import subprocess
 import sys
 
@@ -69,10 +72,34 @@ ALLOWED = {
 
 PREFIX = "teleprompt-"
 
+# Modules of a crate a crate may depend on but not use: the pipeline plans
+# with the scene contract, and runs, captures and records nothing.
+FORBIDDEN_MODULES = {
+    "pipeline": ("teleprompt_scene", ("protocol", "capture", "record")),
+}
+
 
 
 def short(name):
     return name[len(PREFIX):] if name.startswith(PREFIX) else name
+
+
+def forbidden_uses():
+    """Each use of a module FORBIDDEN_MODULES keeps a crate from, by file
+    and line: as a path (`teleprompt_scene::capture`) or inside a braced
+    import (`teleprompt_scene::{capture, ...}`)."""
+    root = pathlib.Path(__file__).resolve().parent.parent
+    problems = []
+    for crate, (dep, modules) in FORBIDDEN_MODULES.items():
+        names = "|".join(modules)
+        pattern = re.compile(rf"\b{dep}::(?:\{{[^}}]*?)?\b({names})\b")
+        for path in sorted((root / "crates" / f"{PREFIX}{crate}" / "src").rglob("*.rs")):
+            text = path.read_text()
+            for m in pattern.finditer(text):
+                line = text.count("\n", 0, m.start(1)) + 1
+                where = path.relative_to(root)
+                problems.append(f"{where}:{line}: {crate} uses {dep}::{m.group(1)}, which it may not")
+    return problems
 
 
 def main():
@@ -96,6 +123,7 @@ def main():
                 continue
             if short(dep["name"]) not in allowed:
                 problems.append(f"{crate} depends on {short(dep['name'])}, which it may not")
+    problems.extend(forbidden_uses())
     for p in problems:
         print(f"error: {p}", file=sys.stderr)
     if problems:

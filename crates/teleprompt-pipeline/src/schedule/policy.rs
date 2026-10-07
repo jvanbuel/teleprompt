@@ -3,6 +3,7 @@ use teleprompt_core::PolicyKind;
 use teleprompt_script::config::TimingConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[doc(hidden)]
 pub struct Layout {
     pub narration_start_ms: u64,
     pub action_start_ms: u64,
@@ -26,6 +27,7 @@ pub fn layout(
 /// [`layout`] with a cue: the offset into the item at which the action
 /// starts. Only `concurrent` honours it; the compiler rejects a cue on any
 /// other policy (`docs/design.md#cues`).
+#[doc(hidden)]
 pub fn layout_at(
     policy: PolicyKind,
     align: Align,
@@ -154,6 +156,7 @@ pub struct Fit {
     pub warning: Option<String>,
 }
 
+#[doc(hidden)]
 pub fn fit_line(
     clip_ms: u64,
     words: usize,

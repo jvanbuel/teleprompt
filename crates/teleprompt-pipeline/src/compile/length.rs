@@ -14,7 +14,7 @@ fn seconds(ms: u64) -> String {
 /// The warning for `timeline` running past `length_ms`, or `None` within
 /// it. Time a `fit-line` picture holds cannot be cut by rewording, so the
 /// words to cut are counted against the rest of the narration.
-pub fn over_length(
+pub(crate) fn over_length(
     timeline: &Timeline,
     narration: &[NarrationDetail],
     chapters: &[ChapterInfo],
