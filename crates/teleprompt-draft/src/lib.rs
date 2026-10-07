@@ -39,6 +39,15 @@ pub enum DraftError {
     /// The recorder chosen cannot record here.
     #[error("cannot record with {plugin}: {why}")]
     Recorder { plugin: &'static str, why: String },
+    /// A recording that cannot be read back as steps.
+    #[error("{}: {source}", path.display())]
+    Unreadable {
+        path: PathBuf,
+        source: teleprompt_scene::record::RecordError,
+    },
+    /// The session could not be recorded.
+    #[error(transparent)]
+    Record(#[from] teleprompt_scene::record::RecordError),
     /// What was drafted does not compile: a bug in drafting, not the
     /// author's.
     #[error(

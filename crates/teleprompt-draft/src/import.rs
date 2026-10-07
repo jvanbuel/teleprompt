@@ -82,9 +82,10 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, DraftError> {
     let recorder = recorder_for(imp.registry, imp.with, imp.recording)?;
     let text = std::fs::read_to_string(imp.recording)
         .map_err(|e| format!("cannot read {}: {e}", imp.recording.display()))?;
-    let recorded = recorder
-        .read(&text)
-        .map_err(|e| format!("{}: {e}", imp.recording.display()))?;
+    let recorded = recorder.read(&text).map_err(|e| DraftError::Unreadable {
+        path: imp.recording.to_path_buf(),
+        source: e,
+    })?;
     draft_session(&Session {
         registry: imp.registry,
         reporter: imp.reporter,

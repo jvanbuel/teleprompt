@@ -62,5 +62,5 @@ fn a_v3_cast_is_rewritten_with_absolute_times() {
 fn a_cast_without_keystrokes_says_how_to_record_one() {
     let e = read("{\"version\": 2, \"width\": 80, \"height\": 24}\n[0.1, \"o\", \"$ \"]\n")
         .unwrap_err();
-    assert!(e.contains("--stdin"), "{e}");
+    assert!(e.to_string().contains("--stdin"), "{e}");
 }

@@ -12,7 +12,7 @@ use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
 use teleprompt_scene::core::tool::missing;
-use teleprompt_scene::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_scene::record::{wait_for, RecordError, Recorded, Recorder, Recording, Start, Step};
 use teleprompt_scene::Measured;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -36,9 +36,11 @@ impl Recorder for VhsRecorder {
         "tape"
     }
 
-    fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, String> {
-        let out =
-            File::create(file).map_err(|e| format!("cannot create {}: {e}", file.display()))?;
+    fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, RecordError> {
+        let out = File::create(file).map_err(|source| RecordError::Create {
+            path: file.to_path_buf(),
+            source,
+        })?;
         let mut command = Command::new("vhs");
         command.arg("record");
         // `vhs record` takes a shell by name: bash, zsh, fish.
@@ -52,7 +54,10 @@ impl Recorder for VhsRecorder {
             .current_dir(how.cwd)
             .stdout(Stdio::from(out))
             .spawn()
-            .map_err(|e| format!("cannot start vhs: {e}"))?;
+            .map_err(|source| RecordError::Start {
+                tool: "vhs",
+                source,
+            })?;
         Ok(Box::new(Session {
             child,
             file: file.to_path_buf(),
@@ -60,7 +65,7 @@ impl Recorder for VhsRecorder {
         }))
     }
 
-    fn read(&self, text: &str) -> Result<Recorded, String> {
+    fn read(&self, text: &str) -> Result<Recorded, RecordError> {
         Ok(read(text))
     }
 }
@@ -79,13 +84,16 @@ impl Recording for Session {
     /// `vhs record` handles no signal: it writes its tape only when its
     /// shell exits, and a signal to it loses the tape. So a stop hangs up
     /// its shell, which an interactive shell, deaf to SIGTERM, obeys.
-    fn wait(mut self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, String> {
+    fn wait(mut self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, RecordError> {
         let pid = self.child.id();
         wait_for(&mut self.child, stop, "HUP", || shell_of(pid))?;
-        let text =
-            std::fs::read_to_string(&self.file).map_err(|e| format!("vhs wrote no tape: {e}"))?;
+        let text = std::fs::read_to_string(&self.file).map_err(|source| RecordError::NoOutput {
+            tool: "vhs",
+            what: "tape",
+            source,
+        })?;
         if text.trim().is_empty() {
-            return Err("vhs recorded nothing".into());
+            return Err(RecordError::Nothing { tool: "vhs" });
         }
         Ok(read(&text))
     }

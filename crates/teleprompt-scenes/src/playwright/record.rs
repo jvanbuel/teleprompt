@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use teleprompt_scene::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_scene::record::{wait_for, RecordError, Recorded, Recorder, Recording, Start, Step};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PlaywrightRecorder;
@@ -45,7 +45,7 @@ impl Recorder for PlaywrightRecorder {
         "js"
     }
 
-    fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, String> {
+    fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, RecordError> {
         let _ = std::fs::remove_file(file);
         let mut command = playwright();
         command
@@ -58,9 +58,10 @@ impl Recorder for PlaywrightRecorder {
             .stderr(Stdio::null())
             // Its own group, so a stop reaches the browser behind npx.
             .process_group(0);
-        let child = command
-            .spawn()
-            .map_err(|e| format!("cannot start playwright codegen: {e}"))?;
+        let child = command.spawn().map_err(|source| RecordError::Start {
+            tool: "playwright codegen",
+            source,
+        })?;
         let started = Instant::now();
         let seen: Arc<Mutex<Seen>> = Arc::default();
         let done = Arc::new(AtomicBool::new(false));
@@ -85,12 +86,12 @@ impl Recorder for PlaywrightRecorder {
         }))
     }
 
-    fn read(&self, _text: &str) -> Result<Recorded, String> {
-        Err(
+    fn read(&self, _text: &str) -> Result<Recorded, RecordError> {
+        Err(RecordError::Unreadable(
             "a Playwright script does not say when each step happened, so it cannot be \
              drafted against a voice; record it with `teleprompt record --with playwright`"
                 .into(),
-        )
+        ))
     }
 }
 
@@ -115,13 +116,16 @@ impl Recording for Session {
         self.started
     }
 
-    fn wait(mut self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, String> {
+    fn wait(mut self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, RecordError> {
         let group = format!("-{}", self.child.id());
         wait_for(&mut self.child, stop, "TERM", || Some(group.clone()))?;
         self.done.store(true, Ordering::SeqCst);
         let _ = self.watcher.join();
-        let text = std::fs::read_to_string(&self.file)
-            .map_err(|e| format!("playwright codegen wrote no script: {e}"))?;
+        let text = std::fs::read_to_string(&self.file).map_err(|source| RecordError::NoOutput {
+            tool: "playwright codegen",
+            what: "script",
+            source,
+        })?;
         let seen = lock(&self.seen);
         Ok(timed(&statements(&text), &seen.times))
     }

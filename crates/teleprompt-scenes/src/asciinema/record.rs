@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 use teleprompt_scene::core::tool::missing;
-use teleprompt_scene::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_scene::record::{wait_for, RecordError, Recorded, Recorder, Recording, Start, Step};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AsciinemaRecorder;
@@ -35,7 +35,7 @@ impl Recorder for AsciinemaRecorder {
         "cast"
     }
 
-    fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, String> {
+    fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, RecordError> {
         // The shell writes its pid before it becomes the author's shell, so
         // a stop can hang it up: asciinema then finishes the cast as if it
         // had exited. asciinema 2 ignores SIGTERM.
@@ -62,7 +62,10 @@ impl Recorder for AsciinemaRecorder {
             .arg(file)
             .current_dir(how.cwd)
             .spawn()
-            .map_err(|e| format!("cannot start asciinema: {e}"))?;
+            .map_err(|source| RecordError::Start {
+                tool: "asciinema",
+                source,
+            })?;
         // Its clock starts as it writes the header.
         let deadline = Instant::now() + Duration::from_secs(10);
         while !file.exists() && Instant::now() < deadline {
@@ -76,7 +79,7 @@ impl Recorder for AsciinemaRecorder {
         }))
     }
 
-    fn read(&self, text: &str) -> Result<Recorded, String> {
+    fn read(&self, text: &str) -> Result<Recorded, RecordError> {
         read(text)
     }
 }
@@ -93,15 +96,18 @@ impl Recording for Session {
         self.started
     }
 
-    fn wait(mut self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, String> {
+    fn wait(mut self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, RecordError> {
         let pid_file = self.pid_file.clone();
         wait_for(&mut self.child, stop, "HUP", || {
             let pid = std::fs::read_to_string(&pid_file).ok()?;
             Some(pid.trim().to_string()).filter(|p| !p.is_empty())
         })?;
         let _ = std::fs::remove_file(&self.pid_file);
-        let text = std::fs::read_to_string(&self.file)
-            .map_err(|e| format!("asciinema wrote no recording: {e}"))?;
+        let text = std::fs::read_to_string(&self.file).map_err(|source| RecordError::NoOutput {
+            tool: "asciinema",
+            what: "recording",
+            source,
+        })?;
         read(&text)
     }
 }
@@ -134,23 +140,25 @@ struct Event {
 /// to the next command's, with everything the terminal wrote meanwhile.
 /// It is rewritten as v2, whose times are absolute, so a marker can go
 /// anywhere. The command that closed the shell is left out.
-pub fn read(text: &str) -> Result<Recorded, String> {
+pub fn read(text: &str) -> Result<Recorded, RecordError> {
+    let unreadable = |why: String| RecordError::Unreadable(why);
     let mut lines = text.lines().filter(|l| !l.trim().is_empty());
     let header: Value = lines
         .next()
         .and_then(|l| serde_json::from_str(l).ok())
-        .ok_or("the cast has no header line")?;
+        .ok_or_else(|| unreadable("the cast has no header line".into()))?;
     let relative = match header["version"].as_u64() {
         Some(2) => false,
         Some(3) => true,
-        _ => return Err("only asciicast v2 and v3 are read".into()),
+        _ => return Err(unreadable("only asciicast v2 and v3 are read".into())),
     };
     let mut events = Vec::new();
     let mut clock = 0.0;
     for line in lines {
-        let v: Value = serde_json::from_str(line).map_err(|_| format!("not an event: {line}"))?;
+        let v: Value =
+            serde_json::from_str(line).map_err(|_| unreadable(format!("not an event: {line}")))?;
         let (Some(t), Some(code)) = (v[0].as_f64(), v[1].as_str()) else {
-            return Err(format!("not an event: {line}"));
+            return Err(unreadable(format!("not an event: {line}")));
         };
         clock = if relative { clock + t } else { t };
         events.push(Event {
@@ -160,11 +168,11 @@ pub fn read(text: &str) -> Result<Recorded, String> {
         });
     }
     if !events.iter().any(|e| e.code == "i") {
-        return Err(
+        return Err(unreadable(
             "the cast has no keystrokes: record it with `asciinema rec --stdin` \
              (asciinema 2) or `--capture-input` (asciinema 3)"
                 .into(),
-        );
+        ));
     }
 
     let (firsts, end) = commands(&events);

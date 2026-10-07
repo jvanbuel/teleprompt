@@ -14,6 +14,50 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+/// Why a recording could not be made or read back.
+#[derive(Debug, thiserror::Error)]
+pub enum RecordError {
+    #[error("cannot create {}: {source}", path.display())]
+    Create {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    /// The tool's program could not be started.
+    #[error("cannot start {tool}: {source}")]
+    Start {
+        tool: &'static str,
+        source: std::io::Error,
+    },
+    /// The tool ended without leaving the file it records into.
+    #[error("{tool} wrote no {what}: {source}")]
+    NoOutput {
+        tool: &'static str,
+        what: &'static str,
+        source: std::io::Error,
+    },
+    /// The tool's file holds no steps.
+    #[error("{tool} recorded nothing")]
+    Nothing { tool: &'static str },
+    #[error("cannot wait for the recording: {0}")]
+    Wait(std::io::Error),
+    #[error("cannot listen for SIGTERM: {0}")]
+    Signal(std::io::Error),
+    #[error("`record` needs ffmpeg to record the microphone: {0}")]
+    NoFfmpeg(std::io::Error),
+    /// ffmpeg ended before any audio was flowing; `log` is what it said.
+    #[error(
+        "ffmpeg could not record the microphone ({input}): {log}\n  \
+         pass ffmpeg's input with --mic, e.g. --mic \"-f alsa -i default\""
+    )]
+    MicFailed { input: String, log: String },
+    #[error("the microphone ({input}) sent nothing for five seconds")]
+    MicSilent { input: String },
+    /// A recording in the tool's own format that cannot be read as steps,
+    /// worded by the scene plugin that knows the format.
+    #[error("{0}")]
+    Unreadable(String),
+}
+
 /// A scene plugin's recording tool.
 pub trait Recorder: Send + Sync {
     /// Why it cannot record here, such as its tool not being installed.
@@ -26,9 +70,9 @@ pub trait Recorder: Send + Sync {
     /// The extension its recordings are saved with, without the dot.
     fn extension(&self) -> &'static str;
     /// Starts the tool recording into `file`.
-    fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, String>;
+    fn start(&self, file: &Path, how: &Start) -> Result<Box<dyn Recording>, RecordError>;
     /// A recording made with this tool earlier, as steps, for `import`.
-    fn read(&self, text: &str) -> Result<Recorded, String>;
+    fn read(&self, text: &str) -> Result<Recorded, RecordError>;
 }
 
 /// What a recording starts from.
@@ -49,7 +93,7 @@ pub trait Recording: Send {
     fn started(&self) -> Instant;
     /// Until the author finishes, or `stop` is set and the tool is stopped
     /// as its own stop key would; then what was recorded, as steps.
-    fn wait(self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, String>;
+    fn wait(self: Box<Self>, stop: &AtomicBool) -> Result<Recorded, RecordError>;
 }
 
 /// A recording as steps: what the author did, when, and the file's text
@@ -98,14 +142,10 @@ pub fn wait_for(
     stop: &AtomicBool,
     signal: &str,
     target: impl Fn() -> Option<String>,
-) -> Result<(), String> {
+) -> Result<(), RecordError> {
     let mut asked: Option<Instant> = None;
     loop {
-        if child
-            .try_wait()
-            .map_err(|e| format!("cannot wait for the recording: {e}"))?
-            .is_some()
-        {
+        if child.try_wait().map_err(RecordError::Wait)?.is_some() {
             return Ok(());
         }
         match asked {
@@ -162,13 +202,13 @@ pub fn record_session(
     recorder: &dyn Recorder,
     settings: &Settings,
     recording: &dyn Fn(),
-) -> Result<Session, String> {
+) -> Result<Session, RecordError> {
     // SIGTERM ends the recording as the tool's own stop would, and the
     // session is still drafted: it is how the app's Stop works.
     let stop = Arc::new(AtomicBool::new(false));
     #[cfg(unix)]
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&stop))
-        .map_err(|e| format!("cannot listen for SIGTERM: {e}"))?;
+        .map_err(RecordError::Signal)?;
 
     let voice = settings.into.join("voice.wav");
     let mic = Mic::start(&voice, settings.mic)?;
@@ -208,7 +248,7 @@ struct Mic {
 }
 
 impl Mic {
-    fn start(path: &Path, input: &[String]) -> Result<Mic, String> {
+    fn start(path: &Path, input: &[String]) -> Result<Mic, RecordError> {
         let input: Vec<String> = if input.is_empty() {
             default_mic().iter().map(|s| (*s).to_string()).collect()
         } else {
@@ -217,8 +257,10 @@ impl Mic {
         // To a file, not a pipe nobody reads while recording: a full pipe
         // would stop ffmpeg mid-session.
         let log = path.with_extension("log");
-        let stderr = std::fs::File::create(&log)
-            .map_err(|e| format!("cannot create {}: {e}", log.display()))?;
+        let stderr = std::fs::File::create(&log).map_err(|source| RecordError::Create {
+            path: log.clone(),
+            source,
+        })?;
         let mut child = Command::new("ffmpeg")
             .args(["-hide_banner", "-loglevel", "error"])
             .args(&input)
@@ -228,7 +270,7 @@ impl Mic {
             .stdout(Stdio::null())
             .stderr(stderr)
             .spawn()
-            .map_err(|e| format!("`record` needs ffmpeg to record the microphone: {e}"))?;
+            .map_err(RecordError::NoFfmpeg)?;
         // Audio is flowing once the file holds more than its header.
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
@@ -242,20 +284,17 @@ impl Mic {
             }
             if let Ok(Some(_)) = child.try_wait() {
                 let err = std::fs::read_to_string(&log).unwrap_or_default();
-                return Err(format!(
-                    "ffmpeg could not record the microphone ({}): {}\n  \
-                     pass ffmpeg's input with --mic, e.g. --mic \"-f alsa -i default\"",
-                    input.join(" "),
-                    err.trim()
-                ));
+                return Err(RecordError::MicFailed {
+                    input: input.join(" "),
+                    log: err.trim().to_string(),
+                });
             }
             if Instant::now() > deadline {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(format!(
-                    "the microphone ({}) sent nothing for five seconds",
-                    input.join(" ")
-                ));
+                return Err(RecordError::MicSilent {
+                    input: input.join(" "),
+                });
             }
             std::thread::sleep(Duration::from_millis(20));
         }
@@ -311,5 +350,71 @@ mod tests {
         assert!(ffmpeg.exists());
         drop(mic);
         assert!(!ffmpeg.exists(), "ffmpeg is still running, or unreaped");
+    }
+
+    fn io(why: &str) -> std::io::Error {
+        std::io::Error::other(why)
+    }
+
+    /// The CLI prints these to authors as they are.
+    #[test]
+    fn every_error_reads_as_it_always_did() {
+        let said = |e: RecordError| e.to_string();
+        assert_eq!(
+            said(RecordError::Create {
+                path: "a/voice.log".into(),
+                source: io("denied"),
+            }),
+            "cannot create a/voice.log: denied"
+        );
+        assert_eq!(
+            said(RecordError::Start {
+                tool: "vhs",
+                source: io("not found"),
+            }),
+            "cannot start vhs: not found"
+        );
+        assert_eq!(
+            said(RecordError::NoOutput {
+                tool: "asciinema",
+                what: "recording",
+                source: io("gone"),
+            }),
+            "asciinema wrote no recording: gone"
+        );
+        assert_eq!(
+            said(RecordError::Nothing { tool: "vhs" }),
+            "vhs recorded nothing"
+        );
+        assert_eq!(
+            said(RecordError::Wait(io("lost"))),
+            "cannot wait for the recording: lost"
+        );
+        assert_eq!(
+            said(RecordError::Signal(io("no"))),
+            "cannot listen for SIGTERM: no"
+        );
+        assert_eq!(
+            said(RecordError::NoFfmpeg(io("missing"))),
+            "`record` needs ffmpeg to record the microphone: missing"
+        );
+        assert_eq!(
+            said(RecordError::MicFailed {
+                input: "-f alsa -i hw".into(),
+                log: "no such device".into(),
+            }),
+            "ffmpeg could not record the microphone (-f alsa -i hw): no such device\n  \
+             pass ffmpeg's input with --mic, e.g. --mic \"-f alsa -i default\""
+        );
+        assert_eq!(
+            said(RecordError::MicSilent {
+                input: "-i x".into()
+            }),
+            "the microphone (-i x) sent nothing for five seconds"
+        );
+        assert_eq!(
+            said(RecordError::Unreadable("not a cast".into())),
+            "not a cast"
+        );
     }
 }
