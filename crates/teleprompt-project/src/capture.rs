@@ -61,13 +61,13 @@ pub(crate) fn cues_of(
 ///     env:
 ///       PATH: target/release:/usr/bin
 /// ```
-fn flatten(settings: &BTreeMap<String, serde_yaml::Value>) -> BTreeMap<String, String> {
+fn flatten(settings: &BTreeMap<String, serde_json::Value>) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     for (key, value) in settings {
         match value {
-            serde_yaml::Value::Mapping(map) => {
-                for (inner, value) in map {
-                    if let (Some(name), Some(text)) = (inner.as_str(), scalar(value)) {
+            serde_json::Value::Object(map) => {
+                for (name, value) in map {
+                    if let Some(text) = scalar(value) {
                         out.insert(format!("{key}.{name}"), text);
                     }
                 }
@@ -82,11 +82,11 @@ fn flatten(settings: &BTreeMap<String, serde_yaml::Value>) -> BTreeMap<String, S
     out
 }
 
-fn scalar(value: &serde_yaml::Value) -> Option<String> {
+fn scalar(value: &serde_json::Value) -> Option<String> {
     match value {
-        serde_yaml::Value::String(s) => Some(s.clone()),
-        serde_yaml::Value::Number(n) => Some(n.to_string()),
-        serde_yaml::Value::Bool(b) => Some(b.to_string()),
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        serde_json::Value::Bool(b) => Some(b.to_string()),
         _ => None,
     }
 }

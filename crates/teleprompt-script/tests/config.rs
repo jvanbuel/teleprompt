@@ -208,7 +208,7 @@ fn the_specs_own_section_3_1_front_matter_deserializes_verbatim() {
     );
     assert_eq!(
         browser.settings.get("viewport"),
-        Some(&serde_yaml::from_str::<serde_yaml::Value>("[1920, 1080]").unwrap()),
+        Some(&teleprompt_core::yaml::from_str::<serde_json::Value>("[1920, 1080]").unwrap()),
         "structured settings survive instead of being stringified or rejected"
     );
     assert_eq!(

@@ -149,7 +149,7 @@ async fn a_refusal_says_why() {
 
 #[test]
 fn settings_out_of_range_are_refused_and_the_rest_are_in_the_key() {
-    let v = |s: &str| serde_yaml::from_str::<serde_yaml::Value>(s).unwrap();
+    let v = |s: &str| teleprompt_core::yaml::from_str::<serde_json::Value>(s).unwrap();
     let err = ElevenLabsConfig::from_value(&v("stability: 2")).unwrap_err();
     assert!(err.contains("stability"), "{err}");
     let cfg = ElevenLabsConfig::from_value(&v("model: eleven_v3\nstyle: 0.5")).unwrap();

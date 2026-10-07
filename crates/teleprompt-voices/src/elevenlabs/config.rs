@@ -39,8 +39,8 @@ impl Default for ElevenLabsConfig {
 }
 
 impl ElevenLabsConfig {
-    pub fn from_value(v: &serde_yaml::Value) -> Result<Self, String> {
-        let mut c: ElevenLabsConfig = serde_yaml::from_value(v.clone())
+    pub fn from_value(v: &serde_json::Value) -> Result<Self, String> {
+        let mut c: ElevenLabsConfig = serde_json::from_value(v.clone())
             .map_err(|e| format!("invalid `backends.elevenlabs` settings: {e}"))?;
         while c.base_url.ends_with('/') {
             c.base_url.pop();

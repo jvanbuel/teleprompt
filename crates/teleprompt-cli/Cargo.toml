@@ -47,7 +47,6 @@ teleprompt-testkit = { path = "../teleprompt-testkit" }
 # The tests look at what the engine made with the crates it made it with.
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
-serde_yaml.workspace = true
 insta.workspace = true
 tempfile.workspace = true
 # `net` and `io-util` beyond the binary's own `rt-multi-thread`/`macros`:

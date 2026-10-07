@@ -104,8 +104,8 @@ async fn a_failing_command_says_what_it_said() {
     assert!(err.contains("nope") && err.contains('3'), "{err}");
 }
 
-fn settings(yaml: &str) -> serde_yaml::Value {
-    serde_yaml::from_str(yaml).unwrap()
+fn settings(yaml: &str) -> serde_json::Value {
+    teleprompt_core::yaml::from_str(yaml).unwrap()
 }
 
 /// The default: a model run by Ollama, asked for JSON in its own format.

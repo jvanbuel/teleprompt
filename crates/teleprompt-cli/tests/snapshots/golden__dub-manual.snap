@@ -291,7 +291,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
     "script": "cli.md",
     "shots": [
       {
-        "capture_key": "cc98e507042e3a18b32e52923a40d32b59b2f18345f2b1fda3bd5e451435c484",
+        "capture_key": "af43a32d61784a5be4100b6843c22c330313bb39251d6e7c59af1f4d15e27db7",
         "duration_ms": 2630,
         "duration_source": "exact",
         "line": "welcome",
@@ -307,7 +307,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "e38b02cba478e0897fd6ac51e5e4960f4256dae5a3f84fd7aa15e25d5041e4c6",
+        "capture_key": "15d6b8937fa1abb50db11f080ec6d1a8a1d7eb58149ae270e5f5fb96db703897",
         "duration_ms": 2365,
         "duration_source": "exact",
         "line": "prose-and-action",
@@ -323,7 +323,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "12a9cf14e5785e03537d3d9c1a226d7894e296e87411edb5fc1b29bcf6f37444",
+        "capture_key": "1e0bc677515b85c51846dc9db24d279463a5b0a92f48c6bb6d46cbe017324f5a",
         "duration_ms": 5160,
         "duration_source": "exact",
         "line": "vhs",
@@ -339,7 +339,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "ac8ea3dd90a839d3fd41c8bc7fce613c871ca2ecc17975effa49b5781e9282cb",
+        "capture_key": "d3dc3d87b6903dc21824a21260059becb3d08c9aa8a59f4cbcde9fb53be86070",
         "duration_ms": 1620,
         "duration_source": "exact",
         "line": "the-mark",
@@ -355,7 +355,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "73e2737dd2b4ec3ccd616cb965cbe173d0ab3da1438eeb94358bfe7dffbd6106",
+        "capture_key": "f365b949d43a24958bf54dd59c1e9106fad361e03287fd5ac0fb125dad8c312e",
         "duration_ms": 1600,
         "duration_source": "exact",
         "line": "new",
@@ -371,7 +371,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "9188c12109e586d43e5b921fbcf99b6b33a0f0436687d6470bf623e916a2ed4d",
+        "capture_key": "a2bfb70e7f48dd2590b50fcecd6d17050d7442d6d51f99444d23d524016dabc4",
         "duration_ms": 1480,
         "duration_source": "exact",
         "line": null,
@@ -387,7 +387,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "25ff1b523c4a3fc3949315633fe65af8f335d2438a30ec2339a7d7d0ceeb8f01",
+        "capture_key": "15385a6c12088294629300ddf3433d3f8255cbf768c5e7f28c3b4874126071b6",
         "duration_ms": 2625,
         "duration_source": "exact",
         "line": "scaffold",
@@ -403,7 +403,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "a3a4045cc026cb4f12eb859ae366baaba245f6f45953b6aa511b90529bed7b66",
+        "capture_key": "2810e2afab20bdd25db831d75e38ec9b8fb1de518cb0f239e5e59e6f0207fd34",
         "duration_ms": 1940,
         "duration_source": "exact",
         "line": "check",
@@ -419,7 +419,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "46c46ace1d180ae814b53f23864de07686ba069f762361e7a1549eb1baacd0ae",
+        "capture_key": "7ff2187c0abd518c6181e63c234da703e976dbfde957cca87b1cd1d07b765138",
         "duration_ms": 19550,
         "duration_source": "exact",
         "line": "diagnostics",
@@ -435,7 +435,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "d6860e6583fbd5c232b041f89fba693fbd991cb68f166f8d3b2704d55490a90d",
+        "capture_key": "e447a2105ca2dfcc437befd9020eb7eeeb6d5c443e98c36d3076275bf9a8bfc1",
         "duration_ms": 3610,
         "duration_source": "exact",
         "line": "plan",
@@ -451,7 +451,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "572d7abd374f574eb4742f31577632f64b50b35abe623984886d820a31c40596",
+        "capture_key": "976a6356798108aefc7e3ed903df8b770e8b587b4aaa07f9447570fd9e35bfb4",
         "duration_ms": 3650,
         "duration_source": "exact",
         "line": "estimated-vs-measured",
@@ -467,7 +467,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "cacc31661aaa6c09e2f1107d8a74d3265d325a21149dcd37128c0813accbf814",
+        "capture_key": "85ac3616c39484e7dfcca7b264a93ebc1d79712190518a7bb3e6e294d1db303f",
         "duration_ms": 4070,
         "duration_source": "exact",
         "line": "exact-actions",
@@ -483,7 +483,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "528c2f56842f389a5a04712244d958e71a731b77f1f6880198f41d5a12f80f4c",
+        "capture_key": "60a7750c600ef5ff5ff0f609b1293bcd28f53fc791be682162ef4e2ea5bff3d0",
         "duration_ms": 2625,
         "duration_source": "exact",
         "line": "commit-the-timeline",
@@ -499,7 +499,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "6c66221793250efdfc0656e4ff07be1820d7c77cc70012cce7077dbb209b11b8",
+        "capture_key": "ea7ac2e13de44a5d88467cb4bb308acda81344d4543a4dc0d6609bc88c973029",
         "duration_ms": 11650,
         "duration_source": "exact",
         "line": "edit-the-prose",
@@ -515,7 +515,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "d6cdde1d1596c94e3162b0b28ac15bfdd62d8190651d14872aef709214e30a3e",
+        "capture_key": "c1bfc0f65b77f42ce8e7430458557e6d93d5e5debc3932808fbd39b455793862",
         "duration_ms": 4350,
         "duration_source": "exact",
         "line": "the-diff",
@@ -531,7 +531,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "811415fd480d15811df7bac6b40a65214af403118b87348f704fee271c6f42c2",
+        "capture_key": "089d1762714a0abd87912299b67439a468eca077b50129e4fe7358013fbd83ce",
         "duration_ms": 4770,
         "duration_source": "exact",
         "line": "dub",
@@ -547,7 +547,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "cff6505618b8058e6d06981c8b1900190a412b2ceae768fdca2969b2fc1a4c05",
+        "capture_key": "43f81e252731e0879da84d4e05a8f1e8d444980aa4c7952e469093712572f126",
         "duration_ms": 1890,
         "duration_source": "exact",
         "line": null,
@@ -563,7 +563,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "7206046ec0c2aa0def0b5e93cb13f4921ae27fe2cbf0e201bd83914ea10b5ac6",
+        "capture_key": "ddbc756403040188d6fa0622f19b76c05b6be106fb674febe5e1e73d23fb150d",
         "duration_ms": 3475,
         "duration_source": "exact",
         "line": "manifest",
@@ -579,7 +579,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "6fb83d4649bb74b7a6276e848e78e6ece9f7f375002dac8a40f9f08ae0497e93",
+        "capture_key": "5291d02e7946c8af6a1a3440b3f253d1c4dfa20ae8e30f0188b0ad2d2bff165b",
         "duration_ms": 3350,
         "duration_source": "exact",
         "line": "measured",
@@ -595,7 +595,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "0ba94c9dd2b4d46d9d9410c5d1cd4d7de0885f5ebf42027b38c1f65f83d52a25",
+        "capture_key": "ff95fbdd3a82a783931b66028226de2788450853c1e90e56e0690d27636afca8",
         "duration_ms": 4010,
         "duration_source": "exact",
         "line": "dub-check",
@@ -611,7 +611,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "084df89309d54d38f79b65177d8125c4a9bab12a04bb0d2c26c758f5aafa7152",
+        "capture_key": "53f707172e57e0d3eb0df200046d0a00e9aa0155fbe3d02696988b05e73a6b68",
         "duration_ms": 1740,
         "duration_source": "exact",
         "line": null,
@@ -643,7 +643,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "70bf435f1efedf3efb635e0fa29e4d468e316d03e581f33e23bfe5430ec1d8da",
+        "capture_key": "9c18cc511b0cbe03845472a41fbb86f8adb59ab758f21afda45291964e2840ae",
         "duration_ms": 3595,
         "duration_source": "exact",
         "line": "what-is-here",
@@ -659,7 +659,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "10a08777e5086aedee502436baa9b82b15f3065bc07dd925aaca208db099c966",
+        "capture_key": "d4b77bf738748dc9d42d6df0f7b0361d60b99d32bd4b90d4107cf51ecd16ea39",
         "duration_ms": 3590,
         "duration_source": "exact",
         "line": "offline-by-default",
@@ -675,7 +675,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
         }
       },
       {
-        "capture_key": "9cea4d110aeaa96feb09b9e60e64a01680d826aa259aebd8ac4362dd6fbe6597",
+        "capture_key": "0eca0bc05bab47dd57cb5fa7e499e1e7d97f23525a9ccfa3f506917fd7bb7fa0",
         "duration_ms": 3380,
         "duration_source": "exact",
         "line": "self-hosting",
@@ -1005,7 +1005,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
       "script": "cli.md",
       "shots": [
         {
-          "capture_key": "cc98e507042e3a18b32e52923a40d32b59b2f18345f2b1fda3bd5e451435c484",
+          "capture_key": "af43a32d61784a5be4100b6843c22c330313bb39251d6e7c59af1f4d15e27db7",
           "duration_ms": 2630,
           "duration_source": "exact",
           "line": "welcome",
@@ -1021,7 +1021,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "e38b02cba478e0897fd6ac51e5e4960f4256dae5a3f84fd7aa15e25d5041e4c6",
+          "capture_key": "15d6b8937fa1abb50db11f080ec6d1a8a1d7eb58149ae270e5f5fb96db703897",
           "duration_ms": 2365,
           "duration_source": "exact",
           "line": "prose-and-action",
@@ -1037,7 +1037,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "12a9cf14e5785e03537d3d9c1a226d7894e296e87411edb5fc1b29bcf6f37444",
+          "capture_key": "1e0bc677515b85c51846dc9db24d279463a5b0a92f48c6bb6d46cbe017324f5a",
           "duration_ms": 5160,
           "duration_source": "exact",
           "line": "vhs",
@@ -1053,7 +1053,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "ac8ea3dd90a839d3fd41c8bc7fce613c871ca2ecc17975effa49b5781e9282cb",
+          "capture_key": "d3dc3d87b6903dc21824a21260059becb3d08c9aa8a59f4cbcde9fb53be86070",
           "duration_ms": 1620,
           "duration_source": "exact",
           "line": "the-mark",
@@ -1069,7 +1069,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "73e2737dd2b4ec3ccd616cb965cbe173d0ab3da1438eeb94358bfe7dffbd6106",
+          "capture_key": "f365b949d43a24958bf54dd59c1e9106fad361e03287fd5ac0fb125dad8c312e",
           "duration_ms": 1600,
           "duration_source": "exact",
           "line": "new",
@@ -1085,7 +1085,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "9188c12109e586d43e5b921fbcf99b6b33a0f0436687d6470bf623e916a2ed4d",
+          "capture_key": "a2bfb70e7f48dd2590b50fcecd6d17050d7442d6d51f99444d23d524016dabc4",
           "duration_ms": 1480,
           "duration_source": "exact",
           "line": null,
@@ -1101,7 +1101,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "25ff1b523c4a3fc3949315633fe65af8f335d2438a30ec2339a7d7d0ceeb8f01",
+          "capture_key": "15385a6c12088294629300ddf3433d3f8255cbf768c5e7f28c3b4874126071b6",
           "duration_ms": 2625,
           "duration_source": "exact",
           "line": "scaffold",
@@ -1117,7 +1117,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "a3a4045cc026cb4f12eb859ae366baaba245f6f45953b6aa511b90529bed7b66",
+          "capture_key": "2810e2afab20bdd25db831d75e38ec9b8fb1de518cb0f239e5e59e6f0207fd34",
           "duration_ms": 1940,
           "duration_source": "exact",
           "line": "check",
@@ -1133,7 +1133,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "46c46ace1d180ae814b53f23864de07686ba069f762361e7a1549eb1baacd0ae",
+          "capture_key": "7ff2187c0abd518c6181e63c234da703e976dbfde957cca87b1cd1d07b765138",
           "duration_ms": 19550,
           "duration_source": "exact",
           "line": "diagnostics",
@@ -1149,7 +1149,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "d6860e6583fbd5c232b041f89fba693fbd991cb68f166f8d3b2704d55490a90d",
+          "capture_key": "e447a2105ca2dfcc437befd9020eb7eeeb6d5c443e98c36d3076275bf9a8bfc1",
           "duration_ms": 3610,
           "duration_source": "exact",
           "line": "plan",
@@ -1165,7 +1165,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "572d7abd374f574eb4742f31577632f64b50b35abe623984886d820a31c40596",
+          "capture_key": "976a6356798108aefc7e3ed903df8b770e8b587b4aaa07f9447570fd9e35bfb4",
           "duration_ms": 3650,
           "duration_source": "exact",
           "line": "estimated-vs-measured",
@@ -1181,7 +1181,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "cacc31661aaa6c09e2f1107d8a74d3265d325a21149dcd37128c0813accbf814",
+          "capture_key": "85ac3616c39484e7dfcca7b264a93ebc1d79712190518a7bb3e6e294d1db303f",
           "duration_ms": 4070,
           "duration_source": "exact",
           "line": "exact-actions",
@@ -1197,7 +1197,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "528c2f56842f389a5a04712244d958e71a731b77f1f6880198f41d5a12f80f4c",
+          "capture_key": "60a7750c600ef5ff5ff0f609b1293bcd28f53fc791be682162ef4e2ea5bff3d0",
           "duration_ms": 2625,
           "duration_source": "exact",
           "line": "commit-the-timeline",
@@ -1213,7 +1213,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "6c66221793250efdfc0656e4ff07be1820d7c77cc70012cce7077dbb209b11b8",
+          "capture_key": "ea7ac2e13de44a5d88467cb4bb308acda81344d4543a4dc0d6609bc88c973029",
           "duration_ms": 11650,
           "duration_source": "exact",
           "line": "edit-the-prose",
@@ -1229,7 +1229,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "d6cdde1d1596c94e3162b0b28ac15bfdd62d8190651d14872aef709214e30a3e",
+          "capture_key": "c1bfc0f65b77f42ce8e7430458557e6d93d5e5debc3932808fbd39b455793862",
           "duration_ms": 4350,
           "duration_source": "exact",
           "line": "the-diff",
@@ -1245,7 +1245,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "811415fd480d15811df7bac6b40a65214af403118b87348f704fee271c6f42c2",
+          "capture_key": "089d1762714a0abd87912299b67439a468eca077b50129e4fe7358013fbd83ce",
           "duration_ms": 4770,
           "duration_source": "exact",
           "line": "dub",
@@ -1261,7 +1261,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "cff6505618b8058e6d06981c8b1900190a412b2ceae768fdca2969b2fc1a4c05",
+          "capture_key": "43f81e252731e0879da84d4e05a8f1e8d444980aa4c7952e469093712572f126",
           "duration_ms": 1890,
           "duration_source": "exact",
           "line": null,
@@ -1277,7 +1277,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "7206046ec0c2aa0def0b5e93cb13f4921ae27fe2cbf0e201bd83914ea10b5ac6",
+          "capture_key": "ddbc756403040188d6fa0622f19b76c05b6be106fb674febe5e1e73d23fb150d",
           "duration_ms": 3475,
           "duration_source": "exact",
           "line": "manifest",
@@ -1293,7 +1293,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "6fb83d4649bb74b7a6276e848e78e6ece9f7f375002dac8a40f9f08ae0497e93",
+          "capture_key": "5291d02e7946c8af6a1a3440b3f253d1c4dfa20ae8e30f0188b0ad2d2bff165b",
           "duration_ms": 3350,
           "duration_source": "exact",
           "line": "measured",
@@ -1309,7 +1309,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "0ba94c9dd2b4d46d9d9410c5d1cd4d7de0885f5ebf42027b38c1f65f83d52a25",
+          "capture_key": "ff95fbdd3a82a783931b66028226de2788450853c1e90e56e0690d27636afca8",
           "duration_ms": 4010,
           "duration_source": "exact",
           "line": "dub-check",
@@ -1325,7 +1325,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "084df89309d54d38f79b65177d8125c4a9bab12a04bb0d2c26c758f5aafa7152",
+          "capture_key": "53f707172e57e0d3eb0df200046d0a00e9aa0155fbe3d02696988b05e73a6b68",
           "duration_ms": 1740,
           "duration_source": "exact",
           "line": null,
@@ -1357,7 +1357,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "70bf435f1efedf3efb635e0fa29e4d468e316d03e581f33e23bfe5430ec1d8da",
+          "capture_key": "9c18cc511b0cbe03845472a41fbb86f8adb59ab758f21afda45291964e2840ae",
           "duration_ms": 3595,
           "duration_source": "exact",
           "line": "what-is-here",
@@ -1373,7 +1373,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "10a08777e5086aedee502436baa9b82b15f3065bc07dd925aaca208db099c966",
+          "capture_key": "d4b77bf738748dc9d42d6df0f7b0361d60b99d32bd4b90d4107cf51ecd16ea39",
           "duration_ms": 3590,
           "duration_source": "exact",
           "line": "offline-by-default",
@@ -1389,7 +1389,7 @@ expression: "json!({ \"run\": transcript(&out), \"manifest\": manifest })"
           }
         },
         {
-          "capture_key": "9cea4d110aeaa96feb09b9e60e64a01680d826aa259aebd8ac4362dd6fbe6597",
+          "capture_key": "0eca0bc05bab47dd57cb5fa7e499e1e7d97f23525a9ccfa3f506917fd7bb7fa0",
           "duration_ms": 3380,
           "duration_source": "exact",
           "line": "self-hosting",

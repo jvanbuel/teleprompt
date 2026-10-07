@@ -61,7 +61,7 @@ async fn kokoro_stub_listing(voices: &[&str]) -> KokoroStub {
 /// value does not.
 fn project_with_backend(
     backend_id: &str,
-    backends: BTreeMap<String, serde_yaml::Value>,
+    backends: BTreeMap<String, serde_json::Value>,
 ) -> Project {
     Project {
         registry: teleprompt_cli::registry::registry(),
@@ -77,11 +77,11 @@ fn project_with_backend(
     }
 }
 
-fn kokoro_backends(base_url: &str) -> BTreeMap<String, serde_yaml::Value> {
+fn kokoro_backends(base_url: &str) -> BTreeMap<String, serde_json::Value> {
     let mut backends = BTreeMap::new();
     backends.insert(
         "kokoro".to_string(),
-        serde_yaml::from_str(&format!("base_url: \"{base_url}\"")).unwrap(),
+        teleprompt_core::yaml::from_str(&format!("base_url: \"{base_url}\"")).unwrap(),
     );
     backends
 }
@@ -176,7 +176,7 @@ async fn a_hanging_kokoro_server_does_not_make_setup_wait_out_the_synthesis_time
     let mut backends = kokoro_backends(&stub.base_url);
     backends.insert(
         "kokoro".to_string(),
-        serde_yaml::from_str(&format!(
+        teleprompt_core::yaml::from_str(&format!(
             "base_url: \"{}\"\ntimeout_ms: 30000",
             stub.base_url
         ))
@@ -208,7 +208,7 @@ async fn a_bad_backend_setting_is_a_reported_problem_not_a_silent_default() {
     let mut backends = BTreeMap::new();
     backends.insert(
         "kokoro".to_string(),
-        serde_yaml::from_str("concurrency: 0").unwrap(),
+        teleprompt_core::yaml::from_str("concurrency: 0").unwrap(),
     );
     let project = project_with_backend("kokoro", backends);
     let report = project.voice_status().await;
@@ -230,7 +230,7 @@ async fn a_bad_setting_for_an_unselected_backend_is_listed() {
     let mut backends = BTreeMap::new();
     backends.insert(
         "kokoro".to_string(),
-        serde_yaml::from_str("concurrency: 0").unwrap(),
+        teleprompt_core::yaml::from_str("concurrency: 0").unwrap(),
     );
     let project = project_with_backend("null", backends);
     let report = project.voice_status().await;
@@ -251,7 +251,7 @@ async fn an_unknown_backends_key_is_a_reported_problem() {
     let mut backends = BTreeMap::new();
     backends.insert(
         "kokoro-local".to_string(),
-        serde_yaml::from_str("voice: af_heart").unwrap(),
+        teleprompt_core::yaml::from_str("voice: af_heart").unwrap(),
     );
     let project = project_with_backend("null", backends);
     let report = project.voice_status().await;
@@ -287,7 +287,7 @@ async fn a_gemini_project_probes_its_key() {
     let backends = |key: &str| {
         BTreeMap::from([(
             "gemini".to_string(),
-            serde_yaml::from_str(&format!(
+            teleprompt_core::yaml::from_str(&format!(
                 "base_url: \"http://127.0.0.1:1\"\napi_key_env: \"{key}\""
             ))
             .unwrap(),

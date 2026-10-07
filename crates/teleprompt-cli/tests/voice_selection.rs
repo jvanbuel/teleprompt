@@ -2,9 +2,12 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use teleprompt_cli::commands::check::check;
 
-fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
+fn settings(yaml: &str) -> BTreeMap<String, serde_json::Value> {
     let mut m = BTreeMap::new();
-    m.insert("kokoro".to_string(), serde_yaml::from_str(yaml).unwrap());
+    m.insert(
+        "kokoro".to_string(),
+        teleprompt_core::yaml::from_str(yaml).unwrap(),
+    );
     m
 }
 
@@ -97,7 +100,7 @@ fn settings_for_a_backend_this_build_lacks_are_named_not_dropped() {
     let mut m = BTreeMap::new();
     m.insert(
         "kokoro-local".to_string(),
-        serde_yaml::from_str("voice: af_heart").unwrap(),
+        teleprompt_core::yaml::from_str("voice: af_heart").unwrap(),
     );
     let b = teleprompt_cli::registry::registry().backends(&m, "/p/teleprompt.toml");
 
@@ -124,7 +127,8 @@ fn a_block_naming_no_shipped_voice_is_a_server() {
     let mut m = BTreeMap::new();
     m.insert(
         "studio".to_string(),
-        serde_yaml::from_str("base_url: \"http://127.0.0.1:8881/v1\"\nmodel: piper").unwrap(),
+        teleprompt_core::yaml::from_str("base_url: \"http://127.0.0.1:8881/v1\"\nmodel: piper")
+            .unwrap(),
     );
     let b = teleprompt_cli::registry::registry().backends(&m, "teleprompt.toml");
     assert!(
@@ -146,7 +150,7 @@ fn an_endpoint_without_an_address_says_so() {
     let mut m = BTreeMap::new();
     m.insert(
         "studio".to_string(),
-        serde_yaml::from_str("model: piper").unwrap(),
+        teleprompt_core::yaml::from_str("model: piper").unwrap(),
     );
     let b = teleprompt_cli::registry::registry().backends(&m, "teleprompt.toml");
     let why = b.resolve("studio").err().unwrap().message;
@@ -161,11 +165,11 @@ fn an_unknown_key_is_reported_even_when_the_project_resolves_elsewhere() {
     let mut m = BTreeMap::new();
     m.insert(
         "kokoro-local".to_string(),
-        serde_yaml::from_str("voice: af_heart").unwrap(),
+        teleprompt_core::yaml::from_str("voice: af_heart").unwrap(),
     );
     m.insert(
         "kokoro".to_string(),
-        serde_yaml::from_str("concurrency: 0").unwrap(),
+        teleprompt_core::yaml::from_str("concurrency: 0").unwrap(),
     );
     let b = teleprompt_cli::registry::registry().backends(&m, "teleprompt.toml");
 
@@ -446,7 +450,7 @@ fn gemini_carries_its_configured_concurrency() {
     let mut s = BTreeMap::new();
     s.insert(
         "gemini".to_string(),
-        serde_yaml::from_str("concurrency: 2").unwrap(),
+        teleprompt_core::yaml::from_str("concurrency: 2").unwrap(),
     );
     assert_eq!(
         teleprompt_cli::registry::registry()

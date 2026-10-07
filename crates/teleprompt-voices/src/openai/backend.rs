@@ -31,7 +31,7 @@ impl OpenAiVoice {
 /// `defaults`, with the author's settings over them.
 fn build(
     defaults: OpenAiConfig,
-    settings: Option<&serde_yaml::Value>,
+    settings: Option<&serde_json::Value>,
 ) -> Result<Arc<dyn VoiceBackend>, String> {
     let cfg = match settings {
         Some(v) => defaults.with(v)?,
@@ -58,7 +58,7 @@ pub fn openai() -> Provider {
 
 /// A server of the author's: any `[backends.<name>]` that names no voice
 /// teleprompt ships.
-pub fn endpoint(name: &str, settings: &serde_yaml::Value) -> Result<Arc<dyn VoiceBackend>, String> {
+pub fn endpoint(name: &str, settings: &serde_json::Value) -> Result<Arc<dyn VoiceBackend>, String> {
     build(OpenAiConfig::endpoint(name), Some(settings))
 }
 

@@ -6,8 +6,8 @@ use stub::{spawn, Reply};
 use teleprompt_voice::SynthRequest;
 use teleprompt_voices::openai::{endpoint, OpenAiConfig};
 
-fn settings(toml: &str) -> serde_yaml::Value {
-    serde_yaml::from_str(toml).unwrap()
+fn settings(toml: &str) -> serde_json::Value {
+    teleprompt_core::yaml::from_str(toml).unwrap()
 }
 
 fn line() -> SynthRequest {

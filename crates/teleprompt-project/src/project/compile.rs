@@ -338,8 +338,8 @@ fn unrecorded(takes: &Takes, out: &CompileOutput) -> Option<String> {
 /// One warning per backend id whose `merged` entry (after `resolve`) differs
 /// from `base`, the project settings the backends were built from.
 fn backend_override_warnings(
-    base: &std::collections::BTreeMap<String, serde_yaml::Value>,
-    merged: &std::collections::BTreeMap<String, serde_yaml::Value>,
+    base: &std::collections::BTreeMap<String, serde_json::Value>,
+    merged: &std::collections::BTreeMap<String, serde_json::Value>,
 ) -> Vec<Diagnostic> {
     merged
         .iter()
@@ -364,17 +364,17 @@ fn backend_override_warnings(
 /// unless both are mappings: otherwise there is nothing finer to name than
 /// the backend itself.
 fn differing_backend_keys(
-    before: Option<&serde_yaml::Value>,
-    after: &serde_yaml::Value,
+    before: Option<&serde_json::Value>,
+    after: &serde_json::Value,
 ) -> Vec<String> {
-    let (Some(before), Some(after)) = (before.and_then(|v| v.as_mapping()), after.as_mapping())
+    let (Some(before), Some(after)) = (before.and_then(|v| v.as_object()), after.as_object())
     else {
         return Vec::new();
     };
     after
         .iter()
         .filter(|(k, v)| before.get(*k) != Some(*v))
-        .filter_map(|(k, _)| k.as_str().map(str::to_string))
+        .map(|(k, _)| k.clone())
         .collect()
 }
 

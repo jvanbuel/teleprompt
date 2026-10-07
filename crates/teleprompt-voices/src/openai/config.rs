@@ -104,17 +104,17 @@ impl OpenAiConfig {
     }
 
     /// These defaults, with `v`'s settings over them.
-    pub fn with(&self, v: &serde_yaml::Value) -> Result<Self, String> {
+    pub fn with(&self, v: &serde_json::Value) -> Result<Self, String> {
         let id = self.id.clone();
-        let mut merged = serde_yaml::to_value(Shadow::from(self)).expect("plain data");
-        if let (Some(base), Some(given)) = (merged.as_mapping_mut(), v.as_mapping()) {
+        let mut merged = serde_json::to_value(Shadow::from(self)).expect("plain data");
+        if let (Some(base), Some(given)) = (merged.as_object_mut(), v.as_object()) {
             for (k, val) in given {
                 base.insert(k.clone(), val.clone());
             }
         } else if !v.is_null() {
             return Err(format!("`backends.{id}` must be a table of settings"));
         }
-        let mut c: OpenAiConfig = serde_yaml::from_value(merged)
+        let mut c: OpenAiConfig = serde_json::from_value(merged)
             .map_err(|e| format!("invalid `backends.{id}` settings: {e}"))?;
         c.id = id;
         c.preset = self.preset;

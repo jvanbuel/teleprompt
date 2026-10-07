@@ -38,7 +38,7 @@ impl Backends {
     /// in [`Backends`] for whoever knows whether it matters.
     pub fn new(
         catalogue: &VoiceCatalogue,
-        settings: &BTreeMap<String, serde_yaml::Value>,
+        settings: &BTreeMap<String, serde_json::Value>,
         config_file: &str,
     ) -> Backends {
         let mut registry = VoiceRegistry::default();

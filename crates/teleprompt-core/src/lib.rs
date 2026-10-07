@@ -15,6 +15,7 @@ pub mod sync;
 pub mod time;
 pub mod tool;
 pub mod voice;
+pub mod yaml;
 
 pub use duration::{DurationMs, DurationSource};
 pub use error::{Diagnostic, Diagnostics, Severity, SourceSpan};

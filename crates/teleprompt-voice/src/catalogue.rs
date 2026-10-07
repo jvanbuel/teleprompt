@@ -16,7 +16,7 @@ pub type Shipped = (Provider, &'static Tool);
 /// How a `backends:` key naming no shipped voice is built: a server of
 /// the author's under the name they gave it, from its settings; or why
 /// those settings do not make one. [`Provider::build`] with the name.
-pub type Fallback = fn(&str, &serde_yaml::Value) -> Result<Arc<dyn VoiceBackend>, String>;
+pub type Fallback = fn(&str, &serde_json::Value) -> Result<Arc<dyn VoiceBackend>, String>;
 
 /// Every voice this build has, `null` aside.
 #[derive(Clone, Copy)]

@@ -121,16 +121,16 @@ impl Translator {
     pub fn new(
         provider: &str,
         model: Option<&str>,
-        settings: Option<&serde_yaml::Value>,
+        settings: Option<&serde_json::Value>,
     ) -> Result<Self, TranslateError> {
         fn read<T: serde::de::DeserializeOwned + Default>(
             provider: &str,
-            settings: Option<&serde_yaml::Value>,
+            settings: Option<&serde_json::Value>,
         ) -> Result<T, TranslateError> {
             settings.map_or_else(
                 || Ok(T::default()),
                 |v| {
-                    serde_yaml::from_value(v.clone()).map_err(|e| TranslateError::Settings {
+                    serde_json::from_value(v.clone()).map_err(|e| TranslateError::Settings {
                         provider: provider.to_string(),
                         why: e.to_string(),
                     })

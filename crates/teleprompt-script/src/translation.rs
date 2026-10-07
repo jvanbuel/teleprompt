@@ -334,32 +334,26 @@ impl Translation {
     }
 
     pub fn from_yaml(yaml: &str) -> Result<Self, String> {
-        let doc: serde_yaml::Value = serde_yaml::from_str(yaml).map_err(|e| e.to_string())?;
+        let doc: Node = teleprompt_core::yaml::from_str(yaml).map_err(|e| e.to_string())?;
         let mut t = Translation::default();
-        if doc.is_null() {
-            return Ok(t);
-        }
-        let map = doc
-            .as_mapping()
-            .ok_or("expected `chapters:`, `lines:` and `cues:`")?;
-        for (section, value) in map {
-            let name = section.as_str().unwrap_or_default();
-            let entries = match name {
+        let map = match doc {
+            Node::Null => return Ok(t),
+            Node::Map(map) => map,
+            _ => return Err("expected `chapters:`, `lines:` and `cues:`".to_string()),
+        };
+        for (name, value) in &map {
+            let entries = match name.as_str() {
                 "chapters" => &mut t.chapters,
                 "lines" => &mut t.lines,
                 "cues" => &mut t.cues,
                 other => return Err(format!("unknown section `{other}`")),
             };
-            let Some(items) = value.as_mapping() else {
+            let Node::Map(items) = value else {
                 continue;
             };
             for (key, v) in items {
-                let key = key
-                    .as_str()
-                    .ok_or(format!("a key under `{name}:` is not text"))?;
                 let field = |f: &str| {
-                    v.get(f)
-                        .and_then(serde_yaml::Value::as_str)
+                    v.field(f)
                         .map(str::to_string)
                         .ok_or(format!("`{name}.{key}` has no `{f}`"))
                 };
@@ -376,9 +370,93 @@ impl Translation {
     }
 }
 
+/// A sidecar read as the tree it is, in the order it was written: a
+/// section's lines must come back in the order the author keeps them,
+/// which a sorted map would lose.
+enum Node {
+    Null,
+    Text(String),
+    Map(Vec<(String, Node)>),
+    /// Anything else: a number, a boolean or a list, which no field of a
+    /// sidecar is.
+    Other,
+}
+
+impl Node {
+    /// The text under `key`, if this is a mapping with some there.
+    fn field(&self, key: &str) -> Option<&str> {
+        let Node::Map(map) = self else {
+            return None;
+        };
+        match map.iter().find(|(k, _)| k == key) {
+            Some((_, Node::Text(text))) => Some(text),
+            _ => None,
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Node {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Reading;
+        impl<'de> serde::de::Visitor<'de> for Reading {
+            type Value = Node;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("a sidecar of sections")
+            }
+
+            fn visit_unit<E>(self) -> Result<Node, E> {
+                Ok(Node::Null)
+            }
+
+            fn visit_none<E>(self) -> Result<Node, E> {
+                Ok(Node::Null)
+            }
+
+            fn visit_some<D: serde::Deserializer<'de>>(self, d: D) -> Result<Node, D::Error> {
+                serde::Deserialize::deserialize(d)
+            }
+
+            fn visit_str<E>(self, text: &str) -> Result<Node, E> {
+                Ok(Node::Text(text.to_string()))
+            }
+
+            fn visit_bool<E>(self, _: bool) -> Result<Node, E> {
+                Ok(Node::Other)
+            }
+
+            fn visit_i64<E>(self, _: i64) -> Result<Node, E> {
+                Ok(Node::Other)
+            }
+
+            fn visit_u64<E>(self, _: u64) -> Result<Node, E> {
+                Ok(Node::Other)
+            }
+
+            fn visit_f64<E>(self, _: f64) -> Result<Node, E> {
+                Ok(Node::Other)
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Node, A::Error> {
+                while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
+                Ok(Node::Other)
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Node, A::Error> {
+                let mut out = Vec::new();
+                while let Some(entry) = map.next_entry::<String, Node>()? {
+                    out.push(entry);
+                }
+                Ok(Node::Map(out))
+            }
+        }
+        d.deserialize_any(Reading)
+    }
+}
+
 /// `s` as a YAML scalar on one line, quoted only where YAML needs it.
 fn scalar(s: &str) -> String {
-    serde_yaml::to_string(s)
+    teleprompt_core::yaml::to_string(s)
         .map(|y| y.trim_end().to_string())
         .unwrap_or_else(|_| format!("{s:?}"))
 }

@@ -165,7 +165,7 @@ pub struct TransitionConfig {
 
 /// A resolved scene's scene plugin and its scene plugin-native settings.
 ///
-/// `settings` holds `serde_yaml::Value`, not `String`: a scene may configure
+/// `settings` holds `serde_json::Value`, not `String`: a scene may configure
 /// `browser.viewport: [1920, 1080]`, and flattening structured YAML into a
 /// string map either rejects it (which is what happened) or lossily stringifies
 /// it. Scene plugins read whatever shape their own tool wants.
@@ -173,7 +173,7 @@ pub struct TransitionConfig {
 pub struct SceneConfig {
     /// The scene plugin that records it.
     pub plugin: String,
-    pub settings: BTreeMap<String, serde_yaml::Value>,
+    pub settings: BTreeMap<String, serde_json::Value>,
     /// What a relative path in `settings` is relative to: the project's
     /// directory, set by whoever knows it. Not part of any key, so a cache
     /// moves between machines.
@@ -184,8 +184,9 @@ impl SceneConfig {
     /// A stable string for the settings, for hashing into a key.
     ///
     /// Here rather than at the call site because this is the type that
-    /// knows what its settings are: YAML of a `BTreeMap` is ordered and
-    /// round-trips, where `{:?}` is a debug format nothing promises to keep.
+    /// knows what its settings are: JSON of a `BTreeMap` is ordered and
+    /// round-trips, where `{:?}` is a debug format nothing promises to keep,
+    /// and it does not depend on which YAML library read the settings.
     /// The setting `key` as a path, or `default`, against [`Self::root`].
     pub fn path(&self, key: &str, default: &str) -> std::path::PathBuf {
         let given = self.settings.get(key).and_then(|v| v.as_str());
@@ -197,6 +198,6 @@ impl SceneConfig {
         if self.settings.is_empty() {
             return String::new();
         }
-        serde_yaml::to_string(&self.settings).unwrap_or_default()
+        serde_json::to_string(&self.settings).unwrap_or_default()
     }
 }

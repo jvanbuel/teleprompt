@@ -30,7 +30,7 @@ pub struct Config {
     /// by its own id, and an id this build does not ship is not an error at
     /// this layer — `voice.backend` selection reports that, with the
     /// available list.
-    pub backends: BTreeMap<String, serde_yaml::Value>,
+    pub backends: BTreeMap<String, serde_json::Value>,
     pub translate: TranslateConfig,
     /// The cast: each speaker's voice, as it differs from `voice`.
     pub voices: BTreeMap<String, PartialVoice>,
@@ -52,7 +52,7 @@ pub struct TranslateConfig {
     /// `[translate.ollama]`: each provider's own settings (where to reach
     /// it, a key), by provider. They are apart from `[backends]`, which are
     /// the voices', so `openai` can name both a voice and a translator.
-    pub settings: BTreeMap<String, serde_yaml::Value>,
+    pub settings: BTreeMap<String, serde_json::Value>,
 }
 
 /// A model on a laptop can take minutes over twenty lines.
@@ -147,7 +147,7 @@ pub struct PartialConfig {
     pub timing: Option<PartialTiming>,
     pub output: Option<PartialOutput>,
     pub scene: Option<PartialScenes>,
-    pub backends: Option<BTreeMap<String, serde_yaml::Value>>,
+    pub backends: Option<BTreeMap<String, serde_json::Value>>,
     /// `[locale.nl]`: settings for compiling in one locale, a Dutch voice
     /// say, applied over the rest of the layer they are written in.
     pub locale: Option<BTreeMap<String, PartialConfig>>,
@@ -170,9 +170,9 @@ pub struct PartialTranslate {
     pub timeout_ms: Option<u64>,
     // The providers are teleprompt's own, so they are named here and a
     // misspelt one is an error rather than a setting nothing reads.
-    pub ollama: Option<serde_yaml::Value>,
-    pub openai: Option<serde_yaml::Value>,
-    pub command: Option<serde_yaml::Value>,
+    pub ollama: Option<serde_json::Value>,
+    pub openai: Option<serde_json::Value>,
+    pub command: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -265,7 +265,7 @@ pub struct PartialScenes {
     pub scenes: BTreeMap<String, PartialScene>,
 }
 
-/// Settings are `serde_yaml::Value`, not `String`, so structured values such
+/// Settings are `serde_json::Value`, not `String`, so structured values such
 /// as `viewport: [1920, 1080]` survive instead of being rejected as
 /// "invalid type: sequence, expected a string".
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -273,13 +273,13 @@ pub struct PartialScene {
     /// The scene plugin that records it.
     pub plugin: Option<String>,
     #[serde(flatten)]
-    pub settings: BTreeMap<String, serde_yaml::Value>,
+    pub settings: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("invalid YAML: {0}")]
-    Yaml(#[from] serde_yaml::Error),
+    Yaml(#[from] teleprompt_core::yaml::Error),
     #[error("invalid TOML: {0}")]
     Toml(#[from] toml::de::Error),
 }
@@ -289,7 +289,7 @@ impl PartialConfig {
         if s.trim().is_empty() {
             return Ok(Self::default());
         }
-        Ok(serde_yaml::from_str(s)?)
+        Ok(teleprompt_core::yaml::from_str(s)?)
     }
 
     pub fn from_toml(s: &str) -> Result<Self, ConfigError> {
@@ -299,29 +299,31 @@ impl PartialConfig {
     /// Builds a layer from settings written `path.to.key=value`, as on a
     /// chapter's heading, each value read as YAML would read it.
     pub fn from_settings(settings: &[(String, String)]) -> Result<Self, ConfigError> {
-        use serde_yaml::{Mapping, Value};
-        let mut root = Mapping::new();
+        use serde_json::{Map, Value};
+        let mut root = Map::new();
         for (path, value) in settings {
-            let value: Value =
-                serde_yaml::from_str(value).unwrap_or_else(|_| Value::String(value.clone()));
+            let value: Value = teleprompt_core::yaml::from_str(value)
+                .unwrap_or_else(|_| Value::String(value.clone()));
             let mut keys: Vec<&str> = path.split('.').collect();
             let last = keys.pop().unwrap_or_default();
             let mut at = &mut root;
             for key in keys {
                 let entry = at
-                    .entry(Value::String(key.to_string()))
-                    .or_insert_with(|| Value::Mapping(Mapping::new()));
-                if !entry.is_mapping() {
-                    *entry = Value::Mapping(Mapping::new());
+                    .entry(key.to_string())
+                    .or_insert_with(|| Value::Object(Map::new()));
+                if !entry.is_object() {
+                    *entry = Value::Object(Map::new());
                 }
-                let Value::Mapping(inner) = entry else {
+                let Value::Object(inner) = entry else {
                     unreachable!("made a mapping")
                 };
                 at = inner;
             }
-            at.insert(Value::String(last.to_string()), value);
+            at.insert(last.to_string(), value);
         }
-        Ok(serde_yaml::from_value(Value::Mapping(root))?)
+        serde_json::from_value(Value::Object(root)).map_err(|e| {
+            ConfigError::Yaml(teleprompt_core::yaml::Error::from_message(e.to_string()))
+        })
     }
 
     /// This layer as it applies in `locale`: itself, then its section for
@@ -550,13 +552,13 @@ impl Config {
 /// script overriding one setting does not discard the project's others. A
 /// non-mapping value replaces wholesale: there is nothing to merge into.
 fn merge_settings(
-    all: &mut BTreeMap<String, serde_yaml::Value>,
+    all: &mut BTreeMap<String, serde_json::Value>,
     id: &str,
-    settings: &serde_yaml::Value,
+    settings: &serde_json::Value,
 ) {
     if let (Some(target), Some(new)) = (
-        all.get_mut(id).and_then(|v| v.as_mapping_mut()),
-        settings.as_mapping(),
+        all.get_mut(id).and_then(|v| v.as_object_mut()),
+        settings.as_object(),
     ) {
         for (k, v) in new {
             target.insert(k.clone(), v.clone());

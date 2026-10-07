@@ -1,7 +1,7 @@
 use teleprompt_voices::openai::OpenAiConfig;
 
-fn yaml(s: &str) -> serde_yaml::Value {
-    serde_yaml::from_str(s).unwrap()
+fn yaml(s: &str) -> serde_json::Value {
+    teleprompt_core::yaml::from_str(s).unwrap()
 }
 
 #[test]

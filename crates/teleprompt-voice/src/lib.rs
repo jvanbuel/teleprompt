@@ -41,4 +41,4 @@ pub struct Provider {
 
 /// How a provider is built from its settings: the voice, or why its
 /// settings do not make one.
-pub type Build = fn(Option<&serde_yaml::Value>) -> Result<std::sync::Arc<dyn VoiceBackend>, String>;
+pub type Build = fn(Option<&serde_json::Value>) -> Result<std::sync::Arc<dyn VoiceBackend>, String>;

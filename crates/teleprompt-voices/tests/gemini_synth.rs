@@ -253,7 +253,8 @@ async fn a_speed_is_refused_with_the_way_to_ask_for_one() {
 
 #[test]
 fn settings_are_checked() {
-    let parse = |yaml: &str| GeminiConfig::from_value(&serde_yaml::from_str(yaml).unwrap());
+    let parse =
+        |yaml: &str| GeminiConfig::from_value(&teleprompt_core::yaml::from_str(yaml).unwrap());
     assert!(parse("model: gemini-3.8-flash-lite-tts\nconcurrency: 2").is_ok());
     assert!(parse("concurrency: 0").unwrap_err().contains("concurrency"));
     assert!(parse("voice_id: Kore").unwrap_err().contains("voice_id"));

@@ -34,7 +34,7 @@ impl Registry {
     /// `settings` (`backends:` in `config_file`).
     pub fn backends(
         &self,
-        settings: &BTreeMap<String, serde_yaml::Value>,
+        settings: &BTreeMap<String, serde_json::Value>,
         config_file: &str,
     ) -> Backends {
         Backends::new(self.voices, settings, config_file)
