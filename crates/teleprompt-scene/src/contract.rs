@@ -168,6 +168,7 @@ impl Shot {
     }
 
     /// The same shot, lasting `length`.
+    #[must_use]
     pub fn lasting(self, length: Measured) -> Self {
         Shot { length, ..self }
     }

@@ -84,6 +84,7 @@ impl<'s> Builder<'s> {
     }
 
     /// The video to write.
+    #[must_use]
     pub fn out(self, out: PathBuf) -> Self {
         Self { out, ..self }
     }
@@ -94,15 +95,18 @@ impl<'s> Builder<'s> {
     }
 
     /// The frame size and rate, over the script's `output:` frame.
+    #[must_use]
     pub fn frame(self, frame: FrameOverride) -> Self {
         Self { frame, ..self }
     }
 
+    #[must_use]
     pub fn resolution(mut self, width: u32, height: u32) -> Self {
         self.frame.resolution = Some((width, height));
         self
     }
 
+    #[must_use]
     pub fn fps(mut self, fps: u32) -> Self {
         self.frame.fps = Some(fps);
         self
@@ -110,6 +114,7 @@ impl<'s> Builder<'s> {
 
     /// Re-encodes the whole video rather than reuse the compose cache
     /// (docs/design.md#compose-cache).
+    #[must_use]
     pub fn no_cache(self) -> Self {
         Self {
             compose_dir: None,
@@ -120,6 +125,7 @@ impl<'s> Builder<'s> {
     /// Megabytes of encoded video to keep afterwards, least recently used
     /// evicted first. Every build prunes, so the cap holds without anyone
     /// remembering to run a command.
+    #[must_use]
     pub fn cache_max_mb(self, cache_max_mb: u64) -> Self {
         Self {
             cache_max_mb,
@@ -130,6 +136,7 @@ impl<'s> Builder<'s> {
     /// The scene plugins that record its shots, so a test can build on a
     /// machine that cannot record a scene, and check the warning and slate
     /// that follow.
+    #[must_use]
     pub fn plugins(self, plugins: &'s ScenePlugins) -> Self {
         Self { plugins, ..self }
     }

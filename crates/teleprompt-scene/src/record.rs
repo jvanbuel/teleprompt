@@ -200,6 +200,7 @@ fn signed_ms(a: Instant, b: Instant) -> i64 {
 }
 
 /// The microphone, recorded to a WAV by ffmpeg.
+#[must_use = "dropping it stops the recording"]
 struct Mic {
     child: Child,
     /// When the first sample was taken, as near as the file's growth says.

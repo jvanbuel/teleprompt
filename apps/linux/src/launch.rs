@@ -92,6 +92,7 @@ pub fn exit_reasons(stdout: &[u8], stderr: &[u8], status: Option<i32>) -> Vec<St
 }
 
 /// A running `teleprompt serve`, stopped when dropped.
+#[must_use = "dropping it stops the server"]
 pub struct ServerProcess {
     child: Arc<Mutex<Child>>,
 }

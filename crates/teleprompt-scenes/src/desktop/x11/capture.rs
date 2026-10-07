@@ -39,6 +39,7 @@ impl Default for X11Render {
 }
 
 /// A child process killed when dropped: the display, the app.
+#[must_use = "dropping it kills the process"]
 struct Owned(Child);
 
 impl Drop for Owned {

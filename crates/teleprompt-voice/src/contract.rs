@@ -78,6 +78,7 @@ impl Pcm {
     /// The same audio at `rate`, exactly as many milliseconds long: the
     /// frame count is rounded up to the length's, and never by a whole
     /// millisecond.
+    #[must_use]
     pub fn resampled(&self, rate: u32) -> Pcm {
         let channels = self.channels.max(1) as usize;
         let frames = (self.duration_ms() * rate as u64).div_ceil(1000) as usize;

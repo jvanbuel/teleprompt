@@ -47,6 +47,7 @@ impl Default for MacosRender {
     }
 }
 
+#[must_use = "dropping it kills the process"]
 struct Owned(Child);
 
 impl Drop for Owned {

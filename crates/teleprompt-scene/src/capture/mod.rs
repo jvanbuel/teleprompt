@@ -162,6 +162,7 @@ pub struct Frame {
 /// A scratch directory a backend records into, removed when dropped, so a
 /// failed capture leaves no half-made recording among the clips.
 #[derive(Debug)]
+#[must_use = "dropping it removes the directory"]
 pub struct WorkDir(PathBuf);
 
 impl WorkDir {

@@ -31,6 +31,7 @@ impl ScenePlugin {
     }
 
     /// The plugin, also recording sessions with `recorder`.
+    #[must_use]
     pub fn recorded_with(mut self, recorder: impl Recorder + 'static) -> Self {
         self.recorder = Some(Box::new(recorder));
         self
@@ -95,6 +96,7 @@ impl ScenePlugins {
     }
 
     /// These, with `names` the ones this build ships.
+    #[must_use]
     pub fn shipping(mut self, names: &[&'static str]) -> Self {
         self.shipped = names.to_vec();
         self
@@ -107,6 +109,7 @@ impl ScenePlugins {
     }
 
     /// These, and `plugin` unless one has its name.
+    #[must_use]
     pub fn with(self, plugin: ScenePlugin) -> Self {
         let shipped = self.shipped;
         let mut out = Self::new(self.plugins.into_iter().chain([plugin]));

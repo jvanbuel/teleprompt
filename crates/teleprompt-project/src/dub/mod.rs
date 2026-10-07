@@ -225,6 +225,7 @@ impl<'a> Dubber<'a> {
     }
 
     /// Says each line's progress to `reporter`.
+    #[must_use]
     pub fn reporting(self, reporter: &'a dyn Reporter) -> Self {
         Self { reporter, ..self }
     }

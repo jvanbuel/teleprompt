@@ -27,6 +27,9 @@ style = { level = "warn", priority = -1 }
 # can hold: 100 lines (clippy.toml) and seven arguments.
 too_many_lines = "deny"
 too_many_arguments = "deny"
+# A builder method that takes `self` and gives back `Self` does nothing if
+# its result is dropped: `plan.fps(30);` compiles and changes nothing.
+return_self_not_must_use = "warn"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

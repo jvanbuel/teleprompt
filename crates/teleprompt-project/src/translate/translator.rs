@@ -159,6 +159,7 @@ impl Translator {
     }
 
     /// Gives up on a batch after `timeout_ms`, whichever the provider.
+    #[must_use]
     pub fn timeout(mut self, timeout_ms: u64) -> Self {
         match &mut self {
             Translator::Ollama(o) => o.timeout_ms = timeout_ms,

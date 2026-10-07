@@ -47,17 +47,20 @@ impl Diagnostic {
         }
     }
 
+    #[must_use]
     pub fn at(mut self, span: SourceSpan) -> Self {
         self.span = Some(span);
         self
     }
 
     /// Point this diagnostic at a file other than the script being rendered.
+    #[must_use]
     pub fn in_file(mut self, file: impl Into<String>) -> Self {
         self.file = Some(file.into());
         self
     }
 
+    #[must_use]
     pub fn with_help(mut self, help: impl Into<String>) -> Self {
         self.help = Some(help.into());
         self
@@ -110,6 +113,7 @@ impl Diagnostics {
     /// Each pointed at `file`, where it does not name its own: what a
     /// script's problems are given once the script is known, so they can
     /// be read anywhere.
+    #[must_use]
     pub fn about(mut self, file: &str) -> Self {
         for d in &mut self.0 {
             d.file.get_or_insert_with(|| file.to_string());

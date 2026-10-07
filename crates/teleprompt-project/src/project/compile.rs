@@ -76,6 +76,7 @@ impl Script {
     /// backend this build does not ship and watch the whole path — key,
     /// synthesis, cache, manifest — follow it (docs/design.md#crates),
     /// which a workspace with one real backend could not otherwise check.
+    #[must_use]
     pub fn with_backends(self, backends: Backends) -> Self {
         Self { backends, ..self }
     }
@@ -98,6 +99,7 @@ impl Script {
 
     /// The same script in its project's source locale: what it says as
     /// written, which is what an edit changes.
+    #[must_use]
     pub fn in_source_locale(&self) -> Script {
         Self {
             locale: self.project.source_locale(),
