@@ -8,18 +8,25 @@ use super::Pcm;
 const HEADER_LEN: usize = 44;
 const BITS_PER_SAMPLE: u16 = 16;
 
+/// A chunk's length as a WAVE header states it. A header cannot say more
+/// than 4 GiB, so a longer one says the most it can, which readers of
+/// streamed files take to mean "to the end of the file".
+fn chunk_len(bytes: usize) -> u32 {
+    u32::try_from(bytes).unwrap_or(u32::MAX)
+}
+
 /// Canonical WAVE: one `fmt ` chunk, one `data` chunk, no padding.
 pub fn encode(pcm: &Pcm) -> Vec<u8> {
     let channels = pcm.channels;
     let block_align = channels * (BITS_PER_SAMPLE / 8);
     let byte_rate = pcm.sample_rate * block_align as u32;
-    let data_len = (pcm.samples.len() * 2) as u32;
+    let data_len = chunk_len(pcm.samples.len() * 2);
 
-    let mut out = Vec::with_capacity(HEADER_LEN + data_len as usize);
+    let mut out = Vec::with_capacity(HEADER_LEN + pcm.samples.len() * 2);
 
     out.extend_from_slice(b"RIFF");
     // Bytes after this field: "WAVE" 4 + fmt chunk 24 + data header 8 + data.
-    out.extend_from_slice(&(36 + data_len).to_le_bytes());
+    out.extend_from_slice(&data_len.saturating_add(36).to_le_bytes());
     out.extend_from_slice(b"WAVE");
 
     out.extend_from_slice(b"fmt ");
@@ -210,4 +217,17 @@ fn fill(r: &mut impl Read, buf: &mut [u8]) -> Result<usize, String> {
 /// Discards up to `n` bytes; how many there were.
 fn skip(r: &mut impl Read, n: u64) -> Result<u64, String> {
     std::io::copy(&mut r.take(n), &mut std::io::sink()).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod chunk_tests {
+    use super::chunk_len;
+
+    #[test]
+    fn a_chunk_longer_than_a_header_can_say_says_the_most_it_can() {
+        assert_eq!(chunk_len(88_200), 88_200);
+        assert_eq!(chunk_len(u32::MAX as usize), u32::MAX);
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(chunk_len(u32::MAX as usize + 2), u32::MAX);
+    }
 }

@@ -11,10 +11,12 @@ pub fn ffmpeg_seconds(ms: u64) -> String {
 
 /// The number of frames `ms` spans at `fps`, rounded to the nearest.
 pub fn frames(ms: u64, fps: u32) -> u64 {
-    (ms * u64::from(fps) + 500) / 1000
+    ms.saturating_mul(u64::from(fps)).saturating_add(500) / 1000
 }
 
-/// Seconds, as a file or a server states them, in whole milliseconds.
+/// Seconds, as a file or a server states them, in whole milliseconds. A
+/// negative or unreadable (NaN) figure is none, and an absurdly large one
+/// the most there is: float-to-integer casts saturate.
 pub fn ms_from_seconds(seconds: f64) -> u64 {
     (seconds * 1000.0).round() as u64
 }

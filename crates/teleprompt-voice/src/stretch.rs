@@ -124,7 +124,7 @@ pub fn stretch_to(pcm: &Pcm, tempo_permille: u32, ms: u64) -> Pcm {
     let mut out = stretch(pcm, tempo_permille);
     let rate = u64::from(out.sample_rate.max(1));
     // The fewest frames that reach `ms` whole milliseconds.
-    let frames = (ms * rate).div_ceil(1000) as usize;
+    let frames = ms.saturating_mul(rate).div_ceil(1000) as usize;
     out.samples
         .resize(frames * usize::from(out.channels.max(1)), 0);
     out
