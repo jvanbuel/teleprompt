@@ -275,7 +275,7 @@ impl Backends {
 
 /// A project's voice, as `setup` reports it: its backend, what that
 /// backend's server says, and every `backends:` setting that cannot be used.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct VoiceStatus {
     /// The project's `voice.backend`, `null` when it names none.
     pub backend: String,

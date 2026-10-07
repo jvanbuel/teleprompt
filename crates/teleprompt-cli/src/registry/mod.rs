@@ -30,27 +30,12 @@ pub fn registry() -> Registry {
     }
 }
 
-/// What this build ships, as `setup` lists it.
-pub fn shipped(registry: Registry) -> teleprompt_setup::Shipped {
-    teleprompt_setup::Shipped {
-        scenes: registry
-            .scenes
-            .iter()
-            .map(|p| teleprompt_setup::Needs {
-                name: p.name(),
-                tools: p.needs(),
-                built_in: registry.scenes.is_shipped(p.name()),
-            })
-            .collect(),
-        voices: registry.voices.needs(),
-    }
-}
-
 /// This machine, for what this build needs, with npm packages looked for
 /// in the project around the working directory, if there is one.
 pub fn setup_here(registry: Registry) -> teleprompt_setup::Setup {
     teleprompt_setup::Setup::detect(
-        shipped(registry),
+        registry.scenes,
+        registry.voices,
         teleprompt_project::project::root_here(registry),
     )
 }

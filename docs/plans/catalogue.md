@@ -174,6 +174,11 @@ in plain prose, no bullet lists, no model names. Push to
 - `tools/check_deps.py`: `"setup": {"core", "scene", "voice"}`.
 - Tests under `cli/tests/setup*.rs` that built a `Shipped` by hand build a
   `Setup` from the registry's halves instead.
+- As done: the cli's tests resolve through `registry::setup_here(registry())`.
+  `prompt_watching` gave its server an empty `Shipped`, so setting up from
+  the page found nothing there; it now finds what the registry has, as
+  `run_serve`'s server does. `VoiceStatus` derives `Serialize` for the
+  report; its JSON is the old `ProjectVoice`'s, field for field.
 
 ### 4. Pipeline's surface, and the rule the checker can hold
 

@@ -12,52 +12,13 @@ use serde::Serialize;
 mod catalogue;
 pub mod plugins;
 
-pub use catalogue::{download_mb, tools, Goal, GOALS};
+pub use catalogue::{Goal, GOALS};
 use teleprompt_core::progress::{Install, Progress, Reporter};
 use teleprompt_core::tool::Found;
 pub use teleprompt_core::tool::{Manager, Tool};
-
-/// What this build ships, as `setup` lists it: each scene plugin by name
-/// with what it needs, and each voice. Made from the build's registry by
-/// whoever has one, so `setup` need not know the plugins itself.
-#[derive(Debug, Clone, Default)]
-pub struct Shipped {
-    /// Every scene plugin, built in then installed as a program.
-    pub scenes: Vec<Needs>,
-    /// Every voice this build ships, with what it needs.
-    pub voices: Vec<(&'static str, &'static Tool)>,
-}
-
-/// A scene plugin, and what it runs: what `teleprompt setup <plugin>`
-/// installs.
-#[derive(Debug, Clone)]
-pub struct Needs {
-    pub name: &'static str,
-    pub tools: Vec<&'static Tool>,
-    /// Compiled in, so a program of the same name does not replace it.
-    pub built_in: bool,
-}
-
-impl Shipped {
-    /// The scene plugin `name`, if there is one.
-    pub fn scene(&self, name: &str) -> Option<&Needs> {
-        self.scenes.iter().find(|s| s.name == name)
-    }
-
-    /// Whether `name` is a scene plugin compiled into this build.
-    pub fn is_built_in(&self, name: &str) -> bool {
-        self.scene(name).is_some_and(|s| s.built_in)
-    }
-
-    fn scene_names(&self) -> Vec<&'static str> {
-        self.scenes.iter().map(|s| s.name).collect()
-    }
-
-    fn scene_needs(&self, name: &str) -> Option<Vec<&'static str>> {
-        self.scene(name)
-            .map(|s| s.tools.iter().map(|t| t.name).collect())
-    }
-}
+use teleprompt_scene::ScenePlugins;
+use teleprompt_voice::backends::VoiceStatus;
+use teleprompt_voice::catalogue::VoiceCatalogue;
 
 /// The machine: its OS, the managers on it, and where models go.
 #[derive(Debug, Clone)]
@@ -183,43 +144,6 @@ pub fn punctuation_model(given: Option<&Path>) -> Option<PathBuf> {
         .or_else(|| installed_model("punctuation-model"))
 }
 
-/// The tools `names` stand for: a scene plugin's, or a tool by its own name;
-/// each once, in order. Every tool when `names` is empty.
-pub fn resolve(shipped: &Shipped, names: &[String]) -> Result<Vec<&'static Tool>, SetupError> {
-    let tools = tools(shipped);
-    if names.is_empty() {
-        return Ok(tools);
-    }
-    let mut out: Vec<&'static Tool> = Vec::new();
-    for name in names {
-        let wanted: Vec<&str> = match GOALS.iter().find(|g| g.name == name) {
-            Some(goal) => goal
-                .needs
-                .iter()
-                .flat_map(|n| shipped.scene_needs(n).unwrap_or_else(|| vec![*n]))
-                .collect(),
-            None => shipped
-                .scene_needs(name)
-                .unwrap_or_else(|| vec![name.as_str()]),
-        };
-        for w in wanted {
-            let Some(tool) = tools.iter().copied().find(|t| t.name == w) else {
-                let plugins = shipped.scene_names();
-                let tools: Vec<&str> = tools.iter().map(|t| t.name).collect();
-                return Err(SetupError::Unknown {
-                    name: name.clone(),
-                    plugins: plugins.join(", "),
-                    tools: tools.join(", "),
-                });
-            };
-            if !out.iter().any(|t| t.name == tool.name) {
-                out.push(tool);
-            }
-        }
-    }
-    Ok(out)
-}
-
 #[derive(Debug, Serialize)]
 pub struct ToolStatus {
     pub name: &'static str,
@@ -270,7 +194,7 @@ pub struct SetupReport {
     pub ran: Vec<String>,
     pub models: String,
     /// The project's own voice, in a project, when no tool was named.
-    pub voice: Option<ProjectVoice>,
+    pub voice: Option<VoiceStatus>,
     /// The scene plugins, built in and installed as programs: every one
     /// when nothing was named, else those named.
     pub scenes: Vec<plugins::Scene>,
@@ -281,40 +205,70 @@ pub struct SetupReport {
     pub plugins_dir: String,
 }
 
-/// The voice the project chose, and whether it can speak here: the one
-/// thing `setup` cannot see by looking for programs.
-#[derive(Debug, Serialize)]
-pub struct ProjectVoice {
-    /// The project's `voice.backend`, `null` when it names none.
-    pub backend: String,
-    /// What its server said, or `null` when it has none to ask, as `null`
-    /// has none. Not an error when it does not answer: only `dub` and
-    /// `build` need it to (docs/design.md#backend-failure).
-    pub answer: Option<String>,
-    /// Every `backends:` setting that cannot be used, in the words `check`
-    /// would use, including those for backends the project does not choose.
-    pub problems: Vec<String>,
-}
-
 /// Where `setup` looks and what it runs, fixed by the caller.
 pub struct Setup {
     pub platform: Platform,
     /// Where npm installs and packages are looked for: the project's root,
     /// or the working directory outside one.
     pub project: PathBuf,
-    /// What this build ships, whose needs are what `setup` finds.
-    pub shipped: Shipped,
+    /// Every scene plugin this build has, whose needs `setup` finds.
+    pub scenes: &'static ScenePlugins,
+    /// Every voice this build has, whose needs `setup` finds.
+    pub voices: &'static VoiceCatalogue,
 }
 
 impl Setup {
-    /// This machine, for what `shipped` needs, with npm packages looked
-    /// for under `project`.
-    pub fn detect(shipped: Shipped, project: PathBuf) -> Self {
+    /// This machine, for what `scenes` and `voices` need, with npm
+    /// packages looked for under `project`.
+    pub fn detect(
+        scenes: &'static ScenePlugins,
+        voices: &'static VoiceCatalogue,
+        project: PathBuf,
+    ) -> Self {
         Self {
             platform: Platform::detect(),
             project,
-            shipped,
+            scenes,
+            voices,
         }
+    }
+
+    /// The tools `names` stand for: a scene plugin's, or a tool by its own name;
+    /// each once, in order. Every tool when `names` is empty.
+    pub fn resolve(&self, names: &[String]) -> Result<Vec<&'static Tool>, SetupError> {
+        let tools = self.tools();
+        if names.is_empty() {
+            return Ok(tools);
+        }
+        let mut out: Vec<&'static Tool> = Vec::new();
+        for name in names {
+            let wanted: Vec<&str> = match GOALS.iter().find(|g| g.name == name) {
+                Some(goal) => goal
+                    .needs
+                    .iter()
+                    .flat_map(|n| self.scenes.needs_of(n).unwrap_or_else(|| vec![*n]))
+                    .collect(),
+                None => self
+                    .scenes
+                    .needs_of(name)
+                    .unwrap_or_else(|| vec![name.as_str()]),
+            };
+            for w in wanted {
+                let Some(tool) = tools.iter().copied().find(|t| t.name == w) else {
+                    let plugins = self.scenes.names();
+                    let tools: Vec<&str> = tools.iter().map(|t| t.name).collect();
+                    return Err(SetupError::Unknown {
+                        name: name.clone(),
+                        plugins: plugins.join(", "),
+                        tools: tools.join(", "),
+                    });
+                };
+                if !out.iter().any(|t| t.name == tool.name) {
+                    out.push(tool);
+                }
+            }
+        }
+        Ok(out)
     }
 
     pub fn report(&self, tools: &[&'static Tool], ran: Vec<String>) -> SetupReport {
@@ -342,7 +296,7 @@ impl Setup {
             password: command.as_deref().is_some_and(needs_password),
             command,
             guide: t.guide,
-            download_mb: download_mb(&self.shipped, t.name),
+            download_mb: self.download_mb(t.name),
         }
     }
 
@@ -352,7 +306,7 @@ impl Setup {
         let uses = GOALS
             .iter()
             .map(|goal| {
-                let tools = resolve(&self.shipped, &[goal.name.to_string()]).unwrap_or_default();
+                let tools = self.resolve(&[goal.name.to_string()]).unwrap_or_default();
                 let statuses: Vec<ToolStatus> = tools.iter().map(|t| self.status(t)).collect();
                 let gone = statuses.iter().filter(|t| t.installed == Some(false));
                 UseStatus {
@@ -466,7 +420,7 @@ impl Setup {
             if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
                 break status;
             }
-            let of = download_mb(&self.shipped, tool.name);
+            let of = self.download_mb(tool.name);
             // What is on disk, never more than the whole, whatever else a
             // download writes beside it.
             let mb = downloaded_mb(&self.platform.models).min(of.unwrap_or(0));

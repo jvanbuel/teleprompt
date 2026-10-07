@@ -8,7 +8,7 @@ use std::io::IsTerminal;
 
 use inquire::{Confirm, MultiSelect};
 
-use teleprompt_setup::{download_mb, resolve, Goal, Setup, Tool, GOALS};
+use teleprompt_setup::{Goal, Setup, Tool, GOALS};
 
 /// Whether a person is at a terminal to answer.
 pub fn interactive() -> bool {
@@ -67,8 +67,7 @@ pub fn choose(setup: &Setup) -> Result<(Vec<String>, Vec<&'static Tool>), String
     if names.is_empty() {
         return Ok((names, Vec::new()));
     }
-    let tools = resolve(&crate::registry::shipped(crate::cli::registry()), &names)
-        .map_err(|e| e.to_string())?;
+    let tools = setup.resolve(&names).map_err(|e| e.to_string())?;
     Ok((names, tools))
 }
 
@@ -79,16 +78,16 @@ fn state(setup: &Setup, goal: &Goal) -> String {
         return "installed".to_string();
     }
     // Programs by name; models, which nobody knows by name, by count.
-    let (models, programs): (Vec<&Tool>, Vec<&Tool>) = gone.iter().partition(|t| {
-        download_mb(&crate::registry::shipped(crate::cli::registry()), t.name).is_some()
-    });
+    let (models, programs): (Vec<&Tool>, Vec<&Tool>) = gone
+        .iter()
+        .partition(|t| setup.download_mb(t.name).is_some());
     let mut parts: Vec<String> = programs.iter().map(|t| t.name.to_string()).collect();
     match models.len() {
         0 => {}
         1 => parts.push("a model".to_string()),
         n => parts.push(format!("{n} models")),
     }
-    match megabytes(&gone) {
+    match megabytes(setup, &gone) {
         0 => format!("needs {}", parts.join(", ")),
         mb => format!("needs {} · {mb} MB", parts.join(", ")),
     }
@@ -96,18 +95,16 @@ fn state(setup: &Setup, goal: &Goal) -> String {
 
 fn missing(setup: &Setup, goal: &Goal) -> Vec<&'static Tool> {
     let names: Vec<String> = vec![goal.name.to_string()];
-    resolve(&crate::registry::shipped(crate::cli::registry()), &names)
+    setup
+        .resolve(&names)
         .unwrap_or_default()
         .into_iter()
         .filter(|t| setup.missing(t))
         .collect()
 }
 
-fn megabytes(tools: &[&Tool]) -> u32 {
-    tools
-        .iter()
-        .filter_map(|t| download_mb(&crate::registry::shipped(crate::cli::registry()), t.name))
-        .sum()
+fn megabytes(setup: &Setup, tools: &[&Tool]) -> u32 {
+    tools.iter().filter_map(|t| setup.download_mb(t.name)).sum()
 }
 
 /// Asks whether to install `tools`, those of them that are missing, saying
@@ -130,7 +127,7 @@ pub fn confirm_install(
     for t in &gone {
         eprintln!("  {:<18} {} ({})", t.name, t.what, t.license);
     }
-    let size = match megabytes(&gone) {
+    let size = match megabytes(setup, &gone) {
         0 => String::new(),
         mb => format!(", about {mb} MB"),
     };
@@ -165,10 +162,10 @@ pub fn offer(reporter: &dyn teleprompt_core::Reporter, names: &[&str], to: &str)
         return false;
     }
     let names: Vec<String> = names.iter().map(|n| (*n).to_string()).collect();
-    let Ok(tools) = resolve(&crate::registry::shipped(crate::cli::registry()), &names) else {
+    let setup = crate::registry::setup_here(crate::cli::registry());
+    let Ok(tools) = setup.resolve(&names) else {
         return false;
     };
-    let setup = crate::registry::setup_here(crate::cli::registry());
     let gone: Vec<&'static Tool> = tools
         .into_iter()
         .filter(|t| setup.missing(t) && setup.command(t).is_some())
@@ -177,7 +174,7 @@ pub fn offer(reporter: &dyn teleprompt_core::Reporter, names: &[&str], to: &str)
         return false;
     }
     let shown: Vec<&str> = gone.iter().map(|t| spoken(t.name)).collect();
-    let size = match megabytes(&gone) {
+    let size = match megabytes(&setup, &gone) {
         0 => String::new(),
         mb => format!(" ({mb} MB)"),
     };

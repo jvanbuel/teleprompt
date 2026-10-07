@@ -2205,6 +2205,7 @@ dependencies = [
  "tabled",
  "teleprompt-core",
  "teleprompt-scene",
+ "teleprompt-voice",
  "thiserror 1.0.69",
 ]
 

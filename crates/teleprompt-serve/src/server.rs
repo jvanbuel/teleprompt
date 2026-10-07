@@ -23,8 +23,6 @@ impl Drop for OpenSession {
 pub(super) struct Server {
     /// What this build has, for setting it up from the page.
     pub(super) registry: Registry,
-    /// What it ships, as `setup` lists it.
-    pub(super) shipped: teleprompt_setup::Shipped,
     /// The open script's session; none until a script is opened.
     pub(super) session: Mutex<Option<Session<Hearing>>>,
     /// What can be done to the open script's file.
@@ -41,7 +39,6 @@ pub(super) struct Server {
 impl Server {
     pub(super) fn new(
         registry: Registry,
-        shipped: teleprompt_setup::Shipped,
         opened: Option<Opened>,
         opener: Option<Opener>,
     ) -> Arc<Self> {
@@ -51,7 +48,6 @@ impl Server {
         };
         Arc::new(Self {
             registry,
-            shipped,
             session: Mutex::new(session),
             edits: RwLock::new(edits),
             opener,
@@ -64,7 +60,8 @@ impl Server {
     /// installed a moment ago is found.
     pub(super) fn setup(&self) -> teleprompt_setup::Setup {
         teleprompt_setup::Setup::detect(
-            self.shipped.clone(),
+            self.registry.scenes,
+            self.registry.voices,
             teleprompt_project::project::root_here(self.registry),
         )
     }

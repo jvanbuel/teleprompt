@@ -35,7 +35,7 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
         emit(format, &report, &report.render(&chosen));
         return Ok(Outcome::Ok);
     }
-    let tools = resolve(&setup.shipped, &args.names).map_err(runtime_failure)?;
+    let tools = setup.resolve(&args.names).map_err(runtime_failure)?;
     let ran = if args.run {
         setup.install(&tools, &reporter).map_err(runtime_failure)?
     } else {
@@ -56,17 +56,14 @@ pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
 }
 
 /// The voice of the project here, if this is one.
-fn voice_here() -> Result<Option<ProjectVoice>, crate::output::Outcome> {
+fn voice_here() -> Result<Option<teleprompt_voice::backends::VoiceStatus>, crate::output::Outcome> {
     let Ok(project) = teleprompt_project::project::Project::discover(
         std::path::Path::new("."),
         crate::cli::registry(),
     ) else {
         return Ok(None);
     };
-    let status = crate::cli::runtime()?.block_on(project.voice_status());
-    Ok(Some(ProjectVoice {
-        backend: status.backend,
-        answer: status.answer,
-        problems: status.problems,
-    }))
+    Ok(Some(
+        crate::cli::runtime()?.block_on(project.voice_status()),
+    ))
 }

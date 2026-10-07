@@ -5,7 +5,7 @@
 
 use teleprompt_core::tool::{Found, Manager, Tool};
 
-use crate::Shipped;
+use crate::Setup;
 
 const SPEECH_MODEL: &str = "sherpa-onnx-streaming-zipformer-en-2023-06-26";
 const PUNCTUATION_MODEL: &str = "sherpa-onnx-online-punct-en-2024-08-06";
@@ -137,28 +137,26 @@ pub(crate) fn model(name: &str) -> Option<&'static Tool> {
     MODELS.iter().find(|t| t.name == name)
 }
 
-/// Every tool `setup` knows, each once: what renders the video, what each
-/// plugin and voice `shipped` needs, in the order they are registered,
-/// and the models.
-pub fn tools(shipped: &Shipped) -> Vec<&'static Tool> {
-    let mut out: Vec<&'static Tool> = vec![&teleprompt_core::tool::FFMPEG];
-    let plugins = shipped
-        .scenes
-        .iter()
-        .flat_map(|s| s.tools.iter().copied())
-        .chain(shipped.voices.iter().map(|(_, t)| *t));
-    for tool in plugins.chain(MODELS.iter()) {
-        if !out.iter().any(|t| t.name == tool.name) {
-            out.push(tool);
+impl Setup {
+    /// Every tool `setup` knows, each once: what renders the video, what
+    /// each scene plugin and voice needs, in the order they are registered,
+    /// and the models.
+    pub fn tools(&self) -> Vec<&'static Tool> {
+        let mut out: Vec<&'static Tool> = vec![&teleprompt_core::tool::FFMPEG];
+        let plugins = self.scenes.tools().into_iter().chain(self.voices.tools());
+        for tool in plugins.chain(MODELS.iter()) {
+            if !out.iter().any(|t| t.name == tool.name) {
+                out.push(tool);
+            }
         }
+        out
     }
-    out
-}
 
-/// How much tool `name` downloads, for saying so before it does.
-pub fn download_mb(shipped: &Shipped, name: &str) -> Option<u32> {
-    tools(shipped)
-        .into_iter()
-        .find(|t| t.name == name)?
-        .download_mb
+    /// How much tool `name` downloads, for saying so before it does.
+    pub fn download_mb(&self, name: &str) -> Option<u32> {
+        self.tools()
+            .into_iter()
+            .find(|t| t.name == name)?
+            .download_mb
+    }
 }

@@ -14,6 +14,7 @@ listen = []
 thiserror.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-scene = { path = "../teleprompt-scene" }
+teleprompt-voice = { path = "../teleprompt-voice" }
 serde.workspace = true
 serde_json.workspace = true
 # The installed plugins and voices, as a table.

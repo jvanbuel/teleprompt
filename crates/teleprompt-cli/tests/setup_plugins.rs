@@ -2,7 +2,6 @@
 //! <plugin>` knows how to install: the two lists cannot drift apart.
 
 use teleprompt_core::tool::NOT_ON_PATH;
-use teleprompt_setup::resolve;
 
 #[test]
 fn setup_covers_every_program_an_plugin_finds_missing() {
@@ -17,14 +16,13 @@ fn setup_covers_every_program_an_plugin_finds_missing() {
         let Some(why) = backend.unavailable().filter(|w| w.ends_with(NOT_ON_PATH)) else {
             continue;
         };
-        let known: Vec<&str> = resolve(
-            &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-            &[plugin.to_string()],
-        )
-        .unwrap()
-        .iter()
-        .map(|t| t.name)
-        .collect();
+        let known: Vec<&str> =
+            teleprompt_cli::registry::setup_here(teleprompt_cli::registry::registry())
+                .resolve(&[plugin.to_string()])
+                .unwrap()
+                .iter()
+                .map(|t| t.name)
+                .collect();
         for program in why.trim_end_matches(NOT_ON_PATH).split(" and ") {
             assert!(
                 known.contains(&program),

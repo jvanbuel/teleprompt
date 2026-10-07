@@ -57,8 +57,7 @@ pub fn prompt_watching<R: Recognizer + Send + 'static>(
     recognizer: R,
     edits: Option<Edits>,
 ) -> std::io::Result<()> {
-    // Set up from the page only where `run_serve` started it.
-    let server = Server::new(registry, teleprompt_setup::Shipped::default(), None, None);
+    let server = Server::new(registry, None, None);
     *server.session() = Some(Session::new(prompt, Box::new(recognizer) as Hearing)?);
     *write(&server.edits) = edits.map(Arc::new);
     serve_on(listener, server)
@@ -307,7 +306,7 @@ async fn install_route(
     if uses.is_empty() {
         return (StatusCode::BAD_REQUEST, "uses= names what to set up").into_response();
     }
-    let tools = match teleprompt_setup::resolve(&server.shipped, &uses) {
+    let tools = match server.setup().resolve(&uses) {
         Ok(tools) => tools,
         Err(why) => return failure(StatusCode::BAD_REQUEST, None, vec![why.to_string()]),
     };

@@ -52,7 +52,7 @@ ALLOWED = {
         "core", "script", "scene", "voice", "manifest", "pipeline", "render",
     },
     # What `setup` finds and installs: what the plugins and voices need.
-    "setup": {"core", "scene"},
+    "setup": {"core", "scene", "voice"},
     # The language server, with the real compile as its analyzer.
     "lsp": {"project", "core", "script"},
     # Drafts from what was said: `import` and `record`.

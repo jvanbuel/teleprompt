@@ -5,7 +5,11 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-use teleprompt_setup::{resolve, tools, Manager, Platform};
+use teleprompt_setup::{Manager, Platform, Setup};
+
+fn setup() -> Setup {
+    teleprompt_cli::registry::setup_here(teleprompt_cli::registry::registry())
+}
 
 fn mac() -> Platform {
     Platform::new("macos", &[Manager::Brew])
@@ -16,25 +20,17 @@ fn ubuntu() -> Platform {
 }
 
 fn command(name: &str, platform: &Platform) -> Option<String> {
-    platform.command(
-        resolve(
-            &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-            &[name.to_string()],
-        )
-        .unwrap()[0],
-    )
+    platform.command(setup().resolve(&[name.to_string()]).unwrap()[0])
 }
 
 fn names(given: &[&str]) -> Vec<&'static str> {
     let given: Vec<String> = given.iter().map(|s| s.to_string()).collect();
-    resolve(
-        &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-        &given,
-    )
-    .unwrap()
-    .iter()
-    .map(|t| t.name)
-    .collect()
+    setup()
+        .resolve(&given)
+        .unwrap()
+        .iter()
+        .map(|t| t.name)
+        .collect()
 }
 
 #[test]
@@ -84,11 +80,7 @@ fn every_plugin_needs_only_tools_setup_knows() {
             .needs_of(plugin)
             .unwrap();
         assert!(!needs.is_empty(), "{plugin}");
-        resolve(
-            &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-            &[plugin.to_string()],
-        )
-        .unwrap();
+        setup().resolve(&[plugin.to_string()]).unwrap();
     }
 }
 
@@ -102,12 +94,10 @@ fn a_tool_named_twice_is_listed_once() {
 
 #[test]
 fn an_unknown_name_says_what_there_is() {
-    let err = resolve(
-        &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-        &["obs".to_string()],
-    )
-    .unwrap_err()
-    .to_string();
+    let err = setup()
+        .resolve(&["obs".to_string()])
+        .unwrap_err()
+        .to_string();
     assert!(
         err.contains("obs") && err.contains("ffmpeg") && err.contains("vhs"),
         "{err}"
@@ -116,9 +106,7 @@ fn an_unknown_name_says_what_there_is() {
 
 #[test]
 fn every_tool_says_its_license_and_where_it_is_from() {
-    for tool in tools(&teleprompt_cli::registry::shipped(
-        teleprompt_cli::registry::registry(),
-    )) {
+    for tool in setup().tools() {
         assert!(!tool.license.is_empty(), "{}", tool.name);
         assert!(tool.home.starts_with("https://"), "{}", tool.name);
     }
@@ -128,11 +116,7 @@ fn every_tool_says_its_license_and_where_it_is_from() {
 /// is not installed for them: `setup` says what to do instead.
 #[test]
 fn a_tool_of_the_authors_own_is_explained_not_installed() {
-    let remotion = &resolve(
-        &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-        &["remotion".to_string()],
-    )
-    .unwrap()[1];
+    let remotion = &setup().resolve(&["remotion".to_string()]).unwrap()[1];
     assert_eq!(remotion.name, "remotion");
     assert_eq!(mac().command(remotion), None);
     assert!(remotion.guide.unwrap().contains("npm install"));
@@ -253,11 +237,7 @@ fn setup_with_no_way_to_install_says_where_the_tool_is_from() {
 /// one's weights come with conditions.
 #[test]
 fn voicebox_is_explained_with_its_models_licenses() {
-    let voicebox = &resolve(
-        &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-        &["voicebox".to_string()],
-    )
-    .unwrap()[0];
+    let voicebox = &setup().resolve(&["voicebox".to_string()]).unwrap()[0];
     assert_eq!(mac().command(voicebox), None);
     assert!(voicebox.guide.unwrap().contains("teleprompt voice clone"));
     assert!(
@@ -271,11 +251,7 @@ fn voicebox_is_explained_with_its_models_licenses() {
 /// from and that the narration goes to Google, and installs nothing.
 #[test]
 fn gemini_is_explained_as_a_service() {
-    let gemini = &resolve(
-        &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-        &["gemini".to_string()],
-    )
-    .unwrap()[0];
+    let gemini = &setup().resolve(&["gemini".to_string()]).unwrap()[0];
     assert_eq!(mac().command(gemini), None);
     let guide = gemini.guide.unwrap();
     assert!(
@@ -290,19 +266,13 @@ fn gemini_is_explained_as_a_service() {
 fn every_goal_is_a_name_setup_takes() {
     use teleprompt_setup::GOALS;
     for goal in GOALS {
-        let tools = resolve(
-            &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-            &[goal.name.to_string()],
-        )
-        .unwrap_or_else(|e| panic!("{}: {e}", goal.name));
+        let tools = setup()
+            .resolve(&[goal.name.to_string()])
+            .unwrap_or_else(|e| panic!("{}: {e}", goal.name));
         assert!(!tools.is_empty(), "{}", goal.name);
         // A goal is not also a tool's name, which it would hide.
         assert!(
-            teleprompt_setup::tools(&teleprompt_cli::registry::shipped(
-                teleprompt_cli::registry::registry()
-            ))
-            .iter()
-            .all(|t| t.name != goal.name),
+            setup().tools().iter().all(|t| t.name != goal.name),
             "{}",
             goal.name
         );
@@ -318,20 +288,10 @@ fn every_goal_is_a_name_setup_takes() {
 /// every build.
 #[test]
 fn only_listening_goals_need_the_speech_models() {
-    use teleprompt_setup::{download_mb, GOALS};
+    use teleprompt_setup::GOALS;
     for goal in GOALS {
-        let tools = resolve(
-            &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-            &[goal.name.to_string()],
-        )
-        .unwrap();
-        let models = tools.iter().any(|t| {
-            download_mb(
-                &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
-                t.name,
-            )
-            .is_some()
-        });
+        let tools = setup().resolve(&[goal.name.to_string()]).unwrap();
+        let models = tools.iter().any(|t| setup().download_mb(t.name).is_some());
         assert_eq!(goal.listens, models, "{}", goal.name);
     }
 }
