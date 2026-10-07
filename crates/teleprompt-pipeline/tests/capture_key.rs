@@ -12,11 +12,11 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use teleprompt_core::config::PartialConfig;
 use teleprompt_core::{BlockId, Hash};
 use teleprompt_pipeline::compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_scene::capture::mock::MockCapture;
 use teleprompt_scene::{ScenePlugin, ScenePlugins};
+use teleprompt_script::config::PartialConfig;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::resolve;
 use teleprompt_voice::cache::VoiceCache;
@@ -250,8 +250,8 @@ fn a_pause_does_not_join_the_chain() {
 /// today's names.
 #[test]
 fn a_capture_key_names_the_recipe_that_recorded_it() {
-    use teleprompt_core::config::SceneConfig;
     use teleprompt_pipeline::compile::CAPTURE_RECIPE;
+    use teleprompt_script::config::SceneConfig;
 
     let out = run(&format!(
         "{HEAD}One. {{#one}}\n\n\
@@ -309,7 +309,7 @@ impl teleprompt_scene::contract::SceneCompiler for Still {
     fn continues(&self) -> bool {
         false
     }
-    fn inputs(&self, scene: &teleprompt_core::config::SceneConfig) -> Vec<std::path::PathBuf> {
+    fn inputs(&self, scene: &teleprompt_script::config::SceneConfig) -> Vec<std::path::PathBuf> {
         scene
             .settings
             .get("project")
@@ -402,7 +402,7 @@ impl teleprompt_scene::contract::SceneCompiler for Pictured {
     }
     fn shot_inputs(
         &self,
-        scene: &teleprompt_core::config::SceneConfig,
+        scene: &teleprompt_script::config::SceneConfig,
         source: &str,
     ) -> Vec<std::path::PathBuf> {
         let dir = scene.settings["project"].as_str().unwrap().to_string();

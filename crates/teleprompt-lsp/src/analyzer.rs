@@ -4,8 +4,8 @@
 use std::path::Path;
 
 use super::{Analysis, Analyzer, Definition, Project as Outline};
-use teleprompt_core::config::{Config, PartialConfig};
 use teleprompt_core::{Diagnostic, SourceSpan};
+use teleprompt_script::config::{Config, PartialConfig};
 use teleprompt_script::program::{ActionElement, Element};
 
 use teleprompt_project::project::Compiled;

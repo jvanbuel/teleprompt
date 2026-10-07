@@ -1,6 +1,6 @@
 //! `[locale.<code>]`: settings for one locale, over the layer they are in.
 
-use teleprompt_core::config::PartialConfig;
+use teleprompt_script::config::PartialConfig;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, Element, Program};
 
@@ -51,7 +51,7 @@ fn front_matter_can_have_locale_sections_too() {
 /// per target language.
 #[test]
 fn translate_settings_default_to_a_local_model_and_layer_like_the_rest() {
-    let defaults = teleprompt_core::config::Config::default();
+    let defaults = teleprompt_script::config::Config::default();
     assert_eq!(defaults.translate.provider, "ollama");
     assert_eq!(defaults.translate.model, None);
     assert_eq!(defaults.translate.timeout_ms, 600_000);
@@ -61,7 +61,8 @@ fn translate_settings_default_to_a_local_model_and_layer_like_the_rest() {
          [locale.ja.translate]\nmodel = \"bigger-model\"\ntimeout_ms = 900000\n",
     )
     .unwrap();
-    let merged = |locale: &str| teleprompt_core::config::Config::merged(&project.in_locale(locale));
+    let merged =
+        |locale: &str| teleprompt_script::config::Config::merged(&project.in_locale(locale));
     assert_eq!(merged("nl").translate.provider, "openai");
     assert_eq!(merged("nl").translate.model.as_deref(), Some("local-model"));
     assert_eq!(

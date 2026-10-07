@@ -79,7 +79,7 @@ pub fn build(
                 duration_ms: a.duration_ms,
                 duration_source: a.duration_source,
                 policy: entry.policy,
-                transition: teleprompt_core::config::Transition {
+                transition: teleprompt_script::config::Transition {
                     kind: entry.transition.kind.clone(),
                     duration_ms: entry.transition.duration_ms,
                 },

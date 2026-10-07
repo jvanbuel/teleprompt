@@ -2,10 +2,10 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use teleprompt_core::{DurationSource, SpanMs, TimeMs};
 
-use teleprompt_core::config::PartialConfig;
 use teleprompt_core::Diagnostics;
 use teleprompt_pipeline::compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_scene::ScenePlugins;
+use teleprompt_script::config::PartialConfig;
 use teleprompt_script::ident::check_ids;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, Program};

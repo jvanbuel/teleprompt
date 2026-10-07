@@ -98,8 +98,11 @@ crates speak without reading a file:
 
 - `SceneConfig` (scene, pipeline, project), `Transition`, `TransitionKind`,
   `OtherKind`, `TransitionDuration` (manifest, render, pipeline),
-  `TimingConfig`, `OutputConfig`, `TransitionConfig`, `Resolution` (pipeline,
-  project), and their impls.
+  `TimingConfig`, `OutputConfig`, `TransitionConfig` (pipeline, project),
+  and their impls. As done: `Resolution` moved with the partial layers,
+  its only user, and `serde_yaml` stays in core because `SceneConfig`
+  holds YAML values; only `toml` leaves. `script::config` re-exports the
+  vocabulary, so crates that already depend on `script` import from there.
 
 What moves to a new `teleprompt_script::config` module is the file:
 

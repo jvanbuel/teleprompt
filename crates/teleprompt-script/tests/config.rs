@@ -1,7 +1,7 @@
 use teleprompt_core::attrs::LineAttrs;
-use teleprompt_core::config::{Config, PartialConfig, TransitionDuration};
 use teleprompt_core::DurationMs;
 use teleprompt_core::SourceSpan;
+use teleprompt_script::config::{Config, PartialConfig, TransitionDuration};
 
 #[test]
 fn defaults_match_the_spec() {
@@ -375,7 +375,7 @@ fn a_configured_duration_longer_than_a_day_is_an_error() {
 /// of the known kinds in disguise.
 #[test]
 fn transition_kinds_parse_to_their_variant_or_stay_as_written() {
-    use teleprompt_core::config::TransitionKind;
+    use teleprompt_script::config::TransitionKind;
     for (name, kind) in [
         ("crossfade", TransitionKind::Crossfade),
         ("dissolve", TransitionKind::Dissolve),
@@ -413,7 +413,7 @@ fn trim_warn_above_is_a_timing_key() {
 /// nothing a path could make more of.
 #[test]
 fn a_locale_is_a_language_tag() {
-    use teleprompt_core::config::locale_problem;
+    use teleprompt_script::config::locale_problem;
     for good in ["en", "nl", "pt-BR", "zh_Hant", "sr-Latn-RS"] {
         assert_eq!(locale_problem(good), None, "{good}");
     }

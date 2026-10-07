@@ -7,6 +7,7 @@
 //! `teleprompt-core`'s; this crate is only for what reads a script.
 
 pub mod ast;
+pub mod config;
 pub mod edit;
 pub mod ident;
 pub mod lint;

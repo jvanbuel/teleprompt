@@ -4,8 +4,8 @@
 //! the narrator's. And a chapter's settings on its heading.
 
 use teleprompt_core::attrs::{BlockAttrs, LineAttrs};
-use teleprompt_core::config::PartialConfig;
 use teleprompt_core::SourceSpan;
+use teleprompt_script::config::PartialConfig;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, Element, Program};
 

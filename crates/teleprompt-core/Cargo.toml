@@ -10,7 +10,6 @@ blake3.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 thiserror.workspace = true
-toml.workspace = true
 
 [lints]
 workspace = true

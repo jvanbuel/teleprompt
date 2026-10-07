@@ -1,7 +1,7 @@
-use teleprompt_core::config::PartialConfig;
 use teleprompt_core::policy::{Align, PolicyKind};
 use teleprompt_core::DurationMs;
 use teleprompt_core::Hash;
+use teleprompt_script::config::PartialConfig;
 use teleprompt_script::ident::check_ids;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, ActionElement, Element, Program};

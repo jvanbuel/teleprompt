@@ -8,9 +8,9 @@ use std::sync::Arc;
 use teleprompt_script::program::Program;
 use teleprompt_voice::takes::Takes;
 
-use teleprompt_core::config::PartialConfig;
 use teleprompt_core::{Diagnostic, Diagnostics};
 use teleprompt_pipeline::compile::{compile, CompileOutput, VoiceContext};
+use teleprompt_script::config::PartialConfig;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, Element};
 use teleprompt_script::translation::Translation;
@@ -374,7 +374,7 @@ impl Project {
     /// The language the project's scripts are written in: the locale a command
     /// compiles for when none is given.
     pub fn source_locale(&self) -> String {
-        teleprompt_core::config::Config::merged(std::slice::from_ref(&self.config))
+        teleprompt_script::config::Config::merged(std::slice::from_ref(&self.config))
             .locales
             .source
     }

@@ -1,6 +1,6 @@
-use teleprompt_core::config::TimingConfig;
 use teleprompt_core::policy::Align;
 use teleprompt_core::PolicyKind;
+use teleprompt_script::config::TimingConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Layout {

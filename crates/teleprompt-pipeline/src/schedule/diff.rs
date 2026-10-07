@@ -2,9 +2,9 @@
 //! iterates `BTreeMap`s keyed by item id, so output is byte-stable.
 
 use std::collections::BTreeMap;
-use teleprompt_core::config::TransitionKind;
 use teleprompt_core::time::short;
 use teleprompt_core::{DurationSource, ItemId};
+use teleprompt_script::config::TransitionKind;
 
 use crate::schedule::timeline::{Entry, Timeline};
 

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use teleprompt_core::config::Transition;
 use teleprompt_core::{
     DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId, SpanMs, Tempo, TimeMs,
 };
+use teleprompt_script::config::Transition;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Timeline {

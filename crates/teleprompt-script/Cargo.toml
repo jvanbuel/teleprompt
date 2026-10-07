@@ -8,6 +8,8 @@ license.workspace = true
 [dependencies]
 teleprompt-core = { path = "../teleprompt-core" }
 pulldown-cmark.workspace = true
+serde.workspace = true
+thiserror.workspace = true
 serde_yaml.workspace = true
 toml.workspace = true
 

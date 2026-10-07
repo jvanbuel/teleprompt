@@ -3,13 +3,13 @@
 
 use std::path::Path;
 
-use teleprompt_core::config::PartialConfig;
 use teleprompt_core::{BlockId, Diagnostic, Diagnostics, SpanMs};
 use teleprompt_pipeline::compile::{compile, VoiceContext};
 use teleprompt_scene::capture::mock::MockCapture;
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_scene::mock::MockScene;
 use teleprompt_scene::{ScenePlugin, ScenePlugins};
+use teleprompt_script::config::PartialConfig;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::resolve;
 use teleprompt_voice::cache::VoiceCache;

@@ -1,4 +1,4 @@
-use teleprompt_core::config::{Transition, TransitionDuration};
+use teleprompt_script::config::{Transition, TransitionDuration};
 
 use teleprompt_core::{DurationSource, PolicyKind, SpanMs, Tempo, TimeMs};
 

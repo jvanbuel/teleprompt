@@ -1,5 +1,5 @@
-use teleprompt_core::config::PartialConfig;
 use teleprompt_core::DurationMs;
+use teleprompt_script::config::PartialConfig;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, Element};
 

@@ -275,8 +275,8 @@ fn resolve_refuses_a_duplicate_id() {
         &s,
         "t.md",
         "en",
-        &teleprompt_core::config::PartialConfig::default(),
-        &teleprompt_core::config::PartialConfig::default(),
+        &teleprompt_script::config::PartialConfig::default(),
+        &teleprompt_script::config::PartialConfig::default(),
     )
     .unwrap_err();
     assert!(

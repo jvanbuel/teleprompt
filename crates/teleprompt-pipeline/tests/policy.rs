@@ -1,7 +1,7 @@
-use teleprompt_core::config::TimingConfig;
 use teleprompt_core::policy::{Align, PolicyKind};
 use teleprompt_core::DurationMs;
 use teleprompt_pipeline::schedule::{layout, layout_at};
+use teleprompt_script::config::TimingConfig;
 
 fn timing() -> TimingConfig {
     TimingConfig {
@@ -10,7 +10,7 @@ fn timing() -> TimingConfig {
         max_stretch: 3.0,
         min_stretch: 0.33,
         trim_warn_above: 2.0,
-        ..teleprompt_core::config::Config::default().timing
+        ..teleprompt_script::config::Config::default().timing
     }
 }
 

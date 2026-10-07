@@ -18,7 +18,7 @@ use super::{Claude, Ollama, OpenAi, Program};
 
 /// How long one batch may take unless `[translate]`'s `timeout_ms` says
 /// otherwise.
-pub const TIMEOUT_MS: u64 = teleprompt_core::config::TRANSLATE_TIMEOUT_MS;
+pub const TIMEOUT_MS: u64 = teleprompt_script::config::TRANSLATE_TIMEOUT_MS;
 
 /// An HTTP client that gives up: on connecting after ten seconds, on the
 /// whole request after `timeout_ms`.

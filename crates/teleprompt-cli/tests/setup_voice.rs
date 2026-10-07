@@ -9,9 +9,9 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
-use teleprompt_core::config::{PartialConfig, PartialVoice};
 use teleprompt_project::project::Project;
 use teleprompt_project::voice::status as project_voice;
+use teleprompt_script::config::{PartialConfig, PartialVoice};
 
 /// A minimal `/v1/audio/voices` responder, built the same way
 /// `tests/dub.rs`'s `kokoro_stub_listing` is — copied rather than shared

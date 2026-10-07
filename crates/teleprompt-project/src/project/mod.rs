@@ -5,7 +5,7 @@ pub use compile::{translation_path, Compiled, Script};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
-use teleprompt_core::config::PartialConfig;
+use teleprompt_script::config::PartialConfig;
 
 use crate::registry::Registry;
 

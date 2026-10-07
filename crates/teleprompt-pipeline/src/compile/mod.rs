@@ -9,13 +9,13 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path};
 
 use crate::schedule::{schedule, ActionInput, Item, NarrationInput, Pacing, Timeline};
-use teleprompt_core::config::{Config, OutputConfig, SceneConfig};
 use teleprompt_core::policy::Align;
 use teleprompt_core::voice::spoken;
 use teleprompt_core::{
     Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId,
 };
 use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneCompilers, Shot};
+use teleprompt_script::config::{Config, OutputConfig, SceneConfig};
 use teleprompt_script::program::{ActionElement, ChapterInfo, Element, Program};
 use teleprompt_voice::cache::{CacheKey, VoiceCache};
 use teleprompt_voice::takes::{TakeMeta, Takes};

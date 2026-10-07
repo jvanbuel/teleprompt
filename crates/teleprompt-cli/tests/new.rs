@@ -17,8 +17,8 @@ fn scaffold_writes_a_runnable_project() {
 
 #[test]
 fn the_scaffolded_script_compiles() {
-    use teleprompt_core::config::PartialConfig;
     use teleprompt_pipeline::compile::{compile, VoiceContext};
+    use teleprompt_script::config::PartialConfig;
     use teleprompt_script::parse::parse_script;
     use teleprompt_script::program::resolve;
     use teleprompt_voice::cache::VoiceCache;

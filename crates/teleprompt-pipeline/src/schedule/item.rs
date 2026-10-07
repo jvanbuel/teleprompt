@@ -1,6 +1,6 @@
-use teleprompt_core::config::{Config, TimingConfig, TransitionConfig};
 use teleprompt_core::policy::Align;
 use teleprompt_core::{DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId};
+use teleprompt_script::config::{Config, TimingConfig, TransitionConfig};
 
 #[derive(Debug, Clone)]
 pub struct NarrationInput {

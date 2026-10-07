@@ -2,12 +2,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use publish::{LineAudio, Published};
-use teleprompt_core::config::OutputConfig;
 use teleprompt_core::{Diagnostics, LineId, Progress, Reporter, Silent, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
 use teleprompt_pipeline::compile::NarrationDetail;
+use teleprompt_script::config::OutputConfig;
 use teleprompt_voice::cache::{CachedAudio, VoiceCache};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
@@ -49,7 +49,7 @@ pub struct Dubbed<S> {
         teleprompt_pipeline::compile::ShotSource,
     >,
     /// The scenes as configured, which a capture backend opens.
-    pub scenes: std::collections::BTreeMap<String, teleprompt_core::config::SceneConfig>,
+    pub scenes: std::collections::BTreeMap<String, teleprompt_script::config::SceneConfig>,
     /// The script's `output:` block, which `build` needs and the manifest
     /// does not carry.
     pub output: OutputConfig,

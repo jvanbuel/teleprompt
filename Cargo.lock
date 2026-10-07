@@ -2044,7 +2044,6 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror 1.0.69",
- "toml",
 ]
 
 [[package]]
@@ -2169,9 +2168,11 @@ name = "teleprompt-script"
 version = "0.1.0"
 dependencies = [
  "pulldown-cmark",
+ "serde",
  "serde_json",
  "serde_yaml",
  "teleprompt-core",
+ "thiserror 1.0.69",
  "toml",
 ]
 

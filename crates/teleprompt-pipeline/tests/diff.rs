@@ -1,4 +1,3 @@
-use teleprompt_core::config::{Config, TransitionDuration};
 use teleprompt_core::policy::Align;
 use teleprompt_core::DurationMs;
 use teleprompt_core::DurationSource;
@@ -7,6 +6,7 @@ use teleprompt_core::PolicyKind;
 use teleprompt_pipeline::schedule::{
     diff, schedule, ActionInput, ChangeReason, Item, NarrationInput, Pacing, TimelineDiff,
 };
+use teleprompt_script::config::{Config, TransitionDuration};
 
 fn cfg() -> Config {
     let mut c = Config::default();

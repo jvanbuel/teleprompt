@@ -31,7 +31,7 @@ pub struct FrameOverride {
 impl FrameOverride {
     /// The frame to record and render at: the script's `output:` frame,
     /// with these overrides.
-    pub fn frame(&self, output: &teleprompt_core::config::OutputConfig) -> Frame {
+    pub fn frame(&self, output: &teleprompt_script::config::OutputConfig) -> Frame {
         let (width, height) = self.resolution.unwrap_or(output.resolution);
         Frame {
             width,

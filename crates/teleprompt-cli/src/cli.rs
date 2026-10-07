@@ -50,7 +50,7 @@ impl ScriptArgs {
 
 /// A `--locale` or `--to` that is a language tag, refused before it names a file.
 pub fn language_tag(s: &str) -> Result<String, String> {
-    teleprompt_core::config::locale_problem(s).map_or_else(|| Ok(s.to_string()), Err)
+    teleprompt_script::config::locale_problem(s).map_or_else(|| Ok(s.to_string()), Err)
 }
 
 /// A frame size and rate that override the script's `output:` block.
