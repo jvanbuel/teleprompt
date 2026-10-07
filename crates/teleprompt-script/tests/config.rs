@@ -226,8 +226,8 @@ fn a_bare_string_under_a_scene_key_is_still_an_error() {
     let err = PartialConfig::from_yaml("scene:\n  browser: playwright\n").unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("invalid type: string"),
-        "a scene key must hold settings, not a name: {msg}"
+        msg.contains("expected mapping") && msg.contains("line 2"),
+        "a scene key must hold settings, not a name, and say where: {msg}"
     );
 }
 

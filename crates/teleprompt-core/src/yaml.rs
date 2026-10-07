@@ -28,12 +28,21 @@ impl Error {
     }
 }
 
+/// How teleprompt reads YAML: only `true` and `false` are booleans, and a
+/// merge key `<<` is an ordinary key.
+fn options() -> serde_saphyr::Options {
+    let mut options = serde_saphyr::Options::default();
+    options.strict_booleans = true;
+    options.merge_keys = serde_saphyr::MergeKeyPolicy::AsOrdinary;
+    options
+}
+
 /// `text` read as YAML into a `T`.
 pub fn from_str<T: DeserializeOwned>(text: &str) -> Result<T, Error> {
-    serde_yaml::from_str(text).map_err(|e| Error(e.to_string()))
+    serde_saphyr::from_str_with_options(text, options()).map_err(|e| Error(e.to_string()))
 }
 
 /// `value` written as YAML.
-pub fn to_string<T: Serialize + ?Sized>(value: &T) -> Result<String, Error> {
-    serde_yaml::to_string(value).map_err(|e| Error(e.to_string()))
+pub fn to_string<T: Serialize>(value: &T) -> Result<String, Error> {
+    serde_saphyr::to_string(value).map_err(|e| Error(e.to_string()))
 }

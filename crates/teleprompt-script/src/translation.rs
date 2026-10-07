@@ -456,7 +456,7 @@ impl<'de> serde::Deserialize<'de> for Node {
 
 /// `s` as a YAML scalar on one line, quoted only where YAML needs it.
 fn scalar(s: &str) -> String {
-    teleprompt_core::yaml::to_string(s)
+    teleprompt_core::yaml::to_string(&s)
         .map(|y| y.trim_end().to_string())
         .unwrap_or_else(|_| format!("{s:?}"))
 }

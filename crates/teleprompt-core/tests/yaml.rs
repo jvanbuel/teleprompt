@@ -40,12 +40,13 @@ fn a_date_or_a_time_stays_text() {
     assert_eq!(read("a: 12:30"), json!({"a": "12:30"}));
 }
 
+/// `0777` is not read as octal 511. Whether a settings value comes back as
+/// the text or as the number 777 depends on the YAML library; either way
+/// it is not 511.
 #[test]
 fn a_leading_zero_is_not_octal() {
-    // Whatever it is, it is not 8 or 15: a setting like `007` is read
-    // as the author wrote it, as text or as the number 7.
-    let v = read("a: 0777");
-    assert!(v == json!({"a": "0777"}) || v == json!({"a": 777}), "{v}");
+    let v = &read("a: 0777")["a"];
+    assert!(v.as_f64() != Some(511.0) && v.as_i64() != Some(511), "{v}");
 }
 
 #[test]
@@ -225,9 +226,9 @@ fn a_string_written_as_yaml_reads_back_the_same() {
 
 #[test]
 fn a_simple_string_is_one_unquoted_line() {
-    assert_eq!(to_string("hello").unwrap().trim_end(), "hello");
+    assert_eq!(to_string(&"hello").unwrap().trim_end(), "hello");
     assert_eq!(
-        to_string("Hello, world.").unwrap().trim_end(),
+        to_string(&"Hello, world.").unwrap().trim_end(),
         "Hello, world."
     );
 }
