@@ -27,7 +27,7 @@ public/narration/en/audio/welcome.wav
 no Remotion dependency and the workspace ships no Node, which is deliberate.
 The code here is copy-paste material, kept short enough to audit by eye. If it
 drifts from the manifest, the manifest is right and this document is wrong —
-`crates/teleprompt-compile/src/manifest.rs` is the source of truth, and
+`crates/teleprompt-pipeline/src/compile/manifest.rs` is the source of truth, and
 `manifest_version` moves when its shape does.
 
 ## What the manifest gives you

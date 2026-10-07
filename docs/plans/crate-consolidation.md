@@ -1,6 +1,6 @@
 # Crate consolidation: 26 crates to 17
 
-Status: planned. Each step is one commit, done in order, with the checks
+Status: done. Each step is one commit, done in order, with the checks
 in "Every step" run before committing. A step that is green can be pushed
 on its own; nothing here depends on a later step.
 

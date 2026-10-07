@@ -8,6 +8,7 @@ on:
     paths:
       - crates/teleprompt-listen/**
       - crates/teleprompt-draft/**
+      - crates/teleprompt-scene/src/record.rs
       - crates/teleprompt-cli/tests/import*
       - crates/teleprompt-cli/tests/record*
       - .github/workflows/speech.yml
@@ -15,6 +16,7 @@ on:
     paths:
       - crates/teleprompt-listen/**
       - crates/teleprompt-draft/**
+      - crates/teleprompt-scene/src/record.rs
       - crates/teleprompt-cli/tests/import*
       - crates/teleprompt-cli/tests/record*
       - .github/workflows/speech.yml

@@ -173,7 +173,7 @@ reading the manifest it just published.
 | `teleprompt-pipeline` | a script to its timeline and manifest: `schedule` (policies, the scheduler, `Timeline`, diff; pure) and `compile`, where the others meet: it walks a `Program`, drives voice and scene, emits items, and builds the manifest. It plans: it reads each line's length from the voice cache or a take, and never encodes audio |
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies. Its opt-in `sherpa` feature adds the recognizer, a streaming sherpa-onnx model, and the offline models drafts are made with; without it the default build stays offline |
-| `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
+| `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the pipeline |
 | `teleprompt-scenes` | the scene plugins teleprompt ships, a module each: `vhs`, `asciinema`, `playwright`, `remotion`, `slidev`, `media`, and `desktop` (`x11` and `macos`: one action language and scene compiler, the runner that plays a session's shots against a window and cuts them where they began, and a module per platform, the app on a virtual X display driven by `xdotool`, or on the Mac's own screen driven through JavaScript for Automation, each recording with ffmpeg). Each holds its scene compiler, capture backend and, where its tool records, its recorder, handed over as one `plugin()`. Written against the scene crate alone, as an outside plugin would be |
 | `teleprompt-project` | a project on disk and its scripts: `Script` and what compiles it, `Dubber` (which publishes each line's audio in one format, fitted to its tempo, for the prompter as well as the video), `Scenes`, `Builder`, edits, the caches, and `translate` with its providers (Ollama by default, any OpenAI-compatible server, Claude, or a command of the author's). It is handed its scene plugins and voices as a `Registry` and knows none by name |
 | `teleprompt-setup` | the machine: which tools and models are here and how to install them, for what the build ships (`Shipped`, handed to it as data) and the uses of teleprompt that ask for them. On `plugin` and `core` alone, beside the tools a plugin declares |
@@ -182,24 +182,30 @@ reading the manifest it just published.
 | `teleprompt-serve` | the prompter: its page, API version 1 and the session that follows a reader by ear (`prompter`), served on loopback. Its page's Capture and Build run the `Builder` here, their progress streamed to the page through a `Reporter` |
 | `teleprompt-cli` | the `teleprompt` binary, composing the rest, and the one place that knows every scene plugin and voice by name (`registry`, which builds the `Registry` handed to each project): each command's flags, its report in either format, exit codes, the questions it asks at a terminal, and the commands that only read or print (`check`, `plan`, `new`, `cache`, `voice clone`). A library as well, so its tests reach the commands |
 
-`script`, `schedule`, `scene`, `voice` and `manifest` depend on `core`
-alone, and not on one another. Anything that needs two of them belongs in `compile`.
-`render` reads the manifest and never the compiler. A scene plugin, built
-in or not, depends on `plugin` and `core` and nothing else of
-teleprompt's, so what an outside plugin can do, the built-in ones do
-([writing a scene plugin](guide/scene-plugins.md)). A voice teleprompt
-ships, in `voices`, depends on `voice` and `core`. Each scene plugin crate's `plugin()`
-hands over its compiler, capture backend and recorder as one `ScenePlugin`,
-named by its compiler's kind, so its halves cannot be registered under two
-names. `compile`, and so `plan`, `check` and the prompter, reads a
-scene's shots and never runs its tool: it depends on `scene`, not on
-`plugin`, and is handed the compilers as `SceneCompilers`.
+`script`, `scene`, `voice`, `manifest` and `listen` depend on `core` alone,
+and not on one another. Anything that needs several of them belongs in
+`pipeline`, which turns a script into a timeline and a manifest. `render`
+reads the manifest and never the pipeline, so an outside renderer need not
+know the scheduler. A scene plugin, built in or not, depends on `scene` and
+nothing else of teleprompt's, so what an outside plugin can do, the
+built-in ones do ([writing a scene plugin](guide/scene-plugins.md)). A voice
+teleprompt ships, in `voices`, depends on `voice` and `core`. Each scene
+plugin module's `plugin()` hands over its compiler, capture backend and
+recorder as one `ScenePlugin`, named by its compiler's kind, so its halves
+cannot be registered under two names. The `pipeline`, and so `plan`,
+`check` and the prompter, reads a scene's shots and never runs its tool: it
+uses only the scene crate's `contract` module, and is handed the compilers
+as `SceneCompilers`. Cargo cannot enforce that one, so review does.
+`project` is a project and its scripts, built on those; `setup`, `lsp`,
+`draft` and `serve` are four front ends on top of it, each with a
+dependency set of its own, and `cli` composes them all.
 `tools/check_deps.py` checks the allowed edges between workspace crates,
 and CI fails on any other.
-Scene plugins and voices are named only in the command line's `registry` module, so adding one means
-a crate (a scene plugin) or a module of `voices` (a voice) and one line
-there, and no other crate learns its name. Everything that compiles or
-records a script is handed a `Registry` and asks it; nothing looks one up.
+Scene plugins and voices are named only in the command line's `registry`
+module, so adding one means a module of `scenes` (a scene plugin) or of
+`voices` (a voice) and one line there, and no other crate learns its name.
+Everything that compiles or records a script is handed a `Registry` and
+asks it; nothing looks one up.
 
 ## Voice
 

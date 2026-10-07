@@ -1,6 +1,6 @@
 //! What this build has to work with: every scene plugin and voice, by name,
-//! and what each needs. Built once by the one crate that knows them
-//! (`teleprompt-registry`) and handed to each [`Project`](crate::project::Project),
+//! and what each needs. Built once by the one module that knows them
+//! (the command line's `registry`) and handed to each [`Project`](crate::project::Project),
 //! so nothing here, and nothing below, knows a plugin or a voice by name.
 
 use std::collections::BTreeMap;
