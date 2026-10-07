@@ -40,6 +40,7 @@ pub fn run(args: Args, format: Format) -> crate::cli::Run {
     });
     run_serve(
         crate::cli::registry(),
+        crate::registry::shipped(crate::cli::registry()),
         args.script.as_deref(),
         args.locale.as_deref(),
         args.port,

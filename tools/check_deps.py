@@ -50,7 +50,6 @@ ALLOWED = {
     # plugin crate and no voice is here.
     "project": {
         "core", "script", "scene", "voice", "manifest", "pipeline", "render",
-        "setup",
     },
     # What `setup` finds and installs: what the plugins and voices need.
     "setup": {"core", "scene"},

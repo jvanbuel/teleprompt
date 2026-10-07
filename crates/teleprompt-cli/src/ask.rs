@@ -67,7 +67,7 @@ pub fn choose(setup: &Setup) -> Result<(Vec<String>, Vec<&'static Tool>), String
     if names.is_empty() {
         return Ok((names, Vec::new()));
     }
-    let tools = resolve(&crate::cli::registry().shipped(), &names)?;
+    let tools = resolve(&crate::registry::shipped(crate::cli::registry()), &names)?;
     Ok((names, tools))
 }
 
@@ -78,9 +78,9 @@ fn state(setup: &Setup, goal: &Goal) -> String {
         return "installed".to_string();
     }
     // Programs by name; models, which nobody knows by name, by count.
-    let (models, programs): (Vec<&Tool>, Vec<&Tool>) = gone
-        .iter()
-        .partition(|t| download_mb(&crate::cli::registry().shipped(), t.name).is_some());
+    let (models, programs): (Vec<&Tool>, Vec<&Tool>) = gone.iter().partition(|t| {
+        download_mb(&crate::registry::shipped(crate::cli::registry()), t.name).is_some()
+    });
     let mut parts: Vec<String> = programs.iter().map(|t| t.name.to_string()).collect();
     match models.len() {
         0 => {}
@@ -95,7 +95,7 @@ fn state(setup: &Setup, goal: &Goal) -> String {
 
 fn missing(setup: &Setup, goal: &Goal) -> Vec<&'static Tool> {
     let names: Vec<String> = vec![goal.name.to_string()];
-    resolve(&crate::cli::registry().shipped(), &names)
+    resolve(&crate::registry::shipped(crate::cli::registry()), &names)
         .unwrap_or_default()
         .into_iter()
         .filter(|t| setup.missing(t))
@@ -105,7 +105,7 @@ fn missing(setup: &Setup, goal: &Goal) -> Vec<&'static Tool> {
 fn megabytes(tools: &[&Tool]) -> u32 {
     tools
         .iter()
-        .filter_map(|t| download_mb(&crate::cli::registry().shipped(), t.name))
+        .filter_map(|t| download_mb(&crate::registry::shipped(crate::cli::registry()), t.name))
         .sum()
 }
 
@@ -164,10 +164,10 @@ pub fn offer(reporter: &dyn teleprompt_core::Reporter, names: &[&str], to: &str)
         return false;
     }
     let names: Vec<String> = names.iter().map(|n| (*n).to_string()).collect();
-    let Ok(tools) = resolve(&crate::cli::registry().shipped(), &names) else {
+    let Ok(tools) = resolve(&crate::registry::shipped(crate::cli::registry()), &names) else {
         return false;
     };
-    let setup = crate::cli::registry().setup_here();
+    let setup = crate::registry::setup_here(crate::cli::registry());
     let gone: Vec<&'static Tool> = tools
         .into_iter()
         .filter(|t| setup.missing(t) && setup.command(t).is_some())

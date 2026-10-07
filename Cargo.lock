@@ -2122,7 +2122,6 @@ dependencies = [
  "teleprompt-render",
  "teleprompt-scene",
  "teleprompt-script",
- "teleprompt-setup",
  "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",

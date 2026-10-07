@@ -74,6 +74,7 @@ pub struct Opener {
 /// an event an app that launched it reads.
 pub fn run_serve(
     registry: Registry,
+    shipped: teleprompt_setup::Shipped,
     script: Option<&std::path::Path>,
     locale: Option<&str>,
     port: u16,
@@ -105,7 +106,7 @@ pub fn run_serve(
         .local_addr()
         .map_err(|e| Failure::Runtime(e.to_string()))?;
     listening(addr, opened.is_some());
-    let server = Server::new(registry, opened, Some(opener));
+    let server = Server::new(registry, shipped, opened, Some(opener));
     serve_on(listener, server).map_err(|e| Failure::Runtime(e.to_string()))
 }
 

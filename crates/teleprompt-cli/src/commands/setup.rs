@@ -16,7 +16,7 @@ pub struct Args {
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use crate::cli::{emit, runtime_failure};
     use crate::output::{Format, Outcome};
-    let setup = crate::cli::registry().setup_here();
+    let setup = crate::registry::setup_here(crate::cli::registry());
     let reporter = crate::output::Terminal::new(format);
     if args.uses {
         let report = setup.uses();
@@ -63,7 +63,10 @@ fn voice_here() -> Result<Option<ProjectVoice>, crate::output::Outcome> {
     ) else {
         return Ok(None);
     };
-    Ok(Some(
-        crate::cli::runtime()?.block_on(teleprompt_project::voice::status(&project)),
-    ))
+    let status = crate::cli::runtime()?.block_on(teleprompt_project::voice::status(&project));
+    Ok(Some(ProjectVoice {
+        backend: status.backend,
+        answer: status.answer,
+        problems: status.problems,
+    }))
 }

@@ -18,7 +18,7 @@ fn setup_covers_every_program_an_plugin_finds_missing() {
             continue;
         };
         let known: Vec<&str> = resolve(
-            &teleprompt_cli::registry::registry().shipped(),
+            &teleprompt_cli::registry::shipped(teleprompt_cli::registry::registry()),
             &[plugin.to_string()],
         )
         .unwrap()

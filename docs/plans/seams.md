@@ -1,6 +1,6 @@
 # Round four: the seams
 
-Status: planned. Follows `crate-consolidation.md`, which is done. The crate
+Status: in progress. Follows `crate-consolidation.md`, which is done. The crate
 count stays at 17; every step here is about an edge or a type at a
 boundary. One commit per step, in order, with the checks in "Every step"
 clean before each. Nothing depends on a later step.
@@ -82,6 +82,11 @@ What `project` takes from `setup` today, and where each goes:
 - `tests/setup*.rs` and `ask.rs` in the cli switch from
   `registry().shipped()` to `registry::shipped(registry())`.
 - `tools/check_deps.py`: `project` loses `"setup"`.
+- As done: a `From` impl in the cli would break the orphan rule, so the
+  cli converts `VoiceStatus` to `setup::ProjectVoice` field by field. The
+  prompter holds the `Shipped` list rather than a `Setup`, and detects the
+  machine per request, as it did, so a tool installed from the page is
+  found by the next request. Both use `project::root_here`.
 - `docs/design.md`: the dependency paragraph says `setup` is a leaf on
   `core` and `scene`; the `teleprompt-setup` row drops "the project crate
   depends on it".

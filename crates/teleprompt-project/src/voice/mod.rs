@@ -269,9 +269,20 @@ impl Backends {
     }
 }
 
-/// `setup`'s word on `project`'s voice: its backend, what that backend's
-/// server says, and every `backends:` setting that cannot be used.
-pub async fn status(project: &crate::project::Project) -> teleprompt_setup::ProjectVoice {
+/// A project's voice, as `setup` reports it: its backend, what that
+/// backend's server says, and every `backends:` setting that cannot be used.
+#[derive(Debug, Clone)]
+pub struct VoiceStatus {
+    /// The project's `voice.backend`, `null` when it names none.
+    pub backend: String,
+    /// What its server said, or `None` when it has none to ask.
+    pub answer: Option<String>,
+    /// Every `backends:` setting that cannot be used.
+    pub problems: Vec<String>,
+}
+
+/// `project`'s [`VoiceStatus`], asking its backend's server.
+pub async fn status(project: &crate::project::Project) -> VoiceStatus {
     let backends = project.backends();
     let backend = project
         .config
@@ -285,7 +296,7 @@ pub async fn status(project: &crate::project::Project) -> teleprompt_setup::Proj
         .chain(backends.unusable_diagnostics())
         .map(|d| d.message)
         .collect();
-    teleprompt_setup::ProjectVoice {
+    VoiceStatus {
         answer: backends.probe(&backend).await,
         backend,
         problems,

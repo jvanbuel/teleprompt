@@ -204,3 +204,12 @@ pub fn fingerprint(path: &Path) -> Option<teleprompt_core::Hash> {
         .ok()
         .map(|bytes| teleprompt_core::Hash::of(&bytes))
 }
+
+/// The root of the project around the working directory, or the working
+/// directory outside one: where npm packages are looked for.
+pub fn root_here(registry: crate::registry::Registry) -> PathBuf {
+    let here = PathBuf::from(".");
+    Project::discover(&here, registry)
+        .map(|p| p.root)
+        .unwrap_or(here)
+}

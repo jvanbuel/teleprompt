@@ -57,7 +57,8 @@ pub fn prompt_watching<R: Recognizer + Send + 'static>(
     recognizer: R,
     edits: Option<Edits>,
 ) -> std::io::Result<()> {
-    let server = Server::new(registry, None, None);
+    // Set up from the page only where `run_serve` started it.
+    let server = Server::new(registry, teleprompt_setup::Shipped::default(), None, None);
     *server.session() = Some(Session::new(prompt, Box::new(recognizer) as Hearing)?);
     *write(&server.edits) = edits.map(Arc::new);
     serve_on(listener, server)
@@ -283,8 +284,7 @@ async fn open_route(
 /// `GET /api/v1/setup`: what teleprompt can be set up to do here, as
 /// `teleprompt setup --uses` says it.
 async fn uses_route(State(server): Shared) -> Response {
-    let registry = server.registry;
-    let uses = block_in_place(move || registry.setup_here().uses());
+    let uses = block_in_place(|| server.setup().uses());
     json(serde_json::to_value(uses).unwrap_or_default())
 }
 
@@ -307,13 +307,13 @@ async fn install_route(
     if uses.is_empty() {
         return (StatusCode::BAD_REQUEST, "uses= names what to set up").into_response();
     }
-    let tools = match teleprompt_setup::resolve(&server.registry.shipped(), &uses) {
+    let tools = match teleprompt_setup::resolve(&server.shipped, &uses) {
         Ok(tools) => tools,
         Err(why) => return failure(StatusCode::BAD_REQUEST, None, vec![why]),
     };
-    let registry = server.registry;
+    let shared = server.clone();
     streamed(&server, move |say| {
-        let setup = registry.setup_here();
+        let setup = shared.setup();
         match setup.install(&tools, &Say(Mutex::new(say))) {
             Ok(_) => serde_json::json!({ "event": "installed", "uses": uses }),
             Err(why) => serde_json::json!({ "event": "failed", "errors": [why] }),
