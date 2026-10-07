@@ -172,6 +172,9 @@ to `main`.
   `docs/design.md` crate table: one row for `scenes`.
 - `.github/workflows/*.yml`: any `crates/teleprompt-<plugin>/**` path
   filter becomes `crates/teleprompt-scenes/**`.
+- Test files take the plugin's name as a prefix, e.g. `vhs_record.rs`.
+  `include_str!("render.mjs")` in remotion keeps working because the
+  script moves next to `capture.rs`.
 - Do not merge `examples/*`: those are out-of-process example plugins and
   stay as they are.
 

@@ -24,14 +24,14 @@ pub const SHIPPED: &[&str] = &[
 /// them.
 fn built_in() -> Vec<ScenePlugin> {
     vec![
-        teleprompt_vhs::plugin(),
-        teleprompt_playwright::plugin(),
-        teleprompt_remotion::plugin(),
-        teleprompt_slidev::plugin(),
-        teleprompt_asciinema::plugin(),
-        teleprompt_media::plugin(),
-        teleprompt_desktop::x11::plugin(),
-        teleprompt_desktop::macos::plugin(),
+        teleprompt_scenes::vhs::plugin(),
+        teleprompt_scenes::playwright::plugin(),
+        teleprompt_scenes::remotion::plugin(),
+        teleprompt_scenes::slidev::plugin(),
+        teleprompt_scenes::asciinema::plugin(),
+        teleprompt_scenes::media::plugin(),
+        teleprompt_scenes::desktop::x11::plugin(),
+        teleprompt_scenes::desktop::macos::plugin(),
         ScenePlugin::new(MockScene, MockCapture::default()),
     ]
 }

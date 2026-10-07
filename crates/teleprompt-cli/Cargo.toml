@@ -43,7 +43,7 @@ base64.workspace = true
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 teleprompt-testkit = { path = "../teleprompt-testkit" }
 # The tests look at what the engine made with the crates it made it with.
-teleprompt-asciinema = { path = "../teleprompt-asciinema" }
+teleprompt-scenes = { path = "../teleprompt-scenes" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-scene = { path = "../teleprompt-scene" }

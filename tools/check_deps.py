@@ -21,13 +21,11 @@ import json
 import subprocess
 import sys
 
-# A plugin depends on the contracts it implements, and nothing else of
-# teleprompt's: what an outside plugin can do, the built-in ones do.
+# The built-in scene plugins depend on the contracts they implement, and
+# nothing else of teleprompt's: what an outside plugin can do, they do.
 PLUGIN = {"scene"}
 # The voices teleprompt ships depend on the voice contract, and nothing else.
 VOICE = {"core", "voice"}
-
-PLUGIN_CRATES = {"vhs", "asciinema", "playwright", "remotion", "slidev", "media", "desktop"}
 
 ALLOWED = {
     "core": set(),
@@ -42,14 +40,8 @@ ALLOWED = {
     # A script to its timeline and manifest: the scheduler and the compiler.
     "pipeline": {"core", "script", "scene", "voice", "manifest"},
     "render": {"core", "manifest"},
-    "vhs": PLUGIN,
-    "asciinema": PLUGIN,
-    "playwright": PLUGIN,
-    "remotion": PLUGIN,
-    "slidev": PLUGIN,
-    "media": PLUGIN,
-    # The desktop scene plugins, x11 and macos: one language and runner.
-    "desktop": PLUGIN,
+    # The scene plugins teleprompt ships, a module each.
+    "scenes": PLUGIN,
     "listen": set(),
     "testkit": set(),  # dev-dependency only; never a normal dependency
     # A project and what the commands do to its scripts: compiled, dubbed,
@@ -61,7 +53,7 @@ ALLOWED = {
         "setup",
     },
     # The one crate that knows every scene plugin and voice by name.
-    "registry": {"project", "scene", "voices"} | PLUGIN_CRATES,
+    "registry": {"project", "scene", "scenes", "voices"},
     # What `setup` finds and installs: what the plugins and voices need.
     "setup": {"core", "scene"},
     # The language server, with the real compile as its analyzer.

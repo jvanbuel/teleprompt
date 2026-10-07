@@ -47,8 +47,8 @@ the rest of what every backend does: a scratch directory
 records the whole session as one video, cutting it into clips
 (`cut_reel`).
 
-**`crates/teleprompt-media` is the smallest example**: images and videos,
-captured with ffmpeg. `teleprompt-vhs` and `teleprompt-asciinema` record
+**The `media` module of `crates/teleprompt-scenes` is the smallest example**:
+images and videos, captured with ffmpeg. `vhs` and `asciinema` record
 sessions too. `examples/plugins/teleprompt-scene-card` is a complete
 scene plugin in Python, as a program, and `examples/plugin-authors` is a
 short video made with it.
@@ -116,10 +116,10 @@ language: `pipx`, `npm install -g`, `cargo install`, or a copied file. A
 built-in plugin's name wins over an installed one's, which `teleprompt
 plugins` says. Publish it with the GitHub topic `teleprompt-plugin`.
 
-**Compiled in:** add your crate to the workspace, and one line to
-`built_in()` in `crates/teleprompt-registry/src/scenes.rs`, with its name
-in `SHIPPED` there. Then add your crate to `tools/check_deps.py`, with
-`PLUGIN` as what it may depend on.
+**Compiled in:** add a module to `crates/teleprompt-scenes`, written
+against `teleprompt-scene` alone, and one line to `built_in()` in
+`crates/teleprompt-registry/src/scenes.rs`, with its name in `SHIPPED`
+there.
 
 ## The protocol
 

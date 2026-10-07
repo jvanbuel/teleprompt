@@ -174,8 +174,7 @@ reading the manifest it just published.
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies. Its opt-in `sherpa` feature adds the recognizer, a streaming sherpa-onnx model, and the offline models drafts are made with; without it the default build stays offline |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
-| `teleprompt-vhs`, `-asciinema`, `-playwright`, `-remotion`, `-slidev`, `-media` | one crate per scene plugin, holding its scene compiler, capture backend and, where its tool records (asciinema, VHS, Playwright), its recorder, handed over as one `plugin()` |
-| `teleprompt-desktop` | the desktop scene plugins, `x11` and `macos`: one action language and scene compiler, the runner that plays a session's shots against a window and cuts them where they began, and a module per platform (the app on a virtual X display, driven by `xdotool`; or on the Mac's own screen, driven through JavaScript for Automation), each recording with ffmpeg |
+| `teleprompt-scenes` | the scene plugins teleprompt ships, a module each: `vhs`, `asciinema`, `playwright`, `remotion`, `slidev`, `media`, and `desktop` (`x11` and `macos`: one action language and scene compiler, the runner that plays a session's shots against a window and cuts them where they began, and a module per platform, the app on a virtual X display driven by `xdotool`, or on the Mac's own screen driven through JavaScript for Automation, each recording with ffmpeg). Each holds its scene compiler, capture backend and, where its tool records, its recorder, handed over as one `plugin()`. Written against the scene crate alone, as an outside plugin would be |
 | `teleprompt-project` | a project on disk and its scripts: `Script` and what compiles it, `Dubber` (which publishes each line's audio in one format, fitted to its tempo, for the prompter as well as the video), `Scenes`, `Builder`, edits, the caches, and `translate` with its providers (Ollama by default, any OpenAI-compatible server, Claude, or a command of the author's). It is handed its scene plugins and voices as a `Registry` and knows none by name |
 | `teleprompt-registry` | the one crate that knows every scene plugin and voice by name: it builds the `Registry` the command line hands to each project |
 | `teleprompt-setup` | the machine: which tools and models are here and how to install them, for what the build ships (`Shipped`, handed to it as data) and the uses of teleprompt that ask for them. On `plugin` and `core` alone, beside the tools a plugin declares |
@@ -759,7 +758,7 @@ not a failure.
 - **`x11`** and **`macos`**: a desktop app, run from the scene's `command`
   and driven by a block of actions (keys, typing, the pointer, `Wait` on the
   window's title), in VHS's vocabulary. The language, its timing and
-  `retime` are `teleprompt-desktop`'s, so the two platforms compile a block
+  `retime` are `teleprompt-scenes`' `desktop` module's, so the two platforms compile a block
   alike and differ only in how they run it. Timing is `Exact` without a
   `Wait`, which makes it `Estimated`. An app's own time is not predictable,
   so these cut shots differently from `vhs`: the recording is stamped with

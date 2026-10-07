@@ -1,0 +1,137 @@
+//! Rendering a motion scene with the project's own Remotion install.
+//!
+//! One Node process bundles the project's entry point once and renders
+//! each missing shot straight to its clip, at the length the schedule gave
+//! it. There is no reel to cut, and a cached shot is not rendered at all:
+//! a composition does not open on the screen the one before it left.
+
+use std::path::Path;
+use std::process::Command;
+
+use teleprompt_scene::capture::{
+    absolute, CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session, WorkDir,
+};
+
+use crate::remotion::scene::parse;
+
+const RENDER_SCRIPT: &str = include_str!("render.mjs");
+
+/// How many frames `ms` is at `fps`, rounded, and never none.
+pub fn frames(ms: u64, fps: u32) -> u64 {
+    teleprompt_scene::core::time::frames(ms, fps).max(1)
+}
+
+/// The job `render.mjs` reads: what to bundle, and each wanted shot's
+/// composition, props, length and clip path.
+pub fn job_for(
+    session: &Session,
+    frame: &Frame,
+    entry: &Path,
+    out_dir: &Path,
+) -> Result<serde_json::Value, (String, String)> {
+    let mut shots = Vec::new();
+    for shot in session.shots.iter().filter(|s| s.wanted) {
+        let call = parse(&shot.source).ok().flatten().ok_or_else(|| {
+            (
+                shot.id.to_string(),
+                "the shot names no composition".to_string(),
+            )
+        })?;
+        shots.push(serde_json::json!({
+            "composition": call.composition,
+            "props": call.props,
+            "frames": frames(shot.duration_ms, frame.fps),
+            "out": out_dir.join(format!("{}.mp4", shot.key)),
+        }));
+    }
+    Ok(serde_json::json!({
+        "entry": entry,
+        // The scene's `browser`, else the machine's: a path that differs
+        // from machine to machine does not belong in a committed config.
+        // Neither means Remotion downloads its own headless shell.
+        "browser": session.settings.get("browser").cloned()
+            .or_else(|| std::env::var("TELEPROMPT_REMOTION_BROWSER").ok()),
+        "fps": frame.fps,
+        "width": frame.width,
+        "height": frame.height,
+        "shots": shots,
+    }))
+}
+
+/// Records `remotion` scenes by rendering the project's compositions.
+#[derive(Debug, Clone)]
+pub struct RemotionRender {
+    pub node: String,
+}
+
+impl Default for RemotionRender {
+    fn default() -> Self {
+        Self {
+            node: "node".into(),
+        }
+    }
+}
+
+impl CaptureBackend for RemotionRender {
+    fn unavailable(&self) -> Option<String> {
+        teleprompt_scene::core::tool::missing(&[&self.node])
+    }
+
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
+            &teleprompt_scene::core::tool::NODE,
+            &crate::remotion::tools::REMOTION,
+        ];
+        NEEDS
+    }
+
+    fn capture(
+        &self,
+        session: &Session,
+        frame: &Frame,
+        out_dir: &Path,
+        on_progress: &mut dyn FnMut(Progress),
+    ) -> Result<Vec<Clip>, CaptureError> {
+        let mut job = Job::new("remotion", session, frame, out_dir, on_progress);
+        let project = absolute(&session.path("project", "."));
+        if !project.join("node_modules/@remotion/renderer").is_dir()
+            || !project.join("node_modules/@remotion/bundler").is_dir()
+        {
+            return Err(job.unavailable(format!(
+                "{} has no @remotion/renderer and @remotion/bundler; run `npm install` there",
+                project.display()
+            )));
+        }
+        let entry = project.join(session.setting("entry", "src/index.ts"));
+        let out_dir = absolute(out_dir);
+        let job_json =
+            job_for(session, frame, &entry, &out_dir).map_err(|(s, why)| job.failed(&s, why))?;
+
+        // Inside the project, so Node finds its node_modules by walking up.
+        let work = WorkDir::create(&project, "teleprompt-remotion")
+            .map_err(|e| job.failed_all(format!("{}: {e}", project.display())))?;
+        let script = work.join("render.mjs");
+        let job_file = work.join("job.json");
+        std::fs::write(&script, RENDER_SCRIPT)
+            .and_then(|()| std::fs::write(&job_file, job_json.to_string()))
+            .map_err(|e| job.failed_all(format!("{}: {e}", work.display())))?;
+        teleprompt_scene::core::tool::run(
+            Command::new(&self.node)
+                .arg(&script)
+                .arg(&job_file)
+                .current_dir(&project),
+            "the render",
+            6,
+        )
+        .map_err(|why| job.failed_all(why))?;
+
+        for shot in job.wanted() {
+            let path = job.clip_path(shot);
+            if !path.is_file() {
+                return Err(job.failed(&shot.id, format!("the render left no {}", path.display())));
+            }
+            job.keep(shot);
+        }
+        Ok(job.clips())
+    }
+}

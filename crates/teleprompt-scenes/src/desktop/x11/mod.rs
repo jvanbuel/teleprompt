@@ -1,0 +1,25 @@
+//! Desktop scenes on Linux: the app on a virtual X display.
+//!
+//! Each session gets its own `Xvfb` at the video's size, so the recording
+//! is the app and nothing else on the author's screen, and a capture runs
+//! the same on a laptop, a server or in CI. `xdotool` drives the window,
+//! and `ffmpeg` records the display with wall-clock timestamps, which is
+//! what [`crate::desktop::run`] cuts shots by. The language and its timing are the
+//! crate's, shared with [`crate::desktop::macos`].
+
+mod capture;
+pub mod tools;
+mod xdo;
+
+pub use capture::X11Render;
+
+/// The plugin's name, and the scene a block names to use it.
+pub const PLUGIN_NAME: &str = "x11";
+
+/// The x11 plugin's compiler.
+pub const SCENE: crate::desktop::DesktopScene = crate::desktop::DesktopScene { kind: PLUGIN_NAME };
+
+/// The plugin, to register.
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(SCENE, X11Render::default())
+}

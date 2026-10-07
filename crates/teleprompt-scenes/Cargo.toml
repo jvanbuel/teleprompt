@@ -1,0 +1,20 @@
+[package]
+name = "teleprompt-scenes"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+# The scene plugins teleprompt ships, one module each, written against the
+# scene crate alone, as an outside plugin would be. Nothing here knows
+# another plugin's internals.
+[dependencies]
+serde_json.workspace = true
+teleprompt-scene = { path = "../teleprompt-scene" }
+
+[dev-dependencies]
+teleprompt-testkit = { path = "../teleprompt-testkit" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

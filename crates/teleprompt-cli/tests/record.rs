@@ -165,7 +165,7 @@ fn asciinema_records_each_command_and_marks_between_them() {
     let gap = r.starts[1] - r.starts[0];
     assert!((1300..2500).contains(&gap), "{:?}", r.starts);
 
-    use teleprompt_asciinema::scene::{parse, select};
+    use teleprompt_scenes::asciinema::scene::{parse, select};
     let cast = parse(&r.marked).unwrap_or_else(|e| panic!("{e:?}\n{}", r.marked));
     let second: String = select(&cast, "2")
         .unwrap()
