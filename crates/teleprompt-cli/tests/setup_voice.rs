@@ -65,7 +65,7 @@ fn project_with_backend(
     backends: BTreeMap<String, serde_yaml::Value>,
 ) -> Project {
     Project {
-        registry: teleprompt_registry::registry(),
+        registry: teleprompt_cli::registry::registry(),
         root: PathBuf::from("does-not-exist-on-disk"),
         config: PartialConfig {
             voice: Some(PartialVoice {

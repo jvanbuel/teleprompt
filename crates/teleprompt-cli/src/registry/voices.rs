@@ -2,8 +2,8 @@
 
 use teleprompt_voices::{elevenlabs, gemini, openai, voicebox};
 
-use crate::needs;
-use crate::Voice;
+use super::needs;
+use super::Voice;
 
 /// `null` aside, in the order errors and `setup` list them.
 pub fn shipped() -> Vec<Voice> {

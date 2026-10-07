@@ -17,7 +17,9 @@ listen = ["teleprompt-draft/listen", "teleprompt-serve/listen", "teleprompt-setu
 
 [dependencies]
 teleprompt-project = { path = "../teleprompt-project" }
-teleprompt-registry = { path = "../teleprompt-registry" }
+teleprompt-scene = { path = "../teleprompt-scene" }
+teleprompt-scenes = { path = "../teleprompt-scenes" }
+teleprompt-voices = { path = "../teleprompt-voices" }
 teleprompt-setup = { path = "../teleprompt-setup" }
 teleprompt-lsp = { path = "../teleprompt-lsp" }
 teleprompt-draft = { path = "../teleprompt-draft" }
@@ -43,10 +45,8 @@ base64.workspace = true
 tungstenite = { version = "0.27", default-features = false, features = ["handshake"] }
 teleprompt-testkit = { path = "../teleprompt-testkit" }
 # The tests look at what the engine made with the crates it made it with.
-teleprompt-scenes = { path = "../teleprompt-scenes" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
-teleprompt-scene = { path = "../teleprompt-scene" }
 serde_yaml.workspace = true
 insta.workspace = true
 tempfile.workspace = true

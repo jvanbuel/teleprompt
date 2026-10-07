@@ -1,7 +1,7 @@
 //! Every scene plugin and voice this build of teleprompt ships, registered
-//! in one place (docs/design.md#crates): the one crate that knows them by
+//! in one place (docs/design.md#crates): the one module that knows them by
 //! name. The command line builds the [`Registry`] here once and hands it
-//! to each project; nothing below this crate names a plugin or a voice.
+//! to each project; nothing below the command line names a plugin or a voice.
 
 use std::sync::OnceLock;
 

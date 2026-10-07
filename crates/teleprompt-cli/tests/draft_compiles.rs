@@ -42,7 +42,7 @@ fn check(source: &str) -> Result<Vec<String>, Vec<String>> {
     let script: PathBuf = dir.join("scripts/drafted.md");
     std::fs::write(&script, source).unwrap();
     teleprompt_cli::commands::check::check(
-        &Project::discover(&dir, teleprompt_registry::registry())
+        &Project::discover(&dir, teleprompt_cli::registry::registry())
             .unwrap()
             .script(&script, "en"),
     )
@@ -104,10 +104,10 @@ fn a_drafted_transcript_passes_check_and_casts_its_speakers() {
     teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     let script = dir.join("scripts/talk.md");
     std::fs::write(&script, &drafted.script).unwrap();
-    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+    let project = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
     let compiled = project
         .script(&script, "en")
-        .with_backends(teleprompt_registry::registry().default_backends())
+        .with_backends(teleprompt_cli::registry::registry().default_backends())
         .compile_source(&drafted.script)
         .unwrap_or_else(|e| panic!("{e:?}"));
     let said: Vec<(Option<String>, String)> = compiled

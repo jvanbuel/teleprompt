@@ -2022,7 +2022,6 @@ dependencies = [
  "teleprompt-manifest",
  "teleprompt-pipeline",
  "teleprompt-project",
- "teleprompt-registry",
  "teleprompt-scene",
  "teleprompt-scenes",
  "teleprompt-script",
@@ -2030,6 +2029,7 @@ dependencies = [
  "teleprompt-setup",
  "teleprompt-testkit",
  "teleprompt-voice",
+ "teleprompt-voices",
  "tempfile",
  "tokio",
  "tungstenite 0.27.0",
@@ -2127,16 +2127,6 @@ dependencies = [
  "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",
-]
-
-[[package]]
-name = "teleprompt-registry"
-version = "0.1.0"
-dependencies = [
- "teleprompt-project",
- "teleprompt-scene",
- "teleprompt-scenes",
- "teleprompt-voices",
 ]
 
 [[package]]

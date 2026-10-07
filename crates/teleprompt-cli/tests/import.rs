@@ -90,7 +90,7 @@ fn import(
     force: bool,
 ) -> Result<teleprompt_draft::import::ImportReport, String> {
     run_import(&Import {
-        registry: teleprompt_registry::registry(),
+        registry: teleprompt_cli::registry::registry(),
         reporter: &teleprompt_core::Silent,
         recording: &s.cast,
         with: None,
@@ -136,7 +136,7 @@ fn a_session_becomes_a_script_that_checks() {
     );
     assert!(cast.contains(r#"[4.0,"m",""]"#), "{cast}");
 
-    let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
+    let project = Project::for_script(&script, teleprompt_cli::registry::registry()).unwrap();
     let warnings = check(&project.script(&script, "en")).unwrap();
     assert!(
         warnings.iter().all(|w| !w.contains("error")),
@@ -152,7 +152,7 @@ fn each_line_gets_its_take() {
     let script = s.root.join("scripts/tour.md");
     let report = import(&s, &script, false).unwrap();
 
-    let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
+    let project = Project::for_script(&script, teleprompt_cli::registry::registry()).unwrap();
     let plan = plan(&project.script(&script, "en")).unwrap();
     let lines: Vec<_> = plan
         .narration
@@ -212,7 +212,7 @@ fn an_unknown_recording_asks_which_tool_made_it() {
     let odd = s.root.join("session.log");
     std::fs::copy(&s.cast, &odd).unwrap();
     let e = run_import(&Import {
-        registry: teleprompt_registry::registry(),
+        registry: teleprompt_cli::registry::registry(),
         reporter: &teleprompt_core::Silent,
         recording: &odd,
         with: None,
@@ -239,7 +239,7 @@ fn a_vhs_tape_drafts_as_vhs_blocks() {
     .unwrap();
     let script = s.root.join("scripts/tour.md");
     let report = run_import(&Import {
-        registry: teleprompt_registry::registry(),
+        registry: teleprompt_cli::registry::registry(),
         reporter: &teleprompt_core::Silent,
         recording: &tape,
         with: None,
@@ -257,7 +257,7 @@ fn a_vhs_tape_drafts_as_vhs_blocks() {
         md.contains("scene=vhs include=recordings/tour.tape#2"),
         "{md}"
     );
-    let project = Project::for_script(&script, teleprompt_registry::registry()).unwrap();
+    let project = Project::for_script(&script, teleprompt_cli::registry::registry()).unwrap();
     let warnings = check(&project.script(&script, "en")).unwrap();
     assert!(
         warnings.iter().all(|w| !w.contains("error")),

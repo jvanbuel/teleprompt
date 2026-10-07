@@ -8,8 +8,8 @@
 //! saying the scene plugin `vhs` is not available, on a build that ships
 //! one.
 
+use teleprompt_cli::registry::registry;
 use teleprompt_core::SpanMs;
-use teleprompt_registry::registry;
 
 #[test]
 fn the_registry_serves_every_plugin_this_build_ships() {
@@ -77,7 +77,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
     )
     .unwrap();
 
-    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+    let project = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
     let compiled = project
         .script(&script, "en")
         .compile()
@@ -140,9 +140,11 @@ fn a_scene_reads_its_files_from_the_project() {
     )
     .unwrap();
     let key = || {
-        let project =
-            teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
-                .unwrap();
+        let project = teleprompt_project::project::Project::discover(
+            &dir,
+            teleprompt_cli::registry::registry(),
+        )
+        .unwrap();
         let compiled = project
             .script(dir.join("scripts/pics.md"), "en")
             .compile()

@@ -75,7 +75,7 @@ impl From<FrameArgs> for teleprompt_project::build::FrameOverride {
 
 /// What this build has: every scene plugin and voice, found once.
 pub fn registry() -> teleprompt_project::registry::Registry {
-    teleprompt_registry::registry()
+    crate::registry::registry()
 }
 
 /// The project `script` is in.

@@ -7,7 +7,7 @@ The layering is docs/design.md#crates: core at the bottom; the scene
 contract and the manifest on core alone and not on one another;
 the pipeline where they meet; render reading the manifest, not the compiler;
 every scene plugin on the scene crate alone, every voice on the
-voice contract alone; and only the CLI knowing every plugin and voice by
+voice contract alone; and only the CLI (its `registry` module) knowing every plugin and voice by
 name. A new dependency between workspace
 crates has to be added here, which is where the argument for it belongs.
 Dev-dependencies are not checked.
@@ -52,8 +52,6 @@ ALLOWED = {
         "core", "script", "scene", "voice", "manifest", "pipeline", "render",
         "setup",
     },
-    # The one crate that knows every scene plugin and voice by name.
-    "registry": {"project", "scene", "scenes", "voices"},
     # What `setup` finds and installs: what the plugins and voices need.
     "setup": {"core", "scene"},
     # The language server, with the real compile as its analyzer.
@@ -65,8 +63,8 @@ ALLOWED = {
     # The command line, composing the rest, and the commands that only
     # read or print: check, plan, new, cache, voice clone.
     "cli": {
-        "project", "registry", "setup", "lsp", "draft", "serve", "core", "pipeline",
-        "script", "voice",
+        "project", "setup", "lsp", "draft", "serve", "core", "pipeline", "script",
+        "voice", "scene", "scenes", "voices",
     },
 }
 

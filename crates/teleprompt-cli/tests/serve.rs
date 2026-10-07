@@ -83,7 +83,7 @@ fn prompting_counted(
     let recognizer = Scripted(heard.iter().copied().collect(), count.clone());
     std::thread::spawn(move || {
         prompt_on(
-            teleprompt_registry::registry(),
+            teleprompt_cli::registry::registry(),
             listener,
             prompt,
             recognizer,
@@ -302,7 +302,12 @@ fn a_session_that_panics_lets_go_of_the_prompter() {
         takes: dir.join("takes"),
     };
     std::thread::spawn(move || {
-        prompt_on(teleprompt_registry::registry(), listener, prompt, Panics)
+        prompt_on(
+            teleprompt_cli::registry::registry(),
+            listener,
+            prompt,
+            Panics,
+        )
     });
 
     let mut first = session(addr);
@@ -514,7 +519,7 @@ fn compiled_tour(tag: &str) -> teleprompt_project::CompileOutput {
     let script = dir.join("scripts/tour.md");
     std::fs::write(&script, TOUR).unwrap();
     let project =
-        teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
+        teleprompt_project::project::Project::discover(&dir, teleprompt_cli::registry::registry())
             .unwrap();
     project
         .script(&script, "en")
@@ -705,7 +710,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
     let reload: teleprompt_serve::Reload = Box::new(move || edited.lock().unwrap().take());
     std::thread::spawn(move || {
         teleprompt_serve::prompt_watching(
-            teleprompt_registry::registry(),
+            teleprompt_cli::registry::registry(),
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
@@ -753,7 +758,7 @@ fn prompting_with_keep(
     };
     std::thread::spawn(move || {
         teleprompt_serve::prompt_watching(
-            teleprompt_registry::registry(),
+            teleprompt_cli::registry::registry(),
             listener,
             prompt,
             Scripted(Default::default(), Default::default()),
@@ -790,7 +795,7 @@ fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
     let recognizer = Scripted(Default::default(), Default::default());
     std::thread::spawn(move || {
         prompt_on(
-            teleprompt_registry::registry(),
+            teleprompt_cli::registry::registry(),
             listener,
             prompt,
             recognizer,

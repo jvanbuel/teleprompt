@@ -46,7 +46,7 @@ fn each_line_is_given_its_stretch_of_the_recording() {
         ..Audio::default()
     };
     let report = run_document(
-        teleprompt_registry::registry(),
+        teleprompt_cli::registry::registry(),
         &doc,
         Some(script.clone()),
         Reading::Document,
@@ -56,7 +56,7 @@ fn each_line_is_given_its_stretch_of_the_recording() {
     .unwrap();
     assert_eq!(report.takes, 3, "{}", report.render());
 
-    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+    let project = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
     let takes = Takes::load(&project.takes_dir()).unwrap();
     let take = |id: &str| wav::decode(&takes.read(id).unwrap()).unwrap();
     // The cue and a little either side, never past halfway to the next:
@@ -83,7 +83,7 @@ fn a_transcript_with_no_times_cannot_be_heard() {
         ..Audio::default()
     };
     let err = run_document(
-        teleprompt_registry::registry(),
+        teleprompt_cli::registry::registry(),
         &doc,
         Some(script.clone()),
         Reading::Transcript,
@@ -111,7 +111,7 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
     };
     let script = dir.join("scripts/talk.md");
     let report = run_document(
-        teleprompt_registry::registry(),
+        teleprompt_cli::registry::registry(),
         &doc,
         Some(script),
         Reading::Document,
@@ -121,7 +121,7 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
     .unwrap();
     assert_eq!(report.takes, 2);
     let takes = Takes::load(
-        &Project::discover(&dir, teleprompt_registry::registry())
+        &Project::discover(&dir, teleprompt_cli::registry::registry())
             .unwrap()
             .takes_dir(),
     )
@@ -132,7 +132,7 @@ fn a_revoiced_speaker_is_left_to_their_voice_in_the_cast() {
     let nobody = ["Byron".to_string()];
     let audio = dir.join("talk.wav");
     let err = run_document(
-        teleprompt_registry::registry(),
+        teleprompt_cli::registry::registry(),
         &doc,
         Some(dir.join("scripts/again.md")),
         Reading::Document,
@@ -158,7 +158,7 @@ fn a_recording_needs_the_listening_build() {
     std::fs::write(&doc, wav::encode(&recording())).unwrap();
     let script = dir.join("scripts/talk.md");
     let err = run_document(
-        teleprompt_registry::registry(),
+        teleprompt_cli::registry::registry(),
         &doc,
         Some(script.clone()),
         Reading::Document,
@@ -186,7 +186,7 @@ fn a_corrected_line_keeps_its_take_when_told_to() {
         ..Audio::default()
     };
     run_document(
-        teleprompt_registry::registry(),
+        teleprompt_cli::registry::registry(),
         &doc,
         Some(script.clone()),
         Reading::Document,
@@ -199,7 +199,7 @@ fn a_corrected_line_keeps_its_take_when_told_to() {
         .replace("Quite.", "Quite so.");
     std::fs::write(&script, corrected).unwrap();
 
-    let project = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+    let project = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
     let stale = || {
         Takes::load(&project.takes_dir())
             .unwrap()

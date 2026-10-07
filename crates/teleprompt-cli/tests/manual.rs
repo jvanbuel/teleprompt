@@ -46,7 +46,7 @@ fn manual() -> (teleprompt_testkit::TestDir, Project, PathBuf) {
             .unwrap_or_else(|e| panic!("copying {}: {e}", rel.display()));
     }
     let script = dir.join("scripts/cli.md");
-    let project = Project::discover(&dir, teleprompt_registry::registry())
+    let project = Project::discover(&dir, teleprompt_cli::registry::registry())
         .expect("the manual is a teleprompt project");
     (dir, project, script)
 }

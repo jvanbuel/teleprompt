@@ -11,3 +11,4 @@ pub mod ask;
 pub mod cli;
 pub mod commands;
 pub mod output;
+pub mod registry;

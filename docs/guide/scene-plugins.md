@@ -118,7 +118,7 @@ plugins` says. Publish it with the GitHub topic `teleprompt-plugin`.
 
 **Compiled in:** add a module to `crates/teleprompt-scenes`, written
 against `teleprompt-scene` alone, and one line to `built_in()` in
-`crates/teleprompt-registry/src/scenes.rs`, with its name in `SHIPPED`
+`crates/teleprompt-cli/src/registry/scenes.rs`, with its name in `SHIPPED`
 there.
 
 ## The protocol

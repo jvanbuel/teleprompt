@@ -70,7 +70,7 @@ async fn a_build_records_its_scenes_and_renders_no_slates() {
         return;
     }
     let (dir, script) = project("records");
-    let p = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+    let p = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
     let opened = p.script(&script, "en");
     let builder = builder(&opened);
 
@@ -99,7 +99,7 @@ async fn a_second_build_records_nothing_and_still_has_no_slates() {
         return;
     }
     let (dir, script) = project("warm");
-    let p = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+    let p = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
     let opened = p.script(&script, "en");
     let builder = builder(&opened);
 
@@ -126,7 +126,7 @@ async fn editing_the_first_shot_re_records_the_second() {
         return;
     }
     let (dir, script) = project("edit");
-    let p = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+    let p = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
     let opened = p.script(&script, "en");
     let builder = builder(&opened);
 
@@ -158,7 +158,7 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
         return;
     }
     let (dir, script) = project("unbacked");
-    let p = Project::discover(&dir, teleprompt_registry::registry()).unwrap();
+    let p = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
     let opened = p.script(&script, "en");
     let builder = builder(&opened);
 

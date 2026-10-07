@@ -11,7 +11,9 @@ fn settings(yaml: &str) -> BTreeMap<String, serde_yaml::Value> {
 #[test]
 fn kokoro_is_registered_by_default() {
     assert_eq!(
-        teleprompt_registry::registry().default_backends().ids(),
+        teleprompt_cli::registry::registry()
+            .default_backends()
+            .ids(),
         vec![
             "elevenlabs",
             "gemini",
@@ -25,7 +27,7 @@ fn kokoro_is_registered_by_default() {
 
 #[test]
 fn kokoro_takes_its_settings_from_the_backends_map() {
-    let b = teleprompt_registry::registry().backends(
+    let b = teleprompt_cli::registry::registry().backends(
         &settings("base_url: \"http://gpu-box:8880\""),
         "teleprompt.toml",
     );
@@ -46,8 +48,8 @@ fn kokoro_takes_its_settings_from_the_backends_map() {
 /// dropping it, and the message must survive the deferral intact.
 #[test]
 fn a_bad_backend_setting_is_reported_not_swallowed() {
-    let b =
-        teleprompt_registry::registry().backends(&settings("concurrency: 0"), "/p/teleprompt.toml");
+    let b = teleprompt_cli::registry::registry()
+        .backends(&settings("concurrency: 0"), "/p/teleprompt.toml");
     match b.resolve("kokoro") {
         Ok(_) => panic!("expected an error"),
         Err(d) => {
@@ -66,8 +68,8 @@ fn a_bad_backend_setting_is_reported_not_swallowed() {
 /// whole delivery exists to keep fast and network-free.
 #[test]
 fn a_bad_setting_for_one_backend_leaves_the_others_usable() {
-    let b =
-        teleprompt_registry::registry().backends(&settings("concurrency: 0"), "teleprompt.toml");
+    let b = teleprompt_cli::registry::registry()
+        .backends(&settings("concurrency: 0"), "teleprompt.toml");
     assert!(b.resolve("null").is_ok());
     assert!(
         b.diagnostics().is_empty(),
@@ -97,7 +99,7 @@ fn settings_for_a_backend_this_build_lacks_are_named_not_dropped() {
         "kokoro-local".to_string(),
         serde_yaml::from_str("voice: af_heart").unwrap(),
     );
-    let b = teleprompt_registry::registry().backends(&m, "/p/teleprompt.toml");
+    let b = teleprompt_cli::registry::registry().backends(&m, "/p/teleprompt.toml");
 
     let diags = b.diagnostics();
     assert_eq!(diags.len(), 1, "one diagnostic per unmatched key");
@@ -124,7 +126,7 @@ fn a_block_naming_no_shipped_voice_is_a_server() {
         "studio".to_string(),
         serde_yaml::from_str("base_url: \"http://127.0.0.1:8881/v1\"\nmodel: piper").unwrap(),
     );
-    let b = teleprompt_registry::registry().backends(&m, "teleprompt.toml");
+    let b = teleprompt_cli::registry::registry().backends(&m, "teleprompt.toml");
     assert!(
         b.diagnostics().is_empty(),
         "{:?}",
@@ -146,7 +148,7 @@ fn an_endpoint_without_an_address_says_so() {
         "studio".to_string(),
         serde_yaml::from_str("model: piper").unwrap(),
     );
-    let b = teleprompt_registry::registry().backends(&m, "teleprompt.toml");
+    let b = teleprompt_cli::registry::registry().backends(&m, "teleprompt.toml");
     let why = b.resolve("studio").err().unwrap().message;
     assert!(why.contains("base_url"), "{why}");
 }
@@ -165,7 +167,7 @@ fn an_unknown_key_is_reported_even_when_the_project_resolves_elsewhere() {
         "kokoro".to_string(),
         serde_yaml::from_str("concurrency: 0").unwrap(),
     );
-    let b = teleprompt_registry::registry().backends(&m, "teleprompt.toml");
+    let b = teleprompt_cli::registry::registry().backends(&m, "teleprompt.toml");
 
     assert!(b.resolve("null").is_ok(), "null is unaffected by either");
     assert_eq!(b.diagnostics().len(), 1, "the unknown key still reports");
@@ -177,8 +179,8 @@ fn an_unknown_key_is_reported_even_when_the_project_resolves_elsewhere() {
 /// instead of the broken settings the author actually wrote.
 #[test]
 fn no_backend_is_left_when_settings_do_not_validate() {
-    let b =
-        teleprompt_registry::registry().backends(&settings("concurrency: 0"), "teleprompt.toml");
+    let b = teleprompt_cli::registry::registry()
+        .backends(&settings("concurrency: 0"), "teleprompt.toml");
     assert!(
         b.resolve("kokoro").is_err(),
         "unusable settings must not leave a backend for dub or setup to read from"
@@ -191,8 +193,8 @@ fn no_backend_is_left_when_settings_do_not_validate() {
 /// after the fact.
 #[test]
 fn kokoro_carries_the_configured_concurrency() {
-    let b =
-        teleprompt_registry::registry().backends(&settings("concurrency: 7"), "teleprompt.toml");
+    let b = teleprompt_cli::registry::registry()
+        .backends(&settings("concurrency: 7"), "teleprompt.toml");
     assert_eq!(b.concurrency("kokoro"), 7);
 }
 
@@ -200,7 +202,7 @@ fn kokoro_carries_the_configured_concurrency() {
 /// probe, whichever others constructed.
 #[test]
 fn null_has_no_server_to_probe() {
-    let b = teleprompt_registry::registry().backends(
+    let b = teleprompt_cli::registry::registry().backends(
         &settings("base_url: \"http://gpu-box:8880\""),
         "teleprompt.toml",
     );
@@ -239,7 +241,7 @@ fn a_front_matter_backends_override_is_reported_not_silently_dropped() {
     )
     .unwrap();
     let project =
-        teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
+        teleprompt_project::project::Project::discover(&dir, teleprompt_cli::registry::registry())
             .unwrap();
     let script = dir.join("scripts/test.md");
 
@@ -295,7 +297,7 @@ fn a_front_matter_backends_block_matching_the_project_is_not_a_warning() {
     )
     .unwrap();
     let project =
-        teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
+        teleprompt_project::project::Project::discover(&dir, teleprompt_cli::registry::registry())
             .unwrap();
     let script = dir.join("scripts/test.md");
 
@@ -321,7 +323,7 @@ fn project_with_toml(
     teleprompt_cli::commands::new::scaffold(&dir).unwrap();
     std::fs::write(dir.join("teleprompt.toml"), toml).unwrap();
     let project =
-        teleprompt_project::project::Project::discover(&dir, teleprompt_registry::registry())
+        teleprompt_project::project::Project::discover(&dir, teleprompt_cli::registry::registry())
             .unwrap();
     let script = dir.join("scripts/demo.md");
     (dir, project, script)
@@ -447,7 +449,7 @@ fn gemini_carries_its_configured_concurrency() {
         serde_yaml::from_str("concurrency: 2").unwrap(),
     );
     assert_eq!(
-        teleprompt_registry::registry()
+        teleprompt_cli::registry::registry()
             .backends(&s, "teleprompt.toml")
             .concurrency("gemini"),
         2
