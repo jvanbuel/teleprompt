@@ -2053,7 +2053,6 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
- "signal-hook",
  "teleprompt-core",
  "teleprompt-listen",
  "teleprompt-project",
@@ -2148,6 +2147,7 @@ dependencies = [
  "etcetera",
  "serde",
  "serde_json",
+ "signal-hook",
  "teleprompt-core",
  "teleprompt-testkit",
  "tempfile",

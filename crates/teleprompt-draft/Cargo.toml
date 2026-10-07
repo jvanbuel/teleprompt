@@ -21,10 +21,6 @@ teleprompt-voice = { path = "../teleprompt-voice" }
 serde.workspace = true
 serde_json.workspace = true
 
-[target.'cfg(unix)'.dependencies]
-# SIGTERM stops a recording and still drafts it, for the app's Stop.
-signal-hook = "0.3"
-
 [dev-dependencies]
 teleprompt-testkit = { path = "../teleprompt-testkit" }
 
