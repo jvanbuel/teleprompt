@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
+use teleprompt_core::sync::lock;
 use teleprompt_voice::with_causes;
 
 use serde::Deserialize;
@@ -88,17 +89,19 @@ impl Client {
 
     /// The id of the profile `voice` names, by id or by name, ignoring case.
     pub async fn profile_id(&self, voice: &str) -> Result<String, VoiceError> {
-        if self.ids.lock().expect("ids lock").is_none() {
+        // Two callers that both find it empty both list the profiles: one
+        // extra request, and the same answer stored twice.
+        if lock(&self.ids).is_none() {
             let listed = self.profiles().await?;
             let mut ids = BTreeMap::new();
             for p in listed {
                 ids.insert(p.name.to_lowercase(), p.id.clone());
                 ids.insert(p.id.to_lowercase(), p.id);
             }
-            *self.ids.lock().expect("ids lock") = Some(ids);
+            *lock(&self.ids) = Some(ids);
         }
         let found = {
-            let ids = self.ids.lock().expect("ids lock");
+            let ids = lock(&self.ids);
             ids.as_ref()
                 .and_then(|ids| ids.get(&voice.to_lowercase()).cloned())
         };
@@ -160,7 +163,7 @@ impl Client {
             )
             .await?;
         }
-        *self.ids.lock().expect("ids lock") = None;
+        *lock(&self.ids) = None;
         Ok(profile)
     }
 

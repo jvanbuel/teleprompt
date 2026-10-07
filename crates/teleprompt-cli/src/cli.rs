@@ -110,7 +110,7 @@ pub fn emit(format: Format, report: &impl Serialize, human: &str) {
 }
 
 pub fn emit_ok(format: Format, report: &impl Serialize, human: &str, ok: bool) {
-    let mut value = serde_json::to_value(report).unwrap();
+    let mut value = serde_json::to_value(report).unwrap_or_else(|e| unserializable(&e));
     if let serde_json::Value::Object(fields) = &mut value {
         fields.entry("ok").or_insert(ok.into());
     }
@@ -121,9 +121,22 @@ pub fn emit_ok(format: Format, report: &impl Serialize, human: &str, ok: bool) {
 /// a timeline, a manifest, a list.
 pub fn emit_data(format: Format, data: &impl Serialize, human: &str) {
     match format {
-        Format::Json => println!("{}", serde_json::to_string_pretty(data).unwrap()),
+        Format::Json => println!(
+            "{}",
+            serde_json::to_string_pretty(data).unwrap_or_else(|e| unserializable(&e).to_string())
+        ),
         Format::Human => print!("{human}"),
     }
+}
+
+/// What `--format json` says when a report cannot be written as JSON (a map
+/// with keys that are not strings, say): an error report a script can still
+/// read, not a panic halfway through the output.
+fn unserializable(e: &serde_json::Error) -> serde_json::Value {
+    serde_json::json!({
+        "ok": false,
+        "errors": [format!("cannot write the report as JSON: {e}")],
+    })
 }
 
 pub fn warn(warnings: &[String]) {
@@ -144,7 +157,9 @@ pub fn fail(format: Format, outcome: Outcome) -> Outcome {
     match format {
         Format::Json => {
             let report = ErrorReport::new(errors.to_vec());
-            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            let json = serde_json::to_string_pretty(&report)
+                .expect("BUG: an ErrorReport is a bool and strings, which always serialize");
+            println!("{json}");
         }
         Format::Human => print_errors(errors),
     }

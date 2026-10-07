@@ -11,6 +11,7 @@ pub mod id;
 pub mod policy;
 pub mod progress;
 pub mod said;
+pub mod sync;
 pub mod time;
 pub mod tool;
 pub mod voice;

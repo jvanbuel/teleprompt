@@ -2,6 +2,7 @@
 
 use super::server::{Flag, OpenSession, Server};
 use super::*;
+use teleprompt_core::sync::lock;
 use teleprompt_core::{Progress, Reporter};
 
 /// Where the command listens, for `--format json`: the API's origin and
@@ -374,9 +375,6 @@ impl Reporter for Say<'_> {
         {
             e.extend(f);
         }
-        (self
-            .0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner))(event);
+        (lock(&self.0))(event);
     }
 }

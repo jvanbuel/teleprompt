@@ -2,6 +2,7 @@ use std::sync::Mutex;
 
 use base64::Engine;
 use serde_json::{json, Value};
+use teleprompt_core::sync::lock;
 use teleprompt_voice::{with_causes, Pcm, VoiceError, WordTiming};
 
 use super::config::ElevenLabsConfig;
@@ -96,7 +97,7 @@ impl Client {
 
     /// The account's voices, premade and its own: listed once.
     pub async fn voices(&self) -> Result<Vec<Voice>, VoiceError> {
-        if let Some(listed) = self.voices.lock().expect("not poisoned").clone() {
+        if let Some(listed) = lock(&self.voices).clone() {
             return Ok(listed);
         }
         let url = format!("{}/v1/voices", self.cfg.base_url);
@@ -112,7 +113,7 @@ impl Client {
                 })
             })
             .collect();
-        *self.voices.lock().expect("not poisoned") = Some(listed.clone());
+        *lock(&self.voices) = Some(listed.clone());
         Ok(listed)
     }
 

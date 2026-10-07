@@ -26,6 +26,7 @@ use teleprompt_listen::Recognizer;
 use tokio::task::block_in_place;
 
 use crate::voicing::Voicing;
+use teleprompt_core::sync::lock;
 use teleprompt_core::{Diagnostic, Diagnostics, Silent};
 use teleprompt_project::project::{Project, Script};
 use teleprompt_project::registry::Registry;
@@ -264,7 +265,7 @@ impl Prompted for Script {
         let script = self.clone();
         Box::new(move || {
             let now = teleprompt_project::project::fingerprint(script.path());
-            let mut seen = seen.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut seen = lock(&seen);
             if now == *seen {
                 return None;
             }
@@ -375,10 +376,6 @@ pub struct Edits {
     pub voice: Option<Voicing>,
     /// Whether it follows a reader by ear; if not, its voice reads.
     pub listens: bool,
-}
-
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 fn write<T>(l: &RwLock<T>) -> RwLockWriteGuard<'_, T> {

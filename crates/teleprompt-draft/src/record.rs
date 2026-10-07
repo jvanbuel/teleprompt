@@ -44,6 +44,8 @@ pub fn run_record(r: &Record) -> Result<ImportReport, DraftError> {
     let say = |state: serde_json::Value| {
         if let Some(path) = r.status {
             let partial = path.with_extension("partial");
+            // Best effort: the status file is only for an app watching the
+            // recording, and a write that fails must not fail the recording.
             let _ = std::fs::write(&partial, state.to_string())
                 .and_then(|()| std::fs::rename(&partial, path));
         }

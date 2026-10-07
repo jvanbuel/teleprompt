@@ -421,7 +421,7 @@ async fn render_all(
             let _permit = permits
                 .acquire_owned()
                 .await
-                .expect("semaphore is never closed");
+                .expect("BUG: the semaphore is never closed, only dropped with this function");
             let r = render_one(&backend, &cache, &detail).await;
             (indices, r)
         });
@@ -430,7 +430,8 @@ async fn render_all(
     // Results arrive in completion order, so each is filed at its indices.
     let mut slots: Vec<Option<Rendered>> = (0..total).map(|_| None).collect();
     while let Some(joined) = tasks.join_next().await {
-        let (indices, r) = joined.expect("a render task panicked");
+        let (indices, r) =
+            joined.map_err(|e| Failure::Runtime(format!("a render task did not finish: {e}")))?;
         let audio = match r {
             Ok(audio) => audio,
             Err(e) => {
@@ -462,7 +463,7 @@ async fn render_all(
     }
     Ok(slots
         .into_iter()
-        .map(|r| r.expect("every index rendered when there was no failure"))
+        .map(|r| r.expect("BUG: every index is filed once the tasks drain without a failure"))
         .collect())
 }
 

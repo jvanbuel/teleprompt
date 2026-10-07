@@ -67,7 +67,7 @@ impl Server {
     }
 
     pub(super) fn session(&self) -> MutexGuard<'_, Option<Session<Hearing>>> {
-        self.session.lock().unwrap_or_else(PoisonError::into_inner)
+        lock(&self.session)
     }
 
     pub(super) fn edits(&self) -> Option<Arc<Edits>> {

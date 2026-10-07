@@ -85,11 +85,30 @@ impl VoiceBackend for DrawlVoice {
     }
 }
 
+/// A backend whose synthesis panics, as a bug in a backend would.
+struct PanicVoice;
+
+#[async_trait]
+impl VoiceBackend for PanicVoice {
+    fn id(&self) -> &str {
+        "panics"
+    }
+
+    fn version(&self) -> String {
+        "panics-1".to_string()
+    }
+
+    async fn synthesize(&self, _req: &SynthRequest) -> Result<Synthesized, VoiceError> {
+        panic!("a backend bug");
+    }
+}
+
 fn registry_with_tone() -> teleprompt_voice::backends::Backends {
     let mut r = VoiceRegistry::default();
     r.register(Arc::new(NullVoice::default()));
     r.register(Arc::new(ToneVoice));
     r.register(Arc::new(DrawlVoice));
+    r.register(Arc::new(PanicVoice));
     teleprompt_voice::backends::Backends::from_registry(r)
 }
 
@@ -310,4 +329,29 @@ async fn a_backend_that_renders_longer_than_the_estimate_dubs_on_the_first_run()
         DurationSource::Measured,
         "the recompile ran against the warm cache, so this is a measurement"
     );
+}
+
+/// A render task that panics is a failed `dub`, reported like any other, not a
+/// panic in the caller that happened to be awaiting it.
+#[tokio::test]
+async fn a_panicking_backend_fails_the_dub_instead_of_panicking_it() {
+    let script = SCRIPT.replace("backend: tone", "backend: panics");
+    let (_dir, project, script) = project_with("panics", &script);
+    let out_root = project.root.join("public/narration");
+
+    let failed = teleprompt_project::dub::Dubber::new(
+        &project
+            .script(&script, "en")
+            .with_backends(registry_with_tone()),
+    )
+    .dub(&out_root)
+    .await;
+
+    match failed {
+        Err(teleprompt_project::Failure::Runtime(why)) => {
+            assert!(why.contains("render task"), "{why}");
+        }
+        Err(other) => panic!("expected a runtime failure, got: {other}"),
+        Ok(_) => panic!("a backend that panics cannot have dubbed"),
+    }
 }

@@ -2241,6 +2241,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "teleprompt-core",
  "teleprompt-testkit",
  "teleprompt-voice",
  "tokio",

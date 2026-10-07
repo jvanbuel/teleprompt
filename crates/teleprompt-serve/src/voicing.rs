@@ -5,7 +5,7 @@
 //! the manifest `dub` publishes, which the page plays as an outside
 //! renderer would, so it cannot show timing the video will not have.
 
-use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use teleprompt_project::dub::publish::Published;
@@ -14,6 +14,7 @@ use teleprompt_project::NarrationManifest;
 use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::VoiceBackend;
 
+use teleprompt_core::sync::lock;
 use teleprompt_core::Hash;
 use teleprompt_project::dub;
 use teleprompt_project::project::{fingerprint, translation_path, Compiled, Script};
@@ -102,7 +103,7 @@ impl Voicing {
     /// The script compiled as it now reads, or as it last compiled; only
     /// compiled again when what it is compiled from has changed.
     fn refresh(&self) -> Option<Voiced> {
-        let mut voiced = self.voiced.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut voiced = lock(&self.voiced);
         let inputs = self.inputs(voiced.as_ref());
         let mut seen = lock(&self.inputs);
         if seen.as_ref() == Some(&inputs) {
@@ -232,11 +233,7 @@ impl Voicing {
     /// the cache lacks it or `fresh` asks for it anew. `None` for a line
     /// the script does not have.
     fn voice(&self, id: &str, fresh: bool) -> Result<Option<Vec<u8>>, String> {
-        let known = self
-            .voiced
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
+        let known = lock(&self.voiced).clone();
         let Some(voiced) = known.or_else(|| self.refresh()) else {
             return Ok(None);
         };
@@ -277,10 +274,6 @@ pub struct Description {
     pub timeline: serde_json::Value,
     /// Why the script as its file now reads does not compile, if it does not.
     pub error: Option<Vec<String>>,
-}
-
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The scheduler's plan as a prompter draws it on the glass: each line
