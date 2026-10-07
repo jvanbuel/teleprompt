@@ -1,6 +1,6 @@
 # Round five: one catalogue, in two halves
 
-Status: in progress. Follows `seams.md`, which is done. Crate count stays 17.
+Status: done. Follows `seams.md`, which is done. Crate count stays 17.
 One commit per step, in order; the checks in "Every step" clean before
 each; nothing depends on a later step.
 
@@ -224,6 +224,9 @@ in plain prose, no bullet lists, no model names. Push to
 - The architecture page: round six list with these five moves; `setup`
   gains an edge to `voice`; `project` loses the voice runtime from its
   label (and roughly 300 lines), `voice` gains it.
+- As done: the project crate fell from 3.9k lines to 3.5k and `voice`
+  rose from 1.6k to 2.0k. The page counts the seams plan as its round
+  five, so this plan is its round six.
 
 ## Done when
 
