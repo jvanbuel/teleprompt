@@ -1,6 +1,6 @@
 # Round five: one catalogue, in two halves
 
-Status: planned. Follows `seams.md`, which is done. Crate count stays 17.
+Status: in progress. Follows `seams.md`, which is done. Crate count stays 17.
 One commit per step, in order; the checks in "Every step" clean before
 each; nothing depends on a later step.
 
@@ -105,6 +105,13 @@ in plain prose, no bullet lists, no model names. Push to
   YAML values); it already depends on `core` for `Tool`.
 - Tests: `cli/tests/backend_selection.rs`, `voice_selection.rs`,
   `setup_voice.rs` reach `Backends` and `VoiceStatus` through `voice`.
+- As done: `Backends::voices` took the pipeline's `NarrationDetail`, and
+  `voice` cannot depend on `pipeline`, so it takes each line's
+  `(backend id, LineId)` instead. `probe` waits with tokio's timer, so
+  `voice` gains `tokio` with the `time` feature. The registry holds
+  `voices: &'static VoiceCatalogue` from this step on, and `own_server`
+  is the catalogue's `fallback`; the empty catalogue for tests is
+  `catalogue::NONE`. `project::voice` is deleted.
 
 ### 2. The scene half, and the trait that outlived its seam
 

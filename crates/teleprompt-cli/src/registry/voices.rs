@@ -3,10 +3,10 @@
 use teleprompt_voices::{elevenlabs, gemini, openai, voicebox};
 
 use super::needs;
-use super::Voice;
+use teleprompt_voice::catalogue::Shipped;
 
 /// `null` aside, in the order errors and `setup` list them.
-pub fn shipped() -> Vec<Voice> {
+pub fn shipped() -> Vec<Shipped> {
     vec![
         (openai::kokoro(), &needs::KOKORO),
         (openai::openai(), &needs::OPENAI),

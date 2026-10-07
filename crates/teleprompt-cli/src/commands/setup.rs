@@ -63,7 +63,7 @@ fn voice_here() -> Result<Option<ProjectVoice>, crate::output::Outcome> {
     ) else {
         return Ok(None);
     };
-    let status = crate::cli::runtime()?.block_on(teleprompt_project::voice::status(&project));
+    let status = crate::cli::runtime()?.block_on(project.voice_status());
     Ok(Some(ProjectVoice {
         backend: status.backend,
         answer: status.answer,

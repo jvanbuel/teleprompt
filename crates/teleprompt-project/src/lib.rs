@@ -17,7 +17,6 @@ pub mod error;
 pub mod project;
 pub mod registry;
 pub mod translate;
-pub mod voice;
 
 pub use error::Failure;
 pub use teleprompt_manifest::NarrationManifest;

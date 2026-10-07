@@ -41,7 +41,7 @@ struct Voiced {
     /// The narrator's backend.
     backend: Arc<dyn VoiceBackend>,
     /// Every backend a line is spoken by, the narrator's included.
-    voices: teleprompt_project::voice::Voices,
+    voices: teleprompt_voice::backends::Voices,
     lines: Vec<NarrationDetail>,
     length_ms: u64,
     /// Each line and shot in time, as [`timeline_json`] says it.
@@ -118,7 +118,13 @@ impl Voicing {
                 let voices = self
                     .script
                     .backends()
-                    .voices(&backend, &compiled.narration)
+                    .voices(
+                        &backend,
+                        compiled
+                            .narration
+                            .iter()
+                            .map(|d| (d.backend.as_str(), &d.line_id)),
+                    )
                     .unwrap_or_default();
                 *voiced = Some(Voiced {
                     backend,

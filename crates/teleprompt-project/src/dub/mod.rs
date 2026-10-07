@@ -13,8 +13,8 @@ use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
 
 use crate::project::{CacheDir, Clips, Compiled, Script};
-use crate::voice::Backends;
 use crate::Failure;
+use teleprompt_voice::backends::Backends;
 
 pub mod publish;
 
@@ -267,7 +267,13 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
     } = script.compile().map_err(Failure::Validation)?;
     let cache = Arc::new(VoiceCache::new(project.caches().root));
     let voices = backends
-        .voices(&backend, &compiled.narration)
+        .voices(
+            &backend,
+            compiled
+                .narration
+                .iter()
+                .map(|d| (d.backend.as_str(), &d.line_id)),
+        )
         .map_err(Failure::Runtime)?;
 
     for id in voices.keys() {
@@ -391,7 +397,7 @@ async fn check_voices(
 /// every task in flight; entries already stored stay, since the cache is
 /// content-addressed.
 async fn render_all(
-    voices: &crate::voice::Voices,
+    voices: &teleprompt_voice::backends::Voices,
     cache: &Arc<VoiceCache>,
     narration: &[NarrationDetail],
     limit: usize,

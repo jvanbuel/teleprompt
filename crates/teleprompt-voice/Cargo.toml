@@ -12,6 +12,8 @@ serde_json.workspace = true
 serde_yaml.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
 thiserror.workspace = true
+# `Backends::probe` gives a server five seconds to answer.
+tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
 teleprompt-testkit = { path = "../teleprompt-testkit" }

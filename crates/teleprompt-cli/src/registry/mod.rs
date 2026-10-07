@@ -5,7 +5,8 @@
 
 use std::sync::OnceLock;
 
-pub use teleprompt_project::registry::{Recording, Registry, Voice};
+pub use teleprompt_project::registry::{Recording, Registry};
+use teleprompt_voice::catalogue::{Shipped, VoiceCatalogue};
 
 mod needs;
 mod scenes;
@@ -16,12 +17,17 @@ mod voices;
 /// starts only when first asked something.
 pub fn registry() -> Registry {
     static SCENES: OnceLock<teleprompt_scene::ScenePlugins> = OnceLock::new();
-    static VOICES: OnceLock<Vec<Voice>> = OnceLock::new();
+    static VOICES: OnceLock<Vec<Shipped>> = OnceLock::new();
+    static CATALOGUE: OnceLock<VoiceCatalogue> = OnceLock::new();
     Registry {
         scenes: SCENES.get_or_init(scenes::all),
         shipped_scenes: scenes::SHIPPED,
-        voices: VOICES.get_or_init(voices::shipped),
-        own_server: teleprompt_voices::openai::endpoint,
+        voices: CATALOGUE.get_or_init(|| VoiceCatalogue {
+            shipped: VOICES.get_or_init(voices::shipped),
+            // A `backends:` key naming no shipped voice is a server of the
+            // author's that speaks OpenAI's speech API.
+            fallback: teleprompt_voices::openai::endpoint,
+        }),
     }
 }
 
@@ -37,7 +43,7 @@ pub fn shipped(registry: Registry) -> teleprompt_setup::Shipped {
                 built_in: registry.is_shipped_scene(p.name()),
             })
             .collect(),
-        voices: registry.shipped_voices(),
+        voices: registry.voices.needs(),
     }
 }
 

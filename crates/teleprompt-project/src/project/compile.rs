@@ -19,7 +19,7 @@ use teleprompt_voice::VoiceBackend;
 use teleprompt_voice::WpmEstimator;
 
 use super::Project;
-use crate::voice::Backends;
+use teleprompt_voice::backends::Backends;
 
 impl Project {
     /// The project's backends, built once from its settings and told which file
@@ -28,6 +28,18 @@ impl Project {
         let settings = self.config.backends.clone().unwrap_or_default();
         self.registry
             .backends(&settings, &self.config_path().display().to_string())
+    }
+
+    /// What `setup` says about this project's voice: its backend's server,
+    /// and every `backends:` setting that cannot be used.
+    pub async fn voice_status(&self) -> teleprompt_voice::backends::VoiceStatus {
+        let backend = self
+            .config
+            .voice
+            .as_ref()
+            .and_then(|v| v.backend.clone())
+            .unwrap_or_else(|| "null".to_string());
+        self.backends().status(&backend).await
     }
 
     /// `path` in this project, compiled for `locale`.

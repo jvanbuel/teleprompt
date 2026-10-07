@@ -9,21 +9,8 @@ use std::sync::OnceLock;
 use teleprompt_core::tool::Tool;
 use teleprompt_scene::record::Recorder;
 use teleprompt_scene::{ScenePlugin, ScenePlugins};
-use teleprompt_voice::Provider;
-
-use crate::voice::Backends;
-
-/// A voice this build ships, and what it needs that teleprompt does not:
-/// a server the author runs, or a key.
-pub type Voice = (Provider, &'static Tool);
-
-/// How a `backends:` key naming no voice this build ships is built: it is
-/// a server of the author's, under the name they gave it, from its
-/// settings; or why those settings do not make one.
-pub type OwnServer = fn(
-    &str,
-    &serde_yaml::Value,
-) -> Result<std::sync::Arc<dyn teleprompt_voice::VoiceBackend>, String>;
+use teleprompt_voice::backends::Backends;
+use teleprompt_voice::catalogue::VoiceCatalogue;
 
 #[derive(Clone, Copy)]
 pub struct Registry {
@@ -33,11 +20,8 @@ pub struct Registry {
     /// The names of the scene plugins this build ships, which a program of
     /// the same name does not replace.
     pub shipped_scenes: &'static [&'static str],
-    /// The voices this build ships, `null` aside, in the order errors and
-    /// `setup` list them.
-    pub voices: &'static [Voice],
-    /// A voice named in `backends:` that this build does not ship.
-    pub own_server: OwnServer,
+    /// Every voice this build has.
+    pub voices: &'static VoiceCatalogue,
 }
 
 impl Registry {
@@ -48,8 +32,7 @@ impl Registry {
         Self {
             scenes: SCENES.get_or_init(ScenePlugins::mock),
             shipped_scenes: &["mock"],
-            voices: &[],
-            own_server: |name, _| Err(format!("no voice backend here makes `{name}`")),
+            voices: &teleprompt_voice::catalogue::NONE,
         }
     }
 
@@ -89,24 +72,6 @@ impl Registry {
         out
     }
 
-    /// What the voices this build ships need that it does not.
-    pub fn voice_tools(&self) -> Vec<&'static Tool> {
-        self.voices.iter().map(|(_, needs)| *needs).collect()
-    }
-
-    /// The voices this build ships, `null` aside, each with what it needs.
-    pub fn shipped_voices(&self) -> Vec<(&'static str, &'static Tool)> {
-        self.voices
-            .iter()
-            .map(|(p, needs)| (p.id, *needs))
-            .collect()
-    }
-
-    /// Whether `name` is a voice this build ships.
-    pub fn is_shipped_voice(&self, name: &str) -> bool {
-        name == "null" || self.voices.iter().any(|(p, _)| p.id == name)
-    }
-
     /// Every backend this build ships, each built from its own slice of
     /// `settings` (`backends:` in `config_file`).
     pub fn backends(
@@ -114,7 +79,7 @@ impl Registry {
         settings: &BTreeMap<String, serde_yaml::Value>,
         config_file: &str,
     ) -> Backends {
-        crate::voice::backends_for(self, settings, config_file)
+        Backends::new(self.voices, settings, config_file)
     }
 
     /// Settings-free, so every backend gets its defaults: for callers with

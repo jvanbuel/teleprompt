@@ -85,12 +85,12 @@ impl VoiceBackend for DrawlVoice {
     }
 }
 
-fn registry_with_tone() -> teleprompt_project::voice::Backends {
+fn registry_with_tone() -> teleprompt_voice::backends::Backends {
     let mut r = VoiceRegistry::default();
     r.register(Arc::new(NullVoice::default()));
     r.register(Arc::new(ToneVoice));
     r.register(Arc::new(DrawlVoice));
-    teleprompt_project::voice::Backends::from_registry(r)
+    teleprompt_voice::backends::Backends::from_registry(r)
 }
 
 fn tempdir(tag: &str) -> teleprompt_testkit::TestDir {

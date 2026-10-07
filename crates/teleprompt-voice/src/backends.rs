@@ -1,11 +1,13 @@
+//! The voices a project's `backends:` settings make of a build's
+//! catalogue, and what is wrong with the ones they cannot.
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use crate::registry::Registry;
-use teleprompt_core::Diagnostic;
-use teleprompt_voice::NullVoice;
-use teleprompt_voice::VoiceRegistry;
-use teleprompt_voice::{ClonedVoice, VoiceBackend, VoiceSample};
+use teleprompt_core::{Diagnostic, LineId};
+
+use crate::catalogue::VoiceCatalogue;
+use crate::{ClonedVoice, NullVoice, VoiceBackend, VoiceRegistry, VoiceSample};
 
 /// The backends this build ships, together with everything the project's
 /// `backends:` settings said that could not be turned into one.
@@ -30,52 +32,52 @@ pub struct Backends {
     shipped: Vec<&'static str>,
 }
 
-/// Every backend `registry` ships, each built from its own slice of
-/// `backends:` (docs/design.md#crates). Infallible: each failure is kept
-/// in [`Backends`] for whoever knows whether it matters.
-pub(crate) fn backends_for(
-    build: &Registry,
-    settings: &BTreeMap<String, serde_yaml::Value>,
-    config_file: &str,
-) -> Backends {
-    let mut registry = VoiceRegistry::default();
-    let mut unusable = BTreeMap::new();
-    registry.register(Arc::new(NullVoice::default()));
-    let ids: Vec<&'static str> = build.voices.iter().map(|(p, _)| p.id).collect();
-    for (provider, _) in build.voices {
-        match (provider.build)(settings.get(provider.id)) {
-            Ok(backend) => registry.register(backend),
-            Err(e) => {
-                unusable.insert(provider.id.to_string(), e);
-            }
-        }
-    }
-    // Any other is a server of the author's that speaks OpenAI's API,
-    // under the name they gave it.
-    let mut unknown = Vec::new();
-    for (name, given) in settings {
-        if name == "null" || ids.contains(&name.as_str()) {
-            continue;
-        }
-        match (build.own_server)(name, given) {
-            Ok(backend) => registry.register(backend),
-            Err(e) => {
-                unusable.insert(name.clone(), e);
-                unknown.push(name.clone());
-            }
-        }
-    }
-
-    Backends {
-        registry,
-        unusable,
-        unknown,
-        config_file: config_file.to_string(),
-        shipped: ids,
-    }
-}
-
 impl Backends {
+    /// Every backend `catalogue` ships, each built from its own slice of
+    /// `backends:` (docs/design.md#crates). Infallible: each failure is kept
+    /// in [`Backends`] for whoever knows whether it matters.
+    pub fn new(
+        catalogue: &VoiceCatalogue,
+        settings: &BTreeMap<String, serde_yaml::Value>,
+        config_file: &str,
+    ) -> Backends {
+        let mut registry = VoiceRegistry::default();
+        let mut unusable = BTreeMap::new();
+        registry.register(Arc::new(NullVoice::default()));
+        let ids = catalogue.ids();
+        for (provider, _) in catalogue.shipped {
+            match (provider.build)(settings.get(provider.id)) {
+                Ok(backend) => registry.register(backend),
+                Err(e) => {
+                    unusable.insert(provider.id.to_string(), e);
+                }
+            }
+        }
+        // Any other is a server of the author's that speaks OpenAI's API,
+        // under the name they gave it.
+        let mut unknown = Vec::new();
+        for (name, given) in settings {
+            if name == "null" || ids.contains(&name.as_str()) {
+                continue;
+            }
+            match (catalogue.fallback)(name, given) {
+                Ok(backend) => registry.register(backend),
+                Err(e) => {
+                    unusable.insert(name.clone(), e);
+                    unknown.push(name.clone());
+                }
+            }
+        }
+
+        Backends {
+            registry,
+            unusable,
+            unknown,
+            config_file: config_file.to_string(),
+            shipped: ids,
+        }
+    }
+
     /// A `Backends` wrapping a caller-supplied registry, so a test can follow
     /// a backend this build does not ship through key, synthesis, cache and
     /// manifest.
@@ -127,7 +129,7 @@ impl Backends {
                 continue;
             };
             match backend.clone_voice(name, language, samples).await {
-                Err(teleprompt_voice::VoiceError::Unsupported { .. }) => continue,
+                Err(crate::VoiceError::Unsupported { .. }) => continue,
                 cloned => {
                     return cloned
                         .map(|c| (id.to_string(), c))
@@ -223,19 +225,21 @@ pub type Voices = BTreeMap<String, Arc<dyn VoiceBackend>>;
 impl Backends {
     /// The backends `narration` is spoken by: `main`, and each a speaker's
     /// line picks. The compile has already found them all.
-    pub fn voices(
+    /// `lines` is each line's backend id with the line's id, for naming
+    /// the line whose backend cannot be had.
+    pub fn voices<'a>(
         &self,
         main: &Arc<dyn VoiceBackend>,
-        narration: &[teleprompt_pipeline::compile::NarrationDetail],
+        lines: impl IntoIterator<Item = (&'a str, &'a LineId)>,
     ) -> Result<Voices, String> {
         let mut voices = Voices::new();
         voices.insert(main.id().to_string(), main.clone());
-        for detail in narration {
-            if !voices.contains_key(&detail.backend) {
+        for (backend_id, line_id) in lines {
+            if !voices.contains_key(backend_id) {
                 let backend = self
-                    .resolve(&detail.backend)
-                    .map_err(|d| format!("line `{}`: {}", detail.line_id, d.message))?;
-                voices.insert(detail.backend.clone(), backend);
+                    .resolve(backend_id)
+                    .map_err(|d| format!("line `{line_id}`: {}", d.message))?;
+                voices.insert(backend_id.to_string(), backend);
             }
         }
         Ok(voices)
@@ -281,24 +285,20 @@ pub struct VoiceStatus {
     pub problems: Vec<String>,
 }
 
-/// `project`'s [`VoiceStatus`], asking its backend's server.
-pub async fn status(project: &crate::project::Project) -> VoiceStatus {
-    let backends = project.backends();
-    let backend = project
-        .config
-        .voice
-        .as_ref()
-        .and_then(|v| v.backend.clone())
-        .unwrap_or_else(|| "null".to_string());
-    let problems = backends
-        .diagnostics()
-        .into_iter()
-        .chain(backends.unusable_diagnostics())
-        .map(|d| d.message)
-        .collect();
-    VoiceStatus {
-        answer: backends.probe(&backend).await,
-        backend,
-        problems,
+impl Backends {
+    /// What `setup` says about the project's voice `backend`: what its
+    /// server answers, and every `backends:` setting that cannot be used.
+    pub async fn status(&self, backend: &str) -> VoiceStatus {
+        let problems = self
+            .diagnostics()
+            .into_iter()
+            .chain(self.unusable_diagnostics())
+            .map(|d| d.message)
+            .collect();
+        VoiceStatus {
+            answer: self.probe(backend).await,
+            backend: backend.to_string(),
+            problems,
+        }
     }
 }

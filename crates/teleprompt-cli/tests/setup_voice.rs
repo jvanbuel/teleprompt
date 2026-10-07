@@ -10,7 +10,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use teleprompt_project::project::Project;
-use teleprompt_project::voice::status as project_voice;
 use teleprompt_script::config::{PartialConfig, PartialVoice};
 
 /// A minimal `/v1/audio/voices` responder, built the same way
@@ -92,7 +91,7 @@ fn kokoro_backends(base_url: &str) -> BTreeMap<String, serde_yaml::Value> {
 #[tokio::test]
 async fn a_null_backend_project_probes_nothing() {
     let project = project_with_backend("null", BTreeMap::new());
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
 
     assert_eq!(report.backend, "null");
     assert!(
@@ -107,7 +106,7 @@ async fn a_null_backend_project_probes_nothing() {
 async fn a_kokoro_backend_project_against_a_reachable_stub_reports_its_voice_count() {
     let stub = kokoro_stub_listing(&["af_heart", "af_bella", "am_adam"]).await;
     let project = project_with_backend("kokoro", kokoro_backends(&stub.base_url));
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
 
     let line = report.answer.expect("probe ran");
     assert!(line.contains(&stub.base_url), "{line}");
@@ -124,7 +123,7 @@ async fn a_kokoro_backend_project_against_a_dead_port_is_a_warning_not_a_failure
     // Check and plan do not need the server, so setup must not report a red
     // state for a machine that simply has not started it.
     let project = project_with_backend("kokoro", kokoro_backends("http://127.0.0.1:1"));
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
 
     let line = report.answer.expect("probe ran");
     assert!(line.to_lowercase().contains("refused"), "{line}");
@@ -186,7 +185,7 @@ async fn a_hanging_kokoro_server_does_not_make_setup_wait_out_the_synthesis_time
     let project = project_with_backend("kokoro", backends);
 
     let start = std::time::Instant::now();
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
     let elapsed = start.elapsed();
 
     let line = report.answer.expect("probe ran");
@@ -212,7 +211,7 @@ async fn a_bad_backend_setting_is_a_reported_problem_not_a_silent_default() {
         serde_yaml::from_str("concurrency: 0").unwrap(),
     );
     let project = project_with_backend("kokoro", backends);
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
 
     let joined = report.problems.join("\n");
     assert!(joined.contains("concurrency"), "{joined}");
@@ -234,7 +233,7 @@ async fn a_bad_setting_for_an_unselected_backend_is_listed() {
         serde_yaml::from_str("concurrency: 0").unwrap(),
     );
     let project = project_with_backend("null", backends);
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
 
     assert!(
         report.problems.iter().any(|p| p.contains("concurrency")),
@@ -255,7 +254,7 @@ async fn an_unknown_backends_key_is_a_reported_problem() {
         serde_yaml::from_str("voice: af_heart").unwrap(),
     );
     let project = project_with_backend("null", backends);
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
 
     let joined = report.problems.join("\n");
     assert!(joined.contains("backends.kokoro-local"), "{joined}");
@@ -271,7 +270,7 @@ async fn the_probe_line_names_the_model_the_cache_is_keyed_on() {
     let stub = kokoro_stub_listing(&["af_heart", "am_adam"]).await;
     let project = project_with_backend("kokoro", kokoro_backends(&stub.base_url));
 
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
     let line = report.answer.expect("a kokoro project probes its server");
 
     assert!(
@@ -295,7 +294,7 @@ async fn a_gemini_project_probes_its_key() {
         )])
     };
     let project = project_with_backend("gemini", backends("CARGO_PKG_NAME"));
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
     let line = report.answer.expect("probe ran");
     assert!(line.contains("cannot reach http://127.0.0.1:1"), "{line}");
     assert!(
@@ -304,7 +303,7 @@ async fn a_gemini_project_probes_its_key() {
     );
 
     let project = project_with_backend("gemini", backends("TELEPROMPT_NO_SUCH_KEY_VAR"));
-    let report = project_voice(&project).await;
+    let report = project.voice_status().await;
     let line = report.answer.expect("probe ran");
     assert!(line.contains("TELEPROMPT_NO_SUCH_KEY_VAR"), "{line}");
 }
