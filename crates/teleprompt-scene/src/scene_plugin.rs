@@ -2,7 +2,7 @@
 //! and, where its tool can, how an author's session is recorded, under the
 //! one name a block's scene gives (`docs/design.md#crates`).
 
-use crate::{SceneCompiler, SceneCompilers};
+use crate::SceneCompiler;
 
 use crate::capture::mock::MockCapture;
 use crate::capture::CaptureBackend;
@@ -73,6 +73,9 @@ impl ScenePlugin {
 /// records an author with.
 pub struct ScenePlugins {
     plugins: Vec<ScenePlugin>,
+    /// The names of those this build ships, which a program of the same
+    /// name does not replace.
+    shipped: Vec<&'static str>,
 }
 
 impl ScenePlugins {
@@ -85,18 +88,30 @@ impl ScenePlugins {
                 out.push(plugin);
             }
         }
-        Self { plugins: out }
+        Self {
+            plugins: out,
+            shipped: Vec::new(),
+        }
     }
 
-    /// The mock alone: scene plugin crates depend on this one, so the
-    /// real ones are put together by the CLI.
+    /// These, with `names` the ones this build ships.
+    pub fn shipping(mut self, names: &[&'static str]) -> Self {
+        self.shipped = names.to_vec();
+        self
+    }
+
+    /// The mock alone, as shipped: scene plugin crates depend on this one,
+    /// so the real ones are put together by the CLI.
     pub fn mock() -> Self {
-        Self::new([ScenePlugin::new(MockScene, MockCapture::default())])
+        Self::new([ScenePlugin::new(MockScene, MockCapture::default())]).shipping(&["mock"])
     }
 
     /// These, and `plugin` unless one has its name.
     pub fn with(self, plugin: ScenePlugin) -> Self {
-        Self::new(self.plugins.into_iter().chain([plugin]))
+        let shipped = self.shipped;
+        let mut out = Self::new(self.plugins.into_iter().chain([plugin]));
+        out.shipped = shipped;
+        out
     }
 
     pub fn get(&self, name: &str) -> Option<&ScenePlugin> {
@@ -110,14 +125,61 @@ impl ScenePlugins {
     pub fn iter(&self) -> impl Iterator<Item = &ScenePlugin> {
         self.plugins.iter()
     }
-}
 
-impl SceneCompilers for ScenePlugins {
-    fn compiler(&self, name: &str) -> Option<&dyn SceneCompiler> {
+    /// The scene compiler named `name`, if there is one: what the compiler
+    /// reads a block's shots from.
+    pub fn compiler(&self, name: &str) -> Option<&dyn SceneCompiler> {
         self.get(name).map(ScenePlugin::scene)
     }
 
-    fn names(&self) -> Vec<&'static str> {
-        ScenePlugins::names(self)
+    /// Whether `name` is a scene plugin this build ships.
+    pub fn is_shipped(&self, name: &str) -> bool {
+        self.shipped.contains(&name)
+    }
+
+    /// What scene plugin `name` runs, capturing and then recording, each
+    /// once, by name; `None` when there is no such scene plugin. What
+    /// `teleprompt setup <plugin>` installs.
+    pub fn needs_of(&self, name: &str) -> Option<Vec<&'static str>> {
+        self.get(name)
+            .map(|p| p.needs().iter().map(|t| t.name).collect())
+    }
+
+    /// What every scene plugin runs, in the order they are registered.
+    pub fn tools(&self) -> Vec<&'static Tool> {
+        self.plugins.iter().flat_map(ScenePlugin::needs).collect()
+    }
+
+    /// The scene plugins that can record a session, asciinema first: it
+    /// records exactly, and what it shows is what was recorded.
+    pub fn recorders(&self) -> Vec<PluginRecorder<'_>> {
+        let mut out: Vec<PluginRecorder<'_>> = self
+            .plugins
+            .iter()
+            .filter_map(|p| {
+                p.recorder().map(|recorder| PluginRecorder {
+                    plugin: p.name(),
+                    recorder,
+                })
+            })
+            .collect();
+        out.sort_by_key(|r| r.plugin != "asciinema");
+        out
+    }
+}
+
+/// A scene plugin's recorder, under the plugin's name, which is the scene
+/// its drafts run in.
+#[derive(Clone, Copy)]
+pub struct PluginRecorder<'a> {
+    pub plugin: &'static str,
+    recorder: &'a dyn Recorder,
+}
+
+impl<'a> std::ops::Deref for PluginRecorder<'a> {
+    type Target = dyn Recorder + 'a;
+
+    fn deref(&self) -> &Self::Target {
+        self.recorder
     }
 }

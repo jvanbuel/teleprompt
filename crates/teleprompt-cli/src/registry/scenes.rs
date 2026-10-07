@@ -37,13 +37,15 @@ fn built_in() -> Vec<ScenePlugin> {
 }
 
 /// Every scene plugin: the built-in ones, then each plugin installed as a
-/// program of its own whose name none of them has.
+/// program of its own whose name none of them has; the built-in ones
+/// marked as shipped.
 pub fn all() -> ScenePlugins {
     ScenePlugins::new(
         built_in()
             .into_iter()
             .chain(host::discover().into_iter().map(host::scene)),
     )
+    .shipping(SHIPPED)
 }
 
 #[cfg(test)]

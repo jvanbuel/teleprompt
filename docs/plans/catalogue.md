@@ -127,6 +127,14 @@ in plain prose, no bullet lists, no model names. Push to
   implementor, so nothing else changes.
 - `Registry::mock()` builds a `ScenePlugins` with the mock plugin and
   `shipped: vec!["mock"]`, as now.
+- As done: `scene::record::Recording` already names a session being
+  recorded, so the moved struct is `scene::PluginRecorder<'a>`, beside
+  `ScenePlugins` in `scene_plugin.rs`; it borrows the plugins rather than
+  needing them `'static`. The shipped names are set with
+  `ScenePlugins::shipping(names)`, which the cli's `scenes::all()` calls
+  and `ScenePlugins::mock()` calls with `["mock"]`. `Registry` lost its
+  `shipped_scenes` field and scene methods in this step rather than the
+  next.
 
 ### 3. `Registry` is the pair; `setup` takes the halves
 

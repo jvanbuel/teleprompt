@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use teleprompt_scene::record::Recorded;
 
 use teleprompt_core::Reporter;
-use teleprompt_project::registry::{Recording, Registry};
+use teleprompt_project::registry::Registry;
+use teleprompt_scene::PluginRecorder;
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
@@ -104,8 +105,8 @@ pub fn recorder_for(
     registry: Registry,
     with: Option<&str>,
     recording: &Path,
-) -> Result<Recording, DraftError> {
-    let all = registry.recorders();
+) -> Result<PluginRecorder<'static>, DraftError> {
+    let all = registry.scenes.recorders();
     let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
     let ext = recording.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -140,7 +141,7 @@ pub struct Session<'a> {
     pub registry: Registry,
     pub reporter: &'a dyn Reporter,
     pub script: &'a Path,
-    pub recorder: &'a Recording,
+    pub recorder: &'a PluginRecorder<'static>,
     pub recorded: &'a Recorded,
     pub voice: &'a Path,
     pub words: &'a Words<'a>,

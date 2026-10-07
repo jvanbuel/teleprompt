@@ -5,7 +5,7 @@
 
 use std::sync::OnceLock;
 
-pub use teleprompt_project::registry::{Recording, Registry};
+pub use teleprompt_project::registry::Registry;
 use teleprompt_voice::catalogue::{Shipped, VoiceCatalogue};
 
 mod needs;
@@ -21,7 +21,6 @@ pub fn registry() -> Registry {
     static CATALOGUE: OnceLock<VoiceCatalogue> = OnceLock::new();
     Registry {
         scenes: SCENES.get_or_init(scenes::all),
-        shipped_scenes: scenes::SHIPPED,
         voices: CATALOGUE.get_or_init(|| VoiceCatalogue {
             shipped: VOICES.get_or_init(voices::shipped),
             // A `backends:` key naming no shipped voice is a server of the
@@ -40,7 +39,7 @@ pub fn shipped(registry: Registry) -> teleprompt_setup::Shipped {
             .map(|p| teleprompt_setup::Needs {
                 name: p.name(),
                 tools: p.needs(),
-                built_in: registry.is_shipped_scene(p.name()),
+                built_in: registry.scenes.is_shipped(p.name()),
             })
             .collect(),
         voices: registry.voices.needs(),

@@ -14,7 +14,7 @@ use teleprompt_core::voice::spoken;
 use teleprompt_core::{
     Diagnostic, Diagnostics, DurationMs, DurationSource, Hash, ItemId, LineId, PolicyKind, ShotId,
 };
-use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, SceneCompilers, Shot};
+use teleprompt_scene::{BlockSource, BodyOrigin, Measured, SceneCompiler, ScenePlugins, Shot};
 use teleprompt_script::config::{Config, OutputConfig, SceneConfig};
 use teleprompt_script::program::{ActionElement, ChapterInfo, Element, Program};
 use teleprompt_voice::cache::{CacheKey, VoiceCache};
@@ -221,7 +221,7 @@ pub fn word_offset_ms(phrase: &str, text: &str, words: &[WordTiming]) -> Option<
 fn retime_stretched_shots(
     timeline: &mut Timeline,
     shots: &mut BTreeMap<ShotId, ShotSource>,
-    registry: &dyn SceneCompilers,
+    registry: &ScenePlugins,
 ) -> Vec<String> {
     let mut warnings = Vec::new();
     for entry in &mut timeline.entries {
@@ -293,7 +293,7 @@ pub const CAPTURE_RECIPE: &str = "vhs-0.11-pw-1.63-v2";
 fn chain_capture_keys(
     timeline: &mut Timeline,
     config: &Config,
-    registry: &dyn SceneCompilers,
+    registry: &ScenePlugins,
     shots: &BTreeMap<ShotId, ShotSource>,
 ) {
     let mut chains: BTreeMap<(String, String), Hash> = BTreeMap::new();
@@ -415,7 +415,7 @@ fn fingerprint(paths: &[std::path::PathBuf], root: &Path) -> String {
 /// miss (docs/design.md#estimated-and-measured).
 pub fn compile(
     program: &Program,
-    registry: &dyn SceneCompilers,
+    registry: &ScenePlugins,
     voice_ctx: &VoiceContext,
     base_dir: &Path,
     version: &str,
@@ -523,7 +523,7 @@ struct Placing {
 /// not there.
 struct Walker<'a, 'v> {
     program: &'a Program,
-    registry: &'a dyn SceneCompilers,
+    registry: &'a ScenePlugins,
     voice: &'a VoiceContext<'v>,
     base_dir: &'a Path,
     diags: Vec<Diagnostic>,

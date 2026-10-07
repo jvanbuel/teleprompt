@@ -13,7 +13,8 @@ use crate::import::{draft_session, refuse_to_replace, ImportReport, Session, Wor
 use crate::DraftError;
 use teleprompt_core::Reporter;
 use teleprompt_project::project::Project;
-use teleprompt_project::registry::{Recording, Registry};
+use teleprompt_project::registry::Registry;
+use teleprompt_scene::PluginRecorder;
 
 pub struct Record<'a> {
     pub registry: Registry,
@@ -64,8 +65,8 @@ pub fn run_record(r: &Record) -> Result<ImportReport, DraftError> {
 }
 
 /// The recorder `with` names, asciinema's by default.
-fn recorder(registry: Registry, with: Option<&str>) -> Result<Recording, DraftError> {
-    let all = registry.recorders();
+fn recorder(registry: Registry, with: Option<&str>) -> Result<PluginRecorder<'static>, DraftError> {
+    let all = registry.scenes.recorders();
     let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
     let names = names.join(", ");
     let wanted = with.unwrap_or("asciinema");
@@ -78,7 +79,7 @@ fn recorder(registry: Registry, with: Option<&str>) -> Result<Recording, DraftEr
 
 /// Everything that could stop the draft, checked before anything is
 /// recorded rather than after the author has talked for ten minutes.
-fn check(r: &Record, recorder: &Recording) -> Result<(), DraftError> {
+fn check(r: &Record, recorder: &PluginRecorder<'static>) -> Result<(), DraftError> {
     refuse_to_replace(r.script, r.force)?;
     if !cfg!(feature = "listen") {
         return Err(DraftError::NoRecognizer);
@@ -106,7 +107,7 @@ fn check(r: &Record, recorder: &Recording) -> Result<(), DraftError> {
 
 fn record(
     r: &Record,
-    recorder: &Recording,
+    recorder: &PluginRecorder<'static>,
     say: &dyn Fn(serde_json::Value),
 ) -> Result<ImportReport, DraftError> {
     let project = Project::for_script(r.script, r.registry).map_err(|e| e.to_string())?;
@@ -185,6 +186,7 @@ pub struct Tool {
 /// Every recorder this build has, the default first.
 pub fn tools(registry: Registry) -> Vec<Tool> {
     registry
+        .scenes
         .recorders()
         .iter()
         .map(|r| Tool {

@@ -80,7 +80,8 @@ fn an_plugin_names_the_tools_it_runs() {
 fn every_plugin_needs_only_tools_setup_knows() {
     for plugin in teleprompt_cli::registry::registry().scenes.names() {
         let needs = teleprompt_cli::registry::registry()
-            .scene_needs(plugin)
+            .scenes
+            .needs_of(plugin)
             .unwrap();
         assert!(!needs.is_empty(), "{plugin}");
         resolve(

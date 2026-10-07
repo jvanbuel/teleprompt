@@ -29,15 +29,6 @@ pub use contract::{
     BodyOrigin, CommandError, Measured, SceneCompiler, Shot, Validated,
 };
 pub use mock::MockScene;
-pub use scene_plugin::{ScenePlugin, ScenePlugins};
+pub use scene_plugin::{PluginRecorder, ScenePlugin, ScenePlugins};
 /// The ids, diagnostics, hashes, times and settings a plugin speaks in.
 pub use teleprompt_core as core;
-
-/// The scene compilers a script can use, by the name a block's scene
-/// gives: what the compiler reads a block's shots from.
-pub trait SceneCompilers {
-    /// The compiler named `name`, if there is one.
-    fn compiler(&self, name: &str) -> Option<&dyn SceneCompiler>;
-    /// Every name, in the order errors list them.
-    fn names(&self) -> Vec<&'static str>;
-}
