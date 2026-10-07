@@ -76,12 +76,12 @@ impl Default for AsciinemaRender {
 
 impl CaptureBackend for AsciinemaRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_plugin::tool::missing(&[&self.agg, &self.ffmpeg])
+        teleprompt_plugin::core::tool::missing(&[&self.agg, &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::tool::Tool] =
-            &[&crate::tools::AGG, &teleprompt_plugin::tool::FFMPEG];
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] =
+            &[&crate::tools::AGG, &teleprompt_plugin::core::tool::FFMPEG];
         NEEDS
     }
 
@@ -142,7 +142,7 @@ impl CaptureBackend for AsciinemaRender {
 /// `command` run to the end; the session fails with what it said if not.
 fn run(job: &Job<'_>, command: &mut Command) -> Result<(), CaptureError> {
     let program = command.get_program().to_string_lossy().to_string();
-    teleprompt_plugin::tool::run(command, &program, 4)
+    teleprompt_plugin::core::tool::run(command, &program, 4)
         .map(|_| ())
         .map_err(|why| job.failed_all(why))
 }

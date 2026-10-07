@@ -228,12 +228,12 @@ pub trait CaptureBackend: Send + Sync {
     /// Why it cannot run here, if it cannot: asked before a session starts.
     /// By default, the programs in [`Self::needs`] that are not on PATH.
     fn unavailable(&self) -> Option<String> {
-        crate::tool::missing_of(self.needs())
+        teleprompt_core::tool::missing_of(self.needs())
     }
 
     /// What it runs, which `teleprompt setup` lists and installs.
-    fn needs(&self) -> &'static [&'static crate::tool::Tool] {
-        static NEEDS: &[&crate::tool::Tool] = &[];
+    fn needs(&self) -> &'static [&'static teleprompt_core::tool::Tool] {
+        static NEEDS: &[&teleprompt_core::tool::Tool] = &[];
         NEEDS
     }
 

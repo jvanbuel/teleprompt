@@ -12,12 +12,12 @@ use serde::Serialize;
 use teleprompt_core::{BlockId, Diagnostic, Hash, ShotId};
 
 use super::{
-    Body, Capture, Captured, Description, Retime, Retimed, Shots, Validation, PREFIX, VERSION,
+    Body, Capture, Captured, Description, Need, Retime, Retimed, Shots, Validation, PREFIX, VERSION,
 };
 use crate::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
 use crate::scene::{BlockSource, SceneCompiler, Shot, Validated};
-use crate::tool::Tool;
 use crate::ScenePlugin;
+use teleprompt_core::tool::Tool;
 
 /// A plugin found on disk, not yet started.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,7 +144,7 @@ impl Plugin {
     /// What it needs that teleprompt does not ship, as it describes them.
     pub fn needs(&self) -> &'static [&'static Tool] {
         self.needs.get_or_init(|| match self.describe() {
-            Ok(d) => Box::leak(d.needs.iter().map(Tool::from_wire).collect()),
+            Ok(d) => Box::leak(d.needs.iter().map(Need::into_tool).collect()),
             Err(_) => &[],
         })
     }
@@ -375,7 +375,7 @@ impl CaptureBackend for ExternalCapture {
     fn unavailable(&self) -> Option<String> {
         match self.plugin.describe() {
             Err(e) => Some(e),
-            Ok(_) => crate::tool::missing_of(self.needs()),
+            Ok(_) => teleprompt_core::tool::missing_of(self.needs()),
         }
     }
 

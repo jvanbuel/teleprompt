@@ -77,13 +77,13 @@ impl Default for SlidevRender {
 impl CaptureBackend for SlidevRender {
     fn unavailable(&self) -> Option<String> {
         // The deck's `slidev` is a Node script.
-        teleprompt_plugin::tool::missing(&["node", &self.ffmpeg])
+        teleprompt_plugin::core::tool::missing(&["node", &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[
-            &teleprompt_plugin::tool::NODE,
-            &teleprompt_plugin::tool::FFMPEG,
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
+            &teleprompt_plugin::core::tool::NODE,
+            &teleprompt_plugin::core::tool::FFMPEG,
             &crate::tools::SLIDEV,
         ];
         NEEDS
@@ -146,7 +146,7 @@ impl CaptureBackend for SlidevRender {
         {
             export.arg("--executable-path").arg(browser);
         }
-        teleprompt_plugin::tool::run(&mut export, "slidev export", 6)
+        teleprompt_plugin::core::tool::run(&mut export, "slidev export", 6)
             .map_err(|why| job.failed_all(why))?;
 
         for (shot, step) in job.wanted().zip(steps) {
@@ -155,7 +155,7 @@ impl CaptureBackend for SlidevRender {
                 return Err(job.failed(&shot.id, missing_still(&stills, step)));
             }
             let clip = job.clip_path(shot);
-            teleprompt_plugin::tool::run(
+            teleprompt_plugin::core::tool::run(
                 Command::new(&self.ffmpeg).args(clip_args(&still, frame, &clip)),
                 &self.ffmpeg,
                 1,

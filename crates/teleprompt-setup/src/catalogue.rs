@@ -1,9 +1,9 @@
 //! What `setup` knows how to find and install: what each plugin says it
 //! needs, the speech models the CLI itself listens with, and the uses of
 //! teleprompt that ask for them. A plugin's tools are the plugin's own
-//! (`teleprompt_plugin::tool::Tool`); adding one is an entry there.
+//! (`teleprompt_core::tool::Tool`); adding one is an entry there.
 
-use teleprompt_plugin::tool::{Found, Manager, Tool};
+use teleprompt_core::tool::{Found, Manager, Tool};
 
 use crate::Shipped;
 
@@ -141,7 +141,7 @@ pub(crate) fn model(name: &str) -> Option<&'static Tool> {
 /// plugin and voice `shipped` needs, in the order they are registered,
 /// and the models.
 pub fn tools(shipped: &Shipped) -> Vec<&'static Tool> {
-    let mut out: Vec<&'static Tool> = vec![&teleprompt_plugin::tool::FFMPEG];
+    let mut out: Vec<&'static Tool> = vec![&teleprompt_core::tool::FFMPEG];
     let plugins = shipped
         .scenes
         .iter()

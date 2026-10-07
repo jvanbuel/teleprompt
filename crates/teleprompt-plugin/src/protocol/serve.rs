@@ -19,8 +19,8 @@ use serde::Serialize;
 use teleprompt_core::{BlockId, Hash, ShotId};
 
 use super::{
-    Body, Capture, Captured, Description, LineError, Part, Retime, Retimed, Shots, Validation,
-    VERSION,
+    Body, Capture, Captured, Description, LineError, Need, Part, Retime, Retimed, Shots,
+    Validation, VERSION,
 };
 use crate::capture::Session;
 use crate::scene::{BlockSource, BodyOrigin, Measured, Shot, Validated};
@@ -102,7 +102,7 @@ pub fn scene_on(plugin: &ScenePlugin, input: impl BufRead, out: impl Write) -> s
             let d = Description {
                 protocol: VERSION,
                 name: plugin.name().to_string(),
-                needs: plugin.needs().iter().map(|t| t.to_wire()).collect(),
+                needs: plugin.needs().iter().map(|t| Need::of(t)).collect(),
                 continues: scene.continues(),
             };
             r.answer(Ok(d))

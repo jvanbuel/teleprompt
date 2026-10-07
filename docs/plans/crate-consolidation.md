@@ -104,13 +104,13 @@ to `main`.
 
 - `git mv crates/teleprompt-plugin/src/tool.rs crates/teleprompt-core/src/tool.rs`;
   add `pub mod tool;` to `core/src/lib.rs`.
-- Replace `teleprompt_plugin::tool::` with `teleprompt_core::tool::` and
-  `teleprompt_plugin::core::tool::` likewise, everywhere. The scene plugin
-  crates reach it as `teleprompt_plugin::core::tool` today; that keeps
-  working through the re-export, but write the direct path.
-- `tool.rs` uses `etcetera` for the models directory: move that dependency
-  from `plugin` to `core` (check `plugin` still needs it for `dirs.rs`;
-  if so both keep it).
+- Replace `teleprompt_plugin::tool::` with `teleprompt_core::tool::` in
+  every crate that depends on `core`. The seven scene plugin crates do
+  not (they depend on the SDK alone), so they write
+  `teleprompt_plugin::core::tool::`, the SDK's re-export of core.
+- `tool.rs` had two methods tied to the plugin wire protocol, `to_wire`
+  and `from_wire`. They stay in the plugin crate as `Need::of(&Tool)` and
+  `Need::into_tool(&self)` in `protocol/mod.rs`.
 - `setup` and `voices` lose nothing; `setup` already depends on `core`.
 
 ### 2. `scene` absorbs `plugin`; rename

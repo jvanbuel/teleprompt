@@ -212,7 +212,7 @@ impl Reel {
             Err(format!(
                 "ffmpeg recording the screen exited {}: {}",
                 out.status,
-                teleprompt_plugin::tool::tail(&String::from_utf8_lossy(&out.stderr), 4)
+                teleprompt_plugin::core::tool::tail(&String::from_utf8_lossy(&out.stderr), 4)
             ))
         }
     }

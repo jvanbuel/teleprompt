@@ -74,12 +74,14 @@ impl Default for RemotionRender {
 
 impl CaptureBackend for RemotionRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_plugin::tool::missing(&[&self.node])
+        teleprompt_plugin::core::tool::missing(&[&self.node])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::tool::Tool] =
-            &[&teleprompt_plugin::tool::NODE, &crate::tools::REMOTION];
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
+            &teleprompt_plugin::core::tool::NODE,
+            &crate::tools::REMOTION,
+        ];
         NEEDS
     }
 
@@ -113,7 +115,7 @@ impl CaptureBackend for RemotionRender {
         std::fs::write(&script, RENDER_SCRIPT)
             .and_then(|()| std::fs::write(&job_file, job_json.to_string()))
             .map_err(|e| job.failed_all(format!("{}: {e}", work.display())))?;
-        teleprompt_plugin::tool::run(
+        teleprompt_plugin::core::tool::run(
             Command::new(&self.node)
                 .arg(&script)
                 .arg(&job_file)

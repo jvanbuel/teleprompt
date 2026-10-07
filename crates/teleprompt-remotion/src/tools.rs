@@ -1,7 +1,7 @@
 //! What this plugin needs that teleprompt does not ship, as
 //! `teleprompt setup` lists and installs it.
 
-use teleprompt_plugin::tool::{Found, Tool};
+use teleprompt_plugin::core::tool::{Found, Tool};
 
 pub static REMOTION: Tool = Tool {
     name: "remotion",

@@ -12,6 +12,7 @@ pub mod policy;
 pub mod progress;
 pub mod said;
 pub mod time;
+pub mod tool;
 pub mod voice;
 
 pub use duration::{DurationMs, DurationSource};

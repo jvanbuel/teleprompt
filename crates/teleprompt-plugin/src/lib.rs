@@ -9,7 +9,8 @@
 //! - [`capture`]: how a scene's shots are recorded into clips.
 //! - [`record`]: how an author's working session is recorded, for a scene
 //!   plugin whose tool can.
-//! - [`tool`]: running and finding the programs a plugin needs.
+//! - [`core::tool`]: running and finding the programs a plugin needs,
+//!   which is `core`'s, re-exported here.
 //! - [`protocol`]: a plugin as a program of its own, which teleprompt
 //!   finds and talks to; and serving a Rust plugin as one.
 //!
@@ -22,7 +23,6 @@ pub mod dirs;
 pub mod protocol;
 pub mod record;
 mod scene_plugin;
-pub mod tool;
 
 pub use scene_plugin::{ScenePlugin, ScenePlugins};
 /// The ids, diagnostics, hashes, times and settings a plugin speaks in.

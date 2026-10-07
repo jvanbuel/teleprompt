@@ -98,14 +98,14 @@ impl CaptureBackend for VhsRender {
         // and a probe recording would take a minute. A `vhs` that is
         // installed but records nothing is caught in `capture`, and its
         // session renders as slates with the reason.
-        teleprompt_plugin::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
+        teleprompt_plugin::core::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
             &crate::tools::VHS,
             &crate::tools::TTYD,
-            &teleprompt_plugin::tool::FFMPEG,
+            &teleprompt_plugin::core::tool::FFMPEG,
         ];
         NEEDS
     }
@@ -142,7 +142,7 @@ impl CaptureBackend for VhsRender {
         let said = |ran: &std::process::Output| {
             let text = String::from_utf8_lossy(&ran.stderr).into_owned()
                 + &String::from_utf8_lossy(&ran.stdout);
-            teleprompt_plugin::tool::tail(&text, 4)
+            teleprompt_plugin::core::tool::tail(&text, 4)
         };
         if !ran.status.success() {
             return Err(job.failed_all(format!(

@@ -135,11 +135,12 @@ impl Default for MediaRender {
 
 impl CaptureBackend for MediaRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_plugin::tool::missing(&[&self.ffmpeg])
+        teleprompt_plugin::core::tool::missing(&[&self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[&teleprompt_plugin::tool::FFMPEG];
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] =
+            &[&teleprompt_plugin::core::tool::FFMPEG];
         NEEDS
     }
 
@@ -157,8 +158,12 @@ impl CaptureBackend for MediaRender {
             let clip = job.clip_path(shot);
             let a = args(shot, session, frame, &dir, &work, &clip)
                 .ok_or_else(|| job.failed(&shot.id, "the shot is not a media directive"))?;
-            teleprompt_plugin::tool::run(Command::new(&self.ffmpeg).args(&a), &self.ffmpeg, 1)
-                .map_err(|why| job.failed(&shot.id, why))?;
+            teleprompt_plugin::core::tool::run(
+                Command::new(&self.ffmpeg).args(&a),
+                &self.ffmpeg,
+                1,
+            )
+            .map_err(|why| job.failed(&shot.id, why))?;
             job.keep(shot);
         }
         Ok(job.clips())

@@ -9,7 +9,7 @@ use teleprompt_plugin::core::Hash;
 
 fn ready() -> bool {
     let render = X11Render::default();
-    render.unavailable().is_none() && teleprompt_plugin::tool::installed("xterm")
+    render.unavailable().is_none() && teleprompt_plugin::core::tool::installed("xterm")
 }
 
 fn session(command: &str, shots: &[(&str, u64, bool)]) -> Session {

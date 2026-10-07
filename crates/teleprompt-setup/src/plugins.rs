@@ -7,8 +7,8 @@ use serde::Serialize;
 use tabled::builder::Builder;
 use tabled::settings::object::Columns;
 use tabled::settings::{Modify, Style, Width};
+use teleprompt_core::tool::Tool;
 use teleprompt_plugin::protocol::host::{self, Plugin};
-use teleprompt_plugin::tool::Tool;
 
 use super::{ProjectVoice, Setup};
 

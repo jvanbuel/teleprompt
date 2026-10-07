@@ -1,7 +1,7 @@
 //! What each voice teleprompt ships needs that it does not, as `teleprompt
 //! setup` lists it: a server the author runs, or a key.
 
-use teleprompt_plugin::tool::{Found, Tool};
+use teleprompt_plugin::core::tool::{Found, Tool};
 
 pub static KOKORO: Tool = Tool {
     name: "kokoro",

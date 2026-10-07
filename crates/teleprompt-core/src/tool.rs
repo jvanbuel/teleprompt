@@ -129,61 +129,6 @@ impl Tool {
     }
 }
 
-impl Tool {
-    /// As a plugin's description has it.
-    pub fn to_wire(&self) -> crate::protocol::Need {
-        let (program, package) = match self.found {
-            Found::Program(p) => (Some(p.to_string()), None),
-            Found::Package(p) => (None, Some(p.to_string())),
-            Found::Model(_) | Found::Unknowable => (None, None),
-        };
-        crate::protocol::Need {
-            name: self.name.into(),
-            what: self.what.into(),
-            license: self.license.into(),
-            home: self.home.into(),
-            guide: self.guide.map(Into::into),
-            program,
-            package,
-            install: self
-                .install
-                .iter()
-                .map(|(m, c)| (m.name().to_string(), (*c).to_string()))
-                .collect(),
-        }
-    }
-
-    /// A tool an outside plugin described. Kept for the rest of the run, as
-    /// a built-in plugin's are: teleprompt asks once, and a plugin needs a
-    /// handful.
-    pub fn from_wire(wire: &crate::protocol::Need) -> &'static Tool {
-        let found = match (&wire.program, &wire.package) {
-            (Some(p), _) => Found::Program(leak(p)),
-            (None, Some(p)) => Found::Package(leak(p)),
-            (None, None) => Found::Unknowable,
-        };
-        let install: Vec<(Manager, &'static str)> = wire
-            .install
-            .iter()
-            .filter_map(|(m, c)| Some((Manager::from_name(m)?, leak(c))))
-            .collect();
-        Box::leak(Box::new(Tool {
-            name: leak(&wire.name),
-            what: leak(&wire.what),
-            license: leak(&wire.license),
-            home: leak(&wire.home),
-            guide: wire.guide.as_deref().map(leak),
-            found,
-            install: Box::leak(install.into_boxed_slice()),
-            download_mb: None,
-        }))
-    }
-}
-
-fn leak(s: &str) -> &'static str {
-    Box::leak(s.to_string().into_boxed_str())
-}
-
 fn shell_quote(s: &str) -> String {
     if s.chars()
         .all(|c| c.is_ascii_alphanumeric() || "/._-~".contains(c))

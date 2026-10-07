@@ -14,8 +14,8 @@ pub mod plugins;
 
 pub use catalogue::{download_mb, tools, Goal, GOALS};
 use teleprompt_core::progress::{Install, Progress, Reporter};
-use teleprompt_plugin::tool::Found;
-pub use teleprompt_plugin::tool::{Manager, Tool};
+use teleprompt_core::tool::Found;
+pub use teleprompt_core::tool::{Manager, Tool};
 
 /// What this build ships, as `setup` lists it: each scene plugin by name
 /// with what it needs, and each voice. Made from the build's registry by

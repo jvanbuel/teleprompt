@@ -40,11 +40,11 @@ fn colour_of(key: &Hash) -> String {
 
 impl CaptureBackend for MockCapture {
     fn unavailable(&self) -> Option<String> {
-        crate::tool::missing(&[&self.program])
+        teleprompt_core::tool::missing(&[&self.program])
     }
 
-    fn needs(&self) -> &'static [&'static crate::tool::Tool] {
-        static NEEDS: &[&crate::tool::Tool] = &[&crate::tool::FFMPEG];
+    fn needs(&self) -> &'static [&'static teleprompt_core::tool::Tool] {
+        static NEEDS: &[&teleprompt_core::tool::Tool] = &[&teleprompt_core::tool::FFMPEG];
         NEEDS
     }
 

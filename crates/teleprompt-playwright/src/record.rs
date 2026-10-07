@@ -29,9 +29,11 @@ impl Recorder for PlaywrightRecorder {
         (!ok).then(|| "Playwright is not installed (npm install playwright)".to_string())
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::tool::Tool] =
-            &[&teleprompt_plugin::tool::NODE, &crate::tools::PLAYWRIGHT];
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
+            &teleprompt_plugin::core::tool::NODE,
+            &crate::tools::PLAYWRIGHT,
+        ];
         NEEDS
     }
 

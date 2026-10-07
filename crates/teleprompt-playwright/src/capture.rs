@@ -132,13 +132,13 @@ impl Default for PlaywrightRender {
 
 impl CaptureBackend for PlaywrightRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_plugin::tool::missing(&[&self.node, &self.ffmpeg])
+        teleprompt_plugin::core::tool::missing(&[&self.node, &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[
-            &teleprompt_plugin::tool::NODE,
-            &teleprompt_plugin::tool::FFMPEG,
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
+            &teleprompt_plugin::core::tool::NODE,
+            &teleprompt_plugin::core::tool::FFMPEG,
             &crate::tools::PLAYWRIGHT,
         ];
         NEEDS
@@ -161,7 +161,7 @@ impl CaptureBackend for PlaywrightRender {
         )
         .map_err(|e| job.failed_all(format!("{}: {e}", script.display())))?;
 
-        teleprompt_plugin::tool::run(
+        teleprompt_plugin::core::tool::run(
             Command::new(&self.node).arg(&script).current_dir(&work),
             "the script",
             4,

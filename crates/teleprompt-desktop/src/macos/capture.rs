@@ -61,11 +61,12 @@ impl CaptureBackend for MacosRender {
         if !cfg!(target_os = "macos") {
             return Some("it records a Mac's own screen, and this is not a Mac".into());
         }
-        teleprompt_plugin::tool::missing(&[&self.ffmpeg])
+        teleprompt_plugin::core::tool::missing(&[&self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::tool::Tool] = &[&teleprompt_plugin::tool::FFMPEG];
+    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] =
+            &[&teleprompt_plugin::core::tool::FFMPEG];
         NEEDS
     }
 

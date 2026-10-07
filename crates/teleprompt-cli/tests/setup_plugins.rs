@@ -1,7 +1,7 @@
 //! Every program a scene plugin says it is missing is one `teleprompt setup
 //! <plugin>` knows how to install: the two lists cannot drift apart.
 
-use teleprompt_plugin::tool::NOT_ON_PATH;
+use teleprompt_core::tool::NOT_ON_PATH;
 use teleprompt_setup::resolve;
 
 #[test]

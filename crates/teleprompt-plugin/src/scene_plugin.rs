@@ -8,7 +8,7 @@ use crate::capture::mock::MockCapture;
 use crate::capture::CaptureBackend;
 use crate::record::Recorder;
 use crate::scene::MockScene;
-use crate::tool::Tool;
+use teleprompt_core::tool::Tool;
 
 /// What a scene plugin crate hands the CLI to register. Its name is its scene
 /// compiler's kind, so its halves cannot be registered under two.

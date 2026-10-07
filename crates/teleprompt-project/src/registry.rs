@@ -6,8 +6,8 @@
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
+use teleprompt_core::tool::Tool;
 use teleprompt_plugin::record::Recorder;
-use teleprompt_plugin::tool::Tool;
 use teleprompt_plugin::{ScenePlugin, ScenePlugins};
 use teleprompt_voice::Provider;
 
