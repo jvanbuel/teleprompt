@@ -2193,6 +2193,7 @@ dependencies = [
  "teleprompt-script",
  "teleprompt-setup",
  "teleprompt-voice",
+ "thiserror 1.0.69",
  "tokio",
 ]
 

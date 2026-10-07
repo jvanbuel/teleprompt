@@ -287,28 +287,26 @@ impl Prompted for Script {
                 keeper
                     .keep_said(line)
                     .map(|_| ())
-                    .map_err(|e| e.to_string())
+                    .map_err(EditError::Script)
             }),
             edit: Box::new(move |edit| {
                 let edited = editor.path();
-                let before = std::fs::read_to_string(edited).map_err(|e| e.to_string())?;
-                editor.edit(edit).map_err(|e| e.to_string())?;
-                let after = std::fs::read_to_string(edited).map_err(|e| e.to_string())?;
+                let before = std::fs::read_to_string(edited)?;
+                editor.edit(edit).map_err(EditError::Script)?;
+                let after = std::fs::read_to_string(edited)?;
                 if after != before {
                     lock(&kept).push((before, after));
                 }
                 Ok(())
             }),
             undo: Box::new(move || {
-                let (before, after) = lock(&history)
-                    .pop()
-                    .ok_or_else(|| "nothing to undo".to_string())?;
-                let now = std::fs::read_to_string(&undone).map_err(|e| e.to_string())?;
+                let (before, after) = lock(&history).pop().ok_or(EditError::NothingToUndo)?;
+                let now = std::fs::read_to_string(&undone)?;
                 if now != after {
                     lock(&history).clear();
-                    return Err("the script has changed since: undo it in your editor".into());
+                    return Err(EditError::ChangedSince);
                 }
-                std::fs::write(&undone, before).map_err(|e| e.to_string())
+                Ok(std::fs::write(&undone, before)?)
             }),
             make: Some(Box::new(move |job, progress| make(&maker, job, progress))),
             voice: Some(Voicing::new(self.clone())),
@@ -320,14 +318,35 @@ impl Prompted for Script {
 /// The script anew, if it has changed.
 pub type Reload = Box<dyn Fn() -> Option<Prompt> + Send + Sync>;
 
+/// Why the prompter could not change the script it serves: said to the page
+/// as it reads here.
+#[derive(Debug, thiserror::Error)]
+pub enum EditError {
+    /// The script, or what was asked of it, was refused.
+    #[error("{0}")]
+    Script(Failure),
+    /// The script file could not be read or written.
+    #[error("{0}")]
+    File(#[from] std::io::Error),
+    #[error("nothing to undo")]
+    NothingToUndo,
+    /// What the last edit changed has been changed again, so putting it back
+    /// would lose that.
+    #[error("the script has changed since: undo it in your editor")]
+    ChangedSince,
+    /// A message that names no edit it can make, and what it lacks.
+    #[error("{0}")]
+    Asked(&'static str),
+}
+
 /// Rewords a line to what its take was heard to say, or says why not.
-pub type KeepSaid = Box<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
+pub type KeepSaid = Box<dyn Fn(&str) -> Result<(), EditError> + Send + Sync>;
 
 /// Makes an edit to the script, or says why not.
-pub type EditScript = Box<dyn Fn(&Edit) -> Result<(), String> + Send + Sync>;
+pub type EditScript = Box<dyn Fn(&Edit) -> Result<(), EditError> + Send + Sync>;
 
 /// Puts back what the last edit changed, or says why not.
-pub type UndoEdit = Box<dyn Fn() -> Result<(), String> + Send + Sync>;
+pub type UndoEdit = Box<dyn Fn() -> Result<(), EditError> + Send + Sync>;
 
 /// Runs a job on the script, handing on each progress event it reports;
 /// then the video, for a build.
@@ -402,4 +421,32 @@ fn make(
             .map(|report| Some(report.output)),
     }
     .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod edit_error_tests {
+    use super::{EditError, Failure};
+
+    /// The page shows these to the author as they are.
+    #[test]
+    fn every_edit_error_reads_as_it_always_did() {
+        let said = |e: EditError| e.to_string();
+        assert_eq!(
+            said(EditError::Script(Failure::Runtime("no take".into()))),
+            "no take"
+        );
+        assert_eq!(
+            said(EditError::File(std::io::Error::other("denied"))),
+            "denied"
+        );
+        assert_eq!(said(EditError::NothingToUndo), "nothing to undo");
+        assert_eq!(
+            said(EditError::ChangedSince),
+            "the script has changed since: undo it in your editor"
+        );
+        assert_eq!(
+            said(EditError::Asked("a reword needs its text")),
+            "a reword needs its text"
+        );
+    }
 }

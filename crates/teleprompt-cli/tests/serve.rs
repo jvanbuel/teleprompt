@@ -832,7 +832,11 @@ fn keeping_what_was_said_rewords_the_line() {
 
 #[test]
 fn keeping_what_was_said_that_fails_says_why() {
-    let (addr, _dir) = prompting_with_keep(Box::new(|line| Err(format!("no take for `{line}`"))));
+    let (addr, _dir) = prompting_with_keep(Box::new(|line| {
+        Err(teleprompt_serve::EditError::Script(
+            teleprompt_project::Failure::Runtime(format!("no take for `{line}`")),
+        ))
+    }));
     let mut ws = session(addr);
     send(
         &mut ws,

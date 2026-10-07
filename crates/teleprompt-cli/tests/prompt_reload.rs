@@ -112,5 +112,6 @@ fn keeping_what_was_said_rewords_the_script_and_reloads() {
     // Said as it now reads: nothing to keep.
     assert!((edits.keep_said)("welcome")
         .unwrap_err()
+        .to_string()
         .contains("welcome"));
 }

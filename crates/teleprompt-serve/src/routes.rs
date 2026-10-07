@@ -146,6 +146,24 @@ async fn manifest_route(State(server): Shared) -> Response {
     }
 }
 
+/// The flags of a line's audio request, each `?<name>=1`.
+#[derive(Clone, Copy)]
+enum AudioFlag {
+    /// Made anew, not taken from the cache.
+    Fresh,
+    /// As the manifest publishes it, fitted to its tempo.
+    Fit,
+}
+
+impl AudioFlag {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Fresh => "fresh",
+            Self::Fit => "fit",
+        }
+    }
+}
+
 /// `GET /api/v1/voice/<line>.wav`, `?fresh=1` made anew, `?fit=1` as the
 /// manifest publishes it.
 async fn voice_route(
@@ -158,8 +176,8 @@ async fn voice_route(
     let (Some(id), Some(voice)) = (file.strip_suffix(".wav"), voice) else {
         return not_found();
     };
-    let asked = |flag: &str| query.get(flag).is_some_and(|v| v == "1");
-    match block_in_place(|| voice.audio(id, asked("fresh"), asked("fit"))) {
+    let asked = |flag: AudioFlag| query.get(flag.name()).is_some_and(|v| v == "1");
+    match block_in_place(|| voice.audio(id, asked(AudioFlag::Fresh), asked(AudioFlag::Fit))) {
         Ok(Some(wav)) => ([(CONTENT_TYPE, "audio/wav")], wav).into_response(),
         Ok(None) => not_found(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),

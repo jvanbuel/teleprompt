@@ -183,7 +183,7 @@ impl Server {
                 Some(match &edits {
                     Some(edits) => match (edits.keep_said)(line) {
                         Ok(()) => serde_json::json!({ "type": "kept_said", "line": line }),
-                        Err(e) => error(e),
+                        Err(e) => error(e.to_string()),
                     },
                     None => error("this prompter has no script file to reword".into()),
                 })
@@ -191,19 +191,19 @@ impl Server {
             Some("undo_edit") => Some(match &edits {
                 Some(edits) => match (edits.undo)() {
                     Ok(()) => serde_json::json!({ "type": "edit_undone" }),
-                    Err(e) => error(e),
+                    Err(e) => error(e.to_string()),
                 },
                 None => error("this prompter has no script file to edit".into()),
             }),
             Some("reword" | "instruct" | "cue" | "hold" | "move" | "stretch") => {
                 let (edit, edited) = match edit_of(&message) {
                     Ok(edit) => edit,
-                    Err(e) => return Some(error(e)),
+                    Err(e) => return Some(error(e.to_string())),
                 };
                 Some(match &edits {
                     Some(edits) => match (edits.edit)(&edit) {
                         Ok(()) => edited,
-                        Err(e) => error(e),
+                        Err(e) => error(e.to_string()),
                     },
                     None => error("this prompter has no script file to edit".into()),
                 })
@@ -215,15 +215,17 @@ impl Server {
 
 /// The edit a message asks for, and the answer once it is made: naming
 /// the line it changed, or the block it moved.
-pub(super) fn edit_of(message: &serde_json::Value) -> Result<(Edit, serde_json::Value), String> {
+pub(super) fn edit_of(
+    message: &serde_json::Value,
+) -> Result<(Edit, serde_json::Value), crate::EditError> {
     let text = |key: &str| message[key].as_str().map(str::to_string);
-    let line = || text("line").ok_or("which line? `line` names it");
-    let block = || text("block").ok_or("which block? `block` names it");
+    let line = || text("line").ok_or(EditError::Asked("which line? `line` names it"));
+    let block = || text("block").ok_or(EditError::Asked("which block? `block` names it"));
     let word = || message["word"].as_u64().map(|w| w as usize);
     let edit = match message["type"].as_str().unwrap_or_default() {
         "reword" => Edit::Reword {
             line: line()?.into(),
-            text: text("text").ok_or("a reword needs its text")?,
+            text: text("text").ok_or(EditError::Asked("a reword needs its text"))?,
         },
         "instruct" => Edit::Instruct {
             line: line()?.into(),
@@ -231,7 +233,7 @@ pub(super) fn edit_of(message: &serde_json::Value) -> Result<(Edit, serde_json::
         },
         "cue" => Edit::Cue {
             block: block()?.into(),
-            word: word().ok_or("a cue needs its `word`")?,
+            word: word().ok_or(EditError::Asked("a cue needs its `word`"))?,
         },
         "hold" => Edit::Hold {
             block: block()?.into(),
@@ -239,7 +241,7 @@ pub(super) fn edit_of(message: &serde_json::Value) -> Result<(Edit, serde_json::
         "move" => Edit::Move {
             block: block()?.into(),
             after: text("after")
-                .ok_or("a move needs the line it goes `after`")?
+                .ok_or(EditError::Asked("a move needs the line it goes `after`"))?
                 .into(),
             word: word(),
         },
@@ -248,7 +250,7 @@ pub(super) fn edit_of(message: &serde_json::Value) -> Result<(Edit, serde_json::
             by: message["by"]
                 .as_f64()
                 .filter(|by| *by > 0.0 && by.is_finite())
-                .ok_or("a stretch needs `by`, more than 0")?,
+                .ok_or(EditError::Asked("a stretch needs `by`, more than 0"))?,
         },
     };
     let edited = match &edit {
