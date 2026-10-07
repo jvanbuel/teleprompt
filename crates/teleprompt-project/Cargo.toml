@@ -8,14 +8,13 @@ license.workspace = true
 # The prompter's speech recognizer. Opt-in: it downloads a native library
 # when it builds, and the default build stays offline.
 [dependencies]
-teleprompt-compile = { path = "../teleprompt-compile" }
+teleprompt-pipeline = { path = "../teleprompt-pipeline" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-script = { path = "../teleprompt-script" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-render = { path = "../teleprompt-render" }
 teleprompt-setup = { path = "../teleprompt-setup" }
-teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 serde.workspace = true
 serde_json.workspace = true

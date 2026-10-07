@@ -226,7 +226,7 @@ impl Backends {
     pub fn voices(
         &self,
         main: &Arc<dyn VoiceBackend>,
-        narration: &[teleprompt_compile::NarrationDetail],
+        narration: &[teleprompt_pipeline::compile::NarrationDetail],
     ) -> Result<Voices, String> {
         let mut voices = Voices::new();
         voices.insert(main.id().to_string(), main.clone());

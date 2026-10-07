@@ -1,8 +1,8 @@
 use std::path::Path;
 use teleprompt_core::SpanMs;
 
-use teleprompt_compile::{compile, VoiceContext};
 use teleprompt_core::config::PartialConfig;
+use teleprompt_pipeline::compile::{compile, VoiceContext};
 use teleprompt_scene::ScenePlugins;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::resolve;
@@ -20,7 +20,7 @@ fn cache_for(dir: &Path) -> VoiceCache {
     VoiceCache::new(dir.with_extension("voice-cache"))
 }
 
-fn run(dir: &Path, src: &str) -> Result<teleprompt_compile::CompileOutput, Vec<String>> {
+fn run(dir: &Path, src: &str) -> Result<teleprompt_pipeline::compile::CompileOutput, Vec<String>> {
     let s = parse_script(src).unwrap();
     let p = resolve(
         &s,

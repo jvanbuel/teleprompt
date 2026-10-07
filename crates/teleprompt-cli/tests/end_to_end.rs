@@ -113,7 +113,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
     assert_eq!(d.changed[0].item, "deploy");
     assert_eq!(
         d.changed[0].reason,
-        teleprompt_schedule::ChangeReason::TextEdited
+        teleprompt_pipeline::schedule::ChangeReason::TextEdited
     );
     assert!(d.shift_ms > 0, "a longer paragraph lengthens the video");
     assert!(
@@ -136,7 +136,7 @@ fn editing_one_paragraph_shows_up_as_a_legible_pacing_diff() {
 ///
 /// `rollback`'s item uses `policy=trim-action`, whose layout sets the item's
 /// `duration_ms` to exactly the (padded) narration length regardless of the
-/// action's duration (`teleprompt_schedule::policy::layout`, `Policy::Trim`
+/// action's duration (`teleprompt_pipeline::schedule::policy::layout`, `Policy::Trim`
 /// arm) — so this is also an exact assertion on the item, not just the
 /// narration slot.
 ///

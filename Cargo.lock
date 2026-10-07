@@ -2024,16 +2024,15 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "teleprompt-asciinema",
- "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-draft",
  "teleprompt-listen",
  "teleprompt-lsp",
  "teleprompt-manifest",
+ "teleprompt-pipeline",
  "teleprompt-project",
  "teleprompt-registry",
  "teleprompt-scene",
- "teleprompt-schedule",
  "teleprompt-script",
  "teleprompt-serve",
  "teleprompt-setup",
@@ -2042,22 +2041,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tungstenite 0.27.0",
-]
-
-[[package]]
-name = "teleprompt-compile"
-version = "0.1.0"
-dependencies = [
- "insta",
- "serde_json",
- "teleprompt-core",
- "teleprompt-manifest",
- "teleprompt-scene",
- "teleprompt-schedule",
- "teleprompt-script",
- "teleprompt-testkit",
- "teleprompt-voice",
- "tokio",
 ]
 
 [[package]]
@@ -2134,6 +2117,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "teleprompt-pipeline"
+version = "0.1.0"
+dependencies = [
+ "insta",
+ "serde",
+ "serde_json",
+ "teleprompt-core",
+ "teleprompt-manifest",
+ "teleprompt-scene",
+ "teleprompt-script",
+ "teleprompt-testkit",
+ "teleprompt-voice",
+ "tokio",
+]
+
+[[package]]
 name = "teleprompt-playwright"
 version = "0.1.0"
 dependencies = [
@@ -2149,12 +2148,11 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-manifest",
+ "teleprompt-pipeline",
  "teleprompt-render",
  "teleprompt-scene",
- "teleprompt-schedule",
  "teleprompt-script",
  "teleprompt-setup",
  "teleprompt-testkit",
@@ -2210,16 +2208,6 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
-]
-
-[[package]]
-name = "teleprompt-schedule"
-version = "0.1.0"
-dependencies = [
- "insta",
- "serde",
- "serde_json",
- "teleprompt-core",
 ]
 
 [[package]]

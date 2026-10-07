@@ -3,9 +3,9 @@
 
 use std::path::Path;
 
-use teleprompt_compile::{compile, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::{BlockId, Diagnostic, Diagnostics, SpanMs};
+use teleprompt_pipeline::compile::{compile, VoiceContext};
 use teleprompt_scene::capture::mock::MockCapture;
 use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
 use teleprompt_scene::mock::MockScene;
@@ -35,7 +35,7 @@ impl SceneCompiler for Untimed {
     }
 }
 
-fn compile_it(body: &str) -> Result<teleprompt_compile::CompileOutput, Diagnostics> {
+fn compile_it(body: &str) -> Result<teleprompt_pipeline::compile::CompileOutput, Diagnostics> {
     let src = format!("---\nscene: {{ s: {{ plugin: untimed }} }}\n---\n\n# A\n\n{body}");
     let cache =
         VoiceCache::new(std::env::temp_dir().join(format!("tp-untimed-{}", std::process::id())));

@@ -71,7 +71,7 @@ pub struct ActionElement {
     pub scene: String,
     pub body: String,
     /// The `include=` attribute's raw value, if present. Resolved
-    /// against the script's directory by `teleprompt-compile`, which is
+    /// against the script's directory by `teleprompt-pipeline`, which is
     /// where filesystem access is allowed (core stays pure).
     pub include: Option<String>,
     pub config: Config,

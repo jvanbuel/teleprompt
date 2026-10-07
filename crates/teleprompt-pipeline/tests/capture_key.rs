@@ -12,9 +12,9 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::{BlockId, Hash};
+use teleprompt_pipeline::compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_scene::capture::mock::MockCapture;
 use teleprompt_scene::{ScenePlugin, ScenePlugins};
 use teleprompt_script::parse::parse_script;
@@ -250,8 +250,8 @@ fn a_pause_does_not_join_the_chain() {
 /// today's names.
 #[test]
 fn a_capture_key_names_the_recipe_that_recorded_it() {
-    use teleprompt_compile::CAPTURE_RECIPE;
     use teleprompt_core::config::SceneConfig;
+    use teleprompt_pipeline::compile::CAPTURE_RECIPE;
 
     let out = run(&format!(
         "{HEAD}One. {{#one}}\n\n\

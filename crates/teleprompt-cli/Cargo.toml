@@ -23,7 +23,7 @@ teleprompt-lsp = { path = "../teleprompt-lsp" }
 teleprompt-draft = { path = "../teleprompt-draft" }
 teleprompt-serve = { path = "../teleprompt-serve" }
 teleprompt-core = { path = "../teleprompt-core" }
-teleprompt-schedule = { path = "../teleprompt-schedule" }
+teleprompt-pipeline = { path = "../teleprompt-pipeline" }
 teleprompt-script = { path = "../teleprompt-script" }
 teleprompt-voice = { path = "../teleprompt-voice" }
 clap.workspace = true
@@ -46,7 +46,6 @@ teleprompt-testkit = { path = "../teleprompt-testkit" }
 teleprompt-asciinema = { path = "../teleprompt-asciinema" }
 teleprompt-listen = { path = "../teleprompt-listen" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
-teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-scene = { path = "../teleprompt-scene" }
 serde_yaml.workspace = true
 insta.workspace = true

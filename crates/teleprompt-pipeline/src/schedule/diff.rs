@@ -6,7 +6,7 @@ use teleprompt_core::config::TransitionKind;
 use teleprompt_core::time::short;
 use teleprompt_core::{DurationSource, ItemId};
 
-use crate::timeline::{Entry, Timeline};
+use crate::schedule::timeline::{Entry, Timeline};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ChangedBeat {

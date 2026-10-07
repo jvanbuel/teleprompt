@@ -1,8 +1,8 @@
 //! `teleprompt plan`: the timeline, and how it differs from the committed one.
 
 use teleprompt_core::{Diagnostics, SpanMs};
+use teleprompt_pipeline::schedule::{diff, Timeline, TimelineDiff, TIMELINE_VERSION};
 use teleprompt_project::CompileOutput;
-use teleprompt_schedule::{diff, Timeline, TimelineDiff, TIMELINE_VERSION};
 
 use teleprompt_project::project::Script;
 

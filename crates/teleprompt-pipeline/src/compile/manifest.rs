@@ -3,14 +3,14 @@
 //! from what `compile` kept in [`NarrationDetail`]. Only this crate holds
 //! both.
 
+use crate::schedule::Timeline;
 use teleprompt_manifest::{
     audio_path, AudioInfo, ChapterEntry, LineEntry, NarrationManifest, ShotEntry, WordEntry,
     MANIFEST_VERSION,
 };
-use teleprompt_schedule::Timeline;
 use teleprompt_script::program::ChapterInfo;
 
-use crate::NarrationDetail;
+use crate::compile::NarrationDetail;
 
 /// Joins a scheduled [`Timeline`] with the [`NarrationDetail`] `compile`
 /// kept. Unmatched entries on either side are dropped; a single `compile`

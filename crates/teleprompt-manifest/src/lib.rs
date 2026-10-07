@@ -1,5 +1,5 @@
 //! The narration manifest: the published contract a renderer reads
-//! (docs/design.md#manifest). `teleprompt-compile` builds it; renderers,
+//! (docs/design.md#manifest). `teleprompt-pipeline` builds it; renderers,
 //! the prompter and outside consumers read it.
 
 use serde::{Deserialize, Serialize};
@@ -99,7 +99,7 @@ pub struct LineEntry {
     pub audio: String,
     pub source_hash: Hash,
     /// Hash of the audio file's bytes, set by `dub` after encoding; see
-    /// `teleprompt_compile::manifest::build`. Byte-identical audio repeats a hash (every same-length
+    /// `teleprompt_pipeline::compile::manifest::build`. Byte-identical audio repeats a hash (every same-length
     /// line of `null` silence does), and that is correct: line identity is
     /// `source_hash`.
     pub audio_hash: Hash,

@@ -1,11 +1,11 @@
 //! A video over its `timing.length_ms`: by how much, what pictures hold,
 //! and about how much narration to cut (docs/design.md#led-by-the-picture).
 
+use crate::schedule::Timeline;
 use teleprompt_core::PolicyKind;
-use teleprompt_schedule::Timeline;
 use teleprompt_script::program::ChapterInfo;
 
-use crate::NarrationDetail;
+use crate::compile::NarrationDetail;
 
 fn seconds(ms: u64) -> String {
     format!("{:.1} s", ms as f64 / 1000.0)

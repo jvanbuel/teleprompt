@@ -1,20 +1,23 @@
 [package]
-name = "teleprompt-compile"
+name = "teleprompt-pipeline"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+# A script to its timeline and manifest: the scheduler, which is pure, and
+# the compiler, which walks a resolved program and drives the voice and
+# scene contracts. Never reaches a voice backend or runs a scene's tool.
 [dependencies]
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-script = { path = "../teleprompt-script" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
 teleprompt-scene = { path = "../teleprompt-scene" }
-teleprompt-schedule = { path = "../teleprompt-schedule" }
 teleprompt-voice = { path = "../teleprompt-voice" }
+serde.workspace = true
 
 [dev-dependencies]
-# The tests compile against the mock scene plugin, as the engine registers it.
+# The compiler's tests compile against the mock scene plugin, as the engine registers it.
 teleprompt-testkit = { path = "../teleprompt-testkit" }
 insta.workspace = true
 serde_json.workspace = true

@@ -4,9 +4,9 @@
 use std::path::Path;
 use teleprompt_core::SpanMs;
 
-use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::Diagnostics;
+use teleprompt_pipeline::compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_scene::ScenePlugins;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::resolve;

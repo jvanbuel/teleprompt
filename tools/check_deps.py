@@ -4,8 +4,8 @@
     python3 tools/check_deps.py
 
 The layering is docs/design.md#crates: core at the bottom; the scene
-contract, schedule and manifest on core alone and not on one another;
-compile where they meet; render reading the manifest, not the compiler;
+contract and the manifest on core alone and not on one another;
+the pipeline where they meet; render reading the manifest, not the compiler;
 every scene plugin on the scene crate alone, every voice on the
 voice contract alone; and only the CLI knowing every plugin and voice by
 name. A new dependency between workspace
@@ -33,14 +33,14 @@ ALLOWED = {
     "core": set(),
     # The script language: parsing, resolving, editing and translating.
     "script": {"core"},
-    "schedule": {"core"},
     # What a scene plugin implements: the contract, capture, recording and
     # the protocol.
     "scene": {"core"},
     "voice": {"core"},
     "manifest": {"core"},
     "voices": VOICE,
-    "compile": {"core", "script", "scene", "schedule", "voice", "manifest"},
+    # A script to its timeline and manifest: the scheduler and the compiler.
+    "pipeline": {"core", "script", "scene", "voice", "manifest"},
     "render": {"core", "manifest"},
     "vhs": PLUGIN,
     "asciinema": PLUGIN,
@@ -57,8 +57,8 @@ ALLOWED = {
     # plugins and voices as a `Registry` and knows none by name, so no
     # plugin crate and no voice is here.
     "project": {
-        "core", "script", "scene", "schedule", "voice", "manifest",
-        "compile", "render", "setup",
+        "core", "script", "scene", "voice", "manifest", "pipeline", "render",
+        "setup",
     },
     # The one crate that knows every scene plugin and voice by name.
     "registry": {"project", "scene", "voices"} | PLUGIN_CRATES,
@@ -73,7 +73,7 @@ ALLOWED = {
     # The command line, composing the rest, and the commands that only
     # read or print: check, plan, new, cache, voice clone.
     "cli": {
-        "project", "registry", "setup", "lsp", "draft", "serve", "core", "schedule",
+        "project", "registry", "setup", "lsp", "draft", "serve", "core", "pipeline",
         "script", "voice",
     },
 }

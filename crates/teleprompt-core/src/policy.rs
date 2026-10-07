@@ -1,6 +1,6 @@
 //! A block's pacing policy and alignment, as an author writes them and as
 //! the timeline and manifest record the policy. How they lay an item out is
-//! `teleprompt_schedule::Policy`; these live in `core` so the parser can
+//! `teleprompt_pipeline::schedule::Policy`; these live in `core` so the parser can
 //! check them and the manifest can carry them without the scheduler.
 
 use serde::{Deserialize, Serialize};

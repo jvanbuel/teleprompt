@@ -1,7 +1,7 @@
 use teleprompt_core::config::TimingConfig;
 use teleprompt_core::policy::{Align, PolicyKind};
 use teleprompt_core::DurationMs;
-use teleprompt_schedule::{layout, layout_at};
+use teleprompt_pipeline::schedule::{layout, layout_at};
 
 fn timing() -> TimingConfig {
     TimingConfig {
@@ -259,7 +259,7 @@ fn a_cue_near_the_end_lengthens_the_shot_rather_than_clipping_the_action() {
 /// voice sounds stretched sooner.
 #[test]
 fn a_take_keeps_to_tighter_bounds_than_a_synthesized_line() {
-    use teleprompt_schedule::policy::fit_line;
+    use teleprompt_pipeline::schedule::policy::fit_line;
     let line = fit_line(2000, 10, 1000, false, &timing()).unwrap();
     let take = fit_line(2000, 10, 1000, true, &timing()).unwrap();
     assert_eq!(line.tempo_permille, 1150);

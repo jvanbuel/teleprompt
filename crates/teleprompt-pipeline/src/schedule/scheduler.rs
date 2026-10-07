@@ -2,9 +2,9 @@ use teleprompt_core::config::{Transition, TransitionDuration};
 
 use teleprompt_core::{DurationSource, PolicyKind, SpanMs, Tempo, TimeMs};
 
-use crate::item::{ActionInput, Item, NarrationInput};
-use crate::policy::{fit_line, layout_at, Layout};
-use crate::timeline::{ActionEntry, Entry, NarrationEntry, Timeline};
+use crate::schedule::item::{ActionInput, Item, NarrationInput};
+use crate::schedule::policy::{fit_line, layout_at, Layout};
+use crate::schedule::timeline::{ActionEntry, Entry, NarrationEntry, Timeline};
 
 pub const TIMELINE_VERSION: u32 = 1;
 

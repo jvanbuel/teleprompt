@@ -8,10 +8,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use teleprompt_compile::ShotSource;
 use teleprompt_core::config::SceneConfig;
 use teleprompt_core::ShotId;
 use teleprompt_manifest::NarrationManifest;
+use teleprompt_pipeline::compile::ShotSource;
 use teleprompt_scene::capture::{
     sessions, CaptureBackend, Frame, PlannedShot, Progress, Session, WorkDir,
 };

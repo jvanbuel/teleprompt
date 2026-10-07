@@ -6,11 +6,11 @@
 
 use teleprompt_core::{Hash, LineId};
 use teleprompt_manifest::{AudioInfo, NarrationManifest};
-use teleprompt_schedule::Timeline;
+use teleprompt_pipeline::schedule::Timeline;
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
-use teleprompt_compile::{CompileOutput, NarrationDetail};
+use teleprompt_pipeline::compile::{CompileOutput, NarrationDetail};
 
 /// The `AudioInfo` sample rate for a locale with no lines. Any other
 /// manifest takes its rate from the audio produced.
@@ -90,7 +90,7 @@ pub fn publish(compiled: &CompileOutput, audio: Vec<LineAudio>) -> Result<Publis
         lines.push((a.line_id, bytes));
     }
     let (sample_rate, channels) = format.unwrap_or((NO_AUDIO_SAMPLE_RATE, 1));
-    let mut manifest = teleprompt_compile::manifest::build(
+    let mut manifest = teleprompt_pipeline::compile::manifest::build(
         &compiled.timeline,
         &compiled.chapters,
         &compiled.narration,

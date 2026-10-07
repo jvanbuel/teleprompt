@@ -145,7 +145,7 @@ impl ManifestDiff {
 /// moved, because an earlier line changed length.
 ///
 /// The first three reasons are ordered as in the timeline's narration diff
-/// (`teleprompt-schedule/src/diff.rs`); the two must not contradict.
+/// (`teleprompt-pipeline/src/schedule/diff.rs`); the two must not contradict.
 fn reason_for(before: &LineEntry, after: &LineEntry) -> Option<DriftReason> {
     if before.source_hash != after.source_hash {
         Some(DriftReason::TextEdited)

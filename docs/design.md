@@ -167,11 +167,10 @@ reading the manifest it just published.
 |---|---|
 | `teleprompt-core` | the words every crate shares: ids, times and durations, `Hash`, diagnostics, block and line attributes, policies and the config. A scene plugin or a voice depends on this and not on the script language |
 | `teleprompt-script` | the script language: the AST and parser, ids checked, a `Program` resolved against the config, lints, edits written back into the source, and the translation sidecar |
-| `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
 | `teleprompt-scene` | what a scene plugin implements, in one crate: the scene contract (`SceneCompiler`, how a block compiles into shots offline, the mock scene, and `SceneCompilers`, the compilers by name), the `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it alone, and the compiler uses only its contract |
 | `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the duration estimator, the registry, stretching a line to fit, the author's takes, the content-addressed voice cache, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
 | `teleprompt-voices` | the voices teleprompt ships, a module each: `openai`, HTTP against any server that speaks OpenAI's speech API (`kokoro` and `openai` are its presets, and any other `[backends.<name>]` is a server under that name); `voicebox`, a voice cloned from the author's takes or designed from a description; `elevenlabs`, premade or the account's own voices, with each word's timing; `gemini`, Google's Gemini TTS, delivery instructions sent beside the words |
-| `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest. It plans: it reads each line's length from the voice cache or a take, and never encodes audio |
+| `teleprompt-pipeline` | a script to its timeline and manifest: `schedule` (policies, the scheduler, `Timeline`, diff; pure) and `compile`, where the others meet: it walks a `Program`, drives voice and scene, emits items, and builds the manifest. It plans: it reads each line's length from the voice cache or a take, and never encodes audio |
 | `teleprompt-manifest` | the manifest's types and its diff: what a renderer reads, without depending on how it was compiled |
 | `teleprompt-listen` | following a reader through a script: aligns what a speech recognizer hears against the script's words, and fires cues as the reader reaches them; no dependencies. Its opt-in `sherpa` feature adds the recognizer, a streaming sherpa-onnx model, and the offline models drafts are made with; without it the default build stays offline |
 | `teleprompt-render` | the ffmpeg renderer and its chunk cache; reads the manifest, not the compiler |
@@ -546,7 +545,7 @@ The scheduler is a pure function from items, with their durations, to a
 A block's `policy=` decides how its line and action share an item:
 `hold`, `concurrent`, `fit-action`, `trim-action` or `fit-line`. What each
 does is in [the scripts guide](guide/scripts.md#pairing-and-policies); the
-layout is `teleprompt_schedule::layout`.
+layout is `teleprompt_pipeline::schedule::layout`.
 
 A policy only changes a picture if the scene's plugin can re-time its
 source (see `retime` under [the scene contract](#scene-contract)). Where
@@ -711,7 +710,7 @@ position is not in the key. Slot length enters through `retime`: a re-timed
 shot's source is the source that will be captured. A plugin whose
 `continues` is false names each shot by `name(n)` alone.
 
-The *recipe* (`CAPTURE_RECIPE` in `teleprompt-compile`) versions how
+The *recipe* (`CAPTURE_RECIPE` in `teleprompt-pipeline`) versions how
 teleprompt draws a picture: the recorder's version, the tape or script it
 writes around a shot, a changed default. Bump it when the picture for the
 same script changes, since neither the plugin's name nor the author's

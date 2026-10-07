@@ -4,7 +4,7 @@ use teleprompt_core::DurationMs;
 use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
 use teleprompt_core::PolicyKind;
-use teleprompt_schedule::{
+use teleprompt_pipeline::schedule::{
     diff, schedule, ActionInput, ChangeReason, Item, NarrationInput, Pacing, TimelineDiff,
 };
 
@@ -35,7 +35,7 @@ fn item(id: &str, narration_ms: u64, source: &str) -> Item {
     }
 }
 
-fn timeline(items: Vec<Item>) -> teleprompt_schedule::Timeline {
+fn timeline(items: Vec<Item>) -> teleprompt_pipeline::schedule::Timeline {
     schedule(&items, "s.md", "en", "0.1.0").0
 }
 
@@ -215,7 +215,8 @@ fn an_empty_diff_renders_a_single_reassuring_line() {
 fn a_timeline_with_no_action_round_trips_through_json() {
     let original = timeline(vec![item("b1", 1000, "one")]);
     let json = serde_json::to_string_pretty(&original).expect("serialize");
-    let restored: teleprompt_schedule::Timeline = serde_json::from_str(&json).expect("deserialize");
+    let restored: teleprompt_pipeline::schedule::Timeline =
+        serde_json::from_str(&json).expect("deserialize");
     assert_eq!(restored, original);
 }
 

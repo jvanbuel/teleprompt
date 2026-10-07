@@ -4,7 +4,7 @@ use teleprompt_core::DurationSource;
 use teleprompt_core::Hash;
 use teleprompt_core::PolicyKind;
 use teleprompt_core::{DurationMs, SpanMs, TimeMs};
-use teleprompt_schedule::{schedule, ActionInput, Item, NarrationInput, Pacing};
+use teleprompt_pipeline::schedule::{schedule, ActionInput, Item, NarrationInput, Pacing};
 
 fn narration(id: &str, ms: u64) -> NarrationInput {
     let defaults = Config::default().timing;

@@ -2,9 +2,9 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use teleprompt_core::{DurationSource, SpanMs, TimeMs};
 
-use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::Diagnostics;
+use teleprompt_pipeline::compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_scene::ScenePlugins;
 use teleprompt_script::ident::check_ids;
 use teleprompt_script::parse::parse_script;
@@ -59,7 +59,7 @@ fn compile_program(p: &Program) -> Result<CompileOutput, Diagnostics> {
     compile(p, &ScenePlugins::mock(), &ctx, Path::new("."), "0.1.0")
 }
 
-fn run(src: &str) -> teleprompt_compile::CompileOutput {
+fn run(src: &str) -> teleprompt_pipeline::compile::CompileOutput {
     compile_program(&program(src)).unwrap()
 }
 
@@ -726,7 +726,9 @@ fn the_cache_key_covers_the_backend_id() {
 /// covering it. Only the narration's `duration_source` is normalized — an
 /// *action*'s must still match, or a cache hit quietly changing one would
 /// slip through.
-fn timeline_modulo_duration_source(t: &teleprompt_schedule::Timeline) -> serde_json::Value {
+fn timeline_modulo_duration_source(
+    t: &teleprompt_pipeline::schedule::Timeline,
+) -> serde_json::Value {
     let mut v = serde_json::to_value(t).expect("a timeline always serializes");
     for entry in v["entries"].as_array_mut().expect("entries is an array") {
         if let Some(source) = entry.pointer_mut("/narration/duration_source") {

@@ -2,12 +2,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use publish::{LineAudio, Published};
-use teleprompt_compile::NarrationDetail;
 use teleprompt_core::config::OutputConfig;
 use teleprompt_core::{Diagnostics, LineId, Progress, Reporter, Silent, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
+use teleprompt_pipeline::compile::NarrationDetail;
 use teleprompt_voice::cache::{CachedAudio, VoiceCache};
 use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceBackend;
@@ -44,7 +44,10 @@ pub struct Dubbed<S> {
     pub manifest: NarrationManifest,
     /// Every shot's source, which a capture backend runs. The manifest
     /// names the shots; only this says what they do.
-    pub shots: std::collections::BTreeMap<teleprompt_core::ShotId, teleprompt_compile::ShotSource>,
+    pub shots: std::collections::BTreeMap<
+        teleprompt_core::ShotId,
+        teleprompt_pipeline::compile::ShotSource,
+    >,
     /// The scenes as configured, which a capture backend opens.
     pub scenes: std::collections::BTreeMap<String, teleprompt_core::config::SceneConfig>,
     /// The script's `output:` block, which `build` needs and the manifest
@@ -246,7 +249,7 @@ impl<'a> Dubber<'a> {
 /// A script voiced: every line's audio made or read from its take, and
 /// the manifest that publishes it.
 pub struct Voiced {
-    pub compiled: teleprompt_compile::CompileOutput,
+    pub compiled: teleprompt_pipeline::compile::CompileOutput,
     pub published: Published,
     pub warnings: Vec<String>,
 }
@@ -319,7 +322,7 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
 async fn check_voices(
     backends: &Backends,
     backend_id: &str,
-    compiled: &teleprompt_compile::CompileOutput,
+    compiled: &teleprompt_pipeline::compile::CompileOutput,
     cache: &VoiceCache,
 ) -> Result<(), Failure> {
     // A corrupt entry counts as missing: it will be re-rendered.
