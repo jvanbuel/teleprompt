@@ -29,7 +29,14 @@ libc = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# The workspace's groups (../../Cargo.toml), repeated here because this
+# package is not a member of it and so inherits nothing.
 [lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
 too_many_lines = "warn"
 # Each `unsafe` says why it is sound, as the workspace forbids it outright.
 undocumented_unsafe_blocks = "deny"

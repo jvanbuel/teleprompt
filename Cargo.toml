@@ -32,6 +32,14 @@ too_many_arguments = "deny"
 unsafe_code = "forbid"
 unexpected_cfgs = "warn"
 
+# Release binaries: link-time optimization across the workspace's crates, one
+# codegen unit, and no symbols. Unwinding stays: panics are caught at task
+# boundaries (a render task, a request), and aborting would end the process.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
 [workspace.dependencies]
 async-trait = "0.1"
 base64 = "0.22"
