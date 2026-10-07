@@ -20,6 +20,6 @@ pub const PLUGIN_NAME: &str = "x11";
 pub const SCENE: crate::DesktopScene = crate::DesktopScene { kind: PLUGIN_NAME };
 
 /// The plugin, to register.
-pub fn plugin() -> teleprompt_plugin::ScenePlugin {
-    teleprompt_plugin::ScenePlugin::new(SCENE, X11Render::default())
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(SCENE, X11Render::default())
 }

@@ -168,8 +168,7 @@ reading the manifest it just published.
 | `teleprompt-core` | the words every crate shares: ids, times and durations, `Hash`, diagnostics, block and line attributes, policies and the config. A scene plugin or a voice depends on this and not on the script language |
 | `teleprompt-script` | the script language: the AST and parser, ids checked, a `Program` resolved against the config, lints, edits written back into the source, and the translation sidecar |
 | `teleprompt-schedule` | policies, the scheduler, `Timeline`, diff. Pure. |
-| `teleprompt-scene` | the scene contract: `SceneCompiler`, how a block compiles into shots offline, the mock scene, and `SceneCompilers`, the compilers by name. Nothing in it runs a tool |
-| `teleprompt-plugin` | what a scene plugin implements, in one crate: the scene contract (re-exported as `plugin::scene`), the `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it and core alone |
+| `teleprompt-scene` | what a scene plugin implements, in one crate: the scene contract (`SceneCompiler`, how a block compiles into shots offline, the mock scene, and `SceneCompilers`, the compilers by name), the `CaptureBackend` and `Recorder` contracts, `ScenePlugin` (the three under one name), the mock scene plugin, the protocol for a plugin as a program, and helpers for running a plugin's tools. Every scene plugin depends on it alone, and the compiler uses only its contract |
 | `teleprompt-voice` | the voice contract, `VoiceBackend`, which takes OpenAI's speech request; PCM and WAV; the duration estimator, the registry, stretching a line to fit, the author's takes, the content-addressed voice cache, and the `null` voice: silence at the estimated length. Every voice teleprompt ships depends on it and core alone |
 | `teleprompt-voices` | the voices teleprompt ships, a module each: `openai`, HTTP against any server that speaks OpenAI's speech API (`kokoro` and `openai` are its presets, and any other `[backends.<name>]` is a server under that name); `voicebox`, a voice cloned from the author's takes or designed from a description; `elevenlabs`, premade or the account's own voices, with each word's timing; `gemini`, Google's Gemini TTS, delivery instructions sent beside the words |
 | `teleprompt-compile` | where the others meet: walks a `Program`, drives voice and scene, emits items, and builds the manifest. It plans: it reads each line's length from the voice cache or a take, and never encodes audio |
@@ -971,7 +970,7 @@ a video needs comes in three tiers.
    what is installed. Teleprompt hosts nothing and passes no license on. A
    plugin starts when a command first needs it and stops when the command
    ends; teleprompt sends it one request at a time. A built-in plugin's
-   name wins. `teleprompt_plugin::protocol` is both sides: the host, which
+   name wins. `teleprompt_scene::protocol` is both sides: the host, which
    holds an outside plugin as the contract it implements, so nothing else
    in teleprompt can tell it from a built-in one; and `serve`, which makes
    a Rust plugin a program. `examples/plugins` has one in Python, and

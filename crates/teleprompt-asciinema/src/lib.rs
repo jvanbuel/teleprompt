@@ -15,7 +15,7 @@ pub use record::AsciinemaRecorder;
 pub use scene::AsciinemaScene;
 
 /// The plugin, to register.
-pub fn plugin() -> teleprompt_plugin::ScenePlugin {
-    teleprompt_plugin::ScenePlugin::new(AsciinemaScene, AsciinemaRender::default())
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(AsciinemaScene, AsciinemaRender::default())
         .recorded_with(AsciinemaRecorder)
 }

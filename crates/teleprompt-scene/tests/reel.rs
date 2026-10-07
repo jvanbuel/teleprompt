@@ -8,8 +8,8 @@
 use std::path::Path;
 
 use teleprompt_core::Hash;
-use teleprompt_plugin::capture::reel::{starved, windows};
-use teleprompt_plugin::capture::{Session, SessionShot};
+use teleprompt_scene::capture::reel::{starved, windows};
+use teleprompt_scene::capture::{Session, SessionShot};
 
 /// The windows are the scheduled durations, accumulated.
 #[test]

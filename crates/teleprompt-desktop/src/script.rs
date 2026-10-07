@@ -5,8 +5,8 @@
 //! window needs and a terminal does not: `Key` for a bare letter, the
 //! pointer (`Move`, `Click`), and `Wait` for a window's title.
 
-use teleprompt_plugin::core::attrs::parse_duration_ms;
-use teleprompt_plugin::scene::CommandError;
+use teleprompt_scene::core::attrs::parse_duration_ms;
+use teleprompt_scene::CommandError;
 
 /// The mark, spelled as a comment (`docs/design.md#marks`).
 pub const MARK: &str = "# mark";

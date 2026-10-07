@@ -22,6 +22,6 @@ pub const PLUGIN_NAME: &str = "macos";
 pub const SCENE: crate::DesktopScene = crate::DesktopScene { kind: PLUGIN_NAME };
 
 /// The plugin, to register.
-pub fn plugin() -> teleprompt_plugin::ScenePlugin {
-    teleprompt_plugin::ScenePlugin::new(SCENE, MacosRender::default())
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(SCENE, MacosRender::default())
 }

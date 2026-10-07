@@ -6,17 +6,17 @@
 //! showing the reveal its sentence is about.
 //!
 //! A still is the same picture at any length. So `estimate` is
-//! [`Measured::Unknown`](teleprompt_plugin::scene::Measured::Unknown) — the scheduler gives the shot its sentence — and
+//! [`Measured::Unknown`](teleprompt_scene::Measured::Unknown) — the scheduler gives the shot its sentence — and
 //! there is no `retime`: the length is kept out of the key on purpose, and
 //! rewording a sentence reuses the slide it was spoken over.
 
 use std::path::PathBuf;
 
-use teleprompt_plugin::core::config::SceneConfig;
-use teleprompt_plugin::core::{BlockId, Diagnostic, Hash};
-use teleprompt_plugin::scene::contract::{
+use teleprompt_scene::contract::{
     split_at_mark, validate_parts, BlockSource, SceneCompiler, Shot, Validated,
 };
+use teleprompt_scene::core::config::SceneConfig;
+use teleprompt_scene::core::{BlockId, Diagnostic, Hash};
 
 /// The mark, and `#` comments generally. A shot after a mark has no
 /// sentence to take its length from, and `check` refuses it.

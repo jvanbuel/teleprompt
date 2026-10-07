@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use teleprompt_plugin::capture::{CaptureBackend, Frame, Session, SessionShot};
-use teleprompt_plugin::core::Hash;
+use teleprompt_scene::capture::{CaptureBackend, Frame, Session, SessionShot};
+use teleprompt_scene::core::Hash;
 use teleprompt_vhs::capture::VhsRender;
 
 #[test]

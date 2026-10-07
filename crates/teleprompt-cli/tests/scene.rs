@@ -54,8 +54,8 @@ fn an_unknown_plugin_is_not_served() {
 /// is a frozen frame.
 #[tokio::test]
 async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
-    use teleprompt_plugin::scene::Measured;
     use teleprompt_project::project::Project;
+    use teleprompt_scene::Measured;
 
     let dir = teleprompt_testkit::test_dir("stretch");
     teleprompt_cli::commands::new::scaffold(&dir).unwrap();
@@ -101,7 +101,7 @@ async fn a_stretched_shot_is_published_re_timed_to_its_scheduled_length() {
         .get("vhs")
         .expect("this build ships vhs")
         .scene();
-    let again = teleprompt_plugin::scene::Validated {
+    let again = teleprompt_scene::Validated {
         scene: published.scene.clone(),
         body: published.source.clone(),
     };

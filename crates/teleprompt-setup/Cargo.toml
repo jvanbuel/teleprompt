@@ -12,7 +12,7 @@ listen = []
 
 [dependencies]
 teleprompt-core = { path = "../teleprompt-core" }
-teleprompt-plugin = { path = "../teleprompt-plugin" }
+teleprompt-scene = { path = "../teleprompt-scene" }
 serde.workspace = true
 serde_json.workspace = true
 # The installed plugins and voices, as a table.

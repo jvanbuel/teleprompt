@@ -116,7 +116,7 @@ impl Platform {
 /// Where `setup` unpacks models, and where commands look for them:
 /// `$TELEPROMPT_MODELS`, or `teleprompt/models` in the user's data directory.
 pub fn models_dir() -> PathBuf {
-    teleprompt_plugin::dirs::data("TELEPROMPT_MODELS", "models")
+    teleprompt_scene::dirs::data("TELEPROMPT_MODELS", "models")
 }
 
 fn on_path(program: &str) -> bool {
@@ -307,7 +307,7 @@ impl Setup {
             voice: None,
             scenes: Vec::new(),
             voices: Vec::new(),
-            plugins_dir: teleprompt_plugin::protocol::host::plugins_dir()
+            plugins_dir: teleprompt_scene::protocol::host::plugins_dir()
                 .display()
                 .to_string(),
         }

@@ -11,8 +11,8 @@
 //! stating its size and `duration`, then its events from zero — which is
 //! what makes a shot's length and `retime` arithmetic rather than guesses.
 
-use teleprompt_plugin::core::{BlockId, Diagnostic, Hash};
-use teleprompt_plugin::scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
+use teleprompt_scene::contract::{BlockSource, Measured, SceneCompiler, Shot, Validated};
+use teleprompt_scene::core::{BlockId, Diagnostic, Hash};
 
 /// One event, at an absolute time in seconds.
 #[derive(Debug, Clone, PartialEq)]
@@ -339,7 +339,7 @@ pub struct AsciinemaScene;
 
 pub fn length(source: &str) -> Measured {
     parse(source).map_or(Measured::Unknown, |c| {
-        Measured::Exact(teleprompt_plugin::core::time::ms_from_seconds(c.duration))
+        Measured::Exact(teleprompt_scene::core::time::ms_from_seconds(c.duration))
     })
 }
 

@@ -7,7 +7,7 @@
 use std::collections::HashSet;
 
 use teleprompt_core::Hash;
-use teleprompt_plugin::capture::{sessions, PlannedShot};
+use teleprompt_scene::capture::{sessions, PlannedShot};
 
 fn shot(shot: &str, scene: &str, source: &str) -> PlannedShot {
     PlannedShot {

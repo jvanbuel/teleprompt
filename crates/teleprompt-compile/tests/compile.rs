@@ -5,7 +5,7 @@ use teleprompt_core::{DurationSource, SpanMs, TimeMs};
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::Diagnostics;
-use teleprompt_plugin::ScenePlugins;
+use teleprompt_scene::ScenePlugins;
 use teleprompt_script::ident::check_ids;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, Program};

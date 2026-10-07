@@ -8,7 +8,7 @@ license.workspace = true
 # The one crate that knows every scene plugin and voice by name.
 [dependencies]
 teleprompt-project = { path = "../teleprompt-project" }
-teleprompt-plugin = { path = "../teleprompt-plugin" }
+teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-voices = { path = "../teleprompt-voices" }
 teleprompt-asciinema = { path = "../teleprompt-asciinema" }
 teleprompt-desktop = { path = "../teleprompt-desktop" }

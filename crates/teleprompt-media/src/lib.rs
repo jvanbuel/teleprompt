@@ -11,6 +11,6 @@ pub use capture::MediaRender;
 pub use scene::MediaScene;
 
 /// The plugin, to register.
-pub fn plugin() -> teleprompt_plugin::ScenePlugin {
-    teleprompt_plugin::ScenePlugin::new(MediaScene, MediaRender::default())
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(MediaScene, MediaRender::default())
 }

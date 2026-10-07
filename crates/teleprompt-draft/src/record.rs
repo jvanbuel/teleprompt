@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use teleprompt_plugin::record::Start;
+use teleprompt_scene::record::Start;
 
 use crate::import::{draft_session, refuse_to_replace, ImportReport, Session, Words};
 use teleprompt_core::Reporter;

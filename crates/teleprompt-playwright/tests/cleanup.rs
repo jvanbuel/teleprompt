@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use teleprompt_playwright::capture::PlaywrightRender;
-use teleprompt_plugin::capture::{CaptureBackend, Frame, Session, SessionShot};
-use teleprompt_plugin::core::Hash;
+use teleprompt_scene::capture::{CaptureBackend, Frame, Session, SessionShot};
+use teleprompt_scene::core::Hash;
 
 #[test]
 fn a_capture_that_cannot_run_leaves_no_work_dir() {

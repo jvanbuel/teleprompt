@@ -2,12 +2,12 @@
 //! and, where its tool can, how an author's session is recorded, under the
 //! one name a block's scene gives (`docs/design.md#crates`).
 
-use crate::scene::{SceneCompiler, SceneCompilers};
+use crate::{SceneCompiler, SceneCompilers};
 
 use crate::capture::mock::MockCapture;
 use crate::capture::CaptureBackend;
 use crate::record::Recorder;
-use crate::scene::MockScene;
+use crate::MockScene;
 use teleprompt_core::tool::Tool;
 
 /// What a scene plugin crate hands the CLI to register. Its name is its scene

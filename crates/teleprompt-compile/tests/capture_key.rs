@@ -15,8 +15,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use teleprompt_compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_core::config::PartialConfig;
 use teleprompt_core::{BlockId, Hash};
-use teleprompt_plugin::capture::mock::MockCapture;
-use teleprompt_plugin::{ScenePlugin, ScenePlugins};
+use teleprompt_scene::capture::mock::MockCapture;
+use teleprompt_scene::{ScenePlugin, ScenePlugins};
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::resolve;
 use teleprompt_voice::cache::VoiceCache;
@@ -289,24 +289,22 @@ fn a_capture_key_names_the_recipe_that_recorded_it() {
 /// composition that draws the same frames whatever came before it.
 struct Still;
 
-impl teleprompt_plugin::scene::contract::SceneCompiler for Still {
+impl teleprompt_scene::contract::SceneCompiler for Still {
     fn kind(&self) -> &'static str {
         "still"
     }
     fn validate(
         &self,
-        src: &teleprompt_plugin::scene::contract::BlockSource,
-    ) -> Result<teleprompt_plugin::scene::contract::Validated, Vec<teleprompt_core::Diagnostic>>
-    {
-        teleprompt_plugin::scene::mock::MockScene.validate(src)
+        src: &teleprompt_scene::contract::BlockSource,
+    ) -> Result<teleprompt_scene::contract::Validated, Vec<teleprompt_core::Diagnostic>> {
+        teleprompt_scene::mock::MockScene.validate(src)
     }
     fn shots(
         &self,
-        v: &teleprompt_plugin::scene::contract::Validated,
+        v: &teleprompt_scene::contract::Validated,
         block_id: &BlockId,
-    ) -> Result<Vec<teleprompt_plugin::scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>>
-    {
-        teleprompt_plugin::scene::mock::MockScene.shots(v, block_id)
+    ) -> Result<Vec<teleprompt_scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>> {
+        teleprompt_scene::mock::MockScene.shots(v, block_id)
     }
     fn continues(&self) -> bool {
         false
@@ -382,24 +380,22 @@ fn editing_a_file_the_scene_draws_from_re_captures_it() {
 /// mock's `wait 1000ms` shows `one`, anything else `two`.
 struct Pictured;
 
-impl teleprompt_plugin::scene::contract::SceneCompiler for Pictured {
+impl teleprompt_scene::contract::SceneCompiler for Pictured {
     fn kind(&self) -> &'static str {
         "pictured"
     }
     fn validate(
         &self,
-        src: &teleprompt_plugin::scene::contract::BlockSource,
-    ) -> Result<teleprompt_plugin::scene::contract::Validated, Vec<teleprompt_core::Diagnostic>>
-    {
-        teleprompt_plugin::scene::mock::MockScene.validate(src)
+        src: &teleprompt_scene::contract::BlockSource,
+    ) -> Result<teleprompt_scene::contract::Validated, Vec<teleprompt_core::Diagnostic>> {
+        teleprompt_scene::mock::MockScene.validate(src)
     }
     fn shots(
         &self,
-        v: &teleprompt_plugin::scene::contract::Validated,
+        v: &teleprompt_scene::contract::Validated,
         block_id: &BlockId,
-    ) -> Result<Vec<teleprompt_plugin::scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>>
-    {
-        teleprompt_plugin::scene::mock::MockScene.shots(v, block_id)
+    ) -> Result<Vec<teleprompt_scene::contract::Shot>, Vec<teleprompt_core::Diagnostic>> {
+        teleprompt_scene::mock::MockScene.shots(v, block_id)
     }
     fn continues(&self) -> bool {
         false

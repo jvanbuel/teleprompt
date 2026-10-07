@@ -4,10 +4,10 @@
 //! itself. See `docs/design.md#scene-plugins` for what is refused and why a shot
 //! is `Exact` or `Estimated`.
 
-use teleprompt_plugin::core::attrs::parse_duration_ms;
-use teleprompt_plugin::core::{BlockId, Diagnostic, Hash};
+use teleprompt_scene::core::attrs::parse_duration_ms;
+use teleprompt_scene::core::{BlockId, Diagnostic, Hash};
 
-use teleprompt_plugin::scene::{
+use teleprompt_scene::{
     validate_commands, BlockSource, CommandError, Measured, SceneCompiler, Shot, Validated,
 };
 
@@ -519,7 +519,7 @@ impl SceneCompiler for VhsScene {
 
     /// `#2` is the part of a tape after its first `# mark`, `#2-3` a range.
     fn select(&self, body: &str, fragment: &str) -> Result<String, String> {
-        teleprompt_plugin::scene::select_marked(body, MARK, fragment)
+        teleprompt_scene::select_marked(body, MARK, fragment)
     }
 
     fn validate(&self, src: &BlockSource) -> Result<Validated, Vec<Diagnostic>> {

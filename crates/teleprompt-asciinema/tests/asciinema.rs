@@ -3,9 +3,9 @@
 use teleprompt_asciinema::capture::session_cast;
 use teleprompt_asciinema::scene::{parse, retimed, split};
 use teleprompt_asciinema::AsciinemaScene;
-use teleprompt_plugin::capture::{Session, SessionShot};
-use teleprompt_plugin::core::{BlockId, Hash};
-use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
+use teleprompt_scene::capture::{Session, SessionShot};
+use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
+use teleprompt_scene::core::{BlockId, Hash};
 
 const V2: &str = r#"{"version": 2, "width": 80, "height": 24}
 [0.5, "o", "$ "]

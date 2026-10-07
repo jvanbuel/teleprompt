@@ -13,7 +13,7 @@ directory, and check that teleprompt finds it:
     export PATH="$PWD/examples/plugins:$PATH"
     teleprompt setup card
 
-Then a block can say `scene=card`. The tests in `crates/teleprompt-plugin`
+Then a block can say `scene=card`. The tests in `crates/teleprompt-scene`
 and `crates/teleprompt-cli` run it, so it stays in step with the protocol,
 and `examples/plugin-authors` is a video made with it.
 

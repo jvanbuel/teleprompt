@@ -15,7 +15,7 @@ mod voices;
 /// programs of their own, found once; and its voices. A plugin program
 /// starts only when first asked something.
 pub fn registry() -> Registry {
-    static SCENES: OnceLock<teleprompt_plugin::ScenePlugins> = OnceLock::new();
+    static SCENES: OnceLock<teleprompt_scene::ScenePlugins> = OnceLock::new();
     static VOICES: OnceLock<Vec<Voice>> = OnceLock::new();
     Registry {
         scenes: SCENES.get_or_init(scenes::all),

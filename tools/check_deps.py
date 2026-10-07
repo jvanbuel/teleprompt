@@ -3,18 +3,18 @@
 
     python3 tools/check_deps.py
 
-The layering is docs/design.md#crates: core at the bottom; the plugin
-contracts, schedule and manifest on core alone and not on one another;
+The layering is docs/design.md#crates: core at the bottom; the scene
+contract, schedule and manifest on core alone and not on one another;
 compile where they meet; render reading the manifest, not the compiler;
-every scene plugin on the plugin contracts alone, every voice on the
+every scene plugin on the scene crate alone, every voice on the
 voice contract alone; and only the CLI knowing every plugin and voice by
 name. A new dependency between workspace
 crates has to be added here, which is where the argument for it belongs.
 Dev-dependencies are not checked.
 
-The scene contract is a crate of its own, apart from the plugin crate that
-runs tools, so the crates that plan a video depend on it and nothing that
-plans a video can run a tool.
+The scene crate holds the contract a plugin implements and the code that
+runs one; the compiler may use only its contract (`scene::contract`), which
+review enforces.
 """
 
 import json
@@ -23,7 +23,7 @@ import sys
 
 # A plugin depends on the contracts it implements, and nothing else of
 # teleprompt's: what an outside plugin can do, the built-in ones do.
-PLUGIN = {"plugin"}
+PLUGIN = {"scene"}
 # The voices teleprompt ships depend on the voice contract, and nothing else.
 VOICE = {"core", "voice"}
 
@@ -34,9 +34,9 @@ ALLOWED = {
     # The script language: parsing, resolving, editing and translating.
     "script": {"core"},
     "schedule": {"core"},
+    # What a scene plugin implements: the contract, capture, recording and
+    # the protocol.
     "scene": {"core"},
-    # Recording, on top of the scene contract it re-exports as `scene`.
-    "plugin": {"core", "scene"},
     "voice": {"core"},
     "manifest": {"core"},
     "voices": VOICE,
@@ -57,17 +57,17 @@ ALLOWED = {
     # plugins and voices as a `Registry` and knows none by name, so no
     # plugin crate and no voice is here.
     "project": {
-        "core", "script", "scene", "plugin", "schedule", "voice", "manifest",
+        "core", "script", "scene", "schedule", "voice", "manifest",
         "compile", "render", "setup",
     },
     # The one crate that knows every scene plugin and voice by name.
-    "registry": {"project", "plugin", "voices"} | PLUGIN_CRATES,
+    "registry": {"project", "scene", "voices"} | PLUGIN_CRATES,
     # What `setup` finds and installs: what the plugins and voices need.
-    "setup": {"core", "plugin"},
+    "setup": {"core", "scene"},
     # The language server, with the real compile as its analyzer.
     "lsp": {"project", "core", "script"},
     # Drafts from what was said: `import` and `record`.
-    "draft": {"project", "setup", "core", "script", "listen", "plugin", "voice"},
+    "draft": {"project", "setup", "core", "script", "listen", "scene", "voice"},
     # The prompter: its page, API and session, following a reader by ear.
     "serve": {"project", "setup", "core", "script", "listen", "voice"},
     # The command line, composing the rest, and the commands that only

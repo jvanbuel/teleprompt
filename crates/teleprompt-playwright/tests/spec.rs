@@ -1,8 +1,8 @@
 //! One test of a Playwright test file, as `include=file#title` names it.
 
 use teleprompt_playwright::PlaywrightScene;
-use teleprompt_plugin::core::BlockId;
-use teleprompt_plugin::scene::contract::SceneCompiler;
+use teleprompt_scene::contract::SceneCompiler;
+use teleprompt_scene::core::BlockId;
 
 const SPEC: &str = r#"import { test, expect } from '@playwright/test';
 
@@ -61,8 +61,8 @@ fn a_script_s_fragment_is_a_part_between_marks() {
 
 #[test]
 fn a_whole_test_file_asks_for_a_test_to_be_named() {
-    use teleprompt_plugin::core::SourceSpan;
-    use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin};
+    use teleprompt_scene::contract::{BlockSource, BodyOrigin};
+    use teleprompt_scene::core::SourceSpan;
     let src = BlockSource {
         scene: "browser".into(),
         body: SPEC.into(),

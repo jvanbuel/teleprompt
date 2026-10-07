@@ -8,6 +8,6 @@ license.workspace = true
 [dependencies]
 serde_json.workspace = true
 
-teleprompt-plugin = { path = "../teleprompt-plugin" }
+teleprompt-scene = { path = "../teleprompt-scene" }
 [lints]
 workspace = true

@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use teleprompt_plugin::capture::{
+use teleprompt_scene::capture::{
     CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
 };
 
@@ -98,14 +98,14 @@ impl CaptureBackend for VhsRender {
         // and a probe recording would take a minute. A `vhs` that is
         // installed but records nothing is caught in `capture`, and its
         // session renders as slates with the reason.
-        teleprompt_plugin::core::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
+        teleprompt_scene::core::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
             &crate::tools::VHS,
             &crate::tools::TTYD,
-            &teleprompt_plugin::core::tool::FFMPEG,
+            &teleprompt_scene::core::tool::FFMPEG,
         ];
         NEEDS
     }
@@ -142,7 +142,7 @@ impl CaptureBackend for VhsRender {
         let said = |ran: &std::process::Output| {
             let text = String::from_utf8_lossy(&ran.stderr).into_owned()
                 + &String::from_utf8_lossy(&ran.stdout);
-            teleprompt_plugin::core::tool::tail(&text, 4)
+            teleprompt_scene::core::tool::tail(&text, 4)
         };
         if !ran.status.success() {
             return Err(job.failed_all(format!(
@@ -169,9 +169,9 @@ impl CaptureBackend for VhsRender {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_plugin::capture::reel::windows;
-    use teleprompt_plugin::capture::SessionShot;
-    use teleprompt_plugin::core::Hash;
+    use teleprompt_scene::capture::reel::windows;
+    use teleprompt_scene::capture::SessionShot;
+    use teleprompt_scene::core::Hash;
 
     fn session(shots: &[(&str, u64)]) -> Session {
         Session {

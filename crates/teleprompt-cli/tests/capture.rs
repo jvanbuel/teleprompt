@@ -165,7 +165,7 @@ async fn a_scene_with_no_backend_is_a_slate_and_says_why() {
     // A machine with no backend for this scene — which is every machine
     // that has not installed one, and every scene kind teleprompt can
     // compile and cannot yet run.
-    let none = teleprompt_plugin::ScenePlugins::new([]);
+    let none = teleprompt_scene::ScenePlugins::new([]);
     let report = builder
         .plugins(&none)
         .build(&teleprompt_core::Silent)

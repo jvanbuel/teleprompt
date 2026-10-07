@@ -4,12 +4,12 @@
 use std::process::Command;
 
 use teleprompt_desktop::x11::X11Render;
-use teleprompt_plugin::capture::{CaptureBackend, Frame, Session, SessionShot};
-use teleprompt_plugin::core::Hash;
+use teleprompt_scene::capture::{CaptureBackend, Frame, Session, SessionShot};
+use teleprompt_scene::core::Hash;
 
 fn ready() -> bool {
     let render = X11Render::default();
-    render.unavailable().is_none() && teleprompt_plugin::core::tool::installed("xterm")
+    render.unavailable().is_none() && teleprompt_scene::core::tool::installed("xterm")
 }
 
 fn session(command: &str, shots: &[(&str, u64, bool)]) -> Session {

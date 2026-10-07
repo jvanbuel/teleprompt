@@ -376,7 +376,7 @@ fn chain_capture_keys(
 /// describes them: directories recursively in a stable order, skipping
 /// `node_modules` and dot-entries. Empty when there is nothing to read.
 ///
-/// [`SceneCompiler::inputs`]: teleprompt_plugin::scene::SceneCompiler::inputs
+/// [`SceneCompiler::inputs`]: teleprompt_scene::SceneCompiler::inputs
 fn fingerprint(paths: &[std::path::PathBuf], root: &Path) -> String {
     fn walk(path: &Path, root: &Path, out: &mut Vec<String>) {
         if path.is_dir() {

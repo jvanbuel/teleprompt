@@ -5,9 +5,9 @@ use std::path::Path;
 use teleprompt_media::capture::args;
 use teleprompt_media::scene::{parse_line, parse_time, Directive};
 use teleprompt_media::MediaScene;
-use teleprompt_plugin::capture::{Frame, Session, SessionShot};
-use teleprompt_plugin::core::{BlockId, Hash, SourceSpan};
-use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
+use teleprompt_scene::capture::{Frame, Session, SessionShot};
+use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
+use teleprompt_scene::core::{BlockId, Hash, SourceSpan};
 
 fn src(body: &str) -> BlockSource {
     BlockSource {
@@ -189,7 +189,7 @@ mod capture {
 /// A shot is keyed on the one file it shows; a title shows none.
 #[test]
 fn a_shot_names_the_file_it_shows() {
-    let scene = teleprompt_plugin::core::config::SceneConfig {
+    let scene = teleprompt_scene::core::config::SceneConfig {
         plugin: "media".into(),
         settings: [("dir".to_string(), "assets".into())].into_iter().collect(),
         root: Default::default(),

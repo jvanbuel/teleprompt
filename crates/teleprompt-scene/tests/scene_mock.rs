@@ -1,6 +1,6 @@
 use teleprompt_core::{BlockId, SourceSpan};
-use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, MockScene, SceneCompiler};
-use teleprompt_plugin::ScenePlugins;
+use teleprompt_scene::ScenePlugins;
+use teleprompt_scene::{BlockSource, BodyOrigin, Measured, MockScene, SceneCompiler};
 
 /// A fence opening on line 1. Body line `i` is therefore at absolute line `1 + i + 1`.
 const SPAN: SourceSpan = SourceSpan {
@@ -174,7 +174,7 @@ fn an_inline_bodys_diagnostic_defers_to_the_callers_file() {
 // script could silently lose five seconds.
 // ---------------------------------------------------------------------------
 
-fn only_shot(body: &str) -> teleprompt_plugin::scene::Shot {
+fn only_shot(body: &str) -> teleprompt_scene::Shot {
     let m = MockScene;
     let v = m.validate(&src(body)).expect("body must validate");
     let shots = m.shots(&v, &BlockId::from("b")).unwrap();

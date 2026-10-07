@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::run::{cut_clips, get_ready, play, uses_pointer, Reel};
-use teleprompt_plugin::capture::{
+use teleprompt_scene::capture::{
     CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
 };
 
@@ -61,12 +61,12 @@ impl CaptureBackend for MacosRender {
         if !cfg!(target_os = "macos") {
             return Some("it records a Mac's own screen, and this is not a Mac".into());
         }
-        teleprompt_plugin::core::tool::missing(&[&self.ffmpeg])
+        teleprompt_scene::core::tool::missing(&[&self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] =
-            &[&teleprompt_plugin::core::tool::FFMPEG];
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] =
+            &[&teleprompt_scene::core::tool::FFMPEG];
         NEEDS
     }
 

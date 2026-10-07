@@ -4,10 +4,10 @@
 use std::io::Cursor;
 
 use serde_json::{json, Value};
-use teleprompt_plugin::capture::mock::MockCapture;
-use teleprompt_plugin::protocol::serve;
-use teleprompt_plugin::scene::MockScene;
-use teleprompt_plugin::ScenePlugin;
+use teleprompt_scene::capture::mock::MockCapture;
+use teleprompt_scene::protocol::serve;
+use teleprompt_scene::MockScene;
+use teleprompt_scene::ScenePlugin;
 
 /// Each request in turn, and each line answered.
 fn exchange(requests: &[Value], serve: impl FnOnce(Cursor<Vec<u8>>, &mut Vec<u8>)) -> Vec<Value> {

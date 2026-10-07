@@ -1,7 +1,7 @@
 //! The slides scene: a slide of an existing Slidev deck, at a click step.
 
-use teleprompt_plugin::core::{BlockId, SourceSpan};
-use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
+use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
+use teleprompt_scene::core::{BlockId, SourceSpan};
 use teleprompt_slidev::capture::{range, still_name};
 use teleprompt_slidev::scene::{parse, Step};
 use teleprompt_slidev::SlidevScene;
@@ -85,7 +85,7 @@ fn a_still_states_no_length_and_is_not_re_timed() {
 /// The key covers the deck and what Slidev reads beside it.
 #[test]
 fn the_inputs_are_the_deck_and_its_folders() {
-    let scene = teleprompt_plugin::core::config::SceneConfig {
+    let scene = teleprompt_scene::core::config::SceneConfig {
         plugin: "slidev".into(),
         settings: [("deck".to_string(), "talk/slides.md".into())]
             .into_iter()

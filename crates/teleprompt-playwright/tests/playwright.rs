@@ -7,8 +7,8 @@
 //! does, not how long it takes.
 
 use teleprompt_playwright::PlaywrightScene;
-use teleprompt_plugin::core::{BlockId, SourceSpan};
-use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler};
+use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler};
+use teleprompt_scene::core::{BlockId, SourceSpan};
 
 const SPAN: SourceSpan = SourceSpan {
     line: 1,
@@ -24,7 +24,7 @@ fn src(body: &str) -> BlockSource {
     }
 }
 
-fn shots(body: &str) -> Vec<teleprompt_plugin::scene::contract::Shot> {
+fn shots(body: &str) -> Vec<teleprompt_scene::contract::Shot> {
     let v = PlaywrightScene.validate(&src(body)).expect("valid");
     PlaywrightScene
         .shots(&v, &BlockId::from("b"))
@@ -92,8 +92,8 @@ fn shots_are_identified_by_block_and_index() {
 
 mod capture {
     use teleprompt_playwright::capture::script_for;
-    use teleprompt_plugin::capture::{Frame, Session, SessionShot};
-    use teleprompt_plugin::core::Hash;
+    use teleprompt_scene::capture::{Frame, Session, SessionShot};
+    use teleprompt_scene::core::Hash;
 
     fn shot(id: &str, source: &str, ms: u64) -> SessionShot {
         SessionShot {

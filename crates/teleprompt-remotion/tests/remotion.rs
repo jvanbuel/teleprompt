@@ -1,10 +1,10 @@
 //! The motion scene: a composition from an existing Remotion project,
 //! rendered at the length the narration gives it.
 
-use teleprompt_plugin::core::{BlockId, SourceSpan};
-use teleprompt_plugin::scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
 use teleprompt_remotion::scene::parse;
 use teleprompt_remotion::RemotionScene;
+use teleprompt_scene::contract::{BlockSource, BodyOrigin, Measured, SceneCompiler, Shot};
+use teleprompt_scene::core::{BlockId, SourceSpan};
 
 fn src(body: &str) -> BlockSource {
     BlockSource {
@@ -108,8 +108,8 @@ fn a_shot_is_re_timed_by_stating_its_length_once() {
 /// own layout — not the whole project, which defaults to `.`.
 #[test]
 fn the_inputs_are_what_the_bundler_reads() {
-    let scene: teleprompt_plugin::core::config::SceneConfig =
-        teleprompt_plugin::core::config::SceneConfig {
+    let scene: teleprompt_scene::core::config::SceneConfig =
+        teleprompt_scene::core::config::SceneConfig {
             plugin: "remotion".into(),
             settings: [
                 ("project".to_string(), "motion".into()),
@@ -143,9 +143,9 @@ fn a_shot_does_not_continue_the_one_before_it() {
 mod capture {
     use std::path::Path;
 
-    use teleprompt_plugin::capture::{Frame, Session, SessionShot};
-    use teleprompt_plugin::core::Hash;
     use teleprompt_remotion::capture::{frames, job_for};
+    use teleprompt_scene::capture::{Frame, Session, SessionShot};
+    use teleprompt_scene::core::Hash;
 
     fn shot(id: &str, source: &str, ms: u64, wanted: bool) -> SessionShot {
         SessionShot {

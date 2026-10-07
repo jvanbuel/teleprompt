@@ -2,14 +2,14 @@
 //!
 //! A session's shots are concatenated into one script and run once, so
 //! shot *n* opens on the page shot *n-1* left. Playwright records a video
-//! and [`teleprompt_plugin::capture::reel`] cuts it into a clip per shot. Nothing
+//! and [`teleprompt_scene::capture::reel`] cuts it into a clip per shot. Nothing
 //! here interprets the author's script; it is only wrapped.
 
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_plugin::capture::reel::windows;
-use teleprompt_plugin::capture::{
+use teleprompt_scene::capture::reel::windows;
+use teleprompt_scene::capture::{
     CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
 };
 
@@ -32,7 +32,7 @@ const DEFAULT_ANNOTATION_SIZE: u32 = 32;
 ///
 /// Each shot is padded to its scheduled length by holding the page still
 /// afterwards; the author's code is not re-timed. A shot that overruns is
-/// not padded, and [`teleprompt_plugin::capture::reel::starved`] catches a reel that falls too far behind.
+/// not padded, and [`teleprompt_scene::capture::reel::starved`] catches a reel that falls too far behind.
 pub fn script_for(session: &Session, frame: &Frame, video_dir: &str) -> String {
     let mut out = String::new();
     out.push_str("import { chromium } from 'playwright';\n\n");
@@ -132,13 +132,13 @@ impl Default for PlaywrightRender {
 
 impl CaptureBackend for PlaywrightRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_plugin::core::tool::missing(&[&self.node, &self.ffmpeg])
+        teleprompt_scene::core::tool::missing(&[&self.node, &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
-            &teleprompt_plugin::core::tool::NODE,
-            &teleprompt_plugin::core::tool::FFMPEG,
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
+            &teleprompt_scene::core::tool::NODE,
+            &teleprompt_scene::core::tool::FFMPEG,
             &crate::tools::PLAYWRIGHT,
         ];
         NEEDS
@@ -161,7 +161,7 @@ impl CaptureBackend for PlaywrightRender {
         )
         .map_err(|e| job.failed_all(format!("{}: {e}", script.display())))?;
 
-        teleprompt_plugin::core::tool::run(
+        teleprompt_scene::core::tool::run(
             Command::new(&self.node).arg(&script).current_dir(&work),
             "the script",
             4,

@@ -11,9 +11,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
-use teleprompt_plugin::core::tool::missing;
-use teleprompt_plugin::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
-use teleprompt_plugin::scene::Measured;
+use teleprompt_scene::core::tool::missing;
+use teleprompt_scene::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_scene::Measured;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct VhsRecorder;
@@ -23,8 +23,8 @@ impl Recorder for VhsRecorder {
         missing(&["vhs"])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[&crate::tools::VHS];
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[&crate::tools::VHS];
         NEEDS
     }
 

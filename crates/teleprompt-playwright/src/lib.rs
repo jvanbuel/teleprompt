@@ -14,7 +14,7 @@ pub use record::PlaywrightRecorder;
 pub use scene::PlaywrightScene;
 
 /// The plugin, to register.
-pub fn plugin() -> teleprompt_plugin::ScenePlugin {
-    teleprompt_plugin::ScenePlugin::new(PlaywrightScene, PlaywrightRender::default())
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(PlaywrightScene, PlaywrightRender::default())
         .recorded_with(PlaywrightRecorder)
 }

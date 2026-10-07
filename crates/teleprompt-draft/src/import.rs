@@ -9,7 +9,7 @@ use teleprompt_core::LineId;
 
 use crate::derive::{derive, Draft, Line, Options, Word};
 use serde::{Deserialize, Serialize};
-use teleprompt_plugin::record::Recorded;
+use teleprompt_scene::record::Recorded;
 
 use teleprompt_core::Reporter;
 use teleprompt_project::registry::{Recording, Registry};

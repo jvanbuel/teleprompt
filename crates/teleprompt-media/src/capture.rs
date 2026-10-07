@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use teleprompt_plugin::capture::{
+use teleprompt_scene::capture::{
     CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session, SessionShot,
 };
 
@@ -49,7 +49,7 @@ pub fn args(
     let color = session.setting("color", "#eef3f8");
     let font = session.setting("font", "Sans");
     let fps = frame.fps.to_string();
-    let seconds = teleprompt_plugin::core::time::ffmpeg_seconds;
+    let seconds = teleprompt_scene::core::time::ffmpeg_seconds;
     let mut a: Vec<String> = ["-hide_banner", "-loglevel", "error", "-y"]
         .map(String::from)
         .to_vec();
@@ -135,12 +135,12 @@ impl Default for MediaRender {
 
 impl CaptureBackend for MediaRender {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_plugin::core::tool::missing(&[&self.ffmpeg])
+        teleprompt_scene::core::tool::missing(&[&self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] =
-            &[&teleprompt_plugin::core::tool::FFMPEG];
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] =
+            &[&teleprompt_scene::core::tool::FFMPEG];
         NEEDS
     }
 
@@ -158,12 +158,8 @@ impl CaptureBackend for MediaRender {
             let clip = job.clip_path(shot);
             let a = args(shot, session, frame, &dir, &work, &clip)
                 .ok_or_else(|| job.failed(&shot.id, "the shot is not a media directive"))?;
-            teleprompt_plugin::core::tool::run(
-                Command::new(&self.ffmpeg).args(&a),
-                &self.ffmpeg,
-                1,
-            )
-            .map_err(|why| job.failed(&shot.id, why))?;
+            teleprompt_scene::core::tool::run(Command::new(&self.ffmpeg).args(&a), &self.ffmpeg, 1)
+                .map_err(|why| job.failed(&shot.id, why))?;
             job.keep(shot);
         }
         Ok(job.clips())

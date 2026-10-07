@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use teleprompt_core::{BlockId, Hash, ShotId, SourceSpan};
-use teleprompt_plugin::capture::{Frame, Session, SessionShot};
-use teleprompt_plugin::protocol::host::{self, Found, Plugin};
-use teleprompt_plugin::scene::{BlockSource, BodyOrigin, Measured, Validated};
+use teleprompt_scene::capture::{Frame, Session, SessionShot};
+use teleprompt_scene::protocol::host::{self, Found, Plugin};
+use teleprompt_scene::{BlockSource, BodyOrigin, Measured, Validated};
 
 fn examples() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/plugins")

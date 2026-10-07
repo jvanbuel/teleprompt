@@ -11,8 +11,8 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use teleprompt_plugin::capture::{CaptureError, Job, Session};
-use teleprompt_plugin::core::ShotId;
+use teleprompt_scene::capture::{CaptureError, Job, Session};
+use teleprompt_scene::core::ShotId;
 
 use crate::script::{classify, Action, Button, Chord, Pace};
 
@@ -212,7 +212,7 @@ impl Reel {
             Err(format!(
                 "ffmpeg recording the screen exited {}: {}",
                 out.status,
-                teleprompt_plugin::core::tool::tail(&String::from_utf8_lossy(&out.stderr), 4)
+                teleprompt_scene::core::tool::tail(&String::from_utf8_lossy(&out.stderr), 4)
             ))
         }
     }
@@ -268,8 +268,8 @@ pub fn cut_clips(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use teleprompt_plugin::capture::SessionShot;
-    use teleprompt_plugin::core::Hash;
+    use teleprompt_scene::capture::SessionShot;
+    use teleprompt_scene::core::Hash;
 
     /// A screen that writes down what it was asked to do, and when.
     #[derive(Default)]

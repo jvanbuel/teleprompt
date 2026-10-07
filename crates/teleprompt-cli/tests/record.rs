@@ -15,8 +15,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
-use teleprompt_plugin::record::Start;
 use teleprompt_registry::Recording as Recorder;
+use teleprompt_scene::record::Start;
 
 /// Set in the child: where it writes what it recorded.
 const CHILD: &str = "TELEPROMPT_RECORD_TEST_OUT";

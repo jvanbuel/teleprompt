@@ -10,8 +10,8 @@ use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
-use teleprompt_plugin::core::tool::missing;
-use teleprompt_plugin::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_scene::core::tool::missing;
+use teleprompt_scene::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AsciinemaRecorder;
@@ -21,8 +21,8 @@ impl Recorder for AsciinemaRecorder {
         missing(&["asciinema"])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[&crate::tools::ASCIINEMA];
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[&crate::tools::ASCIINEMA];
         NEEDS
     }
 

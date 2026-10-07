@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use teleprompt_plugin::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
+use teleprompt_scene::record::{wait_for, Recorded, Recorder, Recording, Start, Step};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PlaywrightRecorder;
@@ -29,9 +29,9 @@ impl Recorder for PlaywrightRecorder {
         (!ok).then(|| "Playwright is not installed (npm install playwright)".to_string())
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
-            &teleprompt_plugin::core::tool::NODE,
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
+            &teleprompt_scene::core::tool::NODE,
             &crate::tools::PLAYWRIGHT,
         ];
         NEEDS

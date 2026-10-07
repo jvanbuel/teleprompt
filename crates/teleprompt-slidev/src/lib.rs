@@ -11,6 +11,6 @@ pub use capture::SlidevRender;
 pub use scene::SlidevScene;
 
 /// The plugin, to register.
-pub fn plugin() -> teleprompt_plugin::ScenePlugin {
-    teleprompt_plugin::ScenePlugin::new(SlidevScene, SlidevRender::default())
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(SlidevScene, SlidevRender::default())
 }

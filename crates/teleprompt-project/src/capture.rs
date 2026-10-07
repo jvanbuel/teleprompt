@@ -12,10 +12,10 @@ use teleprompt_compile::ShotSource;
 use teleprompt_core::config::SceneConfig;
 use teleprompt_core::ShotId;
 use teleprompt_manifest::NarrationManifest;
-use teleprompt_plugin::capture::{
+use teleprompt_scene::capture::{
     sessions, CaptureBackend, Frame, PlannedShot, Progress, Session, WorkDir,
 };
-use teleprompt_plugin::{ScenePlugin, ScenePlugins};
+use teleprompt_scene::{ScenePlugin, ScenePlugins};
 
 use crate::project::{CacheDir, Clips};
 
@@ -244,7 +244,7 @@ fn record(
 mod tests {
     use super::*;
     use teleprompt_core::Hash;
-    use teleprompt_plugin::capture::{CaptureBackend, CaptureError, Clip, SessionShot};
+    use teleprompt_scene::capture::{CaptureBackend, CaptureError, Clip, SessionShot};
 
     /// Writes each wanted shot's clip, then fails if told to.
     struct Writes {

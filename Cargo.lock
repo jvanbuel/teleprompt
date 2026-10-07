@@ -2008,7 +2008,7 @@ name = "teleprompt-asciinema"
 version = "0.1.0"
 dependencies = [
  "serde_json",
- "teleprompt-plugin",
+ "teleprompt-scene",
 ]
 
 [[package]]
@@ -2030,9 +2030,9 @@ dependencies = [
  "teleprompt-listen",
  "teleprompt-lsp",
  "teleprompt-manifest",
- "teleprompt-plugin",
  "teleprompt-project",
  "teleprompt-registry",
+ "teleprompt-scene",
  "teleprompt-schedule",
  "teleprompt-script",
  "teleprompt-serve",
@@ -2052,7 +2052,6 @@ dependencies = [
  "serde_json",
  "teleprompt-core",
  "teleprompt-manifest",
- "teleprompt-plugin",
  "teleprompt-scene",
  "teleprompt-schedule",
  "teleprompt-script",
@@ -2077,7 +2076,7 @@ dependencies = [
 name = "teleprompt-desktop"
 version = "0.1.0"
 dependencies = [
- "teleprompt-plugin",
+ "teleprompt-scene",
  "tempfile",
 ]
 
@@ -2090,8 +2089,8 @@ dependencies = [
  "signal-hook",
  "teleprompt-core",
  "teleprompt-listen",
- "teleprompt-plugin",
  "teleprompt-project",
+ "teleprompt-scene",
  "teleprompt-script",
  "teleprompt-setup",
  "teleprompt-testkit",
@@ -2131,31 +2130,15 @@ dependencies = [
 name = "teleprompt-media"
 version = "0.1.0"
 dependencies = [
- "teleprompt-plugin",
+ "teleprompt-scene",
 ]
 
 [[package]]
 name = "teleprompt-playwright"
 version = "0.1.0"
 dependencies = [
- "teleprompt-plugin",
- "tempfile",
-]
-
-[[package]]
-name = "teleprompt-plugin"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "etcetera",
- "serde",
- "serde_json",
- "teleprompt-core",
  "teleprompt-scene",
- "teleprompt-testkit",
  "tempfile",
- "thiserror 1.0.69",
- "tokio",
 ]
 
 [[package]]
@@ -2169,8 +2152,8 @@ dependencies = [
  "teleprompt-compile",
  "teleprompt-core",
  "teleprompt-manifest",
- "teleprompt-plugin",
  "teleprompt-render",
+ "teleprompt-scene",
  "teleprompt-schedule",
  "teleprompt-script",
  "teleprompt-setup",
@@ -2187,9 +2170,9 @@ dependencies = [
  "teleprompt-desktop",
  "teleprompt-media",
  "teleprompt-playwright",
- "teleprompt-plugin",
  "teleprompt-project",
  "teleprompt-remotion",
+ "teleprompt-scene",
  "teleprompt-slidev",
  "teleprompt-vhs",
  "teleprompt-voices",
@@ -2200,7 +2183,7 @@ name = "teleprompt-remotion"
 version = "0.1.0"
 dependencies = [
  "serde_json",
- "teleprompt-plugin",
+ "teleprompt-scene",
 ]
 
 [[package]]
@@ -2218,8 +2201,15 @@ dependencies = [
 name = "teleprompt-scene"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "etcetera",
  "serde",
+ "serde_json",
  "teleprompt-core",
+ "teleprompt-testkit",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -2268,14 +2258,14 @@ dependencies = [
  "serde_json",
  "tabled",
  "teleprompt-core",
- "teleprompt-plugin",
+ "teleprompt-scene",
 ]
 
 [[package]]
 name = "teleprompt-slidev"
 version = "0.1.0"
 dependencies = [
- "teleprompt-plugin",
+ "teleprompt-scene",
 ]
 
 [[package]]
@@ -2291,7 +2281,7 @@ dependencies = [
 name = "teleprompt-vhs"
 version = "0.1.0"
 dependencies = [
- "teleprompt-plugin",
+ "teleprompt-scene",
  "teleprompt-testkit",
  "tempfile",
 ]

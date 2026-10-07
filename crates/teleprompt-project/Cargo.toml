@@ -12,7 +12,7 @@ teleprompt-compile = { path = "../teleprompt-compile" }
 teleprompt-core = { path = "../teleprompt-core" }
 teleprompt-script = { path = "../teleprompt-script" }
 teleprompt-manifest = { path = "../teleprompt-manifest" }
-teleprompt-plugin = { path = "../teleprompt-plugin" }
+teleprompt-scene = { path = "../teleprompt-scene" }
 teleprompt-render = { path = "../teleprompt-render" }
 teleprompt-setup = { path = "../teleprompt-setup" }
 teleprompt-schedule = { path = "../teleprompt-schedule" }

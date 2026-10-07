@@ -6,7 +6,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::run::{cut_clips, get_ready, play, uses_pointer, Reel};
-use teleprompt_plugin::capture::{
+use teleprompt_scene::capture::{
     CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
 };
 
@@ -50,14 +50,14 @@ impl Drop for Owned {
 
 impl CaptureBackend for X11Render {
     fn unavailable(&self) -> Option<String> {
-        teleprompt_plugin::core::tool::missing(&[&self.xvfb, &self.xdotool, &self.ffmpeg])
+        teleprompt_scene::core::tool::missing(&[&self.xvfb, &self.xdotool, &self.ffmpeg])
     }
 
-    fn needs(&self) -> &'static [&'static teleprompt_plugin::core::tool::Tool] {
-        static NEEDS: &[&teleprompt_plugin::core::tool::Tool] = &[
+    fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
+        static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
             &super::tools::XVFB,
             &super::tools::XDOTOOL,
-            &teleprompt_plugin::core::tool::FFMPEG,
+            &teleprompt_scene::core::tool::FFMPEG,
         ];
         NEEDS
     }
@@ -251,7 +251,7 @@ fn launch(command: &str, display: &str, session: &Session, log: &Path) -> Result
         .try_clone()
         .map_err(|e| format!("{}: {e}", log.display()))?;
     let dbus = session.setting("dbus", "true") != "false"
-        && teleprompt_plugin::core::tool::installed("dbus-run-session");
+        && teleprompt_scene::core::tool::installed("dbus-run-session");
     let mut run = if dbus {
         let mut c = Command::new("dbus-run-session");
         c.args(["--", "sh", "-c"]);
@@ -284,7 +284,7 @@ fn launch(command: &str, display: &str, session: &Session, log: &Path) -> Result
 /// `why`, and what the app said last, which is usually the reason.
 fn with_log(why: String, log: &Path) -> String {
     let said = std::fs::read_to_string(log).unwrap_or_default();
-    match teleprompt_plugin::core::tool::tail(&said, 4) {
+    match teleprompt_scene::core::tool::tail(&said, 4) {
         tail if tail.is_empty() => why,
         tail => format!("{why}; it said: {tail}"),
     }

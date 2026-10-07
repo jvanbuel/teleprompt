@@ -121,10 +121,10 @@ to `main`.
   `teleprompt-scene`, and `git mv crates/teleprompt-scene-sdk crates/teleprompt-scene`.
 - `Cargo.toml`: `name = "teleprompt-scene"`. Drop the `teleprompt-scene`
   dependency line. Keep `[features]` as they are.
-- `lib.rs`: replace `pub use teleprompt_scene as scene;` with
-  `mod contract; mod mock; pub use contract::*; pub use mock::MockScene;`
-  (keep whatever the old `teleprompt-scene/src/lib.rs` exported, at the
-  same paths minus the `scene::` prefix). Keep `pub use teleprompt_core as core;`.
+- `lib.rs`: `pub mod contract; pub mod mock;` with `pub use` of what the
+  old `teleprompt-scene/src/lib.rs` exported, at the root, and its
+  `SceneCompilers` trait defined there. Keep `pub use teleprompt_core as core;`.
+  The old crate's `tests/select.rs` moves with it.
 - Everywhere: `teleprompt_plugin` -> `teleprompt_scene`;
   `teleprompt_scene::scene::X` and `teleprompt_plugin::scene::X` -> `teleprompt_scene::X`.
   `teleprompt-compile` depended on `teleprompt-scene` for the contract: its

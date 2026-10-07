@@ -1,7 +1,7 @@
 //! What this plugin needs that teleprompt does not ship, as
 //! `teleprompt setup` lists and installs it.
 
-use teleprompt_plugin::core::tool::{Found, Manager, Tool};
+use teleprompt_scene::core::tool::{Found, Manager, Tool};
 
 pub static ASCIINEMA: Tool = Tool {
     name: "asciinema",

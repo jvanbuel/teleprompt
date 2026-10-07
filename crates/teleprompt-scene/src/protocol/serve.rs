@@ -4,11 +4,11 @@
 //!
 //! ```no_run
 //! fn main() -> std::io::Result<()> {
-//!     # let plugin = teleprompt_plugin::ScenePlugin::new(
-//!     #     teleprompt_plugin::scene::MockScene,
-//!     #     teleprompt_plugin::capture::mock::MockCapture::default(),
+//!     # let plugin = teleprompt_scene::ScenePlugin::new(
+//!     #     teleprompt_scene::MockScene,
+//!     #     teleprompt_scene::capture::mock::MockCapture::default(),
 //!     # );
-//!     teleprompt_plugin::protocol::serve::scene(plugin)
+//!     teleprompt_scene::protocol::serve::scene(plugin)
 //! }
 //! ```
 
@@ -23,8 +23,8 @@ use super::{
     Validation, VERSION,
 };
 use crate::capture::Session;
-use crate::scene::{BlockSource, BodyOrigin, Measured, Shot, Validated};
 use crate::ScenePlugin;
+use crate::{BlockSource, BodyOrigin, Measured, Shot, Validated};
 
 /// Serves `plugin` on stdin and stdout until teleprompt closes stdin.
 pub fn scene(plugin: ScenePlugin) -> std::io::Result<()> {

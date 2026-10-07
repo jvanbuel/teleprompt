@@ -15,8 +15,8 @@ use super::{
     Body, Capture, Captured, Description, Need, Retime, Retimed, Shots, Validation, PREFIX, VERSION,
 };
 use crate::capture::{CaptureBackend, CaptureError, Clip, Frame, Progress, Session};
-use crate::scene::{BlockSource, SceneCompiler, Shot, Validated};
 use crate::ScenePlugin;
+use crate::{BlockSource, SceneCompiler, Shot, Validated};
 use teleprompt_core::tool::Tool;
 
 /// A plugin found on disk, not yet started.

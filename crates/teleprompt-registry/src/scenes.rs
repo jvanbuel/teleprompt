@@ -1,10 +1,10 @@
 //! The scene plugins this build ships, and the installed ones found beside
 //! them.
 
-use teleprompt_plugin::capture::mock::MockCapture;
-use teleprompt_plugin::protocol::host;
-use teleprompt_plugin::scene::MockScene;
-use teleprompt_plugin::{ScenePlugin, ScenePlugins};
+use teleprompt_scene::capture::mock::MockCapture;
+use teleprompt_scene::protocol::host;
+use teleprompt_scene::MockScene;
+use teleprompt_scene::{ScenePlugin, ScenePlugins};
 
 /// The names of the plugins `built_in` hands over, which an installed
 /// program does not replace.

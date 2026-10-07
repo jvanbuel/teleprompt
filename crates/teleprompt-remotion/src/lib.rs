@@ -13,6 +13,6 @@ pub use capture::RemotionRender;
 pub use scene::RemotionScene;
 
 /// The plugin, to register.
-pub fn plugin() -> teleprompt_plugin::ScenePlugin {
-    teleprompt_plugin::ScenePlugin::new(RemotionScene, RemotionRender::default())
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(RemotionScene, RemotionRender::default())
 }

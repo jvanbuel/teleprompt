@@ -613,7 +613,7 @@ fn place_clips(
 }
 
 /// A shot's capture progress, as a [`Reporter`] takes it.
-pub fn captured_shot(p: teleprompt_plugin::capture::Progress) -> Progress {
+pub fn captured_shot(p: teleprompt_scene::capture::Progress) -> Progress {
     Progress::Capture {
         done: p.done,
         of: p.of,

@@ -5,11 +5,20 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
-# The scene contract alone: what a block compiles to, offline. Nothing here
-# runs a tool, so what plans a video can depend on it.
 [dependencies]
+async-trait.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 teleprompt-core = { path = "../teleprompt-core" }
+thiserror.workspace = true
+# Where teleprompt keeps per-user data: the XDG base directories, and
+# Windows' known folders there.
+etcetera = "0.10"
+
+[dev-dependencies]
+teleprompt-testkit = { path = "../teleprompt-testkit" }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

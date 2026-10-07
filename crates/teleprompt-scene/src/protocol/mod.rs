@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use teleprompt_core::tool::{Found, Manager, Tool};
 
 use crate::capture::{Clip, Frame, Session};
-use crate::scene::Measured;
+use crate::Measured;
 
 pub mod host;
 pub mod serve;

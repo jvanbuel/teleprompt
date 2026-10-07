@@ -12,18 +12,18 @@ names the scene, and the scene names its plugin.
 
 The ones in this repository are examples as much as features: every one is
 written against the same crate an outside plugin would use,
-`teleprompt-plugin`, and nothing else of teleprompt's but `teleprompt-core`.
+`teleprompt-scene`, and nothing else of teleprompt's.
 `tools/check_deps.py` holds them to that.
 
 ## The contract
 
 A scene plugin is a scene compiler, a capture backend and optionally a
-recorder, handed over as one `teleprompt_plugin::ScenePlugin`, named by the
+recorder, handed over as one `teleprompt_scene::ScenePlugin`, named by the
 compiler's `kind()`. That name is what a scene's `plugin` gives.
 
 ```rust
-pub fn plugin() -> teleprompt_plugin::ScenePlugin {
-    teleprompt_plugin::ScenePlugin::new(MyScene, MyCapture::default())
+pub fn plugin() -> teleprompt_scene::ScenePlugin {
+    teleprompt_scene::ScenePlugin::new(MyScene, MyCapture::default())
         // .recorded_with(MyRecorder), if your tool records sessions
 }
 ```
@@ -70,14 +70,14 @@ installed as a program, with what it needs and what of that is missing
 here; one that cannot be used says why. A second table lists the voices.
 `teleprompt setup <name>` shows one plugin, with the tools it needs.
 
-`teleprompt-plugin` has a module per part of the contract:
+`teleprompt-scene` has a module per part of the contract:
 
 | module | what you implement |
 |---|---|
-| `scene` | `SceneCompiler`: a block in your tool's own language, validated and split into shots, offline |
+| `contract` | `SceneCompiler`: a block in your tool's own language, validated and split into shots, offline |
 | `capture` | `CaptureBackend`: a session of shots run, and a clip kept for each |
 | `record` | `Recorder`, optional: an author's working session recorded, for `teleprompt record` |
-| `tool` | `Tool`, for what your plugin needs that teleprompt does not ship, and helpers to run it |
+| `core::tool` | `Tool`, for what your plugin needs that teleprompt does not ship, and helpers to run it |
 | `protocol` | a plugin as a program: teleprompt's side, and serving a Rust plugin |
 
 ## What it needs
@@ -165,20 +165,20 @@ reads, and `include=…#fragment`. They are compiled-in only for now.
 
 ## A Rust plugin as a program
 
-`teleprompt_plugin::protocol::serve` serves a `ScenePlugin` over stdin and
+`teleprompt_scene::protocol::serve` serves a `ScenePlugin` over stdin and
 stdout, so a crate written against the contract can be built as a program
 too:
 
 ```rust
 // src/bin/teleprompt-scene-mine.rs
 fn main() -> std::io::Result<()> {
-    teleprompt_plugin::protocol::serve::scene(my_plugin::plugin())
+    teleprompt_scene::protocol::serve::scene(my_plugin::plugin())
 }
 ```
 
 ## Testing it
 
-The `mock` scene plugin (`teleprompt_plugin::scene::MockScene` and
+The `mock` scene plugin (`teleprompt_scene::MockScene` and
 `capture::mock::MockCapture`) shows the contract with no tool behind it.
 A scene compiler is tested without its tool. A capture backend is tested
 against the real tool where it is installed, and skips, saying so, where

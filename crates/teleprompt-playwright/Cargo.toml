@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 
-teleprompt-plugin = { path = "../teleprompt-plugin" }
+teleprompt-scene = { path = "../teleprompt-scene" }
 [dev-dependencies]
 tempfile.workspace = true
 

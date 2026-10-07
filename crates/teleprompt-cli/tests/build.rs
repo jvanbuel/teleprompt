@@ -142,7 +142,7 @@ async fn the_report_says_how_much_of_the_picture_is_missing() {
     // A machine with no backend for this scene. Not a contrivance: it is
     // every machine that has no terminal renderer installed, and every
     // scene kind teleprompt can compile and cannot yet run.
-    let none = teleprompt_plugin::ScenePlugins::new([]);
+    let none = teleprompt_scene::ScenePlugins::new([]);
     let report = builder
         .plugins(&none)
         .build(&teleprompt_core::Silent)
