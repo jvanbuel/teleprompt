@@ -4,13 +4,14 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2021"
-# 1.88 is the floor the dependency graph sets, not a feature we reach for:
-# `home` (through etcetera) needs 1.88, the `icu_*` crates (through `url`)
-# 1.86, and clap, blake3 and indexmap use edition 2024 (1.85). Holding an
+# 1.89 is the floor the dependency graph sets, not a feature we reach for:
+# `serde-saphyr`, which reads YAML, needs 1.89, `home` (through etcetera)
+# 1.88, the `icu_*` crates (through `url`) 1.86, and clap, blake3 and
+# indexmap use edition 2024 (1.85). Holding an
 # older floor would mean pinning transitive crates in Cargo.lock and
 # re-pinning them after every update. Our own code uses nothing newer than
 # `Option::is_some_and` (1.70).
-rust-version = "1.88"
+rust-version = "1.89"
 license = "MIT"
 
 # Lints are configured once here and inherited by every crate via
