@@ -1,7 +1,7 @@
 //! Every program a scene plugin says it is missing is one `teleprompt setup
 //! <plugin>` knows how to install: the two lists cannot drift apart.
 
-use teleprompt_core::tool::NOT_ON_PATH;
+use teleprompt_core::tool::programs_in;
 
 #[test]
 fn setup_covers_every_program_an_plugin_finds_missing() {
@@ -13,7 +13,10 @@ fn setup_covers_every_program_an_plugin_finds_missing() {
     for p in teleprompt_cli::registry::registry().scenes.iter() {
         let (plugin, backend) = (p.name(), p.capture());
         // Held back by something setup cannot install (macos off a Mac).
-        let Some(why) = backend.unavailable().filter(|w| w.ends_with(NOT_ON_PATH)) else {
+        let Some(why) = backend.unavailable() else {
+            continue;
+        };
+        let Some(programs) = programs_in(&why) else {
             continue;
         };
         let known: Vec<&str> =
@@ -23,7 +26,7 @@ fn setup_covers_every_program_an_plugin_finds_missing() {
                 .iter()
                 .map(|t| t.name)
                 .collect();
-        for program in why.trim_end_matches(NOT_ON_PATH).split(" and ") {
+        for program in programs {
             assert!(
                 known.contains(&program),
                 "{plugin} runs {program}, which setup does not know"

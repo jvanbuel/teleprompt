@@ -206,8 +206,17 @@ fn record(
         ));
     };
     if let Some(reason) = backend.unavailable() {
+        // A tool that is not installed is for `setup` to say how to install.
+        let fix = teleprompt_core::tool::programs_in(&reason)
+            .map(|_| {
+                format!(
+                    "; `teleprompt setup {}` says how to install it",
+                    session.plugin
+                )
+            })
+            .unwrap_or_default();
         return Err(format!(
-            "`{}` cannot record `{}` scenes here: {reason}; its {} shot(s) \
+            "`{}` cannot record `{}` scenes here: {reason}{fix}; its {} shot(s) \
              will render as slates",
             session.plugin,
             session.scene,
