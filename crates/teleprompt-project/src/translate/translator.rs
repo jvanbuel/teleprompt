@@ -221,7 +221,7 @@ pub enum TranslateError {
          or pass --command"
     )]
     NoProgram,
-    #[error("unknown translation provider `{0}`; known: {}", PROVIDERS.join(", "))]
+    #[error("unknown translation provider `{0}`; known: {known}", known = PROVIDERS.join(", "))]
     Unknown(String),
     #[error("translate.{provider}: {why}")]
     Settings { provider: String, why: String },

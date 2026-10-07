@@ -2043,7 +2043,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2060,7 +2060,7 @@ dependencies = [
  "teleprompt-setup",
  "teleprompt-testkit",
  "teleprompt-voice",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2081,7 +2081,7 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-project",
  "teleprompt-script",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2125,7 +2125,7 @@ dependencies = [
  "teleprompt-script",
  "teleprompt-testkit",
  "teleprompt-voice",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
  "tokio",
 ]
 
@@ -2137,7 +2137,7 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-manifest",
  "teleprompt-testkit",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2152,7 +2152,7 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-testkit",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
  "tokio",
 ]
 
@@ -2175,7 +2175,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "teleprompt-core",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
  "toml",
 ]
 
@@ -2193,7 +2193,7 @@ dependencies = [
  "teleprompt-script",
  "teleprompt-setup",
  "teleprompt-voice",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
  "tokio",
 ]
 
@@ -2207,7 +2207,7 @@ dependencies = [
  "teleprompt-core",
  "teleprompt-scene",
  "teleprompt-voice",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2229,7 +2229,7 @@ dependencies = [
  "serde_yaml",
  "teleprompt-core",
  "teleprompt-testkit",
- "thiserror 1.0.69",
+ "thiserror 2.0.20",
  "tokio",
 ]
 
