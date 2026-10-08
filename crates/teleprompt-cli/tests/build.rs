@@ -520,3 +520,23 @@ fn an_impossible_frame_is_refused_as_a_usage_error() {
         assert!(!err.contains("please report"), "{err}");
     }
 }
+
+/// `dub --out` takes a directory, so `build --out` is given one too: the
+/// video goes inside it under its usual name, rather than failing with an
+/// operating-system error about a directory.
+#[tokio::test]
+async fn out_may_be_a_directory_that_exists() {
+    let (dir, script) = project_with_script("out-dir");
+    let project = Project::discover(&dir, teleprompt_cli::registry::registry()).unwrap();
+    let opened = project.script(&script, "en");
+    let into = dir.join("videos");
+    std::fs::create_dir_all(&into).unwrap();
+
+    let builder = Builder::new(&opened).out(into.to_path_buf());
+    assert_eq!(builder.output(), into.join("tour.en.mp4"));
+
+    // And a file path is still taken as the file.
+    let file = dir.join("custom.mp4");
+    let builder = Builder::new(&opened).out(file.to_path_buf());
+    assert_eq!(builder.output(), file);
+}

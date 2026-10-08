@@ -59,19 +59,9 @@ pub struct Builder<'s> {
 impl<'s> Builder<'s> {
     pub fn new(script: &'s Script) -> Self {
         let project = script.project();
-        let stem = script
-            .path()
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "video".into());
-        Self {
+        let mut builder = Self {
             script,
-            // `build/` is what `new` gitignores. The name follows the
-            // committed timelines': `cli.en.json` beside `cli.en.mp4`.
-            out: project
-                .root
-                .join("build")
-                .join(format!("{stem}.{}.mp4", script.locale())),
+            out: PathBuf::new(),
             // A real directory, not a temporary one, so the render can be
             // checked against its manifest.
             narration_root: project.root.join("build").join("narration"),
@@ -80,13 +70,34 @@ impl<'s> Builder<'s> {
             compose_dir: Some(project.caches().compose()),
             cache_max_mb: cache::DEFAULT_MAX_MB,
             plugins: project.registry.scenes,
-        }
+        };
+        // `build/` is what `new` gitignores.
+        builder.out = project.root.join("build").join(builder.file_name());
+        builder
     }
 
-    /// The video to write.
+    /// The video to write. A directory that already exists is where the
+    /// video goes, under its usual name, as `dub`'s output directory is.
     #[must_use]
     pub fn out(self, out: PathBuf) -> Self {
+        let out = if out.is_dir() {
+            out.join(self.file_name())
+        } else {
+            out
+        };
         Self { out, ..self }
+    }
+
+    /// `<script>.<locale>.mp4`, which `new` gitignores under `build/` and
+    /// which follows the committed timelines' names.
+    fn file_name(&self) -> String {
+        let stem = self
+            .script
+            .path()
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "video".into());
+        format!("{stem}.{}.mp4", self.script.locale())
     }
 
     /// Where the video will be written.

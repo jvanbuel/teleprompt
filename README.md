@@ -45,27 +45,45 @@ takes; Google's [Gemini TTS](docs/guide/voices.md#gemini-tts) or
 built-in `null` voice, which is silent but correctly timed
 and needs nothing installed.
 
+## Install
+
+teleprompt is a single program. With a recent Rust toolchain (1.89 or newer):
+
+```bash
+cargo install --git https://github.com/jvanbuel/teleprompt teleprompt-cli
+```
+
+or, from a checkout, `cargo install --path crates/teleprompt-cli`. The
+examples below say `teleprompt`; from a checkout without installing, say
+`cargo run --` instead. Rendering needs [ffmpeg](https://ffmpeg.org); nothing
+else is needed to try it, and `teleprompt setup` says what each other thing
+you might want to do needs.
+
 ## Try it
 
 ```bash
-cargo run -- new demo
-cargo run -- plan demo/scripts/demo.md
-cargo run -- plan --check demo/scripts/demo.md
+teleprompt new demo
+cd demo
+teleprompt plan scripts/demo.md
+teleprompt plan --check scripts/demo.md
+teleprompt build scripts/demo.md
 ```
 
 `new` scaffolds a project with a demo script. `plan` compiles it into a
 timeline and prints one row per item, with its narration length and
 policy. `plan --check` compares that timeline with the committed one,
 and exits 3 when they differ. On a fresh
-project nothing is committed yet, so every item shows as `added`.
+project nothing is committed yet, so every item shows as `added`. `build`
+renders the video to `build/demo.en.mp4`, silent but correctly timed, with
+captions and chapters beside it.
 
 Commit the timeline, edit a paragraph, and run `plan --check` again to watch the
 transitions move:
 
 ```bash
-cargo run -- plan demo/scripts/demo.md --format json > demo/timelines/demo.en.json
-# edit demo/scripts/demo.md
-cargo run -- plan --check demo/scripts/demo.md
+teleprompt plan scripts/demo.md --format json > timelines/demo.en.json
+# edit scripts/demo.md
+teleprompt plan --check scripts/demo.md
 ```
 
 `plan` and `plan --check` are instant and offline, whatever voice you configure.
