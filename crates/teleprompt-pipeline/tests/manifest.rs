@@ -43,14 +43,9 @@ fn compiled_and_manifest(src: &str) -> (CompileOutput, teleprompt_manifest::Narr
     let program = program_for(src);
     let (_dir, cache) = throwaway_cache();
     let estimator = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &estimator,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &estimator, &takes);
     let out = compile(
         &program,
         &ScenePlugins::mock(),
@@ -88,14 +83,9 @@ fn manifest_for_with_words(
     let program = program_for(src);
     let (_dir, cache) = throwaway_cache();
     let estimator = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &estimator,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &estimator, &takes);
 
     let cold = compile(
         &program,

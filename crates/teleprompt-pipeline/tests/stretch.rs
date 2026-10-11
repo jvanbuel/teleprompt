@@ -18,14 +18,9 @@ fn compile_it(body: &str) -> Result<CompileOutput, Diagnostics> {
     let cache =
         VoiceCache::new(std::env::temp_dir().join(format!("tp-stretch-{}", std::process::id())));
     let estimator = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &estimator,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &estimator, &takes);
     let parsed = parse_script(&src).expect("parses");
     let program = resolve(
         &parsed,

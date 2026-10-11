@@ -48,14 +48,9 @@ fn throwaway_cache() -> VoiceCache {
 fn compile_program(p: &Program) -> Result<CompileOutput, Diagnostics> {
     let cache = throwaway_cache();
     let estimator = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &estimator,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &estimator, &takes);
     compile(p, &ScenePlugins::mock(), &ctx, Path::new("."), "0.1.0")
 }
 
@@ -98,14 +93,9 @@ fn compile_with(src: &str, ctx: &VoiceContext) -> Result<CompileOutput, Diagnost
 fn compile_str(src: &str) -> Result<CompileOutput, Diagnostics> {
     let cache = throwaway_cache();
     let estimator = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &estimator,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &estimator, &takes);
     compile_with(src, &ctx)
 }
 
@@ -585,14 +575,9 @@ fn a_cold_cache_yields_estimated_durations() {
     let dir = cache_dir("cold");
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &est,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &est, &takes);
     let out = compile_with(ONE, &ctx).expect("compiles");
 
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
@@ -614,14 +599,9 @@ fn a_warm_cache_yields_measured_durations() {
     let dir = cache_dir("warm");
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &est,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &est, &takes);
 
     // Populate the cache under the key compile will look up, with audio of a
     // deliberately different length from the estimate.
@@ -654,14 +634,9 @@ fn the_cache_key_covers_the_resolved_voice_config() {
     let dir = cache_dir("cfgkey");
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &est,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &est, &takes);
 
     let plain = compile_with(ONE, &ctx).unwrap();
     let fast = compile_with(
@@ -687,22 +662,12 @@ fn the_cache_key_covers_the_backend_id() {
     let dir = cache_dir("backendkey");
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
-    let null_ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &est,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
-    let other_ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "other",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &est,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let null_ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &est, &takes);
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let other_ctx = VoiceContext::one_backend("other", "0.1.0", &cache, &est, &takes);
 
     let null = compile_with(ONE, &null_ctx).unwrap();
     // The line's own backend decides: the script asks for `other`.
@@ -752,14 +717,9 @@ async fn a_cache_hit_and_a_cache_miss_agree_on_everything_but_duration_source() 
     let dir = cache_dir("roundtrip");
     let cache = VoiceCache::new(dir.path());
     let est = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &est,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &est, &takes);
 
     let cold = compile_with(ONE, &ctx).expect("compiles");
     assert_eq!(

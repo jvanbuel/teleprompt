@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use teleprompt_core::{Diagnostic, LineId};
+use teleprompt_core::{Diagnostic, LineId, SourceSpan};
 
 use crate::catalogue::VoiceCatalogue;
 use crate::{ClonedVoice, NullVoice, VoiceBackend, VoiceRegistry, VoiceSample};
@@ -219,30 +219,86 @@ impl Backends {
     }
 }
 
-/// Each backend a line is spoken by, by id.
-pub type Voices = BTreeMap<String, Arc<dyn VoiceBackend>>;
+/// The backends a compile's lines are spoken by: the narrator's, which
+/// every line without a `voice.backend` of its own uses, and each one a
+/// line picks. Built once, by the compile, so that whoever voices the lines
+/// asks it rather than [`Backends`].
+#[derive(Clone)]
+pub struct Cast {
+    narrator: String,
+    members: BTreeMap<String, Arc<dyn VoiceBackend>>,
+}
+
+impl Cast {
+    /// The backend every line without one of its own is spoken by.
+    pub fn narrator(&self) -> &Arc<dyn VoiceBackend> {
+        &self.members[&self.narrator]
+    }
+
+    /// Backend `id`, if a line is spoken by it or it is the narrator's.
+    pub fn get(&self, id: &str) -> Option<&Arc<dyn VoiceBackend>> {
+        self.members.get(id)
+    }
+
+    /// Every member's id, the narrator's included.
+    pub fn ids(&self) -> impl Iterator<Item = &str> {
+        self.members.keys().map(String::as_str)
+    }
+
+    /// Each member's version, by id: what a line's cache key is built from.
+    pub fn versions(&self) -> BTreeMap<String, String> {
+        self.members
+            .iter()
+            .map(|(id, b)| (id.clone(), b.version()))
+            .collect()
+    }
+}
 
 impl Backends {
-    /// The backends `narration` is spoken by: `main`, and each a speaker's
-    /// line picks. The compile has already found them all.
-    /// `lines` is each line's backend id with the line's id, for naming
-    /// the line whose backend cannot be had.
-    pub fn voices<'a>(
+    /// The cast of a script narrated by `narrator`, whose `lines` are each a
+    /// line's backend id, the line's id and where it is written.
+    ///
+    /// An unusable narrator is reported alone, as [`resolve`](Self::resolve)
+    /// words it; otherwise one error per backend that cannot be had, naming
+    /// every line that asks for it, at the first.
+    pub fn cast<'a>(
         &self,
-        main: &Arc<dyn VoiceBackend>,
-        lines: impl IntoIterator<Item = (&'a str, &'a LineId)>,
-    ) -> Result<Voices, String> {
-        let mut voices = Voices::new();
-        voices.insert(main.id().to_string(), main.clone());
-        for (backend_id, line_id) in lines {
-            if !voices.contains_key(backend_id) {
-                let backend = self
-                    .resolve(backend_id)
-                    .map_err(|d| format!("line `{line_id}`: {}", d.message))?;
-                voices.insert(backend_id.to_string(), backend);
+        narrator: &str,
+        lines: impl IntoIterator<Item = (&'a str, &'a LineId, SourceSpan)>,
+    ) -> Result<Cast, Vec<Diagnostic>> {
+        let main = self.resolve(narrator).map_err(|d| vec![d])?;
+        let mut members = BTreeMap::new();
+        members.insert(narrator.to_string(), main);
+        let mut wanted: BTreeMap<&str, Vec<(&LineId, SourceSpan)>> = BTreeMap::new();
+        for (backend, line, span) in lines {
+            if backend != narrator {
+                wanted.entry(backend).or_default().push((line, span));
             }
         }
-        Ok(voices)
+        let mut errors = Vec::new();
+        for (id, lines) in wanted {
+            match self.resolve(id) {
+                Ok(backend) => {
+                    members.insert(id.to_string(), backend);
+                }
+                Err(d) => {
+                    let names: Vec<String> = lines.iter().map(|(l, _)| format!("`{l}`")).collect();
+                    let noun = if names.len() == 1 { "line" } else { "lines" };
+                    errors.push(Diagnostic {
+                        message: format!("{noun} {}: {}", names.join(", "), d.message),
+                        ..d.at(lines[0].1)
+                    });
+                }
+            }
+        }
+        if errors.is_empty() {
+            Ok(Cast {
+                narrator: narrator.to_string(),
+                members,
+            })
+        } else {
+            Err(errors)
+        }
     }
 }
 

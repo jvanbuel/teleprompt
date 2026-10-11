@@ -39,14 +39,9 @@ fn the_scaffolded_script_compiles() {
     .expect("scaffolded script must resolve");
     let cache = VoiceCache::new(dir.join(".teleprompt/cache"));
     let estimator = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &estimator,
-        takes: &teleprompt_voice::takes::Takes::default(),
-    };
+    let takes = teleprompt_voice::takes::Takes::default();
+
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &estimator, &takes);
     let out = compile(&program, &ScenePlugins::mock(), &ctx, &dir, "0.1.0")
         .expect("scaffolded script must compile");
     assert!(out.timeline.duration_ms > SpanMs::of(0));

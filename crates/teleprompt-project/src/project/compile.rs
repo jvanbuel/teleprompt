@@ -4,22 +4,20 @@
 //! here; `check` is the one that stops.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use teleprompt_script::program::Program;
 use teleprompt_voice::takes::Takes;
 
-use teleprompt_core::{Diagnostic, Diagnostics};
+use teleprompt_core::{Diagnostic, Diagnostics, LineId, SourceSpan};
 use teleprompt_pipeline::compile::{compile, CompileOutput, VoiceContext};
 use teleprompt_script::config::PartialConfig;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, Element};
 use teleprompt_script::translation::Translation;
 use teleprompt_voice::cache::VoiceCache;
-use teleprompt_voice::VoiceBackend;
 use teleprompt_voice::WpmEstimator;
 
 use super::Project;
-use teleprompt_voice::backends::Backends;
+use teleprompt_voice::backends::{Backends, Cast};
 
 impl Project {
     /// The project's backends, built once from its settings and told which file
@@ -119,11 +117,11 @@ impl Script {
     }
 }
 
-/// A script compiled: what it compiles to, the narrator's backend, and the
-/// program it was compiled from.
+/// A script compiled: what it compiles to, the backends its lines are
+/// spoken by, and the program it was compiled from.
 pub struct Compiled {
     pub output: CompileOutput,
-    pub backend: Arc<dyn VoiceBackend>,
+    pub cast: Cast,
     pub program: Program,
 }
 
@@ -168,18 +166,16 @@ impl Script {
             backend_override_warnings(&base_backends, &program.config.backends);
 
         // After front matter has had its say on `voice.backend`. Unusable
-        // settings fail here only when this is the backend selected (see
+        // settings fail here only for a backend the script is spoken by (see
         // `Backends`).
-        let backend = backends
-            .resolve(&program.config.voice.backend)
-            .map_err(|d| Diagnostics(vec![d]))?;
-        // Every other backend a line is spoken by, as a cast's speakers are.
-        let others = other_backends(backends, &program, backend.id()).map_err(Diagnostics)?;
+        let cast = backends
+            .cast(&program.config.voice.backend, lines(&program))
+            .map_err(Diagnostics)?;
 
         // `script_dir`, not `script.parent()`: a bare `demo.md` has
         // `Some("")` for a parent, which is not the current directory.
         let base_dir = crate::project::script_dir(script);
-        let mut output = compile_with_voice(project, &program, &*backend, others, base_dir)?;
+        let mut output = compile_with_voice(project, &program, &cast, base_dir)?;
 
         // The bare message, not `render()`'s output: like every other warning
         // here it is a plain sentence, and callers add their own framing.
@@ -189,57 +185,20 @@ impl Script {
         output.warnings.extend(translation_warnings);
         Ok(Compiled {
             output,
-            backend,
+            cast,
             program,
         })
     }
 }
 
-/// The version of each backend a line is spoken by other than `main`, by
-/// id; or, for each that does not exist or cannot be used, an error naming
-/// every line that asks for it.
-fn other_backends(
-    backends: &Backends,
-    program: &Program,
-    main: &str,
-) -> Result<std::collections::BTreeMap<String, String>, Vec<Diagnostic>> {
-    let mut wanted: std::collections::BTreeMap<String, Vec<(String, teleprompt_core::SourceSpan)>> =
-        std::collections::BTreeMap::new();
-    for item in &program.elements {
-        if let Element::Narration {
+/// Each line's backend, id and place in the script, for the cast.
+fn lines(program: &Program) -> impl Iterator<Item = (&str, &LineId, SourceSpan)> {
+    program.elements.iter().filter_map(|item| match item {
+        Element::Narration {
             id, config, span, ..
-        } = item
-        {
-            if config.voice.backend != main {
-                wanted
-                    .entry(config.voice.backend.clone())
-                    .or_default()
-                    .push((id.to_string(), *span));
-            }
-        }
-    }
-    let mut versions = std::collections::BTreeMap::new();
-    let mut errors = Vec::new();
-    for (id, lines) in wanted {
-        match backends.resolve(&id) {
-            Ok(backend) => {
-                versions.insert(id, backend.version());
-            }
-            Err(d) => {
-                let names: Vec<String> = lines.iter().map(|(l, _)| format!("`{l}`")).collect();
-                let noun = if names.len() == 1 { "line" } else { "lines" };
-                errors.push(Diagnostic {
-                    message: format!("{noun} {}: {}", names.join(", "), d.message),
-                    ..d.at(lines[0].1)
-                });
-            }
-        }
-    }
-    if errors.is_empty() {
-        Ok(versions)
-    } else {
-        Err(errors)
-    }
+        } => Some((config.voice.backend.as_str(), id, *span)),
+        _ => None,
+    })
 }
 
 /// For a locale other than the script's own, puts the translation beside
@@ -284,19 +243,15 @@ pub fn translation_path(script: &Path, locale: &str) -> PathBuf {
 fn compile_with_voice(
     project: &Project,
     program: &Program,
-    backend: &dyn VoiceBackend,
-    other_backends: std::collections::BTreeMap<String, String>,
+    cast: &Cast,
     base_dir: &Path,
 ) -> Result<CompileOutput, Diagnostics> {
     let cache = VoiceCache::new(project.caches().root);
     let estimator = WpmEstimator::default();
-    let version = backend.version();
     let takes = Takes::load(&project.takes_dir())
         .map_err(|e| Diagnostics(vec![Diagnostic::error(e.to_string())]))?;
     let ctx = VoiceContext {
-        other_backends,
-        backend_id: backend.id(),
-        backend_version: &version,
+        versions: cast.versions(),
         cache: &cache,
         estimator: &estimator,
         takes: &takes,

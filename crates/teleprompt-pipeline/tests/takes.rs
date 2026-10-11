@@ -38,14 +38,7 @@ fn compiled(takes: &Takes) -> CompileOutput {
     let dir = teleprompt_testkit::test_dir("compile-takes-cache");
     let cache = VoiceCache::new(dir.join("cache"));
     let estimator = WpmEstimator::default();
-    let ctx = VoiceContext {
-        other_backends: Default::default(),
-        backend_id: "null",
-        backend_version: "0.1.0",
-        cache: &cache,
-        estimator: &estimator,
-        takes,
-    };
+    let ctx = VoiceContext::one_backend("null", "0.1.0", &cache, &estimator, takes);
     compile(
         &program,
         &ScenePlugins::mock(),

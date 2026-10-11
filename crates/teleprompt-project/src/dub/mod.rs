@@ -14,7 +14,7 @@ use teleprompt_voice::VoiceBackend;
 
 use crate::project::{CacheDir, Clips, Compiled, Script};
 use crate::Failure;
-use teleprompt_voice::backends::Backends;
+use teleprompt_voice::backends::Cast;
 
 pub mod publish;
 
@@ -263,24 +263,15 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
     // `Script::compile`.
     let Compiled {
         output: compiled,
-        backend,
+        cast,
         ..
     } = script.compile().map_err(Failure::Validation)?;
     let cache = Arc::new(VoiceCache::new(project.caches().root));
-    let voices = backends
-        .voices(
-            &backend,
-            compiled
-                .narration
-                .iter()
-                .map(|d| (d.backend.as_str(), &d.line_id)),
-        )
-        .map_err(Failure::Runtime)?;
 
-    for id in voices.keys() {
-        check_voices(backends, id, &compiled, &cache).await?;
+    for id in cast.ids() {
+        check_voices(&cast, id, &compiled, &cache).await?;
     }
-    let limit = backends.concurrency(backend.id());
+    let limit = backends.concurrency(cast.narrator().id());
     let takes = Takes::load(&project.takes_dir()).map_err(|e| Failure::Runtime(e.to_string()))?;
     let synthesized: Vec<NarrationDetail> = compiled
         .narration
@@ -288,7 +279,7 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
         .filter(|d| d.take.is_none())
         .cloned()
         .collect();
-    let rendered = render_all(&voices, &cache, &synthesized, limit, reporter).await?;
+    let rendered = render_all(&cast, &cache, &synthesized, limit, reporter).await?;
     // The re-render notices come first: they explain why anything below them
     // is being recomputed at all.
     let mut warnings: Vec<String> = rendered
@@ -327,7 +318,7 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
 /// (docs/design.md#voice-contract). A fully cached project needs no server,
 /// so it is not asked.
 async fn check_voices(
-    backends: &Backends,
+    cast: &Cast,
     backend_id: &str,
     compiled: &teleprompt_pipeline::compile::CompileOutput,
     cache: &VoiceCache,
@@ -341,11 +332,7 @@ async fn check_voices(
                 Ok(teleprompt_voice::cache::CacheRead::Hit(_))
             )
     });
-    let Some(backend) = backends
-        .registry()
-        .get(backend_id)
-        .filter(|_| anything_to_synthesize)
-    else {
+    let Some(backend) = cast.get(backend_id).filter(|_| anything_to_synthesize) else {
         return Ok(());
     };
     let wanted = compiled
@@ -398,7 +385,7 @@ async fn check_voices(
 /// every task in flight; entries already stored stay, since the cache is
 /// content-addressed.
 async fn render_all(
-    voices: &teleprompt_voice::backends::Voices,
+    cast: &Cast,
     cache: &Arc<VoiceCache>,
     narration: &[NarrationDetail],
     limit: usize,
@@ -415,7 +402,12 @@ async fn render_all(
         tokio::task::JoinSet::new();
     for indices in groups_by_key(narration) {
         let detail = narration[indices[0]].clone();
-        let backend = voices[&detail.backend].clone();
+        let backend = cast.get(&detail.backend).cloned().ok_or_else(|| {
+            Failure::Runtime(format!(
+                "line `{}`: no voice backend `{}`",
+                detail.line_id, detail.backend
+            ))
+        })?;
         let cache = cache.clone();
         let permits = permits.clone();
         tasks.spawn(async move {

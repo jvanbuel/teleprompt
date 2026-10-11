@@ -5,14 +5,14 @@
 //! the manifest `dub` publishes, which the page plays as an outside
 //! renderer would, so it cannot show timing the video will not have.
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use teleprompt_project::dub::publish::Published;
 use teleprompt_project::NarrationDetail;
 use teleprompt_project::NarrationManifest;
+use teleprompt_voice::backends::Cast;
 use teleprompt_voice::cache::VoiceCache;
-use teleprompt_voice::VoiceBackend;
 
 use teleprompt_core::sync::lock;
 use teleprompt_core::Hash;
@@ -39,10 +39,8 @@ pub struct Voicing {
 
 #[derive(Clone)]
 struct Voiced {
-    /// The narrator's backend.
-    backend: Arc<dyn VoiceBackend>,
     /// Every backend a line is spoken by, the narrator's included.
-    voices: teleprompt_voice::backends::Voices,
+    cast: Cast,
     lines: Vec<NarrationDetail>,
     length_ms: u64,
     /// Each line and shot in time, as [`timeline_json`] says it.
@@ -113,23 +111,11 @@ impl Voicing {
         match self.script.compile() {
             Ok(Compiled {
                 output: compiled,
-                backend,
+                cast,
                 ..
             }) => {
-                let voices = self
-                    .script
-                    .backends()
-                    .voices(
-                        &backend,
-                        compiled
-                            .narration
-                            .iter()
-                            .map(|d| (d.backend.as_str(), &d.line_id)),
-                    )
-                    .unwrap_or_default();
                 *voiced = Some(Voiced {
-                    backend,
-                    voices,
+                    cast,
                     length_ms: compiled.timeline.duration_ms.ms(),
                     timeline: timeline_json(&compiled.timeline),
                     lines: compiled.narration,
@@ -191,8 +177,8 @@ impl Voicing {
             .filter(|l| l.speaker.is_none())
             .find_map(|l| l.synth_request.voice.clone());
         let name = match voice {
-            Some(voice) => format!("{} · {voice}", voiced.backend.id()),
-            None => voiced.backend.id().to_string(),
+            Some(voice) => format!("{} · {voice}", voiced.cast.narrator().id()),
+            None => voiced.cast.narrator().id().to_string(),
         };
         let cache = self.cache();
         let lines = voiced
@@ -258,7 +244,7 @@ impl Voicing {
         }
         let runtime = self.runtime()?;
         let backend = voiced
-            .voices
+            .cast
             .get(&line.backend)
             .ok_or_else(|| format!("line `{id}`: no voice backend `{}`", line.backend))?;
         let stored = runtime.block_on(dub::synthesize_and_store(backend, &cache, line))?;

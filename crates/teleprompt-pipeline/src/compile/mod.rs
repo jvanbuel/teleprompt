@@ -34,11 +34,9 @@ use walker::Walker;
 /// Everything `compile` needs about voice, and deliberately no backend, so
 /// the inner loop cannot synthesize (docs/design.md#async-boundary).
 pub struct VoiceContext<'a> {
-    pub backend_id: &'a str,
-    pub backend_version: &'a str,
-    /// The version of each other backend a line may pick, by id, for a
-    /// cast whose speakers use several.
-    pub other_backends: BTreeMap<String, String>,
+    /// The version of each backend a line may be spoken by, by id: the
+    /// narrator's and each a speaker picks.
+    pub versions: BTreeMap<String, String>,
     pub cache: &'a VoiceCache,
     pub estimator: &'a WpmEstimator,
     /// Recorded takes; a current one stands in for synthesis.
@@ -76,14 +74,27 @@ pub struct NarrationDetail {
     pub name: Option<String>,
 }
 
-impl VoiceContext<'_> {
+impl<'a> VoiceContext<'a> {
+    /// A compile whose every line is spoken by `backend` at `version`, as a
+    /// test's is.
+    pub fn one_backend(
+        backend: &str,
+        version: &str,
+        cache: &'a VoiceCache,
+        estimator: &'a WpmEstimator,
+        takes: &'a Takes,
+    ) -> Self {
+        Self {
+            versions: BTreeMap::from([(backend.to_string(), version.to_string())]),
+            cache,
+            estimator,
+            takes,
+        }
+    }
+
     /// The version of backend `id`, if this compile has it.
     pub(crate) fn version_of(&self, id: &str) -> Option<&str> {
-        if id == self.backend_id {
-            Some(self.backend_version)
-        } else {
-            self.other_backends.get(id).map(String::as_str)
-        }
+        self.versions.get(id).map(String::as_str)
     }
 }
 
