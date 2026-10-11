@@ -66,18 +66,18 @@ impl CacheDirs {
 /// other way round. It reads as a [`Path`] everywhere a path will do.
 ///
 /// ```
-/// # use teleprompt_project::{capture::Scenes, project::Project};
-/// # fn f(project: &Project, frame: teleprompt_scene::capture::Frame) {
+/// # use teleprompt_project::{build::FrameOverride, dub::{Dubbed, Written}, project::Project};
+/// # fn f(project: &Project, dubbed: &Dubbed<Written>) {
 /// let clips = project.caches().clips();
-/// Scenes::new(project.registry.scenes, &clips, frame);
+/// dubbed.capture(project.registry.scenes, &clips, FrameOverride::default(), &teleprompt_core::Silent);
 /// # }
 /// ```
 ///
 /// ```compile_fail
-/// # use teleprompt_project::{capture::Scenes, project::Project};
-/// # fn f(project: &Project, frame: teleprompt_scene::capture::Frame) {
+/// # use teleprompt_project::{build::FrameOverride, dub::{Dubbed, Written}, project::Project};
+/// # fn f(project: &Project, dubbed: &Dubbed<Written>) {
 /// let compose = project.caches().compose();
-/// Scenes::new(project.registry.scenes, &compose, frame);
+/// dubbed.capture(project.registry.scenes, &compose, FrameOverride::default(), &teleprompt_core::Silent);
 /// # }
 /// ```
 pub struct CacheDir<K> {

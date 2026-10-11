@@ -15,9 +15,8 @@ use teleprompt_scene::capture::Frame;
 use teleprompt_scene::ScenePlugins;
 
 use crate::cache;
-use crate::capture::Scenes;
 use crate::clips::ClipStore;
-use crate::dub::{captured_shot, Dubber};
+use crate::dub::Dubber;
 use crate::project::{CacheDir, Compose, Script};
 use crate::Failure;
 use teleprompt_core::Reporter;
@@ -178,9 +177,7 @@ impl<'s> Builder<'s> {
             .reporting(reporter)
             .dub(&self.narration_root)
             .await?;
-        let frame = self.frame.frame(&dubbed.output);
-        Ok(Scenes::new(self.plugins, &self.clips, frame)
-            .capture(&dubbed, &mut |p| reporter.progress(captured_shot(p))))
+        Ok(dubbed.capture(self.plugins, &self.clips, self.frame, reporter))
     }
 
     /// Dubs, captures, then renders what was dubbed, as an outside
@@ -192,10 +189,9 @@ impl<'s> Builder<'s> {
             .dub(&self.narration_root)
             .await?;
         // Stage 5 (docs/design.md#pipeline). What cannot be recorded becomes
-        // a warning and a slate, not a failure; see [`Scenes::capture`].
+        // a warning and a slate, not a failure; see [`Dubbed::capture`](crate::dub::Dubbed::capture).
+        let recorded = dubbed.capture(self.plugins, &self.clips, self.frame, reporter);
         let frame = self.frame.frame(&dubbed.output);
-        let recorded = Scenes::new(self.plugins, &self.clips, frame)
-            .capture(&dubbed, &mut |p| reporter.progress(captured_shot(p)));
         let mut warnings = dubbed.warnings;
         warnings.extend(recorded.warnings);
 

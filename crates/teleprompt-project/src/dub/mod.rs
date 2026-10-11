@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use publish::Published;
-use teleprompt_core::{Progress, Reporter, Silent, SpanMs};
+use teleprompt_core::{Reporter, Silent, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
@@ -19,32 +19,34 @@ pub mod publish;
 /// captures from a manifest that was never published.
 ///
 /// ```
-/// # use teleprompt_project::{capture::Scenes, dub::Dubber, project::Script};
-/// # async fn f(script: &Script, scenes: &Scenes<'_>) {
+/// # use teleprompt_project::{build::FrameOverride, dub::Dubber, project::Script};
+/// # async fn f(script: &Script) {
+/// let (plugins, clips) = (script.project().registry.scenes, script.project().caches().clips());
 /// let dubbed = Dubber::new(script).dub("out".as_ref()).await.unwrap();
-/// scenes.capture(&dubbed, &mut |_| {});
+/// dubbed.capture(plugins, &clips, FrameOverride::default(), &teleprompt_core::Silent);
 /// # }
 /// ```
 ///
 /// A check publishes nothing, so there is nothing to capture from:
 ///
 /// ```compile_fail
-/// # use teleprompt_project::{capture::Scenes, dub::Dubber, project::Script};
-/// # async fn f(script: &Script, scenes: &Scenes<'_>) {
+/// # use teleprompt_project::{build::FrameOverride, dub::Dubber, project::Script};
+/// # async fn f(script: &Script) {
+/// let (plugins, clips) = (script.project().registry.scenes, script.project().caches().clips());
 /// let checked = Dubber::new(script).check("out".as_ref()).await.unwrap();
-/// scenes.capture(&checked, &mut |_| {});
+/// checked.capture(plugins, &clips, FrameOverride::default(), &teleprompt_core::Silent);
 /// # }
 /// ```
 pub struct Dubbed<S> {
     pub manifest: NarrationManifest,
     /// Every shot's source, which a capture backend runs. The manifest
     /// names the shots; only this says what they do.
-    pub shots: std::collections::BTreeMap<
+    pub(crate) shots: std::collections::BTreeMap<
         teleprompt_core::ShotId,
         teleprompt_pipeline::compile::ShotSource,
     >,
     /// The scenes as configured, which a capture backend opens.
-    pub scenes: std::collections::BTreeMap<String, teleprompt_script::config::SceneConfig>,
+    pub(crate) scenes: std::collections::BTreeMap<String, teleprompt_script::config::SceneConfig>,
     /// The script's `output:` block, which `build` needs and the manifest
     /// does not carry.
     pub output: OutputConfig,
@@ -289,9 +291,12 @@ pub fn add_clips(
     reporter: &dyn Reporter,
 ) -> Result<(), Failure> {
     let clips = script.project().caches().clips();
-    let frame = crate::build::FrameOverride::default().frame(&dubbed.output);
-    let scenes = crate::capture::Scenes::new(script.project().registry.scenes, &clips, frame);
-    let captured = scenes.capture(dubbed, &mut |p| reporter.progress(captured_shot(p)));
+    let captured = dubbed.capture(
+        script.project().registry.scenes,
+        &clips,
+        crate::build::FrameOverride::default(),
+        reporter,
+    );
     dubbed.warnings.extend(captured.warnings);
     let into = locale_dir(out_root, script.locale()).join("clips");
     let placed = clips
@@ -299,14 +304,4 @@ pub fn add_clips(
         .map_err(|e| Failure::Runtime(format!("{}: {e}", into.display())))?;
     dubbed.state.files.extend(placed);
     Ok(())
-}
-
-/// A shot's capture progress, as a [`Reporter`] takes it.
-pub fn captured_shot(p: teleprompt_scene::capture::Progress) -> Progress {
-    Progress::Capture {
-        done: p.done,
-        of: p.of,
-        scene: p.scene,
-        shot: p.shot,
-    }
 }

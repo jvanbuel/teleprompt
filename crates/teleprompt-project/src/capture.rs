@@ -15,13 +15,16 @@ use teleprompt_scene::capture::{sessions, CaptureBackend, Frame, PlannedShot, Pr
 use teleprompt_scene::{ScenePlugin, ScenePlugins};
 use teleprompt_script::config::SceneConfig;
 
+use crate::build::FrameOverride;
 use crate::clips::ClipStore;
+use crate::dub::{Dubbed, Written};
+use teleprompt_core::Reporter;
 
 /// The shots of a published manifest, as the planner needs them.
 ///
 /// Built from the manifest, not the in-process timeline, for the reason
 /// `build` is (docs/design.md#rendering).
-pub(crate) fn cues_of(
+fn cues_of(
     manifest: &NarrationManifest,
     shots: &BTreeMap<ShotId, ShotSource>,
     scenes: &BTreeMap<String, SceneConfig>,
@@ -116,38 +119,27 @@ impl CaptureReport {
     }
 }
 
-/// The scene plugins, recording into a clip directory at one frame size.
-pub struct Scenes<'a> {
-    plugins: &'a ScenePlugins,
-    clips: &'a ClipStore,
-    frame: Frame,
-}
-
-impl<'a> Scenes<'a> {
-    pub fn new(plugins: &'a ScenePlugins, clips: &'a ClipStore, frame: Frame) -> Self {
-        Self {
-            plugins,
-            clips,
-            frame,
-        }
-    }
-
-    /// Records whatever the shots `dub` scheduled are missing from the clip
-    /// directory.
+impl Dubbed<Written> {
+    /// Records whatever the shots this dub scheduled are missing from
+    /// `clips`, with `plugins`, at the script's `output:` frame with
+    /// `frame`'s overrides.
     ///
     /// Infallible by design: a scene nothing here can record, or a backend
     /// that fails, is a warning and slates. The timing is still real, and a
     /// video with a hole in it is more use than no video.
     pub fn capture(
         &self,
-        dubbed: &crate::dub::Dubbed<crate::dub::Written>,
-        on_progress: &mut dyn FnMut(Progress),
+        plugins: &ScenePlugins,
+        clips: &ClipStore,
+        frame: FrameOverride,
+        reporter: &dyn Reporter,
     ) -> CaptureReport {
-        let scenes = &dubbed.scenes;
-        let shots = cues_of(&dubbed.manifest, &dubbed.shots, scenes);
-        let mut planned = sessions(&shots, &|key| self.clips.has(key));
+        let frame = frame.frame(&self.output);
+        let on_progress = &mut |p| reporter.progress(captured_shot(p));
+        let shots = cues_of(&self.manifest, &self.shots, &self.scenes);
+        let mut planned = sessions(&shots, &|key| clips.has(key));
         for session in &mut planned {
-            if let Some(scene) = scenes.get(&session.scene) {
+            if let Some(scene) = self.scenes.get(&session.scene) {
                 session.root = scene.root.clone();
             }
         }
@@ -158,8 +150,8 @@ impl<'a> Scenes<'a> {
         let mut uncaptured = 0usize;
 
         for session in &planned {
-            let backend = self.plugins.get(&session.plugin).map(ScenePlugin::capture);
-            match record(backend, session, &self.frame, self.clips, on_progress) {
+            let backend = plugins.get(&session.plugin).map(ScenePlugin::capture);
+            match record(backend, session, &frame, clips, on_progress) {
                 Ok(clips) => {
                     captured += clips;
                     ran += 1;
@@ -173,13 +165,23 @@ impl<'a> Scenes<'a> {
 
         let total = shots.iter().filter(|b| b.scene != "pause").count();
         CaptureReport {
-            clips_dir: self.clips.dir().to_path_buf(),
+            clips_dir: clips.dir().to_path_buf(),
             sessions: ran,
             captured,
             reused: total.saturating_sub(captured + uncaptured),
             uncaptured,
             warnings,
         }
+    }
+}
+
+/// A shot's capture progress, as a [`Reporter`] takes it.
+fn captured_shot(p: Progress) -> teleprompt_core::Progress {
+    teleprompt_core::Progress::Capture {
+        done: p.done,
+        of: p.of,
+        scene: p.scene,
+        shot: p.shot,
     }
 }
 
