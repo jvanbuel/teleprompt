@@ -1,20 +1,15 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
-use publish::{LineAudio, Published};
-use teleprompt_core::{Diagnostics, LineId, Progress, Reporter, Silent, SpanMs};
+use publish::Published;
+use teleprompt_core::{Progress, Reporter, Silent, SpanMs};
 use teleprompt_manifest::diff::{self as manifest_diff, ManifestDiff};
 use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
-use teleprompt_pipeline::compile::NarrationDetail;
 use teleprompt_script::config::OutputConfig;
-use teleprompt_voice::cache::{CachedAudio, VoiceCache};
-use teleprompt_voice::takes::Takes;
-use teleprompt_voice::VoiceBackend;
 
 use crate::project::{CacheDir, Clips, Compiled, Script};
+use crate::voicing::Lines;
 use crate::Failure;
-use teleprompt_voice::backends::Cast;
 
 pub mod publish;
 
@@ -115,99 +110,6 @@ fn read_committed(path: &Path) -> Result<Option<NarrationManifest>, String> {
         .map_err(|e| format!("cannot parse {}: {e}", path.display()))
 }
 
-/// What rendering one *cache key* produced, and whether its cache entry
-/// had to be healed.
-///
-/// Keyed to a key, not a line: the key hashes the text, not the line id
-/// (docs/design.md#voice-cache), so two lines with identical text share
-/// one render. [`voice`] groups lines by key so each key is rendered
-/// once, by one task, and this run never races itself in `store`.
-struct RenderedAudio {
-    wav_bytes: Vec<u8>,
-    rendered_ms: u64,
-    sample_rate: u32,
-    channels: u16,
-    /// See `CacheRead::warning`.
-    cache_warning: Option<String>,
-}
-
-/// [`RenderedAudio`] under the line it is published as. Lines sharing a
-/// key each get their own, since the manifest has one entry per line.
-struct Rendered {
-    line_id: LineId,
-    audio: LineAudio,
-    cache_warning: Option<String>,
-}
-
-/// Synthesizes `detail`'s line and stores it, returning the entry the cache
-/// holds; an error names the line.
-///
-/// The request is the one `compile` measured, not one rebuilt here, so the
-/// audio and the published duration share one source of truth. Another
-/// process may store the same key concurrently; `VoiceCache::store` returns
-/// whichever entry won, so the caller's bytes and the sidecar a recompile
-/// reads are the same entry.
-pub async fn synthesize_and_store(
-    backend: &Arc<dyn VoiceBackend>,
-    cache: &VoiceCache,
-    detail: &NarrationDetail,
-) -> Result<CachedAudio, String> {
-    let line = |e: &dyn std::fmt::Display| format!("line `{}`: {e}", detail.line_id);
-    let synthesized = backend
-        .synthesize(&detail.synth_request)
-        .await
-        .map_err(|e| line(&e))?;
-    cache
-        .store(
-            &detail.cache_key,
-            &synthesized.pcm,
-            synthesized.word_timings.as_deref(),
-        )
-        .map_err(|e| line(&e))
-}
-
-/// One cache key's audio, from the cache or, on a miss, from `backend`
-/// and then stored. `detail` is any line that resolves to the key: equal
-/// keys imply identical `SynthRequest`s.
-async fn render_one(
-    backend: &Arc<dyn VoiceBackend>,
-    cache: &VoiceCache,
-    detail: &NarrationDetail,
-) -> Result<RenderedAudio, Failure> {
-    let read = cache
-        .lookup(&detail.cache_key)
-        .map_err(|e| Failure::Runtime(format!("line `{}`: {e}", detail.line_id)))?;
-    let cache_warning = read.warning();
-
-    let (wav_bytes, rendered_ms, sample_rate, channels) = match read.hit() {
-        Some(cached) => (
-            cached.wav,
-            cached.duration_ms,
-            cached.sample_rate,
-            cached.channels,
-        ),
-        None => {
-            let stored = synthesize_and_store(backend, cache, detail)
-                .await
-                .map_err(Failure::Runtime)?;
-            (
-                stored.wav,
-                stored.duration_ms,
-                stored.sample_rate,
-                stored.channels,
-            )
-        }
-    };
-
-    Ok(RenderedAudio {
-        wav_bytes,
-        rendered_ms,
-        sample_rate,
-        channels,
-        cache_warning,
-    })
-}
-
 /// Voices a script and publishes it under an output root:
 /// `<root>/<locale>/narration.json` and its audio.
 pub struct Dubber<'a> {
@@ -266,35 +168,22 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
         cast,
         ..
     } = script.compile().map_err(Failure::Validation)?;
-    let cache = Arc::new(VoiceCache::new(project.caches().root));
-
-    for id in cast.ids() {
-        check_voices(&cast, id, &compiled, &cache).await?;
-    }
     let limit = backends.concurrency(cast.narrator().id());
-    let takes = Takes::load(&project.takes_dir()).map_err(|e| Failure::Runtime(e.to_string()))?;
-    let synthesized: Vec<NarrationDetail> = compiled
-        .narration
-        .iter()
-        .filter(|d| d.take.is_none())
-        .cloned()
-        .collect();
-    let rendered = render_all(&cast, &cache, &synthesized, limit, reporter).await?;
+    let audio = Lines::of(project, cast)?
+        .all(&compiled.narration, limit, reporter)
+        .await?;
     // The re-render notices come first: they explain why anything below them
     // is being recomputed at all.
-    let mut warnings: Vec<String> = rendered
+    let mut warnings: Vec<String> = audio
         .iter()
-        .filter_map(|r| {
+        .filter_map(|a| {
             Some(format!(
                 "line `{}`: {}",
-                r.line_id,
-                r.cache_warning.as_ref()?
+                a.line_id,
+                a.cache_warning.as_ref()?
             ))
         })
         .collect();
-    let synthesized = rendered.into_iter().map(|r| r.audio).collect();
-    let audio =
-        publish::with_takes(&compiled.narration, synthesized, &takes).map_err(Failure::Runtime)?;
 
     // Recompile against the now-warm cache: the first compile ran before
     // anything was rendered, so on a cold project it holds estimates. This
@@ -307,171 +196,6 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
         published,
         warnings,
     })
-}
-
-/// Checks the voices the script asks for against the server, once, before
-/// anything is synthesized.
-///
-/// Here, not in `check`: `check` stays offline, and a gate that depends on a
-/// running server would pass a script on one machine and fail it on
-/// another. Only a backend that lists its voices is checked
-/// (docs/design.md#voice-contract). A fully cached project needs no server,
-/// so it is not asked.
-async fn check_voices(
-    cast: &Cast,
-    backend_id: &str,
-    compiled: &teleprompt_pipeline::compile::CompileOutput,
-    cache: &VoiceCache,
-) -> Result<(), Failure> {
-    // A corrupt entry counts as missing: it will be re-rendered.
-    let anything_to_synthesize = compiled.narration.iter().any(|detail| {
-        detail.backend == backend_id
-            && detail.take.is_none()
-            && !matches!(
-                cache.lookup_meta(&detail.cache_key),
-                Ok(teleprompt_voice::cache::CacheRead::Hit(_))
-            )
-    });
-    let Some(backend) = cast.get(backend_id).filter(|_| anything_to_synthesize) else {
-        return Ok(());
-    };
-    let wanted = compiled
-        .narration
-        .iter()
-        .filter(|d| d.backend == backend_id)
-        .filter_map(|d| d.synth_request.voice.clone())
-        .collect::<std::collections::BTreeSet<_>>();
-    if wanted.is_empty() {
-        return Ok(());
-    }
-    // A server that fails to answer is a runtime failure (exit 1,
-    // docs/design.md#backend-failure; the error names the URL). Only one
-    // that answers without the voice is a script problem (exit 2).
-    let Some(available) = backend.voices().await else {
-        return Ok(());
-    };
-    let available = available.map_err(|e| Failure::Runtime(e.to_string()))?;
-    let address = backend.address().unwrap_or_default();
-    let problems: Vec<String> = wanted
-        .iter()
-        .filter(|v| !available.contains(v))
-        .map(|v| {
-            format!(
-                "voice `{v}` is not available on the {backend_id} server at {address} \
-                 (available: {})",
-                available.join(", ")
-            )
-        })
-        .collect();
-    if problems.is_empty() {
-        Ok(())
-    } else {
-        Err(Failure::Validation(Diagnostics(
-            problems
-                .into_iter()
-                .map(teleprompt_core::Diagnostic::error)
-                .collect(),
-        )))
-    }
-}
-
-/// Every line's audio, in document order, rendering at most `limit` keys at
-/// once.
-///
-/// Bounded: the model server is the bottleneck, and fanning out wider than
-/// it serves makes the run slower and its failures worse. At 1, with tasks
-/// spawned in document order on the CLI's current-thread runtime, the run is
-/// serial in every observable way, stderr included. The first error aborts
-/// every task in flight; entries already stored stay, since the cache is
-/// content-addressed.
-async fn render_all(
-    cast: &Cast,
-    cache: &Arc<VoiceCache>,
-    narration: &[NarrationDetail],
-    limit: usize,
-    reporter: &dyn Reporter,
-) -> Result<Vec<Rendered>, Failure> {
-    let permits = Arc::new(tokio::sync::Semaphore::new(limit));
-    // Progress is per line, in completion order with a running count: under
-    // concurrency, which line finishes next is a fact about the server, and
-    // relabelling it into document order would misreport what happened.
-    let total = narration.len();
-    let mut completed = 0;
-
-    let mut tasks: tokio::task::JoinSet<(Vec<usize>, Result<RenderedAudio, Failure>)> =
-        tokio::task::JoinSet::new();
-    for indices in groups_by_key(narration) {
-        let detail = narration[indices[0]].clone();
-        let backend = cast.get(&detail.backend).cloned().ok_or_else(|| {
-            Failure::Runtime(format!(
-                "line `{}`: no voice backend `{}`",
-                detail.line_id, detail.backend
-            ))
-        })?;
-        let cache = cache.clone();
-        let permits = permits.clone();
-        tasks.spawn(async move {
-            let _permit = permits
-                .acquire_owned()
-                .await
-                .expect("BUG: the semaphore is never closed, only dropped with this function");
-            let r = render_one(&backend, &cache, &detail).await;
-            (indices, r)
-        });
-    }
-
-    // Results arrive in completion order, so each is filed at its indices.
-    let mut slots: Vec<Option<Rendered>> = (0..total).map(|_| None).collect();
-    while let Some(joined) = tasks.join_next().await {
-        let (indices, r) =
-            joined.map_err(|e| Failure::Runtime(format!("a render task did not finish: {e}")))?;
-        let audio = match r {
-            Ok(audio) => audio,
-            Err(e) => {
-                tasks.abort_all();
-                return Err(e);
-            }
-        };
-        for i in indices {
-            let line_id = narration[i].line_id.clone();
-            // Progress counts the script's lines, not requests.
-            completed += 1;
-            reporter.progress(Progress::Voice {
-                done: completed,
-                of: total,
-                line: line_id.clone(),
-            });
-            slots[i] = Some(Rendered {
-                audio: LineAudio {
-                    line_id: line_id.clone(),
-                    wav: audio.wav_bytes.clone(),
-                    duration_ms: audio.rendered_ms,
-                    sample_rate: audio.sample_rate,
-                    channels: audio.channels,
-                },
-                line_id,
-                cache_warning: audio.cache_warning.clone(),
-            });
-        }
-    }
-    Ok(slots
-        .into_iter()
-        .map(|r| r.expect("BUG: every index is filed once the tasks drain without a failure"))
-        .collect())
-}
-
-/// Line indices grouped by cache key, one group per task (see
-/// [`RenderedAudio`]), ordered by first occurrence so tasks spawn in
-/// document order and stderr is reproducible.
-fn groups_by_key(narration: &[NarrationDetail]) -> Vec<Vec<usize>> {
-    let mut groups: std::collections::HashMap<teleprompt_voice::cache::CacheKey, Vec<usize>> =
-        std::collections::HashMap::new();
-    for (i, detail) in narration.iter().enumerate() {
-        groups.entry(detail.cache_key.clone()).or_default().push(i);
-    }
-    let mut groups: Vec<Vec<usize>> = groups.into_values().collect();
-    groups.sort_by_key(|indices| indices[0]);
-    groups
 }
 
 /// How `built` differs from the manifest committed under `out_root`. No

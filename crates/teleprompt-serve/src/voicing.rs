@@ -5,13 +5,13 @@
 //! the manifest `dub` publishes, which the page plays as an outside
 //! renderer would, so it cannot show timing the video will not have.
 
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use teleprompt_project::dub::publish::Published;
+use teleprompt_project::voicing::Lines;
 use teleprompt_project::NarrationDetail;
 use teleprompt_project::NarrationManifest;
-use teleprompt_voice::backends::Cast;
 use teleprompt_voice::cache::VoiceCache;
 
 use teleprompt_core::sync::lock;
@@ -39,8 +39,8 @@ pub struct Voicing {
 
 #[derive(Clone)]
 struct Voiced {
-    /// Every backend a line is spoken by, the narrator's included.
-    cast: Cast,
+    /// Where each line's audio comes from.
+    audio: Arc<Lines>,
     lines: Vec<NarrationDetail>,
     length_ms: u64,
     /// Each line and shot in time, as [`timeline_json`] says it.
@@ -114,8 +114,15 @@ impl Voicing {
                 cast,
                 ..
             }) => {
+                let audio = match Lines::of(self.script.project(), cast) {
+                    Ok(audio) => Arc::new(audio),
+                    Err(e) => {
+                        *lock(&self.error) = Some(vec![e.to_string()]);
+                        return voiced.clone();
+                    }
+                };
                 *voiced = Some(Voiced {
-                    cast,
+                    audio,
                     length_ms: compiled.timeline.duration_ms.ms(),
                     timeline: timeline_json(&compiled.timeline),
                     lines: compiled.narration,
@@ -177,8 +184,8 @@ impl Voicing {
             .filter(|l| l.speaker.is_none())
             .find_map(|l| l.synth_request.voice.clone());
         let name = match voice {
-            Some(voice) => format!("{} · {voice}", voiced.cast.narrator().id()),
-            None => voiced.cast.narrator().id().to_string(),
+            Some(voice) => format!("{} · {voice}", voiced.audio.cast().narrator().id()),
+            None => voiced.audio.cast().narrator().id().to_string(),
         };
         let cache = self.cache();
         let lines = voiced
@@ -226,29 +233,11 @@ impl Voicing {
         let Some(line) = voiced.lines.iter().find(|l| l.line_id == id) else {
             return Ok(None);
         };
-        if line.take.is_some() {
-            let take = self.script.project().takes_dir().join(format!("{id}.wav"));
-            return std::fs::read(&take)
-                .map(Some)
-                .map_err(|e| format!("cannot read {}: {e}", take.display()));
-        }
-        let cache = self.cache();
-        if fresh {
-            cache.forget(&line.cache_key).map_err(|e| e.to_string())?;
-        } else if let Some(hit) = cache
-            .lookup(&line.cache_key)
-            .map_err(|e| e.to_string())?
-            .hit()
-        {
-            return Ok(Some(hit.wav));
-        }
-        let runtime = self.runtime()?;
-        let backend = voiced
-            .cast
-            .get(&line.backend)
-            .ok_or_else(|| format!("line `{id}`: no voice backend `{}`", line.backend))?;
-        let stored = runtime.block_on(dub::synthesize_and_store(backend, &cache, line))?;
-        Ok(Some(stored.wav))
+        let audio = self
+            .runtime()?
+            .block_on(voiced.audio.line(line, fresh))
+            .map_err(|e| e.to_string())?;
+        Ok(Some(audio.wav))
     }
 }
 

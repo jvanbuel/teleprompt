@@ -1,5 +1,5 @@
 //! What `dub` publishes, from each line's audio: every line's WAV in one
-//! format, a `fit-line` line at the tempo the timeline gives it, and the
+//! format (a take converted to the voice's), a `fit-line` line at the tempo the timeline gives it, and the
 //! manifest, each line's `audio_hash` the hash of its bytes. `dub` writes
 //! it; the prompter plays it. Neither synthesizes here: the caller brings
 //! the audio, from the voice cache or a backend.
@@ -8,10 +8,9 @@ use crate::Failure;
 use teleprompt_core::{Hash, LineId};
 use teleprompt_manifest::{AudioInfo, NarrationManifest};
 use teleprompt_pipeline::schedule::Timeline;
-use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
-use teleprompt_pipeline::compile::{CompileOutput, NarrationDetail};
+use teleprompt_pipeline::compile::CompileOutput;
 
 /// The `AudioInfo` sample rate for a locale with no lines. Any other
 /// manifest takes its rate from the audio produced.
@@ -25,6 +24,8 @@ pub struct LineAudio {
     pub duration_ms: u64,
     pub sample_rate: u32,
     pub channels: u16,
+    /// Why its voice cache entry was made again, if it was.
+    pub cache_warning: Option<String>,
 }
 
 impl LineAudio {
@@ -35,6 +36,7 @@ impl LineAudio {
             duration_ms: pcm.duration_ms(),
             sample_rate: pcm.sample_rate,
             channels: pcm.channels,
+            cache_warning: None,
         }
     }
 }
@@ -46,35 +48,8 @@ pub struct Published {
     pub lines: Vec<(LineId, Vec<u8>)>,
 }
 
-/// Every line's audio in document order: `synthesized` for the lines
-/// without a take, in order, and each recorded line's take, converted to
-/// the synthesized lines' rate and channels, since the manifest publishes
-/// one.
-pub(crate) fn with_takes(
-    narration: &[NarrationDetail],
-    synthesized: Vec<LineAudio>,
-    takes: &Takes,
-) -> Result<Vec<LineAudio>, String> {
-    let mut format = synthesized.first().map(|a| (a.sample_rate, a.channels));
-    let mut synthesized = synthesized.into_iter();
-    let mut out = Vec::with_capacity(narration.len());
-    for detail in narration {
-        if detail.take.is_none() {
-            out.extend(synthesized.next());
-            continue;
-        }
-        let failed = |e: &dyn std::fmt::Display| format!("line `{}`: {e}", detail.line_id);
-        let bytes = takes.read(&detail.line_id).map_err(|e| failed(&e))?;
-        let recorded = wav::decode(&bytes).map_err(|e| failed(&e))?;
-        let (rate, channels) = *format.get_or_insert((recorded.sample_rate, recorded.channels));
-        let pcm = with_channels(recorded.resampled(rate), channels).map_err(|e| failed(&e))?;
-        out.push(LineAudio::of(detail.line_id.clone(), &pcm));
-    }
-    Ok(out)
-}
-
 /// The manifest `compiled` publishes with `audio`, every line's in
-/// document order: in the first line's format, fitted, and checked against
+/// document order: in one format, fitted, and checked against
 /// the lengths the manifest states before anything is written, since an
 /// output that disagrees with its own manifest is worse than none.
 pub fn publish(compiled: &CompileOutput, audio: Vec<LineAudio>) -> Result<Published, Failure> {
@@ -82,7 +57,8 @@ pub fn publish(compiled: &CompileOutput, audio: Vec<LineAudio>) -> Result<Publis
 }
 
 fn published(compiled: &CompileOutput, audio: Vec<LineAudio>) -> Result<Published, String> {
-    let audio = in_one_format(audio)?;
+    let format = published_format(compiled, &audio);
+    let audio = in_one_format(audio, format)?;
     let format = audio.first().map(|a| (a.sample_rate, a.channels));
     let mut lines = Vec::with_capacity(audio.len());
     for a in audio {
@@ -115,10 +91,30 @@ fn published(compiled: &CompileOutput, audio: Vec<LineAudio>) -> Result<Publishe
     Ok(Published { manifest, lines })
 }
 
-/// Every line in the first line's rate and channels: a cast's backends may
-/// each speak at their own.
-fn in_one_format(audio: Vec<LineAudio>) -> Result<Vec<LineAudio>, String> {
-    let Some((rate, channels)) = audio.first().map(|a| (a.sample_rate, a.channels)) else {
+/// The format the manifest publishes: the first synthesized line's, so a
+/// take is converted to the voice rather than the voice to a take; the
+/// first take's when every line is recorded.
+fn published_format(compiled: &CompileOutput, audio: &[LineAudio]) -> Option<(u32, u16)> {
+    let recorded = |a: &&LineAudio| {
+        compiled
+            .narration
+            .iter()
+            .any(|d| d.line_id == a.line_id && d.take.is_some())
+    };
+    audio
+        .iter()
+        .find(|a| !recorded(a))
+        .or(audio.first())
+        .map(|a| (a.sample_rate, a.channels))
+}
+
+/// Every line in `format`: a cast's backends may each speak at their own
+/// rate, and a take at the microphone's.
+fn in_one_format(
+    audio: Vec<LineAudio>,
+    format: Option<(u32, u16)>,
+) -> Result<Vec<LineAudio>, String> {
+    let Some((rate, channels)) = format else {
         return Ok(audio);
     };
     audio
