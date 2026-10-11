@@ -51,8 +51,8 @@ impl CacheDirs {
     }
 
     /// Captured clips, by capture key.
-    pub fn clips(&self) -> CacheDir<Clips> {
-        CacheDir::at(self.root.join("video"))
+    pub fn clips(&self) -> crate::clips::ClipStore {
+        crate::clips::ClipStore::at(self.root.join("video"))
     }
 
     /// Encoded chunks of rendered picture.
@@ -87,8 +87,6 @@ pub struct CacheDir<K> {
 
 /// Synthesized lines: [`CacheDirs::voice`].
 pub enum Voice {}
-/// Captured clips: [`CacheDirs::clips`].
-pub enum Clips {}
 /// Encoded chunks of picture: [`CacheDirs::compose`].
 pub enum Compose {}
 
@@ -138,6 +136,16 @@ impl Project {
     /// Recorded takes: source, beside the scripts, not a cache.
     pub fn takes_dir(&self) -> PathBuf {
         self.root.join("takes")
+    }
+
+    /// The takes as they are now.
+    pub fn takes(&self) -> std::io::Result<teleprompt_voice::takes::Takes> {
+        teleprompt_voice::takes::Takes::load(&self.takes_dir())
+    }
+
+    /// Synthesized lines, by cache key.
+    pub fn voice_cache(&self) -> teleprompt_voice::cache::VoiceCache {
+        teleprompt_voice::cache::VoiceCache::new(self.caches().root)
     }
 
     /// Finds the project a `script` belongs to, naming the script on failure.

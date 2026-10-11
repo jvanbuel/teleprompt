@@ -7,7 +7,7 @@ use teleprompt_manifest::{audio_path, NarrationManifest, MANIFEST_VERSION};
 use teleprompt_manifest::{captions, chapters};
 use teleprompt_script::config::OutputConfig;
 
-use crate::project::{CacheDir, Clips, Compiled, Script};
+use crate::project::{Compiled, Script};
 use crate::voicing::Lines;
 use crate::Failure;
 
@@ -288,55 +288,17 @@ pub fn add_clips(
     dubbed: &mut Dubbed<Written>,
     reporter: &dyn Reporter,
 ) -> Result<(), Failure> {
-    let clips_dir = script.project().caches().clips();
+    let clips = script.project().caches().clips();
     let frame = crate::build::FrameOverride::default().frame(&dubbed.output);
-    let scenes = crate::capture::Scenes::new(script.project().registry.scenes, &clips_dir, frame);
+    let scenes = crate::capture::Scenes::new(script.project().registry.scenes, &clips, frame);
     let captured = scenes.capture(dubbed, &mut |p| reporter.progress(captured_shot(p)));
     dubbed.warnings.extend(captured.warnings);
     let into = locale_dir(out_root, script.locale()).join("clips");
-    let placed = place_clips(&dubbed.manifest, &clips_dir, &into)
+    let placed = clips
+        .place_into(&dubbed.manifest, &into)
         .map_err(|e| Failure::Runtime(format!("{}: {e}", into.display())))?;
     dubbed.state.files.extend(placed);
     Ok(())
-}
-
-/// Every clip `manifest` names that `cache` holds, in `into`, and nothing
-/// else there. Hard links where the file system allows, so a package costs
-/// no space; copies where it does not.
-fn place_clips(
-    manifest: &NarrationManifest,
-    cache: &CacheDir<Clips>,
-    into: &Path,
-) -> std::io::Result<Vec<PathBuf>> {
-    std::fs::create_dir_all(into)?;
-    let named: std::collections::BTreeSet<String> = manifest
-        .shots
-        .iter()
-        .filter_map(|s| s.clip_name())
-        .collect();
-    for entry in std::fs::read_dir(into)? {
-        let entry = entry?;
-        if !named.contains(&*entry.file_name().to_string_lossy()) {
-            std::fs::remove_file(entry.path())?;
-        }
-    }
-    let mut placed = Vec::new();
-    for name in &named {
-        let (from, to) = (cache.join(name), into.join(name));
-        if !from.is_file() {
-            continue;
-        }
-        if to.exists() {
-            std::fs::remove_file(&to)?;
-        }
-        if std::fs::hard_link(&from, &to).is_err() {
-            let partial = into.join(format!("{name}.partial"));
-            std::fs::copy(&from, &partial)?;
-            std::fs::rename(&partial, &to)?;
-        }
-        placed.push(to);
-    }
-    Ok(placed)
 }
 
 /// A shot's capture progress, as a [`Reporter`] takes it.

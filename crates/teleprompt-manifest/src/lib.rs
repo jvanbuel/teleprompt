@@ -80,8 +80,14 @@ impl ShotEntry {
     /// directory `build` reads and `dub --clips` fills; `None` for a pause,
     /// which holds what is already on screen and owes no clip.
     pub fn clip_name(&self) -> Option<String> {
-        (self.scene != "pause").then(|| format!("{}.mp4", self.capture_key))
+        (self.scene != "pause").then(|| clip_file(&self.capture_key))
     }
+}
+
+/// The file a shot's picture is kept in, by its capture key: what a
+/// renderer looks for in the clips directory.
+pub fn clip_file(capture_key: &Hash) -> String {
+    format!("{capture_key}.mp4")
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

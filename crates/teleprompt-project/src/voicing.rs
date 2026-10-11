@@ -33,13 +33,10 @@ impl Lines {
 
     /// Spoken by `cast`, from `project`'s voice cache and takes.
     pub fn of(project: &Project, cast: Cast) -> Result<Self, Failure> {
-        let takes =
-            Takes::load(&project.takes_dir()).map_err(|e| Failure::Runtime(e.to_string()))?;
-        Ok(Self::new(
-            cast,
-            VoiceCache::new(project.caches().root),
-            takes,
-        ))
+        let takes = project
+            .takes()
+            .map_err(|e| Failure::Runtime(e.to_string()))?;
+        Ok(Self::new(cast, project.voice_cache(), takes))
     }
 
     pub fn cast(&self) -> &Cast {

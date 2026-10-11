@@ -60,7 +60,7 @@ impl Voicing {
     }
 
     fn cache(&self) -> VoiceCache {
-        VoiceCache::new(self.script.project().caches().root)
+        self.script.project().voice_cache()
     }
 
     /// What a compile reads beyond the project's config, which is read

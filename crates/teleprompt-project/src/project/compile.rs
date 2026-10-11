@@ -13,7 +13,6 @@ use teleprompt_script::config::PartialConfig;
 use teleprompt_script::parse::parse_script;
 use teleprompt_script::program::{resolve, Element};
 use teleprompt_script::translation::Translation;
-use teleprompt_voice::cache::VoiceCache;
 use teleprompt_voice::WpmEstimator;
 
 use super::Project;
@@ -246,9 +245,10 @@ fn compile_with_voice(
     cast: &Cast,
     base_dir: &Path,
 ) -> Result<CompileOutput, Diagnostics> {
-    let cache = VoiceCache::new(project.caches().root);
+    let cache = project.voice_cache();
     let estimator = WpmEstimator::default();
-    let takes = Takes::load(&project.takes_dir())
+    let takes = project
+        .takes()
         .map_err(|e| Diagnostics(vec![Diagnostic::error(e.to_string())]))?;
     let ctx = VoiceContext {
         versions: cast.versions(),

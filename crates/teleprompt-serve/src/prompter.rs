@@ -117,7 +117,7 @@ pub struct Prompt {
     /// Every shot, in script order.
     pub shots: Vec<ShotCue>,
     /// Where captured clips are, named by capture key.
-    pub clips: teleprompt_project::project::CacheDir<teleprompt_project::project::Clips>,
+    pub clips: teleprompt_project::clips::ClipStore,
     /// Where takes are recorded to.
     pub takes: PathBuf,
 }
@@ -385,8 +385,7 @@ impl<R: Recognizer> Session<R> {
             .shots
             .iter()
             .find(|s| s.capture_key.to_string() == capture_key)
-            .map(|s| self.prompt.clips.join(format!("{}.mp4", s.capture_key)))
-            .filter(|path| path.is_file())
+            .and_then(|s| self.prompt.clips.path_of(&s.capture_key))
     }
 
     fn reached(&mut self) -> Reached {

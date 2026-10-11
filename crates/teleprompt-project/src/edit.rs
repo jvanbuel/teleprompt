@@ -10,8 +10,6 @@ use teleprompt_script::edit::apply;
 /// A shot's edit, as a timeline drag makes it.
 pub use teleprompt_script::edit::Edit;
 
-use teleprompt_voice::takes::Takes;
-
 use crate::project::Script;
 use crate::Failure;
 use teleprompt_core::Diagnostics;
@@ -83,8 +81,9 @@ impl Script {
             .compile()
             .map_err(Failure::Validation)?
             .output;
-        let mut takes =
-            Takes::load(&project.takes_dir()).map_err(|e| Failure::Runtime(e.to_string()))?;
+        let mut takes = project
+            .takes()
+            .map_err(|e| Failure::Runtime(e.to_string()))?;
         if let Some(line) = line {
             if !compiled.narration.iter().any(|n| n.line_id == line) {
                 return Err(invalid(format!("no line `{line}` in the script")));
@@ -124,8 +123,9 @@ impl Script {
             .find(|n| n.line_id == line)
             .map(|n| n.text.clone())
             .ok_or_else(|| invalid(format!("no line `{line}` in the script")))?;
-        let dir = project.takes_dir();
-        let mut takes = Takes::load(&dir).map_err(|e| Failure::Runtime(e.to_string()))?;
+        let mut takes = project
+            .takes()
+            .map_err(|e| Failure::Runtime(e.to_string()))?;
         let said = takes.said(line, &text).ok_or_else(|| {
             invalid(format!(
                 "line `{line}` has no take heard saying other words than it does"

@@ -11,6 +11,7 @@
 pub mod build;
 pub mod cache;
 pub mod capture;
+pub mod clips;
 pub mod dub;
 pub mod edit;
 pub mod error;

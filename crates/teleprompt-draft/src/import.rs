@@ -15,7 +15,6 @@ use teleprompt_scene::record::Recorded;
 use teleprompt_core::Reporter;
 use teleprompt_project::registry::Registry;
 use teleprompt_scene::PluginRecorder;
-use teleprompt_voice::takes::Takes;
 use teleprompt_voice::{wav, Pcm};
 
 use teleprompt_project::project::Project;
@@ -338,7 +337,7 @@ pub(crate) fn cut_takes(
 ) -> Result<Vec<LineId>, String> {
     let audio = &pcm.samples;
     let rate = u64::from(pcm.sample_rate);
-    let mut takes = Takes::load(&project.takes_dir()).map_err(|e| e.to_string())?;
+    let mut takes = project.takes().map_err(|e| e.to_string())?;
     let mut saved = Vec::new();
     for (i, ((id, text), &(start_ms, end_ms))) in lines.iter().zip(spans).enumerate() {
         if !keep(i) {

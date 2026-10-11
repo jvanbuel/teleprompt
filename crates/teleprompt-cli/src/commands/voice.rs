@@ -6,7 +6,6 @@
 //! it asks for.
 
 use serde::Serialize;
-use teleprompt_voice::takes::Takes;
 use teleprompt_voice::VoiceSample;
 
 use teleprompt_project::project::Project;
@@ -48,7 +47,7 @@ pub async fn run_clone(
     name: &str,
     language: &str,
 ) -> Result<CloneReport, String> {
-    let takes = Takes::load(&project.takes_dir()).map_err(|e| e.to_string())?;
+    let takes = project.takes().map_err(|e| e.to_string())?;
     let mut usable: Vec<(&str, u64, &str)> = takes
         .iter()
         .filter(|(_, t)| t.duration_ms >= SHORTEST_MS)

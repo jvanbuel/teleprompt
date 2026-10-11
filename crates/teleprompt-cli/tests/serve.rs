@@ -76,7 +76,7 @@ fn prompting_counted(
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_project::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt_project::clips::ClipStore::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     let count = Arc::new(AtomicUsize::new(0));
@@ -298,7 +298,7 @@ fn a_session_that_panics_lets_go_of_the_prompter() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_project::project::CacheDir::at(dir.to_path_buf()),
+        clips: teleprompt_project::clips::ClipStore::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
     std::thread::spawn(move || {
@@ -698,7 +698,7 @@ fn an_edited_script_s_shots_are_placed_again_when_it_is_fetched() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_project::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt_project::clips::ClipStore::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     // Edited once: the second shot moved to the first line's sixth word.
@@ -744,7 +744,7 @@ fn prompting_with_keep(
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_project::project::CacheDir::at(clips.to_path_buf()),
+        clips: teleprompt_project::clips::ClipStore::at(clips.to_path_buf()),
         takes: clips.join("takes"),
     };
     let edits = teleprompt_serve::Edits {
@@ -789,7 +789,7 @@ fn a_line_said_otherwise_comes_with_what_keeping_it_changes() {
         lines: LINES.iter().map(|l| l.to_string()).collect(),
         ids: IDS.iter().map(|l| LineId::from(*l)).collect(),
         shots: shots(),
-        clips: teleprompt_project::project::CacheDir::at(dir.to_path_buf()),
+        clips: teleprompt_project::clips::ClipStore::at(dir.to_path_buf()),
         takes: dir.join("takes"),
     };
     let recognizer = Scripted(Default::default(), Default::default());

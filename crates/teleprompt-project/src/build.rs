@@ -16,8 +16,9 @@ use teleprompt_scene::ScenePlugins;
 
 use crate::cache;
 use crate::capture::Scenes;
+use crate::clips::ClipStore;
 use crate::dub::{captured_shot, Dubber};
-use crate::project::{CacheDir, Clips, Compose, Script};
+use crate::project::{CacheDir, Compose, Script};
 use crate::Failure;
 use teleprompt_core::Reporter;
 
@@ -49,7 +50,7 @@ pub struct Builder<'s> {
     script: &'s Script,
     out: PathBuf,
     narration_root: PathBuf,
-    clips_dir: CacheDir<Clips>,
+    clips: ClipStore,
     frame: FrameOverride,
     compose_dir: Option<CacheDir<Compose>>,
     cache_max_mb: u64,
@@ -65,7 +66,7 @@ impl<'s> Builder<'s> {
             // A real directory, not a temporary one, so the render can be
             // checked against its manifest.
             narration_root: project.root.join("build").join("narration"),
-            clips_dir: project.caches().clips(),
+            clips: project.caches().clips(),
             frame: FrameOverride::default(),
             compose_dir: Some(project.caches().compose()),
             cache_max_mb: cache::DEFAULT_MAX_MB,
@@ -178,7 +179,7 @@ impl<'s> Builder<'s> {
             .dub(&self.narration_root)
             .await?;
         let frame = self.frame.frame(&dubbed.output);
-        Ok(Scenes::new(self.plugins, &self.clips_dir, frame)
+        Ok(Scenes::new(self.plugins, &self.clips, frame)
             .capture(&dubbed, &mut |p| reporter.progress(captured_shot(p))))
     }
 
@@ -193,7 +194,7 @@ impl<'s> Builder<'s> {
         // Stage 5 (docs/design.md#pipeline). What cannot be recorded becomes
         // a warning and a slate, not a failure; see [`Scenes::capture`].
         let frame = self.frame.frame(&dubbed.output);
-        let recorded = Scenes::new(self.plugins, &self.clips_dir, frame)
+        let recorded = Scenes::new(self.plugins, &self.clips, frame)
             .capture(&dubbed, &mut |p| reporter.progress(captured_shot(p)));
         let mut warnings = dubbed.warnings;
         warnings.extend(recorded.warnings);
@@ -203,7 +204,7 @@ impl<'s> Builder<'s> {
             &dubbed.manifest,
             &Inputs {
                 narration_dir: narration.clone(),
-                clips_dir: self.clips_dir.to_path_buf(),
+                clips_dir: self.clips.dir().to_path_buf(),
                 output: self.out.clone(),
                 width: frame.width,
                 height: frame.height,
