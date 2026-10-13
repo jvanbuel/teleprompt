@@ -227,8 +227,8 @@ pub enum CaptureError {
 /// What can run a scene.
 pub trait CaptureBackend: Send + Sync {
     /// Why it cannot run here, if it cannot: asked before a session starts.
-    /// By default, the programs in [`Self::needs`] that are not on PATH.
-    fn unavailable(&self) -> Option<String> {
+    /// By default, the tools in [`Self::needs`] whose program is not on PATH.
+    fn unavailable(&self) -> Option<teleprompt_core::tool::Unavailable> {
         teleprompt_core::tool::missing_of(self.needs())
     }
 

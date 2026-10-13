@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+use teleprompt_scene::core::tool::Unavailable;
 
 use teleprompt_scene::record::{wait_for, RecordError, Recorded, Recorder, Recording, Start, Step};
 
@@ -19,14 +20,21 @@ use teleprompt_scene::record::{wait_for, RecordError, Recorded, Recorder, Record
 pub struct PlaywrightRecorder;
 
 impl Recorder for PlaywrightRecorder {
-    fn unavailable(&self) -> Option<String> {
+    /// Node first, as every recorder is asked; then whether Playwright
+    /// itself answers, which no PATH check can tell.
+    fn unavailable(&self) -> Option<Unavailable> {
+        if let Some(missing) = teleprompt_scene::core::tool::missing_of(self.needs()) {
+            return Some(missing);
+        }
         let ok = playwright()
             .arg("--version")
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
             .is_ok_and(|s| s.success());
-        (!ok).then(|| "Playwright is not installed (npm install playwright)".to_string())
+        (!ok).then(|| {
+            Unavailable::Other("Playwright is not installed (npm install playwright)".into())
+        })
     }
 
     fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {

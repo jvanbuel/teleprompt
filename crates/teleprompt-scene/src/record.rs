@@ -61,7 +61,10 @@ pub enum RecordError {
 /// A scene plugin's recording tool.
 pub trait Recorder: Send + Sync {
     /// Why it cannot record here, such as its tool not being installed.
-    fn unavailable(&self) -> Option<String>;
+    /// By default, the tools in [`Self::needs`] whose program is not on PATH.
+    fn unavailable(&self) -> Option<teleprompt_core::tool::Unavailable> {
+        teleprompt_core::tool::missing_of(self.needs())
+    }
     /// What it runs, as [`CaptureBackend::needs`](crate::capture::CaptureBackend::needs).
     fn needs(&self) -> &'static [&'static teleprompt_core::tool::Tool];
     /// Whether the author works in the terminal `record` runs in, rather

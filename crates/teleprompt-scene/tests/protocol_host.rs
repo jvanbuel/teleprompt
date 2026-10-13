@@ -103,7 +103,8 @@ fn it_captures_a_clip_for_each_wanted_shot() {
     }
     let plugin = host::scene(found);
     // Worked out from what it needs, which is here: it was not asked.
-    assert_eq!(plugin.capture().unavailable(), None);
+    let why = plugin.capture().unavailable();
+    assert!(why.is_none(), "{why:?}");
     let out = teleprompt_testkit::test_dir("protocol-capture");
     let key = Hash::of(b"blue");
     let session = Session {

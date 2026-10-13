@@ -134,10 +134,6 @@ impl Default for MediaRender {
 }
 
 impl CaptureBackend for MediaRender {
-    fn unavailable(&self) -> Option<String> {
-        teleprompt_scene::core::tool::missing(&[&self.ffmpeg])
-    }
-
     fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
         static NEEDS: &[&teleprompt_scene::core::tool::Tool] =
             &[&teleprompt_scene::core::tool::FFMPEG];

@@ -50,10 +50,6 @@ impl Drop for Owned {
 }
 
 impl CaptureBackend for X11Render {
-    fn unavailable(&self) -> Option<String> {
-        teleprompt_scene::core::tool::missing(&[&self.xvfb, &self.xdotool, &self.ffmpeg])
-    }
-
     fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
         static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
             &super::tools::XVFB,

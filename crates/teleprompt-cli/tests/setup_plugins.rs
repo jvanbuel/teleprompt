@@ -1,8 +1,6 @@
 //! Every program a scene plugin says it is missing is one `teleprompt setup
 //! <plugin>` knows how to install: the two lists cannot drift apart.
 
-use teleprompt_core::tool::programs_in;
-
 #[test]
 fn setup_covers_every_program_an_plugin_finds_missing() {
     // Nothing on PATH, so every scene plugin that runs a program says which. The
@@ -16,9 +14,7 @@ fn setup_covers_every_program_an_plugin_finds_missing() {
         let Some(why) = backend.unavailable() else {
             continue;
         };
-        let Some(programs) = programs_in(&why) else {
-            continue;
-        };
+        let programs = why.programs();
         let known: Vec<&str> =
             teleprompt_cli::registry::setup_here(teleprompt_cli::registry::registry())
                 .resolve(&[plugin.to_string()])

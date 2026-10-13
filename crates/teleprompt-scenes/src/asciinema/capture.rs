@@ -75,10 +75,6 @@ impl Default for AsciinemaRender {
 }
 
 impl CaptureBackend for AsciinemaRender {
-    fn unavailable(&self) -> Option<String> {
-        teleprompt_scene::core::tool::missing(&[&self.agg, &self.ffmpeg])
-    }
-
     fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
         static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
             &crate::asciinema::tools::AGG,

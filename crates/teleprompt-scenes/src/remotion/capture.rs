@@ -73,10 +73,6 @@ impl Default for RemotionRender {
 }
 
 impl CaptureBackend for RemotionRender {
-    fn unavailable(&self) -> Option<String> {
-        teleprompt_scene::core::tool::missing(&[&self.node])
-    }
-
     fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
         static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
             &teleprompt_scene::core::tool::NODE,

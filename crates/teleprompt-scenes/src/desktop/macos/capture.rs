@@ -8,6 +8,7 @@
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
+use teleprompt_scene::core::tool::Unavailable;
 
 use crate::desktop::run::{cut_clips, get_ready, play, uses_pointer, Reel};
 use teleprompt_scene::capture::{
@@ -58,11 +59,13 @@ impl Drop for Owned {
 }
 
 impl CaptureBackend for MacosRender {
-    fn unavailable(&self) -> Option<String> {
+    fn unavailable(&self) -> Option<Unavailable> {
         if !cfg!(target_os = "macos") {
-            return Some("it records a Mac's own screen, and this is not a Mac".into());
+            return Some(Unavailable::Other(
+                "it records a Mac's own screen, and this is not a Mac".into(),
+            ));
         }
-        teleprompt_scene::core::tool::missing(&[&self.ffmpeg])
+        teleprompt_scene::core::tool::missing_of(self.needs())
     }
 
     fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {

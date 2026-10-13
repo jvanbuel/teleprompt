@@ -18,6 +18,7 @@ use teleprompt_script::config::SceneConfig;
 use crate::build::FrameOverride;
 use crate::clips::ClipStore;
 use crate::dub::{Dubbed, Written};
+use teleprompt_core::tool::Unavailable;
 use teleprompt_core::Reporter;
 
 /// The shots of a published manifest, as the planner needs them.
@@ -205,14 +206,13 @@ fn record(
     };
     if let Some(reason) = backend.unavailable() {
         // A tool that is not installed is for `setup` to say how to install.
-        let fix = teleprompt_core::tool::programs_in(&reason)
-            .map(|_| {
-                format!(
-                    "; `teleprompt setup {}` says how to install it",
-                    session.plugin
-                )
-            })
-            .unwrap_or_default();
+        let fix = match reason {
+            Unavailable::Missing(_) => format!(
+                "; `teleprompt setup {}` says how to install it",
+                session.plugin
+            ),
+            Unavailable::Other(_) => String::new(),
+        };
         return Err(format!(
             "`{}` cannot record `{}` scenes here: {reason}{fix}; its {} shot(s) \
              will render as slates",

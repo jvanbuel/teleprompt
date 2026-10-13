@@ -93,14 +93,6 @@ impl Default for VhsRender {
 }
 
 impl CaptureBackend for VhsRender {
-    fn unavailable(&self) -> Option<String> {
-        // Only a PATH check: this runs before every capture,
-        // and a probe recording would take a minute. A `vhs` that is
-        // installed but records nothing is caught in `capture`, and its
-        // session renders as slates with the reason.
-        teleprompt_scene::core::tool::missing(&[&self.vhs, "ttyd", &self.ffmpeg])
-    }
-
     fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
         static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
             &crate::vhs::tools::VHS,

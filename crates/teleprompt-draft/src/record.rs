@@ -101,7 +101,7 @@ fn check(r: &Record, recorder: &PluginRecorder<'static>) -> Result<(), DraftErro
     if let Some(why) = recorder.unavailable() {
         return Err(DraftError::Recorder {
             plugin: recorder.plugin,
-            why,
+            why: why.to_string(),
         });
     }
     Ok(())
@@ -194,7 +194,7 @@ pub fn tools(registry: Registry) -> Vec<Tool> {
         .map(|r| Tool {
             plugin: r.plugin,
             in_terminal: r.in_terminal(),
-            unavailable: r.unavailable(),
+            unavailable: r.unavailable().map(|u| u.to_string()),
         })
         .collect()
 }

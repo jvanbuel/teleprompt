@@ -190,52 +190,58 @@ pub fn installed(program: &str) -> bool {
         .is_ok()
 }
 
-/// How [`missing`] ends its reason for one program; " are not on PATH" is
-/// for several. A caller can tell a backend held back by tools from one held
-/// back by something else with [`programs_in`].
-pub const NOT_ON_PATH: &str = " is not on PATH";
-const ARE_NOT_ON_PATH: &str = " are not on PATH";
-
-/// "`a` is not on PATH", "`a` and `b` are not on PATH" or "`a`, `b` and `c`
-/// are not on PATH" for the programs that cannot be started, or `None` when
-/// every one can. What `CaptureBackend::unavailable` says.
-pub fn missing(programs: &[&str]) -> Option<String> {
-    let absent: Vec<&str> = programs.iter().copied().filter(|p| !installed(p)).collect();
-    let (last, rest) = absent.split_last()?;
-    Some(if rest.is_empty() {
-        format!("{last}{NOT_ON_PATH}")
-    } else {
-        format!("{} and {last}{ARE_NOT_ON_PATH}", rest.join(", "))
-    })
+/// Why a scene plugin or recorder cannot run here.
+#[derive(Debug, Clone)]
+pub enum Unavailable {
+    /// These tools' programs are not on PATH: what `teleprompt setup`
+    /// installs.
+    Missing(Vec<&'static Tool>),
+    /// Anything else, as the backend words it.
+    Other(String),
 }
 
-/// The programs a reason made by [`missing`] names, or `None` when it is a
-/// reason of any other kind.
-pub fn programs_in(reason: &str) -> Option<Vec<&str>> {
-    let names = reason
-        .strip_suffix(NOT_ON_PATH)
-        .or_else(|| reason.strip_suffix(ARE_NOT_ON_PATH))?;
-    Some(
-        names
-            .split([','])
-            .flat_map(|part| part.split(" and "))
-            .map(str::trim)
-            .filter(|p| !p.is_empty())
-            .collect(),
-    )
+impl Unavailable {
+    /// The programs it names as missing; none for [`Unavailable::Other`].
+    pub fn programs(&self) -> Vec<&'static str> {
+        match self {
+            Self::Missing(tools) => tools.iter().filter_map(|t| program(t)).collect(),
+            Self::Other(_) => Vec::new(),
+        }
+    }
 }
 
-/// [`missing`] for the programs among `tools`: what a backend that runs
-/// exactly what it needs cannot run.
-pub fn missing_of(tools: &[&Tool]) -> Option<String> {
-    let programs: Vec<&str> = tools
+/// "`a` is not on PATH", "`a` and `b` are not on PATH" or "`a`, `b` and
+/// `c` are not on PATH"; or the other reason as given.
+impl std::fmt::Display for Unavailable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Self::Other(why) = self {
+            return f.write_str(why);
+        }
+        match self.programs().split_last() {
+            None => f.write_str("nothing is missing"),
+            Some((last, [])) => write!(f, "{last} is not on PATH"),
+            Some((last, rest)) => write!(f, "{} and {last} are not on PATH", rest.join(", ")),
+        }
+    }
+}
+
+fn program(tool: &Tool) -> Option<&'static str> {
+    match tool.found {
+        Found::Program(p) => Some(p),
+        _ => None,
+    }
+}
+
+/// The tools among `tools` whose program cannot be started, or `None`
+/// when every one can: what a backend that runs exactly what it needs
+/// cannot run.
+pub fn missing_of(tools: &[&'static Tool]) -> Option<Unavailable> {
+    let absent: Vec<&'static Tool> = tools
         .iter()
-        .filter_map(|t| match t.found {
-            Found::Program(p) => Some(p),
-            _ => None,
-        })
+        .copied()
+        .filter(|t| program(t).is_some_and(|p| !installed(p)))
         .collect();
-    missing(&programs)
+    (!absent.is_empty()).then_some(Unavailable::Missing(absent))
 }
 
 /// The last `keep` non-blank lines of `text`, joined with " / ": the part
@@ -271,39 +277,61 @@ pub fn run(command: &mut Command, what: &str, keep: usize) -> Result<Output, Str
 mod tests {
     use super::*;
 
+    /// A tool run as `program`, which is on no machine.
+    macro_rules! absent {
+        ($program:literal) => {{
+            static TOOL: Tool = Tool {
+                name: $program,
+                what: "",
+                license: "",
+                home: "",
+                guide: None,
+                found: Found::Program($program),
+                install: &[],
+                download_mb: None,
+            };
+            &TOOL
+        }};
+    }
+
+    /// The words every warning about a missing tool has always used.
     #[test]
-    fn missing_names_every_absent_program_in_good_english() {
-        let a = "teleprompt-no-such-a";
-        let (b, c) = ("teleprompt-no-such-b", "teleprompt-no-such-c");
+    fn a_missing_tool_reads_in_good_english() {
+        let a: &'static Tool = absent!("teleprompt-no-such-a");
+        let b: &'static Tool = absent!("teleprompt-no-such-b");
+        let c: &'static Tool = absent!("teleprompt-no-such-c");
+        let said = |tools: &[&'static Tool]| missing_of(tools).map(|u| u.to_string());
         assert_eq!(
-            missing(&[a]).as_deref(),
+            said(&[a]).as_deref(),
             Some("teleprompt-no-such-a is not on PATH")
         );
         assert_eq!(
-            missing(&[a, b]).as_deref(),
+            said(&[a, b]).as_deref(),
             Some("teleprompt-no-such-a and teleprompt-no-such-b are not on PATH")
         );
         assert_eq!(
-            missing(&[a, b, c]).as_deref(),
+            said(&[a, b, c]).as_deref(),
             Some(
                 "teleprompt-no-such-a, teleprompt-no-such-b and teleprompt-no-such-c \
                  are not on PATH"
             )
         );
-        assert_eq!(missing(&[]), None);
+        assert!(missing_of(&[]).is_none());
     }
 
     #[test]
-    fn the_programs_in_a_reason_are_the_ones_it_names() {
-        for programs in [vec!["a"], vec!["a", "b"], vec!["a", "b", "c"]] {
-            let reason = match programs.as_slice() {
-                [only] => format!("{only}{NOT_ON_PATH}"),
-                [rest @ .., last] => format!("{} and {last}{ARE_NOT_ON_PATH}", rest.join(", ")),
-                [] => unreachable!(),
-            };
-            assert_eq!(programs_in(&reason), Some(programs));
-        }
-        assert_eq!(programs_in("macOS only"), None);
+    fn only_the_tools_not_on_path_are_missing() {
+        let here: &'static Tool = absent!("sh");
+        let gone: &'static Tool = absent!("teleprompt-no-such-a");
+        let missing = missing_of(&[here, gone]).expect("one is missing");
+        assert_eq!(missing.programs(), ["teleprompt-no-such-a"]);
+    }
+
+    #[test]
+    fn another_reason_is_said_as_given_and_names_no_program() {
+        let why = Unavailable::Other("this is not a Mac".into());
+        assert_eq!(why.to_string(), "this is not a Mac");
+        assert!(why.programs().is_empty());
     }
 
     #[test]

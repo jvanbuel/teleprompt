@@ -372,9 +372,9 @@ struct ExternalCapture {
 }
 
 impl CaptureBackend for ExternalCapture {
-    fn unavailable(&self) -> Option<String> {
+    fn unavailable(&self) -> Option<teleprompt_core::tool::Unavailable> {
         match self.plugin.describe() {
-            Err(e) => Some(e),
+            Err(e) => Some(teleprompt_core::tool::Unavailable::Other(e)),
             Ok(_) => teleprompt_core::tool::missing_of(self.needs()),
         }
     }

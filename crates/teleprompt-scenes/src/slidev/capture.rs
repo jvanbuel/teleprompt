@@ -75,11 +75,6 @@ impl Default for SlidevRender {
 }
 
 impl CaptureBackend for SlidevRender {
-    fn unavailable(&self) -> Option<String> {
-        // The deck's `slidev` is a Node script.
-        teleprompt_scene::core::tool::missing(&["node", &self.ffmpeg])
-    }
-
     fn needs(&self) -> &'static [&'static teleprompt_scene::core::tool::Tool] {
         static NEEDS: &[&teleprompt_scene::core::tool::Tool] = &[
             &teleprompt_scene::core::tool::NODE,
