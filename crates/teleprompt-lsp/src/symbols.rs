@@ -15,12 +15,10 @@ pub fn outline(text: &str) -> Vec<DocumentSymbol> {
         return Vec::new();
     };
     let index = LineIndex::new(text);
-    let headings = headings(text);
     script
         .chapters
         .iter()
-        .zip(headings.iter())
-        .map(|(chapter, &heading)| {
+        .map(|chapter| {
             let children: Vec<DocumentSymbol> = chapter
                 .nodes
                 .iter()
@@ -40,8 +38,10 @@ pub fn outline(text: &str) -> Vec<DocumentSymbol> {
                     Node::Directive(_) => None,
                 })
                 .collect();
+            // The whole heading line, where the parser read it.
+            let heading = chapter.span.line.saturating_sub(1);
             let head = index.range(SourceSpan {
-                line: heading + 1,
+                line: chapter.span.line,
                 column: 1,
                 len: index.line(heading).len(),
             });
@@ -76,22 +76,40 @@ fn symbol(name: String, detail: Option<String>, kind: SymbolKind, range: Range) 
     }
 }
 
-/// The lines, from 0, of the chapters' headings: `#` lines outside front
-/// matter and fences, as the parser reads them.
-fn headings(text: &str) -> Vec<usize> {
-    let mut out = Vec::new();
-    let mut fence = false;
-    let mut front = text.starts_with("---");
-    for (n, line) in text.lines().enumerate() {
-        if front {
-            front = n == 0 || line.trim_end() != "---";
-            continue;
-        }
-        if line.trim_start().starts_with("```") {
-            fence = !fence;
-        } else if !fence && line.starts_with('#') {
-            out.push(n);
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each chapter's heading line, from 0, as the outline puts it.
+    fn heading_lines(text: &str) -> Vec<(String, u32)> {
+        outline(text)
+            .into_iter()
+            .map(|c| (c.name, c.selection_range.start.line))
+            .collect()
     }
-    out
+
+    /// Lines that start with `#` but are not headings, as the parser
+    /// reads them, must not move a chapter onto them.
+    #[test]
+    fn chapters_sit_on_the_headings_the_parser_read() {
+        let text = "\
+# One
+
+Hello there. {#a}
+
+~~~
+# not a heading
+~~~
+
+#hashtag is not a heading either. {#b}
+
+# Two
+
+Goodbye. {#c}
+";
+        assert_eq!(
+            heading_lines(text),
+            [("One".to_string(), 0), ("Two".to_string(), 10)]
+        );
+    }
 }
