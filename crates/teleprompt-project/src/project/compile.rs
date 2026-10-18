@@ -176,12 +176,10 @@ impl Script {
         let base_dir = crate::project::script_dir(script);
         let mut output = compile_with_voice(project, &program, &cast, base_dir)?;
 
-        // The bare message, not `render()`'s output: like every other warning
-        // here it is a plain sentence, and callers add their own framing.
+        output.warnings.extend(backend_override_diags);
         output
             .warnings
-            .extend(backend_override_diags.into_iter().map(|d| d.message));
-        output.warnings.extend(translation_warnings);
+            .extend(translation_warnings.into_iter().map(Diagnostic::warning));
         Ok(Compiled {
             output,
             cast,
@@ -264,7 +262,8 @@ fn compile_with_voice(
         base_dir,
         env!("CARGO_PKG_VERSION"),
     )?;
-    out.warnings.extend(unrecorded(&takes, &out));
+    out.warnings
+        .extend(unrecorded(&takes, &out).map(Diagnostic::warning));
     Ok(out)
 }
 

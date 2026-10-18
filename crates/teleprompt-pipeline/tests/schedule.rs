@@ -205,8 +205,8 @@ fn policy_warnings_are_collected_with_the_shot_id() {
         "en",
         "0.1.0",
     );
-    assert!(t.1[0].contains("b1"));
-    assert!(t.1[0].contains("max_stretch"));
+    assert_eq!(t.1[0].0, "b1");
+    assert!(t.1[0].1.contains("max_stretch"));
 }
 
 #[test]
@@ -316,7 +316,7 @@ fn a_fixed_transition_wider_than_the_quiet_window_warns() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("one") && w.contains("overlap")),
+            .any(|(item, w)| item == "one" && w.contains("overlap")),
         "{warnings:?}"
     );
 }

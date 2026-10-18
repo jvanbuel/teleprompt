@@ -6,7 +6,7 @@ use crate::schedule::Timeline;
 use teleprompt_core::{DurationSource, Hash, PolicyKind, ShotId};
 use teleprompt_scene::{Measured, ScenePlugins, Shot};
 
-use super::ShotSource;
+use super::{About, ShotSource};
 
 /// Has each scene plugin rewrite a shot whose scheduled length differs from its
 /// own length, so the source captured is the one that fits its slot.
@@ -22,7 +22,7 @@ pub(super) fn retime_stretched_shots(
     timeline: &mut Timeline,
     shots: &mut BTreeMap<ShotId, ShotSource>,
     scenes: &ScenePlugins,
-) -> Vec<String> {
+) -> Vec<(About, String)> {
     let mut warnings = Vec::new();
     for entry in &mut timeline.entries {
         let Some(action) = entry.action.as_mut() else {
@@ -56,14 +56,17 @@ pub(super) fn retime_stretched_shots(
             published.length = Measured::Exact(slot);
         } else if let Some(natural) = natural.filter(|n| *n > slot) {
             if entry.policy == PolicyKind::FitAction {
-                warnings.push(format!(
-                    "shot `{}` lasts {:.1}s but its line gives it {:.1}s, and the `{}` plugin \
+                warnings.push((
+                    About::Shot(action.shot.clone()),
+                    format!(
+                        "shot `{}` lasts {:.1}s but its line gives it {:.1}s, and the `{}` plugin \
                      cannot shorten it: the last {:.1}s are cut",
-                    action.shot,
-                    natural as f64 / 1000.0,
-                    slot as f64 / 1000.0,
-                    action.plugin,
-                    (natural - slot) as f64 / 1000.0,
+                        action.shot,
+                        natural as f64 / 1000.0,
+                        slot as f64 / 1000.0,
+                        action.plugin,
+                        (natural - slot) as f64 / 1000.0,
+                    ),
                 ));
             }
         }

@@ -58,7 +58,7 @@ fn compile_with(length_ms: u64) -> CompileOutput {
 fn a_video_within_its_length_says_nothing() {
     let out = compile_with(600_000);
     assert!(
-        out.warnings.iter().all(|w| !w.contains("length")),
+        out.warnings.iter().all(|w| !w.message.contains("length")),
         "{:?}",
         out.warnings
     );
@@ -71,6 +71,7 @@ fn a_video_over_its_length_says_what_is_fixed_and_what_to_cut() {
     let w = out
         .warnings
         .iter()
+        .map(|w| w.message.as_str())
         .find(|w| w.contains("length"))
         .unwrap_or_else(|| panic!("{:?}", out.warnings));
     // Over by two seconds; the fit-line picture holds its 6 s.

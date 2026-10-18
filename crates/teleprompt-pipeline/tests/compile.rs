@@ -898,3 +898,55 @@ fn a_scene_declared_empty_keys_as_one_left_undeclared() {
     };
     assert_eq!(key(body), key(&declared));
 }
+
+/// Where the editor puts a warning: the line or block it is about.
+fn placed(out: &CompileOutput, needle: &str) -> (String, Option<usize>) {
+    let w = out
+        .warnings
+        .iter()
+        .find(|w| w.message.contains(needle))
+        .unwrap_or_else(|| panic!("no warning about {needle}: {:?}", out.warnings));
+    (w.message.clone(), w.span.map(|s| s.line))
+}
+
+#[test]
+fn a_block_waiting_for_review_is_warned_about_at_its_fence() {
+    let out = run("\
+---
+scene: { mock: { plugin: mock } }
+---
+
+# Tour
+
+Look at this. {#a}
+
+```teleprompt scene=mock review=pending id=lifted
+wait 1000ms
+```
+");
+    let (message, line) = placed(&out, "review=pending");
+    assert!(message.starts_with("action block `lifted`"), "{message}");
+    assert_eq!(line, Some(9), "the block's fence");
+}
+
+#[test]
+fn a_scheduling_warning_names_its_line_and_sits_on_it() {
+    let out = run("\
+---
+output:
+  transition: { kind: crossfade, duration: 2s }
+---
+
+# Quick start
+
+One. {#one}
+
+Two. {#two}
+");
+    let (message, line) = placed(&out, "quiet");
+    assert!(
+        message.starts_with("line `one`: fixed crossfade"),
+        "{message}"
+    );
+    assert_eq!(line, Some(8), "line `one`");
+}

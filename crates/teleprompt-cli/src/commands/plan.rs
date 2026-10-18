@@ -70,7 +70,7 @@ pub fn render_plan(out: &CompileOutput) -> String {
         ));
     }
     for w in &out.warnings {
-        s.push_str(&format!("  warning: {w}\n"));
+        s.push_str(&format!("  warning: {}\n", w.message));
     }
     s
 }

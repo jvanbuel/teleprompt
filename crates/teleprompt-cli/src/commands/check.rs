@@ -6,7 +6,13 @@ use teleprompt_project::project::Script;
 /// errors.
 pub fn check(script: &Script) -> Result<Vec<String>, Diagnostics> {
     let compiled = script.compile()?;
-    let mut warnings = compiled.output.warnings;
+    // The compile's own as plain sentences, as they always read.
+    let mut warnings: Vec<String> = compiled
+        .output
+        .warnings
+        .into_iter()
+        .map(|d| d.message)
+        .collect();
     // What is hard to say aloud, as it is said: translated, for a
     // locale with a translation.
     let display = script.path().display().to_string();

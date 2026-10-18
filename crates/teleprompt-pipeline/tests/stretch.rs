@@ -97,6 +97,7 @@ fn a_fit_action_shot_that_cannot_shrink_says_it_is_cut() {
     let cut: Vec<_> = out
         .warnings
         .iter()
+        .map(|w| w.message.as_str())
         .filter(|w| w.contains("cannot shorten"))
         .collect();
     assert_eq!(cut.len(), 1, "{:?}", out.warnings);
@@ -114,7 +115,9 @@ fn a_trimmed_shot_is_not_said_to_be_cut_by_accident() {
         compile_it("Go. {#a}\n\n```teleprompt scene=mock policy=trim-action\nwait 5000ms\n```\n")
             .unwrap();
     assert!(
-        !out.warnings.iter().any(|w| w.contains("cannot shorten")),
+        !out.warnings
+            .iter()
+            .any(|w| w.message.contains("cannot shorten")),
         "{:?}",
         out.warnings
     );

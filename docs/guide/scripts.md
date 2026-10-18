@@ -92,8 +92,8 @@ stretched sooner. Past a bound, `check` warns and says about how many
 words to cut:
 
 ```
-warning: deploy: the line runs 4900ms against the 3700ms its picture leaves:
-         1.32x, past max_line_speed 1.15; cut about 2 of its 11 words
+warning: line `deploy`: the line runs 4900ms against the 3700ms its picture
+         leaves: 1.32x, past max_line_speed 1.15; cut about 2 of its 11 words
 ```
 
 A picture must state its length for this. A shot that doesn't, such as a

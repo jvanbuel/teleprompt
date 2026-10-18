@@ -1,6 +1,6 @@
 use teleprompt_script::config::{Transition, TransitionDuration};
 
-use teleprompt_core::{DurationSource, PolicyKind, SpanMs, Tempo, TimeMs};
+use teleprompt_core::{DurationSource, ItemId, PolicyKind, SpanMs, Tempo, TimeMs};
 
 use crate::schedule::item::{ActionInput, Item, NarrationInput};
 use crate::schedule::policy::{fit_line, layout_at, Layout};
@@ -8,13 +8,13 @@ use crate::schedule::timeline::{ActionEntry, Entry, NarrationEntry, Timeline};
 
 pub const TIMELINE_VERSION: u32 = 1;
 
-/// Pure. Returns the timeline and its warnings, each prefixed with its item.
+/// Pure. Returns the timeline and its warnings, each with the item it is about.
 pub fn schedule(
     items: &[Item],
     script: &str,
     locale: &str,
     version: &str,
-) -> (Timeline, Vec<String>) {
+) -> (Timeline, Vec<(ItemId, String)>) {
     let mut entries: Vec<Entry> = Vec::with_capacity(items.len());
     let mut warnings = Vec::new();
     let mut cursor = 0u64;
@@ -28,7 +28,7 @@ pub fn schedule(
         let item = fitted.as_ref().unwrap_or(item);
         let (narration_ms, l) = lay_out_item(item);
         for w in &l.warnings {
-            warnings.push(format!("{}: {w}", item.id));
+            warnings.push((item.id.clone(), w.clone()));
         }
 
         // The previous item's outgoing transition was capped against that
@@ -81,7 +81,7 @@ pub fn schedule(
 
 /// A `fit-line` item with its line at the tempo that fits its picture, and
 /// that tempo; `None` for any other item, or a line at its own pace.
-fn fitted(item: &Item, warnings: &mut Vec<String>) -> (Option<Item>, Option<u32>) {
+fn fitted(item: &Item, warnings: &mut Vec<(ItemId, String)>) -> (Option<Item>, Option<u32>) {
     let (PolicyKind::FitLine, Some(n), Some(a)) = (item.policy, &item.narration, &item.action)
     else {
         return (None, None);
@@ -98,7 +98,7 @@ fn fitted(item: &Item, warnings: &mut Vec<String>) -> (Option<Item>, Option<u32>
         return (None, None);
     };
     if let Some(w) = fit.warning {
-        warnings.push(format!("{}: {w}", item.id));
+        warnings.push((item.id.clone(), w));
     }
     let mut fitted = item.clone();
     if let Some(n) = fitted.narration.as_mut() {
@@ -170,7 +170,7 @@ fn size_transition(
     item: &Item,
     slack_ms: u64,
     quiet_window_ms: u64,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<(ItemId, String)>,
 ) -> u64 {
     let transition = &item.pacing.transition;
     match transition.duration {
@@ -178,12 +178,14 @@ fn size_transition(
         TransitionDuration::Fixed(ms) => {
             let ms = ms.ms();
             if ms > quiet_window_ms {
-                warnings.push(format!(
-                    "{}: fixed {kind} of {ms}ms exceeds the {quiet_window_ms}ms quiet \
-                     window; narration will overlap by {}ms",
-                    item.id,
-                    ms - quiet_window_ms,
-                    kind = transition.kind,
+                warnings.push((
+                    item.id.clone(),
+                    format!(
+                        "fixed {kind} of {ms}ms exceeds the {quiet_window_ms}ms quiet \
+                         window; narration will overlap by {}ms",
+                        ms - quiet_window_ms,
+                        kind = transition.kind,
+                    ),
                 ));
             }
             ms

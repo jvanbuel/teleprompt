@@ -9,10 +9,10 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::schedule::{schedule, Timeline};
-use teleprompt_core::{Diagnostics, LineId, ShotId};
+use teleprompt_core::{BlockId, Diagnostic, Diagnostics, ItemId, LineId, ShotId, SourceSpan};
 use teleprompt_scene::{Measured, ScenePlugins};
 use teleprompt_script::config::{Config, OutputConfig, SceneConfig};
-use teleprompt_script::program::{ChapterInfo, Program};
+use teleprompt_script::program::{ChapterInfo, Element, Program};
 use teleprompt_voice::cache::{CacheKey, VoiceCache};
 use teleprompt_voice::takes::{TakeMeta, Takes};
 use teleprompt_voice::WpmEstimator;
@@ -112,7 +112,8 @@ pub struct ShotSource {
 #[derive(Debug)]
 pub struct CompileOutput {
     pub timeline: Timeline,
-    pub warnings: Vec<String>,
+    /// Each at the line or block it is about, when it is about one.
+    pub warnings: Vec<Diagnostic>,
     /// One entry per narration line, in document order.
     pub narration: Vec<NarrationDetail>,
     /// Every action shot's source, by its id.
@@ -161,16 +162,22 @@ pub fn compile(
     chain_capture_keys(&mut timeline, &program.config, scenes, &shot_sources);
     // Cache warnings first: they explain the scheduler's numbers.
     let mut warnings = walker.warnings;
-    warnings.extend(scheduling_warnings);
+    warnings.extend(
+        scheduling_warnings
+            .into_iter()
+            .map(|(item, w)| about_item(program, item, &w)),
+    );
     warnings.extend(cut_warnings);
     if let Some(length) = program.config.timing.length_ms {
-        warnings.extend(length::over_length(
-            &timeline,
-            &walker.narration,
-            &program.chapters,
-            length.ms(),
-        ));
+        warnings.extend(
+            length::over_length(&timeline, &walker.narration, &program.chapters, length.ms())
+                .map(|w| (About::Script, w)),
+        );
     }
+    let warnings = warnings
+        .into_iter()
+        .map(|(about, w)| placed(program, &about, w))
+        .collect();
     let scenes = scenes_shown(&timeline, &program.config);
     Ok(CompileOutput {
         timeline,
@@ -181,6 +188,54 @@ pub fn compile(
         chapters: program.chapters.clone(),
         output: program.config.output.clone(),
     })
+}
+
+/// What in the script a warning is about, so that it can be put there.
+pub(crate) enum About {
+    Line(LineId),
+    Block(BlockId),
+    Shot(ShotId),
+    /// The script as a whole, such as its `timing.length`.
+    Script,
+}
+
+/// A scheduler's warning about `item`, named as the line or shot it is.
+fn about_item(program: &Program, item: ItemId, warning: &str) -> (About, String) {
+    let is_line = program
+        .elements
+        .iter()
+        .any(|e| matches!(e, Element::Narration { id, .. } if id.as_str() == item.as_str()));
+    if is_line {
+        let line = LineId::from(item.as_str());
+        (About::Line(line), format!("line `{item}`: {warning}"))
+    } else {
+        let shot = ShotId::from(item.as_str());
+        (About::Shot(shot), format!("shot `{item}`: {warning}"))
+    }
+}
+
+/// `warning` at the line or block it is about, where the script has one.
+fn placed(program: &Program, about: &About, warning: String) -> Diagnostic {
+    let block = |id: &str| {
+        program.elements.iter().find_map(|e| match e {
+            Element::Action(a) if a.block_id.as_str() == id => Some(a.span),
+            _ => None,
+        })
+    };
+    let span: Option<SourceSpan> = match about {
+        About::Line(line) => program.elements.iter().find_map(|e| match e {
+            Element::Narration { id, span, .. } if id == line => Some(*span),
+            _ => None,
+        }),
+        About::Block(id) => block(id.as_str()),
+        About::Shot(shot) => block(shot.block()),
+        About::Script => None,
+    };
+    let d = Diagnostic::warning(warning);
+    match span {
+        Some(span) => d.at(span),
+        None => d,
+    }
 }
 
 /// The scenes as configured, and every scene a block names that none

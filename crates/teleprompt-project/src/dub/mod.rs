@@ -192,7 +192,9 @@ pub async fn voice(script: &Script, reporter: &dyn Reporter) -> Result<Voiced, F
     // makes `dub` idempotent, and costs no synthesis.
     let compiled = script.compile().map_err(Failure::Validation)?.output;
     let published = publish::publish(&compiled, audio)?;
-    warnings.extend(compiled.warnings.iter().cloned());
+    // The bare message: like every other warning here it is a plain
+    // sentence, and callers add their own framing.
+    warnings.extend(compiled.warnings.iter().map(|d| d.message.clone()));
     Ok(Voiced {
         compiled,
         published,

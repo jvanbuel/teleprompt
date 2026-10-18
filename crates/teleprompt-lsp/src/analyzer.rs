@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use super::{Analysis, Analyzer, Definition, Project as Outline};
-use teleprompt_core::{Diagnostic, SourceSpan};
+use teleprompt_core::Diagnostic;
 use teleprompt_script::config::{Config, PartialConfig};
 use teleprompt_script::program::{ActionElement, Element};
 
@@ -128,27 +128,9 @@ fn analysis(compiled: &Compiled) -> Analysis {
         diagnostics: teleprompt_script::lint::lint(&compiled.program),
         ..Analysis::default()
     };
-    // The compile's warnings are sentences; most name their line.
-    let spans: Vec<(String, SourceSpan)> = compiled
-        .program
-        .elements
-        .iter()
-        .filter_map(|e| match e {
-            Element::Narration { id, span, .. } => Some((id.to_string(), *span)),
-            _ => None,
-        })
-        .collect();
-    for warning in &compiled.output.warnings {
-        let span = spans
-            .iter()
-            .find(|(id, _)| warning.contains(&format!("`{id}`")))
-            .map(|(_, s)| *s);
-        let d = Diagnostic::warning(warning.clone());
-        out.diagnostics.push(match span {
-            Some(span) => d.at(span),
-            None => d,
-        });
-    }
+    // Each at the line or block it is about, as the compile put it.
+    out.diagnostics
+        .extend(compiled.output.warnings.iter().cloned());
     out.hovers = hovers(compiled);
     out
 }
@@ -204,7 +186,7 @@ fn hovers(compiled: &Compiled) -> std::collections::BTreeMap<usize, String> {
                     .entries
                     .iter()
                     .filter_map(|e| e.action.as_ref())
-                    .filter(|a| a.shot.to_string().starts_with(&format!("{block_id}#")))
+                    .filter(|a| a.shot.block() == block_id.as_str())
                     .collect();
                 let Some(first) = shots.first() else {
                     continue;

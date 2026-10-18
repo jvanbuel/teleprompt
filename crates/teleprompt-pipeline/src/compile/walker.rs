@@ -16,7 +16,7 @@ use teleprompt_voice::cache::CacheKey;
 use teleprompt_voice::{SynthRequest, WordTiming};
 
 use super::cue::at_offset_ms;
-use super::{NarrationDetail, ShotSource, VoiceContext, PAUSE_SCENE};
+use super::{About, NarrationDetail, ShotSource, VoiceContext, PAUSE_SCENE};
 
 /// An included file as an author would find it from where they invoked
 /// teleprompt: `steps.mock`, not `./steps.mock`.
@@ -58,7 +58,7 @@ pub(super) struct Walker<'a, 'v> {
     pub(super) items: Vec<Item>,
     pub(super) narration: Vec<NarrationDetail>,
     pub(super) shots: BTreeMap<ShotId, ShotSource>,
-    pub(super) warnings: Vec<String>,
+    pub(super) warnings: Vec<(About, String)>,
     pending: Option<Pending>,
 }
 
@@ -219,7 +219,8 @@ impl<'a, 'v> Walker<'a, 'v> {
         // An unreadable entry is a miss, but say so: otherwise the line
         // silently reverts to `estimated`.
         if let Some(w) = read.warning() {
-            self.warnings.push(format!("line `{id}`: {w}"));
+            self.warnings
+                .push((About::Line(LineId::from(id)), format!("line `{id}`: {w}")));
         }
         Some(match read.hit() {
             Some(hit) => (hit.duration_ms, DurationSource::Measured, hit.word_timings),
@@ -235,11 +236,14 @@ impl<'a, 'v> Walker<'a, 'v> {
         // A block `from` drafted runs commands lifted from another document;
         // warn until a human removes the attribute.
         if b.review.as_deref() == Some("pending") {
-            self.warnings.push(format!(
-                "action block `{}` is marked `review=pending`: \
+            self.warnings.push((
+                About::Block(b.block_id.clone()),
+                format!(
+                    "action block `{}` is marked `review=pending`: \
 it was drafted from another document and has not been reviewed. \
 Read it, then remove the attribute.",
-                b.block_id
+                    b.block_id
+                ),
             ));
         }
         let Some((body, origin, fragment)) = self.load_body(b) else {

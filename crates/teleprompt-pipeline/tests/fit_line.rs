@@ -92,7 +92,7 @@ fn a_line_too_long_for_its_picture_stops_at_the_bound_and_says_what_to_cut() {
     let out = compile_it(&picture(clip / 2)).unwrap();
     let n = out.timeline.entries[0].narration.as_ref().unwrap();
     assert_eq!(n.tempo_permille, Tempo::new(1150));
-    let w = out.warnings.join("\n");
+    let w = messages(&out).join("\n");
     assert!(w.contains("deploy") && w.contains("max_line_speed"), "{w}");
     // Twice too long at 1.15x: about 5 of its 11 words to go.
     assert!(w.contains("cut about 5 of its 11 words"), "{w}");
@@ -109,7 +109,7 @@ fn a_line_short_for_its_picture_slows_to_the_bound_and_the_picture_plays_on() {
     );
     assert_eq!(entry.duration_ms, SpanMs::of(clip * 2 + 300));
     assert!(
-        out.warnings.join("\n").contains("min_line_speed"),
+        messages(&out).join("\n").contains("min_line_speed"),
         "{:?}",
         out.warnings
     );
@@ -159,4 +159,9 @@ fn fit_line_needs_a_length_and_takes_no_budget_where_the_shot_has_one() {
     );
     let cued = errors("policy=fit-line cue=\"streams\"\nwait 2s");
     assert!(cued.iter().any(|e| e.contains("cue")), "{cued:?}");
+}
+
+/// What each warning says.
+fn messages(out: &teleprompt_pipeline::compile::CompileOutput) -> Vec<&str> {
+    out.warnings.iter().map(|w| w.message.as_str()).collect()
 }
