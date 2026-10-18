@@ -34,4 +34,14 @@ confidence-threshold = 0.9
 #
 #   cargo deny --all-features check advisories
 [advisories]
-ignore = []
+ignore = [
+    # zip 2.4.2, extracting a ZIP: SUID/SGID bits kept (0367), symlinks
+    # out of the destination (0368) and permissions set through them
+    # (0369); fixed in zip 9. Only sherpa-onnx-sys's build script uses it,
+    # behind the opt-in `sherpa` feature, to unpack sherpa-onnx's own
+    # release archive for Apple targets; nothing shipped links it. 1.13.8, the latest release, pins zip 2; upstream master is
+    # on zip 9. Remove all three once sherpa-onnx publishes that.
+    { id = "RUSTSEC-2026-0367", reason = "zip: build-time only, sherpa-onnx-sys pins zip 2" },
+    { id = "RUSTSEC-2026-0368", reason = "zip: build-time only, sherpa-onnx-sys pins zip 2" },
+    { id = "RUSTSEC-2026-0369", reason = "zip: build-time only, sherpa-onnx-sys pins zip 2" },
+]
