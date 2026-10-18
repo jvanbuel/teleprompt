@@ -171,12 +171,9 @@ mod capture {
             height: 1080,
             fps: 30,
         };
-        job_for(
-            &session,
-            &frame,
-            Path::new("/p/src/index.ts"),
-            Path::new("/c"),
-        )
+        job_for(&session, &frame, Path::new("/p/src/index.ts"), |s| {
+            Path::new("/c").join(format!("{}.mp4", s.key))
+        })
         .unwrap()
     }
 

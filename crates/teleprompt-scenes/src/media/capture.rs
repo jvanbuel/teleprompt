@@ -12,28 +12,9 @@ use teleprompt_scene::capture::{
     CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session, SessionShot,
 };
 
+use teleprompt_scene::capture::still::{self, filter_value, fit};
+
 use crate::media::scene::{directive, Directive};
-
-/// A value inside an ffmpeg filter argument.
-fn filter_value(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace(':', "\\:")
-        .replace('\'', "\\'")
-}
-
-/// Fit a picture to the frame: letterboxed, or filling it and cropped.
-fn fit(frame: &Frame, cover: bool, background: &str) -> String {
-    let (w, h) = (frame.width, frame.height);
-    if cover {
-        format!("scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}")
-    } else {
-        format!(
-            "scale={w}:{h}:force_original_aspect_ratio=decrease,\
-             pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color={}",
-            filter_value(background)
-        )
-    }
-}
 
 /// The ffmpeg arguments for one shot. `dir` is the media directory and
 /// `work` where a title's text files are written.
@@ -55,9 +36,8 @@ pub fn args(
         .to_vec();
     let vf = match directive(&shot.source)? {
         Directive::Image { src, cover } => {
-            a.extend(["-loop", "1", "-framerate", &fps, "-t", "1", "-i"].map(String::from));
-            a.push(dir.join(src).display().to_string());
-            fit(frame, cover, background)
+            let filter = fit(frame, cover, background);
+            return Some(still::clip_args(&dir.join(src), frame, &filter, clip));
         }
         Directive::Clip {
             src,

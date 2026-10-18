@@ -11,7 +11,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use teleprompt_scene::capture::{
-    absolute, CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
+    absolute, still, CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session,
 };
 
 use crate::slidev::scene::{parse, Step};
@@ -35,29 +35,7 @@ pub fn range(steps: &[Step]) -> String {
 /// The ffmpeg arguments that make one still into a clip filling `frame`,
 /// letterboxed rather than stretched.
 pub(crate) fn clip_args(still: &Path, frame: &Frame, clip: &Path) -> Vec<String> {
-    let (w, h) = (frame.width, frame.height);
-    vec![
-        "-hide_banner".into(),
-        "-loglevel".into(),
-        "error".into(),
-        "-y".into(),
-        "-loop".into(),
-        "1".into(),
-        "-framerate".into(),
-        frame.fps.to_string(),
-        "-i".into(),
-        still.display().to_string(),
-        "-t".into(),
-        "1".into(),
-        "-vf".into(),
-        format!(
-            "scale={w}:{h}:force_original_aspect_ratio=decrease,\
-             pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,format=yuv420p"
-        ),
-        "-c:v".into(),
-        "libx264".into(),
-        clip.display().to_string(),
-    ]
+    still::clip_args(still, frame, &still::fit(frame, false, "black"), clip)
 }
 
 /// Records `slidev` scenes by exporting the deck's slides.

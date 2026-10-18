@@ -5,11 +5,12 @@
 //! it. There is no reel to cut, and a cached shot is not rendered at all:
 //! a composition does not open on the screen the one before it left.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use teleprompt_scene::capture::{
-    absolute, CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session, WorkDir,
+    absolute, CaptureBackend, CaptureError, Clip, Frame, Job, Progress, Session, SessionShot,
+    WorkDir,
 };
 
 use crate::remotion::scene::parse;
@@ -22,12 +23,12 @@ pub fn frames(ms: u64, fps: u32) -> u64 {
 }
 
 /// The job `render.mjs` reads: what to bundle, and each wanted shot's
-/// composition, props, length and clip path.
+/// composition, props, length and clip path, which `clip` gives.
 pub fn job_for(
     session: &Session,
     frame: &Frame,
     entry: &Path,
-    out_dir: &Path,
+    clip: impl Fn(&SessionShot) -> PathBuf,
 ) -> Result<serde_json::Value, (String, String)> {
     let mut shots = Vec::new();
     for shot in session.shots.iter().filter(|s| s.wanted) {
@@ -41,7 +42,7 @@ pub fn job_for(
             "composition": call.composition,
             "props": call.props,
             "frames": frames(shot.duration_ms, frame.fps),
-            "out": out_dir.join(format!("{}.mp4", shot.key)),
+            "out": clip(shot),
         }));
     }
     Ok(serde_json::json!({
@@ -100,9 +101,11 @@ impl CaptureBackend for RemotionRender {
             )));
         }
         let entry = project.join(&settings.entry);
-        let out_dir = absolute(out_dir);
-        let job_json =
-            job_for(session, frame, &entry, &out_dir).map_err(|(s, why)| job.failed(&s, why))?;
+        // Absolute: Node runs inside the project, not where teleprompt does.
+        let job_json = job_for(session, frame, &entry, |shot| {
+            absolute(&job.clip_path(shot))
+        })
+        .map_err(|(s, why)| job.failed(&s, why))?;
 
         // Inside the project, so Node finds its node_modules by walking up.
         let work = WorkDir::create(&project, "teleprompt-remotion")

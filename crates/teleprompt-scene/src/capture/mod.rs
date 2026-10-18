@@ -6,6 +6,7 @@
 mod job;
 pub mod mock;
 pub mod reel;
+pub mod still;
 
 pub use job::{absolute, Job};
 
