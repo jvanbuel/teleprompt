@@ -148,7 +148,7 @@ impl CaptureBackend for MediaRender {
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
         let mut job = Job::new("media", session, frame, out_dir, on_progress);
-        let dir = session.path("dir", "media");
+        let dir = crate::media::Settings::of(session).dir;
         let work = job.work_dir()?;
         for shot in job.wanted() {
             let clip = job.clip_path(shot);

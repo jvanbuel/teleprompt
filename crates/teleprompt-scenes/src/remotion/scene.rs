@@ -125,16 +125,8 @@ impl SceneCompiler for RemotionScene {
     /// the whole project, which defaults to `.` and would be the whole
     /// repository.
     fn inputs(&self, scene: &SceneConfig) -> Vec<PathBuf> {
-        let setting = |key: &str, default: &str| {
-            scene
-                .settings
-                .get(key)
-                .and_then(|v| v.as_str())
-                .unwrap_or(default)
-                .to_string()
-        };
-        let project = scene.path("project", ".");
-        let entry = project.join(setting("entry", "src/index.ts"));
+        let crate::remotion::Settings { project, entry } = crate::remotion::Settings::of(scene);
+        let entry = project.join(entry);
         let mut out: Vec<PathBuf> = entry.parent().map(Path::to_path_buf).into_iter().collect();
         out.extend(
             [

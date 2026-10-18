@@ -325,3 +325,37 @@ pub trait SceneCompiler: Send + Sync {
         ))
     }
 }
+
+/// A scene's settings as both halves of a plugin read them: its compile
+/// half from the project's [`SceneConfig`](teleprompt_core::config::SceneConfig),
+/// its capture half from the [`Session`](crate::capture::Session) capture
+/// builds from it. A plugin reads each setting through one typed struct
+/// built from this, so the files its capture key covers are the files its
+/// capture reads.
+pub trait SceneSettings {
+    /// Setting `key`, if it is given as text.
+    fn value(&self, key: &str) -> Option<&str>;
+
+    /// What a relative path among the settings is relative to.
+    fn root(&self) -> &std::path::Path;
+
+    /// Setting `key`, or `default`.
+    fn value_or<'a>(&'a self, key: &str, default: &'a str) -> &'a str {
+        self.value(key).unwrap_or(default)
+    }
+
+    /// Setting `key` as a path, or `default`, against [`Self::root`].
+    fn path_or(&self, key: &str, default: &str) -> std::path::PathBuf {
+        self.root().join(self.value_or(key, default))
+    }
+}
+
+impl SceneSettings for teleprompt_core::config::SceneConfig {
+    fn value(&self, key: &str) -> Option<&str> {
+        self.settings.get(key).and_then(|v| v.as_str())
+    }
+
+    fn root(&self) -> &std::path::Path {
+        &self.root
+    }
+}

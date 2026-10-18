@@ -92,7 +92,7 @@ impl CaptureBackend for SlidevRender {
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
         let mut job = Job::new("slidev", session, frame, out_dir, on_progress);
-        let deck = absolute(&session.path("deck", "slides.md"));
+        let deck = absolute(&crate::slidev::Settings::of(session).deck);
         let dir = deck.parent().unwrap_or(Path::new(".")).to_path_buf();
         let Some(slidev) = dir
             .ancestors()

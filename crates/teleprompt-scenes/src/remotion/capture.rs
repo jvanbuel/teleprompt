@@ -89,7 +89,8 @@ impl CaptureBackend for RemotionRender {
         on_progress: &mut dyn FnMut(Progress),
     ) -> Result<Vec<Clip>, CaptureError> {
         let mut job = Job::new("remotion", session, frame, out_dir, on_progress);
-        let project = absolute(&session.path("project", "."));
+        let settings = crate::remotion::Settings::of(session);
+        let project = absolute(&settings.project);
         if !project.join("node_modules/@remotion/renderer").is_dir()
             || !project.join("node_modules/@remotion/bundler").is_dir()
         {
@@ -98,7 +99,7 @@ impl CaptureBackend for RemotionRender {
                 project.display()
             )));
         }
-        let entry = project.join(session.setting("entry", "src/index.ts"));
+        let entry = project.join(&settings.entry);
         let out_dir = absolute(out_dir);
         let job_json =
             job_for(session, frame, &entry, &out_dir).map_err(|(s, why)| job.failed(&s, why))?;

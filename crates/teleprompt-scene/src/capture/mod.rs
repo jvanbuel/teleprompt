@@ -55,6 +55,59 @@ pub struct Session {
     pub shots: Vec<SessionShot>,
 }
 
+impl crate::contract::SceneSettings for Session {
+    fn value(&self, key: &str) -> Option<&str> {
+        self.settings.get(key).map(String::as_str)
+    }
+
+    fn root(&self) -> &Path {
+        &self.root
+    }
+}
+
+/// A scene's settings as a session carries them: as strings.
+///
+/// Non-scalar values are left out rather than rendered as YAML, except one
+/// level of nesting, flattened with a dot, so `env:` can be a map:
+///
+/// ```yaml
+/// scene:
+///   terminal:
+///     env:
+///       PATH: target/release:/usr/bin
+/// ```
+pub fn session_settings(
+    settings: &BTreeMap<String, serde_json::Value>,
+) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for (key, value) in settings {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (name, value) in map {
+                    if let Some(text) = scalar(value) {
+                        out.insert(format!("{key}.{name}"), text);
+                    }
+                }
+            }
+            other => {
+                if let Some(text) = scalar(other) {
+                    out.insert(key.clone(), text);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn scalar(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        serde_json::Value::Bool(b) => Some(b.to_string()),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionShot {
     pub id: ShotId,

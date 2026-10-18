@@ -11,7 +11,9 @@ use serde::Serialize;
 use teleprompt_core::ShotId;
 use teleprompt_manifest::NarrationManifest;
 use teleprompt_pipeline::compile::ShotSource;
-use teleprompt_scene::capture::{sessions, CaptureBackend, Frame, PlannedShot, Progress, Session};
+use teleprompt_scene::capture::{
+    session_settings, sessions, CaptureBackend, Frame, PlannedShot, Progress, Session,
+};
 use teleprompt_scene::{ScenePlugin, ScenePlugins};
 use teleprompt_script::config::SceneConfig;
 
@@ -46,51 +48,10 @@ fn cues_of(
             duration_ms: item.duration_ms.ms(),
             settings: scenes
                 .get(&item.scene)
-                .map(|s| flatten(&s.settings))
+                .map(|s| session_settings(&s.settings))
                 .unwrap_or_default(),
         })
         .collect()
-}
-
-/// A scene's settings as strings.
-///
-/// Non-scalar values are left out rather than rendered as YAML, except one
-/// level of nesting, flattened with a dot, so `env:` can be a map:
-///
-/// ```yaml
-/// scene:
-///   terminal:
-///     env:
-///       PATH: target/release:/usr/bin
-/// ```
-fn flatten(settings: &BTreeMap<String, serde_json::Value>) -> BTreeMap<String, String> {
-    let mut out = BTreeMap::new();
-    for (key, value) in settings {
-        match value {
-            serde_json::Value::Object(map) => {
-                for (name, value) in map {
-                    if let Some(text) = scalar(value) {
-                        out.insert(format!("{key}.{name}"), text);
-                    }
-                }
-            }
-            other => {
-                if let Some(text) = scalar(other) {
-                    out.insert(key.clone(), text);
-                }
-            }
-        }
-    }
-    out
-}
-
-fn scalar(value: &serde_json::Value) -> Option<String> {
-    match value {
-        serde_json::Value::String(s) => Some(s.clone()),
-        serde_json::Value::Number(n) => Some(n.to_string()),
-        serde_json::Value::Bool(b) => Some(b.to_string()),
-        _ => None,
-    }
 }
 
 #[derive(Debug, Serialize)]

@@ -26,7 +26,7 @@ mod scene_plugin;
 
 pub use contract::{
     is_content, select_marked, split_at_mark, validate_commands, validate_parts, BlockSource,
-    BodyOrigin, CommandError, Measured, SceneCompiler, Shot, Validated,
+    BodyOrigin, CommandError, Measured, SceneCompiler, SceneSettings, Shot, Validated,
 };
 pub use mock::MockScene;
 pub use scene_plugin::{PluginRecorder, ScenePlugin, ScenePlugins};
