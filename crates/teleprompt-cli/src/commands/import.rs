@@ -81,7 +81,7 @@ impl Args {
     fn is_session(&self) -> bool {
         self.voice.is_some()
             || self.with.is_some()
-            || recorder_for(crate::cli::registry(), None, &self.source).is_ok()
+            || recorder_for(crate::cli::registry(), None, Some(&self.source)).is_ok()
     }
 
     /// The flags given that are for the other kind of source.

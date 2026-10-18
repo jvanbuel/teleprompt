@@ -78,7 +78,7 @@ const TAIL_MS: u64 = 250;
 
 pub fn run_import(imp: &Import) -> Result<ImportReport, DraftError> {
     refuse_to_replace(imp.script, imp.force)?;
-    let recorder = recorder_for(imp.registry, imp.with, imp.recording)?;
+    let recorder = recorder_for(imp.registry, imp.with, Some(imp.recording))?;
     let text = std::fs::read_to_string(imp.recording)
         .map_err(|e| format!("cannot read {}: {e}", imp.recording.display()))?;
     let recorded = recorder.read(&text).map_err(|e| DraftError::Unreadable {
@@ -99,30 +99,32 @@ pub fn run_import(imp: &Import) -> Result<ImportReport, DraftError> {
     })
 }
 
-/// The recorder `with` names, or the one whose recordings have
-/// `recording`'s extension.
+/// The recorder `with` names; or, with none, the one that made
+/// `recording`, by its extension; or, with neither, the default.
 pub fn recorder_for(
     registry: Registry,
     with: Option<&str>,
-    recording: &Path,
+    recording: Option<&Path>,
 ) -> Result<PluginRecorder<'static>, DraftError> {
-    let all = registry.scenes.recorders();
-    let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
+    let ext = recording.map(|r| r.extension().and_then(|e| e.to_str()).unwrap_or(""));
+    if let Some(found) = registry.scenes.recorder(with, ext) {
+        return Ok(found);
+    }
+    let names: Vec<&str> = registry
+        .scenes
+        .recorders()
+        .iter()
+        .map(|r| r.plugin)
+        .collect();
     let names = names.join(", ");
-    let ext = recording.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let found = all.into_iter().find(|r| match with {
-        Some(name) => r.plugin == name,
-        None => r.extension() == ext,
-    });
-    found.ok_or_else(|| {
-        DraftError::Other(match with {
-            Some(name) => format!("`{name}` cannot record a session; these can: {names}"),
-            None => format!(
-                "cannot tell which tool made {}; name it with --with ({names})",
-                recording.display()
-            ),
-        })
-    })
+    Err(DraftError::Other(match (with, recording) {
+        (Some(name), _) => format!("`{name}` cannot record a session; these can: {names}"),
+        (None, Some(recording)) => format!(
+            "cannot tell which tool made {}; name it with --with ({names})",
+            recording.display()
+        ),
+        (None, None) => "nothing in this build can record a session".to_string(),
+    }))
 }
 
 /// A script about to be drafted over an existing one without `--force`.

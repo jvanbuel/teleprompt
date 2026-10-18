@@ -77,6 +77,8 @@ pub struct ScenePlugins {
     /// The names of those this build ships, which a program of the same
     /// name does not replace.
     shipped: Vec<&'static str>,
+    /// The recorder `record` uses when the author names none.
+    first_recorder: Option<&'static str>,
 }
 
 impl ScenePlugins {
@@ -92,7 +94,16 @@ impl ScenePlugins {
         Self {
             plugins: out,
             shipped: Vec::new(),
+            first_recorder: None,
         }
+    }
+
+    /// These, with `name`'s recorder the one used when none is named;
+    /// otherwise the first registered.
+    #[must_use]
+    pub fn recording_first(mut self, name: &'static str) -> Self {
+        self.first_recorder = Some(name);
+        self
     }
 
     /// These, with `names` the ones this build ships.
@@ -111,9 +122,10 @@ impl ScenePlugins {
     /// These, and `plugin` unless one has its name.
     #[must_use]
     pub fn with(self, plugin: ScenePlugin) -> Self {
-        let shipped = self.shipped;
+        let (shipped, first_recorder) = (self.shipped, self.first_recorder);
         let mut out = Self::new(self.plugins.into_iter().chain([plugin]));
         out.shipped = shipped;
+        out.first_recorder = first_recorder;
         out
     }
 
@@ -153,8 +165,8 @@ impl ScenePlugins {
         self.plugins.iter().flat_map(ScenePlugin::needs).collect()
     }
 
-    /// The scene plugins that can record a session, asciinema first: it
-    /// records exactly, and what it shows is what was recorded.
+    /// The scene plugins that can record a session, the one used when
+    /// none is named first.
     pub fn recorders(&self) -> Vec<PluginRecorder<'_>> {
         let mut out: Vec<PluginRecorder<'_>> = self
             .plugins
@@ -166,8 +178,23 @@ impl ScenePlugins {
                 })
             })
             .collect();
-        out.sort_by_key(|r| r.plugin != "asciinema");
+        out.sort_by_key(|r| Some(r.plugin) != self.first_recorder);
         out
+    }
+
+    /// The recorder `name` names; or, with none, the one whose recordings
+    /// have `extension`; or, with neither, the one used by default.
+    pub fn recorder(
+        &self,
+        name: Option<&str>,
+        extension: Option<&str>,
+    ) -> Option<PluginRecorder<'_>> {
+        let all = self.recorders();
+        match (name, extension) {
+            (Some(name), _) => all.into_iter().find(|r| r.plugin == name),
+            (None, Some(ext)) => all.into_iter().find(|r| r.extension() == ext),
+            (None, None) => all.into_iter().next(),
+        }
     }
 }
 

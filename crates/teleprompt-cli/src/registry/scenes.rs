@@ -46,6 +46,8 @@ pub fn all() -> ScenePlugins {
             .chain(host::discover().into_iter().map(host::scene)),
     )
     .shipping(SHIPPED)
+    // It records exactly, and what it shows is what was recorded.
+    .recording_first("asciinema")
 }
 
 #[cfg(test)]
@@ -60,5 +62,20 @@ mod tests {
         let mut shipped = super::SHIPPED.to_vec();
         shipped.sort_unstable();
         assert_eq!(names, shipped);
+    }
+
+    /// `record` and `import` find a recorder by its name, by what its
+    /// recordings are called, or take asciinema's when told nothing.
+    #[test]
+    fn a_recorder_is_found_by_name_by_extension_or_by_default() {
+        let plugins = super::all();
+        let found = |name, ext| plugins.recorder(name, ext).map(|r| r.plugin);
+        assert_eq!(found(None, None), Some("asciinema"));
+        assert_eq!(plugins.recorders()[0].plugin, "asciinema");
+        assert_eq!(found(Some("vhs"), None), Some("vhs"));
+        assert_eq!(found(None, Some("tape")), Some("vhs"));
+        assert_eq!(found(None, Some("js")), Some("playwright"));
+        assert_eq!(found(Some("media"), None), None, "media records nothing");
+        assert_eq!(found(None, Some("mp3")), None);
     }
 }

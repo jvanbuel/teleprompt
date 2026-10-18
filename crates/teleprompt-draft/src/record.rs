@@ -50,7 +50,7 @@ pub fn run_record(r: &Record) -> Result<ImportReport, DraftError> {
                 .and_then(|()| std::fs::rename(&partial, path));
         }
     };
-    let result = recorder(r.registry, r.with).and_then(|recorder| {
+    let result = crate::import::recorder_for(r.registry, r.with, None).and_then(|recorder| {
         check(r, &recorder)?;
         record(r, &recorder, &say)
     });
@@ -64,19 +64,6 @@ pub fn run_record(r: &Record) -> Result<ImportReport, DraftError> {
         Err(e) => serde_json::json!({ "state": "failed", "error": e.to_string() }),
     });
     result
-}
-
-/// The recorder `with` names, asciinema's by default.
-fn recorder(registry: Registry, with: Option<&str>) -> Result<PluginRecorder<'static>, DraftError> {
-    let all = registry.scenes.recorders();
-    let names: Vec<&str> = all.iter().map(|r| r.plugin).collect();
-    let names = names.join(", ");
-    let wanted = with.unwrap_or("asciinema");
-    all.into_iter().find(|r| r.plugin == wanted).ok_or_else(|| {
-        DraftError::Other(format!(
-            "`{wanted}` cannot record a session; these can: {names}"
-        ))
-    })
 }
 
 /// Everything that could stop the draft, checked before anything is
@@ -123,7 +110,6 @@ fn record(
         .join(format!("{stem}-{stamp}"));
     std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
 
-    let voice = dir.join("voice.wav");
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let session = record_session(
         &**recorder,
@@ -159,7 +145,7 @@ fn record(
     say(serde_json::json!({ "state": "drafting" }));
     if !r.quiet {
         r.reporter
-            .note(&format!("transcribing {}", voice.display()));
+            .note(&format!("transcribing {}", session.voice.display()));
     }
     draft_session(&Session {
         registry: r.registry,
