@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "teleprompt: Markdown script to narrated video",
+    "output": ".archify/architecture-teleprompt-20261018-085304/teleprompt.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/jvanbuel/teleprompt",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "400cf640bab780b787f70e6913fe156fd9f73344"
+    }
+  },
+  "components": [
+    { "id": "apps", "type": "frontend", "label": "Desktop apps", "sublabel": "macOS · Linux", "pos": [40, 40], "size": [150, 64],
+      "sources": [
+        { "path": "apps/linux/src/launch.rs", "line": 1, "end_line": 35, "label": "runs teleprompt serve" },
+        { "path": "apps/macos/Sources/TelepromptKit/Launch.swift", "line": 9, "end_line": 20 }
+      ] },
+    { "id": "serve", "type": "frontend", "label": "Prompter", "sublabel": "serve · loopback HTTP/WS", "pos": [290, 40], "size": [150, 64],
+      "sources": [ { "path": "crates/teleprompt-serve/src/lib.rs", "line": 71, "end_line": 110, "label": "run_serve binds 127.0.0.1" } ] },
+    { "id": "script", "type": "backend", "label": "Script language", "sublabel": "parse · config · Program", "pos": [790, 40], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-script/src/lib.rs", "line": 1, "end_line": 16 },
+        { "path": "crates/teleprompt-script/src/ast.rs", "line": 5, "end_line": 68 }
+      ] },
+    { "id": "author", "type": "external", "label": "Author", "sublabel": "Markdown scripts", "pos": [40, 200], "size": [150, 64] },
+    { "id": "cli", "type": "backend", "label": "teleprompt CLI", "sublabel": "commands · registry", "pos": [290, 200], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-cli/src/main.rs", "line": 165, "end_line": 186, "label": "command dispatch" },
+        { "path": "crates/teleprompt-cli/src/registry/mod.rs", "line": 15, "end_line": 31, "label": "the one Registry" }
+      ] },
+    { "id": "project", "type": "backend", "label": "Project", "sublabel": "Builder · Dubber", "pos": [540, 200], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-project/src/build.rs", "line": 183, "end_line": 250, "label": "dub, capture, render" },
+        { "path": "crates/teleprompt-project/src/dub/mod.rs", "line": 162, "end_line": 200, "label": "voice + publish" }
+      ] },
+    { "id": "pipeline", "type": "backend", "label": "Pipeline", "sublabel": "compile · schedule", "pos": [790, 200], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-pipeline/src/compile/mod.rs", "line": 134, "end_line": 175 },
+        { "path": "crates/teleprompt-pipeline/src/schedule/mod.rs", "line": 1, "end_line": 11 }
+      ] },
+    { "id": "manifest", "type": "database", "label": "narration.json", "sublabel": "manifest + line audio", "pos": [1040, 200], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-manifest/src/lib.rs", "line": 1, "end_line": 28 },
+        { "path": "crates/teleprompt-project/src/dub/mod.rs", "line": 115, "end_line": 142, "label": "Dubber writes it" }
+      ] },
+    { "id": "scenes", "type": "backend", "label": "Scene plugins", "sublabel": "compiler · capture", "pos": [540, 360], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-scene/src/contract.rs", "line": 275, "end_line": 300, "label": "SceneCompiler" },
+        { "path": "crates/teleprompt-scene/src/capture/mod.rs", "line": 228, "end_line": 249, "label": "CaptureBackend" },
+        { "path": "crates/teleprompt-scenes/src/lib.rs", "line": 13, "end_line": 19 }
+      ] },
+    { "id": "voice", "type": "backend", "label": "Voice", "sublabel": "contract · cache", "pos": [790, 360], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-voice/src/contract.rs", "line": 147, "end_line": 180, "label": "VoiceBackend" },
+        { "path": "crates/teleprompt-voice/src/cache.rs", "line": 67, "end_line": 110, "label": "content-addressed cache" }
+      ] },
+    { "id": "render", "type": "backend", "label": "Renderer", "sublabel": "plan · chunk cache", "pos": [1040, 360], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-render/src/plan.rs", "line": 32, "end_line": 60, "label": "from_manifest" },
+        { "path": "crates/teleprompt-render/src/ffmpeg.rs", "line": 47, "end_line": 66, "label": "spawns ffmpeg" }
+      ] },
+    { "id": "tools", "type": "external", "label": "Recording tools", "sublabel": "VHS · Playwright · Slidev", "pos": [540, 520], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-scenes/src/vhs/mod.rs", "line": 1, "end_line": 18 },
+        { "path": "crates/teleprompt-scene/src/protocol/host.rs", "line": 1, "end_line": 30, "label": "outside plugin programs" }
+      ] },
+    { "id": "tts", "type": "external", "label": "Speech servers", "sublabel": "OpenAI API · Kokoro …", "pos": [790, 520], "size": [150, 64],
+      "sources": [
+        { "path": "crates/teleprompt-voices/src/openai/client.rs", "line": 90, "end_line": 100, "label": "POST /audio/speech" },
+        { "path": "crates/teleprompt-voices/src/lib.rs", "line": 1, "end_line": 14 }
+      ] },
+    { "id": "video", "type": "database", "label": "Video", "sublabel": "mp4 · captions · chapters", "pos": [1040, 520], "size": [150, 64],
+      "sources": [ { "path": "crates/teleprompt-project/src/build.rs", "line": 232, "end_line": 249 } ] }
+  ],
+  "connections": [
+    { "id": "author-cli", "from": "author", "to": "cli", "label": "commands", "variant": "emphasis" },
+    { "id": "apps-serve", "from": "apps", "to": "serve", "label": "runs serve" },
+    { "id": "cli-serve", "from": "cli", "to": "serve", "label": "serve" },
+    { "id": "serve-project", "from": "serve", "to": "project", "label": "Builder", "fromSide": "right", "toSide": "top" },
+    { "id": "cli-project", "from": "cli", "to": "project", "label": "Registry", "variant": "emphasis" },
+    { "id": "project-pipeline", "from": "project", "to": "pipeline", "label": "compile", "variant": "emphasis" },
+    { "id": "script-pipeline", "from": "script", "to": "pipeline", "label": "Program" },
+    { "id": "pipeline-manifest", "from": "pipeline", "to": "manifest", "label": "manifest", "variant": "emphasis" },
+    { "id": "manifest-render", "from": "manifest", "to": "render", "label": "reads", "variant": "emphasis" },
+    { "id": "render-video", "from": "render", "to": "video", "label": "ffmpeg", "variant": "emphasis" },
+    { "id": "project-scenes", "from": "project", "to": "scenes", "label": "capture" },
+    { "id": "scenes-tools", "from": "scenes", "to": "tools", "label": "record shots", "variant": "dashed" },
+    { "id": "pipeline-voice", "from": "pipeline", "to": "voice", "label": "line lengths" },
+    { "id": "voice-tts", "from": "voice", "to": "tts", "label": "synthesize", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Inner loop", "items": ["check and plan stop at the timeline: no synthesis, no audio, no sockets", "Line lengths come from the voice cache or the estimator"] },
+    { "dot": "cyan", "title": "build = dub + capture + render", "items": ["dub synthesizes, recompiles against the warm cache and writes narration.json", "Shots that cannot be recorded become slates, not failures", "The renderer reads only the manifest, never the pipeline"] },
+    { "dot": "violet", "title": "Plugin seams", "items": ["Scene plugins and voices are named only in the CLI registry", "Outside scene plugins run as programs over a JSON protocol", "Other front ends: lsp (editors), import/record drafts"] }
+  ]
+}
