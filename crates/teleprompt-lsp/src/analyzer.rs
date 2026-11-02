@@ -5,7 +5,6 @@ use std::path::Path;
 
 use super::{Analysis, Analyzer, Definition, Project as Outline};
 use teleprompt_core::Diagnostic;
-use teleprompt_script::config::{Config, PartialConfig};
 use teleprompt_script::program::{ActionElement, Element};
 
 use teleprompt_project::project::Compiled;
@@ -33,7 +32,7 @@ impl Analyzer for ProjectAnalyzer {
         let toml_path = project.config_path();
         let toml = std::fs::read_to_string(&toml_path).unwrap_or_default();
         let script_text = std::fs::read_to_string(script).unwrap_or_default();
-        let config = merged(&project, &script_text);
+        let config = project.config_of(&script_text);
         let speakers = config
             .voices
             .iter()
@@ -103,15 +102,6 @@ impl Analyzer for ProjectAnalyzer {
             },
         }
     }
-}
-
-/// The project's configuration with `script_text`'s front matter over it.
-fn merged(project: &Project, script_text: &str) -> Config {
-    let front = teleprompt_script::parse::parse_script(script_text)
-        .ok()
-        .and_then(|s| PartialConfig::from_yaml(&s.front_matter).ok())
-        .unwrap_or_default();
-    Config::merged(&[project.config.clone(), front])
 }
 
 /// The line, from 0, of the first line of `text` that reads `needle`.

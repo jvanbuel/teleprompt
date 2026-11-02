@@ -347,16 +347,20 @@ impl Project {
     }
 
     /// [`source_locale`](Self::source_locale) of a script's text, for an editor
-    /// holding changes not yet saved. Text that does not parse gets the
-    /// project's locale; compiling it reports why.
+    /// holding changes not yet saved.
     pub fn source_locale_in(&self, text: &str) -> String {
+        self.config_of(text).locales.source
+    }
+
+    /// The configuration of a script's text: the project's, with its front
+    /// matter over it, before any locale's section. Text that does not parse
+    /// gets the project's; compiling it reports why.
+    pub fn config_of(&self, text: &str) -> teleprompt_script::config::Config {
         let front = parse_script(text)
             .ok()
             .and_then(|s| PartialConfig::from_yaml(&s.front_matter).ok())
             .unwrap_or_default();
         teleprompt_script::config::Config::merged(&[self.config.clone(), front])
-            .locales
-            .source
     }
 
     /// `script` resolved for `locale`, untranslated: its configuration as that
