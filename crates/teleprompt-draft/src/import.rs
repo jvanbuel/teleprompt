@@ -195,7 +195,7 @@ pub fn draft_session(session: &Session) -> Result<ImportReport, DraftError> {
 
     // The script as the compiler reads it, which is what names its lines.
     let compiled = project
-        .script(session.script, project.source_locale())
+        .script(session.script, project.source_locale(session.script))
         .compile()
         .map(|c| c.output)
         .map_err(|problems| DraftError::DraftDoesNotCompile {

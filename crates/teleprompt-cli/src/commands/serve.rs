@@ -10,7 +10,7 @@ pub struct Args {
     /// The script to open; without one, the page opens on its welcome,
     /// which lists the project's scripts and sets teleprompt up
     pub script: Option<std::path::PathBuf>,
-    /// The locale to compile for; the project's `locales.source` if not given
+    /// The locale to compile for; the script's `locales.source` if not given
     #[arg(long, value_parser = crate::cli::language_tag)]
     pub locale: Option<String>,
     /// Port to listen on; 0 picks a free one

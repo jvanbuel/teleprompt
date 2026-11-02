@@ -93,7 +93,7 @@ impl Analyzer for ProjectAnalyzer {
             }
         };
         match project
-            .script(script, project.source_locale())
+            .script(script, project.source_locale_in(text))
             .compile_source(text)
         {
             Ok(compiled) => analysis(&compiled),

@@ -239,3 +239,24 @@ fn a_locale_that_is_not_a_language_tag_is_refused() {
         assert!(!err.contains("panicked"), "{err}");
     }
 }
+
+/// A script's front matter names the locale it is written in, over the
+/// project's, so a command given no `--locale` compiles the script as
+/// written instead of looking for a translation into the project's locale.
+#[test]
+fn a_script_is_compiled_in_the_locale_its_front_matter_names() {
+    let dir = project("front-matter");
+    std::fs::write(
+        dir.join("scripts/tour.md"),
+        format!("---\nlocales: {{ source: nl }}\n---\n\n{SCRIPT}"),
+    )
+    .unwrap();
+    let out = tp(&dir, &["--format", "json", "plan", "scripts/tour.md"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let timeline: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(timeline["locale"], "nl");
+}

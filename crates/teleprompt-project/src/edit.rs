@@ -50,7 +50,10 @@ impl Script {
         let io =
             |e: std::io::Error| Failure::Runtime(format!("cannot write {}: {e}", script.display()));
         std::fs::write(&edited, &after).map_err(io)?;
-        if let Err(mut errors) = project.script(&edited, project.source_locale()).compile() {
+        if let Err(mut errors) = project
+            .script(&edited, project.source_locale(&edited))
+            .compile()
+        {
             let _ = std::fs::remove_file(&edited);
             // The problems are the script's, not the copy's.
             let (copy, own) = (edited.to_string_lossy(), script.to_string_lossy());

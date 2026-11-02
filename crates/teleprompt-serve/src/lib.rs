@@ -136,7 +136,7 @@ impl Opener {
         let locale = self
             .locale
             .clone()
-            .unwrap_or_else(|| project.source_locale());
+            .unwrap_or_else(|| project.source_locale(script));
         let opened = project.script(script, locale);
         let prompt = opened.prompt().map_err(OpenError::Invalid)?;
         let hearing: Hearing = if voice {

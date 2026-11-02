@@ -19,7 +19,7 @@ pub type Run = Result<Outcome, Outcome>;
 #[derive(Args)]
 pub struct ScriptArgs {
     pub script: PathBuf,
-    /// The locale to compile for; the project's `locales.source` if not given
+    /// The locale to compile for; the script's `locales.source` if not given
     #[arg(long, value_parser = language_tag)]
     pub locale: Option<String>,
 }
@@ -28,7 +28,7 @@ impl ScriptArgs {
     pub fn locale(&self, project: &Project) -> String {
         self.locale
             .clone()
-            .unwrap_or_else(|| project.source_locale())
+            .unwrap_or_else(|| project.source_locale(&self.script))
     }
 
     /// The project the script is in.

@@ -431,7 +431,7 @@ fn speak_from(
         )
     })?;
     let compiled = project
-        .script(script, project.source_locale())
+        .script(script, project.source_locale(script))
         .compile()
         .map_err(|errors| {
             format!(

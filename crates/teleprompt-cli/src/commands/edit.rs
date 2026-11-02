@@ -61,7 +61,7 @@ pub enum Command {
 pub fn run(args: Args, format: crate::output::Format) -> crate::cli::Run {
     use teleprompt_project::edit::Edit;
     let project = crate::cli::project_for(&args.script)?;
-    let script = project.script(&args.script, project.source_locale());
+    let script = project.script(&args.script, project.source_locale(&args.script));
     let report = match args.edit {
         Command::Said { line } => script.keep_said(&line),
         Command::Keep { line, .. } => {

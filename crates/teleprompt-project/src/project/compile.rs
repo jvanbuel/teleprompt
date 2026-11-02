@@ -99,7 +99,7 @@ impl Script {
     #[must_use]
     pub fn in_source_locale(&self) -> Script {
         Self {
-            locale: self.project.source_locale(),
+            locale: self.project.source_locale(&self.path),
             ..self.clone()
         }
     }
@@ -336,13 +336,25 @@ impl Project {
     /// `script` resolved in its own language, for reading its narration rather
     /// than compiling it.
     pub(crate) fn source_program(&self, script: &Path) -> Result<Program, Diagnostics> {
-        self.resolved(script, &self.source_locale())
+        self.resolved(script, &self.source_locale(script))
     }
 
-    /// The language the project's scripts are written in: the locale a command
-    /// compiles for when none is given.
-    pub fn source_locale(&self) -> String {
-        teleprompt_script::config::Config::merged(std::slice::from_ref(&self.config))
+    /// The language `script` is written in: the locale a command compiles it
+    /// for when none is given. Its front matter's `locales.source` wins over
+    /// the project's, as every setting's does.
+    pub fn source_locale(&self, script: &Path) -> String {
+        self.source_locale_in(&std::fs::read_to_string(script).unwrap_or_default())
+    }
+
+    /// [`source_locale`](Self::source_locale) of a script's text, for an editor
+    /// holding changes not yet saved. Text that does not parse gets the
+    /// project's locale; compiling it reports why.
+    pub fn source_locale_in(&self, text: &str) -> String {
+        let front = parse_script(text)
+            .ok()
+            .and_then(|s| PartialConfig::from_yaml(&s.front_matter).ok())
+            .unwrap_or_default();
+        teleprompt_script::config::Config::merged(&[self.config.clone(), front])
             .locales
             .source
     }
