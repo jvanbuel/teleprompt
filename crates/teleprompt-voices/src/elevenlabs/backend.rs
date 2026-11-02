@@ -88,7 +88,14 @@ impl VoiceBackend for ElevenLabsVoice {
             Some(voice) => self.voice_id(voice).await?,
             None => DEFAULT_VOICE.to_string(),
         };
-        let (pcm, words) = self.client.speak(&req.text, &voice, req.speed).await?;
+        // Without it the model guesses the language from the text, and a
+        // short Dutch line can come out in another accent. The API takes the
+        // language alone and refuses `nl-BE`.
+        let language = req.locale.split(['-', '_']).next().unwrap_or("en");
+        let (pcm, words) = self
+            .client
+            .speak(&req.text, &voice, language, req.speed)
+            .await?;
         Ok(Synthesized {
             pcm,
             word_timings: (!words.is_empty()).then_some(words),

@@ -58,11 +58,12 @@ impl Client {
             })
     }
 
-    /// `text` in the voice `voice_id`, with when each word is said.
+    /// `text` in the voice `voice_id` and `language`, with when each word is said.
     pub async fn speak(
         &self,
         text: &str,
         voice_id: &str,
+        language: &str,
         speed: f64,
     ) -> Result<(Pcm, Vec<WordTiming>), VoiceError> {
         let mut settings = json!({ "speed": speed });
@@ -78,6 +79,7 @@ impl Client {
         let mut body = json!({
             "text": text,
             "model_id": self.cfg.model,
+            "language_code": language,
             "voice_settings": settings,
         });
         if let Some(seed) = self.cfg.seed {

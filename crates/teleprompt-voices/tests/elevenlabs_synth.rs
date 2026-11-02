@@ -88,6 +88,16 @@ async fn a_line_is_spoken_with_its_words_timed() {
     assert_eq!(body["seed"], 7);
 }
 
+/// The line's language is sent, as the language alone: the API refuses `nl-BE`.
+#[tokio::test]
+async fn the_language_is_sent_without_its_region() {
+    let stub = spawn(BTreeMap::from([(speech_route(DEFAULT_VOICE), spoken())])).await;
+    let mut line = req(None, 1.0);
+    line.locale = "nl-BE".into();
+    backend(&stub.base_url).synthesize(&line).await.unwrap();
+    assert_eq!(stub.first().json()["language_code"], "nl");
+}
+
 /// A voice is named as the account shows it, or by its id.
 #[tokio::test]
 async fn a_voice_is_found_by_its_name() {
